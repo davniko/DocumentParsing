@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.28,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "document-ocr-pipeline"
+version = "0.1.0"
+description = "Resumable, provenance-preserving GLM-OCR dataset extraction pipeline"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "aiosqlite>=0.22,<0.23",
+  "boto3>=1.43,<2",
+  "httpx>=0.28,<0.29",
+  "pillow>=12.3,<13",
+  "pyarrow>=25,<26",
+  "pydantic>=2.13,<3",
+  "pypdfium2>=5.12,<5.13",
+  "pyyaml>=6.0.3,<7",
+]
+
+[project.scripts]
+document-ocr = "document_ocr.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=2.3,<3",
+  "pypdf>=6.14,<7",
+  "pytest>=9.1,<10",
+  "pytest-asyncio>=1.4,<2",
+  "respx>=0.23,<0.24",
+  "ruff>=0.16,<0.17",
+  "types-pyyaml>=6.0.12.20260724",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/document_ocr"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+asyncio_mode = "strict"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF", "SIM", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["document_ocr"]
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["boto3.*", "pypdfium2.*", "pyarrow.*"]
+ignore_missing_imports = true

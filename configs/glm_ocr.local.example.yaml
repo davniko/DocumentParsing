@@ -1,0 +1,82 @@
+schema_version: 1
+
+source:
+  type: local
+  root: /absolute/path/to/source-pdfs
+  include_glob: "**/*.pdf"
+  dataset_version: replace-with-approved-source-snapshot-id
+  require_content_sha256: true
+
+output:
+  root: /absolute/path/to/ocr-artifacts
+  parquet_compression: zstd
+  write_batch_rows: 256
+
+run:
+  run_id: replace-with-immutable-run-id
+  fail_fast: false
+  resume: true
+
+raster:
+  dpi: 200
+  max_side_pixels: 3500
+  max_pixels: 12250000
+  max_pages_per_document: 500
+  max_pdf_bytes: 1000000000
+  max_cached_documents_per_process: 2
+  image_format: png
+  jpeg_quality: null
+  draw_annotations: true
+  reject_xfa: true
+
+vllm:
+  endpoint: http://127.0.0.1:8000
+  model: zai-org/GLM-OCR
+  served_model_name: glm-ocr
+  revision: ca5d8b3e287e52589e37c28385d9655ee4372f9d
+  engine_version: 0.26.0
+  container_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+  max_model_len: 32768
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.9
+  prompt: "Text Recognition:"
+  request_timeout_seconds: 300.0
+  api_key_env: VLLM_API_KEY
+  sampling:
+    temperature: 0.0
+    top_p: 0.00001
+    top_k: 1
+    repetition_penalty: 1.1
+    max_tokens: 8192
+    seed: 0
+  retry:
+    max_attempts: 4
+    initial_backoff_seconds: 0.5
+    max_backoff_seconds: 8.0
+    backoff_multiplier: 2.0
+    jitter_fraction: 0.2
+  speculative_decoding:
+    method: mtp
+    num_speculative_tokens: 1
+
+concurrency:
+  max_active_documents: 4
+  renderer_processes: 4
+  max_inflight_pages_global: 16
+  max_inflight_pages_per_document: 4
+
+benchmark:
+  points:
+    - max_inflight_pages_global: 1
+      max_inflight_pages_per_document: 1
+    - max_inflight_pages_global: 2
+      max_inflight_pages_per_document: 2
+    - max_inflight_pages_global: 4
+      max_inflight_pages_per_document: 4
+    - max_inflight_pages_global: 8
+      max_inflight_pages_per_document: 4
+    - max_inflight_pages_global: 16
+      max_inflight_pages_per_document: 4
+  warmup_pages: 8
+  measured_pages: 64
+  repetitions: 3

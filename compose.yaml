@@ -1,0 +1,64 @@
+name: document-ocr
+
+services:
+  glm-ocr-vllm:
+    image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+    shm_size: 8gb
+    ports:
+      - "127.0.0.1:${VLLM_PORT:-8000}:8000"
+    environment:
+      HF_HOME: /root/.cache/huggingface
+      VLLM_CACHE_ROOT: /root/.cache/vllm
+      PYTHONPATH: /opt/document-ocr-src
+      DOCUMENT_OCR_VLLM_IMAGE: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+      - vllm-cache:/root/.cache/vllm
+      - ./src:/opt/document-ocr-src:ro
+    command:
+      - --model
+      - zai-org/GLM-OCR
+      - --revision
+      - ca5d8b3e287e52589e37c28385d9655ee4372f9d
+      - --served-model-name
+      - glm-ocr
+      - --generation-config
+      - vllm
+      - --speculative-config.method
+      - mtp
+      - --speculative-config.num_speculative_tokens
+      - "1"
+      - --limit-mm-per-prompt
+      - '{"image":1}'
+      - --max-model-len
+      - "32768"
+      - --max-num-seqs
+      - "16"
+      - --gpu-memory-utilization
+      - "0.90"
+      - --api-key
+      - ${VLLM_API_KEY:?Set VLLM_API_KEY to a non-public secret}
+      - --middleware
+      - document_ocr.vllm_contract.runtime_contract_middleware
+      - --enable-request-id-headers
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()"
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 15m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  hf-cache:
+  vllm-cache:
