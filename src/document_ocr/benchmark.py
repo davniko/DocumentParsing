@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import asyncio
 import heapq
+import importlib.metadata
 import json
 import math
 import os
+import platform
 import stat
+import sys
 import time
 from collections import deque
 from collections.abc import Mapping, Sequence
@@ -43,6 +46,21 @@ from document_ocr.vllm_contract import runtime_contract_payload, runtime_contrac
 
 NonEmptyString = Annotated[str, StringConstraints(min_length=1)]
 _SHA256_PATTERN = "0123456789abcdef"
+_HARNESS_SOURCE_FILES = (
+    "atomic.py",
+    "benchmark.py",
+    "client.py",
+    "config.py",
+    "hashing.py",
+    "vllm_contract.py",
+)
+_HARNESS_DISTRIBUTIONS = (
+    "document-ocr-pipeline",
+    "httpcore",
+    "httpx",
+    "pillow",
+    "pydantic",
+)
 
 
 class BenchmarkError(RuntimeError):
@@ -197,6 +215,32 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 def _reject_nonfinite_json(value: str) -> None:
     raise ValueError(f"non-standard JSON number {value!r}")
+
+
+def _harness_identity() -> dict[str, Any]:
+    package_root = Path(__file__).resolve().parent
+    source_files: dict[str, str] = {}
+    for name in _HARNESS_SOURCE_FILES:
+        path = package_root / name
+        if not path.is_file() or path.is_symlink():
+            raise BenchmarkExecutionError(f"benchmark harness source is unavailable: {name}")
+        source_files[name] = sha256_file(path)
+
+    distributions: dict[str, str] = {}
+    for name in _HARNESS_DISTRIBUTIONS:
+        try:
+            distributions[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError as error:
+            raise BenchmarkExecutionError(
+                f"benchmark harness distribution is not installed: {name}"
+            ) from error
+    return {
+        "schema_version": 1,
+        "python_implementation": platform.python_implementation(),
+        "python_version": sys.version,
+        "distributions": distributions,
+        "source_files_sha256": source_files,
+    }
 
 
 def _file_signature(path: Path) -> tuple[int, int, int, int]:
@@ -753,6 +797,8 @@ async def run_benchmark(
     if sweep is None:
         raise BenchmarkError("pipeline config has no benchmark sweep")
     manifest = await asyncio.to_thread(load_raster_manifest, raster_manifest_path)
+    harness_identity = await asyncio.to_thread(_harness_identity)
+    harness_identity_sha256 = canonical_json_sha256(harness_identity)
     try:
         server = await client.check_readiness()
     except Exception as error:
@@ -778,6 +824,7 @@ async def run_benchmark(
             "raster_manifest_sha256": manifest.canonical_sha256,
             "raster_manifest_file_sha256": manifest.source_file_sha256,
             "server_identity_sha256": canonical_json_sha256(server_identity),
+            "harness_identity_sha256": harness_identity_sha256,
         }
     )
 
@@ -834,6 +881,9 @@ async def run_benchmark(
         }
         for entry in manifest.entries
     ]
+    final_harness_identity = await asyncio.to_thread(_harness_identity)
+    if final_harness_identity != harness_identity:
+        raise BenchmarkExecutionError("benchmark harness changed while the sweep was running")
     report: dict[str, Any] = {
         "schema_version": 1,
         "report_type": "glm-ocr-vllm-concurrency-benchmark",
@@ -842,6 +892,8 @@ async def run_benchmark(
         "resolved_config_sha256": resolved_config_sha256,
         "benchmark_config": benchmark_config,
         "benchmark_config_sha256": benchmark_config_sha256,
+        "harness_identity": harness_identity,
+        "harness_identity_sha256": harness_identity_sha256,
         "raster_manifest": {
             "source_path": str(manifest.source_path),
             "source_file_sha256": manifest.source_file_sha256,

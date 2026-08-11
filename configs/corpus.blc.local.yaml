@@ -1,0 +1,13 @@
+schema_version: 1
+
+document_type: blc
+destination_root: /mnt/d/Projects/DocumentParsing/data/corpora/blc-combined-6c9854ca458c
+
+sources:
+  - snapshot_config: /mnt/d/Projects/DocumentParsing/configs/s3_snapshot.blc_swb.yaml
+  - snapshot_config: /mnt/d/Projects/DocumentParsing/configs/s3_snapshot.old_classified.yaml
+  - snapshot_config: /mnt/d/Projects/DocumentParsing/configs/s3_snapshot.old_blc_unprocessed.yaml
+
+expected_manifest_sha256: 6c9854ca458cd66d22c2ee608e892db3819f0c27c63d19f5d91ecc7b619e5e36
+verification_workers: 16
+max_pdf_bytes: 20000000

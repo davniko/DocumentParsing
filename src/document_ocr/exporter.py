@@ -104,23 +104,30 @@ def _validated_record(model: type[BaseModel], raw: Mapping[str, Any]) -> BaseMod
     return record
 
 
-def _validate_raw_response(run_root: Path, record: PageExtractionRecord) -> int:
+def _validate_page_artifact(
+    run_root: Path,
+    *,
+    relative_path: str,
+    expected_sha256: str,
+    expected_size: int | None,
+    artifact_name: str,
+) -> int:
     root = run_root.resolve(strict=True)
-    target = run_root / record.raw_response_path
+    target = run_root / relative_path
     try:
         resolved = target.resolve(strict=True)
     except OSError as error:
         raise DatasetPublicationError(
-            f"raw response artifact is missing: {record.raw_response_path}"
+            f"{artifact_name} artifact is missing: {relative_path}"
         ) from error
     if not resolved.is_relative_to(root) or resolved != Path(os.path.abspath(target)):
         raise DatasetPublicationError(
-            f"raw response artifact traverses outside the run: {record.raw_response_path}"
+            f"{artifact_name} artifact traverses outside the run: {relative_path}"
         )
     missing_flags = [name for name in ("O_CLOEXEC", "O_NOFOLLOW") if not hasattr(os, name)]
     if missing_flags:
         raise DatasetPublicationError(
-            "safe raw-response validation requires operating-system flags: "
+            f"safe {artifact_name} validation requires operating-system flags: "
             + ", ".join(missing_flags)
         )
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
@@ -128,14 +135,14 @@ def _validate_raw_response(run_root: Path, record: PageExtractionRecord) -> int:
         descriptor = os.open(resolved, flags)
     except OSError as error:
         raise DatasetPublicationError(
-            f"raw response artifact cannot be opened safely: {record.raw_response_path}"
+            f"{artifact_name} artifact cannot be opened safely: {relative_path}"
         ) from error
     digest = hashlib.sha256()
     size_bytes = 0
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise DatasetPublicationError(
-                f"raw response artifact is not a regular file: {record.raw_response_path}"
+                f"{artifact_name} artifact is not a regular file: {relative_path}"
             )
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
             while chunk := stream.read(1024 * 1024):
@@ -143,11 +150,33 @@ def _validate_raw_response(run_root: Path, record: PageExtractionRecord) -> int:
                 size_bytes += len(chunk)
     finally:
         os.close(descriptor)
-    if digest.hexdigest() != record.raw_response_sha256:
-        raise DatasetPublicationError(
-            f"raw response artifact hash mismatch: {record.raw_response_path}"
-        )
+    if digest.hexdigest() != expected_sha256:
+        raise DatasetPublicationError(f"{artifact_name} artifact hash mismatch: {relative_path}")
+    if expected_size is not None and size_bytes != expected_size:
+        raise DatasetPublicationError(f"{artifact_name} artifact size mismatch: {relative_path}")
     return size_bytes
+
+
+def _validate_raw_response(run_root: Path, record: PageExtractionRecord) -> int:
+    return _validate_page_artifact(
+        run_root,
+        relative_path=record.raw_response_path,
+        expected_sha256=record.raw_response_sha256,
+        expected_size=None,
+        artifact_name="raw response",
+    )
+
+
+def _validate_raster(run_root: Path, record: PageExtractionRecord) -> int:
+    if record.raster_path is None:
+        raise DatasetPublicationError("cannot validate a missing retained raster path")
+    return _validate_page_artifact(
+        run_root,
+        relative_path=record.raster_path,
+        expected_sha256=record.raster_sha256,
+        expected_size=record.raster_size_bytes,
+        artifact_name="retained raster",
+    )
 
 
 def _write_rows(
@@ -182,6 +211,8 @@ async def _stage_parquet(
     row_count = 0
     raw_response_bytes = 0
     raw_response_paths: set[str] = set()
+    raster_bytes = 0
+    raster_paths: set[str] = set()
     batch: list[dict[str, Any]] = []
     try:
         async for raw in records:
@@ -195,6 +226,13 @@ async def _stage_parquet(
                 raw_response_bytes += await asyncio.to_thread(
                     _validate_raw_response, run_root, record
                 )
+                if record.raster_path is not None:
+                    if record.raster_path in raster_paths:
+                        raise DatasetPublicationError(
+                            f"duplicate retained raster pointer: {record.raster_path}"
+                        )
+                    raster_paths.add(record.raster_path)
+                    raster_bytes += await asyncio.to_thread(_validate_raster, run_root, record)
             batch.append(record.model_dump(mode="python"))
             if len(batch) == batch_rows:
                 await asyncio.to_thread(_write_rows, writer, schema, batch)
@@ -209,6 +247,8 @@ async def _stage_parquet(
     metadata = await asyncio.to_thread(_validate_staged_parquet, path, schema, row_count, model)
     metadata["raw_response_artifact_count"] = len(raw_response_paths)
     metadata["raw_response_bytes"] = raw_response_bytes
+    metadata["raster_artifact_count"] = len(raster_paths)
+    metadata["raster_bytes"] = raster_bytes
     return metadata
 
 
@@ -267,6 +307,7 @@ async def publish_complete_dataset(
     run_root: Path,
     batch_rows: int,
     compression: str,
+    retain_page_images: bool,
 ) -> PublishedDataset:
     """Publish verified page/attempt Parquet files and the manifest last."""
 
@@ -339,6 +380,11 @@ async def publish_complete_dataset(
         "raw_responses": {
             "artifacts": files[0]["raw_response_artifact_count"],
             "bytes": files[0]["raw_response_bytes"],
+        },
+        "page_images": {
+            "retained": retain_page_images,
+            "artifacts": files[0]["raster_artifact_count"],
+            "bytes": files[0]["raster_bytes"],
         },
         "files": files,
     }

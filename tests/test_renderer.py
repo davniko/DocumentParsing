@@ -119,7 +119,12 @@ def test_inspection_preserves_rotation_geometry_boxes_and_annotations(
     document, page = inspect_page(pdf_path, 0, raster_config())
 
     assert document.page_count == 1
-    assert document.source_size_bytes == pdf_path.stat().st_size
+    source_stat = pdf_path.stat()
+    assert document.source_device == source_stat.st_dev
+    assert document.source_inode == source_stat.st_ino
+    assert document.source_size_bytes == source_stat.st_size
+    assert document.source_mtime_ns == source_stat.st_mtime_ns
+    assert document.source_ctime_ns == source_stat.st_ctime_ns
     assert document.form_type == "none"
     assert document.canonical_path == str(pdf_path.resolve())
     assert page.page_index == 0
@@ -238,6 +243,22 @@ def test_invalid_sources_and_output_contracts_surface_errors(tmp_path: Path) -> 
         render_page(valid_path, 0, tmp_path / "wrong.jpg", raster_config())
     with pytest.raises(PdfRenderError, match="must not overwrite"):
         render_page(valid_path, 0, valid_path, raster_config())
+
+
+def test_source_and_output_paths_never_traverse_symlinks(tmp_path: Path) -> None:
+    source = write_pdf(tmp_path / "source.pdf")
+    source_alias = tmp_path / "source-alias.pdf"
+    source_alias.symlink_to(source)
+    with pytest.raises(PdfOpenError, match="must not traverse symbolic links"):
+        inspect_pdf(source_alias, raster_config())
+
+    output_directory = tmp_path / "actual-output"
+    output_directory.mkdir()
+    output_alias = tmp_path / "output-alias"
+    output_alias.symlink_to(output_directory, target_is_directory=True)
+    with pytest.raises(PdfRenderError, match="must not traverse symbolic links"):
+        render_page(source, 0, output_alias / "page.png", raster_config())
+    assert list(output_directory.iterdir()) == []
 
 
 def test_xfa_is_rejected_and_unsupported_binary_never_silently_degrades(

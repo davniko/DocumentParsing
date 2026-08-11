@@ -585,9 +585,15 @@ class VllmOcrClient:
         message = choice.get("message")
         if not isinstance(message, dict):
             raise _InvalidResponseError("choice message must be an object")
+        if message.get("role") != "assistant":
+            raise _InvalidResponseError("choice message role must be 'assistant'")
         text = message.get("content")
         if not isinstance(text, str):
             raise _InvalidResponseError("OCR response content must be a string")
+        try:
+            text.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise _InvalidResponseError("OCR response content must be valid UTF-8") from error
 
         finish_reason = choice.get("finish_reason")
         if finish_reason == "length":

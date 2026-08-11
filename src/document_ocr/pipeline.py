@@ -7,6 +7,7 @@ import atexit
 import json
 import multiprocessing
 import os
+import stat
 import time
 from concurrent.futures import Executor, ProcessPoolExecutor
 from contextlib import suppress
@@ -45,12 +46,14 @@ from document_ocr.models import (
 )
 from document_ocr.provenance import collect_runtime_provenance
 from document_ocr.renderer import (
+    PdfInspection,
     PdfRendererError,
     RenderedPage,
     close_process_document_cache,
     inspect_pdf,
     render_page,
 )
+from document_ocr.renderer import SourceChangedError as RenderSourceChangedError
 from document_ocr.sources import (
     FrozenSourceInventory,
     MaterializedSource,
@@ -64,6 +67,10 @@ from document_ocr.sources import (
 
 class PipelineError(RuntimeError):
     """The extraction run could not satisfy its completeness contract."""
+
+
+class RasterPublicationError(PipelineError):
+    """A retained page image could not be published as an immutable artifact."""
 
 
 class _OcrClient(Protocol):
@@ -89,6 +96,7 @@ class RunPaths:
     ledger: Path
     source_scratch: Path
     raster_scratch: Path
+    page_images: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +132,7 @@ def run_paths(config: PipelineConfig) -> RunPaths:
         ledger=run_root / "state.sqlite3",
         source_scratch=source_scratch,
         raster_scratch=raster_scratch,
+        page_images=run_root / "page-images",
     )
 
 
@@ -312,6 +321,67 @@ def _raw_response_relative_path(provenance: PageProvenance, raw_response_sha256:
     )
 
 
+def _raster_relative_path(provenance: PageProvenance, rendered: RenderedPage) -> Path:
+    suffix = ".png" if rendered.raster.raster_image_format == "png" else ".jpg"
+    return (
+        Path("page-images")
+        / provenance.document_id
+        / provenance.page_id
+        / f"{rendered.raster.raster_sha256}{suffix}"
+    )
+
+
+def _validate_raster_entry(
+    path: Path,
+    *,
+    expected_size: int,
+) -> None:
+    required_flags = [name for name in ("O_CLOEXEC", "O_NOFOLLOW") if not hasattr(os, name)]
+    if required_flags:
+        raise RasterPublicationError(
+            "safe retained-raster validation requires operating-system flags: "
+            + ", ".join(required_flags)
+        )
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as error:
+        raise RasterPublicationError(f"retained raster cannot be opened safely: {path}") from error
+    try:
+        details = os.fstat(descriptor)
+        if not stat.S_ISREG(details.st_mode):
+            raise RasterPublicationError(f"retained raster is not a regular file: {path}")
+    finally:
+        os.close(descriptor)
+    if details.st_size != expected_size:
+        raise RasterPublicationError(f"retained raster size differs from renderer metadata: {path}")
+
+
+def _publish_retained_raster(
+    source: Path,
+    destination: Path,
+    *,
+    expected_size: int,
+) -> None:
+    destination_parent = _canonical_directory(destination.parent)
+    if destination.parent != destination_parent:
+        raise RasterPublicationError("retained raster destination is not canonical")
+    try:
+        os.link(source, destination, follow_symlinks=False)
+    except FileExistsError:
+        pass
+    except OSError as error:
+        raise RasterPublicationError(f"cannot publish retained raster: {destination}") from error
+    _validate_raster_entry(
+        destination,
+        expected_size=expected_size,
+    )
+    directory_fd = os.open(destination_parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
 def _success_record(
     *,
     provenance: PageProvenance,
@@ -319,6 +389,7 @@ def _success_record(
     response: OcrResponse,
     server_info: ServerInfo,
     config: PipelineConfig,
+    raster_path: Path | None,
     raw_response_path: Path,
     extraction_started_at: datetime,
     extraction_completed_at: datetime,
@@ -363,6 +434,7 @@ def _success_record(
             "total_duration_ms": total_duration_ms,
             "raw_ocr_text": response.text,
             "raw_ocr_text_sha256": sha256_bytes(response.text.encode("utf-8")),
+            "raster_path": None if raster_path is None else raster_path.as_posix(),
             "raw_response_sha256": response.raw_response_sha256,
             "raw_response_path": raw_response_path.as_posix(),
         },
@@ -374,6 +446,7 @@ async def _process_page(
     *,
     provenance: PageProvenance,
     materialized: MaterializedSource,
+    inspected_document: PdfInspection,
     config: PipelineConfig,
     paths: RunPaths,
     ledger: ExtractionLedger,
@@ -402,6 +475,10 @@ async def _process_page(
                 str(raster_path),
                 config.raster,
             )
+            if rendered.document != inspected_document:
+                raise RenderSourceChangedError(
+                    "renderer source identity changed after document inspection"
+                )
         except (PdfRendererError, OSError) as error:
             failure = _page_failure(
                 provenance=provenance,
@@ -416,6 +493,34 @@ async def _process_page(
                 raise PipelineError(f"page render failed: {provenance.page_id}") from error
             return
 
+        retained_raster_path: Path | None = None
+        inference_raster_path = Path(rendered.output_path)
+        if config.output.retain_page_images:
+            retained_raster_path = _raster_relative_path(provenance, rendered)
+            try:
+                await asyncio.to_thread(
+                    _publish_retained_raster,
+                    Path(rendered.output_path),
+                    paths.run_root / retained_raster_path,
+                    expected_size=rendered.raster.raster_size_bytes,
+                )
+            except (RasterPublicationError, OSError) as error:
+                failure = _page_failure(
+                    provenance=provenance,
+                    stage="raster_publish",
+                    error=error,
+                    attempt_count=prior_attempt_count,
+                    retryable=False,
+                    last_request_id=prior_request_id,
+                )
+                await ledger.record_failure(failure=failure)
+                if config.run.fail_fast:
+                    raise PipelineError(
+                        f"retained raster publication failed: {provenance.page_id}"
+                    ) from error
+                return
+            inference_raster_path = paths.run_root / retained_raster_path
+
         queue_started = time.perf_counter()
         async with inference_semaphore:
             queue_duration_ms = (time.perf_counter() - queue_started) * 1000.0
@@ -425,7 +530,7 @@ async def _process_page(
             inference_started = time.perf_counter()
             try:
                 response = await client.recognize_page(
-                    Path(rendered.output_path),
+                    inference_raster_path,
                     mime_type=rendered.raster.raster_mime_type,
                     raster_sha256=rendered.raster.raster_sha256,
                     request_id=provenance.extraction_id,
@@ -488,6 +593,7 @@ async def _process_page(
                 response=response,
                 server_info=server_info,
                 config=config,
+                raster_path=retained_raster_path,
                 raw_response_path=raw_relative_path,
                 extraction_started_at=extraction_started_at,
                 extraction_completed_at=extraction_completed_at,
@@ -631,6 +737,7 @@ async def _process_document(
                     await _process_page(
                         provenance=page,
                         materialized=materialized,
+                        inspected_document=inspection,
                         config=config,
                         paths=paths,
                         ledger=ledger,
@@ -711,6 +818,7 @@ async def _publish_and_complete(
         run_root=paths.run_root,
         batch_rows=config.output.write_batch_rows,
         compression=config.output.parquet_compression,
+        retain_page_images=config.output.retain_page_images,
     )
     await ledger.mark_complete(
         run_id=config.run.run_id,

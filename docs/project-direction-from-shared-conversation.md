@@ -438,6 +438,12 @@ content-addressed `pages-<16-char-sha256-prefix>.parquet`,
 `attempts-<16-char-sha256-prefix>.parquet`, then commits `dataset/manifest.json` last. Terminal
 failure diagnostics remain in SQLite and prevent a completed manifest from being published.
 
+Hard-crash recovery preserves the same evidence boundaries: an inventory missing only its digest
+commit marker is accepted only after typed canonical revalidation; an S3 scratch PDF whose hash was
+not yet returned to the caller is re-proven against the same exact object `VersionId`; inference
+attempts and their page outcome are committed atomically; and each rendered page is bound to the
+scratch-file identity observed during the document inspection that established its page count.
+
 The page dataset repeats the full provenance contract on each row. Pages belonging to one source
 document are grouped by `document_id`, ordered by `page_index`, and checked against
 `document_page_count`; file order or Parquet row adjacency never defines a document. The exact raw
@@ -447,6 +453,6 @@ Compose pins the vLLM container digest, model revision, MTP depth, one-image lim
 `max-model-len`, `max-num-seqs`, and GPU-memory utilization. These scheduler/model values are
 literal in `compose.yaml` and must match the extraction YAML. The client verifies an authenticated,
 hashed contract generated from the running server's resolved vLLM state before extraction.
-Structural validation uses
-`docker compose --env-file .env config --quiet` so the resolved API key is not printed. Neither
+Structural validation uses the automatically loaded project-root `.env` with
+`docker compose config --quiet` so the resolved API key is not printed. Neither
 that validation command nor any repository test starts the server, loads GLM-OCR, or uses a GPU.

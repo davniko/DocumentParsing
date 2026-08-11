@@ -1,0 +1,36 @@
+schema_version: 1
+
+bucket: runpod-mpci-docparsing-workspace
+raw_prefix: data-processing/OLD-dataset/01_raw/doc-classification-data (processing)/
+region: us-east-1
+destination_root: /mnt/d/Projects/DocumentParsing/data/snapshots/old-dataset-classified-fa3419bdc44d
+
+document_types:
+  - awbc
+  - blc
+  - coo
+  - inv
+  - pl
+
+classification_label_mapping:
+  awbc: awbc
+  blc: blc
+  coo: coo
+  inv: inv
+  pl: pl
+
+classification_manifests:
+  - key: data-processing/dataset/03_filtered/manifest.jsonl
+    expected_sha256: dd172d58c0e93295a0654b7e4e23b2da50cc10d7fd8884bcd57d5fee8f61f1de
+    local_name: old-dataset-filtered.jsonl
+
+expected_selection_sha256: fa3419bdc44d61ff9dffc795047e10de9b0a4f9e10536113a482567c511e8b94
+
+page_count_quarantine: []
+
+download:
+  workers: 16
+  chunk_size_bytes: 8388608
+  page_inspection_processes: 4
+  max_attempts: 5
+  max_pdf_bytes: 20000000

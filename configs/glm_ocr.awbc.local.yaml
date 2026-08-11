@@ -2,19 +2,19 @@ schema_version: 1
 
 source:
   type: local
-  root: /absolute/path/to/source-pdfs
+  root: /mnt/d/Projects/DocumentParsing/data/snapshots/old-dataset-classified-fa3419bdc44d/extraction/awbc
   include_glob: "**/*.pdf"
-  dataset_version: replace-with-approved-source-snapshot-id
+  dataset_version: old-dataset-awbc-local-snapshot-f7c106350ad10c191c79a62761af755e7b84aaa7c5ab42dfcbf03d43b7d3433d
   require_content_sha256: true
 
 output:
-  root: /absolute/path/to/ocr-artifacts
+  root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/old-dataset/awbc
   retain_page_images: true
   parquet_compression: zstd
   write_batch_rows: 256
 
 run:
-  run_id: replace-with-immutable-run-id
+  run_id: glm-ocr-awbc-f7c106350ad1
   fail_fast: false
   resume: true
 
@@ -22,8 +22,8 @@ raster:
   dpi: 200
   max_side_pixels: 3500
   max_pixels: 12250000
-  max_pages_per_document: 500
-  max_pdf_bytes: 1000000000
+  max_pages_per_document: 150
+  max_pdf_bytes: 20000000
   max_cached_documents_per_process: 2
   image_format: png
   jpeg_quality: null

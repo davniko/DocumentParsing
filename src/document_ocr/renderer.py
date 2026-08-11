@@ -79,7 +79,11 @@ class PdfInspection:
     """Bounded document-level facts obtained before scheduling page work."""
 
     canonical_path: str
+    source_device: int
+    source_inode: int
     source_size_bytes: int
+    source_mtime_ns: int
+    source_ctime_ns: int
     page_count: int
     pdf_version: int | None
     form_type: PdfFormType
@@ -183,11 +187,14 @@ def _file_identity(pdf_path: str | Path) -> _FileIdentity:
     path = Path(pdf_path)
     if not path.is_absolute():
         raise PdfOpenError("PDF path must be absolute for reproducible worker execution")
+    absolute = Path(os.path.abspath(path))
     try:
         canonical_path = path.resolve(strict=True)
         stat = canonical_path.stat()
     except (FileNotFoundError, NotADirectoryError, OSError) as exc:
         raise PdfOpenError(f"cannot stat PDF source {path}: {exc}") from exc
+    if canonical_path != absolute:
+        raise PdfOpenError(f"PDF source must not traverse symbolic links: {path}")
     if not canonical_path.is_file():
         raise PdfOpenError(f"PDF source is not a regular file: {canonical_path}")
     if stat.st_size <= 0:
@@ -319,7 +326,11 @@ def _validate_document_limits(entry: _CachedDocument, config: RasterConfig) -> N
 def _document_inspection(entry: _CachedDocument) -> PdfInspection:
     return PdfInspection(
         canonical_path=entry.identity.canonical_path,
+        source_device=entry.identity.device,
+        source_inode=entry.identity.inode,
         source_size_bytes=entry.identity.size_bytes,
+        source_mtime_ns=entry.identity.mtime_ns,
+        source_ctime_ns=entry.identity.ctime_ns,
         page_count=entry.page_count,
         pdf_version=entry.pdf_version,
         form_type=entry.form_type,
@@ -478,7 +489,10 @@ def _validate_output_path(
     path = Path(output_path)
     if not path.is_absolute():
         raise PdfRenderError("raster output path must be absolute")
+    absolute = Path(os.path.abspath(path))
     resolved = path.resolve(strict=False)
+    if resolved != absolute:
+        raise PdfRenderError(f"raster output path must not traverse symbolic links: {path}")
     if str(resolved) == source_path:
         raise PdfRenderError("raster output path must not overwrite the source PDF")
     if resolved.suffix.lower() not in _expected_output_suffixes(image_format):

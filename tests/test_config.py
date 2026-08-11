@@ -57,6 +57,7 @@ def valid_config_data() -> dict[str, Any]:
         },
         "output": {
             "root": "/data/ocr-output",
+            "retain_page_images": False,
             "parquet_compression": "zstd",
             "write_batch_rows": 256,
         },
@@ -210,6 +211,7 @@ def valid_page_record_data() -> dict[str, Any]:
         "total_duration_ms": 262.5,
         "raw_ocr_text": "  Heading\n\nbody text\n",
         "raw_ocr_text_sha256": hashlib.sha256(b"  Heading\n\nbody text\n").hexdigest(),
+        "raster_path": None,
         "raw_response_sha256": "1" * 64,
         "raw_response_path": "raw_responses/document-001/page-000002.json",
     }
@@ -321,6 +323,7 @@ source:
   require_content_sha256: true
 output:
   root: /data/output
+  retain_page_images: false
   parquet_compression: zstd
   write_batch_rows: 64
 run: {run_id: run-1, fail_fast: false, resume: true}

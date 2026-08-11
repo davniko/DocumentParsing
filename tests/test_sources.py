@@ -490,6 +490,31 @@ def test_s3_materialization_hashes_exact_version_and_closes_body(tmp_path: Path)
     ]
     assert client.returned_bodies[0].closed
 
+    # A hard crash can leave the fsynced scratch link while the caller still
+    # holds only the inventory row (whose content hash is intentionally absent).
+    # Re-downloading the exact S3 version proves and safely adopts that link.
+    resumed = materialize_source(
+        source,
+        scratch,
+        max_pdf_bytes=1_000_000,
+        s3_client=client,
+    )
+    assert resumed == materialized
+    assert len(client.get_calls) == 2
+    assert client.returned_bodies[1].closed
+
+    materialized.path.write_bytes(PDF_B)
+    with pytest.raises(SourceChangedError, match="scratch destination conflicts"):
+        materialize_source(
+            source,
+            scratch,
+            max_pdf_bytes=1_000_000,
+            s3_client=client,
+        )
+    assert materialized.path.read_bytes() == PDF_B
+    assert len(client.get_calls) == 3
+    assert client.returned_bodies[2].closed
+
 
 def test_s3_materialization_rejects_body_length_or_checksum_change(tmp_path: Path) -> None:
     scratch = tmp_path / "scratch"
@@ -549,6 +574,40 @@ def test_inventory_is_canonical_hashed_immutable_and_reloadable(tmp_path: Path) 
     assert [item.source_uri for item in frozen.objects] == sorted(
         item.source_uri for item in objects
     )
+
+
+def test_inventory_load_recovers_valid_inventory_only_crash_state(tmp_path: Path) -> None:
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "a.pdf").write_bytes(PDF_A)
+    objects = discover_sources(local_config(root), max_pdf_bytes=1_000_000)
+    inventory_path = tmp_path / "run" / "inventory.jsonl"
+    frozen = freeze_source_inventory(inventory_path, objects)
+    frozen.digest_path.unlink()
+
+    recovered = load_source_inventory(inventory_path)
+
+    assert recovered == frozen
+    assert recovered.digest_path.read_text(encoding="ascii") == (
+        f"{recovered.sha256}  inventory.jsonl\n"
+    )
+
+
+def test_inventory_recovery_never_commits_noncanonical_bytes(tmp_path: Path) -> None:
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "a.pdf").write_bytes(PDF_A)
+    objects = discover_sources(local_config(root), max_pdf_bytes=1_000_000)
+    inventory_path = tmp_path / "inventory.jsonl"
+    frozen = freeze_source_inventory(inventory_path, objects)
+    frozen.digest_path.unlink()
+    inventory_path.write_bytes(
+        inventory_path.read_bytes().replace(b'"document_id":', b' "document_id":')
+    )
+
+    with pytest.raises(SourceChangedError, match="not in canonical deterministic form"):
+        load_source_inventory(inventory_path)
+    assert not frozen.digest_path.exists()
 
 
 def test_inventory_refuses_overwrite_and_detects_digest_tampering(tmp_path: Path) -> None:

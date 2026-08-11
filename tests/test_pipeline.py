@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from concurrent.futures import Executor, Future
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pyarrow.parquet as pq
 import pytest
@@ -65,6 +67,7 @@ class FakeOcrClient:
         self.request_calls = 0
         self.active_requests = 0
         self.maximum_active_requests = 0
+        self.raster_paths: list[Path] = []
 
     async def check_readiness(self) -> ServerInfo:
         self.readiness_calls += 1
@@ -85,7 +88,12 @@ class FakeOcrClient:
         raster_bytes = await asyncio.to_thread(raster_path.read_bytes)
         assert raster_bytes.startswith(b"\x89PNG\r\n\x1a\n")
         assert sha256_bytes(raster_bytes) == raster_sha256
-        page_index = int(raster_path.stem.removeprefix("page-"))
+        self.raster_paths.append(raster_path)
+        page_index = (
+            int(raster_path.stem.removeprefix("page-"))
+            if raster_path.stem.startswith("page-")
+            else self.request_calls
+        )
         self.request_calls += 1
         self.active_requests += 1
         self.maximum_active_requests = max(self.maximum_active_requests, self.active_requests)
@@ -143,6 +151,16 @@ class RasterRejectingClient(FakeOcrClient):
     ) -> OcrResponse:
         del raster_path, mime_type, raster_sha256, request_id, first_attempt_number
         raise VllmRasterError("synthetic raster identity drift")
+
+
+class InlineExecutor(Executor):
+    def submit(self, fn: Any, /, *args: Any, **kwargs: Any) -> Future[Any]:
+        future: Future[Any] = Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except BaseException as error:
+            future.set_exception(error)
+        return future
 
 
 def _write_pdf(path: Path, page_count: int) -> None:
@@ -297,6 +315,65 @@ async def test_pipeline_extracts_real_pdf_pages_and_resumes_without_server(
 
 
 @pytest.mark.asyncio
+async def test_pipeline_retains_content_addressed_page_image_and_exports_pointer(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    output_root = tmp_path / "output"
+    source_root.mkdir()
+    source_pdf = source_root / "one-page.pdf"
+    _write_pdf(source_pdf, page_count=1)
+    config = _pipeline_config(source_root, output_root)
+    config = PipelineConfig.model_validate(
+        {
+            **config.model_dump(mode="python"),
+            "output": {
+                **config.output.model_dump(mode="python"),
+                "retain_page_images": True,
+            },
+        },
+        strict=True,
+    )
+    client = FakeOcrClient()
+
+    result = await run_pipeline(
+        project_root=Path(__file__).parents[1],
+        config=config,
+        ocr_client=client,
+        executor=InlineExecutor(),
+    )
+
+    run_root = output_root / "runs" / config.run.run_id
+    manifest = json.loads(result.dataset_manifest.read_bytes())
+    assert manifest["page_images"]["retained"] is True
+    assert manifest["page_images"]["artifacts"] == 1
+    assert manifest["page_images"]["bytes"] > 0
+    pages_path = run_root / manifest["files"][0]["path"]
+    page = pq.read_table(
+        pages_path,
+        columns=[
+            "local_canonical_path",
+            "local_relative_key",
+            "source_sha256",
+            "raster_path",
+            "raster_sha256",
+            "raster_size_bytes",
+        ],
+    ).to_pylist()[0]
+    raster_relative = Path(page["raster_path"])
+    raster = run_root / raster_relative
+    assert raster_relative.parts[:1] == ("page-images",)
+    assert raster.is_file()
+    assert raster.stat().st_size == page["raster_size_bytes"]
+    assert sha256_file(raster) == page["raster_sha256"]
+    assert page["local_canonical_path"] == str(source_pdf.resolve())
+    assert page["local_relative_key"] == source_pdf.name
+    assert page["source_sha256"] == sha256_file(source_pdf)
+    assert client.raster_paths == [raster]
+    assert not list((run_root / "scratch" / "rasters").rglob("*.png"))
+
+
+@pytest.mark.asyncio
 async def test_status_for_missing_run_does_not_create_output_directories(
     tmp_path: Path,
 ) -> None:
@@ -341,6 +418,49 @@ async def test_raster_identity_failure_is_durable_and_never_creates_dataset(
     assert failures[0]["inference_attempt_count"] == 0
     assert failures[0]["last_inference_request_id"] is None
     assert attempts == []
+
+
+@pytest.mark.asyncio
+async def test_rendered_page_must_match_initially_inspected_source_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_root = tmp_path / "source"
+    output_root = tmp_path / "output"
+    source_root.mkdir()
+    _write_pdf(source_root / "one-page.pdf", page_count=1)
+    config = _pipeline_config(source_root, output_root)
+    data = config.model_dump(mode="python")
+    data["run"]["fail_fast"] = False
+    config = PipelineConfig.model_validate(data, strict=True)
+    original_render_page = pipeline_module.render_page
+
+    def return_drifted_document_identity(*args: Any) -> object:
+        rendered = original_render_page(*args)
+        drifted_document = replace(
+            rendered.document,
+            source_ctime_ns=rendered.document.source_ctime_ns + 1,
+        )
+        return replace(rendered, document=drifted_document)
+
+    monkeypatch.setattr(pipeline_module, "render_page", return_drifted_document_identity)
+    client = FakeOcrClient()
+    with pytest.raises(IncompleteRunError, match="incomplete"):
+        await run_pipeline(
+            project_root=Path(__file__).parents[1],
+            config=config,
+            ocr_client=client,
+            executor=InlineExecutor(),
+        )
+    pipeline_module.close_process_document_cache()
+
+    assert client.request_calls == 0
+    run_root = output_root / "runs" / config.run.run_id
+    async with ExtractionLedger(run_root / "state.sqlite3") as ledger:
+        failures = [row async for row in ledger.iter_page_failures(config.run.run_id)]
+    assert len(failures) == 1
+    assert failures[0]["failure_stage"] == "render"
+    assert failures[0]["error_type"] == "SourceChangedError"
 
 
 @pytest.mark.asyncio

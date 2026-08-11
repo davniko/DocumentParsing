@@ -1,0 +1,93 @@
+schema_version: 1
+
+bucket: runpod-mpci-docparsing-workspace
+region: us-east-1
+destination_root: /mnt/d/Projects/DocumentParsing/data/catalogs/classification-catalog-d52a5273b036
+
+lineages:
+  - name: old
+    initial_manifest:
+      key: data-processing/dataset/02_cleaned/manifest.jsonl
+      expected_sha256: c6ae25242e9144216f2ef8fc7f28d1cfdade5a259a456fdca0e704a2b155d4af
+      local_name: initial-manifest.jsonl
+    final_manifest:
+      key: data-processing/dataset/03_filtered/manifest.jsonl
+      expected_sha256: dd172d58c0e93295a0654b7e4e23b2da50cc10d7fd8884bcd57d5fee8f61f1de
+      local_name: final-manifest.jsonl
+    dropped_report:
+      key: data-processing/dataset/03_filtered/reports/dropped.csv
+      expected_sha256: c0b1d9b14f3af3b694a096fa3f652eef10b16cb11837adca0723f1be36ad9b5d
+      local_name: dropped.csv
+    relabeled_report:
+      key: data-processing/dataset/03_filtered/reports/relabeled.csv
+      expected_sha256: ae12380e0775f0ad368eae299977cd00f3545616d92e8b8abe57da0483e2f74b
+      local_name: relabeled.csv
+    review_report:
+      key: data-processing/dataset/03_filtered/reports/review.csv
+      expected_sha256: 75335f4aae9f413b2404f95898669c0a0307280e5f826bcd15b07fc4054f92b1
+      local_name: review.csv
+
+  - name: new_existing
+    initial_manifest:
+      key: data-processing/NEW-dataset/dataset/02_cleaned/manifest.jsonl
+      expected_sha256: 8c91e29fe65838b72e77dceb3505c33213db2649c4f9ba699aea1d90deb03111
+      local_name: initial-manifest.jsonl
+    final_manifest:
+      key: data-processing/NEW-dataset/dataset/03_filtered/manifest.jsonl
+      expected_sha256: 82585b1b18d76cd8fb9d48b3bf2778ea9a82cbe6ab0647cfe96dbcbaed5b2842
+      local_name: final-manifest.jsonl
+    dropped_report:
+      key: data-processing/NEW-dataset/dataset/03_filtered/reports/dropped.csv
+      expected_sha256: 3b0f0e9286e6f678b4789b37d73830c981a59c01a3a47f2c850e04e99c538013
+      local_name: dropped.csv
+    relabeled_report:
+      key: data-processing/NEW-dataset/dataset/03_filtered/reports/relabeled.csv
+      expected_sha256: ce24320cefdcbf018b2863bc610f3d5bfd726c193741c4ac0e682855318abfb6
+      local_name: relabeled.csv
+    review_report: null
+
+  - name: new_aci
+    initial_manifest:
+      key: data-processing/NEW-dataset/dataset_aci_blc_new_batch_2026-02-16/02_cleaned/manifest.jsonl
+      expected_sha256: 6926bf1afffa28934e5a8df1e5d8ea7cae79344149eb5d7da5f0daced0c63370
+      local_name: initial-manifest.jsonl
+    final_manifest:
+      key: data-processing/NEW-dataset/dataset_aci_blc_new_batch_2026-02-16/03_filtered/manifest.jsonl
+      expected_sha256: 95dec3d694dc8911a5f2d73d555068e40bf561016c885d7a10b58f82955b66f3
+      local_name: final-manifest.jsonl
+    dropped_report:
+      key: data-processing/NEW-dataset/dataset_aci_blc_new_batch_2026-02-16/03_filtered/reports/dropped.csv
+      expected_sha256: 75d5236d21bd32487d36f4e1815f4d5c44d85f5077a0e102b901539c869433f5
+      local_name: dropped.csv
+    relabeled_report:
+      key: data-processing/NEW-dataset/dataset_aci_blc_new_batch_2026-02-16/03_filtered/reports/relabeled.csv
+      expected_sha256: cebd48eba17558f1696e17e790bb6307db210d57dd4bfce38415661bfc5fcbbf
+      local_name: relabeled.csv
+    review_report: null
+
+raw_sources:
+  - lineage: old
+    role: primary
+    prefix: data-processing/OLD-dataset/01_raw/doc-classification-data (processing)/
+  - lineage: old
+    role: mirror
+    prefix: data-processing/OLD-dataset/01_raw/blc - unprocessed/
+  - lineage: new_existing
+    role: primary
+    prefix: data-processing/NEW-dataset/01_raw/doc-classification-data (processing)/
+  - lineage: new_aci
+    role: primary
+    prefix: data-processing/NEW-dataset/01_raw/aci_blc_new_batch_2026-02-16/
+
+local_snapshots:
+  - snapshot_config: /mnt/d/Projects/DocumentParsing/configs/s3_snapshot.blc_swb.yaml
+  - snapshot_config: /mnt/d/Projects/DocumentParsing/configs/s3_snapshot.old_classified.yaml
+  - snapshot_config: /mnt/d/Projects/DocumentParsing/configs/s3_snapshot.old_blc_unprocessed.yaml
+
+expected_catalog_sha256: d52a5273b036a96d004cbe4d653485d78c9c2523499b40dfa4ff8719742b9a37
+expected_raw_inventory_sha256: 7f8176f2f4272ee83b1433004d539ae3dff6f04bc9d4fb41af8021123b6130cd
+
+network_workers: 8
+max_attempts: 5
+download_chunk_size_bytes: 8388608
+max_source_artifact_bytes: 268435456

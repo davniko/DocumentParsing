@@ -1,0 +1,31 @@
+schema_version: 1
+
+bucket: runpod-mpci-docparsing-workspace
+raw_prefix: data-processing/OLD-dataset/01_raw/blc - unprocessed/
+region: us-east-1
+destination_root: /mnt/d/Projects/DocumentParsing/data/snapshots/old-dataset-blc-unprocessed-f6d32e628074
+
+document_types:
+  - blc
+
+# This prefix is the exact 294-name mirror of the original `unclassified/pdf`
+# source folder. The complete pre-filter manifest supplies its page inventory;
+# the explicit map records the user's decision to process this copied prefix as BLC.
+classification_label_mapping:
+  unclassified: blc
+
+classification_manifests:
+  - key: data-processing/dataset/03_filtered/manifest.filtered.jsonl
+    expected_sha256: 6afebccba987c6a0cb0247867f27302e63d5c912d6b125e5945edd74893d874c
+    local_name: old-dataset-complete-pre-filter.jsonl
+
+expected_selection_sha256: f6d32e628074cbb4422bcb4b93c76b6c88b50a267a3665a3f9076283a040f85c
+
+page_count_quarantine: []
+
+download:
+  workers: 16
+  chunk_size_bytes: 8388608
+  page_inspection_processes: 4
+  max_attempts: 5
+  max_pdf_bytes: 20000000

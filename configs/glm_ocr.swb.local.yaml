@@ -2,19 +2,19 @@ schema_version: 1
 
 source:
   type: local
-  root: /absolute/path/to/source-pdfs
+  root: /mnt/d/Projects/DocumentParsing/data/snapshots/new-dataset-blc-swb-818dff0fc583/extraction/swb
   include_glob: "**/*.pdf"
-  dataset_version: replace-with-approved-source-snapshot-id
+  dataset_version: new-dataset-swb-local-snapshot-f51bf86e1afdcd96fce1595bec0b8f12b3a6d32050b1aa263c669ef82052adba
   require_content_sha256: true
 
 output:
-  root: /absolute/path/to/ocr-artifacts
+  root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/new-dataset/swb
   retain_page_images: true
   parquet_compression: zstd
   write_batch_rows: 256
 
 run:
-  run_id: replace-with-immutable-run-id
+  run_id: glm-ocr-swb-f51bf86e1afd
   fail_fast: false
   resume: true
 
@@ -22,8 +22,8 @@ raster:
   dpi: 200
   max_side_pixels: 3500
   max_pixels: 12250000
-  max_pages_per_document: 500
-  max_pdf_bytes: 1000000000
+  max_pages_per_document: 50
+  max_pdf_bytes: 5000000
   max_cached_documents_per_process: 2
   image_format: png
   jpeg_quality: null

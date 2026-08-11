@@ -389,6 +389,17 @@ class ExtractionLedger:
             raise LedgerConflictError(
                 "raw_response_path is not bound to page identity and response hash"
             )
+        raster_suffix = ".png" if result.raster_image_format == "png" else ".jpg"
+        expected_raster_path = (
+            f"page-images/{result.document_id}/{result.page_id}/"
+            f"{result.raster_sha256}{raster_suffix}"
+            if config.output.retain_page_images
+            else None
+        )
+        if result.raster_path != expected_raster_path:
+            raise LedgerConflictError(
+                "raster_path conflicts with the initialized page-image retention policy"
+            )
 
     async def initialize_run(
         self,

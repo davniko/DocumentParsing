@@ -712,7 +712,8 @@ def load_source_inventory(path: str | Path) -> FrozenSourceInventory:
         raise SourceDiscoveryError("source inventory must be non-empty newline-delimited JSON")
     digest = sha256_bytes(payload)
     expected_digest_payload = f"{digest}  {inventory_path.name}\n".encode("ascii")
-    if _read_regular_file_no_follow(digest_path) != expected_digest_payload:
+    digest_exists = digest_path.exists() or digest_path.is_symlink()
+    if digest_exists and _read_regular_file_no_follow(digest_path) != expected_digest_payload:
         raise SourceChangedError(f"source inventory digest does not match: {inventory_path}")
 
     objects: list[SourceObject] = []
@@ -728,6 +729,11 @@ def load_source_inventory(path: str | Path) -> FrozenSourceInventory:
         raise SourceChangedError(
             f"source inventory is not in canonical deterministic form: {inventory_path}"
         )
+    if not digest_exists:
+        # The inventory is fsynced and hard-linked before its digest commit marker.
+        # A hard crash between those two publications leaves complete canonical
+        # bytes that can be safely recommitted after full model/canonical validation.
+        _publish_immutable(digest_path, expected_digest_payload)
     return FrozenSourceInventory(
         path=inventory_path,
         digest_path=digest_path,
@@ -924,16 +930,25 @@ def materialize_source(
     scratch = _canonical_directory(Path(scratch_dir), create=False)
     destination = scratch / f"{source.document_id}.pdf"
     if destination.exists() or destination.is_symlink():
-        digest = _validate_existing_materialization(
-            destination,
-            source,
-            max_pdf_bytes=max_pdf_bytes,
-        )
-        enriched = SourceObject.model_validate(
-            {**source.model_dump(), "source_sha256": digest},
-            strict=True,
-        )
-        return MaterializedSource(path=destination, source=enriched)
+        if source.source_sha256 is not None:
+            digest = _validate_existing_materialization(
+                destination,
+                source,
+                max_pdf_bytes=max_pdf_bytes,
+            )
+            enriched = SourceObject.model_validate(
+                {**source.model_dump(), "source_sha256": digest},
+                strict=True,
+            )
+            return MaterializedSource(path=destination, source=enriched)
+        if source.source_type != "s3":
+            raise SourceChangedError(
+                f"scratch destination exists but source has no proven SHA-256: {destination}"
+            )
+        if destination.is_symlink():
+            raise SourceSafetyError(
+                f"scratch destination must not be a symbolic link: {destination}"
+            )
 
     client: Any | None = None
     if source.source_type == "s3":
@@ -972,16 +987,16 @@ def materialize_source(
                 raise TypeError(f"unsupported source type: {source.source_type}")
             output.flush()
             os.fsync(output.fileno())
+        enriched = SourceObject.model_validate(
+            {**source.model_dump(), "source_sha256": digest},
+            strict=True,
+        )
         try:
             os.link(temporary_path, destination, follow_symlinks=False)
         except FileExistsError:
-            if source.source_sha256 is None:
-                raise SourceChangedError(
-                    f"concurrent scratch publication cannot be verified: {destination}"
-                ) from None
             _validate_existing_materialization(
                 destination,
-                source,
+                enriched,
                 max_pdf_bytes=max_pdf_bytes,
             )
         directory_fd = os.open(scratch, _open_flags(directory=True))
@@ -993,8 +1008,4 @@ def materialize_source(
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
 
-    enriched = SourceObject.model_validate(
-        {**source.model_dump(), "source_sha256": digest},
-        strict=True,
-    )
     return MaterializedSource(path=destination, source=enriched)

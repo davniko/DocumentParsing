@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
@@ -10,14 +11,61 @@ from urllib.parse import urlsplit
 import pytest
 import yaml
 
-from document_ocr.config import PipelineConfig, load_config
+from document_ocr.config import (
+    PipelineConfig,
+    load_catalog_config,
+    load_config,
+    load_corpus_config,
+    load_pilot_config,
+    load_snapshot_config,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "compose.yaml"
 EXAMPLE_CONFIG_PATHS = (
     PROJECT_ROOT / "configs" / "glm_ocr.local.example.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.s3.example.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.blc.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.blc150.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.swb.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.awbc.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.coo.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.inv.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.pl.local.yaml",
 )
+
+
+def test_runtime_dependencies_enable_aws_login_credentials() -> None:
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = pyproject["project"]["dependencies"]
+
+    assert any(dependency.startswith("boto3[crt]") for dependency in dependencies)
+
+
+def test_operator_entrypoints_and_snapshot_config_are_installed() -> None:
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["scripts"] == {
+        "document-ocr": "document_ocr.cli:main",
+        "document-ocr-classification-catalog": ("document_ocr.classification_catalog_cli:main"),
+        "document-ocr-corpus": "document_ocr.corpus_cli:main",
+        "document-ocr-pilot": "document_ocr.pilot_cli:main",
+        "document-ocr-snapshot": "document_ocr.snapshot_cli:main",
+    }
+    snapshot = load_snapshot_config(PROJECT_ROOT / "configs" / "s3_snapshot.blc_swb.yaml")
+    assert snapshot.document_types == ["blc", "swb"]
+    assert snapshot.classification_label_mapping == {"blc": "blc", "swb": "swb"}
+    assert len(snapshot.page_count_quarantine) == 1
+    corpus = load_corpus_config(PROJECT_ROOT / "configs" / "corpus.blc.local.yaml")
+    assert corpus.document_type == "blc"
+    assert len(corpus.sources) == 3
+    catalog = load_catalog_config(PROJECT_ROOT / "configs" / "classification_catalog.yaml")
+    assert [item.name for item in catalog.lineages] == ["old", "new_existing", "new_aci"]
+    assert len(catalog.raw_sources) == 4
+    assert len(catalog.local_snapshots) == 3
+    pilot = load_pilot_config(PROJECT_ROOT / "configs" / "pilot.blc150.yaml")
+    assert pilot.document_count == 150
+    assert sum(item.documents for item in pilot.strata) == 150
 
 
 def _load_compose_service() -> dict[str, Any]:
@@ -48,7 +96,21 @@ def _single_option(command: list[str], option: str) -> str:
     return value
 
 
-@pytest.mark.parametrize("config_path", EXAMPLE_CONFIG_PATHS, ids=("local", "s3"))
+@pytest.mark.parametrize(
+    "config_path",
+    EXAMPLE_CONFIG_PATHS,
+    ids=(
+        "local-example",
+        "s3-example",
+        "blc-local",
+        "blc150-local",
+        "swb-local",
+        "awbc-local",
+        "coo-local",
+        "inv-local",
+        "pl-local",
+    ),
+)
 def test_example_config_matches_pinned_vllm_compose_contract(config_path: Path) -> None:
     config: PipelineConfig = load_config(config_path)
     service = _load_compose_service()

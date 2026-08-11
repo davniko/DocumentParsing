@@ -14,6 +14,7 @@ import pytest
 from PIL import Image
 from test_config import valid_config_data
 
+import document_ocr.benchmark as benchmark_module
 from document_ocr.benchmark import (
     BenchmarkError,
     BenchmarkExecutionError,
@@ -330,6 +331,16 @@ async def test_benchmark_honors_limits_and_publishes_complete_canonical_report(
     assert report["benchmark_config_sha256"] == canonical_json_sha256(
         config.benchmark.model_dump(mode="json")
     )
+    assert report["harness_identity_sha256"] == canonical_json_sha256(report["harness_identity"])
+    assert set(report["harness_identity"]["source_files_sha256"]) == {
+        "atomic.py",
+        "benchmark.py",
+        "client.py",
+        "config.py",
+        "hashing.py",
+        "vllm_contract.py",
+    }
+    assert "document-ocr-pipeline" in report["harness_identity"]["distributions"]
     assert report["server_identity"]["observed"]["max_model_len"] == 32768
     assert report["server_identity_sha256"] == canonical_json_sha256(report["server_identity"])
     loaded = load_raster_manifest(manifest_path)
@@ -484,6 +495,41 @@ async def test_text_hash_mismatch_aborts_without_publishing_report(tmp_path: Pat
             client=FakeBenchmarkClient(entries, inconsistent_text=True, retries=False),
         )
 
+    assert not report_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_harness_drift_aborts_without_publishing_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entries = _manifest_entries(tmp_path, count=1)
+    manifest_path = tmp_path / "rasters.jsonl"
+    _write_manifest(manifest_path, entries)
+    report_path = tmp_path / "benchmark.json"
+    original_identity = benchmark_module._harness_identity
+    calls = 0
+
+    def drifting_identity() -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        identity = original_identity()
+        if calls > 1:
+            identity = {**identity, "python_version": "changed-during-benchmark"}
+        return identity
+
+    monkeypatch.setattr(benchmark_module, "_harness_identity", drifting_identity)
+    with pytest.raises(BenchmarkExecutionError, match="harness changed"):
+        await run_benchmark(
+            config=_benchmark_config(
+                points=[(1, 1)], warmup_pages=0, measured_pages=1, repetitions=1
+            ),
+            raster_manifest_path=manifest_path,
+            report_path=report_path,
+            client=FakeBenchmarkClient(entries, retries=False),
+        )
+
+    assert calls == 2
     assert not report_path.exists()
 
 

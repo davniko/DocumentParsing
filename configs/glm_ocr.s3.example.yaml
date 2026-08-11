@@ -11,6 +11,7 @@ source:
 
 output:
   root: /absolute/path/to/ocr-artifacts
+  retain_page_images: true
   parquet_compression: zstd
   write_batch_rows: 256
 
@@ -62,8 +63,8 @@ vllm:
     num_speculative_tokens: 1
 
 concurrency:
-  max_active_documents: 4
-  renderer_processes: 4
+  max_active_documents: 8
+  renderer_processes: 8
   max_inflight_pages_global: 16
   max_inflight_pages_per_document: 4
 

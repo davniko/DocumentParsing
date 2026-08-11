@@ -307,6 +307,7 @@ class PageExtractionRecord(
 ):
     """One successful raw OCR row; ``raw_ocr_text`` is never normalized."""
 
+    raster_path: NonEmptyString | None
     raw_ocr_text: str
     raw_ocr_text_sha256: str
     raw_response_sha256: str
@@ -327,11 +328,31 @@ class PageExtractionRecord(
             raise ValueError("raw_response_path must be a safe relative POSIX path")
         return value
 
+    @field_validator("raster_path")
+    @classmethod
+    def raster_path_is_safe_and_relative(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        path = PurePosixPath(value)
+        if path.is_absolute() or ".." in path.parts or value == "." or "\\" in value:
+            raise ValueError("raster_path must be a safe relative POSIX path")
+        return value
+
     @model_validator(mode="after")
     def raw_text_hash_matches_text(self) -> PageExtractionRecord:
         actual = hashlib.sha256(self.raw_ocr_text.encode("utf-8")).hexdigest()
         if self.raw_ocr_text_sha256 != actual:
             raise ValueError("raw_ocr_text_sha256 does not match raw_ocr_text UTF-8 bytes")
+        if self.raster_path is not None:
+            suffix = ".png" if self.raster_image_format == "png" else ".jpg"
+            expected = (
+                PurePosixPath("page-images")
+                / self.document_id
+                / self.page_id
+                / f"{self.raster_sha256}{suffix}"
+            ).as_posix()
+            if self.raster_path != expected:
+                raise ValueError("raster_path is not bound to page identity and raster hash")
         return self
 
 
@@ -341,6 +362,7 @@ class PageExtractionFailure(PageProvenance):
     failure_stage: Literal[
         "pdf_open",
         "render",
+        "raster_publish",
         "raster_validate",
         "inference",
         "persist",
@@ -410,6 +432,8 @@ class DatasetFileManifest(_FrozenRecord):
     arrow_schema_sha256: str
     raw_response_artifact_count: NonNegativeInteger
     raw_response_bytes: NonNegativeInteger
+    raster_artifact_count: NonNegativeInteger
+    raster_bytes: NonNegativeInteger
     path: NonEmptyString
 
     @field_validator("sha256", "arrow_schema_sha256")
@@ -439,6 +463,20 @@ class RawResponseManifest(_FrozenRecord):
     bytes: NonNegativeInteger
 
 
+class PageImageManifest(_FrozenRecord):
+    """Aggregate size and count of retained page-raster artifacts."""
+
+    retained: bool
+    artifacts: NonNegativeInteger
+    bytes: NonNegativeInteger
+
+    @model_validator(mode="after")
+    def disabled_retention_has_no_artifacts(self) -> PageImageManifest:
+        if not self.retained and (self.artifacts != 0 or self.bytes != 0):
+            raise ValueError("disabled page-image retention cannot publish artifacts")
+        return self
+
+
 class DatasetManifest(_FrozenRecord):
     """Typed, manifest-last contract for a complete page extraction dataset."""
 
@@ -450,6 +488,7 @@ class DatasetManifest(_FrozenRecord):
     inventory_sha256: str
     summary: DatasetSummary
     raw_responses: RawResponseManifest
+    page_images: PageImageManifest
     files: tuple[DatasetFileManifest, DatasetFileManifest]
 
     @field_validator("config_sha256", "pipeline_fingerprint", "inventory_sha256")
@@ -483,4 +522,16 @@ class DatasetManifest(_FrozenRecord):
             raise ValueError("raw response totals do not match page artifact metadata")
         if self.raw_responses.artifacts != self.summary.successful_pages:
             raise ValueError("every successful page must have exactly one raw response artifact")
+        if (
+            pages.raster_artifact_count != self.page_images.artifacts
+            or pages.raster_bytes != self.page_images.bytes
+            or attempts.raster_artifact_count != 0
+            or attempts.raster_bytes != 0
+        ):
+            raise ValueError("page image totals do not match page artifact metadata")
+        expected_page_images = self.summary.successful_pages if self.page_images.retained else 0
+        if self.page_images.artifacts != expected_page_images:
+            raise ValueError(
+                "page image retention must publish exactly one raster per successful page"
+            )
         return self

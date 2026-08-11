@@ -14,6 +14,7 @@ from document_ocr.atomic import AtomicConflictError
 from document_ocr.config import PipelineConfig
 from document_ocr.exporter import (
     DatasetPublicationError,
+    _validate_raster,
     arrow_schema,
     publish_complete_dataset,
 )
@@ -183,6 +184,7 @@ def _record(page_index: int, page_count: int) -> PageExtractionRecord:
         queue_duration_ms=4.0,
         persist_duration_ms=4.5,
         total_duration_ms=265.0,
+        raster_path=None,
         raw_ocr_text=text,
         raw_ocr_text_sha256=hashlib.sha256(text.encode()).hexdigest(),
         raw_response_sha256=raw_response_sha256,
@@ -207,6 +209,30 @@ def _write_raw_response(run_root: Path, page_index: int, page_count: int = 1) ->
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(_raw_response_payload(page_index))
     return path
+
+
+def test_retained_raster_validation_binds_path_size_and_hash(tmp_path: Path) -> None:
+    payload = b"\x89PNG\r\n\x1a\nretained raster fixture"
+    digest = sha256_bytes(payload)
+    raw = _record(0, 1).model_dump(mode="python")
+    raster_path = f"page-images/document-001/page-0/{digest}.png"
+    record = PageExtractionRecord.model_validate(
+        {
+            **raw,
+            "raster_path": raster_path,
+            "raster_sha256": digest,
+            "raster_size_bytes": len(payload),
+        },
+        strict=True,
+    )
+    target = tmp_path / raster_path
+    target.parent.mkdir(parents=True)
+    target.write_bytes(payload)
+
+    assert _validate_raster(tmp_path, record) == len(payload)
+    target.write_bytes(b"x" * len(payload))
+    with pytest.raises(DatasetPublicationError, match="retained raster artifact hash mismatch"):
+        _validate_raster(tmp_path, record)
 
 
 async def _complete_ledger(
@@ -344,6 +370,7 @@ async def test_streaming_parquet_publication_is_manifest_last_verified_and_idemp
             run_root=run_root,
             batch_rows=2,
             compression="zstd",
+            retain_page_images=False,
         )
 
         manifest_bytes = first.manifest_path.read_bytes()
@@ -359,6 +386,12 @@ async def test_streaming_parquet_publication_is_manifest_last_verified_and_idemp
             "artifacts": 3,
             "bytes": sum(len(_raw_response_payload(index)) for index in range(3)),
         }
+        assert first.manifest["page_images"] == {
+            "retained": False,
+            "artifacts": 0,
+            "bytes": 0,
+        }
+        assert [item["raster_artifact_count"] for item in first.manifest["files"]] == [0, 0]
 
         for item in first.manifest["files"]:
             path = run_root / item["path"]
@@ -392,6 +425,7 @@ async def test_streaming_parquet_publication_is_manifest_last_verified_and_idemp
             run_root=run_root,
             batch_rows=2,
             compression="zstd",
+            retain_page_images=False,
         )
         assert second == first
         assert len(list((run_root / "dataset").glob("*.parquet"))) == 2
@@ -428,6 +462,7 @@ async def test_conflicting_manifest_is_rejected_without_overwrite(tmp_path: Path
                 run_root=run_root,
                 batch_rows=1,
                 compression="none",
+                retain_page_images=False,
             )
 
         assert manifest_path.read_bytes() == original
@@ -446,6 +481,7 @@ async def test_ledger_rejects_manifest_digest_or_run_identity_drift(tmp_path: Pa
             run_root=run_root,
             batch_rows=1,
             compression="zstd",
+            retain_page_images=False,
         )
 
         with pytest.raises(LedgerConflictError, match="manifest_sha256 does not match"):
@@ -492,6 +528,7 @@ async def test_ledger_completion_requires_exact_published_manifest(
             run_root=run_root,
             batch_rows=1,
             compression="zstd",
+            retain_page_images=False,
         )
         candidate = published.manifest
         candidate_digest = published.manifest_sha256
@@ -643,6 +680,7 @@ async def test_publication_rejects_missing_or_corrupt_raw_response_artifacts(
                 run_root=run_root,
                 batch_rows=1,
                 compression="zstd",
+                retain_page_images=False,
             )
 
         assert not (run_root / "dataset" / "manifest.json").exists()
@@ -710,6 +748,7 @@ async def test_malformed_ledger_rows_abort_before_manifest_publication(
             run_root=run_root,
             batch_rows=1,
             compression="zstd",
+            retain_page_images=False,
         )
 
     assert not (run_root / "dataset" / "manifest.json").exists()
@@ -770,6 +809,7 @@ async def test_manifest_rejects_export_row_counts_that_disagree_with_complete_su
             run_root=run_root,
             batch_rows=1,
             compression="zstd",
+            retain_page_images=False,
         )
 
     assert not (run_root / "dataset" / "manifest.json").exists()

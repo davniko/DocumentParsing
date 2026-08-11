@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Hashable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
@@ -32,6 +32,7 @@ NonNegativeInteger = Annotated[int, Field(ge=0)]
 PositiveFloat = Annotated[float, Field(gt=0)]
 
 _SHA_40_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _S3_BUCKET_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
 
@@ -123,10 +124,512 @@ SourceConfig = Annotated[
 ]
 
 
+class ClassificationManifestConfig(_StrictConfigModel):
+    """One content-pinned classification manifest used for local staging."""
+
+    key: NonEmptyString
+    expected_sha256: str
+    local_name: NonEmptyString
+
+    @field_validator("key")
+    @classmethod
+    def key_is_not_an_absolute_uri(cls, value: str) -> str:
+        if value.startswith("s3://"):
+            raise ValueError("classification manifest key must not be an s3:// URI")
+        path = PurePosixPath(value)
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError("classification manifest key must be a safe S3 object key")
+        return value
+
+    @field_validator("expected_sha256")
+    @classmethod
+    def expected_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("expected_sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+    @field_validator("local_name")
+    @classmethod
+    def local_name_is_a_single_jsonl_filename(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if path.name != value or path.suffix != ".jsonl":
+            raise ValueError("local_name must be a single .jsonl filename")
+        return value
+
+
+class SnapshotDownloadConfig(_StrictConfigModel):
+    """Bounded S3 download and CPU inspection concurrency."""
+
+    workers: PositiveInteger
+    chunk_size_bytes: Annotated[int, Field(ge=64 * 1024, le=64 * 1024 * 1024)]
+    page_inspection_processes: PositiveInteger
+    max_attempts: PositiveInteger
+    max_pdf_bytes: PositiveInteger
+
+
+class PageCountQuarantineConfig(_StrictConfigModel):
+    """An explicitly pinned malformed PDF excluded from extraction."""
+
+    source_key: NonEmptyString
+    source_sha256: str
+    classified_page_count: PositiveInteger
+    actual_page_count: PositiveInteger
+    reason: NonEmptyString
+
+    @field_validator("source_key")
+    @classmethod
+    def source_key_is_safe(cls, value: str) -> str:
+        if value.startswith("s3://"):
+            raise ValueError("quarantine source_key must not be an s3:// URI")
+        path = PurePosixPath(value)
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError("quarantine source_key must be a safe S3 object key")
+        return value
+
+    @field_validator("source_sha256")
+    @classmethod
+    def source_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("source_sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+
+class S3LocalSnapshotConfig(_StrictConfigModel):
+    """Immutable local mirror of a classifier-selected, unversioned S3 corpus."""
+
+    schema_version: Literal[1]
+    bucket: NonEmptyString
+    raw_prefix: NonEmptyString
+    region: NonEmptyString
+    destination_root: NonEmptyString
+    document_types: list[NonEmptyString] = Field(min_length=1)
+    classification_label_mapping: dict[NonEmptyString, NonEmptyString] = Field(min_length=1)
+    classification_manifests: list[ClassificationManifestConfig] = Field(min_length=1)
+    expected_selection_sha256: str
+    page_count_quarantine: list[PageCountQuarantineConfig]
+    download: SnapshotDownloadConfig
+
+    @field_validator("bucket")
+    @classmethod
+    def validate_bucket(cls, value: str) -> str:
+        if not _S3_BUCKET_PATTERN.fullmatch(value):
+            raise ValueError("bucket must be a valid lowercase S3 bucket name")
+        if ".." in value or ".-" in value or "-." in value:
+            raise ValueError("bucket must be a valid S3 bucket name")
+        return value
+
+    @field_validator("raw_prefix")
+    @classmethod
+    def raw_prefix_is_a_safe_key_prefix(cls, value: str) -> str:
+        if value.startswith("s3://"):
+            raise ValueError("raw_prefix must be a key prefix, not an s3:// URI")
+        if not value.endswith("/"):
+            raise ValueError("raw_prefix must end with '/'")
+        path = PurePosixPath(value.removesuffix("/"))
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError("raw_prefix must be a safe S3 key prefix")
+        return value
+
+    @field_validator("destination_root")
+    @classmethod
+    def destination_root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("destination_root must be an absolute local path")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("destination_root must not be the filesystem root")
+        return value
+
+    @field_validator("expected_selection_sha256")
+    @classmethod
+    def selection_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("expected_selection_sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+    @field_validator("document_types")
+    @classmethod
+    def document_types_are_safe_slugs(cls, value: list[str]) -> list[str]:
+        invalid = [item for item in value if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", item)]
+        if invalid:
+            raise ValueError("document_types must be lowercase filesystem-safe slugs")
+        return value
+
+    @field_validator("classification_label_mapping")
+    @classmethod
+    def classification_mapping_is_safe(
+        cls,
+        value: dict[str, str],
+    ) -> dict[str, str]:
+        invalid = [
+            item
+            for item in (*value.keys(), *value.values())
+            if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", item)
+        ]
+        if invalid:
+            raise ValueError(
+                "classification_label_mapping keys and values must be lowercase "
+                "filesystem-safe slugs"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def selected_types_and_manifests_are_unique(self) -> S3LocalSnapshotConfig:
+        if len(self.document_types) != len(set(self.document_types)):
+            raise ValueError("document_types must be unique")
+        if set(self.classification_label_mapping.values()) != set(self.document_types):
+            raise ValueError(
+                "classification_label_mapping values must exactly cover document_types"
+            )
+        keys = [item.key for item in self.classification_manifests]
+        local_names = [item.local_name for item in self.classification_manifests]
+        if len(keys) != len(set(keys)):
+            raise ValueError("classification manifest keys must be unique")
+        if len(local_names) != len(set(local_names)):
+            raise ValueError("classification manifest local names must be unique")
+        quarantine_keys = [item.source_key for item in self.page_count_quarantine]
+        if len(quarantine_keys) != len(set(quarantine_keys)):
+            raise ValueError("page-count quarantine source keys must be unique")
+        outside_prefix = [key for key in quarantine_keys if not key.startswith(self.raw_prefix)]
+        if outside_prefix:
+            raise ValueError("page-count quarantine keys must be under raw_prefix")
+        return self
+
+
+class CorpusSnapshotSourceConfig(_StrictConfigModel):
+    """One already-committed snapshot used to assemble a local corpus."""
+
+    snapshot_config: NonEmptyString
+
+    @field_validator("snapshot_config")
+    @classmethod
+    def snapshot_config_is_absolute_yaml(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute() or path.suffix not in {".yaml", ".yml"}:
+            raise ValueError("snapshot_config must be an absolute YAML path")
+        return value
+
+
+class LocalCorpusConfig(_StrictConfigModel):
+    """Immutable, deduplicated local corpus assembled from verified snapshots."""
+
+    schema_version: Literal[1]
+    document_type: NonEmptyString
+    destination_root: NonEmptyString
+    sources: list[CorpusSnapshotSourceConfig] = Field(min_length=2)
+    expected_manifest_sha256: str
+    verification_workers: PositiveInteger
+    max_pdf_bytes: PositiveInteger
+
+    @field_validator("document_type")
+    @classmethod
+    def document_type_is_a_safe_slug(cls, value: str) -> str:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", value):
+            raise ValueError("document_type must be a lowercase filesystem-safe slug")
+        return value
+
+    @field_validator("destination_root")
+    @classmethod
+    def destination_root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("destination_root must be an absolute local path")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("destination_root must not be the filesystem root")
+        return value
+
+    @field_validator("expected_manifest_sha256")
+    @classmethod
+    def manifest_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("expected_manifest_sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+    @model_validator(mode="after")
+    def source_configs_are_unique(self) -> LocalCorpusConfig:
+        paths = [item.snapshot_config for item in self.sources]
+        if len(paths) != len(set(paths)):
+            raise ValueError("corpus snapshot_config paths must be unique")
+        return self
+
+
+class CatalogArtifactConfig(_StrictConfigModel):
+    """One content-pinned S3 artifact used to build a classification catalog."""
+
+    key: NonEmptyString
+    expected_sha256: str
+    local_name: NonEmptyString
+
+    @field_validator("key")
+    @classmethod
+    def key_is_safe(cls, value: str) -> str:
+        if value.startswith("s3://"):
+            raise ValueError("catalog artifact key must not be an s3:// URI")
+        path = PurePosixPath(value)
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError("catalog artifact key must be a safe S3 object key")
+        return value
+
+    @field_validator("expected_sha256")
+    @classmethod
+    def expected_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("expected_sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+    @field_validator("local_name")
+    @classmethod
+    def local_name_is_safe(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if path.name != value or path.suffix not in {".csv", ".jsonl"}:
+            raise ValueError("local_name must be a single .csv or .jsonl filename")
+        return value
+
+
+class CatalogLineageConfig(_StrictConfigModel):
+    """The complete initial-to-final artifact chain for one classifier run."""
+
+    name: NonEmptyString
+    initial_manifest: CatalogArtifactConfig
+    final_manifest: CatalogArtifactConfig
+    dropped_report: CatalogArtifactConfig
+    relabeled_report: CatalogArtifactConfig
+    review_report: CatalogArtifactConfig | None
+
+    @field_validator("name")
+    @classmethod
+    def name_is_a_safe_slug(cls, value: str) -> str:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", value):
+            raise ValueError("catalog lineage name must be a lowercase filesystem-safe slug")
+        return value
+
+    @model_validator(mode="after")
+    def artifact_paths_are_unique_and_typed(self) -> CatalogLineageConfig:
+        artifacts = [
+            self.initial_manifest,
+            self.final_manifest,
+            self.dropped_report,
+            self.relabeled_report,
+        ]
+        if self.review_report is not None:
+            artifacts.append(self.review_report)
+        keys = [item.key for item in artifacts]
+        names = [item.local_name for item in artifacts]
+        if len(keys) != len(set(keys)):
+            raise ValueError("catalog lineage artifact keys must be unique")
+        if len(names) != len(set(names)):
+            raise ValueError("catalog lineage local artifact names must be unique")
+        if self.initial_manifest.local_name.endswith(".jsonl") is False:
+            raise ValueError("initial_manifest local_name must end in .jsonl")
+        if self.final_manifest.local_name.endswith(".jsonl") is False:
+            raise ValueError("final_manifest local_name must end in .jsonl")
+        for report in (self.dropped_report, self.relabeled_report, self.review_report):
+            if report is not None and report.local_name.endswith(".csv") is False:
+                raise ValueError("catalog report local_name must end in .csv")
+        return self
+
+
+class CatalogRawSourceConfig(_StrictConfigModel):
+    """One meaningful-PDF S3 prefix represented in the catalog inventory."""
+
+    lineage: NonEmptyString
+    role: Literal["primary", "mirror"]
+    prefix: NonEmptyString
+
+    @field_validator("lineage")
+    @classmethod
+    def lineage_is_a_safe_slug(cls, value: str) -> str:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", value):
+            raise ValueError("raw source lineage must be a lowercase filesystem-safe slug")
+        return value
+
+    @field_validator("prefix")
+    @classmethod
+    def prefix_is_safe(cls, value: str) -> str:
+        if value.startswith("s3://") or not value.endswith("/"):
+            raise ValueError("raw source prefix must be a key prefix ending in '/'")
+        path = PurePosixPath(value.removesuffix("/"))
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError("raw source prefix must be a safe S3 key prefix")
+        return value
+
+
+class ClassificationCatalogConfig(_StrictConfigModel):
+    """Immutable document-level union of classifier evidence and source aliases."""
+
+    schema_version: Literal[1]
+    bucket: NonEmptyString
+    region: NonEmptyString
+    destination_root: NonEmptyString
+    lineages: list[CatalogLineageConfig] = Field(min_length=1)
+    raw_sources: list[CatalogRawSourceConfig] = Field(min_length=1)
+    local_snapshots: list[CorpusSnapshotSourceConfig] = Field(min_length=1)
+    expected_catalog_sha256: str
+    expected_raw_inventory_sha256: str
+    network_workers: PositiveInteger
+    max_attempts: PositiveInteger
+    download_chunk_size_bytes: Annotated[int, Field(ge=64 * 1024, le=64 * 1024 * 1024)]
+    max_source_artifact_bytes: PositiveInteger
+
+    @field_validator("bucket")
+    @classmethod
+    def validate_bucket(cls, value: str) -> str:
+        if not _S3_BUCKET_PATTERN.fullmatch(value):
+            raise ValueError("bucket must be a valid lowercase S3 bucket name")
+        if ".." in value or ".-" in value or "-." in value:
+            raise ValueError("bucket must be a valid S3 bucket name")
+        return value
+
+    @field_validator("destination_root")
+    @classmethod
+    def destination_root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("destination_root must be an absolute local path")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("destination_root must not be the filesystem root")
+        return value
+
+    @field_validator("expected_catalog_sha256", "expected_raw_inventory_sha256")
+    @classmethod
+    def expected_hashes_are_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("expected catalog hashes must be lowercase 64-character SHA-256")
+        return value
+
+    @model_validator(mode="after")
+    def sources_are_disjoint_and_complete(self) -> ClassificationCatalogConfig:
+        lineage_names = [item.name for item in self.lineages]
+        if len(lineage_names) != len(set(lineage_names)):
+            raise ValueError("catalog lineage names must be unique")
+        artifact_keys = [
+            artifact.key
+            for lineage in self.lineages
+            for artifact in (
+                lineage.initial_manifest,
+                lineage.final_manifest,
+                lineage.dropped_report,
+                lineage.relabeled_report,
+                lineage.review_report,
+            )
+            if artifact is not None
+        ]
+        if len(artifact_keys) != len(set(artifact_keys)):
+            raise ValueError("catalog artifact keys must be globally unique")
+        lineage_set = set(lineage_names)
+        if any(item.lineage not in lineage_set for item in self.raw_sources):
+            raise ValueError("every raw source must reference a configured lineage")
+        if {item.lineage for item in self.raw_sources if item.role == "primary"} != lineage_set:
+            raise ValueError("every lineage must have at least one primary raw source")
+        raw_keys = [(item.lineage, item.role, item.prefix) for item in self.raw_sources]
+        if len(raw_keys) != len(set(raw_keys)):
+            raise ValueError("catalog raw sources must be unique")
+        prefixes = [item.prefix for item in self.raw_sources]
+        for index, prefix in enumerate(prefixes):
+            for other in prefixes[index + 1 :]:
+                if prefix.startswith(other) or other.startswith(prefix):
+                    raise ValueError("catalog raw source prefixes must not overlap")
+        snapshot_paths = [item.snapshot_config for item in self.local_snapshots]
+        if len(snapshot_paths) != len(set(snapshot_paths)):
+            raise ValueError("catalog local snapshot configurations must be unique")
+        return self
+
+
+class PilotQualityConfig(_StrictConfigModel):
+    """Exact classifier evidence required for the bounded OCR pilot."""
+
+    dummy_is_dummy: Literal[False]
+    triage_requires_augmentation: Literal[False]
+    readability: Literal["fully_readable"]
+    augmentation_need: Literal["use_as_is"]
+
+
+class PilotStratumConfig(_StrictConfigModel):
+    """One exact source-lineage and visual-category quota."""
+
+    lineage: NonEmptyString
+    triage_category: Literal["photo", "rendered", "scanned"]
+    documents: PositiveInteger
+
+    @field_validator("lineage")
+    @classmethod
+    def lineage_is_a_safe_slug(cls, value: str) -> str:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", value):
+            raise ValueError("pilot stratum lineage must be a lowercase filesystem-safe slug")
+        return value
+
+
+class CatalogPilotConfig(_StrictConfigModel):
+    """Immutable, quality-filtered pilot corpus selected from a verified catalog."""
+
+    schema_version: Literal[1]
+    catalog_config: NonEmptyString
+    expected_catalog_sha256: str
+    destination_root: NonEmptyString
+    final_label: NonEmptyString
+    document_count: PositiveInteger
+    max_pages_per_document: PositiveInteger
+    selection_namespace: NonEmptyString
+    quality: PilotQualityConfig
+    deduplicate_by_content_sha256: Literal[True]
+    strata: list[PilotStratumConfig] = Field(min_length=1)
+    expected_manifest_sha256: str
+    verification_workers: PositiveInteger
+    max_pdf_bytes: PositiveInteger
+
+    @field_validator("catalog_config")
+    @classmethod
+    def catalog_config_is_absolute_yaml(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute() or path.suffix not in {".yaml", ".yml"}:
+            raise ValueError("catalog_config must be an absolute YAML path")
+        return value
+
+    @field_validator("destination_root")
+    @classmethod
+    def destination_root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("destination_root must be an absolute local path")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("destination_root must not be the filesystem root")
+        return value
+
+    @field_validator("final_label")
+    @classmethod
+    def final_label_is_a_safe_slug(cls, value: str) -> str:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", value):
+            raise ValueError("final_label must be a lowercase filesystem-safe slug")
+        return value
+
+    @field_validator("expected_catalog_sha256", "expected_manifest_sha256")
+    @classmethod
+    def expected_hashes_are_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("pilot expected hashes must be lowercase 64-character SHA-256")
+        return value
+
+    @model_validator(mode="after")
+    def strata_are_canonical_and_complete(self) -> CatalogPilotConfig:
+        keys = [(item.lineage, item.triage_category) for item in self.strata]
+        if len(keys) != len(set(keys)):
+            raise ValueError("pilot strata must be unique")
+        if keys != sorted(keys):
+            raise ValueError("pilot strata must be sorted by lineage and triage_category")
+        if sum(item.documents for item in self.strata) != self.document_count:
+            raise ValueError("pilot stratum quotas must sum to document_count")
+        return self
+
+
 class OutputConfig(_StrictConfigModel):
     """Destination and batching policy for the completed raw OCR dataset."""
 
     root: NonEmptyString
+    retain_page_images: bool
     parquet_compression: Literal["zstd", "snappy", "none"]
     write_batch_rows: PositiveInteger
 
@@ -381,3 +884,47 @@ def load_config(path: str | Path) -> PipelineConfig:
     if not isinstance(raw, dict):
         raise ValueError("pipeline configuration root must be a YAML mapping")
     return PipelineConfig.model_validate(raw, strict=True)
+
+
+def load_snapshot_config(path: str | Path) -> S3LocalSnapshotConfig:
+    """Load a strict YAML contract for a classifier-selected local S3 snapshot."""
+
+    config_path = Path(path)
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw: Any = yaml.load(stream, Loader=_UniqueKeySafeLoader)
+    if not isinstance(raw, dict):
+        raise ValueError("snapshot configuration root must be a YAML mapping")
+    return S3LocalSnapshotConfig.model_validate(raw, strict=True)
+
+
+def load_corpus_config(path: str | Path) -> LocalCorpusConfig:
+    """Load a strict YAML contract for an immutable combined local corpus."""
+
+    config_path = Path(path)
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw: Any = yaml.load(stream, Loader=_UniqueKeySafeLoader)
+    if not isinstance(raw, dict):
+        raise ValueError("corpus configuration root must be a YAML mapping")
+    return LocalCorpusConfig.model_validate(raw, strict=True)
+
+
+def load_catalog_config(path: str | Path) -> ClassificationCatalogConfig:
+    """Load a strict YAML contract for an immutable classification catalog."""
+
+    config_path = Path(path)
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw: Any = yaml.load(stream, Loader=_UniqueKeySafeLoader)
+    if not isinstance(raw, dict):
+        raise ValueError("classification catalog configuration root must be a YAML mapping")
+    return ClassificationCatalogConfig.model_validate(raw, strict=True)
+
+
+def load_pilot_config(path: str | Path) -> CatalogPilotConfig:
+    """Load a strict YAML contract for a classification-catalog pilot corpus."""
+
+    config_path = Path(path)
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw: Any = yaml.load(stream, Loader=_UniqueKeySafeLoader)
+    if not isinstance(raw, dict):
+        raise ValueError("pilot configuration root must be a YAML mapping")
+    return CatalogPilotConfig.model_validate(raw, strict=True)

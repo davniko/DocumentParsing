@@ -722,6 +722,10 @@ async def test_only_classified_transport_errors_retry(
             lambda body: body.update({"model": "wrong-model"}),
             "model does not match",
         ),
+        (
+            lambda body: body["choices"][0]["message"].update({"role": "user"}),
+            "message role must be 'assistant'",
+        ),
     ],
 )
 async def test_invalid_success_responses_are_terminal_and_do_not_leak_text(
@@ -783,6 +787,30 @@ async def test_invalid_json_is_terminal_and_body_is_not_exposed(tmp_path: Path) 
     assert response_body.decode() not in str(captured.value)
     assert response_body.decode() not in repr(captured.value.attempts)
     assert captured.value.attempts[0].error_message == ("vLLM response body is not valid JSON")
+
+
+@pytest.mark.asyncio
+async def test_ocr_text_must_be_utf8_encodable(tmp_path: Path) -> None:
+    raster = tmp_path / "page.png"
+    raster.write_bytes(b"png")
+    raw_response = json.dumps(completion_body("\ud800"), ensure_ascii=True).encode("utf-8")
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=raw_response)
+
+    async with VllmOcrClient(
+        make_config(), max_connections=1, transport=make_transport(handler)
+    ) as client:
+        with pytest.raises(VllmClientError) as captured:
+            await client.recognize_page(
+                raster,
+                mime_type="image/png",
+                raster_sha256=raster_sha256(raster),
+                request_id="invalid-unicode",
+            )
+
+    assert captured.value.attempts[0].outcome == "invalid_response"
+    assert captured.value.attempts[0].error_message == ("OCR response content must be valid UTF-8")
 
 
 @pytest.mark.asyncio

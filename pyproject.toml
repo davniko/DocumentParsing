@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "aiosqlite>=0.22,<0.23",
-  "boto3>=1.43,<2",
+  "boto3[crt]>=1.43,<2",
   "httpx>=0.28,<0.29",
   "pillow>=12.3,<13",
   "pyarrow>=25,<26",
@@ -21,6 +21,10 @@ dependencies = [
 
 [project.scripts]
 document-ocr = "document_ocr.cli:main"
+document-ocr-classification-catalog = "document_ocr.classification_catalog_cli:main"
+document-ocr-corpus = "document_ocr.corpus_cli:main"
+document-ocr-pilot = "document_ocr.pilot_cli:main"
+document-ocr-snapshot = "document_ocr.snapshot_cli:main"
 
 [dependency-groups]
 dev = [
@@ -58,5 +62,5 @@ packages = ["document_ocr"]
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["boto3.*", "pypdfium2.*", "pyarrow.*"]
+module = ["boto3.*", "botocore.*", "pypdfium2.*", "pyarrow.*"]
 ignore_missing_imports = true

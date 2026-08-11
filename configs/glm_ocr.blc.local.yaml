@@ -2,19 +2,19 @@ schema_version: 1
 
 source:
   type: local
-  root: /absolute/path/to/source-pdfs
+  root: /mnt/d/Projects/DocumentParsing/data/corpora/blc-combined-6c9854ca458c/files/blc
   include_glob: "**/*.pdf"
-  dataset_version: replace-with-approved-source-snapshot-id
+  dataset_version: blc-combined-local-corpus-6c9854ca458cd66d22c2ee608e892db3819f0c27c63d19f5d91ecc7b619e5e36
   require_content_sha256: true
 
 output:
-  root: /absolute/path/to/ocr-artifacts
+  root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/combined/blc
   retain_page_images: true
   parquet_compression: zstd
   write_batch_rows: 256
 
 run:
-  run_id: replace-with-immutable-run-id
+  run_id: glm-ocr-blc-6c9854ca458c
   fail_fast: false
   resume: true
 
@@ -22,8 +22,8 @@ raster:
   dpi: 200
   max_side_pixels: 3500
   max_pixels: 12250000
-  max_pages_per_document: 500
-  max_pdf_bytes: 1000000000
+  max_pages_per_document: 150
+  max_pdf_bytes: 20000000
   max_cached_documents_per_process: 2
   image_format: png
   jpeg_quality: null

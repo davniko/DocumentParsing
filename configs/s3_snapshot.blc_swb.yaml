@@ -1,0 +1,38 @@
+schema_version: 1
+
+bucket: runpod-mpci-docparsing-workspace
+raw_prefix: data-processing/NEW-dataset/01_raw/
+region: us-east-1
+destination_root: /mnt/d/Projects/DocumentParsing/data/snapshots/new-dataset-blc-swb-818dff0fc583
+
+document_types:
+  - blc
+  - swb
+
+classification_label_mapping:
+  blc: blc
+  swb: swb
+
+classification_manifests:
+  - key: data-processing/NEW-dataset/dataset/03_filtered/manifest.jsonl
+    expected_sha256: 82585b1b18d76cd8fb9d48b3bf2778ea9a82cbe6ab0647cfe96dbcbaed5b2842
+    local_name: existing-classified-set.jsonl
+  - key: data-processing/NEW-dataset/dataset_aci_blc_new_batch_2026-02-16/03_filtered/manifest.jsonl
+    expected_sha256: 95dec3d694dc8911a5f2d73d555068e40bf561016c885d7a10b58f82955b66f3
+    local_name: aci-blc-new-batch-2026-02-16.jsonl
+
+expected_selection_sha256: 818dff0fc583dc91ca3062c9a2eb5c398517f462f974d9bbaba7b046a74bc8d2
+
+page_count_quarantine:
+  - source_key: data-processing/NEW-dataset/01_raw/doc-classification-data (processing)/aci_blc/pdf/2026-02-01_382ae21e-1954-4751-8de7-87dcb67d2976.pdf
+    source_sha256: 54059da59c2198c9b77386897bf91f90311f021bfb0294118ef165bb8b7513b2
+    classified_page_count: 8
+    actual_page_count: 1
+    reason: PDFium sees 1 page while the pinned classifier manifest has 8; pypdf reports malformed object offsets and recovers 4 pages, so complete page extraction is not reliable.
+
+download:
+  workers: 16
+  chunk_size_bytes: 8388608
+  page_inspection_processes: 4
+  max_attempts: 5
+  max_pdf_bytes: 20000000

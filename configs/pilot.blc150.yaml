@@ -1,0 +1,46 @@
+schema_version: 1
+
+catalog_config: /mnt/d/Projects/DocumentParsing/configs/classification_catalog.yaml
+expected_catalog_sha256: d52a5273b036a96d004cbe4d653485d78c9c2523499b40dfa4ff8719742b9a37
+destination_root: /mnt/d/Projects/DocumentParsing/data/pilots/blc-pilot-150-faa3c717dbc4
+
+final_label: blc
+document_count: 150
+max_pages_per_document: 4
+selection_namespace: blc-final-clean-pilot-150-v1
+quality:
+  dummy_is_dummy: false
+  triage_requires_augmentation: false
+  readability: fully_readable
+  augmentation_need: use_as_is
+deduplicate_by_content_sha256: true
+
+strata:
+  - lineage: new_aci
+    triage_category: photo
+    documents: 9
+  - lineage: new_aci
+    triage_category: rendered
+    documents: 20
+  - lineage: new_aci
+    triage_category: scanned
+    documents: 60
+  - lineage: new_existing
+    triage_category: photo
+    documents: 2
+  - lineage: new_existing
+    triage_category: rendered
+    documents: 11
+  - lineage: new_existing
+    triage_category: scanned
+    documents: 21
+  - lineage: old
+    triage_category: rendered
+    documents: 3
+  - lineage: old
+    triage_category: scanned
+    documents: 24
+
+expected_manifest_sha256: faa3c717dbc426e22c070b3c69723bc0cfa16bdde1b330a8db53cdac904501cf
+verification_workers: 16
+max_pdf_bytes: 20000000

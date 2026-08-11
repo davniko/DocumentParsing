@@ -24,6 +24,7 @@ def _config_data() -> dict[str, Any]:
         },
         "output": {
             "root": "/data/output",
+            "retain_page_images": False,
             "parquet_compression": "zstd",
             "write_batch_rows": 64,
         },
