@@ -18,7 +18,12 @@ from document_ocr.client import OcrResponse, RequestAttempt, ServerInfo, VllmRas
 from document_ocr.config import PipelineConfig
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.ledger import ExtractionLedger, IncompleteRunError
-from document_ocr.pipeline import PipelineError, require_run_complete, run_pipeline
+from document_ocr.pipeline import (
+    PipelineError,
+    PipelineProgress,
+    require_run_complete,
+    run_pipeline,
+)
 from document_ocr.vllm_contract import runtime_contract_payload, runtime_contract_sha256
 
 MODEL_REVISION = "c" * 40
@@ -221,11 +226,13 @@ async def test_pipeline_extracts_real_pdf_pages_and_resumes_without_server(
     config = _pipeline_config(source_root, output_root)
     project_root = Path(__file__).parents[1]
     client = FakeOcrClient()
+    progress_events: list[PipelineProgress] = []
 
     result = await run_pipeline(
         project_root=project_root,
         config=config,
         ocr_client=client,
+        progress=progress_events.append,
     )
 
     assert result.resumed_complete_run is False
@@ -236,6 +243,23 @@ async def test_pipeline_extracts_real_pdf_pages_and_resumes_without_server(
     assert result.summary["successful_pages"] == 4
     assert result.summary["audited_successful_pages"] == 4
     assert result.summary["attempt_rows"] == 4
+    assert progress_events == [
+        PipelineProgress(
+            phase="checking_server",
+            total_documents=1,
+            processed_documents=0,
+        ),
+        PipelineProgress(
+            phase="extracting",
+            total_documents=1,
+            processed_documents=1,
+        ),
+        PipelineProgress(
+            phase="publishing",
+            total_documents=1,
+            processed_documents=1,
+        ),
+    ]
 
     manifest_bytes = result.dataset_manifest.read_bytes()
     manifest = json.loads(manifest_bytes)

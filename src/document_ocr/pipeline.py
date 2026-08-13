@@ -9,6 +9,7 @@ import multiprocessing
 import os
 import stat
 import time
+from collections.abc import Callable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from contextlib import suppress
 from dataclasses import dataclass
@@ -106,6 +107,26 @@ class PipelineResult:
     summary: dict[str, int]
     dataset_manifest: Path
     server_info: ServerInfo | None
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineProgress:
+    phase: Literal["checking_server", "extracting", "publishing"]
+    total_documents: int
+    processed_documents: int
+
+    def __post_init__(self) -> None:
+        if self.total_documents < 0:
+            raise ValueError("progress total_documents cannot be negative")
+        if not 0 <= self.processed_documents <= self.total_documents:
+            raise ValueError("progress processed_documents is outside the document total")
+
+    @property
+    def remaining_documents(self) -> int:
+        return self.total_documents - self.processed_documents
+
+
+PipelineProgressCallback = Callable[[PipelineProgress], None]
 
 
 def _canonical_directory(path: Path) -> Path:
@@ -770,14 +791,27 @@ async def _execute_documents(
     client: _OcrClient,
     executor: Executor,
     s3_client: Any | None,
+    progress: PipelineProgressCallback | None,
 ) -> ServerInfo:
+    total_documents = len(inventory.objects)
+    if progress is not None:
+        progress(
+            PipelineProgress(
+                phase="checking_server",
+                total_documents=total_documents,
+                processed_documents=0,
+            )
+        )
     server_info = await client.check_readiness()
     inference_semaphore = asyncio.Semaphore(config.concurrency.max_inflight_pages_global)
     document_queue: asyncio.Queue[SourceObject] = asyncio.Queue()
     for source in inventory.objects:
         document_queue.put_nowait(source)
 
+    processed_documents = 0
+
     async def document_worker() -> None:
+        nonlocal processed_documents
         while True:
             try:
                 source = document_queue.get_nowait()
@@ -797,6 +831,15 @@ async def _execute_documents(
                     executor=executor,
                     s3_client=s3_client,
                 )
+                processed_documents += 1
+                if progress is not None:
+                    progress(
+                        PipelineProgress(
+                            phase="extracting",
+                            total_documents=total_documents,
+                            processed_documents=processed_documents,
+                        )
+                    )
             finally:
                 document_queue.task_done()
 
@@ -836,6 +879,7 @@ async def run_pipeline(
     ocr_client: _OcrClient | None = None,
     executor: Executor | None = None,
     s3_client: Any | None = None,
+    progress: PipelineProgressCallback | None = None,
 ) -> PipelineResult:
     """Run or resume extraction; a dataset manifest appears only on full success."""
 
@@ -892,6 +936,7 @@ async def run_pipeline(
                         client=client,
                         executor=active_executor,
                         s3_client=owned_s3_client,
+                        progress=progress,
                     )
             else:
                 server_info = await _execute_documents(
@@ -904,6 +949,15 @@ async def run_pipeline(
                     client=ocr_client,
                     executor=active_executor,
                     s3_client=owned_s3_client,
+                    progress=progress,
+                )
+            if progress is not None:
+                progress(
+                    PipelineProgress(
+                        phase="publishing",
+                        total_documents=len(inventory.objects),
+                        processed_documents=len(inventory.objects),
+                    )
                 )
             published, summary = await _publish_and_complete(
                 ledger=ledger, config=config, paths=paths

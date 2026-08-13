@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: docker/vllm/Dockerfile
-    image: document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f
+    image: document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f-df63cb9
     shm_size: 8gb
     ports:
       - "127.0.0.1:${VLLM_PORT:-8000}:8000"

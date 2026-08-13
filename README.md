@@ -189,10 +189,11 @@ The Compose service follows the
 builds a narrow derived image from a digest-pinned vLLM base. vLLM 0.26.0 has a confirmed
 [GLM-OCR MTP prefix regression](https://github.com/vllm-project/vllm/issues/49856), so the build
 applies the exact classifier fix from
-[vLLM PR #49869](https://github.com/vllm-project/vllm/pull/49869). The Docker build verifies the
-base target, patch, patched target, and build manifest by SHA-256 and runs the affected classifier
-cases without loading the model or allocating a GPU. The GLM-OCR Hugging Face revision remains
-independently pinned.
+[vLLM PR #49869](https://github.com/vllm-project/vllm/pull/49869). It also applies the exact fix
+from [vLLM PR #51966](https://github.com/vllm-project/vllm/pull/51966) for GLM-OCR MTP's unsafe
+boolean-index update during CUDA-graph capture. The Docker build verifies every base target, patch,
+patched target, and the build manifest by SHA-256, then runs focused static probes without loading
+the model or allocating a GPU. The GLM-OCR Hugging Face revision remains independently pinned.
 
 Copy `.env.example` to the standard project-root `.env`, replace the API key, and validate the
 Compose structure without printing the resolved configuration or secret. Compose loads that
@@ -235,7 +236,7 @@ the underlying model repository, and `max_model_len` exposed by `/v1/models`. An
 hashed `/document-ocr/server-contract` response is derived from the running process's resolved
 vLLM state and must exactly attest the model revision, scheduler concurrency, GPU-memory fraction,
 generation-config policy, MTP method/depth, one-image limit, digest-pinned base image, and the baked
-build-manifest SHA-256. The endpoint also verifies the installed patched vLLM file against that
+build-manifest SHA-256. The endpoint also verifies every installed patched vLLM file against that
 manifest before returning a claim.
 
 ## Extract, resume, and inspect
@@ -250,6 +251,13 @@ uv run document-ocr run --config configs/glm_ocr.blc.local.yaml
 # After that run completes, or as a separately scheduled run:
 uv run document-ocr run --config configs/glm_ocr.swb.local.yaml
 ```
+
+`run` writes canonical JSONL progress events to stderr after server-contract checking and each
+finished document. Every event includes `processed_documents`, `remaining_documents`, and
+`total_documents`; the final result remains a single JSON object on stdout. Page outcomes and
+inference attempts are committed continuously to `state.sqlite3`, so progress is resumable even if
+the terminal output itself is not retained. Redirect or tee stderr when an operator log file is
+required.
 
 Inspect completion without contacting vLLM:
 

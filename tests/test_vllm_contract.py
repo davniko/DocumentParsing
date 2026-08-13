@@ -22,7 +22,10 @@ CONTAINER_IMAGE = (
     "vllm/vllm-openai:v0.26.0@sha256:"
     "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
 )
-PATCH_COMMIT = "89e3c3f5b41d0f678d19a138dba59b3757a1a16f"
+PATCH_COMMITS = (
+    "89e3c3f5b41d0f678d19a138dba59b3757a1a16f",
+    "df63cb9492e85d3df71284a5d9f234fc39ae0b74",
+)
 
 
 def _runtime_state() -> SimpleNamespace:
@@ -63,24 +66,50 @@ def _canonical_sha256(value: object) -> str:
 def _install_build_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    *,
+    target_after_sha256: str | None = None,
+    mutate_manifest: Callable[[dict[str, object]], None] | None = None,
     **changes: object,
 ) -> str:
-    target = tmp_path / "utils.py"
-    target.write_bytes(b"patched vllm utils\n")
-    target_sha256 = hashlib.sha256(target.read_bytes()).hexdigest()
+    targets = (tmp_path / "utils.py", tmp_path / "glm_ocr_mtp.py")
+    targets[0].write_bytes(b"patched vllm utils\n")
+    targets[1].write_bytes(b"patched GLM-OCR MTP\n")
+    target_sha256s = tuple(hashlib.sha256(target.read_bytes()).hexdigest() for target in targets)
     manifest: dict[str, object] = {
-        "schema_version": 1,
-        "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f",
+        "schema_version": 2,
+        "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f-df63cb9",
         "base_image": CONTAINER_IMAGE,
         "vllm_version": "0.26.0",
-        "patch_source": f"https://github.com/vllm-project/vllm/commit/{PATCH_COMMIT}",
-        "patch_commit": PATCH_COMMIT,
-        "patch_sha256": "a" * 64,
-        "target_path": str(target),
-        "target_before_sha256": "b" * 64,
-        "target_after_sha256": target_sha256,
+        "patches": [
+            {
+                "source": f"https://github.com/vllm-project/vllm/commit/{PATCH_COMMITS[0]}",
+                "commit": PATCH_COMMITS[0],
+                "sha256": "a" * 64,
+                "targets": [
+                    {
+                        "path": str(targets[0]),
+                        "before_sha256": "b" * 64,
+                        "after_sha256": target_after_sha256 or target_sha256s[0],
+                    }
+                ],
+            },
+            {
+                "source": f"https://github.com/vllm-project/vllm/commit/{PATCH_COMMITS[1]}",
+                "commit": PATCH_COMMITS[1],
+                "sha256": "c" * 64,
+                "targets": [
+                    {
+                        "path": str(targets[1]),
+                        "before_sha256": "d" * 64,
+                        "after_sha256": target_sha256s[1],
+                    }
+                ],
+            },
+        ],
     }
     manifest.update(changes)
+    if mutate_manifest is not None:
+        mutate_manifest(manifest)
     raw_manifest = (json.dumps(manifest, indent=2) + "\n").encode("utf-8")
     manifest_path = tmp_path / "build-manifest.json"
     manifest_path.write_bytes(raw_manifest)
@@ -243,6 +272,46 @@ def test_build_runtime_contract_rejects_tampered_patched_target(
         RuntimeContractError,
         match="installed vLLM target does not match the build manifest",
     ):
+        build_runtime_contract(_runtime_state())
+
+
+def test_build_runtime_contract_rejects_duplicate_patched_target_claims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def duplicate_target(manifest: dict[str, object]) -> None:
+        patches = manifest["patches"]
+        assert isinstance(patches, list)
+        first_patch, second_patch = patches
+        assert isinstance(first_patch, dict) and isinstance(second_patch, dict)
+        first_targets = first_patch["targets"]
+        second_targets = second_patch["targets"]
+        assert isinstance(first_targets, list) and isinstance(second_targets, list)
+        first_target = first_targets[0]
+        second_target = second_targets[0]
+        assert isinstance(first_target, dict) and isinstance(second_target, dict)
+        second_target["path"] = first_target["path"]
+
+    _install_build_manifest(tmp_path, monkeypatch, mutate_manifest=duplicate_target)
+
+    with pytest.raises(RuntimeContractError, match="duplicate target paths"):
+        build_runtime_contract(_runtime_state())
+
+
+def test_build_runtime_contract_rejects_unpinned_patch_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def change_source(manifest: dict[str, object]) -> None:
+        patches = manifest["patches"]
+        assert isinstance(patches, list)
+        first_patch = patches[0]
+        assert isinstance(first_patch, dict)
+        first_patch["source"] = "https://github.com/vllm-project/vllm/pull/49869"
+
+    _install_build_manifest(tmp_path, monkeypatch, mutate_manifest=change_source)
+
+    with pytest.raises(RuntimeContractError, match="source does not match its commit"):
         build_runtime_contract(_runtime_state())
 
 

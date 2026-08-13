@@ -25,8 +25,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "compose.yaml"
 VLLM_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "vllm" / "Dockerfile"
 VLLM_BUILD_MANIFEST_PATH = PROJECT_ROOT / "docker" / "vllm" / "build-manifest.json"
-VLLM_PATCH_PATH = (
-    PROJECT_ROOT / "docker" / "vllm" / "patches" / "49869-glm-ocr-mtp-weight-prefix.patch"
+VLLM_PATCH_PATHS = (
+    PROJECT_ROOT / "docker" / "vllm" / "patches" / "49869-glm-ocr-mtp-weight-prefix.patch",
+    PROJECT_ROOT / "docker" / "vllm" / "patches" / "51966-glm-ocr-mtp-cudagraph.patch",
 )
 EXAMPLE_CONFIG_PATHS = (
     PROJECT_ROOT / "configs" / "glm_ocr.local.example.yaml",
@@ -191,40 +192,90 @@ def test_vllm_patch_build_inputs_are_content_addressed() -> None:
     manifest_bytes = VLLM_BUILD_MANIFEST_PATH.read_bytes()
     manifest: Any = json.loads(manifest_bytes)
     assert isinstance(manifest, dict)
-    patch_bytes = VLLM_PATCH_PATH.read_bytes()
+    patch_bytes = tuple(path.read_bytes() for path in VLLM_PATCH_PATHS)
     dockerfile = VLLM_DOCKERFILE_PATH.read_text(encoding="utf-8")
 
     assert manifest == {
-        "schema_version": 1,
-        "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f",
+        "schema_version": 2,
+        "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f-df63cb9",
         "base_image": (
             "vllm/vllm-openai:v0.26.0@sha256:"
             "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
         ),
         "vllm_version": "0.26.0",
-        "patch_source": (
-            "https://github.com/vllm-project/vllm/commit/89e3c3f5b41d0f678d19a138dba59b3757a1a16f"
-        ),
-        "patch_commit": "89e3c3f5b41d0f678d19a138dba59b3757a1a16f",
-        "patch_sha256": "0923d3e1975634a7e2b639119a8d78a190a991c5635fba7b8e2df7d17b5e3993",
-        "target_path": (
-            "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/utils.py"
-        ),
-        "target_before_sha256": (
-            "f06d1a1a8d92e6ab39ebf7931d3eb3d6688d212606b1c409d7bed8eed5ba1fc2"
-        ),
-        "target_after_sha256": ("f8d69922ac178e4e8dc8083bef8714234005254785c2a3645ed74b3dfe521733"),
+        "patches": [
+            {
+                "source": (
+                    "https://github.com/vllm-project/vllm/commit/"
+                    "89e3c3f5b41d0f678d19a138dba59b3757a1a16f"
+                ),
+                "commit": "89e3c3f5b41d0f678d19a138dba59b3757a1a16f",
+                "sha256": "0923d3e1975634a7e2b639119a8d78a190a991c5635fba7b8e2df7d17b5e3993",
+                "targets": [
+                    {
+                        "path": (
+                            "/usr/local/lib/python3.12/dist-packages/vllm/"
+                            "model_executor/models/utils.py"
+                        ),
+                        "before_sha256": (
+                            "f06d1a1a8d92e6ab39ebf7931d3eb3d6688d212606b1c409d7bed8eed5ba1fc2"
+                        ),
+                        "after_sha256": (
+                            "f8d69922ac178e4e8dc8083bef8714234005254785c2a3645ed74b3dfe521733"
+                        ),
+                    }
+                ],
+            },
+            {
+                "source": (
+                    "https://github.com/vllm-project/vllm/commit/"
+                    "df63cb9492e85d3df71284a5d9f234fc39ae0b74"
+                ),
+                "commit": "df63cb9492e85d3df71284a5d9f234fc39ae0b74",
+                "sha256": "fbc1648c49f56ae4d3ee664969672afdfe1230da5f4878f285bbd99ad6469588",
+                "targets": [
+                    {
+                        "path": (
+                            "/usr/local/lib/python3.12/dist-packages/vllm/"
+                            "model_executor/models/glm_ocr_mtp.py"
+                        ),
+                        "before_sha256": (
+                            "f7e5c90fdefdad05f05cad17cc74c7f360a349aeecfb3885212b4f07dd8d1fc1"
+                        ),
+                        "after_sha256": (
+                            "034d815af1c797bd2d7437d799efe0bc8010ab1cf8cfe8a3f39b3c89158f6101"
+                        ),
+                    },
+                    {
+                        "path": (
+                            "/usr/local/lib/python3.12/dist-packages/vllm/"
+                            "model_executor/models/glm4_moe_lite_mtp.py"
+                        ),
+                        "before_sha256": (
+                            "a4c0fab8092b04fc0c54b4c8936ba4712a69d734f82bd6018572238e828cc444"
+                        ),
+                        "after_sha256": (
+                            "499d3f66c7a939991bad6e760ba5a396fd49f32bab054fec1b440a4cc8408529"
+                        ),
+                    },
+                ],
+            },
+        ],
     }
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "02f79af13ea66b4c63cf1609abc9287a7757efe9b7dd03ddeeb0d73ed041352d"
+        "c1ffd97e7a6fa3fdb02b5acd84966e6afc10c096a5eec5e7bd47dad7a88197b4"
     )
-    assert hashlib.sha256(patch_bytes).hexdigest() == manifest["patch_sha256"]
+    assert [hashlib.sha256(value).hexdigest() for value in patch_bytes] == [
+        patch["sha256"] for patch in manifest["patches"]
+    ]
     assert dockerfile.startswith(
         "# syntax=docker/dockerfile:1.7@sha256:"
         "a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e\n"
     )
     assert f"FROM {manifest['base_image']}" in dockerfile
-    assert manifest["patch_commit"] in dockerfile
-    assert manifest["patch_sha256"] in dockerfile
+    for patch in manifest["patches"]:
+        assert patch["commit"] in dockerfile
+        assert patch["sha256"] in dockerfile
     assert "RUN PYTHONDONTWRITEBYTECODE=1 python3" in dockerfile
-    assert "model.language_model.layers.{base + i}." in patch_bytes.decode("utf-8")
+    assert "model.language_model.layers.{base + i}." in patch_bytes[0].decode("utf-8")
+    assert "inputs_embeds = torch.where" in patch_bytes[1].decode("utf-8")

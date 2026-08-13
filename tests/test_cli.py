@@ -13,7 +13,7 @@ from document_ocr.client import ServerInfo
 from document_ocr.config import PipelineConfig
 from document_ocr.hashing import canonical_json_bytes, canonical_json_sha256
 from document_ocr.ledger import IncompleteRunError
-from document_ocr.pipeline import PipelineResult
+from document_ocr.pipeline import PipelineProgress, PipelineResult
 from document_ocr.sources import FrozenSourceInventory, SourceDiscoveryError
 from document_ocr.vllm_contract import runtime_contract_payload, runtime_contract_sha256
 
@@ -168,8 +168,20 @@ def test_run_passes_resolved_project_root_and_reports_server_identity(
     )
     calls: list[tuple[Path, PipelineConfig]] = []
 
-    async def fake_run_pipeline(*, project_root: Path, config: PipelineConfig) -> PipelineResult:
+    async def fake_run_pipeline(
+        *,
+        project_root: Path,
+        config: PipelineConfig,
+        progress: Any,
+    ) -> PipelineResult:
         calls.append((project_root, config))
+        progress(
+            PipelineProgress(
+                phase="extracting",
+                total_documents=2,
+                processed_documents=1,
+            )
+        )
         return result
 
     monkeypatch.setattr(cli, "run_pipeline", fake_run_pipeline)
@@ -187,7 +199,17 @@ def test_run_passes_resolved_project_root_and_reports_server_identity(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert calls == [(project_root.resolve(), config)]
-    assert captured.err == ""
+    assert captured.err == _expected_line(
+        {
+            "command": "run",
+            "phase": "extracting",
+            "processed_documents": 1,
+            "remaining_documents": 1,
+            "run_id": config.run.run_id,
+            "status": "progress",
+            "total_documents": 2,
+        }
+    )
     assert captured.out == _expected_line(
         {
             "command": "run",

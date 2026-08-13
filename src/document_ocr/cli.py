@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
@@ -16,7 +16,7 @@ from document_ocr.hashing import canonical_json_bytes, canonical_json_sha256
 
 if TYPE_CHECKING:
     from document_ocr.benchmark import PublishedBenchmarkReport
-    from document_ocr.pipeline import PipelineResult
+    from document_ocr.pipeline import PipelineProgress, PipelineResult
     from document_ocr.sources import FrozenSourceInventory
 
 _EXIT_SUCCESS = 0
@@ -58,12 +58,17 @@ async def prepare_inventory(config: PipelineConfig) -> FrozenSourceInventory:
     return await prepare(config)
 
 
-async def run_pipeline(*, project_root: Path, config: PipelineConfig) -> PipelineResult:
+async def run_pipeline(
+    *,
+    project_root: Path,
+    config: PipelineConfig,
+    progress: Callable[[PipelineProgress], None] | None = None,
+) -> PipelineResult:
     """Load the extraction stack only when an extraction is requested."""
 
     from document_ocr.pipeline import run_pipeline as run
 
-    return await run(project_root=project_root, config=config)
+    return await run(project_root=project_root, config=config, progress=progress)
 
 
 async def require_run_complete(config: PipelineConfig) -> dict[str, int]:
@@ -225,7 +230,26 @@ async def _dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
 
         if command == "run":
             project_root = _resolve_project_root(cast(Path, arguments.project_root), config)
-            result = await run_pipeline(project_root=project_root, config=config)
+
+            def report_progress(progress: PipelineProgress) -> None:
+                _emit(
+                    sys.stderr,
+                    {
+                        "command": "run",
+                        "phase": progress.phase,
+                        "processed_documents": progress.processed_documents,
+                        "remaining_documents": progress.remaining_documents,
+                        "run_id": config.run.run_id,
+                        "status": "progress",
+                        "total_documents": progress.total_documents,
+                    },
+                )
+
+            result = await run_pipeline(
+                project_root=project_root,
+                config=config,
+                progress=report_progress,
+            )
             server = None
             if result.server_info is not None:
                 server = {

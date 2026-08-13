@@ -32,14 +32,11 @@ _BUILD_MANIFEST_KEYS = frozenset(
         "image",
         "base_image",
         "vllm_version",
-        "patch_source",
-        "patch_commit",
-        "patch_sha256",
-        "target_path",
-        "target_before_sha256",
-        "target_after_sha256",
+        "patches",
     }
 )
+_PATCH_KEYS = frozenset({"source", "commit", "sha256", "targets"})
+_PATCH_TARGET_KEYS = frozenset({"path", "before_sha256", "after_sha256"})
 
 
 class RuntimeContractError(RuntimeError):
@@ -149,34 +146,95 @@ def _load_build_manifest() -> tuple[dict[str, object], str]:
     if not isinstance(manifest, dict) or set(manifest) != _BUILD_MANIFEST_KEYS:
         raise RuntimeContractError("vLLM build manifest has an invalid field set")
     schema_version = manifest["schema_version"]
-    if isinstance(schema_version, bool) or schema_version != 1:
+    if isinstance(schema_version, bool) or schema_version != 2:
         raise RuntimeContractError("vLLM build manifest has an unsupported schema version")
 
-    string_fields = _BUILD_MANIFEST_KEYS - {"schema_version"}
+    string_fields = _BUILD_MANIFEST_KEYS - {"schema_version", "patches"}
     if any(not isinstance(manifest[field], str) or not manifest[field] for field in string_fields):
         raise RuntimeContractError("vLLM build manifest has an invalid string field")
     base_image = str(manifest["base_image"])
     if not _IMAGE_PATTERN.fullmatch(base_image):
         raise RuntimeContractError("vLLM build manifest base image is not digest-pinned")
-    patch_commit = str(manifest["patch_commit"])
-    if not _GIT_SHA_PATTERN.fullmatch(patch_commit):
-        raise RuntimeContractError("vLLM build manifest patch commit is not immutable")
-    expected_patch_source = "https://github.com/vllm-project/vllm/commit/" + patch_commit
-    if manifest["patch_source"] != expected_patch_source:
-        raise RuntimeContractError("vLLM build manifest patch source does not match its commit")
-    for field in ("patch_sha256", "target_before_sha256", "target_after_sha256"):
-        if not _SHA256_PATTERN.fullmatch(str(manifest[field])):
-            raise RuntimeContractError(f"vLLM build manifest {field} is not a SHA-256")
 
-    target_path = Path(str(manifest["target_path"]))
-    if not target_path.is_absolute():
-        raise RuntimeContractError("vLLM build manifest target path is not absolute")
-    try:
-        target_bytes = read_regular_file_bytes(target_path)
-    except ArtifactReadError as error:
-        raise RuntimeContractError("patched vLLM target is not a safe regular file") from error
-    if sha256_bytes(target_bytes) != manifest["target_after_sha256"]:
-        raise RuntimeContractError("installed vLLM target does not match the build manifest")
+    patches = manifest["patches"]
+    if not isinstance(patches, list) or not patches:
+        raise RuntimeContractError("vLLM build manifest patches must be a non-empty list")
+    patch_commits: set[str] = set()
+    target_paths: set[Path] = set()
+    for patch_index, patch in enumerate(patches):
+        if not isinstance(patch, dict) or set(patch) != _PATCH_KEYS:
+            raise RuntimeContractError(
+                f"vLLM build manifest patch {patch_index} has an invalid field set"
+            )
+        if any(
+            not isinstance(patch[field], str) or not patch[field]
+            for field in _PATCH_KEYS - {"targets"}
+        ):
+            raise RuntimeContractError(
+                f"vLLM build manifest patch {patch_index} has an invalid string field"
+            )
+        patch_commit = str(patch["commit"])
+        if not _GIT_SHA_PATTERN.fullmatch(patch_commit):
+            raise RuntimeContractError(
+                f"vLLM build manifest patch {patch_index} commit is not immutable"
+            )
+        if patch_commit in patch_commits:
+            raise RuntimeContractError("vLLM build manifest has duplicate patch commits")
+        patch_commits.add(patch_commit)
+        expected_patch_source = "https://github.com/vllm-project/vllm/commit/" + patch_commit
+        if patch["source"] != expected_patch_source:
+            raise RuntimeContractError(
+                f"vLLM build manifest patch {patch_index} source does not match its commit"
+            )
+        if not _SHA256_PATTERN.fullmatch(str(patch["sha256"])):
+            raise RuntimeContractError(
+                f"vLLM build manifest patch {patch_index} sha256 is not a SHA-256"
+            )
+
+        targets = patch["targets"]
+        if not isinstance(targets, list) or not targets:
+            raise RuntimeContractError(
+                f"vLLM build manifest patch {patch_index} targets must be a non-empty list"
+            )
+        for target_index, target in enumerate(targets):
+            if not isinstance(target, dict) or set(target) != _PATCH_TARGET_KEYS:
+                raise RuntimeContractError(
+                    "vLLM build manifest patch "
+                    f"{patch_index} target {target_index} has an invalid field set"
+                )
+            if any(
+                not isinstance(target[field], str) or not target[field]
+                for field in _PATCH_TARGET_KEYS
+            ):
+                raise RuntimeContractError(
+                    "vLLM build manifest patch "
+                    f"{patch_index} target {target_index} has an invalid string field"
+                )
+            for field in ("before_sha256", "after_sha256"):
+                if not _SHA256_PATTERN.fullmatch(str(target[field])):
+                    raise RuntimeContractError(
+                        "vLLM build manifest patch "
+                        f"{patch_index} target {target_index} {field} is not a SHA-256"
+                    )
+            target_path = Path(str(target["path"]))
+            if not target_path.is_absolute():
+                raise RuntimeContractError(
+                    "vLLM build manifest patch "
+                    f"{patch_index} target {target_index} path is not absolute"
+                )
+            if target_path in target_paths:
+                raise RuntimeContractError("vLLM build manifest has duplicate target paths")
+            target_paths.add(target_path)
+            try:
+                target_bytes = read_regular_file_bytes(target_path)
+            except ArtifactReadError as error:
+                raise RuntimeContractError(
+                    "patched vLLM target is not a safe regular file"
+                ) from error
+            if sha256_bytes(target_bytes) != target["after_sha256"]:
+                raise RuntimeContractError(
+                    "installed vLLM target does not match the build manifest"
+                )
     try:
         installed_vllm_version = importlib.metadata.version("vllm")
     except importlib.metadata.PackageNotFoundError as error:

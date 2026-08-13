@@ -1,0 +1,28 @@
+diff --git a/vllm/model_executor/models/glm_ocr_mtp.py b/vllm/model_executor/models/glm_ocr_mtp.py
+index 6e5601ec7..b0dcf03fe 100644
+--- a/vllm/model_executor/models/glm_ocr_mtp.py
++++ b/vllm/model_executor/models/glm_ocr_mtp.py
+@@ -84,7 +84,9 @@ class GlmOcrMultiTokenPredictorLayer(nn.Module):
+     ) -> torch.Tensor:
+         assert inputs_embeds is not None
+         # masking inputs at position 0, as not needed by MTP
+-        inputs_embeds[positions[0] == 0] = 0
++        inputs_embeds = torch.where(
++            positions[0].unsqueeze(-1) == 0, 0, inputs_embeds
++        )
+ 
+         inputs_embeds = self.enorm(inputs_embeds)
+         previous_hidden_states = self.hnorm(previous_hidden_states)
+diff --git a/vllm/model_executor/models/glm4_moe_lite_mtp.py b/vllm/model_executor/models/glm4_moe_lite_mtp.py
+index 171a48931..7de757966 100644
+--- a/vllm/model_executor/models/glm4_moe_lite_mtp.py
++++ b/vllm/model_executor/models/glm4_moe_lite_mtp.py
+@@ -131,7 +131,7 @@ class Glm4MoeLiteMultiTokenPredictorLayer(nn.Module):
+     ) -> torch.Tensor:
+         assert inputs_embeds is not None
+         # masking inputs at position 0, as not needed by MTP
+-        inputs_embeds[positions == 0] = 0
++        inputs_embeds = torch.where(positions.unsqueeze(-1) == 0, 0, inputs_embeds)
+         inputs_embeds = self.enorm(inputs_embeds)
+         previous_hidden_states = self.hnorm(previous_hidden_states)
+ 
