@@ -203,6 +203,10 @@ The model and scheduler settings are intentionally literal values in `compose.ya
 - MTP with one speculative token
 - one image per request
 
+The service also enables `VLLM_WSL2_ENABLE_PIN_MEMORY=1`. vLLM's V2 model runner requires Unified
+Virtual Addressing, while vLLM disables the prerequisite pinned-memory path on WSL2 unless this
+supported runtime flag is set.
+
 They must match the extraction YAML. A benchmark variant requires an intentional paired edit to
 the server definition and its versioned configuration; environment-variable overrides cannot
 silently change this contract. The current strict extraction schema accepts MTP depth 1 only.

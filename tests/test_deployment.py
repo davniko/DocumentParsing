@@ -150,6 +150,7 @@ def test_example_config_matches_pinned_vllm_compose_contract(config_path: Path) 
     environment = service.get("environment")
     assert isinstance(environment, dict)
     assert environment["PYTHONPATH"] == "/opt/document-ocr-src"
+    assert environment["VLLM_WSL2_ENABLE_PIN_MEMORY"] == "1"
     assert environment["DOCUMENT_OCR_VLLM_IMAGE"] == service["image"]
     assert "VLLM_SERVER_DEV_MODE" not in environment
     volumes = service.get("volumes")

@@ -9,6 +9,7 @@ services:
     environment:
       HF_HOME: /root/.cache/huggingface
       VLLM_CACHE_ROOT: /root/.cache/vllm
+      VLLM_WSL2_ENABLE_PIN_MEMORY: "1"
       PYTHONPATH: /opt/document-ocr-src
       DOCUMENT_OCR_VLLM_IMAGE: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
     volumes:
