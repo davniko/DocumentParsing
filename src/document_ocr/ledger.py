@@ -321,7 +321,8 @@ class ExtractionLedger:
             "inference_model_revision": config.vllm.revision,
             "inference_server_engine": "vllm",
             "inference_server_engine_version": config.vllm.engine_version,
-            "inference_server_image": config.vllm.container_image,
+            "inference_server_base_image": config.vllm.container_base_image,
+            "inference_server_build_manifest_sha256": (config.vllm.container_build_manifest_sha256),
             "inference_server_contract_sha256": runtime_contract_sha256(
                 runtime_contract_payload(
                     model=config.vllm.model,
@@ -336,7 +337,8 @@ class ExtractionLedger:
                         config.vllm.speculative_decoding.num_speculative_tokens
                     ),
                     image_limit_per_prompt=1,
-                    container_image=config.vllm.container_image,
+                    container_base_image=config.vllm.container_base_image,
+                    container_build_manifest_sha256=(config.vllm.container_build_manifest_sha256),
                 )
             ),
             "inference_speculative_method": config.vllm.speculative_decoding.method,

@@ -22,6 +22,7 @@ CONTAINER_IMAGE = (
     "vllm/vllm-openai:v0.26.0@sha256:"
     "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
 )
+BUILD_MANIFEST_SHA256 = "d" * 64
 
 
 def _server_info() -> ServerInfo:
@@ -36,7 +37,8 @@ def _server_info() -> ServerInfo:
         speculative_method="mtp",
         num_speculative_tokens=1,
         image_limit_per_prompt=1,
-        container_image=CONTAINER_IMAGE,
+        container_base_image=CONTAINER_IMAGE,
+        container_build_manifest_sha256=BUILD_MANIFEST_SHA256,
     )
     return ServerInfo(
         version="0.26.0",
@@ -51,7 +53,8 @@ def _server_info() -> ServerInfo:
         speculative_method="mtp",
         num_speculative_tokens=1,
         image_limit_per_prompt=1,
-        container_image=CONTAINER_IMAGE,
+        container_base_image=CONTAINER_IMAGE,
+        container_build_manifest_sha256=BUILD_MANIFEST_SHA256,
         contract_sha256=runtime_contract_sha256(payload),
     )
 
@@ -192,7 +195,8 @@ def test_run_passes_resolved_project_root_and_reports_server_identity(
             "resumed_complete_run": False,
             "run_id": config.run.run_id,
             "server": {
-                "container_image": CONTAINER_IMAGE,
+                "container_base_image": CONTAINER_IMAGE,
+                "container_build_manifest_sha256": BUILD_MANIFEST_SHA256,
                 "contract_sha256": _server_info().contract_sha256,
                 "generation_config": "vllm",
                 "gpu_memory_utilization": 0.9,

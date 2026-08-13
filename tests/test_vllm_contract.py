@@ -4,11 +4,13 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
 
+import document_ocr.vllm_contract as contract_module
 from document_ocr.vllm_contract import (
     RUNTIME_CONTRACT_PATH,
     RuntimeContractError,
@@ -20,6 +22,7 @@ CONTAINER_IMAGE = (
     "vllm/vllm-openai:v0.26.0@sha256:"
     "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
 )
+PATCH_COMMIT = "89e3c3f5b41d0f678d19a138dba59b3757a1a16f"
 
 
 def _runtime_state() -> SimpleNamespace:
@@ -57,12 +60,42 @@ def _canonical_sha256(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _install_build_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    **changes: object,
+) -> str:
+    target = tmp_path / "utils.py"
+    target.write_bytes(b"patched vllm utils\n")
+    target_sha256 = hashlib.sha256(target.read_bytes()).hexdigest()
+    manifest: dict[str, object] = {
+        "schema_version": 1,
+        "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f",
+        "base_image": CONTAINER_IMAGE,
+        "vllm_version": "0.26.0",
+        "patch_source": f"https://github.com/vllm-project/vllm/commit/{PATCH_COMMIT}",
+        "patch_commit": PATCH_COMMIT,
+        "patch_sha256": "a" * 64,
+        "target_path": str(target),
+        "target_before_sha256": "b" * 64,
+        "target_after_sha256": target_sha256,
+    }
+    manifest.update(changes)
+    raw_manifest = (json.dumps(manifest, indent=2) + "\n").encode("utf-8")
+    manifest_path = tmp_path / "build-manifest.json"
+    manifest_path.write_bytes(raw_manifest)
+    monkeypatch.setenv("DOCUMENT_OCR_VLLM_BUILD_MANIFEST", str(manifest_path))
+    monkeypatch.setattr(contract_module.importlib.metadata, "version", lambda _: "0.26.0")
+    return hashlib.sha256(raw_manifest).hexdigest()
+
+
 def test_build_runtime_contract_returns_exact_resolved_claim_and_hash(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("DOCUMENT_OCR_VLLM_IMAGE", CONTAINER_IMAGE)
+    manifest_sha256 = _install_build_manifest(tmp_path, monkeypatch)
     expected_payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "model": "zai-org/GLM-OCR",
         "served_model_name": "glm-ocr",
         "model_revision": "ca5d8b3e287e52589e37c28385d9655ee4372f9d",
@@ -73,7 +106,8 @@ def test_build_runtime_contract_returns_exact_resolved_claim_and_hash(
         "speculative_method": "mtp",
         "num_speculative_tokens": 1,
         "image_limit_per_prompt": 1,
-        "container_image": CONTAINER_IMAGE,
+        "container_base_image": CONTAINER_IMAGE,
+        "container_build_manifest_sha256": manifest_sha256,
     }
 
     actual = build_runtime_contract(_runtime_state())
@@ -150,11 +184,12 @@ def test_build_runtime_contract_returns_exact_resolved_claim_and_hash(
     ),
 )
 def test_build_runtime_contract_rejects_missing_or_malformed_runtime_fields(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mutate: Callable[[Any], object],
     error_match: str,
 ) -> None:
-    monkeypatch.setenv("DOCUMENT_OCR_VLLM_IMAGE", CONTAINER_IMAGE)
+    _install_build_manifest(tmp_path, monkeypatch)
     state = _runtime_state()
     mutate(state)
 
@@ -172,35 +207,59 @@ def test_build_runtime_contract_rejects_missing_or_malformed_runtime_fields(
     ],
     ids=("tag-only", "short-digest", "uppercase-digest", "whitespace"),
 )
-def test_build_runtime_contract_rejects_malformed_container_image_claim(
+def test_build_runtime_contract_rejects_malformed_container_base_image_claim(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     image_claim: str,
 ) -> None:
-    monkeypatch.setenv("DOCUMENT_OCR_VLLM_IMAGE", image_claim)
+    _install_build_manifest(tmp_path, monkeypatch, base_image=image_claim)
 
     with pytest.raises(
         RuntimeContractError,
-        match="DOCUMENT_OCR_VLLM_IMAGE must contain the digest-pinned running image claim",
+        match="vLLM build manifest base image is not digest-pinned",
     ):
         build_runtime_contract(_runtime_state())
 
 
-def test_build_runtime_contract_requires_container_image_claim(
+def test_build_runtime_contract_requires_container_base_image_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("DOCUMENT_OCR_VLLM_IMAGE", raising=False)
+    monkeypatch.delenv("DOCUMENT_OCR_VLLM_BUILD_MANIFEST", raising=False)
 
     with pytest.raises(
         RuntimeContractError,
-        match="DOCUMENT_OCR_VLLM_IMAGE must contain the digest-pinned running image claim",
+        match="DOCUMENT_OCR_VLLM_BUILD_MANIFEST must name the baked build manifest",
     ):
         build_runtime_contract(_runtime_state())
 
 
-def test_build_runtime_contract_rejects_disabled_speculative_decoding(
+def test_build_runtime_contract_rejects_tampered_patched_target(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("DOCUMENT_OCR_VLLM_IMAGE", CONTAINER_IMAGE)
+    _install_build_manifest(tmp_path, monkeypatch, target_after_sha256="c" * 64)
+
+    with pytest.raises(
+        RuntimeContractError,
+        match="installed vLLM target does not match the build manifest",
+    ):
+        build_runtime_contract(_runtime_state())
+
+
+def test_build_runtime_contract_rejects_mismatched_vllm_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_build_manifest(tmp_path, monkeypatch, vllm_version="0.25.1")
+
+    with pytest.raises(
+        RuntimeContractError,
+        match="installed vLLM version does not match the build manifest",
+    ):
+        build_runtime_contract(_runtime_state())
+
+
+def test_build_runtime_contract_rejects_disabled_speculative_decoding() -> None:
     state = _runtime_state()
     state.vllm_config.speculative_config = None
 
@@ -252,6 +311,7 @@ async def test_runtime_contract_endpoint_preserves_inner_authentication_response
 
 @pytest.mark.asyncio
 async def test_runtime_contract_endpoint_replaces_inner_404_with_claim(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class JSONResponse:
@@ -265,7 +325,7 @@ async def test_runtime_contract_endpoint_replaces_inner_404_with_claim(
     responses_module.JSONResponse = JSONResponse  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "starlette", starlette_module)
     monkeypatch.setitem(sys.modules, "starlette.responses", responses_module)
-    monkeypatch.setenv("DOCUMENT_OCR_VLLM_IMAGE", CONTAINER_IMAGE)
+    _install_build_manifest(tmp_path, monkeypatch)
 
     request = SimpleNamespace(
         url=SimpleNamespace(path=RUNTIME_CONTRACT_PATH),

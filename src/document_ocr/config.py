@@ -731,7 +731,8 @@ class VllmConfig(_StrictConfigModel):
     served_model_name: NonEmptyString
     revision: NonEmptyString
     engine_version: NonEmptyString
-    container_image: NonEmptyString
+    container_base_image: NonEmptyString
+    container_build_manifest_sha256: str
     max_model_len: PositiveInteger
     max_num_seqs: PositiveInteger
     gpu_memory_utilization: Annotated[float, Field(gt=0.0, le=1.0)]
@@ -775,11 +776,22 @@ class VllmConfig(_StrictConfigModel):
             )
         return value.lower()
 
-    @field_validator("container_image")
+    @field_validator("container_base_image")
     @classmethod
-    def container_image_must_be_digest_pinned(cls, value: str) -> str:
+    def container_base_image_must_be_digest_pinned(cls, value: str) -> str:
         if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", value):
-            raise ValueError("container_image must include an immutable lowercase @sha256 digest")
+            raise ValueError(
+                "container_base_image must include an immutable lowercase @sha256 digest"
+            )
+        return value
+
+    @field_validator("container_build_manifest_sha256")
+    @classmethod
+    def container_build_manifest_sha256_must_be_valid(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError(
+                "container_build_manifest_sha256 must be a lowercase 64-character SHA-256"
+            )
         return value
 
     @model_validator(mode="after")

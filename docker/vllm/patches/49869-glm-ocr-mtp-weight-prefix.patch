@@ -1,0 +1,18 @@
+# Backport of vllm-project/vllm#49869 commit
+# 89e3c3f5b41d0f678d19a138dba59b3757a1a16f to the pinned v0.26.0 image.
+diff --git a/vllm/model_executor/models/utils.py b/vllm/model_executor/models/utils.py
+--- a/vllm/model_executor/models/utils.py
++++ b/vllm/model_executor/models/utils.py
+@@ -512,5 +512,11 @@
+     base = config.num_hidden_layers
+     for i in range(n):
+-        if weight_name.startswith((f"model.layers.{base + i}.", f"layers.{base + i}.")):
++        if weight_name.startswith(
++            (
++                f"model.layers.{base + i}.",
++                f"layers.{base + i}.",
++                f"model.language_model.layers.{base + i}.",
++            )
++        ):
+             return base + i
+     return None

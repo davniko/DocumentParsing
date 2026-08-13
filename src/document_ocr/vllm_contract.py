@@ -10,15 +10,36 @@ authentication.
 
 from __future__ import annotations
 
+import importlib.metadata
+import json
 import os
 import re
+from pathlib import Path
 from typing import Any
 
+from document_ocr.atomic import ArtifactReadError, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 
 RUNTIME_CONTRACT_PATH = "/document-ocr/server-contract"
-RUNTIME_CONTRACT_SCHEMA_VERSION = 1
+RUNTIME_CONTRACT_SCHEMA_VERSION = 2
+_BUILD_MANIFEST_ENV = "DOCUMENT_OCR_VLLM_BUILD_MANIFEST"
 _IMAGE_PATTERN = re.compile(r"^[^\s]+@sha256:[0-9a-f]{64}$")
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_BUILD_MANIFEST_KEYS = frozenset(
+    {
+        "schema_version",
+        "image",
+        "base_image",
+        "vllm_version",
+        "patch_source",
+        "patch_commit",
+        "patch_sha256",
+        "target_path",
+        "target_before_sha256",
+        "target_after_sha256",
+    }
+)
 
 
 class RuntimeContractError(RuntimeError):
@@ -37,7 +58,8 @@ def runtime_contract_payload(
     speculative_method: str,
     num_speculative_tokens: int,
     image_limit_per_prompt: int,
-    container_image: str,
+    container_base_image: str,
+    container_build_manifest_sha256: str,
 ) -> dict[str, object]:
     """Build the single canonical field set hashed by server and clients."""
 
@@ -53,7 +75,8 @@ def runtime_contract_payload(
         "speculative_method": speculative_method,
         "num_speculative_tokens": num_speculative_tokens,
         "image_limit_per_prompt": image_limit_per_prompt,
-        "container_image": container_image,
+        "container_base_image": container_base_image,
+        "container_build_manifest_sha256": container_build_manifest_sha256,
     }
 
 
@@ -91,6 +114,78 @@ def _positive_float(value: object, name: str) -> float:
     return result
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON value: {value}")
+
+
+def _load_build_manifest() -> tuple[dict[str, object], str]:
+    manifest_path_value = os.environ.get(_BUILD_MANIFEST_ENV)
+    if manifest_path_value is None:
+        raise RuntimeContractError(f"{_BUILD_MANIFEST_ENV} must name the baked build manifest")
+    manifest_path = Path(manifest_path_value)
+    if not manifest_path.is_absolute():
+        raise RuntimeContractError(f"{_BUILD_MANIFEST_ENV} must be an absolute path")
+    try:
+        raw_manifest = read_regular_file_bytes(manifest_path)
+    except ArtifactReadError as error:
+        raise RuntimeContractError("vLLM build manifest is not a safe regular file") from error
+    try:
+        manifest = json.loads(
+            raw_manifest.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_nonfinite_json,
+        )
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeContractError("vLLM build manifest is not strict UTF-8 JSON") from error
+    if not isinstance(manifest, dict) or set(manifest) != _BUILD_MANIFEST_KEYS:
+        raise RuntimeContractError("vLLM build manifest has an invalid field set")
+    schema_version = manifest["schema_version"]
+    if isinstance(schema_version, bool) or schema_version != 1:
+        raise RuntimeContractError("vLLM build manifest has an unsupported schema version")
+
+    string_fields = _BUILD_MANIFEST_KEYS - {"schema_version"}
+    if any(not isinstance(manifest[field], str) or not manifest[field] for field in string_fields):
+        raise RuntimeContractError("vLLM build manifest has an invalid string field")
+    base_image = str(manifest["base_image"])
+    if not _IMAGE_PATTERN.fullmatch(base_image):
+        raise RuntimeContractError("vLLM build manifest base image is not digest-pinned")
+    patch_commit = str(manifest["patch_commit"])
+    if not _GIT_SHA_PATTERN.fullmatch(patch_commit):
+        raise RuntimeContractError("vLLM build manifest patch commit is not immutable")
+    expected_patch_source = "https://github.com/vllm-project/vllm/commit/" + patch_commit
+    if manifest["patch_source"] != expected_patch_source:
+        raise RuntimeContractError("vLLM build manifest patch source does not match its commit")
+    for field in ("patch_sha256", "target_before_sha256", "target_after_sha256"):
+        if not _SHA256_PATTERN.fullmatch(str(manifest[field])):
+            raise RuntimeContractError(f"vLLM build manifest {field} is not a SHA-256")
+
+    target_path = Path(str(manifest["target_path"]))
+    if not target_path.is_absolute():
+        raise RuntimeContractError("vLLM build manifest target path is not absolute")
+    try:
+        target_bytes = read_regular_file_bytes(target_path)
+    except ArtifactReadError as error:
+        raise RuntimeContractError("patched vLLM target is not a safe regular file") from error
+    if sha256_bytes(target_bytes) != manifest["target_after_sha256"]:
+        raise RuntimeContractError("installed vLLM target does not match the build manifest")
+    try:
+        installed_vllm_version = importlib.metadata.version("vllm")
+    except importlib.metadata.PackageNotFoundError as error:
+        raise RuntimeContractError("vLLM distribution is not installed") from error
+    if installed_vllm_version != manifest["vllm_version"]:
+        raise RuntimeContractError("installed vLLM version does not match the build manifest")
+    return manifest, sha256_bytes(raw_manifest)
+
+
 def build_runtime_contract(state: object) -> dict[str, object]:
     """Read resolved settings from vLLM application state and hash the claim."""
 
@@ -108,11 +203,7 @@ def build_runtime_contract(state: object) -> dict[str, object]:
     if not callable(get_image_limit):
         raise RuntimeContractError("vLLM multimodal image-limit accessor is not callable")
 
-    container_image = os.environ.get("DOCUMENT_OCR_VLLM_IMAGE")
-    if container_image is None or not _IMAGE_PATTERN.fullmatch(container_image):
-        raise RuntimeContractError(
-            "DOCUMENT_OCR_VLLM_IMAGE must contain the digest-pinned running image claim"
-        )
+    build_manifest, build_manifest_sha256 = _load_build_manifest()
 
     payload = runtime_contract_payload(
         model=_string(_attribute(model, "model"), "model"),
@@ -131,7 +222,8 @@ def build_runtime_contract(state: object) -> dict[str, object]:
         image_limit_per_prompt=_positive_integer(
             get_image_limit("image"), "image_limit_per_prompt"
         ),
-        container_image=container_image,
+        container_base_image=str(build_manifest["base_image"]),
+        container_build_manifest_sha256=build_manifest_sha256,
     )
     return {
         **payload,

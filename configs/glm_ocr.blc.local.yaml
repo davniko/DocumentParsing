@@ -36,7 +36,8 @@ vllm:
   served_model_name: glm-ocr
   revision: ca5d8b3e287e52589e37c28385d9655ee4372f9d
   engine_version: 0.26.0
-  container_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+  container_base_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+  container_build_manifest_sha256: 02f79af13ea66b4c63cf1609abc9287a7757efe9b7dd03ddeeb0d73ed041352d
   max_model_len: 32768
   max_num_seqs: 16
   gpu_memory_utilization: 0.9

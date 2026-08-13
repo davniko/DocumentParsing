@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import tomllib
@@ -22,6 +23,11 @@ from document_ocr.config import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "compose.yaml"
+VLLM_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "vllm" / "Dockerfile"
+VLLM_BUILD_MANIFEST_PATH = PROJECT_ROOT / "docker" / "vllm" / "build-manifest.json"
+VLLM_PATCH_PATH = (
+    PROJECT_ROOT / "docker" / "vllm" / "patches" / "49869-glm-ocr-mtp-weight-prefix.patch"
+)
 EXAMPLE_CONFIG_PATHS = (
     PROJECT_ROOT / "configs" / "glm_ocr.local.example.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.s3.example.yaml",
@@ -116,8 +122,20 @@ def test_example_config_matches_pinned_vllm_compose_contract(config_path: Path) 
     service = _load_compose_service()
     command = _command(service)
 
-    assert service["image"] == config.vllm.container_image
-    assert _single_option(command, "--model") == config.vllm.model
+    manifest_bytes = VLLM_BUILD_MANIFEST_PATH.read_bytes()
+    manifest: Any = json.loads(manifest_bytes)
+    assert isinstance(manifest, dict)
+    assert hashlib.sha256(manifest_bytes).hexdigest() == (
+        config.vllm.container_build_manifest_sha256
+    )
+    assert manifest["base_image"] == config.vllm.container_base_image
+    assert service["image"] == manifest["image"]
+    assert service["build"] == {
+        "context": ".",
+        "dockerfile": "docker/vllm/Dockerfile",
+    }
+    assert command[0] == config.vllm.model
+    assert "--model" not in command
     assert _single_option(command, "--revision") == config.vllm.revision
     assert _single_option(command, "--served-model-name") == config.vllm.served_model_name
     assert _single_option(command, "--generation-config") == "vllm"
@@ -151,7 +169,10 @@ def test_example_config_matches_pinned_vllm_compose_contract(config_path: Path) 
     assert isinstance(environment, dict)
     assert environment["PYTHONPATH"] == "/opt/document-ocr-src"
     assert environment["VLLM_WSL2_ENABLE_PIN_MEMORY"] == "1"
-    assert environment["DOCUMENT_OCR_VLLM_IMAGE"] == service["image"]
+    assert environment["DOCUMENT_OCR_VLLM_BUILD_MANIFEST"] == (
+        "/opt/document-ocr/vllm-build-manifest.json"
+    )
+    assert "DOCUMENT_OCR_VLLM_IMAGE" not in environment
     assert "VLLM_SERVER_DEV_MODE" not in environment
     volumes = service.get("volumes")
     assert isinstance(volumes, list)
@@ -164,3 +185,46 @@ def test_example_config_matches_pinned_vllm_compose_contract(config_path: Path) 
     assert required_interpolation is not None
     assert required_interpolation.group(1) == config.vllm.api_key_env
     assert required_interpolation.group(2).strip()
+
+
+def test_vllm_patch_build_inputs_are_content_addressed() -> None:
+    manifest_bytes = VLLM_BUILD_MANIFEST_PATH.read_bytes()
+    manifest: Any = json.loads(manifest_bytes)
+    assert isinstance(manifest, dict)
+    patch_bytes = VLLM_PATCH_PATH.read_bytes()
+    dockerfile = VLLM_DOCKERFILE_PATH.read_text(encoding="utf-8")
+
+    assert manifest == {
+        "schema_version": 1,
+        "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f",
+        "base_image": (
+            "vllm/vllm-openai:v0.26.0@sha256:"
+            "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
+        ),
+        "vllm_version": "0.26.0",
+        "patch_source": (
+            "https://github.com/vllm-project/vllm/commit/89e3c3f5b41d0f678d19a138dba59b3757a1a16f"
+        ),
+        "patch_commit": "89e3c3f5b41d0f678d19a138dba59b3757a1a16f",
+        "patch_sha256": "0923d3e1975634a7e2b639119a8d78a190a991c5635fba7b8e2df7d17b5e3993",
+        "target_path": (
+            "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/utils.py"
+        ),
+        "target_before_sha256": (
+            "f06d1a1a8d92e6ab39ebf7931d3eb3d6688d212606b1c409d7bed8eed5ba1fc2"
+        ),
+        "target_after_sha256": ("f8d69922ac178e4e8dc8083bef8714234005254785c2a3645ed74b3dfe521733"),
+    }
+    assert hashlib.sha256(manifest_bytes).hexdigest() == (
+        "02f79af13ea66b4c63cf1609abc9287a7757efe9b7dd03ddeeb0d73ed041352d"
+    )
+    assert hashlib.sha256(patch_bytes).hexdigest() == manifest["patch_sha256"]
+    assert dockerfile.startswith(
+        "# syntax=docker/dockerfile:1.7@sha256:"
+        "a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e\n"
+    )
+    assert f"FROM {manifest['base_image']}" in dockerfile
+    assert manifest["patch_commit"] in dockerfile
+    assert manifest["patch_sha256"] in dockerfile
+    assert "RUN PYTHONDONTWRITEBYTECODE=1 python3" in dockerfile
+    assert "model.language_model.layers.{base + i}." in patch_bytes.decode("utf-8")

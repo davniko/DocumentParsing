@@ -408,7 +408,8 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         speculative_method=config.vllm.speculative_decoding.method,
         num_speculative_tokens=config.vllm.speculative_decoding.num_speculative_tokens,
         image_limit_per_prompt=1,
-        container_image=config.vllm.container_image,
+        container_base_image=config.vllm.container_base_image,
+        container_build_manifest_sha256=config.vllm.container_build_manifest_sha256,
     )
     expected: dict[str, object] = {
         "version": config.vllm.engine_version.removeprefix("v"),
@@ -422,7 +423,8 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         "speculative_method": config.vllm.speculative_decoding.method,
         "num_speculative_tokens": (config.vllm.speculative_decoding.num_speculative_tokens),
         "image_limit_per_prompt": 1,
-        "container_image": config.vllm.container_image,
+        "container_base_image": config.vllm.container_base_image,
+        "container_build_manifest_sha256": config.vllm.container_build_manifest_sha256,
         "contract_sha256": runtime_contract_sha256(runtime_payload),
     }
     observed: dict[str, object] = {
@@ -437,7 +439,8 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         "speculative_method": server.speculative_method,
         "num_speculative_tokens": server.num_speculative_tokens,
         "image_limit_per_prompt": server.image_limit_per_prompt,
-        "container_image": server.container_image,
+        "container_base_image": server.container_base_image,
+        "container_build_manifest_sha256": server.container_build_manifest_sha256,
         "contract_sha256": server.contract_sha256,
     }
     mismatches = sorted(key for key in expected if observed[key] != expected[key])
@@ -462,7 +465,8 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         "speculative_method": server.speculative_method,
         "num_speculative_tokens": server.num_speculative_tokens,
         "image_limit_per_prompt": server.image_limit_per_prompt,
-        "container_image": server.container_image,
+        "container_base_image": server.container_base_image,
+        "container_build_manifest_sha256": server.container_build_manifest_sha256,
         "contract_sha256": server.contract_sha256,
     }
 

@@ -26,6 +26,7 @@ CONTAINER_IMAGE = (
     "vllm/vllm-openai:v0.26.0@sha256:"
     "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
 )
+BUILD_MANIFEST_SHA256 = "d" * 64
 SERVER_CONTRACT_SHA256 = runtime_contract_sha256(
     runtime_contract_payload(
         model="zai-org/GLM-OCR",
@@ -38,7 +39,8 @@ SERVER_CONTRACT_SHA256 = runtime_contract_sha256(
         speculative_method="mtp",
         num_speculative_tokens=1,
         image_limit_per_prompt=1,
-        container_image=CONTAINER_IMAGE,
+        container_base_image=CONTAINER_IMAGE,
+        container_build_manifest_sha256=BUILD_MANIFEST_SHA256,
     )
 )
 NOW = datetime(2026, 8, 5, 10, 0, tzinfo=UTC)
@@ -84,7 +86,8 @@ def valid_config_data() -> dict[str, Any]:
             "served_model_name": "glm-ocr",
             "revision": MODEL_REVISION,
             "engine_version": "0.26.0",
-            "container_image": CONTAINER_IMAGE,
+            "container_base_image": CONTAINER_IMAGE,
+            "container_build_manifest_sha256": BUILD_MANIFEST_SHA256,
             "max_model_len": 32768,
             "max_num_seqs": 16,
             "gpu_memory_utilization": 0.9,
@@ -180,10 +183,11 @@ def valid_page_record_data() -> dict[str, Any]:
         "inference_model_revision": MODEL_REVISION,
         "inference_server_engine": "vllm",
         "inference_server_engine_version": "0.26.0",
-        "inference_server_image": (
+        "inference_server_base_image": (
             "vllm/vllm-openai:v0.26.0@sha256:"
             "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
         ),
+        "inference_server_build_manifest_sha256": BUILD_MANIFEST_SHA256,
         "inference_server_contract_sha256": SERVER_CONTRACT_SHA256,
         "inference_speculative_method": "mtp",
         "inference_num_speculative_tokens": 1,
@@ -344,8 +348,11 @@ vllm:
   served_model_name: glm-ocr
   revision: cccccccccccccccccccccccccccccccccccccccc
   engine_version: 0.26.0
-  container_image: """
+  container_base_image: """
             + CONTAINER_IMAGE
+            + """
+  container_build_manifest_sha256: """
+            + BUILD_MANIFEST_SHA256
             + """
   max_model_len: 32768
   max_num_seqs: 16

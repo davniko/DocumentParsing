@@ -32,6 +32,7 @@ CONTAINER_IMAGE = (
     "vllm/vllm-openai:v0.26.0@sha256:"
     "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
 )
+BUILD_MANIFEST_SHA256 = "d" * 64
 
 
 def make_config(*, max_attempts: int = 3) -> VllmConfig:
@@ -42,7 +43,8 @@ def make_config(*, max_attempts: int = 3) -> VllmConfig:
             "served_model_name": "glm-ocr",
             "revision": MODEL_REVISION,
             "engine_version": "0.26.0",
-            "container_image": CONTAINER_IMAGE,
+            "container_base_image": CONTAINER_IMAGE,
+            "container_build_manifest_sha256": BUILD_MANIFEST_SHA256,
             "max_model_len": 32768,
             "max_num_seqs": 16,
             "gpu_memory_utilization": 0.9,
@@ -85,7 +87,8 @@ def runtime_contract_body(**changes: object) -> dict[str, object]:
         speculative_method="mtp",
         num_speculative_tokens=1,
         image_limit_per_prompt=1,
-        container_image=CONTAINER_IMAGE,
+        container_base_image=CONTAINER_IMAGE,
+        container_build_manifest_sha256=BUILD_MANIFEST_SHA256,
     )
     payload.update(changes)
     return {**payload, "contract_sha256": runtime_contract_sha256(payload)}
@@ -106,7 +109,8 @@ def expected_server_info() -> ServerInfo:
         speculative_method="mtp",
         num_speculative_tokens=1,
         image_limit_per_prompt=1,
-        container_image=CONTAINER_IMAGE,
+        container_base_image=CONTAINER_IMAGE,
+        container_build_manifest_sha256=BUILD_MANIFEST_SHA256,
         contract_sha256=str(contract["contract_sha256"]),
     )
 
@@ -305,7 +309,7 @@ async def test_readiness_rejects_server_identity_mismatches(
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("schema_version", 2),
+        ("schema_version", 1),
         ("model", "wrong/repository"),
         ("served_model_name", "wrong-alias"),
         ("model_revision", "d" * 40),
@@ -317,9 +321,10 @@ async def test_readiness_rejects_server_identity_mismatches(
         ("num_speculative_tokens", 2),
         ("image_limit_per_prompt", 2),
         (
-            "container_image",
+            "container_base_image",
             "vllm/vllm-openai:v0.26.0@sha256:" + "d" * 64,
         ),
+        ("container_build_manifest_sha256", "e" * 64),
     ],
 )
 async def test_readiness_rejects_resolved_runtime_contract_mismatch(

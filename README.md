@@ -185,14 +185,23 @@ input/page semantics must be defined before they are added.
 ## Validate and start the GPU service later
 
 The Compose service follows the
-[official vLLM Docker deployment shape](https://docs.vllm.ai/en/latest/deployment/docker/) and pins
-both the vLLM image digest and GLM-OCR Hugging Face revision. Copy `.env.example` to the standard
-project-root `.env`, replace the API key, and validate the Compose structure without printing the
-resolved configuration or secret. Compose loads that `.env` file automatically:
+[official vLLM Docker deployment shape](https://docs.vllm.ai/en/latest/deployment/docker/) and
+builds a narrow derived image from a digest-pinned vLLM base. vLLM 0.26.0 has a confirmed
+[GLM-OCR MTP prefix regression](https://github.com/vllm-project/vllm/issues/49856), so the build
+applies the exact classifier fix from
+[vLLM PR #49869](https://github.com/vllm-project/vllm/pull/49869). The Docker build verifies the
+base target, patch, patched target, and build manifest by SHA-256 and runs the affected classifier
+cases without loading the model or allocating a GPU. The GLM-OCR Hugging Face revision remains
+independently pinned.
+
+Copy `.env.example` to the standard project-root `.env`, replace the API key, and validate the
+Compose structure without printing the resolved configuration or secret. Compose loads that
+`.env` file automatically:
 
 ```bash
 cp .env.example .env
 docker compose config --quiet
+docker compose build glm-ocr-vllm
 ```
 
 The model and scheduler settings are intentionally literal values in `compose.yaml`:
@@ -214,16 +223,20 @@ silently change this contract. The current strict extraction schema accepts MTP 
 Only when the target GPU is free, start the service explicitly:
 
 ```bash
-docker compose up glm-ocr-vllm
+docker compose up --wait --wait-timeout 3600 glm-ocr-vllm
 ```
 
-That command may pull the pinned image, download the pinned model revision, and allocate the GPU.
+Add `--build` when intentionally rebuilding the derived image; Compose also builds it when it is
+missing locally. Startup may pull the pinned base, download the pinned model revision, and allocate
+the GPU.
 The service binds only to loopback. Before extraction, the client requires the configured API-key
 environment variable and verifies `/health`, the exact `/version`, the unique served-model alias,
 the underlying model repository, and `max_model_len` exposed by `/v1/models`. An authenticated,
 hashed `/document-ocr/server-contract` response is derived from the running process's resolved
 vLLM state and must exactly attest the model revision, scheduler concurrency, GPU-memory fraction,
-generation-config policy, MTP method/depth, one-image limit, and digest-pinned container claim.
+generation-config policy, MTP method/depth, one-image limit, digest-pinned base image, and the baked
+build-manifest SHA-256. The endpoint also verifies the installed patched vLLM file against that
+manifest before returning a claim.
 
 ## Extract, resume, and inspect
 

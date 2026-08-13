@@ -209,7 +209,8 @@ class InferenceMetadata(_FrozenRecord):
     inference_model_revision: str
     inference_server_engine: Literal["vllm"]
     inference_server_engine_version: NonEmptyString
-    inference_server_image: NonEmptyString
+    inference_server_base_image: NonEmptyString
+    inference_server_build_manifest_sha256: str
     inference_server_contract_sha256: str
     inference_speculative_method: Literal["mtp"]
     inference_num_speculative_tokens: Literal[1]
@@ -236,7 +237,11 @@ class InferenceMetadata(_FrozenRecord):
             raise ValueError("inference_model_revision must be a lowercase 40-character Git SHA")
         return value
 
-    @field_validator("inference_prompt_sha256", "inference_server_contract_sha256")
+    @field_validator(
+        "inference_prompt_sha256",
+        "inference_server_contract_sha256",
+        "inference_server_build_manifest_sha256",
+    )
     @classmethod
     def validate_inference_hashes(cls, value: str) -> str:
         if not _SHA256_PATTERN.fullmatch(value):

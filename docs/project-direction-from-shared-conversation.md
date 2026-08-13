@@ -125,7 +125,8 @@ Coordinates should be added only after block grouping demonstrates insufficient 
 - The full response text is stored verbatim before any trimming or normalization.
 - A response ending because of the output-token limit is a failure, not a successful extraction.
 - The model and tokenizer revision, prompt, sampling settings, renderer settings, serving engine,
-  and speculative-decoding settings are part of the extraction provenance.
+  speculative-decoding settings, digest-pinned vLLM base image, and patched-image build manifest
+  are part of the extraction provenance.
 
 GLM-OCR includes a native Multi-Token Prediction (MTP) head. vLLM can use that head for speculative
 decoding without a separate draft model. The

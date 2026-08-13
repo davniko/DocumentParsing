@@ -2,7 +2,10 @@ name: document-ocr
 
 services:
   glm-ocr-vllm:
-    image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+    build:
+      context: .
+      dockerfile: docker/vllm/Dockerfile
+    image: document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f
     shm_size: 8gb
     ports:
       - "127.0.0.1:${VLLM_PORT:-8000}:8000"
@@ -11,13 +14,12 @@ services:
       VLLM_CACHE_ROOT: /root/.cache/vllm
       VLLM_WSL2_ENABLE_PIN_MEMORY: "1"
       PYTHONPATH: /opt/document-ocr-src
-      DOCUMENT_OCR_VLLM_IMAGE: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+      DOCUMENT_OCR_VLLM_BUILD_MANIFEST: /opt/document-ocr/vllm-build-manifest.json
     volumes:
       - hf-cache:/root/.cache/huggingface
       - vllm-cache:/root/.cache/vllm
       - ./src:/opt/document-ocr-src:ro
     command:
-      - --model
       - zai-org/GLM-OCR
       - --revision
       - ca5d8b3e287e52589e37c28385d9655ee4372f9d

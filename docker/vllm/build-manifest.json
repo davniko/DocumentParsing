@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "image": "document-ocr/vllm-openai:v0.26.0-glm-ocr-mtp-89e3c3f",
+  "base_image": "vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52",
+  "vllm_version": "0.26.0",
+  "patch_source": "https://github.com/vllm-project/vllm/commit/89e3c3f5b41d0f678d19a138dba59b3757a1a16f",
+  "patch_commit": "89e3c3f5b41d0f678d19a138dba59b3757a1a16f",
+  "patch_sha256": "0923d3e1975634a7e2b639119a8d78a190a991c5635fba7b8e2df7d17b5e3993",
+  "target_path": "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/utils.py",
+  "target_before_sha256": "f06d1a1a8d92e6ab39ebf7931d3eb3d6688d212606b1c409d7bed8eed5ba1fc2",
+  "target_after_sha256": "f8d69922ac178e4e8dc8083bef8714234005254785c2a3645ed74b3dfe521733"
+}

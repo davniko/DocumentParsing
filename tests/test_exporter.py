@@ -8,7 +8,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from test_config import SERVER_CONTRACT_SHA256, valid_config_data
+from test_config import BUILD_MANIFEST_SHA256, SERVER_CONTRACT_SHA256, valid_config_data
 
 from document_ocr.atomic import AtomicConflictError
 from document_ocr.config import PipelineConfig
@@ -157,10 +157,11 @@ def _record(page_index: int, page_count: int) -> PageExtractionRecord:
         inference_model_revision=MODEL_REVISION,
         inference_server_engine="vllm",
         inference_server_engine_version="0.26.0",
-        inference_server_image=(
+        inference_server_base_image=(
             "vllm/vllm-openai:v0.26.0@sha256:"
             "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
         ),
+        inference_server_build_manifest_sha256=BUILD_MANIFEST_SHA256,
         inference_server_contract_sha256=SERVER_CONTRACT_SHA256,
         inference_speculative_method="mtp",
         inference_num_speculative_tokens=1,

@@ -114,7 +114,8 @@ class ServerInfo:
     speculative_method: Literal["mtp"]
     num_speculative_tokens: Literal[1]
     image_limit_per_prompt: Literal[1]
-    container_image: str
+    container_base_image: str
+    container_build_manifest_sha256: str
     contract_sha256: str
 
 
@@ -321,7 +322,8 @@ class VllmOcrClient:
             speculative_method=runtime_contract["speculative_method"],
             num_speculative_tokens=runtime_contract["num_speculative_tokens"],
             image_limit_per_prompt=runtime_contract["image_limit_per_prompt"],
-            container_image=runtime_contract["container_image"],
+            container_base_image=runtime_contract["container_base_image"],
+            container_build_manifest_sha256=runtime_contract["container_build_manifest_sha256"],
             contract_sha256=runtime_contract["contract_sha256"],
         )
 
@@ -339,7 +341,8 @@ class VllmOcrClient:
             speculative_method=self.config.speculative_decoding.method,
             num_speculative_tokens=(self.config.speculative_decoding.num_speculative_tokens),
             image_limit_per_prompt=1,
-            container_image=self.config.container_image,
+            container_base_image=self.config.container_base_image,
+            container_build_manifest_sha256=(self.config.container_build_manifest_sha256),
         )
         expected_keys = set(expected) | {"contract_sha256"}
         if set(value) != expected_keys:
@@ -351,7 +354,8 @@ class VllmOcrClient:
             "model_revision",
             "generation_config",
             "speculative_method",
-            "container_image",
+            "container_base_image",
+            "container_build_manifest_sha256",
             "contract_sha256",
         }
         if any(not isinstance(value[field], str) or not value[field] for field in string_fields):

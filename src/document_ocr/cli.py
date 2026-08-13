@@ -229,7 +229,10 @@ async def _dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
             server = None
             if result.server_info is not None:
                 server = {
-                    "container_image": result.server_info.container_image,
+                    "container_base_image": result.server_info.container_base_image,
+                    "container_build_manifest_sha256": (
+                        result.server_info.container_build_manifest_sha256
+                    ),
                     "contract_sha256": result.server_info.contract_sha256,
                     "generation_config": result.server_info.generation_config,
                     "gpu_memory_utilization": (result.server_info.gpu_memory_utilization),

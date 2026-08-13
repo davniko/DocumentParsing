@@ -47,10 +47,11 @@ def _config_data() -> dict[str, Any]:
             "served_model_name": "glm-ocr",
             "revision": MODEL_REVISION,
             "engine_version": "0.26.0",
-            "container_image": (
+            "container_base_image": (
                 "vllm/vllm-openai:v0.26.0@sha256:"
                 "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
             ),
+            "container_build_manifest_sha256": "d" * 64,
             "max_model_len": 32768,
             "max_num_seqs": 16,
             "gpu_memory_utilization": 0.9,
@@ -119,9 +120,10 @@ def test_runtime_provenance_and_fingerprint_are_stable_and_self_verifying(
     assert len(first_fingerprint) == 64
     assert first["resolved_config_sha256"] == canonical_json_sha256(first["resolved_config"])
     assert first["extraction_contract"]["model"]["revision"] == MODEL_REVISION
-    assert first["extraction_contract"]["model"]["container_image"].endswith(
+    assert first["extraction_contract"]["model"]["container_base_image"].endswith(
         "@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
     )
+    assert first["extraction_contract"]["model"]["container_build_manifest_sha256"] == ("d" * 64)
     assert first["extraction_contract"]["model"]["speculative_decoding"] == {
         "method": "mtp",
         "num_speculative_tokens": 1,
