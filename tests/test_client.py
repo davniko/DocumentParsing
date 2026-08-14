@@ -70,6 +70,11 @@ def make_config(*, max_attempts: int = 3) -> VllmConfig:
                 "method": "mtp",
                 "num_speculative_tokens": 1,
             },
+            "repetition_detection": {
+                "min_pattern_size": 5,
+                "max_pattern_size": 64,
+                "min_count": 5,
+            },
         },
         strict=True,
     )
@@ -123,6 +128,7 @@ def completion_body(
     text: str = "  Heading\n\nbody text\n",
     *,
     finish_reason: str | None = "stop",
+    stop_reason: str | int | None = None,
 ) -> dict[str, Any]:
     return {
         "id": "chatcmpl-response-1",
@@ -134,6 +140,7 @@ def completion_body(
                 "index": 0,
                 "message": {"role": "assistant", "content": text},
                 "finish_reason": finish_reason,
+                "stop_reason": stop_reason,
             }
         ],
         "usage": {
@@ -160,7 +167,7 @@ def page_provenance() -> PageProvenance:
             "local_device": 42,
             "local_inode": 1234,
             "local_mtime_ns": 1_754_389_200_000_000_000,
-            "schema_version": 1,
+            "schema_version": 2,
             "run_id": "glm-ocr-20260805T100000Z",
             "extraction_id": "extract-document-001-page-000002",
             "page_id": "document-001:2",
@@ -468,6 +475,11 @@ async def test_recognize_page_sends_exact_glm_request_and_preserves_raw_response
         "repetition_penalty": 1.1,
         "seed": 0,
         "stream": False,
+        "repetition_detection": {
+            "min_pattern_size": 5,
+            "max_pattern_size": 64,
+            "min_count": 5,
+        },
     }
     assert response.text == "  Heading\n\nbody text\n"
     assert response.raw_response == raw_response
@@ -478,6 +490,64 @@ async def test_recognize_page_sends_exact_glm_request_and_preserves_raw_response
     assert response.completion_tokens == 256
     assert response.total_tokens == 384
     assert "Heading" not in repr(response)
+
+
+@pytest.mark.asyncio
+async def test_repetition_stopped_response_is_preserved_for_quality_filtering(
+    tmp_path: Path,
+) -> None:
+    raster = tmp_path / "page.png"
+    raster.write_bytes(b"png")
+    repeated_text = "carrier terms " * 25
+    raw_response = json.dumps(
+        completion_body(
+            repeated_text,
+            finish_reason="repetition",
+            stop_reason="repetition_detected",
+        ),
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=raw_response)
+
+    async with VllmOcrClient(
+        make_config(), max_connections=1, transport=make_transport(handler)
+    ) as client:
+        response = await client.recognize_page(
+            raster,
+            mime_type="image/png",
+            raster_sha256=raster_sha256(raster),
+            request_id="repetition-page",
+        )
+
+    assert response.finish_reason == "repetition"
+    assert response.text == repeated_text
+    assert response.raw_response == raw_response
+    assert response.attempts[-1].outcome == "success"
+
+
+@pytest.mark.asyncio
+async def test_length_stopped_response_remains_a_terminal_failure(tmp_path: Path) -> None:
+    raster = tmp_path / "page.png"
+    raster.write_bytes(b"png")
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=completion_body("partial", finish_reason="length"))
+
+    async with VllmOcrClient(
+        make_config(), max_connections=1, transport=make_transport(handler)
+    ) as client:
+        with pytest.raises(VllmClientError) as captured:
+            await client.recognize_page(
+                raster,
+                mime_type="image/png",
+                raster_sha256=raster_sha256(raster),
+                request_id="length-page",
+            )
+
+    assert captured.value.attempts[-1].outcome == "invalid_response"
+    assert captured.value.attempts[-1].error_message == "OCR output was truncated at max_tokens"
 
 
 @pytest.mark.asyncio
@@ -704,12 +774,8 @@ async def test_only_classified_transport_errors_retry(
             "exactly one choice",
         ),
         (
-            lambda body: body["choices"][0].update({"finish_reason": "length"}),
-            "truncated at max_tokens",
-        ),
-        (
             lambda body: body["choices"][0].update({"finish_reason": "content_filter"}),
-            "finish_reason must be 'stop'",
+            "finish_reason must be 'stop' or 'repetition'",
         ),
         (
             lambda body: body.update({"usage": None}),

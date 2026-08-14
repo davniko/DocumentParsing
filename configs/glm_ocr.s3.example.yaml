@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 
 source:
   type: s3
@@ -62,6 +62,10 @@ vllm:
   speculative_decoding:
     method: mtp
     num_speculative_tokens: 1
+  repetition_detection:
+    min_pattern_size: 5
+    max_pattern_size: 64
+    min_count: 5
 
 concurrency:
   max_active_documents: 8

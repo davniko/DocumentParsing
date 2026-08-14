@@ -75,7 +75,7 @@ def _page_provenance(page_index: int, page_count: int) -> dict[str, Any]:
         "s3_checksum_sha256": None,
         "s3_checksum_crc64nvme": None,
         "s3_checksum_type": None,
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": "run-1",
         "extraction_id": f"extraction-{page_index}",
         "page_id": f"page-{page_index}",
@@ -173,6 +173,9 @@ def _record(page_index: int, page_count: int) -> PageExtractionRecord:
         inference_repetition_penalty=1.0,
         inference_max_tokens=8192,
         inference_seed=0,
+        inference_repetition_detection_min_pattern_size=5,
+        inference_repetition_detection_max_pattern_size=64,
+        inference_repetition_detection_min_count=5,
         inference_request_id=f"request-{page_index}",
         inference_server_request_id=f"server-request-{page_index}",
         inference_finish_reason="stop",
@@ -354,7 +357,7 @@ def test_arrow_schemas_preserve_model_order_types_nullability_and_metadata() -> 
     assert pages.field("local_canonical_path").type != pa.large_string()
     assert pages.metadata == {
         b"record_model": b"document_ocr.models.PageExtractionRecord",
-        b"dataset_schema_version": b"1",
+        b"dataset_schema_version": b"2",
     }
 
 

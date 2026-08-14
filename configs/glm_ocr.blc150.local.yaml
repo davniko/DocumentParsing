@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 
 source:
   type: local
@@ -14,7 +14,7 @@ output:
   write_batch_rows: 256
 
 run:
-  run_id: glm-ocr-blc-pilot150-faa3c717dbc4
+  run_id: glm-ocr-blc-pilot150-faa3c717dbc4-r2
   fail_fast: false
   resume: true
 
@@ -60,6 +60,10 @@ vllm:
   speculative_decoding:
     method: mtp
     num_speculative_tokens: 1
+  repetition_detection:
+    min_pattern_size: 5
+    max_pattern_size: 64
+    min_count: 5
 
 concurrency:
   max_active_documents: 8

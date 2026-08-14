@@ -89,7 +89,7 @@ def arrow_schema(model: type[BaseModel]) -> pa.Schema:
         fields.append(pa.field(name, _arrow_type(model_field.annotation, name), nullable=nullable))
     metadata = {
         b"record_model": f"{model.__module__}.{model.__name__}".encode(),
-        b"dataset_schema_version": b"1",
+        b"dataset_schema_version": b"2",
     }
     return pa.schema(fields, metadata=metadata)
 
@@ -370,7 +370,7 @@ async def publish_complete_dataset(
         raise
 
     manifest_payload: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "dataset_kind": "glm-ocr-raw-page-extractions",
         "run_id": run_id,
         "config_sha256": contract["config_sha256"],

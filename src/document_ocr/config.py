@@ -723,6 +723,20 @@ class SpeculativeDecodingConfig(_StrictConfigModel):
     num_speculative_tokens: Literal[1]
 
 
+class RepetitionDetectionConfig(_StrictConfigModel):
+    """Deterministic vLLM token-pattern termination settings."""
+
+    min_pattern_size: PositiveInteger
+    max_pattern_size: PositiveInteger
+    min_count: Annotated[int, Field(ge=2)]
+
+    @model_validator(mode="after")
+    def pattern_range_is_ordered(self) -> RepetitionDetectionConfig:
+        if self.min_pattern_size > self.max_pattern_size:
+            raise ValueError("min_pattern_size must not exceed max_pattern_size")
+        return self
+
+
 class VllmConfig(_StrictConfigModel):
     """vLLM server identity and request policy."""
 
@@ -742,6 +756,7 @@ class VllmConfig(_StrictConfigModel):
     sampling: SamplingConfig
     retry: RetryConfig
     speculative_decoding: SpeculativeDecodingConfig
+    repetition_detection: RepetitionDetectionConfig
 
     @field_validator("endpoint")
     @classmethod
@@ -864,7 +879,7 @@ class BenchmarkSweepConfig(_StrictConfigModel):
 class PipelineConfig(_StrictConfigModel):
     """Complete versioned contract for one raw page-OCR extraction run."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     source: SourceConfig
     output: OutputConfig
     run: RunConfig

@@ -124,7 +124,7 @@ class OcrResponse:
     """Validated non-streaming OCR response with exact raw bytes and text."""
 
     text: str = field(repr=False)
-    finish_reason: Literal["stop"]
+    finish_reason: Literal["stop", "repetition"]
     request_id: str
     response_id: str
     response_model: str
@@ -434,6 +434,7 @@ class VllmOcrClient:
             "repetition_penalty": sampling.repetition_penalty,
             "seed": sampling.seed,
             "stream": False,
+            "repetition_detection": self.config.repetition_detection.model_dump(mode="json"),
         }
         attempts: list[RequestAttempt] = []
         retry = self.config.retry
@@ -602,8 +603,17 @@ class VllmOcrClient:
         finish_reason = choice.get("finish_reason")
         if finish_reason == "length":
             raise _InvalidResponseError("OCR output was truncated at max_tokens")
-        if finish_reason != "stop":
-            raise _InvalidResponseError("OCR response finish_reason must be 'stop'")
+        if finish_reason not in {"stop", "repetition"}:
+            raise _InvalidResponseError("OCR response finish_reason must be 'stop' or 'repetition'")
+        stop_reason = choice.get("stop_reason")
+        if isinstance(stop_reason, bool) or not isinstance(
+            stop_reason, (str, int, type(None))
+        ):
+            raise _InvalidResponseError("choice stop_reason must be a string, integer, or null")
+        if finish_reason == "repetition" and stop_reason != "repetition_detected":
+            raise _InvalidResponseError(
+                "repetition finish_reason requires stop_reason='repetition_detected'"
+            )
 
         usage = parsed.get("usage")
         if not isinstance(usage, dict):
@@ -628,7 +638,7 @@ class VllmOcrClient:
         )
         return OcrResponse(
             text=text,
-            finish_reason="stop",
+            finish_reason=finish_reason,
             request_id=request_id,
             response_id=response_id,
             response_model=response_model,

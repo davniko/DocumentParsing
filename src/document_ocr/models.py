@@ -133,7 +133,7 @@ class SourceObject(_FrozenRecord):
 class PageProvenance(SourceObject):
     """Source and page identity repeated on every output row."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     run_id: NonEmptyString
     extraction_id: NonEmptyString
     page_id: NonEmptyString
@@ -222,9 +222,12 @@ class InferenceMetadata(_FrozenRecord):
     inference_repetition_penalty: PositiveFloat
     inference_max_tokens: PositiveInteger
     inference_seed: NonNegativeInteger
+    inference_repetition_detection_min_pattern_size: PositiveInteger
+    inference_repetition_detection_max_pattern_size: PositiveInteger
+    inference_repetition_detection_min_count: Annotated[int, Field(ge=2)]
     inference_request_id: NonEmptyString
     inference_server_request_id: NonEmptyString | None = None
-    inference_finish_reason: Literal["stop"]
+    inference_finish_reason: Literal["stop", "repetition"]
     inference_prompt_tokens: NonNegativeInteger
     inference_completion_tokens: NonNegativeInteger
     inference_attempt_count: PositiveInteger
@@ -394,7 +397,7 @@ class PageExtractionFailure(PageProvenance):
 class DocumentExtractionFailure(SourceObject):
     """A terminal failure before a PDF could expose a complete page inventory."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     run_id: NonEmptyString
     config_sha256: str
     pipeline_fingerprint: str
@@ -485,7 +488,7 @@ class PageImageManifest(_FrozenRecord):
 class DatasetManifest(_FrozenRecord):
     """Typed, manifest-last contract for a complete page extraction dataset."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     dataset_kind: Literal["glm-ocr-raw-page-extractions"]
     run_id: NonEmptyString
     config_sha256: str

@@ -14,7 +14,7 @@ MODEL_REVISION = "c" * 40
 
 def _config_data() -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": {
             "type": "local",
             "root": "/data/pdfs",
@@ -74,6 +74,11 @@ def _config_data() -> dict[str, Any]:
                 "jitter_fraction": 0.0,
             },
             "speculative_decoding": {"method": "mtp", "num_speculative_tokens": 1},
+            "repetition_detection": {
+                "min_pattern_size": 5,
+                "max_pattern_size": 64,
+                "min_count": 5,
+            },
         },
         "concurrency": {
             "max_active_documents": 2,

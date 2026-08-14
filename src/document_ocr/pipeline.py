@@ -265,7 +265,7 @@ def _page_provenance(
     return PageProvenance.model_validate(
         {
             **source.model_dump(mode="python"),
-            "schema_version": 1,
+            "schema_version": 2,
             "run_id": config.run.run_id,
             "extraction_id": extraction_id,
             "page_id": page_id,
@@ -296,7 +296,7 @@ def _document_failure(
     return DocumentExtractionFailure.model_validate(
         {
             **source.model_dump(mode="python"),
-            "schema_version": 1,
+            "schema_version": 2,
             "run_id": config.run.run_id,
             "config_sha256": config_sha256,
             "pipeline_fingerprint": pipeline_fingerprint,
@@ -442,6 +442,15 @@ def _success_record(
             "inference_repetition_penalty": config.vllm.sampling.repetition_penalty,
             "inference_max_tokens": config.vllm.sampling.max_tokens,
             "inference_seed": config.vllm.sampling.seed,
+            "inference_repetition_detection_min_pattern_size": (
+                config.vllm.repetition_detection.min_pattern_size
+            ),
+            "inference_repetition_detection_max_pattern_size": (
+                config.vllm.repetition_detection.max_pattern_size
+            ),
+            "inference_repetition_detection_min_count": (
+                config.vllm.repetition_detection.min_count
+            ),
             "inference_request_id": response.request_id,
             "inference_server_request_id": response.server_request_id,
             "inference_finish_reason": response.finish_reason,

@@ -353,6 +353,15 @@ class ExtractionLedger:
             "inference_repetition_penalty": config.vllm.sampling.repetition_penalty,
             "inference_max_tokens": config.vllm.sampling.max_tokens,
             "inference_seed": config.vllm.sampling.seed,
+            "inference_repetition_detection_min_pattern_size": (
+                config.vllm.repetition_detection.min_pattern_size
+            ),
+            "inference_repetition_detection_max_pattern_size": (
+                config.vllm.repetition_detection.max_pattern_size
+            ),
+            "inference_repetition_detection_min_count": (
+                config.vllm.repetition_detection.min_count
+            ),
             "requested_dpi": config.raster.dpi,
             "raster_image_format": config.raster.image_format,
             "raster_mime_type": (
@@ -365,8 +374,10 @@ class ExtractionLedger:
                 raise LedgerConflictError(
                     f"result field {field_name} conflicts with initialized extraction config"
                 )
-        if result.inference_finish_reason != "stop":
-            raise LedgerConflictError("successful result finish_reason must be 'stop'")
+        if result.inference_finish_reason not in {"stop", "repetition"}:
+            raise LedgerConflictError(
+                "successful result finish_reason must be 'stop' or 'repetition'"
+            )
         if (
             max(result.raster_width_px, result.raster_height_px) > config.raster.max_side_pixels
             or result.raster_width_px * result.raster_height_px > config.raster.max_pixels

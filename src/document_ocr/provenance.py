@@ -113,6 +113,7 @@ def _extraction_contract(config: PipelineConfig) -> dict[str, Any]:
             "prompt": config.vllm.prompt,
             "sampling": config.vllm.sampling.model_dump(mode="json"),
             "speculative_decoding": config.vllm.speculative_decoding.model_dump(mode="json"),
+            "repetition_detection": config.vllm.repetition_detection.model_dump(mode="json"),
         },
     }
 
@@ -125,7 +126,7 @@ def collect_runtime_provenance(
     resolved_config = config.model_dump(mode="json")
     package_versions = _installed_versions()
     provenance: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "resolved_config": resolved_config,
         "resolved_config_sha256": canonical_json_sha256(resolved_config),
         "extraction_contract": _extraction_contract(config),
@@ -139,7 +140,7 @@ def collect_runtime_provenance(
         "git": _git_provenance(project_root),
     }
     fingerprint_inputs = {
-        "schema": "document-ocr-pipeline-fingerprint-v1",
+        "schema": "document-ocr-pipeline-fingerprint-v2",
         "extraction_contract": provenance["extraction_contract"],
         "source_tree_sha256": provenance["source_tree_sha256"],
         "pyproject_sha256": provenance["pyproject_sha256"],

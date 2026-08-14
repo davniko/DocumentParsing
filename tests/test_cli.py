@@ -101,7 +101,7 @@ def test_validate_config_emits_only_non_secret_canonical_identity(
             "command": "validate-config",
             "config_sha256": canonical_json_sha256(config.model_dump(mode="json")),
             "run_id": config.run.run_id,
-            "schema_version": 1,
+            "schema_version": 2,
             "source_type": "local",
             "status": "valid",
         }

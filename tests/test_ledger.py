@@ -186,7 +186,7 @@ async def test_document_open_failure_is_explicit_and_blocks_publication(tmp_path
     failure = DocumentExtractionFailure.model_validate(
         {
             **source.model_dump(mode="python"),
-            "schema_version": 1,
+            "schema_version": 2,
             "run_id": "run-1",
             "config_sha256": CONFIG_SHA256,
             "pipeline_fingerprint": "b" * 64,

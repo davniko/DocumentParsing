@@ -49,7 +49,7 @@ LATER = datetime(2026, 8, 5, 10, 1, tzinfo=UTC)
 
 def valid_config_data() -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": {
             "type": "local",
             "root": "/data/pdfs",
@@ -113,6 +113,11 @@ def valid_config_data() -> dict[str, Any]:
                 "method": "mtp",
                 "num_speculative_tokens": 1,
             },
+            "repetition_detection": {
+                "min_pattern_size": 5,
+                "max_pattern_size": 64,
+                "min_count": 5,
+            },
         },
         "concurrency": {
             "max_active_documents": 4,
@@ -144,7 +149,7 @@ def valid_local_source_object_data() -> dict[str, Any]:
 def valid_page_provenance_data() -> dict[str, Any]:
     return {
         **valid_local_source_object_data(),
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": "glm-ocr-20260805T100000Z",
         "extraction_id": "extract-document-001-page-000002",
         "page_id": "document-001:2",
@@ -201,6 +206,9 @@ def valid_page_record_data() -> dict[str, Any]:
         "inference_repetition_penalty": 1.0,
         "inference_max_tokens": 8192,
         "inference_seed": 0,
+        "inference_repetition_detection_min_pattern_size": 5,
+        "inference_repetition_detection_max_pattern_size": 64,
+        "inference_repetition_detection_min_count": 5,
         "inference_request_id": "req-123",
         "inference_server_request_id": "server-req-123",
         "inference_finish_reason": "stop",
@@ -226,7 +234,7 @@ def test_document_failure_allows_unmaterialized_versioned_s3_source() -> None:
     failure = DocumentExtractionFailure.model_validate(
         {
             **source,
-            "schema_version": 1,
+            "schema_version": 2,
             "run_id": "run-1",
             "config_sha256": "b" * 64,
             "pipeline_fingerprint": "c" * 64,
@@ -318,7 +326,7 @@ def test_load_config_reads_yaml_mapping_without_coercion(tmp_path: Any) -> None:
     path.write_text(
         (
             """
-schema_version: 1
+schema_version: 2
 source:
   type: local
   root: /data/pdfs
@@ -367,6 +375,7 @@ vllm:
     {max_attempts: 4, initial_backoff_seconds: 0.5, max_backoff_seconds: 8.0,
      backoff_multiplier: 2.0, jitter_fraction: 0.2}
   speculative_decoding: {method: mtp, num_speculative_tokens: 1}
+  repetition_detection: {min_pattern_size: 5, max_pattern_size: 64, min_count: 5}
 concurrency:
   max_active_documents: 4
   renderer_processes: 4
@@ -751,6 +760,13 @@ def test_page_identity_and_timestamps_are_consistent() -> None:
     bad_finish_reason["inference_finish_reason"] = "length"
     with pytest.raises(ValidationError):
         PageExtractionRecord.model_validate(bad_finish_reason, strict=True)
+
+    repetition = valid_page_record_data()
+    repetition["inference_finish_reason"] = "repetition"
+    assert (
+        PageExtractionRecord.model_validate(repetition, strict=True).inference_finish_reason
+        == "repetition"
+    )
 
 
 def test_inference_attempt_requires_outcome_specific_fields() -> None:

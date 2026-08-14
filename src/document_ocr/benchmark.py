@@ -474,8 +474,10 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
 def _validate_response(response: OcrResponse, request_id: str, config: PipelineConfig) -> None:
     if not isinstance(response.text, str):
         raise BenchmarkExecutionError("OCR response text must be a string")
-    if response.finish_reason != "stop":
-        raise BenchmarkExecutionError("OCR response finish reason must be 'stop'")
+    if response.finish_reason not in {"stop", "repetition"}:
+        raise BenchmarkExecutionError(
+            "OCR response finish reason must be 'stop' or 'repetition'"
+        )
     if not isinstance(response.request_id, str) or not response.request_id:
         raise BenchmarkExecutionError("OCR response request identity must be non-empty")
     if not isinstance(response.response_id, str) or not response.response_id:
