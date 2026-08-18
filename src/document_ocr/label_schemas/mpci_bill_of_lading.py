@@ -359,7 +359,7 @@ class CommunicationContact(LabelSchemaModel):
 
 class PartyContactInformation(LabelSchemaModel):
     contactInformation: ContactInformationValue
-    communicationContact: tuple[CommunicationContact, ...] = Field(min_length=1)
+    communicationContact: tuple[CommunicationContact, ...]
 
 
 class PartyInformation(LabelSchemaModel):

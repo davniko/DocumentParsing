@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -117,6 +118,31 @@ def test_optional_nulls_validate_but_canonical_training_target_is_sparse() -> No
         "schemaVersion": "1.0.0",
         "documentPatch": {"blIdentifiers": {"houseBLNumber": "HBL-2026-001"}},
     }
+
+
+def test_strict_annotation_validation_uses_json_for_json_only_representations() -> None:
+    payload = _annotation_payload()
+    payload["label"]["documentPatch"]["billOfLadingIssueDate"] = "2026-01-02"
+    payload["evidence"].append(
+        {
+            "targetPath": "documentPatch.billOfLadingIssueDate",
+            "evidenceKind": "verbatim",
+            "rawOcrEvidence": [
+                {
+                    "pageNumber": 1,
+                    "rawValue": "2026-01-02",
+                    "ocrExcerpt": "ISSUE DATE: 2026-01-02",
+                }
+            ],
+            "imageUse": "not_used",
+        }
+    )
+
+    annotation = MpciBillOfLadingAnnotation.model_validate_json(json.dumps(payload), strict=True)
+
+    assert annotation.label.documentPatch.billOfLadingIssueDate == date(2026, 1, 2)
+    with pytest.raises(ValidationError, match="Input should be a valid tuple"):
+        MpciBillOfLadingAnnotation.model_validate(payload)
 
 
 def test_schema_uses_exact_application_paths_and_excludes_platform_scaffolding() -> None:
@@ -421,9 +447,7 @@ def test_annotation_keeps_exact_pre_mapping_value_with_mapped_label() -> None:
         }
     ]
 
-    annotation = MpciBillOfLadingAnnotation.model_validate_json(
-        json.dumps(payload), strict=True
-    )
+    annotation = MpciBillOfLadingAnnotation.model_validate_json(json.dumps(payload), strict=True)
 
     assert (
         annotation.label.documentPatch.processingInformation.processingIndicatorDescriptionCode

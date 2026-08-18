@@ -9,10 +9,12 @@ redownload data, extract native PDF text, or train a model.
 
 ## Required model and delegation contract
 
-- Run the overseer with **GPT-5.6 Terra** and every labeling worker with **GPT-5.6 Luna, Extra High
-  reasoning**. Confirm both exact selections before starting. Do not silently substitute another
-  model or reasoning level. The Terra overseer must explicitly select Luna with Extra High reasoning
-  whenever it spawns a labeling worker.
+- The agent to which this prompt is addressed is the sole session overseer. Do not spawn another
+  agent merely to act as an overseer.
+- Run every labeling worker with **GPT-5.6 Luna, Extra High reasoning**. Confirm that exact worker
+  selection before starting. Do not silently substitute another worker model or reasoning level.
+  The overseer must explicitly select Luna with Extra High reasoning whenever it spawns a labeling
+  worker.
 - Prefer the native subagent launcher only when it exposes the exact worker model. If it does not,
   use the installed Codex CLI for each bounded worker with the equivalent explicit selection:
 
@@ -458,8 +460,8 @@ EDA alone.
 Finish with a concise evidence-backed report containing:
 
 - exact eligible/excluded/validated/needs-review/training counts and pages;
-- confirmation of the six-at-a-time, one-worker/one-document contract, the GPT-5.6 Terra overseer,
-  and the GPT-5.6 Luna Extra High worker setting;
+- confirmation of the six-at-a-time, one-worker/one-document contract, the active session
+  overseer, and the GPT-5.6 Luna Extra High worker setting;
 - schema/test/lint/type-check results;
 - full-validation results and any retried or excluded documents;
 - output paths and manifest SHA-256;
