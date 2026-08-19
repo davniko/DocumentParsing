@@ -55,14 +55,16 @@ silently discard an uncertain fragment: omit the target and add a warning.
 
 ## 3. Text and normalization
 
-Application text must be one non-empty printable-ASCII scalar with no leading/trailing whitespace
-or embedded newline. This does not mean copying an entire OCR row.
+Application text must be one non-empty printable scalar with no leading/trailing whitespace or
+embedded newline. Letters must use the Latin script; preserve printed Latin diacritics exactly.
+Printable numbers, punctuation, symbols, and spaces remain allowed. This does not mean copying an
+entire OCR row.
 
 Allowed deterministic transformations, with exact raw evidence retained:
 
 - join wrapped semantic fragments in page order with one space;
 - collapse OCR whitespace introduced by wrapping;
-- normalize Unicode to the application's printable-ASCII convention without inventing letters;
+- preserve OCR-printed Latin Unicode, including diacritics, without transliteration or correction;
 - normalize every explicitly headed issue/on-board date to `YYYY-MM-DD`; when an all-numeric
   day/month order is ambiguous, retain the date and use the strongest document-internal convention
   (such as a printed issue country or another unambiguous date), while preserving the exact printed
@@ -72,7 +74,7 @@ Allowed deterministic transformations, with exact raw evidence retained:
 - remove OCR-present separators from a supported identifier/number;
 - parse an explicit numeric measure while preserving sign/decimal and citing its unit;
 - map an explicit semantic phrase to a frozen readable enum; and
-- map a printed/stably frozen country name to a code only under the rules below.
+- preserve printed country/locality wording without lookup, expansion, or code mapping.
 
 Forbidden transformations include image correction, spell correction, geocoding, inventing dates
 that are absent from raw OCR, reclassifying an invoice/rate/manufacture/expiry date as an issue or

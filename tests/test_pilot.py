@@ -17,6 +17,7 @@ from document_ocr.classification_catalog import (
 )
 from document_ocr.config import (
     CatalogPilotConfig,
+    ExcludedPilotConfig,
     PilotQualityConfig,
     PilotStratumConfig,
 )
@@ -233,3 +234,69 @@ def test_pilot_materialization_is_manifest_last_hard_linked_and_verifiable(
     verified_result = verify_pilot(config)
     assert verified_result.created is False
     assert verified_result.commit == created.commit
+
+
+def test_followup_pilot_excludes_every_document_from_completed_pilot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = tuple(
+        _catalog_record(
+            tmp_path,
+            filename=(f"2024-01-01_00000000-0000-4000-8000-{index:012d}.pdf"),
+            payload=f"%PDF-1.7\nfixture {index}\n".encode(),
+        )
+        for index in range(1, 5)
+    )
+    verified: Any = SimpleNamespace(
+        config_path=(tmp_path / "catalog.yaml").absolute(),
+        config_sha256="7" * 64,
+        result=SimpleNamespace(commit=SimpleNamespace(catalog_sha256=CATALOG_SHA256)),
+        records=records,
+    )
+    monkeypatch.setattr(pilot_module, "_verified_catalog", lambda *_args, **_kwargs: verified)
+
+    first_unpinned = _config(tmp_path)
+    first_plan = pilot_module._build_plan(first_unpinned, progress=None)
+    first = first_unpinned.model_copy(
+        update={"expected_manifest_sha256": first_plan.manifest_sha256}
+    )
+    first_result = materialize_pilot(first)
+
+    followup_unpinned = CatalogPilotConfig(
+        schema_version=2,
+        catalog_config=first.catalog_config,
+        expected_catalog_sha256=first.expected_catalog_sha256,
+        destination_root=str((tmp_path / "followup").absolute()),
+        final_label="blc",
+        document_count=2,
+        max_pages_per_document=2,
+        selection_namespace="fixture-followup-v1",
+        quality=first.quality,
+        deduplicate_by_content_sha256=True,
+        excluded_pilots=[
+            ExcludedPilotConfig(
+                root=str(first_result.root),
+                expected_manifest_sha256=first_result.commit.manifest_sha256,
+            )
+        ],
+        strata=first.strata,
+        expected_manifest_sha256="0" * 64,
+        verification_workers=2,
+        max_pdf_bytes=1_000_000,
+    )
+    followup_plan = pilot_module._build_plan(followup_unpinned, progress=None)
+    followup = followup_unpinned.model_copy(
+        update={"expected_manifest_sha256": followup_plan.manifest_sha256}
+    )
+    followup_result = materialize_pilot(followup)
+    verified_followup = verify_pilot(followup)
+
+    first_names = {record.document_filename for record in first_plan.records}
+    followup_names = {record.document_filename for record in followup_plan.records}
+    first_hashes = {record.source_sha256 for record in first_plan.records}
+    followup_hashes = {record.source_sha256 for record in followup_plan.records}
+    assert first_names.isdisjoint(followup_names)
+    assert first_hashes.isdisjoint(followup_hashes)
+    assert followup_result.commit.schema_version == 2
+    assert verified_followup.commit == followup_result.commit

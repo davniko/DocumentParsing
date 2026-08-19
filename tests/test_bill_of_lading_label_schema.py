@@ -189,6 +189,40 @@ def test_party_rejects_country_code_and_preserves_printed_abbreviation() -> None
         BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "MOTA II Soluções Cerâmicas, S. A.",
+        "Oiã",
+        "ATATÜRK MAH.",
+        "Oia\u0303",
+        "41 Ø POTS \u2013 2 m³",
+    ],
+)
+def test_application_text_preserves_printable_latin_unicode(value: str) -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["parties"] = {"shipper": {"name": value}}
+
+    label = BillOfLadingLabel.model_validate_json(
+        json.dumps(payload, ensure_ascii=False), strict=True
+    )
+
+    assert label.documentPatch.parties is not None
+    assert label.documentPatch.parties.shipper is not None
+    assert label.documentPatch.parties.shipper.name == value
+
+
+@pytest.mark.parametrize("value", ["القاهرة", "上海", "Москва"])
+def test_application_text_rejects_non_latin_scripts(value: str) -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["parties"] = {"shipper": {"name": value}}
+
+    with pytest.raises(ValidationError, match="Latin script"):
+        BillOfLadingLabel.model_validate_json(
+            json.dumps(payload, ensure_ascii=False), strict=True
+        )
+
+
 def test_annotation_keeps_raw_value_and_requires_exact_target_evidence() -> None:
     payload = {
         "annotationSchemaVersion": "2.0.0",

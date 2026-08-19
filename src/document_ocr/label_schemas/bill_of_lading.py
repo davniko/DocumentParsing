@@ -8,6 +8,7 @@ application scaffolding belong to the deterministic projection layer.
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date
 from typing import Annotated, Any, Literal
 
@@ -35,8 +36,32 @@ def _application_text(value: str) -> str:
         raise ValueError("text must not be empty")
     if "\n" in value or "\r" in value:
         raise ValueError("one semantic value must not contain physical OCR line breaks")
-    if any(ord(character) < 0x20 or ord(character) > 0x7E for character in value):
-        raise ValueError("application text must contain printable ASCII only")
+    preceding_base_is_latin = False
+    for character in value:
+        codepoint = ord(character)
+        if 0x20 <= codepoint <= 0x7E:
+            preceding_base_is_latin = character.isalpha()
+            continue
+        category = unicodedata.category(character)
+        name = unicodedata.name(character, "")
+        if not character.isprintable():
+            raise ValueError("application text must contain printable characters only")
+        if category.startswith("L"):
+            if "LATIN" not in name:
+                raise ValueError("application text letters must use the Latin script")
+            preceding_base_is_latin = True
+            continue
+        if category.startswith("M"):
+            if not preceding_base_is_latin:
+                raise ValueError("combining marks must follow a Latin-script letter")
+            continue
+        if category[0] in {"N", "P", "S"} or category == "Zs":
+            preceding_base_is_latin = False
+            continue
+        raise ValueError(
+            "application text may contain only Latin-script letters and printable "
+            "numbers, punctuation, symbols, or spaces"
+        )
     return value
 
 

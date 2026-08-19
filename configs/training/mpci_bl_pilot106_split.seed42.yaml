@@ -1,0 +1,17 @@
+schema_version: 1
+
+source:
+  path: artifacts/kie-training/datasets/mpci-bl-pilot106-raw-latin-v1/records.jsonl
+  sha256: 5305a03ed0a63c7e512749be4c541cb035ebbb18e73cb77c3fbb7f69b8c5ec5b
+  records: 106
+
+fields:
+  document_id: documentId
+  input_sha256: joinedRawTextSha256
+  target: target
+
+algorithm: seeded_sha256_rank_v1
+seed: 42
+validation_records: 16
+coverage_policy: retain_each_target_leaf_in_train
+output_dir: artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-v2

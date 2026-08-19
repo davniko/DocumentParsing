@@ -24,7 +24,10 @@ from document_ocr.config import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "compose.yaml"
 VLLM_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "vllm" / "Dockerfile"
+TRAINING_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "training" / "Dockerfile"
+TRAINING_VERIFY_PATH = PROJECT_ROOT / "docker" / "training" / "verify_environment.py"
 VLLM_BUILD_MANIFEST_PATH = PROJECT_ROOT / "docker" / "vllm" / "build-manifest.json"
+FOLLOWUP_WATCHER_PATH = PROJECT_ROOT / "tools" / "run_blc500_after_training.sh"
 VLLM_PATCH_PATHS = (
     PROJECT_ROOT / "docker" / "vllm" / "patches" / "49869-glm-ocr-mtp-weight-prefix.patch",
     PROJECT_ROOT / "docker" / "vllm" / "patches" / "51966-glm-ocr-mtp-cudagraph.patch",
@@ -34,6 +37,7 @@ EXAMPLE_CONFIG_PATHS = (
     PROJECT_ROOT / "configs" / "glm_ocr.s3.example.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.blc.local.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.blc150.local.yaml",
+    PROJECT_ROOT / "configs" / "glm_ocr.blc500-followup.local.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.swb.local.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.awbc.local.yaml",
     PROJECT_ROOT / "configs" / "glm_ocr.coo.local.yaml",
@@ -57,7 +61,9 @@ def test_operator_entrypoints_and_snapshot_config_are_installed() -> None:
         "document-ocr-classification-catalog": ("document_ocr.classification_catalog_cli:main"),
         "document-ocr-corpus": "document_ocr.corpus_cli:main",
         "document-ocr-pilot": "document_ocr.pilot_cli:main",
+        "document-ocr-quality-filter": "document_ocr.quality_cli:main",
         "document-ocr-snapshot": "document_ocr.snapshot_cli:main",
+        "document-kie-train": "document_ocr.training.cli:main",
     }
     snapshot = load_snapshot_config(PROJECT_ROOT / "configs" / "s3_snapshot.blc_swb.yaml")
     assert snapshot.document_types == ["blc", "swb"]
@@ -73,6 +79,24 @@ def test_operator_entrypoints_and_snapshot_config_are_installed() -> None:
     pilot = load_pilot_config(PROJECT_ROOT / "configs" / "pilot.blc150.yaml")
     assert pilot.document_count == 150
     assert sum(item.documents for item in pilot.strata) == 150
+    followup = load_pilot_config(PROJECT_ROOT / "configs" / "pilot.blc500-followup.yaml")
+    assert followup.schema_version == 2
+    assert followup.document_count == 500
+    assert len(followup.excluded_pilots) == 1
+    assert sum(item.documents for item in followup.strata) == 500
+
+
+def test_followup_watcher_reacquires_cwd_and_persists_redacted_vllm_logs() -> None:
+    watcher = FOLLOWUP_WATCHER_PATH.read_text(encoding="utf-8")
+
+    assert FOLLOWUP_WATCHER_PATH.stat().st_mode & 0o111
+    assert 'uv run document-ocr run' not in watcher
+    assert '"${ocr_entrypoint}" run' in watcher
+    assert 'cd /\ncd -- "${project_root}"' in watcher
+    assert "docker compose logs" in watcher
+    assert '--follow \\\n' in watcher
+    assert 'line.replace(secret, "[REDACTED]")' in watcher
+    assert 'followup500-${timestamp}.vllm.log' in watcher
 
 
 def _load_compose_service() -> dict[str, Any]:
@@ -80,10 +104,112 @@ def _load_compose_service() -> dict[str, Any]:
     assert isinstance(document, dict)
     services = document.get("services")
     assert isinstance(services, dict)
-    assert set(services) == {"glm-ocr-vllm"}
+    assert set(services) == {
+        "glm-ocr-vllm",
+        "kie-tools",
+        "kie-trainer",
+        "mlflow-server",
+    }
     service = services["glm-ocr-vllm"]
     assert isinstance(service, dict)
     return service
+
+
+def _load_training_compose_service() -> dict[str, Any]:
+    document: Any = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
+    service = document["services"]["kie-trainer"]
+    assert isinstance(service, dict)
+    return service
+
+
+def _load_training_tools_compose_service() -> dict[str, Any]:
+    document: Any = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
+    service = document["services"]["kie-tools"]
+    assert isinstance(service, dict)
+    return service
+
+
+def _load_mlflow_compose_service() -> dict[str, Any]:
+    document: Any = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
+    service = document["services"]["mlflow-server"]
+    assert isinstance(service, dict)
+    return service
+
+
+def test_training_container_is_explicit_safe_and_content_pinned() -> None:
+    service = _load_training_compose_service()
+    tools_service = _load_training_tools_compose_service()
+    mlflow_service = _load_mlflow_compose_service()
+    dockerfile = TRAINING_DOCKERFILE_PATH.read_text(encoding="utf-8")
+    verifier = TRAINING_VERIFY_PATH.read_text(encoding="utf-8")
+
+    assert service["profiles"] == ["training"]
+    assert service["build"] == {
+        "context": ".",
+        "dockerfile": "docker/training/Dockerfile",
+    }
+    assert service["image"] == (
+        "document-ocr/kie-trainer:torch2.13.0-cuda13.0-transformers5.15.0"
+    )
+    assert service["working_dir"] == "/workspace"
+    assert service["command"] == ["--help"]
+    assert tools_service["command"] == [
+        "validate-config",
+        "--config",
+        "configs/training/t5gemma2_270m_lora.pilot106.yaml",
+        "--project-root",
+        "/workspace",
+    ]
+    assert service["environment"] == {
+        "HF_TOKEN": "${HF_TOKEN:-}",
+        "HF_HOME": "/cache/huggingface",
+        "HF_DATASETS_CACHE": "/cache/huggingface/datasets",
+        "PYTORCH_ALLOC_CONF": "expandable_segments:True",
+        "TORCHINDUCTOR_CACHE_DIR": "/cache/torch-inductor",
+        "TOKENIZERS_PARALLELISM": "false",
+    }
+    assert ".:/workspace" in service["volumes"]
+    assert "deploy" not in tools_service
+    assert service["depends_on"] == {
+        "mlflow-server": {"condition": "service_healthy"}
+    }
+    devices = service["deploy"]["resources"]["reservations"]["devices"]
+    assert devices == [{"driver": "nvidia", "count": 1, "capabilities": ["gpu"]}]
+
+    assert dockerfile.startswith(
+        "# syntax=docker/dockerfile:1.7@sha256:"
+        "a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e\n"
+    )
+    assert (
+        "ghcr.io/astral-sh/uv:0.11.8@sha256:"
+        "3b7b60a81d3c57ef471703e5c83fd4aaa33abcd403596fb22ab07db85ae91347"
+        in dockerfile
+    )
+    assert (
+        "pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime@sha256:"
+        "db80a41f8428644cebcb3d75b0b62df334ab6c0e75785951eb25f48bfbd42407"
+        in dockerfile
+    )
+    assert "--prune torch" in dockerfile
+    assert "--require-hashes" in dockerfile
+    assert "uv venv --system-site-packages" in dockerfile
+    assert "uv pip uninstall --system --break-system-packages spin" in dockerfile
+    assert "python -m pip check" in dockerfile
+    assert 'ENTRYPOINT ["python", "-m", "document_ocr.training.cli"]' in dockerfile
+    assert "python docker/training/verify_environment.py" in dockerfile
+    assert '"torch": "2.13.0"' not in verifier
+    assert 'torch.__version__.split("+", maxsplit=1)[0] != "2.13.0"' in verifier
+
+    assert mlflow_service["profiles"] == ["training"]
+    assert mlflow_service["image"] == (
+        "ghcr.io/mlflow/mlflow:v3.15.1@sha256:"
+        "ea84a0b879f08b35a6f22f22b294024413e780b8fc978eecf5f760ac16cc9ce5"
+    )
+    assert mlflow_service["ports"] == ["127.0.0.1:5000:5000"]
+    assert "--backend-store-uri" in mlflow_service["command"]
+    assert "--artifacts-destination" in mlflow_service["command"]
+    assert "--allowed-hosts" in mlflow_service["command"]
+    assert mlflow_service["volumes"] == ["mlflow-data:/mlflow"]
 
 
 def _command(service: dict[str, Any]) -> list[str]:
@@ -111,6 +237,7 @@ def _single_option(command: list[str], option: str) -> str:
         "s3-example",
         "blc-local",
         "blc150-local",
+        "blc500-followup-local",
         "swb-local",
         "awbc-local",
         "coo-local",

@@ -86,9 +86,9 @@ and `BILL_OF_LADING_LABELING_REFERENCE_V2.md`. Instruct it:
    is emitted separately, do not repeat it inside `address`; otherwise keep the full address and
    omit the uncertain split. Retain printed postal/ZIP values inside `address` because semantic v2
    has no separate postal field, but remove labels such as `POSTAL CODE`, `POST CODE`, or `ZIP CODE`.
-   Emit only `country`, preserving the OCR-printed country text or
-   abbreviation (subject only to the schema's printable-ASCII transliteration). Never emit,
-   infer, expand, or look up `countryCode`, `unLocode`, or any other geographic code. This applies
+   Emit only `country`, preserving the OCR-printed country text or abbreviation exactly, including
+   Latin-script diacritics. Never transliterate it or emit, infer, expand, or look up
+   `countryCode`, `unLocode`, or any other geographic code. This applies
    equally to parties, ports, route places, freight/issue places, goods origins, and vessel flags.
 6. Put contact names and communication values only in contacts. A grounded contact name remains a
    valid contact even if raw OCR contains no phone, email, or website. Omit tax identifiers because

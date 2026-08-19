@@ -375,6 +375,130 @@ run with the platform's normal monitoring tools. Comparing MTP-off/depth-1/depth
 vLLM scheduler settings therefore requires separately identified server/config variants; the current
 production-oriented extraction contract remains MTP depth 1.
 
+## Prepare KIE adapter training
+
+The first training path maps one page-ordered raw-OCR document to one compact semantic-v2 JSON
+target. It is supervised encoder-decoder teacher forcing with PEFT LoRA updates; it does not use a
+chat formatter or TRL `SFTTrainer`. PDFs, page images, evidence sidecars, and downstream MPCI form
+scaffolding are not model inputs or decoder targets.
+
+The sourced architecture and acceptance gates are in
+[`docs/kie-training-pipeline-spec.md`](docs/kie-training-pipeline-spec.md). The concrete pilot is
+fully declared in
+[`configs/training/t5gemma2_270m_lora.pilot106.yaml`](configs/training/t5gemma2_270m_lora.pilot106.yaml),
+including the exact model/tokenizer commits, source hash/count, prompt, LoRA surface, optimizer,
+precision, batching, checkpointing, evaluation, and logging settings. This 106-row config is a
+pipeline/pilot experiment, not a production generalization benchmark. A deterministic seed-42
+pre-training partition retains every target leaf type in the 90-record training fold and publishes
+a disjoint 16-record validation fold for step-scheduled and final generated evaluation. A real run
+still needs a larger independently frozen test JSONL, with duplicates and descendants kept in one
+fold.
+The current partition is a provenance-linked v2 publication: it preserves the original split
+membership and replaces 13 explicitly audited ASCII transliterations in five documents with their
+cited printed Latin Unicode values. The completed labeling artifact remains untouched.
+The pilot disables Transformers' intrusive detailed memory tracker during generation; MLflow keeps
+the one-second host/GPU memory and utilization time series.
+Generated evaluations log exact `eval_field_value_accuracy`, `eval_field_value_precision`,
+`eval_field_value_recall`, and `eval_field_value_f1` metrics; complete scalar values must match and
+receive no token-level partial credit. They also log generated-token length, EOS completion, and
+PyTorch/driver CUDA peaks so a generation ceiling or memory transition is visible in MLflow.
+
+Install the locked host training group when a compatible local PyTorch/CUDA environment is desired:
+
+```bash
+uv sync --frozen --group train
+```
+
+The preferred reproducible GPU environment uses the digest-pinned PyTorch 2.13.0 CUDA 13.0 image.
+It installs every non-PyTorch dependency from `uv.lock` with hashes and verifies the environment at
+build time. Building does not download T5Gemma, start MLflow, or allocate a GPU:
+
+```bash
+docker compose --profile training build kie-trainer
+```
+
+The CPU-only partition, configuration, and inspection gates neither need `HF_TOKEN` nor import
+model weights:
+
+```bash
+uv run --frozen document-kie-train split-dataset \
+  --config configs/training/mpci_bl_pilot106_split.seed42.yaml \
+  --project-root .
+uv run --frozen document-kie-train validate-config \
+  --config configs/training/t5gemma2_270m_lora.pilot106.yaml
+uv run --frozen document-kie-train inspect-dataset \
+  --config configs/training/t5gemma2_270m_lora.pilot106.yaml
+```
+
+Before the first GPU run, accept the Gemma license for the Hugging Face account, put its read token
+in the standard project-root `.env` as `HF_TOKEN`, and run the tokenizer-only preparation gate. It
+downloads the exact tokenizer revision, validates all target lengths without truncation, and builds
+the cache whose identity binds data, the resolved task-schema prompt, task, tokenizer, versions, and
+preprocessing settings:
+
+```bash
+docker compose --profile training run --rm kie-tools prepare-dataset \
+  --config configs/training/t5gemma2_270m_lora.pilot106.yaml \
+  --project-root /workspace
+```
+
+Review the reported token P95/P99/max and adjust the provisional source/target ceilings before any
+model load. The configured default fails on source overflow and always fails on target overflow;
+there is no silent truncation, precision fallback, or automatic batch-size reduction.
+Decoder targets are tokenized without tokenizer-added special tokens and receive exactly one
+terminal EOS token. BOS, EOS, or PAD occurring in target content is rejected before training.
+
+MLflow is the monitoring and experiment registry. Its digest-pinned server stores run metadata in
+SQLite and artifacts in the persistent `mlflow-data` Docker volume. Start it independently when the
+UI is wanted without a training process, then open <http://localhost:5000>:
+
+```bash
+docker compose --profile training up -d --wait mlflow-server
+```
+
+Only in a free GPU window, start the explicit run. Compose starts the MLflow dependency when needed
+and waits for its health check before the trainer is created:
+
+```bash
+docker compose --profile training run --rm kie-trainer train \
+  --config configs/training/t5gemma2_270m_lora.pilot106.yaml \
+  --project-root /workspace
+```
+
+Progress is visible in the terminal, MLflow, and line-buffered structured JSONL. MLflow captures
+Trainer parameters/metrics plus one-second CPU, RAM, disk, network, GPU utilization, GPU memory, and
+GPU power samples. `loss` is the average since the previous log event;
+`train_cumulative_loss` is the optimizer-step-weighted average over the run so far. Run outputs live
+under `artifacts/kie-training/<run_id>/`: frozen config/prompt,
+dataset and environment reports, checkpoints, logs, metrics, the immutable MLflow run reference,
+optional prediction JSONL, the final adapter and tokenizer, and a completion manifest written last.
+Resume is never guessed: set `checkpoint.resume_from_checkpoint` to an exact checkpoint inside that
+run and `logging.mlflow.resume_run_id` to its recorded MLflow run ID. A completed local run cannot
+be overwritten, and a resume cannot silently create a second MLflow run.
+
+`docker compose down` preserves MLflow history. Do not use `docker compose down -v` unless deleting
+the `mlflow-data` volume and all locally tracked experiments is intentional.
+
+The initial fast path uses BF16, TF32, SDPA, fused AdamW, cached batched tokenization, precomputed
+length-grouped sampling, dynamic padding to a multiple of eight, pinned persistent loader workers,
+non-reentrant gradient checkpointing, and PyTorch expandable CUDA segments. The allocator setting
+is bound by YAML and Compose before PyTorch import; this preserves stable train/eval/train latency
+under the materially different allocation shapes of long autoregressive evaluation. The
+schema-expanded worst-shape probes reject per-device
+batches 4, 6, and 8 and select batch 3. The current pilot uses accumulation 8 (effective batch 24);
+the mathematical capacity edge is near 4.3, but batch 4 exhausted device-free memory. The measured
+compile path failed to complete one
+optimizer step within 314 seconds, so `torch.compile` remains off. The tokenizer, backward, and
+controlled throughput/VRAM gates are recorded in the
+[`2026-08-18 benchmark report`](docs/kie-training-benchmark-2026-08-18.md); the remaining pre-pilot
+gate is a 32–64-example generation memorization check.
+
+New invoice, COO, packing-list, or synthetic lineages use new task schema registrations, prompt
+templates, and content-pinned split JSONLs. Each task's current Pydantic target model supplies the
+compact sparse JSON Schema injected into its prompt. They reuse the loader, cache, collator,
+Trainer, logging, and publication contract without coupling future augmentation generation to
+training.
+
 ## Development validation
 
 ```bash
@@ -383,6 +507,7 @@ uv run --frozen ruff check .
 uv run --frozen mypy src
 ```
 
-These checks and CPU renderer probes do not invoke the model. GPU inference validation and actual
-throughput tuning remain deferred until an operator provides a free GPU window and intentionally
-starts the pinned service.
+These checks and CPU renderer probes do not invoke either model. The KIE training image, exact
+T5Gemma revision, LoRA surface, worst-case backward path, MLflow lifecycle/system telemetry, and
+controlled eager/compile throughput profiles were GPU-validated on 2026-08-18. Starting an OCR or
+training workload remains an explicit operator action; repository validation never reserves a GPU.

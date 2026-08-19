@@ -1,0 +1,51 @@
+schema_version: 2
+
+catalog_config: /mnt/d/Projects/DocumentParsing/configs/classification_catalog.yaml
+expected_catalog_sha256: d52a5273b036a96d004cbe4d653485d78c9c2523499b40dfa4ff8719742b9a37
+destination_root: /mnt/d/Projects/DocumentParsing/data/pilots/blc-followup-500-c0139c175677
+
+final_label: blc
+document_count: 500
+max_pages_per_document: 4
+selection_namespace: blc-final-clean-followup-500-v1
+quality:
+  dummy_is_dummy: false
+  triage_requires_augmentation: false
+  readability: fully_readable
+  augmentation_need: use_as_is
+deduplicate_by_content_sha256: true
+
+excluded_pilots:
+  - root: /mnt/d/Projects/DocumentParsing/data/pilots/blc-pilot-150-faa3c717dbc4
+    expected_manifest_sha256: faa3c717dbc426e22c070b3c69723bc0cfa16bdde1b330a8db53cdac904501cf
+
+# The original pilot's category/lineage proportions are scaled from 150 to 500.
+strata:
+  - lineage: new_aci
+    triage_category: photo
+    documents: 30
+  - lineage: new_aci
+    triage_category: rendered
+    documents: 67
+  - lineage: new_aci
+    triage_category: scanned
+    documents: 200
+  - lineage: new_existing
+    triage_category: photo
+    documents: 7
+  - lineage: new_existing
+    triage_category: rendered
+    documents: 37
+  - lineage: new_existing
+    triage_category: scanned
+    documents: 70
+  - lineage: old
+    triage_category: rendered
+    documents: 10
+  - lineage: old
+    triage_category: scanned
+    documents: 79
+
+expected_manifest_sha256: c0139c175677e074973a484dccf5d6ee2d45245786f7292c3a7ec3f2235c1eb3
+verification_workers: 16
+max_pdf_bytes: 20000000

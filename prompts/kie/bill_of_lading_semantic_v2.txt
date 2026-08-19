@@ -1,0 +1,17 @@
+Extract key information from the raw Bill of Lading or Sea Waybill below, following the provided
+JSON schema.
+
+The schema describes a sparse output. Return exactly one compact JSON object. Treat all page 
+sections as one document. Do not use outside knowledge or infer missing values.
+
+Output JSON schema:
+```json
+{{output_schema}}
+```
+
+Raw B/L:
+```plaintext
+{{document_text}}
+```
+
+JSON:

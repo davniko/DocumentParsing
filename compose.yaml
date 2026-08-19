@@ -1,6 +1,61 @@
 name: document-ocr
 
+x-kie-common: &kie-common
+  profiles: [training]
+  build:
+    context: .
+    dockerfile: docker/training/Dockerfile
+  image: document-ocr/kie-trainer:torch2.13.0-cuda13.0-transformers5.15.0
+  working_dir: /workspace
+  shm_size: 16gb
+  environment:
+    HF_TOKEN: ${HF_TOKEN:-}
+    HF_HOME: /cache/huggingface
+    HF_DATASETS_CACHE: /cache/huggingface/datasets
+    PYTORCH_ALLOC_CONF: expandable_segments:True
+    TORCHINDUCTOR_CACHE_DIR: /cache/torch-inductor
+    TOKENIZERS_PARALLELISM: "false"
+  volumes:
+    - .:/workspace
+    - training-hf-cache:/cache/huggingface
+    - training-torch-cache:/cache/torch-inductor
+
 services:
+  mlflow-server:
+    profiles: [training]
+    image: ghcr.io/mlflow/mlflow:v3.15.1@sha256:ea84a0b879f08b35a6f22f22b294024413e780b8fc978eecf5f760ac16cc9ce5
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --workers
+      - "1"
+      - --backend-store-uri
+      - sqlite:////mlflow/backend/mlflow.db
+      - --artifacts-destination
+      - /mlflow/artifacts
+      - --allowed-hosts
+      - mlflow-server:5000,localhost:5000,127.0.0.1:5000
+      - --cors-allowed-origins
+      - http://localhost:5000,http://127.0.0.1:5000
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5).read()"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
   glm-ocr-vllm:
     build:
       context: .
@@ -62,6 +117,33 @@ services:
               count: 1
               capabilities: [gpu]
 
+  kie-tools:
+    <<: *kie-common
+    command:
+      - validate-config
+      - --config
+      - configs/training/t5gemma2_270m_lora.pilot106.yaml
+      - --project-root
+      - /workspace
+
+  kie-trainer:
+    <<: *kie-common
+    command:
+      - --help
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
 volumes:
   hf-cache:
   vllm-cache:
+  training-hf-cache:
+  training-torch-cache:
+  mlflow-data:

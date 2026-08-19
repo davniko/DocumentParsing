@@ -189,7 +189,7 @@ class PilotStatistics(_FrozenRecord):
 class PilotCommit(_FrozenRecord):
     """Manifest-last proof for one immutable quality-filtered pilot."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     final_label: str = Field(min_length=1)
     configuration_sha256: str
     catalog_config_path: str = Field(min_length=1)
@@ -261,6 +261,12 @@ class _PilotPlan:
     statistics: PilotStatistics
 
 
+@dataclass(frozen=True, slots=True)
+class _ExcludedPilotDocuments:
+    document_filenames: frozenset[str]
+    source_sha256s: frozenset[str]
+
+
 class PilotError(RuntimeError):
     """Base class for explicit pilot selection/publication failures."""
 
@@ -304,6 +310,91 @@ def _load_catalog_records(payload: bytes, path: Path) -> tuple[CatalogDocumentRe
                 f"verified catalog row is invalid at {path}:{line_number}"
             ) from error
     return tuple(records)
+
+
+def _load_pilot_records(payload: bytes, path: Path) -> tuple[PilotDocumentRecord, ...]:
+    if not payload or not payload.endswith(b"\n"):
+        raise PilotIntegrityError(
+            f"excluded pilot manifest is not newline-terminated JSONL: {path}"
+        )
+    records: list[PilotDocumentRecord] = []
+    for line_number, line in enumerate(payload.splitlines(), start=1):
+        try:
+            records.append(PilotDocumentRecord.model_validate_json(line, strict=True))
+        except Exception as error:
+            raise PilotIntegrityError(
+                f"excluded pilot manifest row is invalid at {path}:{line_number}"
+            ) from error
+    return tuple(records)
+
+
+def _canonical_record_payload(record: BaseModel) -> bytes:
+    return (
+        json.dumps(
+            record.model_dump(mode="json"),
+            allow_nan=False,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n"
+    )
+
+
+def _load_canonical_pilot_commit(root: Path) -> tuple[Path, PilotCommit]:
+    commit_path = root / "pilot.json"
+    try:
+        payload = read_regular_file_bytes(commit_path)
+        commit = PilotCommit.model_validate_json(payload, strict=True)
+    except Exception as error:
+        raise PilotIntegrityError(f"invalid or missing pilot commit: {commit_path}") from error
+    if payload != _canonical_record_payload(commit):
+        raise PilotIntegrityError(f"pilot commit is not canonical: {commit_path}")
+    return commit_path, commit
+
+
+def _excluded_pilot_documents(config: CatalogPilotConfig) -> _ExcludedPilotDocuments:
+    filenames: set[str] = set()
+    source_sha256s: set[str] = set()
+    destination = Path(os.path.abspath(config.destination_root))
+    for excluded in config.excluded_pilots:
+        root = _safe_snapshot_directory(Path(excluded.root), create=False)
+        if destination == root or destination in root.parents or root in destination.parents:
+            raise PilotSelectionError("pilot destination overlaps an excluded pilot root")
+        _, commit = _load_canonical_pilot_commit(root)
+        if commit.manifest_sha256 != excluded.expected_manifest_sha256:
+            raise PilotIntegrityError(
+                f"excluded pilot manifest hash differs from configuration: {root}"
+            )
+        if commit.catalog_sha256 != config.expected_catalog_sha256:
+            raise PilotSelectionError("excluded pilot and new pilot bind different catalogs")
+        if commit.final_label != config.final_label:
+            raise PilotSelectionError("excluded pilot and new pilot use different final labels")
+        manifest_path = root / commit.manifest_path
+        manifest_payload = _read_digest_bound_artifact(
+            manifest_path,
+            commit.manifest_sha256,
+        )
+        records = _load_pilot_records(manifest_payload, manifest_path)
+        if len(records) != commit.statistics.selected_documents:
+            raise PilotIntegrityError("excluded pilot row count differs from its commit")
+        current_filenames = {record.document_filename for record in records}
+        current_source_sha256s = {record.source_sha256 for record in records}
+        if len(current_filenames) != len(records) or len(current_source_sha256s) != len(records):
+            raise PilotIntegrityError("excluded pilot does not contain unique documents")
+        if filenames & current_filenames or source_sha256s & current_source_sha256s:
+            raise PilotSelectionError("excluded pilots overlap each other")
+        for record in records:
+            if record.catalog_sha256 != config.expected_catalog_sha256:
+                raise PilotIntegrityError("excluded pilot row binds a different catalog")
+            if record.final_label != config.final_label:
+                raise PilotIntegrityError("excluded pilot row uses a different final label")
+        filenames.update(current_filenames)
+        source_sha256s.update(current_source_sha256s)
+    return _ExcludedPilotDocuments(
+        document_filenames=frozenset(filenames),
+        source_sha256s=frozenset(source_sha256s),
+    )
 
 
 def _verified_catalog(
@@ -487,6 +578,7 @@ def _build_plan(
     progress: PilotProgress | None,
 ) -> _PilotPlan:
     catalog = _verified_catalog(config, progress=progress)
+    excluded = _excluded_pilot_documents(config)
     local_surface = tuple(
         record
         for record in catalog.records
@@ -500,6 +592,11 @@ def _build_plan(
         for record in quality_eligible
         if record.final is not None
         and record.final.document_page_count <= config.max_pages_per_document
+        and record.document_filename not in excluded.document_filenames
+        and all(
+            alias.snapshot_record.source_sha256 not in excluded.source_sha256s
+            for alias in _ready_aliases(record)
+        )
     )
 
     candidates_by_stratum: dict[tuple[str, str], tuple[_Candidate, ...]] = {}
@@ -751,11 +848,18 @@ def _verify_pdfs(
             os.close(source_fd)
 
 
+def _configuration_sha256(config: CatalogPilotConfig) -> str:
+    payload = config.model_dump(mode="json")
+    if config.schema_version == 1 and payload.pop("excluded_pilots") != []:
+        raise PilotIntegrityError("pilot schema version 1 unexpectedly contains exclusions")
+    return canonical_json_sha256(payload)
+
+
 def _build_commit(config: CatalogPilotConfig, plan: _PilotPlan) -> PilotCommit:
     return PilotCommit(
-        schema_version=1,
+        schema_version=config.schema_version,
         final_label=config.final_label,
-        configuration_sha256=canonical_json_sha256(config.model_dump(mode="json")),
+        configuration_sha256=_configuration_sha256(config),
         catalog_config_path=str(plan.catalog.config_path),
         catalog_config_sha256=plan.catalog.config_sha256,
         catalog_sha256=plan.catalog.result.commit.catalog_sha256,
@@ -838,25 +942,8 @@ def verify_pilot(
     """Offline-verify catalog selection, every hard link, manifest, and commit."""
 
     root = _safe_snapshot_directory(Path(config.destination_root), create=False)
-    commit_path = root / "pilot.json"
-    try:
-        commit_payload = read_regular_file_bytes(commit_path)
-        commit = PilotCommit.model_validate_json(commit_payload, strict=True)
-    except Exception as error:
-        raise PilotIntegrityError(f"invalid or missing pilot commit: {commit_path}") from error
-    expected_commit_payload = (
-        json.dumps(
-            commit.model_dump(mode="json"),
-            allow_nan=False,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-        ).encode("utf-8")
-        + b"\n"
-    )
-    if commit_payload != expected_commit_payload:
-        raise PilotIntegrityError(f"pilot commit is not canonical: {commit_path}")
-    if commit.configuration_sha256 != canonical_json_sha256(config.model_dump(mode="json")):
+    _, commit = _load_canonical_pilot_commit(root)
+    if commit.configuration_sha256 != _configuration_sha256(config):
         raise PilotIntegrityError("pilot configuration differs from committed configuration")
     if commit.manifest_sha256 != config.expected_manifest_sha256:
         raise PilotIntegrityError("pilot manifest hash differs from configuration")

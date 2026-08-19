@@ -562,10 +562,37 @@ class PilotStratumConfig(_StrictConfigModel):
         return value
 
 
+class ExcludedPilotConfig(_StrictConfigModel):
+    """One completed pilot whose documents cannot be selected again."""
+
+    root: NonEmptyString
+    expected_manifest_sha256: str
+
+    @field_validator("root")
+    @classmethod
+    def root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("excluded pilot root must be an absolute local path")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("excluded pilot root must not be the filesystem root")
+        return value
+
+    @field_validator("expected_manifest_sha256")
+    @classmethod
+    def manifest_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError(
+                "excluded pilot manifest hash must be a lowercase 64-character SHA-256"
+            )
+        return value
+
+
 class CatalogPilotConfig(_StrictConfigModel):
     """Immutable, quality-filtered pilot corpus selected from a verified catalog."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     catalog_config: NonEmptyString
     expected_catalog_sha256: str
     destination_root: NonEmptyString
@@ -575,6 +602,7 @@ class CatalogPilotConfig(_StrictConfigModel):
     selection_namespace: NonEmptyString
     quality: PilotQualityConfig
     deduplicate_by_content_sha256: Literal[True]
+    excluded_pilots: list[ExcludedPilotConfig] = Field(default_factory=list)
     strata: list[PilotStratumConfig] = Field(min_length=1)
     expected_manifest_sha256: str
     verification_workers: PositiveInteger
@@ -615,6 +643,21 @@ class CatalogPilotConfig(_StrictConfigModel):
 
     @model_validator(mode="after")
     def strata_are_canonical_and_complete(self) -> CatalogPilotConfig:
+        if self.schema_version == 1 and self.excluded_pilots:
+            raise ValueError("pilot schema version 1 does not support excluded_pilots")
+        if self.schema_version == 2 and not self.excluded_pilots:
+            raise ValueError("pilot schema version 2 requires at least one excluded pilot")
+        excluded_roots = [Path(os.path.abspath(item.root)) for item in self.excluded_pilots]
+        if len(excluded_roots) != len(set(excluded_roots)):
+            raise ValueError("excluded pilot roots must be unique")
+        destination = Path(os.path.abspath(self.destination_root))
+        for excluded_root in excluded_roots:
+            if (
+                destination == excluded_root
+                or destination in excluded_root.parents
+                or excluded_root in destination.parents
+            ):
+                raise ValueError("pilot destination must not overlap an excluded pilot root")
         keys = [(item.lineage, item.triage_category) for item in self.strata]
         if len(keys) != len(set(keys)):
             raise ValueError("pilot strata must be unique")
