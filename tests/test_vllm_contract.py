@@ -38,6 +38,8 @@ def _runtime_state() -> SimpleNamespace:
         model="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         revision="ca5d8b3e287e52589e37c28385d9655ee4372f9d",
+        dtype="bfloat16",
+        quantization=None,
         max_model_len=32768,
         generation_config="vllm",
         multimodal_config=multimodal_config,
@@ -45,7 +47,10 @@ def _runtime_state() -> SimpleNamespace:
     return SimpleNamespace(
         vllm_config=SimpleNamespace(
             model_config=model_config,
-            scheduler_config=SimpleNamespace(max_num_seqs=16),
+            scheduler_config=SimpleNamespace(
+                max_num_batched_tokens=16384,
+                max_num_seqs=16,
+            ),
             cache_config=SimpleNamespace(gpu_memory_utilization=0.9),
             speculative_config=SimpleNamespace(method="mtp", num_speculative_tokens=1),
         )
@@ -124,11 +129,14 @@ def test_build_runtime_contract_returns_exact_resolved_claim_and_hash(
 ) -> None:
     manifest_sha256 = _install_build_manifest(tmp_path, monkeypatch)
     expected_payload: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 4,
         "model": "zai-org/GLM-OCR",
         "served_model_name": "glm-ocr",
         "model_revision": "ca5d8b3e287e52589e37c28385d9655ee4372f9d",
+        "dtype": "bfloat16",
+        "quantization": "none",
         "max_model_len": 32768,
+        "max_num_batched_tokens": 16384,
         "max_num_seqs": 16,
         "gpu_memory_utilization": 0.9,
         "generation_config": "vllm",
@@ -163,8 +171,22 @@ def test_build_runtime_contract_returns_exact_resolved_claim_and_hash(
             "vLLM runtime field 'model' must be a non-empty string",
         ),
         (
+            lambda state: setattr(state.vllm_config.model_config, "dtype", "float16"),
+            "vLLM runtime model dtype must be torch.bfloat16",
+        ),
+        (
+            lambda state: setattr(state.vllm_config.model_config, "quantization", "int8"),
+            "vLLM runtime quantization must be disabled or 'fp8'",
+        ),
+        (
             lambda state: setattr(state.vllm_config.model_config, "max_model_len", True),
             "vLLM runtime field 'max_model_len' must be a positive integer",
+        ),
+        (
+            lambda state: setattr(
+                state.vllm_config.scheduler_config, "max_num_batched_tokens", 0
+            ),
+            "vLLM runtime field 'max_num_batched_tokens' must be a positive integer",
         ),
         (
             lambda state: setattr(state.vllm_config.scheduler_config, "max_num_seqs", 0),
@@ -203,7 +225,10 @@ def test_build_runtime_contract_returns_exact_resolved_claim_and_hash(
         "missing-vllm-config",
         "missing-model-revision",
         "empty-model",
+        "wrong-dtype",
+        "unsupported-quantization",
         "boolean-model-length",
+        "zero-batched-token-limit",
         "zero-sequence-limit",
         "string-gpu-utilization",
         "out-of-range-gpu-utilization",

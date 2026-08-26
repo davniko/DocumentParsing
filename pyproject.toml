@@ -24,10 +24,16 @@ dependencies = [
 [project.scripts]
 document-ocr = "document_ocr.cli:main"
 document-ocr-classification-catalog = "document_ocr.classification_catalog_cli:main"
+document-ocr-catalog-selection = "document_ocr.catalog_selection_cli:main"
 document-ocr-corpus = "document_ocr.corpus_cli:main"
 document-ocr-pilot = "document_ocr.pilot_cli:main"
 document-ocr-quality-filter = "document_ocr.quality_cli:main"
 document-ocr-snapshot = "document_ocr.snapshot_cli:main"
+document-ocr-table-view = "document_ocr.table_views.cli:main"
+document-kie-label-agents = "document_ocr.labeling_agents.cli:main"
+document-kie-label-source = "document_ocr.labeling_agents.source_cli:main"
+document-kie-semantic-v3 = "document_ocr.semantic_v3.cli:main"
+document-kie-align-datasets = "document_ocr.training.dataset_alignment:main"
 document-kie-train = "document_ocr.training.cli:main"
 
 [dependency-groups]
@@ -48,6 +54,11 @@ train = [
   "nvidia-ml-py>=13.610.43,<14",
   "peft>=0.19.1,<0.20",
   "torch>=2.13,<2.14",
+]
+labeling = [
+  "openai>=3.3.1,<3.4",
+  "pydantic-ai-slim[openai,retries]>=2.33,<2.34",
+  "python-dotenv>=1.2,<2",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -75,5 +86,5 @@ packages = ["document_ocr"]
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*", "datasets.*", "peft.*", "pypdfium2.*", "pyarrow.*"]
+module = ["boto3.*", "botocore.*", "datasets.*", "mlflow.*", "peft.*", "pypdfium2.*", "pyarrow.*"]
 ignore_missing_imports = true

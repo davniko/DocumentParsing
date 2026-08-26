@@ -1,0 +1,24 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-luna-blind200-carrier-null-adjudication1-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+items:
+  - document_id: doc_b6ab4539c9ba24e1727e8d16d1aa197af7b1506689ee8854fbefc56d68809b1d
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/work-items/doc_b6ab4539c9ba24e1727e8d16d1aa197af7b1506689ee8854fbefc56d68809b1d.json
+    work_item_sha256: dc4b7c1d7d9b53710c7c2174002ac48d7cca2f3e824e3e7eee198a1e6377fe47
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/state/candidate-attempts/doc_b6ab4539c9ba24e1727e8d16d1aa197af7b1506689ee8854fbefc56d68809b1d/attempt-1/852285ae01ff8a4b3071d3a05abffc956de899ef0e39bad244d00781c12b6ba2.json
+    candidate_sha256: 852285ae01ff8a4b3071d3a05abffc956de899ef0e39bad244d00781c12b6ba2
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication accepted the immutable carrier-null candidate after confirming that
+        the full shipper name is grounded on page 1 and that the repeated red numeric stamp values
+        205440 and 205439 are not textual party names. SEA LEGEND LINE LIMITED is visible only in
+        the auxiliary raster and absent from raw OCR, so the OCR-conditioned carrier correctly
+        remains null. The candidate passes current field evidence, relation projection, and v10
+        explicit-completeness validation.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/state/independent-reviews/doc_b6ab4539c9ba24e1727e8d16d1aa197af7b1506689ee8854fbefc56d68809b1d/attempt-1/8f0cc37b821177beb65ea86dd30bc13e2cfe2922dbbd4b59579de1d77a6215a1.json
+        sha256: 8f0cc37b821177beb65ea86dd30bc13e2cfe2922dbbd4b59579de1d77a6215a1
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/state/layout-guidance/doc_b6ab4539c9ba24e1727e8d16d1aa197af7b1506689ee8854fbefc56d68809b1d/attempt-4/f6570fb5883b3a6c2cc2153030df7f4e747ee9b3b4707f8ce5e07b8bd022bc98.json
+        sha256: f6570fb5883b3a6c2cc2153030df7f4e747ee9b3b4707f8ce5e07b8bd022bc98
+

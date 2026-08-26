@@ -138,6 +138,23 @@ class PromptConfig(_StrictModel):
         return _validate_config_path(value)
 
 
+class TaskConstraintsConfig(_StrictModel):
+    path: NonEmptyString
+    sha256: NonEmptyString
+
+    @field_validator("path")
+    @classmethod
+    def constraints_path_is_safe(cls, value: str) -> str:
+        return _validate_config_path(value)
+
+    @field_validator("sha256")
+    @classmethod
+    def digest_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("task-constraints sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+
 class DatasetFileConfig(_StrictModel):
     path: NonEmptyString
     sha256: NonEmptyString
@@ -505,6 +522,7 @@ class TrainingConfig(_StrictModel):
     run: RunConfig
     model: ModelConfig
     prompt: PromptConfig
+    task_constraints: TaskConstraintsConfig | None = None
     dataset: DatasetConfig
     peft: LoraConfig
     optimization: OptimizationConfig
@@ -516,6 +534,12 @@ class TrainingConfig(_StrictModel):
 
     @model_validator(mode="after")
     def strategies_and_splits_are_consistent(self) -> TrainingConfig:
+        relation_explicit = self.task == "bill_of_lading_relation_explicit_v3"
+        if relation_explicit != (self.task_constraints is not None):
+            raise ValueError(
+                "bill_of_lading_relation_explicit_v3 requires a frozen task_constraints "
+                "artifact, and other registered tasks must not configure it"
+            )
         has_validation = bool(self.dataset.splits.validation)
         has_test = bool(self.dataset.splits.test)
         evaluation_is_active = (

@@ -1,16 +1,73 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import torch
 
 from document_ocr.training.runtime import (
+    _base_model_on_start_evaluation_callback,
     _cumulative_loss_callback,
     _evaluation_memory_cleanup_callback,
     _evaluation_metrics_at_step,
     _final_evaluation_policy_callback,
 )
+
+
+class _AdapterStateModel:
+    def __init__(self) -> None:
+        self.adapter_enabled = True
+        self.disable_calls = 0
+        self.restore_calls = 0
+
+    @contextmanager
+    def disable_adapter(self) -> Any:
+        if not self.adapter_enabled:
+            raise RuntimeError("adapter was already disabled")
+        self.disable_calls += 1
+        self.adapter_enabled = False
+        try:
+            yield
+        finally:
+            self.adapter_enabled = True
+            self.restore_calls += 1
+
+
+def test_on_start_baseline_disables_adapter_and_restores_before_training() -> None:
+    callback = _base_model_on_start_evaluation_callback(enabled=True)
+    model = _AdapterStateModel()
+    state = SimpleNamespace(global_step=0, log_history=[])
+
+    callback.on_train_begin(None, state, None, model=model)
+
+    assert model.adapter_enabled is False
+    assert model.disable_calls == 1
+    state.log_history.append({"eval_runtime": 2.0, "step": 0})
+    logs = {"eval_runtime": 2.0}
+    callback.on_log(None, state, None, logs=logs)
+    assert logs["eval_is_base_model"] == 1.0
+    assert state.log_history[-1]["eval_is_base_model"] == 1.0
+
+    callback.on_evaluate(None, state, None, metrics=logs)
+    callback.on_epoch_begin(None, state, None)
+
+    assert model.adapter_enabled is True
+    assert model.restore_calls == 1
+
+
+def test_disabled_on_start_baseline_does_not_touch_adapter() -> None:
+    callback = _base_model_on_start_evaluation_callback(enabled=False)
+    model = _AdapterStateModel()
+    state = SimpleNamespace(global_step=12, log_history=[])
+
+    callback.on_train_begin(None, state, None, model=model)
+    callback.on_epoch_begin(None, state, None)
+
+    assert model.adapter_enabled is True
+    assert model.disable_calls == 0
+    assert model.restore_calls == 0
 
 
 def test_cumulative_loss_is_weighted_by_optimizer_step_intervals() -> None:

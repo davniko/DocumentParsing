@@ -17,6 +17,7 @@ run:
   run_id: glm-ocr-blc-followup500-c0139c175677-r1
   fail_fast: false
   resume: true
+  expected_pages: 898
 
 raster:
   dpi: 200
@@ -38,7 +39,10 @@ vllm:
   engine_version: 0.26.0
   container_base_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
   container_build_manifest_sha256: c1ffd97e7a6fa3fdb02b5acd84966e6afc10c096a5eec5e7bd47dad7a88197b4
+  dtype: bfloat16
+  quantization: none
   max_model_len: 32768
+  max_num_batched_tokens: 2048
   max_num_seqs: 16
   gpu_memory_utilization: 0.9
   prompt: "Text Recognition:"

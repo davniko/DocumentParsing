@@ -18,7 +18,7 @@ from typing import Any, Literal
 import httpx
 
 from document_ocr.atomic import ArtifactReadError, read_regular_file_bytes
-from document_ocr.config import VllmConfig
+from document_ocr.config import VllmClientConfig
 from document_ocr.hashing import sha256_bytes
 from document_ocr.models import InferenceAttempt, PageProvenance
 from document_ocr.vllm_contract import (
@@ -107,12 +107,15 @@ class ServerInfo:
     model_repository: str
     served_model_name: str
     model_revision: str
+    dtype: Literal["bfloat16"]
+    quantization: Literal["none", "fp8"]
     max_model_len: int
+    max_num_batched_tokens: int
     max_num_seqs: int
     gpu_memory_utilization: float
     generation_config: Literal["vllm"]
     speculative_method: Literal["mtp"]
-    num_speculative_tokens: Literal[1]
+    num_speculative_tokens: Literal[1, 3]
     image_limit_per_prompt: Literal[1]
     container_base_image: str
     container_build_manifest_sha256: str
@@ -187,7 +190,7 @@ class VllmOcrClient:
 
     def __init__(
         self,
-        config: VllmConfig,
+        config: VllmClientConfig,
         *,
         max_connections: int,
         transport: httpx.AsyncBaseTransport | None = None,
@@ -316,6 +319,9 @@ class VllmOcrClient:
             max_model_len=max_model_len,
             served_model_name=runtime_contract["served_model_name"],
             model_revision=runtime_contract["model_revision"],
+            dtype=runtime_contract["dtype"],
+            quantization=runtime_contract["quantization"],
+            max_num_batched_tokens=runtime_contract["max_num_batched_tokens"],
             max_num_seqs=runtime_contract["max_num_seqs"],
             gpu_memory_utilization=runtime_contract["gpu_memory_utilization"],
             generation_config=runtime_contract["generation_config"],
@@ -334,7 +340,10 @@ class VllmOcrClient:
             model=self.config.model,
             served_model_name=self.config.served_model_name,
             model_revision=self.config.revision,
+            dtype=self.config.dtype,
+            quantization=self.config.quantization,
             max_model_len=self.config.max_model_len,
+            max_num_batched_tokens=self.config.max_num_batched_tokens,
             max_num_seqs=self.config.max_num_seqs,
             gpu_memory_utilization=self.config.gpu_memory_utilization,
             generation_config="vllm",
@@ -352,6 +361,8 @@ class VllmOcrClient:
             "model",
             "served_model_name",
             "model_revision",
+            "dtype",
+            "quantization",
             "generation_config",
             "speculative_method",
             "container_base_image",
@@ -363,6 +374,7 @@ class VllmOcrClient:
         integer_fields = {
             "schema_version",
             "max_model_len",
+            "max_num_batched_tokens",
             "max_num_seqs",
             "num_speculative_tokens",
             "image_limit_per_prompt",
@@ -402,11 +414,15 @@ class VllmOcrClient:
         raster_sha256: str,
         request_id: str,
         first_attempt_number: int = 1,
+        max_attempts: int | None = None,
     ) -> OcrResponse:
         """Recognize one raster, preserving the model's text and raw JSON exactly."""
 
         if first_attempt_number <= 0:
             raise ValueError("first_attempt_number must be positive")
+        attempt_limit = self.config.retry.max_attempts if max_attempts is None else max_attempts
+        if attempt_limit <= 0 or attempt_limit > self.config.retry.max_attempts:
+            raise ValueError("max_attempts must be within the configured retry limit")
         self._validate_request_id(request_id)
         image_url = await asyncio.to_thread(
             _image_data_uri,
@@ -438,7 +454,7 @@ class VllmOcrClient:
         }
         attempts: list[RequestAttempt] = []
         retry = self.config.retry
-        for offset in range(retry.max_attempts):
+        for offset in range(attempt_limit):
             attempt_number = first_attempt_number + offset
             attempt_request_id = f"{request_id}-a{attempt_number}"
             self._validate_request_id(attempt_request_id)

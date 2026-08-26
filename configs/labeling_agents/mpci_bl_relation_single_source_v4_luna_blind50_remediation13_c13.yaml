@@ -1,0 +1,99 @@
+schema_version: 4
+task: bill_of_lading_relation_single_source_v4
+environment_file: .env
+
+run:
+  run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation13-c13-v4
+  output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: absent
+  expected_documents: 1779
+  expected_pages: 4376
+  expected_inventory_sha256: c069d7bd6ba4cb5f4dda14ae518d7f6f5b84cc2499c56944317baf5f317a2a55
+  work_item_roots:
+    - id: remaining1779
+      root: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/selection-records.jsonl
+      selection_records_sha256: 2a6c36e9958665242ff022d555f054873cce3352b0bfacfb5abc145d74983539
+      documents: 1779
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/projects/documentparsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+selection:
+  count: 13
+  seed: 5662
+  namespace: mpci-bl-pydantic-ai-luna-blind50-remediation13-c13-v4
+  # Every resolvable hold from the immutable blind50 v6 run. The remaining
+  # doc_5ccc... case is intentionally absent because its OCR/PDF row semantics
+  # cannot establish a training target without inventing truth.
+  document_ids:
+    - doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627
+    - doc_06984148e3060ea495cf6ab57bab41aa339be2ab8e3519cb223f64a13f2c0501
+    - doc_b25a3616d7829f48cf6b879421198005ed3f2730f7e7fb81437b208acc26c216
+    - doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c
+    - doc_124c11cf85cf1fa402e51348824fea2a96cfbded9121f803dbccd8096d066344
+    - doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5
+    - doc_5695be2d2ae4c04cde0f3c5a91c1ae9f283cf4390a09de7c4c6e2f907de818fe
+    - doc_761dcaf6d7d66cbbfffd5d9834899b90a28e1f2fb9eb6d7c17012991f47ad2b8
+    - doc_e28ff6f73f4cea776bf1f1ffc0564bf160aa745c062a5f4b1dec1f2ce1650f80
+    - doc_a019d8323ac605d50d643166686e25da1378b6baf6e4c3763cb5a5573c01ccc6
+    - doc_b076778804b87511d7e362f55a20c4177b06d53863d9012cfada9ac81e4216f4
+    - doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+    - doc_74bd47961de63d40ef7e2b79b687cfeb66c35ae288f2d7f396fe59d03182beb8
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v4_extractor.md
+    sha256: 6363afdccc6af718e1a3eaa7dddb53f25768c67e80c7098b05a75460912ba3f4
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v4_reviewer.md
+    sha256: 2f837c66967e2d4eeaf8e8fc7d1162b74916c0a21004d1dc9dd630b05edeeea0
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: b279812a4ce8f689db7cf2e1175f9a7e7a9e3cd72ddadcd767ef1d6348088b52
+
+providers:
+  - id: luna_high
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: high
+    supports_pdf_documents: true
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+    pricing:
+      currency: USD
+      effective_date: 2026-08-22
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+      long_context_input_threshold_tokens: 272000
+      long_context_input_multiplier: 2.0
+      long_context_output_multiplier: 1.5
+
+assignments:
+  labeler: luna_high
+  reviewer: luna_high
+  document_layout: luna_high
+
+workflow:
+  max_concurrent_documents: 13
+  max_concurrent_model_requests: 13
+  max_candidate_attempts: 3
+  max_document_escalations_per_document: 1
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false

@@ -9,7 +9,9 @@ text, and unresolved values fail the projection.
 from __future__ import annotations
 
 import json
+import unicodedata
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 
 from document_ocr.label_schemas.bill_of_lading import (
@@ -17,8 +19,8 @@ from document_ocr.label_schemas.bill_of_lading import (
     BillOfLadingGoodsItem,
     BillOfLadingLabel,
     BillOfLadingParties,
+    CargoMass,
     DangerousGoods,
-    Mass,
     SemanticLocation,
     SemanticParty,
 )
@@ -35,10 +37,98 @@ _PAYMENT_CODES = {
 _MASS_UNIT_CODES = {"kilogram": "KGM", "pound": "LBR"}
 _TEMPERATURE_UNIT_CODES = {"celsius": "CEL", "fahrenheit": "FAH"}
 _PACKING_GROUP_CODES = {"I": "1", "II": "2", "III": "3"}
+_ASCII_TRANSLITERATION = str.maketrans(
+    {
+        "Æ": "AE",
+        "æ": "ae",
+        "Œ": "OE",
+        "œ": "oe",
+        "Ø": "O",
+        "ø": "o",
+        "Ł": "L",
+        "ł": "l",
+        "Đ": "D",
+        "đ": "d",
+        "Ð": "D",
+        "ð": "d",
+        "Þ": "TH",
+        "þ": "th",
+        "ß": "ss",
+        "Ħ": "H",
+        "ħ": "h",
+        "\u0131": "i",
+        "Ŋ": "N",
+        "ŋ": "n",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "“": '"',
+        "”": '"',
+        "„": '"',
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "—": "-",
+        "―": "-",
+        "…": "...",
+        "\u00d7": "x",
+        "®": "(R)",
+        "°": " DEG ",
+        "\u2044": "/",
+    }
+)
 
 
 class MpciProjectionError(ValueError):
     """A semantic fact cannot be projected without guessing or data loss."""
+
+
+def _cuscar_ascii_text(value: str, *, path: str) -> str:
+    """Deterministically transliterate Latin semantic text to CUSCAR ASCII.
+
+    The semantic-v2 label remains unchanged. Unsupported characters fail
+    explicitly instead of being silently dropped from the application payload.
+    """
+
+    if value.isascii():
+        return value
+    normalized = unicodedata.normalize("NFKD", value.translate(_ASCII_TRANSLITERATION)).translate(
+        _ASCII_TRANSLITERATION
+    )
+    output: list[str] = []
+    for character in normalized:
+        if unicodedata.combining(character):
+            continue
+        if character.isascii() and 0x20 <= ord(character) <= 0x7E:
+            output.append(character)
+            continue
+        raise MpciProjectionError(
+            f"{path} contains {character!r}, which has no deterministic CUSCAR ASCII mapping"
+        )
+    result = "".join(output)
+    if not result.strip():
+        raise MpciProjectionError(f"{path} became blank during CUSCAR ASCII mapping")
+    return result
+
+
+def _cuscar_ascii_payload(value: Any, *, path: str) -> Any:
+    if isinstance(value, str):
+        return _cuscar_ascii_text(value, path=path)
+    if isinstance(value, dict):
+        return {
+            key: _cuscar_ascii_payload(
+                child,
+                path=f"{path}.{key}" if path else key,
+            )
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _cuscar_ascii_payload(child, path=f"{path}[{index}]")
+            for index, child in enumerate(value)
+        ]
+    return value
 
 
 def _resolved_country(
@@ -84,26 +174,19 @@ def _contact_information(party: SemanticParty) -> list[dict[str, Any]] | None:
         return None
     communication: list[dict[str, str]] = []
     communication.extend(
-        {"communicationMeans": "TE", "identifier": value}
-        for value in contact.phoneNumbers or ()
+        {"communicationMeans": "TE", "identifier": value} for value in contact.phoneNumbers or ()
     )
     communication.extend(
-        {"communicationMeans": "EM", "identifier": value}
-        for value in contact.emailAddresses or ()
+        {"communicationMeans": "EM", "identifier": value} for value in contact.emailAddresses or ()
     )
     communication.extend(
-        {"communicationMeans": "AO", "identifier": value}
-        for value in contact.websiteUrls or ()
+        {"communicationMeans": "AO", "identifier": value} for value in contact.websiteUrls or ()
     )
     return [
         {
             "contactInformation": {
                 "contactIdentifier": "COM",
-                **(
-                    {"contactName": contact.contactName}
-                    if contact.contactName is not None
-                    else {}
-                ),
+                **({"contactName": contact.contactName} if contact.contactName is not None else {}),
             },
             "communicationContact": communication,
         }
@@ -160,9 +243,23 @@ def _parties(
             )
 
     for index, party in enumerate(parties.notifyParties or ()):
-        resolved = references[party.sameAs] if party.sameAs is not None else party
-        if resolved is None:
+        referenced = references[party.sameAs] if party.sameAs is not None else None
+        if party.sameAs is not None and referenced is None:
             raise MpciProjectionError(f"notify party {index} has an unresolved sameAs relation")
+        resolved = party
+        if referenced is not None:
+            # SAME AS inherits identity/location, while an explicitly printed
+            # notify contact block replaces the referenced role's contacts.
+            resolved = referenced.model_copy(
+                update={
+                    "sameAs": None,
+                    "contactDetails": (
+                        party.contactDetails
+                        if party.contactDetails is not None
+                        else referenced.contactDetails
+                    ),
+                }
+            )
         result.append(
             _party(
                 resolved,
@@ -191,11 +288,17 @@ def _parties(
     return result
 
 
-def _mass(mass: Mass, attribute: str) -> dict[str, Any]:
+def _mass(mass: CargoMass, attribute: str) -> dict[str, Any]:
+    if mass.unit == "metric_tonne":
+        measurement_unit_code = "KGM"
+        measure = float(Decimal(str(mass.value)) * 1000)
+    else:
+        measurement_unit_code = _MASS_UNIT_CODES[mass.unit]
+        measure = mass.value
     return {
         "measuredAttributeCode": attribute,
-        "measurementUnitCode": _MASS_UNIT_CODES[mass.unit],
-        "measure": mass.value,
+        "measurementUnitCode": measurement_unit_code,
+        "measure": measure,
     }
 
 
@@ -365,12 +468,10 @@ def _document_patch(
         if patch.transport.vesselName is not None:
             transport_information["transportMeansIdentificationName"] = patch.transport.vesselName
         if patch.transport.vesselFlagCountry is not None:
-            transport_information["transportMeansNationalityCode"] = (
-                _resolved_country(
-                    country=patch.transport.vesselFlagCountry,
-                    path="documentPatch.transport.vesselFlagCountry",
-                    resolver=country_resolver,
-                )
+            transport_information["transportMeansNationalityCode"] = _resolved_country(
+                country=patch.transport.vesselFlagCountry,
+                path="documentPatch.transport.vesselFlagCountry",
+                resolver=country_resolver,
             )
     if patch.parties is not None and patch.parties.carrier is not None:
         carrier = patch.parties.carrier
@@ -403,9 +504,7 @@ def _document_patch(
         containers: list[dict[str, Any]] = []
         for container in patch.containers:
             target: dict[str, Any] = {
-                "equipmentIdentification": {
-                    "equipmentIdentifier": container.containerNumber
-                }
+                "equipmentIdentification": {"equipmentIdentifier": container.containerNumber}
             }
             equipment: dict[str, Any] = {}
             if container.typeCode is not None:
@@ -417,9 +516,7 @@ def _document_patch(
             if container.verifiedGrossMass is not None:
                 target["containerVerifiedGrossMass"] = {
                     "measure": container.verifiedGrossMass.value,
-                    "measurementUnitCode": _MASS_UNIT_CODES[
-                        container.verifiedGrossMass.unit
-                    ],
+                    "measurementUnitCode": _MASS_UNIT_CODES[container.verifiedGrossMass.unit],
                 }
             if container.sealNumbers is not None:
                 target["sealNumbers"] = [
@@ -430,9 +527,7 @@ def _document_patch(
                     {
                         "temperatureTypeCodeQualifier": "2",
                         "temperatureDegree": container.temperatureSetpoint.value,
-                        "unitCode": _TEMPERATURE_UNIT_CODES[
-                            container.temperatureSetpoint.unit
-                        ],
+                        "unitCode": _TEMPERATURE_UNIT_CODES[container.temperatureSetpoint.unit],
                     }
                 ]
             containers.append(target)
@@ -471,9 +566,7 @@ def _document_patch(
             }
         ]
     if patch.parties is not None:
-        details["partiesInformation"] = _parties(
-            patch.parties, country_resolver=country_resolver
-        )
+        details["partiesInformation"] = _parties(patch.parties, country_resolver=country_resolver)
     if patch.forwardingAndExportReferences is not None:
         details["forwardingAndExportReferences"] = [
             {"references": value} for value in patch.forwardingAndExportReferences
@@ -498,10 +591,10 @@ def project_bill_of_lading_to_mpci(
 
     payload = {
         "schemaVersion": "1.0.0",
-        "documentPatch": _document_patch(
-            label.documentPatch, country_resolver=country_resolver
-        ),
+        "documentPatch": _document_patch(label.documentPatch, country_resolver=country_resolver),
     }
-    return MpciBillOfLadingLabel.model_validate_json(
-        json.dumps(payload, ensure_ascii=False), strict=True
-    )
+    serialized = json.dumps(payload, ensure_ascii=False)
+    if not serialized.isascii():
+        payload = _cuscar_ascii_payload(payload, path="")
+        serialized = json.dumps(payload, ensure_ascii=False)
+    return MpciBillOfLadingLabel.model_validate_json(serialized, strict=True)

@@ -1,0 +1,96 @@
+schema_version: 1
+view_type: glm_ocr_table_recognition
+
+source:
+  type: validated_label_rasters
+  expected_documents: 487
+  expected_pages: 881
+  record_sets:
+    - id: semantic_v2_pilot106
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-pilot150-r1
+      records_path: training/records.jsonl
+      records_sha256: 40930f2681043065f02da85bab09ccdf3c1f13fbd0b291797b32d2b4b200cc9c
+      records: 106
+    - id: semantic_v2_followup381
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-followup420-r3
+      records_path: training/records.jsonl
+      records_sha256: b5fdf1874f297bf86adad2e128e91ece04d1dcc4ceb1eddeb430f4f7f385ee46
+      records: 381
+  extraction_runs:
+    - run_id: glm-ocr-blc-pilot150-faa3c717dbc4
+      root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/pilots/blc150/runs/glm-ocr-blc-pilot150-faa3c717dbc4
+    - run_id: glm-ocr-blc-followup500-c0139c175677-r1
+      root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/pilots/blc500-followup/runs/glm-ocr-blc-followup500-c0139c175677-r1
+
+output:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/views/mpci-bl-combined487-table
+
+run:
+  run_id: glm-ocr-table-mpci-bl-combined487-v1
+  resume: true
+  fail_fast: false
+  max_total_attempts_per_page: 8
+
+vllm:
+  endpoint: http://127.0.0.1:8000
+  model: zai-org/GLM-OCR
+  served_model_name: glm-ocr
+  revision: ca5d8b3e287e52589e37c28385d9655ee4372f9d
+  engine_version: 0.26.0
+  container_base_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+  container_build_manifest_sha256: c1ffd97e7a6fa3fdb02b5acd84966e6afc10c096a5eec5e7bd47dad7a88197b4
+  dtype: bfloat16
+  quantization: none
+  max_model_len: 32768
+  max_num_batched_tokens: 2048
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.9
+  prompt: "Table Recognition:"
+  request_timeout_seconds: 300.0
+  api_key_env: VLLM_API_KEY
+  sampling:
+    temperature: 0.0
+    top_p: 0.00001
+    top_k: 1
+    repetition_penalty: 1.1
+    max_tokens: 8192
+    seed: 0
+  retry:
+    max_attempts: 4
+    initial_backoff_seconds: 0.5
+    max_backoff_seconds: 8.0
+    backoff_multiplier: 2.0
+    jitter_fraction: 0.2
+  speculative_decoding:
+    method: mtp
+    num_speculative_tokens: 1
+  repetition_detection:
+    min_pattern_size: 5
+    max_pattern_size: 64
+    min_count: 5
+
+concurrency:
+  max_active_documents: 8
+  max_inflight_pages_global: 16
+  max_inflight_pages_per_document: 4
+
+join:
+  dataset_id: mpci-bl-combined487-table-view-v1
+  output_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-table-view-v1
+  inputs:
+    - split: train
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1/train.jsonl
+      sha256: 2e4b01b06a8ab9dbe136259a45c7f6f5231405c75708939972b5bd6aa9f73302
+      records: 96
+    - split: train
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-followup381-seed42-val50-v1/train.jsonl
+      sha256: 011d9aa2114739831139355ff3e80350070a4c29440a9a72120846c99dd5e08f
+      records: 331
+    - split: validation
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1/validation.jsonl
+      sha256: c4cb5e80032690c7ef1e2b43886043ff595246fab513796968d8537bd9d29b89
+      records: 10
+    - split: validation
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-followup381-seed42-val50-v1/validation.jsonl
+      sha256: 87c7f599c4492fe1621243f6bee81a6422e5013bde7647082a985e9682c7d1ed
+      records: 50

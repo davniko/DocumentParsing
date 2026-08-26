@@ -21,6 +21,49 @@ def _target(number: str) -> str:
     )
 
 
+def _relation_target(
+    *,
+    reverse_containers_and_allocations: bool = False,
+    allocation_quantities: tuple[int, int] = (10, 20),
+) -> str:
+    containers = [
+        {"containerNumber": "MSKU1200040", "typeCategory": "FORTY_FOOT_DRY"},
+        {"containerNumber": "FCIU3651201", "typeCategory": "FORTY_FOOT_HIGH_CUBE_DRY"},
+    ]
+    allocations = [
+        {"containerNumber": "MSKU1200040", "packageQuantity": allocation_quantities[0]},
+        {"containerNumber": "FCIU3651201", "packageQuantity": allocation_quantities[1]},
+    ]
+    if reverse_containers_and_allocations:
+        containers.reverse()
+        allocations.reverse()
+    return canonical_json(
+        {
+            "schemaVersion": "3.0.0-experimental",
+            "documentPatch": {
+                "containers": containers,
+                "cargoGroups": [{"groupId": "g1", "description": "MACHINERY"}],
+                "cargoPackages": [
+                    {
+                        "packageId": "p1",
+                        "groupId": "g1",
+                        "quantity": 30,
+                        "typeCategory": "CARTON",
+                    }
+                ],
+                "cargoAllocationGroups": [
+                    {
+                        "groupId": "g1",
+                        "coverage": "single_package_level",
+                        "packageIds": ["p1"],
+                        "allocations": allocations,
+                    }
+                ],
+            },
+        }
+    )
+
+
 def test_structured_metrics_distinguish_json_schema_and_exactness() -> None:
     task = get_training_task("bill_of_lading_semantic_v2")
     reference = _target("ABC")
@@ -101,6 +144,41 @@ def test_field_value_metrics_preserve_partial_credit_when_schema_is_invalid() ->
     assert metrics["field_value_precision"] == 1.0
     assert metrics["field_value_recall"] == 1.0
     assert metrics["field_value_f1"] == 1.0
+
+
+def test_relation_explicit_metrics_ignore_array_position_but_anchor_entities() -> None:
+    task = get_training_task("bill_of_lading_relation_explicit_v3")
+    reference = _relation_target()
+    prediction = _relation_target(reverse_containers_and_allocations=True)
+
+    metrics, assessments = structured_metrics([prediction], [reference], task)
+
+    assert metrics["canonical_exact_match"] == 0.0
+    assert metrics["field_value_f1"] < 1.0
+    assert metrics["cargo_relation_precision"] == 1.0
+    assert metrics["cargo_relation_recall"] == 1.0
+    assert metrics["cargo_relation_f1"] == 1.0
+    assert metrics["cargo_relation_exact_match"] == 1.0
+    assert metrics["category_value_f1"] == 1.0
+    assert metrics["category_value_exact_match"] == 1.0
+    assert assessments[0].predicted_cargo_relation_facts
+
+
+def test_relation_explicit_metrics_penalize_wrong_anchored_allocation_values() -> None:
+    task = get_training_task("bill_of_lading_relation_explicit_v3")
+
+    metrics, _ = structured_metrics(
+        [_relation_target(allocation_quantities=(20, 10))],
+        [_relation_target()],
+        task,
+    )
+
+    assert metrics["schema_valid"] == 1.0
+    assert metrics["cargo_relation_precision"] == 5 / 7
+    assert metrics["cargo_relation_recall"] == 5 / 7
+    assert metrics["cargo_relation_f1"] == 5 / 7
+    assert metrics["cargo_relation_exact_match"] == 0.0
+    assert metrics["category_value_f1"] == 1.0
 
 
 def test_trainer_metric_callback_publishes_exact_field_value_metrics() -> None:

@@ -1,0 +1,186 @@
+schema_version: 4
+task: bill_of_lading_relation_single_source_v4
+environment_file: .env
+
+run:
+  run_id: mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1
+  output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: absent
+  expected_documents: 1779
+  expected_pages: 4376
+  expected_inventory_sha256: c069d7bd6ba4cb5f4dda14ae518d7f6f5b84cc2499c56944317baf5f317a2a55
+  work_item_roots:
+    - id: remaining1779
+      root: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/selection-records.jsonl
+      selection_records_sha256: 2a6c36e9958665242ff022d555f054873cce3352b0bfacfb5abc145d74983539
+      documents: 1779
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/projects/documentparsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+selection:
+  count: 100
+  seed: 5669
+  namespace: mpci-bl-pydantic-ai-luna-next100-v10-c16-v1
+  # Frozen deterministic random sample; zero overlap with both the merged 280
+  # and the separately reserved, unrun next-300 selection.
+  document_ids:
+    - doc_3faa338209378d0115ff34d6aab716d18821b7e619ad95d41ec304789b315b18
+    - doc_3ca3f1a33dd1b43c3d35627e313f393e146df9430e4323979c0c93880dfa11d2
+    - doc_4849f70675f00aff9951a0aaf3d57dc736a3ae9cfd0bdd74deda3d2b820b8f0a
+    - doc_b4e0c948d4b2c5d757a209775111615cc745c919fed2422c3509daf05919ef33
+    - doc_0bd3ce7b5dd84812d58987e15385efa2e95506302e90d847a9b689495b9cd009
+    - doc_5fe4e9267c1fe200ac548b042a06557d315b155abd3e3ebba3400d3380dd81a2
+    - doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39
+    - doc_147a26262d50ea52c96fabd869b4f47c8a0187cc40526de515a0e64370475c7d
+    - doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f
+    - doc_3a4577e583b44de1d1554cb1e3abee568649643b372ae1aa705ab801d8e640bc
+    - doc_ba3dad0d0a66a8db07e3a9331d039372017db5ca20cb185f466e1acbaaafc025
+    - doc_a5265d59407c00f400dc92be45ad35f487fcb440c2f405c0381b7a75fc76b3c6
+    - doc_adb86f56a96420b99c75c41cd616f0240ac8b659b8a476696d704535c3206d5f
+    - doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d
+    - doc_2bfd0f197de4136a1dfb3d82e39d515ef2da8a38cfcb2c675ff30ff55615b309
+    - doc_025a144d2a19ad4db8f6825f0cebacb263a5f85ebf5cfca0186643f8720a301c
+    - doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4
+    - doc_39fc076c45f436011d7658820c25f47b6a4ff52c08482a87303393f476ca09cd
+    - doc_14515deff68a1b8f87e235160c1f130cb3aa35b6121663758778dc5622a1853f
+    - doc_a110648e7ba2e167161ca03e33ba355f363b0572943d3a40a3977b7f498f28b0
+    - doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1
+    - doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982
+    - doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d
+    - doc_6eab672f44a2e9bf1ebe60fd2bb368131173043b88b5798232c0ec926ad6e28a
+    - doc_916c4236bb9827d9b9f5f73968967f6acac0787ce827e647202c3304cf3caab6
+    - doc_db56a7240ab1db3e5011bc6089f5d5dd04fa97e45bd695dd34223ff2bd0e9558
+    - doc_92bc5451eb186398e16b01e3f2a183c2c67205e3fd3f87cec9e6ee70d3266330
+    - doc_43f9b9c5c9fd48c8e9c7adfb8b5ea4b2d4ca4132b93920e29bc73741ac9e5993
+    - doc_098cc97412545d6404107797b11b8a4005552bbe3ebd04e4ccc576f796c4d598
+    - doc_b94ea1c18029a12f078fd09418a721eb52d155dcb947729f182b0b2df65f74ee
+    - doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8
+    - doc_eb1f2a4e390db75fc071d63078e0228ef5431b4680700daa17a70418b25281d3
+    - doc_97080c87b4e911600dd783bcdb3ac3eec0fc29baee032308dbb703439a84e514
+    - doc_2188364031b9b790bf372c4ea23216a18c284de42488cc74b201c811f45bf14f
+    - doc_891555b99ca49335da7e37f1b2ccaf0d347400b5b8c4980527e2142cf6c84145
+    - doc_fe7b5df2c94942441e0786c4bda576233d6758187cc77721f8bdac66932816a6
+    - doc_79a41b8cd9f8a014f3feb310659885c239882b26ff34767b9e6ba70ae039fc41
+    - doc_fc68b5d99830e0c3241e03375fe2cb7149dd77c80ec74b9a0bedb180bb700546
+    - doc_2c12ef6c4701d8225a5d6a6389bb7f9fb3818331316c30b0733f1359ca978fe1
+    - doc_7bea05747be80a0ea32b58d2a2a0b4b3dbfa41d21bb0e034cd027154984ccb20
+    - doc_4c051932cfa3329bf208cc12d7e76ec19d3915cf0c3fd30e84f4b0ffe4b15e3d
+    - doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984
+    - doc_d1fdcd92fff59ac539b2e1cf4e8aff2a5c1588a7ce45adc283d8de75cd10b5b1
+    - doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d
+    - doc_9a55d93af2ef648108068bb8d01c83061e53ea6a44fbee761a3a2f9bedf8e375
+    - doc_9496d43382e6fb5f75235fc4a1cd3baab8df9ffa3802661709434fc309ab7d09
+    - doc_fdbabd0abe4187ecd28486bfc62a82719449398547a9501be5c10aee29a8769f
+    - doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114
+    - doc_98dc46e941c4b81e527a27f47095f6175570d9cf0fb075c8e0c3369ea85517cd
+    - doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83
+    - doc_7d485217339a638cbc1c3c7045bf7da01b1b24bd55432e4ed945b879970b781c
+    - doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9
+    - doc_0e2f56dbb03a974764747cd36abf54b4d4eb588fe79480168ba6cc0c4b89b63a
+    - doc_39a66fab58be85232c5402a184098cde89d87246e1d2686e873a8cd9343e84d8
+    - doc_661601d9795403830ecbb829fd5689642414479847eb0f54ff094c0b33c8a503
+    - doc_e1796976e25c91a5e2289e265ab2289c791edd5689f8fff3f067d5e9e0d13991
+    - doc_0961dfa2f9c2df0a185cfac672f1ae3ab4f20b5a77d4cb75fdb50001be4a47d2
+    - doc_3bc0bdd0d5d981746bdb9409ee28ea7ce85c33795066172c99f9a5afaaa9adf4
+    - doc_89aff5493554d8d0042adf605257ef47b5b1c63ef22edebfbe184079db3bf3d7
+    - doc_de1dd1acc6997c3c41895846132c63d84148e20f754ab6908d8b79f37939780b
+    - doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0
+    - doc_1c6200177164dfa9a1027c4f1c0a29c09b5ad4e98de8511b7cf7626b1e6b1c95
+    - doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770
+    - doc_1c3797a521af25c4dd20bc95238d6605c4ef404b343374bee3833c7be71541fd
+    - doc_75e7c8092c2a350c00f973d11e3c62eb4ab1dcc6c93a2e5c75a1d1756a358620
+    - doc_e5a37f5a280d24508517c17e1e557545e6881df1ae03891bc185cdbb424ec3ea
+    - doc_403d1d5afbca6b46fc8dddadf2763688133303a6277277cc13055cecabf73ccc
+    - doc_8a9c561ea310bb330ee0255f038073f09c5e7bd10fa1373673915543e2217007
+    - doc_0abced73c111f656a264294edec51888a3ff1d74902029f9552ad290b7db5b87
+    - doc_9ab9fc227a7e6ed8a45ad25914a9ded16258df1956d3794ba77c5b9f83efe490
+    - doc_3c79ff3c9fa00bb287e372ca4ffbcfc825892d1bf238fe66efc7f7a49e13d553
+    - doc_0b7824c046c5d8aa77c2daea7bbf56812fdb3e80d46f9b29ff2fc3f293edb85e
+    - doc_fdff56bff806e82dc4dc72c71fd4628a46612ced59b0c4891c7d516829eefa69
+    - doc_76dd5abdb1fc0041129105ca66d96e83bbf6e6f809b9d3a450ef13e76003b5d6
+    - doc_bbf194b62cd411ac19eb8c673634795b59d5d8d8e14ff8dfb87e484f475e715d
+    - doc_21e127e57ff952a3b49289709ea17b7520273bb5ff071cd775cabe7cd054b042
+    - doc_f0c8de4d54bdfe9005f76e9c33fc847fef84810d04300c1cd6886d962909ff85
+    - doc_2d5864aa59eeb3eb9e96c9c7c1d9dcfe6d1e6031121b67651c676cc3ad918e06
+    - doc_48b2d8a5b31630ed1d7eecec8ddf6d2b8307668948a806d9f086814b0d5b4666
+    - doc_f06f5cf7404a3a7b5e9f8f4336f78ca0fb819aa55e25adc29834a82cf2cb3ad4
+    - doc_529801a61ac7fe189cf572fbffa5f748d10b3fe5d285724741f19b129305595c
+    - doc_a2c343f9fa07a4ae4f79028f01675b82b381fbae7cc6fa78ad5897b9dc957ce4
+    - doc_82c23c0fe0e832585c45983b9e88424e33a59ef26709a89d47a552b4d0885720
+    - doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815
+    - doc_4f8dd7df28839f1417540eddfa1323f78ebb7dd115382a6dd59bdf3bc4d7ef33
+    - doc_4f981d62ed24edaf289cd4fe8ca98387e2e9bd2fd47fac307307397fefdc6ff6
+    - doc_57984748513d4c30748e9556358e815fcdc60d87ab388eedb0f3a7573513895a
+    - doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f
+    - doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf
+    - doc_1e8ddeddf6b5717e11dea8726e1182ec38bacf190ae92de56f7b488546ac4e11
+    - doc_d450f74cf0f4d070a97d79115db5eb029a68a1a0a5cd2408c9196787236af775
+    - doc_51b81d78bf78a9dd01031d8e12f9acb5cdb3c37a3974add5ac1725bc0f902ce1
+    - doc_a67afe13d38550e2bf86ed7218e312e2b1a087b9a55ecd72577b0704b287b9a6
+    - doc_bde3a722c07f5d5c547631ee98f2834a32d17f6915a5f3b62c51c81800e85091
+    - doc_bf26c9785b3af05cfc328a92aee933b22ab7512a794c30d8a982d6ed979258ce
+    - doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f
+    - doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049
+    - doc_87465a0ca0278020d6d7c84fec724bbbc83c6866d61e20e4b389ae8dc8e36788
+    - doc_bc6783d950d120bd9a0542fe03b925b047661ac4129cb8ca79e5a03afe24a4b9
+    - doc_53e77979ddad5fac6270a00ab94d4e329d3187922f799ab0b954e8548942d82d
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v10_extractor.md
+    sha256: ea32881fc4db90359b3ad27678ed73ed6016f9439218318ac851b3785e0374f9
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v10_reviewer.md
+    sha256: 8c323351a4aa30eb9533b708f5757bd7c1bee7f7abaf531533821c8ac084d387
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: 6ecce45e2bea062bbc3e5280760ac2385f547f51525258df8179549a38a8c8dd
+
+providers:
+  - id: luna_high
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: high
+    supports_pdf_documents: true
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+    pricing:
+      currency: USD
+      effective_date: 2026-08-22
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+      long_context_input_threshold_tokens: 272000
+      long_context_input_multiplier: 2.0
+      long_context_output_multiplier: 1.5
+
+assignments:
+  labeler: luna_high
+  reviewer: luna_high
+  document_layout: luna_high
+
+workflow:
+  max_concurrent_documents: 16
+  max_concurrent_model_requests: 16
+  max_candidate_attempts: 4
+  max_document_escalations_per_document: 2
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false
+

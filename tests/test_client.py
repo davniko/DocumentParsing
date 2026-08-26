@@ -21,7 +21,7 @@ from document_ocr.client import (
     VllmRasterError,
     VllmReadinessError,
 )
-from document_ocr.config import VllmConfig
+from document_ocr.config import TableVllmConfig, VllmConfig
 from document_ocr.models import PageProvenance
 from document_ocr.vllm_contract import runtime_contract_payload, runtime_contract_sha256
 
@@ -45,7 +45,10 @@ def make_config(*, max_attempts: int = 3) -> VllmConfig:
             "engine_version": "0.26.0",
             "container_base_image": CONTAINER_IMAGE,
             "container_build_manifest_sha256": BUILD_MANIFEST_SHA256,
+            "dtype": "bfloat16",
+            "quantization": "none",
             "max_model_len": 32768,
+            "max_num_batched_tokens": 16384,
             "max_num_seqs": 16,
             "gpu_memory_utilization": 0.9,
             "prompt": "Text Recognition:",
@@ -80,12 +83,21 @@ def make_config(*, max_attempts: int = 3) -> VllmConfig:
     )
 
 
+def make_table_config(*, max_attempts: int = 3) -> TableVllmConfig:
+    value = make_config(max_attempts=max_attempts).model_dump(mode="python")
+    value["prompt"] = "Table Recognition:"
+    return TableVllmConfig.model_validate(value, strict=True)
+
+
 def runtime_contract_body(**changes: object) -> dict[str, object]:
     payload = runtime_contract_payload(
         model="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -107,7 +119,10 @@ def expected_server_info() -> ServerInfo:
         model_repository="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -320,7 +335,10 @@ async def test_readiness_rejects_server_identity_mismatches(
         ("model", "wrong/repository"),
         ("served_model_name", "wrong-alias"),
         ("model_revision", "d" * 40),
+        ("dtype", "float16"),
+        ("quantization", "fp8"),
         ("max_model_len", 16384),
+        ("max_num_batched_tokens", 8192),
         ("max_num_seqs", 8),
         ("gpu_memory_utilization", 0.8),
         ("generation_config", "auto"),
@@ -490,6 +508,37 @@ async def test_recognize_page_sends_exact_glm_request_and_preserves_raw_response
     assert response.completion_tokens == 256
     assert response.total_tokens == 384
     assert "Heading" not in repr(response)
+
+
+@pytest.mark.asyncio
+async def test_recognize_page_sends_exact_glm_table_recognition_request(
+    tmp_path: Path,
+) -> None:
+    raster = tmp_path / "page.png"
+    raster.write_bytes(b"\x89PNG\r\n\x1a\ntable-page")
+    captured_payload: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_payload.update(json.loads(request.content))
+        return httpx.Response(200, json=completion_body("<table><tr><td>A</td></tr></table>"))
+
+    async with VllmOcrClient(
+        make_table_config(), max_connections=1, transport=make_transport(handler)
+    ) as client:
+        await client.recognize_page(
+            raster,
+            mime_type="image/png",
+            raster_sha256=raster_sha256(raster),
+            request_id="table-page",
+        )
+
+    content = captured_payload["messages"][0]["content"]
+    assert [item["type"] for item in content] == ["image_url", "text"]
+    assert content[1] == {"type": "text", "text": "Table Recognition:"}
+    assert captured_payload["temperature"] == 0.0
+    assert captured_payload["top_p"] == 0.00001
+    assert captured_payload["top_k"] == 1
+    assert captured_payload["repetition_penalty"] == 1.1
 
 
 @pytest.mark.asyncio

@@ -473,9 +473,14 @@ def _attempts_for_page(
         or (isinstance(record, PageExtractionFailure) and record.failure_stage == "persist")
         else "terminal_error"
     )
-    if attempts[-1].attempt_outcome != expected_final or any(
-        attempt.attempt_outcome != "retryable_error" for attempt in attempts[:-1]
-    ):
+    # A failed page is explicitly resumable. Each invocation validates its own
+    # request sequence before the ledger appends it, so an earlier invocation
+    # may end in terminal_error (inference failure) or success (persist failure)
+    # before a later invocation establishes the current terminal page state.
+    # The immutable history has no invocation marker; its provable cross-run
+    # invariants are contiguous numbering, common provenance, total count, and
+    # an outcome matching the current final record.
+    if attempts[-1].attempt_outcome != expected_final:
         raise QualityFilterError(
             f"attempt outcomes conflict with terminal page state: {page_row['extraction_id']}"
         )

@@ -1,0 +1,50 @@
+schema_version: 1
+transform: mpci_bl_semantic_v2_to_relation_explicit_v3
+
+source:
+  expected_documents: 487
+  files:
+    - id: pilot106_train
+      split: train
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1/train.jsonl
+      sha256: 2e4b01b06a8ab9dbe136259a45c7f6f5231405c75708939972b5bd6aa9f73302
+      records: 96
+    - id: followup381_train
+      split: train
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-followup381-seed42-val50-v1/train.jsonl
+      sha256: 011d9aa2114739831139355ff3e80350070a4c29440a9a72120846c99dd5e08f
+      records: 331
+    - id: pilot106_validation
+      split: validation
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1/validation.jsonl
+      sha256: c4cb5e80032690c7ef1e2b43886043ff595246fab513796968d8537bd9d29b89
+      records: 10
+    - id: followup381_validation
+      split: validation
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-followup381-seed42-val50-v1/validation.jsonl
+      sha256: 87c7f599c4492fe1621243f6bee81a6422e5013bde7647082a985e9682c7d1ed
+      records: 50
+
+# These four inputs are deliberately unset. `audit` works now; `transform`
+# fails closed until the exact CargoX registries at the inspected application
+# revision and human-reviewed, full-coverage category/relation assignments are frozen.
+registries:
+  package_categories: null
+  container_categories: null
+  category_assignments: null
+  relation_assignments: null
+
+allowed_relation_exclusions:
+  - document_id: doc_28dd90dc37ec1af27513ed3eb22f7163aa81b06b07c966427b39cbff5ba1c8ff
+    reason: ambiguous_duplicate_package_quantity
+  - document_id: doc_80e915b779170fb7afa4ad2ac7f71a3b053a410bf39a9a7ccea86bd68343041b
+    reason: ambiguous_duplicate_package_quantity
+  - document_id: doc_eaba3f2a13501e1bf81bd4fefced3ddd69e6d74d6cf2692899b956a23edb6f8b
+    reason: ambiguous_duplicate_package_quantity
+  - document_id: doc_9656e5338de60cee5e23e489a3a2b3819250cbf25c6bee8d8f13ddc76d101f34
+    reason: incomplete_container_allocation_quantities
+
+output:
+  audit_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-readiness-v2
+  dataset_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-v2
+  dataset_id: mpci-bl-semantic-v3-relation-explicit-v2

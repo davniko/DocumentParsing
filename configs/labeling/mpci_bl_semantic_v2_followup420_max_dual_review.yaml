@@ -1,0 +1,23 @@
+run_id: mpci-bl-semantic-v2-followup420-r2
+run_kind: semantic_v2_followup420_quality_filtered_max_dual_review
+source_run: artifacts/glm-ocr/pilots/blc500-followup/runs/glm-ocr-blc-followup500-c0139c175677-r1
+source_run_id: glm-ocr-blc-followup500-c0139c175677-r1
+quality_filter_root: artifacts/glm-ocr/pilots/blc500-followup/quality-filter/glm-ocr-blc-followup500-c0139c175677-r1
+quality_filter_manifest_sha256: ef869dd93ab010f4bf414d4ec782298327062152b3b8479c968d5beac651e699
+v1_run: artifacts/kie-labels/mpci-bl-pilot-v1-confined-r3
+platform_total_slots: 9
+max_concurrent_workers: 8
+worker_reasoning_effort: max
+reviewer_reasoning_effort: max
+require_independent_review: true
+expected:
+  selectedDocuments: 420
+  selectedPages: 760
+  completeDocuments: 420
+  incompleteDocuments: 0
+  successfulPages: 760
+  failedPages: 0
+  nonLatinExcludedDocuments: 0
+  eligibleDocuments: 420
+  eligiblePages: 760
+  preLabelExcludedDocuments: 0

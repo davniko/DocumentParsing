@@ -1,0 +1,17 @@
+schema_version: 1
+
+source:
+  path: artifacts/kie-labels/mpci-bl-semantic-v2-followup420-r3/training/records.jsonl
+  sha256: b5fdf1874f297bf86adad2e128e91ece04d1dcc4ceb1eddeb430f4f7f385ee46
+  records: 381
+
+fields:
+  document_id: documentId
+  input_sha256: joinedRawTextSha256
+  target: target
+
+algorithm: seeded_sha256_rank_v1
+seed: 42
+validation_records: 57
+coverage_policy: retain_each_target_leaf_in_train
+output_dir: artifacts/kie-training/datasets/mpci-bl-followup381-seed42-v1

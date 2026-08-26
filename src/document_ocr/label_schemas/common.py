@@ -39,6 +39,15 @@ TargetPath = Annotated[
         )
     ),
 ]
+CorrectionTargetPath = Annotated[
+    str,
+    StringConstraints(
+        pattern=(
+            r"^(?:documentType|documentPatch(?:\.[A-Za-z_][A-Za-z0-9_]*)+"
+            r"(?:\[[0-9]+\](?:\.[A-Za-z_][A-Za-z0-9_]*)*)*)$"
+        )
+    ),
+]
 
 _DOCUMENT_ID = re.compile(r"^doc_[0-9a-f]{64}$")
 
@@ -113,6 +122,17 @@ class RawOcrValueEvidence(LabelSchemaModel):
         if self.rawValue not in self.ocrExcerpt:
             raise ValueError("rawValue must occur verbatim within ocrExcerpt")
         return self
+
+
+class RawOcrAnchor(LabelSchemaModel):
+    """Minimal model-authored pointer to a value that must exist in raw OCR.
+
+    Context excerpts are deliberately not model-authored.  They are resolved
+    deterministically from the immutable raw OCR after constrained decoding.
+    """
+
+    pageNumber: Annotated[int, Field(gt=0)]
+    rawValue: NonEmptyString
 
 
 class FieldEvidence(LabelSchemaModel):

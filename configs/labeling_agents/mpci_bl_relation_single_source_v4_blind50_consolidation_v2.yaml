@@ -1,0 +1,20 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-blind50-remediated-consolidated-v2
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+selection_sha256: 567b3a2ae45a4b9ca200f0ce4fc363faef33feefac07d070d2fc22da1ee9eeb5
+expected_documents: 50
+
+# Later runs take precedence for the documents they contain. Every source is
+# immutable, so the lineage records retain the full considered history.
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation13-c13-v4
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediation13-c13-v4
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation2-c2-v5
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediation2-c2-v5
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation1-c1-v7
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediation1-c1-v7
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-continuation1-c1-v8
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-continuation1-c1-v8

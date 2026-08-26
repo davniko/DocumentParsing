@@ -236,12 +236,31 @@ async def _dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
                     sys.stderr,
                     {
                         "command": "run",
+                        "elapsed_seconds": round(progress.elapsed_seconds, 3),
+                        "eta_seconds": (
+                            None
+                            if progress.eta_seconds is None
+                            else round(progress.eta_seconds, 3)
+                        ),
+                        "failed_pages_this_invocation": (
+                            progress.failed_pages_this_invocation
+                        ),
                         "phase": progress.phase,
                         "processed_documents": progress.processed_documents,
+                        "processed_pages": progress.processed_pages,
                         "remaining_documents": progress.remaining_documents,
+                        "remaining_pages": progress.remaining_pages,
                         "run_id": config.run.run_id,
                         "status": "progress",
+                        "successful_pages": progress.successful_pages,
+                        "throughput_pages_per_hour": round(
+                            progress.throughput_pages_per_second * 3600.0, 3
+                        ),
+                        "throughput_pages_per_second": round(
+                            progress.throughput_pages_per_second, 6
+                        ),
                         "total_documents": progress.total_documents,
+                        "total_pages": progress.total_pages,
                     },
                 )
 
@@ -260,8 +279,11 @@ async def _dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
                     "contract_sha256": result.server_info.contract_sha256,
                     "generation_config": result.server_info.generation_config,
                     "gpu_memory_utilization": (result.server_info.gpu_memory_utilization),
+                    "dtype": result.server_info.dtype,
+                    "quantization": result.server_info.quantization,
                     "image_limit_per_prompt": (result.server_info.image_limit_per_prompt),
                     "max_model_len": result.server_info.max_model_len,
+                    "max_num_batched_tokens": result.server_info.max_num_batched_tokens,
                     "max_num_seqs": result.server_info.max_num_seqs,
                     "model_repository": result.server_info.model_repository,
                     "model_revision": result.server_info.model_revision,

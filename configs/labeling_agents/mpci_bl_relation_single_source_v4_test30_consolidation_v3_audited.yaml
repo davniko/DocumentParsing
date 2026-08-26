@@ -1,0 +1,44 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-test30-audited-consolidated-v3
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+selection_sha256: c9184ebbea81559d11ca62d201f81606e93b9d820f74c8a129f7bd488b9c96ae
+expected_documents: 30
+
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-failure-regression7-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-failure-regression7-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-correction-regression3-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-correction-regression3-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-deterministic-regression5-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-deterministic-regression5-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-accepted-defect-regression2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-accepted-defect-regression2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v2
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v2
+  - run_id: mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v3
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v3
+  - run_id: mpci-bl-relation-single-source-v4-test30-month-first-adjudication-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-test30-month-first-adjudication-v1
+
+quality_holds:
+  - document_id: doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766
+    code: audited_label_defect
+    message: Three valid printed containers and their allocations are absent from the promoted label.
+    raw_values: [TCNU5288066, TCNU5031139, CAAU5050620]
+  - document_id: doc_7798519fdc1787b9c73bb3090ff492a6e451cf21822f96ec34a608707cff7ee1
+    code: evidence_revalidation_required
+    message: The 676 kg target is semantically correct but requires an audited numeric normalization override for printed 676.000 KGS.
+    raw_values: [676.000 KGS]
+  - document_id: doc_8f48579e357ff4b663b3aada47b83ca3a45475a499ab9a15c706e681d1416848
+    code: evidence_revalidation_required
+    message: The non-negotiable target is correct but its evidence must cite both the conditional term and the named non-order consignee.
+    raw_values: [MULTI VITA ANIMAL NUTRITION]
+  - document_id: doc_9d0d2680b8b9902bc2c0c9cdfa2bf8515ce4108840b904f20f298fa4c6602e79
+    code: audited_label_defect
+    message: Parenthetical closed-cup text lacks an explicit flash-point heading and cannot populate flashPoint under the frozen policy.
+    raw_values: [46°C C.C.]

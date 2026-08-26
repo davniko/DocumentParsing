@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next300-description-cleanup-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_fc539210f6eb96ec4e146be1d2ec0646e00b4e2b0c1e740f0891baab0bf3aecb",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_fc539210f6eb96ec4e146be1d2ec0646e00b4e2b0c1e740f0891baab0bf3aecb.json",
+      "work_item_sha256": "352497af6fc56e9f1566f98c998ea83f801464dc20211dab5b1f4ef68a1a3e22",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/validated/d24e27e0c0ccd264ae162653d13ce62dd46ac9ac7be24bdde1fe532050e291ff.json",
+      "candidate_sha256": "d24e27e0c0ccd264ae162653d13ce62dd46ac9ac7be24bdde1fe532050e291ff",
+      "candidate_kind": "annotation",
+      "rebuild": {"decision_notes":["Removed the redundant BAG 25KG packing specification from the product description; the 40 BAGS package fact remains explicit."]},
+      "target_corrections": [
+        {"target_path":"/documentPatch/cargoGroups/0/description","expected_value":"NATROSOL 250 H PHARM BAG 25KG","corrected_value":"NATROSOL 250 H PHARM"}
+      ],
+      "adjudication_notes": ["Goods description now contains the product only; package type and quantity remain in cargoPackages."]
+    },
+    {
+      "document_id": "doc_5727937b1b0735cb80bd760e8c35695dd80db99dcaa01d5ace8023943290358e",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_5727937b1b0735cb80bd760e8c35695dd80db99dcaa01d5ace8023943290358e.json",
+      "work_item_sha256": "bb39c5eebe934de4c918d7a041190dffd955331b4fd03f265d657f882f1ece16",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-held-adjudication-day-first-v1/validated/b3b2806d737869057309e52fa065be03accbbe40ed0eea23f7727918865a12e5.json",
+      "candidate_sha256": "b3b2806d737869057309e52fa065be03accbbe40ed0eea23f7727918865a12e5",
+      "candidate_kind": "annotation",
+      "rebuild": {"decision_notes":["Separated the goods value CLOVES from the repeated JUTE BAGS package wording."]},
+      "target_corrections": [
+        {"target_path":"/documentPatch/cargoGroups/0/description","expected_value":"JUTE BAGS OF CLOVES","corrected_value":"CLOVES"}
+      ],
+      "adjudication_notes": ["The 160 JUTE BAGS package fact remains unchanged; only package wording was removed from the goods description."]
+    },
+    {
+      "document_id": "doc_4ae247ca4d6d9c336d524e2b117801bc0600878087a2bad79e0182d32cd4b7d4",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_4ae247ca4d6d9c336d524e2b117801bc0600878087a2bad79e0182d32cd4b7d4.json",
+      "work_item_sha256": "f3c11c785fa8cd9bb96cde7675776b0616ad22e9feb6f8f7a07177fe14a430a9",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-held-adjudication-day-first-v1/validated/93c39526d9ee53ddafc0dca9651a1766f3dcc57078e338d2b5ef2d13a3afe044.json",
+      "candidate_sha256": "93c39526d9ee53ddafc0dca9651a1766f3dcc57078e338d2b5ef2d13a3afe044",
+      "candidate_kind": "annotation",
+      "rebuild": {"decision_notes":["Removed PACKAGE OF from both repeated cargo descriptions while retaining the two OCR-grounded container quantities in the allocation graph."]},
+      "target_corrections": [
+        {"target_path":"/documentPatch/cargoGroups/0/description","expected_value":"PACKAGE OF SPARE PARTS FOR CUMMINGS CAPIT/6441.71","corrected_value":"SPARE PARTS FOR CUMMINGS CAPIT/6441.71"},
+        {"target_path":"/documentPatch/cargoGroups/1/description","expected_value":"PACKAGE OF SPARE PARTS FOR CUMMINGS CAPIT/6441.71","corrected_value":"SPARE PARTS FOR CUMMINGS CAPIT/6441.71"}
+      ],
+      "adjudication_notes": ["The description now carries only the goods; unresolved type semantics are not guessed from the generic singular word PACKAGE."]
+    }
+  ]
+}

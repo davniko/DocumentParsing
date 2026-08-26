@@ -112,6 +112,12 @@ Every reproducibility- or performance-relevant value is represented in strict YA
   selection;
 - structured JSONL and MLflow tracking/server settings, tags, system telemetry, and resume identity.
 
+For a fresh run with `evaluation.on_start: true`, epoch-zero evaluation is an explicit base-model
+baseline: the runtime disables the PEFT adapter for the complete generated evaluation, logs
+`eval_is_base_model=1`, and restores the adapter before the first training microbatch. A resumed
+run does not repeat this baseline because its on-start state is a trained checkpoint, not the
+original base model.
+
 Unknown keys, YAML duplicate keys, implicit coercions, non-finite numbers, unsafe output paths,
 incompatible strategies, invalid hashes, overlapping IDs, hash mismatches, schema-invalid targets,
 and target overflow are errors. Source overflow is also an error unless truncation is explicitly
@@ -132,9 +138,12 @@ split; descendants and non-exact duplicate groups must remain in one fold upstre
 A prompt is a UTF-8 text file containing exactly one `{{document_text}}` placeholder and one
 `{{output_schema}}` placeholder, with no other template expressions. The registered task derives a
 compact sparse JSON Schema from its current Pydantic target model and binds it before document-text
-injection. Rendering is literal replacement, not Jinja or Python formatting. The resolved prompt
-hash therefore changes with either template wording or target schema and participates in the
-tokenized-cache identity.
+injection. Tasks with registry-owned categoricals additionally bind a canonical, hash-pinned
+task-constraints artifact; its exact category tokens become schema enums and the canonical target
+validator rejects out-of-vocabulary values. Relation-explicit B/L training refuses to start without
+that artifact. Rendering is literal replacement, not Jinja or Python formatting. The resolved
+prompt hash therefore changes with template wording, target schema, or bound vocabulary and
+participates in the tokenized-cache identity.
 
 The initial B/L prompt shows that schema and requests only compact JSON grounded in the supplied
 OCR. It reiterates that missing values must be omitted, printed country/locality text must remain
@@ -216,6 +225,10 @@ Generated evaluation output is scored with:
 - JSON parse validity;
 - task-schema validity;
 - micro exact extracted field-value accuracy, precision, recall, and F1;
+- for relation-explicit tasks, micro cargo-relation precision, recall, and F1 plus per-document
+  relation exact match and support fraction; and
+- for registry-backed categorical tasks, identifier-anchored category precision, recall, and F1
+  plus per-document category exact match and support fraction.
 
 An extracted field-value is one scalar leaf below `documentPatch`, identified by its full JSON
 path (including list indexes) and compared as one canonical JSON value. It receives credit only
@@ -226,6 +239,13 @@ reference field-value counts respectively. Canonical JSON exact match remains th
 whole-document score. A parseable `documentPatch` retains per-field partial credit even when an
 unrelated value makes the overall prediction schema-invalid; JSON and schema validity remain
 separate metrics rather than silently erasing correctly extracted fields.
+
+The relation-explicit metrics project package membership, allocation coverage, package-scope links,
+container membership, allocation quantities, and direct container/package links into document-local
+graph facts keyed by `groupId`, `packageId`, and container number. Category metrics key package
+categories by group/package identity and container categories by container number. Both are set
+comparisons, so a semantically identical array permutation does not masquerade as a relationship
+error. Strict leaf/path F1 remains index-sensitive and is reported alongside them.
 
 Loss is still logged, but loss alone is insufficient for structured extraction. Optional final
 prediction JSONL files retain document ID, generated text, reference text, parse/schema status, and

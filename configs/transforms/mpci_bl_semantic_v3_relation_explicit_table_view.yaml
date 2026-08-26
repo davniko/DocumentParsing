@@ -1,0 +1,81 @@
+schema_version: 1
+transform: mpci_bl_semantic_v2_to_relation_explicit_v3
+
+# Reversible clone of the 487 semantic-v2 rows. The auxiliary GLM-OCR table
+# view is retained in every source row, while the v3 training task continues to
+# render only joinedRawText until a separate table-input experiment is approved.
+source:
+  expected_documents: 487
+  files:
+    - id: combined487_table_view_train
+      split: train
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-table-view-v1/train.jsonl
+      sha256: 386d2dcc9a9f094537a49eebc1edb60c7ee374b76cdb4d60ffe12f22d7166784
+      records: 427
+    - id: combined487_table_view_validation
+      split: validation
+      path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-table-view-v1/validation.jsonl
+      sha256: 7fd68ed24db8d750d05a1b20b487270231cfec83109d5b4b2b4c87c029866085
+      records: 60
+
+# Cargo relations and exact package source-key decisions are frozen. The empty
+# container registry is deliberate: platform research proved the submitted
+# code set but found no stable semantic category identity, so container types
+# remain printed text/code and are resolved downstream.
+registries:
+  package_categories:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  container_categories:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/mpci-ai-schema/categorical-registry-followup/container-category-registry.json
+    sha256: fa1b327b8e9eb2b38a5c86c2d53fc1abe8d88f26cb08b4ed1c26d5670f41f3f0
+  category_assignments:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/reviews/mpci-bl-semantic-v3-relation-explicit-table-view-v1/category-assignments.json
+    sha256: e36652e068839aa329a76a186bfe9ffe5e0c2a61fc45e61cde7c5367e59ce4a3
+  relation_assignments:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/reviews/mpci-bl-semantic-v3-relation-explicit-table-view-v1/cargo-relation-assignments.json
+    sha256: 64ba0ed7669b24cb56676785409bba54111a5744bc19c873d79063c200058c95
+
+allowed_relation_exclusions:
+  - document_id: doc_28dd90dc37ec1af27513ed3eb22f7163aa81b06b07c966427b39cbff5ba1c8ff
+    reason: ambiguous_duplicate_package_quantity
+  - document_id: doc_80e915b779170fb7afa4ad2ac7f71a3b053a410bf39a9a7ccea86bd68343041b
+    reason: ambiguous_duplicate_package_quantity
+  - document_id: doc_eaba3f2a13501e1bf81bd4fefced3ddd69e6d74d6cf2692899b956a23edb6f8b
+    reason: ambiguous_duplicate_package_quantity
+  - document_id: doc_9656e5338de60cee5e23e489a3a2b3819250cbf25c6bee8d8f13ddc76d101f34
+    reason: incomplete_container_allocation_quantities
+
+output:
+  audit_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-table-view-readiness-v3
+  dataset_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-table-view-v1
+  dataset_id: mpci-bl-semantic-v3-relation-explicit-table-view-v1
+
+# Transform publication uses the frozen categorical inputs above and clones the
+# current validated 270M LoRA baseline into a fully hash-pinned,
+# runnable training.yaml beside the new dataset. The table view remains attached
+# to source rows but is not rendered by this prompt/task.
+training_config:
+  source:
+    project_root: /mnt/d/Projects/DocumentParsing
+    baseline_path: /mnt/d/Projects/DocumentParsing/configs/training/t5gemma2_270m_lora.mpci_bl_combined487.yaml
+    baseline_sha256: 0d00ec61f548a160cea6de863507008a1a42a42be723aea0b9476ff15218736e
+    prompt_path: /mnt/d/Projects/DocumentParsing/prompts/kie/bill_of_lading_relation_explicit_v3.txt
+    prompt_sha256: 303854457c16fb989a860ed09cbca4235213faa4cf0cdec1a3fcb6eb5046ed58
+  tokenizer_audit:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined487-v2/final-adapter
+    tokenizer_json_sha256: f5b325224482ec441ec5fbe2a5ac08c3758e0f9605f6e54368e31f736fcfb01d
+    tokenizer_config_sha256: 1007769ea58b3c60a23a2ec21d99625f3433a18913492b9a7ea525759e312713
+  # The provisional 483-row transform measured 8,153 source and 3,683 target
+  # tokens before observed registry enums. These aligned ceilings are audited
+  # again against the exact frozen registries before training.yaml is published.
+  capacity:
+    max_source_length: 9216
+    max_target_length: 4096
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 24
+    per_device_eval_batch_size: 2
+  output_filename: training.yaml
+  run_id: t5gemma2-270m-lora-mpci-bl-relation-explicit-v3-v1
+  adapter_name: mpci_bl_relation_explicit_v3
+  evaluation_every_epochs: 5

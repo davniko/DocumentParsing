@@ -1,0 +1,199 @@
+schema_version: 1
+source_inventory_sha256: 331baf9324f6cd16a4c19014ab8c1fd8b27128dd2e9082b3e996561f1045d21c
+reviewed_by: codex_exact_source_variant_review
+reviewed_on: 2026-08-22
+
+package_registry:
+  path: /mnt/d/Projects/DocumentParsing/artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+  sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+container_registry:
+  path: /mnt/d/Projects/DocumentParsing/artifacts/mpci-ai-schema/categorical-registry-followup/container-category-registry.json
+  sha256: fa1b327b8e9eb2b38a5c86c2d53fc1abe8d88f26cb08b4ed1c26d5670f41f3f0
+
+package_inventory:
+  path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-table-view-readiness-v2/package-category-review.jsonl
+  sha256: 5e8ff1ca7c0fbc380322d89e1a0b70dc8e6066febb3c0a4d28d82f776fb5a230
+  rows: 99
+container_inventory:
+  path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-table-view-readiness-v2/container-category-review.jsonl
+  sha256: 91a620abac2429f075be4a56fe03c16e9f6b44c2072290234485b590006ad55c
+  rows: 105
+expected_package_occurrences: 658
+expected_container_occurrences: 905
+
+# Exact source strings are grouped only where every member supports the same
+# platform registry meaning. Generic wording maps to the generic registry entry;
+# wording that cannot select one application meaning remains unresolved below.
+package_resolution_groups:
+  - category_token: PACKAGE_PACKAGE
+    source_type_texts:
+      - PACKAGES
+      - PACKAGE
+      - PACKAGE(S)
+      - PKGS
+      - Package
+      - PKG
+      - Packages
+      - PCKGS
+      - PK
+      - Package(s)
+  - category_token: PACKAGE_CARTON
+    source_type_texts:
+      - CARTONS
+      - CARTON(S)
+      - CTNS
+      - CARTON
+      - CTN
+      - Carton(s)
+      - Carton
+      - Cartons
+  - category_token: PACKAGE_PALLET
+    source_type_texts:
+      - PALLETS
+      - PALLET
+      - PALLET(S)
+      - PLTS
+      - PLT
+      - Pallet
+      - Pallets
+  - category_token: PACKAGE_BAG
+    source_type_texts:
+      - BAGS
+      - BAG(S)
+      - BAG
+      - PP BAGS
+      - BIG-BAGS
+      - NON WOVEN BAGS
+      - SUPERSACKS
+  - category_token: PACKAGE_FLEXIBAG
+    source_type_texts:
+      - Flexibag
+      - FLEXI BAG
+  - category_token: PACKAGE_DRUM
+    source_type_texts:
+      - DRUMS
+      - Drum(s)
+      - DRUM
+      - DRUM(S)
+  - category_token: PACKAGE_ROLL
+    source_type_texts:
+      - ROLLS
+      - ROLL
+  - category_token: PACKAGE_BOX
+    source_type_texts:
+      - BOXES
+      - BOXS
+      - BOX
+      - BOX(ES)
+      - CAJA
+  - category_token: PACKAGE_PIECE
+    source_type_texts:
+      - PIECES
+      - PCS
+      - PIECE
+      - PIECE(S)
+      - Pieces
+      - pieces
+  - category_token: PACKAGE_REEL
+    source_type_texts:
+      - REELS
+      - REEL
+  - category_token: PACKAGE_BUNDLE
+    source_type_texts:
+      - BUNDLES
+      - BUNDLE(S)
+      - BUNDLE
+      - BDLS
+      - Bundles
+  - category_token: PACKAGE_CASE
+    source_type_texts:
+      - CASES
+      - CASE
+  - category_token: PACKAGE_OCTABIN
+    source_type_texts:
+      - OCTABIN
+  - category_token: PACKAGE_COIL
+    source_type_texts:
+      - COILS
+  - category_token: PACKAGE_DRUM_FIBRE
+    source_type_texts:
+      - FIBRE DRUMS
+  - category_token: PACKAGE_CRATE
+    source_type_texts:
+      - CRATES
+  - category_token: PACKAGE_INTERMEDIATE_BULK_CONTAINER
+    source_type_texts:
+      - IBC
+      - IBCS
+  - category_token: PACKAGE_DRUM_PLASTIC
+    source_type_texts:
+      - IH-PLASTIC DRUM
+      - PLASTIC DRUM
+      - H.D.P.E DRUMS
+      - HMHDPE DRUMS
+  - category_token: PACKAGE_SACK
+    source_type_texts:
+      - SACK
+      - SACKS
+  - category_token: PACKAGE_SHEET
+    source_type_texts:
+      - SHEETS
+  - category_token: PACKAGE_DRUM_STEEL
+    source_type_texts:
+      - STEEL DRUMS
+  - category_token: PACKAGE_UNIT
+    source_type_texts:
+      - UNIT
+      - UNITS
+  - category_token: PACKAGE_BOX_FIBREBOARD
+    source_type_texts:
+      - BOXES, FIBREBOARD
+      - FIBREBOARD BOXES
+      - Fibreboard boxes
+  - category_token: PACKAGE_CONTAINER_NOT_OTHERWISE_SPECIFIED_AS_TRANSPORT_EQUIPMENT
+    source_type_texts:
+      - CTNR
+  - category_token: PACKAGE_LOT
+    source_type_texts:
+      - LOT
+      - LOTS
+  - category_token: PACKAGE_PALLET_SHRINKWRAPPED
+    source_type_texts:
+      - SHRINK WRAPPED PALLETS
+  - category_token: PACKAGE_SKID
+    source_type_texts:
+      - SKID
+  - category_token: PACKAGE_SLAB
+    source_type_texts:
+      - SLABS
+  - category_token: PACKAGE_UNPACKED_OR_UNPACKAGED
+    source_type_texts:
+      - UNPACKED
+  - category_token: PACKAGE_VEHICLE
+    source_type_texts:
+      - VEHICLES
+  - category_token: PACKAGE_CASE_WOODEN
+    source_type_texts:
+      - WOODEN CASES
+
+# These strings do not establish exactly one of the 405 platform meanings.
+# They remain verbatim typeDescription values and are never forced into a code.
+unresolved_package_type_texts:
+  - BALES
+  - Bale(s)
+  - SETS
+  - SET
+  - PACK
+  - PL
+  - RO/RO
+  - BULK
+  - CARBOUY
+  - JERRY CAN
+  - MODULES
+
+# The platform report proves a 56,100-member generated acceptance set but no
+# stable semantic identity for each member. Preserve all 105 exact source keys
+# as printed and publish no container category labels for this experiment.
+container_policy: preserve_printed_type_no_semantic_registry
+
+output_path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/reviews/mpci-bl-semantic-v3-relation-explicit-table-view-v1/category-assignments.json

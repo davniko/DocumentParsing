@@ -1,0 +1,40 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-blind50-audited-consolidated-v3
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+selection_sha256: 567b3a2ae45a4b9ca200f0ce4fc363faef33feefac07d070d2fc22da1ee9eeb5
+expected_documents: 50
+
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation13-c13-v4
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediation13-c13-v4
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation2-c2-v5
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediation2-c2-v5
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediation1-c1-v7
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-remediation1-c1-v7
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-continuation1-c1-v8
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-continuation1-c1-v8
+
+quality_holds:
+  - document_id: doc_259d8c3b4fa52f942f09f281143706109a7938863b5e4e790d7f1450e35b6b70
+    code: audited_label_defect
+    message: NON-NEGOTIABLE COPY was mistaken for contract status despite three completed originals and one-accomplished/others-void title terms.
+    raw_values: [THREE(3)]
+  - document_id: doc_408b3c704d6c5b45d872c9c61377137709654ca6fb22a440134617b7957c9ed2
+    code: audited_label_defect
+    message: Printed 27.947 KG is a thousands-grouped 27947 kg value, not the promoted 27.947 kg.
+    raw_values: [27.947 KG]
+  - document_id: doc_85d6bc087158b4aa70d1e6b22c5fc8f69b50e7b004553cc0a3e4fa9f16306d0d
+    code: audited_label_defect
+    message: NON-NEGOTIABLE COPY was mistaken for contract status despite three completed originals and one-accomplished/others-void title terms.
+    raw_values: [THREE(3)]
+  - document_id: doc_b70ceb0f05a82b5828c6a1908596bd62b56e9d69ca1c0f356fb2147039d1ef08
+    code: evidence_revalidation_required
+    message: The non-negotiable target is correct but its evidence must cite the conditional term and named non-order consignee rather than the copy stamp alone.
+    raw_values: [ONEPHARMA MEDICS]
+  - document_id: doc_f4fbaf4323f9df17c2e8130c65d56623d988a1c1bc2e56b64acf86dae38fc555
+    code: audited_label_defect
+    message: Explicit invoice reference 2877 is absent from forwardingAndExportReferences.
+    raw_values: [PI2877]

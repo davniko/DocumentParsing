@@ -42,7 +42,12 @@ SOURCE_SHA256 = "e" * 64
 def _run_config_data() -> dict[str, Any]:
     raw = {
         **valid_config_data(),
-        "run": {"run_id": "run-1", "fail_fast": False, "resume": True},
+        "run": {
+            "run_id": "run-1",
+            "fail_fast": False,
+            "resume": True,
+            "expected_pages": None,
+        },
     }
     return PipelineConfig.model_validate(raw, strict=True).model_dump(mode="json")
 
@@ -319,7 +324,12 @@ async def test_initialize_run_rejects_unbound_configuration(tmp_path: Path, drif
         config_sha256 = "9" * 64
         message = "config_sha256"
     else:
-        config["run"] = {"run_id": "different-run", "fail_fast": False, "resume": True}
+        config["run"] = {
+            "run_id": "different-run",
+            "fail_fast": False,
+            "resume": True,
+            "expected_pages": None,
+        }
         config_sha256 = canonical_json_sha256(config)
         message = "run_id"
 

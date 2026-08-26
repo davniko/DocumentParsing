@@ -1,0 +1,21 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-next300-description-clean-v3
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2
+selection_sha256: e3780eff4772e08aa9bbe06fb6c110ad75ca00ca6a6789c813a5a0faca94074b
+expected_documents: 300
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2
+  - run_id: mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-next300-first50-held-adjudication-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-first50-held-adjudication-v1
+  - run_id: mpci-bl-relation-single-source-v4-next300-held-adjudication-day-first-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-held-adjudication-day-first-v1
+  - run_id: mpci-bl-relation-single-source-v4-next300-day-first-date-migration-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-day-first-date-migration-v1
+  - run_id: mpci-bl-relation-single-source-v4-next300-final15-adjudication-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-final15-adjudication-v1
+  - run_id: mpci-bl-relation-single-source-v4-next300-description-cleanup-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next300-description-cleanup-v1

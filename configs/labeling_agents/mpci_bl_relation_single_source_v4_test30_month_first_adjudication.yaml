@@ -1,0 +1,37 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-test30-month-first-adjudication-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+items:
+  - document_id: doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1/work-items/doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766.json
+    work_item_sha256: 2fbbad85e19b1de8cdf91ab991b55139a60b910d79576d9cd2f2e9b4c886a89f
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-test30-consolidated-v1/needs-review/doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766.json
+    candidate_sha256: 2be585d493840f1011dd6d4c63dd124a80a97b375e7b83a672d96cdfbb7938f0
+    date_corrections:
+      - target_path: documentPatch.issueDate
+        raw_value: "12.07.2024"
+        normalized_value: 2024-12-07
+    adjudication_notes:
+      - >-
+        Overseer adjudication retained the previously independently reviewed annotation and changed
+        only issueDate from the exact printed value 12.07.2024 under the frozen month-first
+        ambiguity policy.
+
+  - document_id: doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v3/work-items/doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e.json
+    work_item_sha256: 6cba89080096a557c2e413e2a984b5dd7ea017f28ebaf0756ec9b5f8d67da50b
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-month-first-e7-retry-v1/state/candidate-attempts/doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e/attempt-3/fe1c4dbaea47c003ce5dd6ce1f31b197cff86c7a5c408ab00bba67d168b11ae4.json
+    candidate_sha256: fe1c4dbaea47c003ce5dd6ce1f31b197cff86c7a5c408ab00bba67d168b11ae4
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication accepted the fully grounded third candidate after it incorporated all
+        blocking findings from two independent review passes; the third reviewer call failed at the
+        provider structured-output boundary before returning a semantic verdict.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-month-first-e7-retry-v1/state/independent-reviews/doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e/attempt-1/216916f7292144d2aafd25dba61db0c9fc509f5a649e63c405ab8c86ca7bb93a.json
+        sha256: 216916f7292144d2aafd25dba61db0c9fc509f5a649e63c405ab8c86ca7bb93a
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-month-first-e7-retry-v1/state/independent-reviews/doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e/attempt-2/32c43b0ffb235acbdf0d4fdc8b6f277b5aff492f9c4bf6bda3ef8ff2b047c01b.json
+        sha256: 32c43b0ffb235acbdf0d4fdc8b6f277b5aff492f9c4bf6bda3ef8ff2b047c01b
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-month-first-e7-retry-v1/state/call-receipts/doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e/review-call_d6c4731246a24bcbac311d74dcedf382-f46ac8c96740a7fd.json
+        sha256: f46ac8c96740a7fdc301dc38ed3897c23a698c696f8510d45c3059a312a2b5bf

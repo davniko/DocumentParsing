@@ -21,7 +21,7 @@ from document_ocr.atomic import ArtifactReadError, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 
 RUNTIME_CONTRACT_PATH = "/document-ocr/server-contract"
-RUNTIME_CONTRACT_SCHEMA_VERSION = 2
+RUNTIME_CONTRACT_SCHEMA_VERSION = 4
 _BUILD_MANIFEST_ENV = "DOCUMENT_OCR_VLLM_BUILD_MANIFEST"
 _IMAGE_PATTERN = re.compile(r"^[^\s]+@sha256:[0-9a-f]{64}$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -48,7 +48,10 @@ def runtime_contract_payload(
     model: str,
     served_model_name: str,
     model_revision: str,
+    dtype: str,
+    quantization: str,
     max_model_len: int,
+    max_num_batched_tokens: int,
     max_num_seqs: int,
     gpu_memory_utilization: float,
     generation_config: str,
@@ -65,7 +68,10 @@ def runtime_contract_payload(
         "model": model,
         "served_model_name": served_model_name,
         "model_revision": model_revision,
+        "dtype": dtype,
+        "quantization": quantization,
         "max_model_len": max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
         "max_num_seqs": max_num_seqs,
         "gpu_memory_utilization": gpu_memory_utilization,
         "generation_config": generation_config,
@@ -109,6 +115,22 @@ def _positive_float(value: object, name: str) -> float:
     if not 0.0 < result <= 1.0:
         raise RuntimeContractError(f"vLLM runtime field {name!r} must be in (0, 1]")
     return result
+
+
+def _model_dtype(value: object) -> str:
+    if value == "bfloat16":
+        return "bfloat16"
+    if type(value).__module__ == "torch" and str(value) == "torch.bfloat16":
+        return "bfloat16"
+    raise RuntimeContractError("vLLM runtime model dtype must be torch.bfloat16")
+
+
+def _model_quantization(value: object) -> str:
+    if value is None:
+        return "none"
+    if value == "fp8":
+        return "fp8"
+    raise RuntimeContractError("vLLM runtime quantization must be disabled or 'fp8'")
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -267,7 +289,12 @@ def build_runtime_contract(state: object) -> dict[str, object]:
         model=_string(_attribute(model, "model"), "model"),
         served_model_name=_string(_attribute(model, "served_model_name"), "served_model_name"),
         model_revision=_string(_attribute(model, "revision"), "model_revision"),
+        dtype=_model_dtype(_attribute(model, "dtype")),
+        quantization=_model_quantization(_attribute(model, "quantization")),
         max_model_len=_positive_integer(_attribute(model, "max_model_len"), "max_model_len"),
+        max_num_batched_tokens=_positive_integer(
+            _attribute(scheduler, "max_num_batched_tokens"), "max_num_batched_tokens"
+        ),
         max_num_seqs=_positive_integer(_attribute(scheduler, "max_num_seqs"), "max_num_seqs"),
         gpu_memory_utilization=_positive_float(
             _attribute(cache, "gpu_memory_utilization"), "gpu_memory_utilization"

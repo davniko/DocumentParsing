@@ -131,16 +131,19 @@ Coordinates should be added only after block grouping demonstrates insufficient 
 GLM-OCR includes a native Multi-Token Prediction (MTP) head. vLLM can use that head for speculative
 decoding without a separate draft model. The
 [official vLLM GLM-OCR recipe](https://docs.vllm.ai/projects/recipes/en/stable/GLM/GLM-OCR.html)
-uses one speculative token, and the
+uses one speculative token, while the current
+[GLM-OCR deployment example](https://github.com/zai-org/GLM-OCR#deployment) uses three. The
 [vLLM MTP guide](https://docs.vllm.ai/en/latest/features/speculative_decoding/mtp/) documents the
 resolved MTP configuration and treats speculative depth as a performance-tuning parameter. The
-executable extraction contract in this repository follows the vLLM GLM-OCR recipe at MTP depth 1,
-not a runtime default that an environment variable can change. Disabled and depth-3 remain research
-comparisons that would require separately versioned server and configuration variants before the
-strict schema can accept them.
+executable extraction contract in this repository uses the target-GPU benchmark winner: MTP depth
+3, an 8,192-token scheduler budget, and 16 concurrent page requests. This is not a runtime default
+that an environment variable can change. Depth 1 remains an explicitly supported comparison that
+requires a paired, separately identified server and configuration variant.
 
-Speculation must be measured rather than assumed beneficial. Vision encoding and long OCR
-prefill/output patterns may dominate on the target GPU.
+Speculation was measured rather than assumed beneficial. On the fixed 16-page target-GPU sample,
+depth 3 completed without retry at 346.3 pages/hour; the matching depth-1 control incurred three
+300-second read-timeout retries and achieved 153.7 pages/hour. Vision encoding and long OCR
+prefill/output patterns still dominate the absolute runtime.
 
 ## 6. Raw page dataset contract
 

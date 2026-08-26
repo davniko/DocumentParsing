@@ -1,0 +1,26 @@
+schema_version: 2
+
+catalog_config: /mnt/d/Projects/DocumentParsing/configs/classification_catalog.yaml
+expected_catalog_sha256: d52a5273b036a96d004cbe4d653485d78c9c2523499b40dfa4ff8719742b9a37
+destination_root: /mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b
+
+final_labels:
+  - blc
+  - swb
+dummy_is_dummy: false
+
+# Exclude the complete immutable selections, including documents whose raw OCR
+# later hit inference limits. This prevents accidental duplicate scheduling.
+excluded_pilots:
+  - root: /mnt/d/Projects/DocumentParsing/data/pilots/blc-pilot-150-faa3c717dbc4
+    expected_manifest_sha256: faa3c717dbc426e22c070b3c69723bc0cfa16bdde1b330a8db53cdac904501cf
+  - root: /mnt/d/Projects/DocumentParsing/data/pilots/blc-followup-500-c0139c175677
+    expected_manifest_sha256: c0139c175677e074973a484dccf5d6ee2d45245786f7292c3a7ec3f2235c1eb3
+
+deduplicate_by_content_sha256: true
+max_pages_per_document: 15
+expected_documents: 2164
+expected_pages: 5351
+expected_manifest_sha256: 23947b3edb6bfef389012f977e25fcaee951f25c201e093a0b782e72f13f4133
+verification_workers: 16
+max_pdf_bytes: 20000000

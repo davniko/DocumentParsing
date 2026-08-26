@@ -668,6 +668,96 @@ class CatalogPilotConfig(_StrictConfigModel):
         return self
 
 
+class CatalogSelectionExclusionConfig(_StrictConfigModel):
+    """One immutable catalog-pilot manifest excluded from a later surface."""
+
+    root: NonEmptyString
+    expected_manifest_sha256: str
+
+    @field_validator("root")
+    @classmethod
+    def root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("catalog selection exclusion root must be absolute")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("catalog selection exclusion root must not be the filesystem root")
+        return value
+
+    @field_validator("expected_manifest_sha256")
+    @classmethod
+    def manifest_hash_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("excluded manifest hash must be a lowercase SHA-256")
+        return value
+
+
+class CatalogExtractionSelectionConfig(_StrictConfigModel):
+    """All locally available, non-dummy final labels not already selected."""
+
+    schema_version: Literal[2]
+    catalog_config: NonEmptyString
+    expected_catalog_sha256: str
+    destination_root: NonEmptyString
+    final_labels: list[NonEmptyString] = Field(min_length=1)
+    dummy_is_dummy: Literal[False]
+    excluded_pilots: list[CatalogSelectionExclusionConfig]
+    deduplicate_by_content_sha256: Literal[True]
+    max_pages_per_document: PositiveInteger
+    expected_documents: PositiveInteger
+    expected_pages: PositiveInteger
+    expected_manifest_sha256: str
+    verification_workers: PositiveInteger
+    max_pdf_bytes: PositiveInteger
+
+    @field_validator("catalog_config")
+    @classmethod
+    def catalog_config_is_absolute_yaml(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute() or path.suffix not in {".yaml", ".yml"}:
+            raise ValueError("catalog_config must be an absolute YAML path")
+        return value
+
+    @field_validator("destination_root")
+    @classmethod
+    def destination_root_is_safe_and_absolute(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("destination_root must be absolute")
+        normalized = Path(os.path.abspath(value))
+        if normalized == Path(normalized.anchor):
+            raise ValueError("destination_root must not be the filesystem root")
+        return value
+
+    @field_validator("expected_catalog_sha256", "expected_manifest_sha256")
+    @classmethod
+    def expected_hashes_are_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("catalog selection hashes must be lowercase SHA-256 values")
+        return value
+
+    @field_validator("final_labels")
+    @classmethod
+    def labels_are_canonical(cls, value: list[str]) -> list[str]:
+        if any(not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", item) for item in value):
+            raise ValueError("final_labels must be lowercase filesystem-safe slugs")
+        if value != sorted(set(value)):
+            raise ValueError("final_labels must be unique and sorted")
+        return value
+
+    @model_validator(mode="after")
+    def paths_and_exclusions_are_disjoint(self) -> CatalogExtractionSelectionConfig:
+        destination = Path(os.path.abspath(self.destination_root))
+        roots = [Path(os.path.abspath(item.root)) for item in self.excluded_pilots]
+        if len(roots) != len(set(roots)):
+            raise ValueError("excluded_pilots roots must be unique")
+        for root in roots:
+            if destination == root or destination in root.parents or root in destination.parents:
+                raise ValueError("selection destination must not overlap an excluded pilot")
+        return self
+
+
 class OutputConfig(_StrictConfigModel):
     """Destination and batching policy for the completed raw OCR dataset."""
 
@@ -693,6 +783,7 @@ class RunConfig(_StrictConfigModel):
     run_id: NonEmptyString
     fail_fast: bool
     resume: bool
+    expected_pages: PositiveInteger | None
 
     @field_validator("run_id")
     @classmethod
@@ -763,7 +854,7 @@ class SpeculativeDecodingConfig(_StrictConfigModel):
     """GLM-OCR's vLLM multi-token-prediction decoding settings."""
 
     method: Literal["mtp"]
-    num_speculative_tokens: Literal[1]
+    num_speculative_tokens: Literal[1, 3]
 
 
 class RepetitionDetectionConfig(_StrictConfigModel):
@@ -780,8 +871,8 @@ class RepetitionDetectionConfig(_StrictConfigModel):
         return self
 
 
-class VllmConfig(_StrictConfigModel):
-    """vLLM server identity and request policy."""
+class _VllmConfigBase(_StrictConfigModel):
+    """Shared vLLM server identity and request policy for one fixed task prompt."""
 
     endpoint: NonEmptyString
     model: NonEmptyString
@@ -790,10 +881,12 @@ class VllmConfig(_StrictConfigModel):
     engine_version: NonEmptyString
     container_base_image: NonEmptyString
     container_build_manifest_sha256: str
+    dtype: Literal["bfloat16"]
+    quantization: Literal["none", "fp8"]
     max_model_len: PositiveInteger
+    max_num_batched_tokens: PositiveInteger
     max_num_seqs: PositiveInteger
     gpu_memory_utilization: Annotated[float, Field(gt=0.0, le=1.0)]
-    prompt: Literal["Text Recognition:"]
     request_timeout_seconds: PositiveFloat
     api_key_env: NonEmptyString
     sampling: SamplingConfig
@@ -853,13 +946,28 @@ class VllmConfig(_StrictConfigModel):
         return value
 
     @model_validator(mode="after")
-    def model_context_covers_maximum_output(self) -> VllmConfig:
+    def model_context_covers_maximum_output(self) -> _VllmConfigBase:
         if self.max_model_len <= self.sampling.max_tokens:
             raise ValueError(
                 "max_model_len must exceed sampling.max_tokens to leave room for "
                 "image/prompt tokens"
             )
         return self
+
+
+class VllmConfig(_VllmConfigBase):
+    """Text-recognition-only vLLM contract used by the raw OCR pipeline."""
+
+    prompt: Literal["Text Recognition:"]
+
+
+class TableVllmConfig(_VllmConfigBase):
+    """Table-recognition-only vLLM contract used by the auxiliary-view pipeline."""
+
+    prompt: Literal["Table Recognition:"]
+
+
+VllmClientConfig = VllmConfig | TableVllmConfig
 
 
 class ConcurrencyConfig(_StrictConfigModel):
@@ -945,14 +1053,21 @@ class PipelineConfig(_StrictConfigModel):
         return self
 
 
-def load_config(path: str | Path) -> PipelineConfig:
-    """Load a YAML file and validate it without type coercion or extra fields."""
+def load_strict_yaml_mapping(path: str | Path) -> dict[str, Any]:
+    """Load one UTF-8 YAML mapping while rejecting duplicate keys."""
 
     config_path = Path(path)
     with config_path.open("r", encoding="utf-8") as stream:
         raw: Any = yaml.load(stream, Loader=_UniqueKeySafeLoader)
     if not isinstance(raw, dict):
-        raise ValueError("pipeline configuration root must be a YAML mapping")
+        raise ValueError("configuration root must be a YAML mapping")
+    return raw
+
+
+def load_config(path: str | Path) -> PipelineConfig:
+    """Load a YAML file and validate it without type coercion or extra fields."""
+
+    raw = load_strict_yaml_mapping(path)
     return PipelineConfig.model_validate(raw, strict=True)
 
 
@@ -998,3 +1113,10 @@ def load_pilot_config(path: str | Path) -> CatalogPilotConfig:
     if not isinstance(raw, dict):
         raise ValueError("pilot configuration root must be a YAML mapping")
     return CatalogPilotConfig.model_validate(raw, strict=True)
+
+
+def load_catalog_selection_config(path: str | Path) -> CatalogExtractionSelectionConfig:
+    """Load a strict YAML contract for a catalog-derived extraction surface."""
+
+    raw = load_strict_yaml_mapping(path)
+    return CatalogExtractionSelectionConfig.model_validate(raw, strict=True)

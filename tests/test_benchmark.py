@@ -40,7 +40,10 @@ def _server_info() -> ServerInfo:
         model="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -56,7 +59,10 @@ def _server_info() -> ServerInfo:
         model_repository="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -124,6 +130,37 @@ def _manifest_entries(tmp_path: Path, count: int = 4) -> list[dict[str, str]]:
     return entries
 
 
+def test_inspect_raster_hashes_and_verifies_one_byte_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raster = tmp_path / "page.png"
+    raster_sha256 = _make_png(raster, (10, 20, 30))
+    entry = benchmark_module.RasterManifestEntry.model_validate(
+        {
+            "page_id": "page-1",
+            "document_id": "document-1",
+            "raster_path": str(raster),
+            "mime_type": "image/png",
+            "raster_sha256": raster_sha256,
+        },
+        strict=True,
+    )
+    original_read_bytes = Path.read_bytes
+    reads = 0
+
+    def counted_read_bytes(path: Path) -> bytes:
+        nonlocal reads
+        if path == raster:
+            reads += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", counted_read_bytes)
+    identity = benchmark_module.inspect_raster(entry)
+
+    assert reads == 1
+    assert identity.size_bytes == raster.stat().st_size
+
+
 class FakeBenchmarkClient:
     def __init__(
         self,
@@ -151,6 +188,8 @@ class FakeBenchmarkClient:
         self.retries = retries
         self.readiness_calls = 0
         self.calls: list[str] = []
+        self.completed_calls: list[str] = []
+        self.completed_count_in_run_at_start: dict[str, int] = {}
         self.page_calls: defaultdict[str, int] = defaultdict(int)
         self.active_by_point: defaultdict[int, int] = defaultdict(int)
         self.max_active_by_point: defaultdict[int, int] = defaultdict(int)
@@ -181,6 +220,10 @@ class FakeBenchmarkClient:
         point_index = int(match.group(1))
         point_document = (point_index, document_id)
         self.calls.append(request_id)
+        request_prefix = request_id.rsplit("-q", maxsplit=1)[0]
+        self.completed_count_in_run_at_start[request_id] = sum(
+            completed.startswith(f"{request_prefix}-q") for completed in self.completed_calls
+        )
         self.active_by_point[point_index] += 1
         self.active_by_point_document[point_document] += 1
         self.max_active_by_point[point_index] = max(
@@ -201,6 +244,7 @@ class FakeBenchmarkClient:
         finally:
             self.active_by_point[point_index] -= 1
             self.active_by_point_document[point_document] -= 1
+        self.completed_calls.append(request_id)
 
         self.page_calls[page_id] += 1
         text = f"OCR text for {page_id}"
@@ -319,6 +363,14 @@ async def test_benchmark_honors_limits_and_publishes_complete_canonical_report(
     report_bytes = report_path.read_bytes()
     report = json.loads(report_bytes)
     assert report_bytes == canonical_json_bytes(report) + b"\n"
+    assert report["schema_version"] == 2
+    assert report["measurement_method"] == {
+        "submission": "continuous-refill",
+        "warmup_samples_excluded": 2,
+        "measured_window": (
+            "earliest-measured-request-start-to-latest-measured-request-completion"
+        ),
+    }
     assert published.sha256 == hashlib.sha256(report_bytes).hexdigest()
     assert client.readiness_calls == 1
     assert len(client.calls) == 2 * 2 * (2 + 8)
@@ -345,6 +397,7 @@ async def test_benchmark_honors_limits_and_publishes_complete_canonical_report(
     }
     assert "document-ocr-pipeline" in report["harness_identity"]["distributions"]
     assert report["server_identity"]["observed"]["max_model_len"] == 32768
+    assert report["server_identity"]["observed"]["max_num_batched_tokens"] == 16384
     assert report["server_identity_sha256"] == canonical_json_sha256(report["server_identity"])
     loaded = load_raster_manifest(manifest_path)
     assert report["raster_manifest"]["source_file_sha256"] == loaded.source_file_sha256
@@ -376,7 +429,9 @@ async def test_benchmark_honors_limits_and_publishes_complete_canonical_report(
             "p99",
             "maximum",
         }
-        assert [request["sequence_index"] for request in measured["requests"]] == list(range(8))
+        assert [request["sequence_index"] for request in measured["requests"]] == list(
+            range(2, 10)
+        )
         assert [request["manifest_index"] for request in measured["requests"]] == [
             2,
             3,
@@ -389,11 +444,13 @@ async def test_benchmark_honors_limits_and_publishes_complete_canonical_report(
         ]
         prefix = (
             f"bench-{report['benchmark_identity_sha256'][:16]}-"
-            f"p{repetition['point_index']:03d}-r{repetition['repetition_index']:03d}-measured"
+            f"p{repetition['point_index']:03d}-r{repetition['repetition_index']:03d}-continuous"
         )
         assert [request["client_request_id"] for request in measured["requests"]] == [
-            f"{prefix}-q{index:08d}" for index in range(8)
+            f"{prefix}-q{index:08d}" for index in range(2, 10)
         ]
+        first_measured_request = measured["requests"][0]["client_request_id"]
+        assert client.completed_count_in_run_at_start[first_measured_request] < 2
 
 
 @pytest.mark.asyncio

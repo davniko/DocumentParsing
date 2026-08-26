@@ -1,0 +1,23 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-blind200-remediated-consolidated-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1
+selection_sha256: 4fcc267da68ef7016db930e63e08189f3386d31178d932e43748f02eabf4a871
+expected_documents: 200
+
+# Later source runs have precedence. Historical outcomes and artifacts remain immutable.
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-policy-adjudication1-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-policy-adjudication1-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation19-v6-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation19-v6-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-allocation-adjudication2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-allocation-adjudication2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation7-v7-c7-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation7-v7-c7-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation3-v8-c3-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation3-v8-c3-v1

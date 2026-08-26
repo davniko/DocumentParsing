@@ -28,7 +28,12 @@ def _config_data() -> dict[str, Any]:
             "parquet_compression": "zstd",
             "write_batch_rows": 64,
         },
-        "run": {"run_id": "run-1", "fail_fast": False, "resume": True},
+        "run": {
+            "run_id": "run-1",
+            "fail_fast": False,
+            "resume": True,
+            "expected_pages": None,
+        },
         "raster": {
             "dpi": 200,
             "max_side_pixels": 4096,
@@ -52,7 +57,10 @@ def _config_data() -> dict[str, Any]:
                 "ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
             ),
             "container_build_manifest_sha256": "d" * 64,
+            "dtype": "bfloat16",
+            "quantization": "none",
             "max_model_len": 32768,
+            "max_num_batched_tokens": 16384,
             "max_num_seqs": 16,
             "gpu_memory_utilization": 0.9,
             "prompt": "Text Recognition:",
@@ -129,6 +137,9 @@ def test_runtime_provenance_and_fingerprint_are_stable_and_self_verifying(
         "@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52"
     )
     assert first["extraction_contract"]["model"]["container_build_manifest_sha256"] == ("d" * 64)
+    assert first["extraction_contract"]["model"]["dtype"] == "bfloat16"
+    assert first["extraction_contract"]["model"]["quantization"] == "none"
+    assert first["extraction_contract"]["model"]["max_num_batched_tokens"] == 16384
     assert first["extraction_contract"]["model"]["speculative_decoding"] == {
         "method": "mtp",
         "num_speculative_tokens": 1,

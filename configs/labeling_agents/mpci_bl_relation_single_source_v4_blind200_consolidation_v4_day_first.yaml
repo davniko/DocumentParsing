@@ -1,0 +1,62 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-blind200-day-first-consolidated-v4
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1
+selection_sha256: 4fcc267da68ef7016db930e63e08189f3386d31178d932e43748f02eabf4a871
+expected_documents: 200
+
+# Later source runs have precedence. Historical outcomes and artifacts remain immutable.
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-policy-adjudication1-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-policy-adjudication1-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation19-v6-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation19-v6-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-allocation-adjudication2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-allocation-adjudication2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation7-v7-c7-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation7-v7-c7-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation3-v8-c3-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation3-v8-c3-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation2-v9-c2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation2-v9-c2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation1-v10-c1-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation1-v10-c1-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind200-carrier-null-adjudication1-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-carrier-null-adjudication1-v1
+
+  - run_id: mpci-bl-relation-single-source-v4-test380-day-first-date-migration-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-test380-day-first-date-migration-v1
+
+quality_holds:
+  - document_id: doc_4db4c510a4155e2a5f74d155339bf1f0ccfd1319ce1a0439b8bd575518fb3441
+    code: evidence_revalidation_required
+    message: The 46.6 kg target is correct, but its stored unit evidence incorrectly matches KGS inside PKGS and must be regenerated from the weight line.
+    raw_values: [46.600KGS]
+  - document_id: doc_7585c04d9e1c51b5f773d6a42342bb675498ea0311ad791ce881c5cd4e91e76d
+    code: audited_label_defect
+    message: NON-NEGOTIABLE COPY was mistaken for contract status despite three completed originals and one-accomplished/others-void title terms.
+    raw_values: [THREE(3)]
+  - document_id: doc_acfd909328aaa8bd8a3a74de9d9146dcfa848e334de21f3233b21c9b0bc387fc
+    code: audited_label_defect
+    message: Explicit destination-payable freight requires paymentArrangement collect, but freight is omitted.
+    raw_values: [Freight payable at DESTINATION]
+  - document_id: doc_ad4cff7cad1baad6d9bdaeb78241a073f9eed2a3acacae6d531833813b09b9b1
+    code: audited_label_defect
+    message: Printed 74.000 KGS is a thousands-grouped 74000 kg value, not the promoted 74 kg.
+    raw_values: [74.000 KGS]
+  - document_id: doc_c45ff4d5f52a19fcd482b38935604ecf9cd6a8bff5c5d553eb52c26065d313b4
+    code: audited_label_defect
+    message: NON-NEGOTIABLE COPY was mistaken for contract status despite three completed originals and one-accomplished/others-void title terms.
+    raw_values: [THREE(3)]
+  - document_id: doc_ddab3432450b2510f8c38c5a1c1b708bea9ba6d08dbd1a883459f4cc70ed9017
+    code: evidence_revalidation_required
+    message: The non-negotiable target is correct but its evidence must cite the conditional term and named non-order consignee rather than the copy stamp alone.
+    raw_values: [AL KHAYRAT COMPANY]
+  - document_id: doc_ec0363445cbdc37d6197ba75501909ca8f7e3bfb1026a60a5c6adbb7fc63b7bd
+    code: audited_label_defect
+    message: NON-NEGOTIABLE COPY was mistaken for contract status despite three completed originals and one-accomplished/others-void title terms.
+    raw_values: [THREE(3)]

@@ -1,0 +1,82 @@
+schema_version: 4
+task: bill_of_lading_relation_single_source_v4
+environment_file: .env
+
+run:
+  run_id: mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+  output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: absent
+  expected_documents: 1779
+  expected_pages: 4376
+  expected_inventory_sha256: c069d7bd6ba4cb5f4dda14ae518d7f6f5b84cc2499c56944317baf5f317a2a55
+  work_item_roots:
+    - id: remaining1779
+      root: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/selection-records.jsonl
+      selection_records_sha256: 2a6c36e9958665242ff022d555f054873cce3352b0bfacfb5abc145d74983539
+      documents: 1779
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/projects/documentparsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+selection:
+  count: 30
+  seed: 5656
+  namespace: mpci-bl-pydantic-ai-luna-remaining1779-v1
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v4_extractor.md
+    sha256: d34b645972cabf92318c696b313c6bfddb3f6c79b43b48c517feb387b4a49e67
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v4_reviewer.md
+    sha256: 554ada739c2e0efbe74305551453116136a1e2e14dbfaee6591c485cf7a578f9
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: b279812a4ce8f689db7cf2e1175f9a7e7a9e3cd72ddadcd767ef1d6348088b52
+
+providers:
+  - id: luna_high
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: high
+    supports_pdf_documents: true
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+    pricing:
+      currency: USD
+      effective_date: 2026-08-22
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+      long_context_input_threshold_tokens: 272000
+      long_context_input_multiplier: 2.0
+      long_context_output_multiplier: 1.5
+
+assignments:
+  labeler: luna_high
+  reviewer: luna_high
+  document_layout: luna_high
+
+workflow:
+  max_concurrent_documents: 8
+  max_concurrent_model_requests: 8
+  max_candidate_attempts: 2
+  max_document_escalations_per_document: 1
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false

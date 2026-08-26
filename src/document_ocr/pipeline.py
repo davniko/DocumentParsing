@@ -5,14 +5,15 @@ from __future__ import annotations
 import asyncio
 import atexit
 import json
+import math
 import multiprocessing
 import os
 import stat
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -114,19 +115,111 @@ class PipelineProgress:
     phase: Literal["checking_server", "extracting", "publishing"]
     total_documents: int
     processed_documents: int
+    total_pages: int | None
+    processed_pages: int
+    successful_pages: int
+    failed_pages_this_invocation: int
+    elapsed_seconds: float
+    throughput_pages_per_second: float
+    eta_seconds: float | None
 
     def __post_init__(self) -> None:
         if self.total_documents < 0:
             raise ValueError("progress total_documents cannot be negative")
         if not 0 <= self.processed_documents <= self.total_documents:
             raise ValueError("progress processed_documents is outside the document total")
+        if self.total_pages is not None and self.total_pages <= 0:
+            raise ValueError("progress total_pages must be positive when configured")
+        if self.processed_pages < 0:
+            raise ValueError("progress processed_pages cannot be negative")
+        if self.total_pages is not None and self.processed_pages > self.total_pages:
+            raise ValueError("progress processed_pages is outside the page total")
+        if not 0 <= self.successful_pages <= self.processed_pages:
+            raise ValueError("progress successful_pages is outside the processed page total")
+        if self.failed_pages_this_invocation < 0:
+            raise ValueError("progress failed_pages_this_invocation cannot be negative")
+        if self.successful_pages + self.failed_pages_this_invocation != self.processed_pages:
+            raise ValueError("processed pages must equal successful plus invocation failures")
+        for name, value in (
+            ("elapsed_seconds", self.elapsed_seconds),
+            ("throughput_pages_per_second", self.throughput_pages_per_second),
+        ):
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"progress {name} must be finite and non-negative")
+        if self.eta_seconds is not None and (
+            not math.isfinite(self.eta_seconds) or self.eta_seconds < 0.0
+        ):
+            raise ValueError("progress eta_seconds must be finite and non-negative")
 
     @property
     def remaining_documents(self) -> int:
         return self.total_documents - self.processed_documents
 
+    @property
+    def remaining_pages(self) -> int | None:
+        if self.total_pages is None:
+            return None
+        return self.total_pages - self.processed_pages
+
 
 PipelineProgressCallback = Callable[[PipelineProgress], None]
+
+
+@dataclass(slots=True)
+class _ProgressTracker:
+    total_documents: int
+    total_pages: int | None
+    initial_successful_pages: int
+    callback: PipelineProgressCallback | None
+    started_at: float
+    processed_documents: int = 0
+    processed_pages_this_invocation: int = 0
+    successful_pages_this_invocation: int = 0
+    failed_pages_this_invocation: int = 0
+
+    def snapshot(
+        self, phase: Literal["checking_server", "extracting", "publishing"]
+    ) -> PipelineProgress:
+        elapsed_seconds = max(0.0, time.perf_counter() - self.started_at)
+        processed_pages = (
+            self.initial_successful_pages + self.processed_pages_this_invocation
+        )
+        successful_pages = (
+            self.initial_successful_pages + self.successful_pages_this_invocation
+        )
+        throughput = (
+            self.processed_pages_this_invocation / elapsed_seconds
+            if elapsed_seconds > 0.0
+            else 0.0
+        )
+        remaining_pages = (
+            None if self.total_pages is None else self.total_pages - processed_pages
+        )
+        eta_seconds = (
+            None
+            if remaining_pages is None
+            else 0.0
+            if remaining_pages == 0
+            else remaining_pages / throughput
+            if throughput > 0.0
+            else None
+        )
+        return PipelineProgress(
+            phase=phase,
+            total_documents=self.total_documents,
+            processed_documents=self.processed_documents,
+            total_pages=self.total_pages,
+            processed_pages=processed_pages,
+            successful_pages=successful_pages,
+            failed_pages_this_invocation=self.failed_pages_this_invocation,
+            elapsed_seconds=elapsed_seconds,
+            throughput_pages_per_second=throughput,
+            eta_seconds=eta_seconds,
+        )
+
+    def emit(self, phase: Literal["checking_server", "extracting", "publishing"]) -> None:
+        if self.callback is not None:
+            self.callback(self.snapshot(phase))
 
 
 def _canonical_directory(path: Path) -> Path:
@@ -485,7 +578,7 @@ async def _process_page(
     server_info: ServerInfo,
     inference_semaphore: asyncio.Semaphore,
     executor: Executor,
-) -> None:
+) -> bool:
     extraction_started_at = datetime.now(UTC)
     extraction_start = time.perf_counter()
     suffix = ".png" if config.raster.image_format == "png" else ".jpg"
@@ -522,7 +615,7 @@ async def _process_page(
             await ledger.record_failure(failure=failure)
             if config.run.fail_fast:
                 raise PipelineError(f"page render failed: {provenance.page_id}") from error
-            return
+            return False
 
         retained_raster_path: Path | None = None
         inference_raster_path = Path(rendered.output_path)
@@ -549,7 +642,7 @@ async def _process_page(
                     raise PipelineError(
                         f"retained raster publication failed: {provenance.page_id}"
                     ) from error
-                return
+                return False
             inference_raster_path = paths.run_root / retained_raster_path
 
         queue_started = time.perf_counter()
@@ -581,7 +674,7 @@ async def _process_page(
                     raise PipelineError(
                         f"raster validation failed: {provenance.page_id}"
                     ) from error
-                return
+                return False
             except VllmClientError as error:
                 inference_duration_ms = (time.perf_counter() - inference_started) * 1000.0
                 failed_attempts = tuple(
@@ -602,7 +695,7 @@ async def _process_page(
                         f"page inference failed: {provenance.page_id} "
                         f"after {inference_duration_ms:.1f} ms"
                     ) from error
-                return
+                return False
             inference_duration_ms = (time.perf_counter() - inference_started) * 1000.0
 
         persist_started = time.perf_counter()
@@ -646,8 +739,9 @@ async def _process_page(
             await ledger.record_failure(failure=failure, attempts=successful_attempts)
             if config.run.fail_fast:
                 raise PipelineError(f"page persistence failed: {provenance.page_id}") from error
-            return
+            return False
         await ledger.record_success(result=record, attempts=successful_attempts)
+        return True
     finally:
         await asyncio.to_thread(raster_path.unlink, missing_ok=True)
         with suppress(OSError):
@@ -667,6 +761,7 @@ async def _process_document(
     inference_semaphore: asyncio.Semaphore,
     executor: Executor,
     s3_client: Any | None,
+    page_finished: Callable[[bool], Awaitable[None]],
 ) -> None:
     if await ledger.is_document_complete(config.run.run_id, inventory_source.document_id):
         return
@@ -765,7 +860,7 @@ async def _process_document(
                 except asyncio.QueueEmpty:
                     return
                 try:
-                    await _process_page(
+                    succeeded = await _process_page(
                         provenance=page,
                         materialized=materialized,
                         inspected_document=inspection,
@@ -777,6 +872,7 @@ async def _process_document(
                         inference_semaphore=inference_semaphore,
                         executor=executor,
                     )
+                    await page_finished(succeeded)
                 finally:
                     page_queue.task_done()
 
@@ -801,26 +897,43 @@ async def _execute_documents(
     executor: Executor,
     s3_client: Any | None,
     progress: PipelineProgressCallback | None,
-) -> ServerInfo:
+) -> tuple[ServerInfo, PipelineProgress]:
     total_documents = len(inventory.objects)
-    if progress is not None:
-        progress(
-            PipelineProgress(
-                phase="checking_server",
-                total_documents=total_documents,
-                processed_documents=0,
-            )
+    initial_summary = await ledger.validation_summary(config.run.run_id)
+    initial_successful_pages = initial_summary["successful_pages"]
+    if (
+        config.run.expected_pages is not None
+        and initial_successful_pages > config.run.expected_pages
+    ):
+        raise PipelineError(
+            "ledger already contains more successful pages than run.expected_pages "
+            f"({initial_successful_pages} > {config.run.expected_pages})"
         )
+    tracker = _ProgressTracker(
+        total_documents=total_documents,
+        total_pages=config.run.expected_pages,
+        initial_successful_pages=initial_successful_pages,
+        callback=progress,
+        started_at=time.perf_counter(),
+    )
+    progress_lock = asyncio.Lock()
+    tracker.emit("checking_server")
     server_info = await client.check_readiness()
     inference_semaphore = asyncio.Semaphore(config.concurrency.max_inflight_pages_global)
     document_queue: asyncio.Queue[SourceObject] = asyncio.Queue()
     for source in inventory.objects:
         document_queue.put_nowait(source)
 
-    processed_documents = 0
+    async def page_finished(succeeded: bool) -> None:
+        async with progress_lock:
+            tracker.processed_pages_this_invocation += 1
+            if succeeded:
+                tracker.successful_pages_this_invocation += 1
+            else:
+                tracker.failed_pages_this_invocation += 1
+            tracker.emit("extracting")
 
     async def document_worker() -> None:
-        nonlocal processed_documents
         while True:
             try:
                 source = document_queue.get_nowait()
@@ -839,16 +952,11 @@ async def _execute_documents(
                     inference_semaphore=inference_semaphore,
                     executor=executor,
                     s3_client=s3_client,
+                    page_finished=page_finished,
                 )
-                processed_documents += 1
-                if progress is not None:
-                    progress(
-                        PipelineProgress(
-                            phase="extracting",
-                            total_documents=total_documents,
-                            processed_documents=processed_documents,
-                        )
-                    )
+                async with progress_lock:
+                    tracker.processed_documents += 1
+                    tracker.emit("extracting")
             finally:
                 document_queue.task_done()
 
@@ -856,7 +964,22 @@ async def _execute_documents(
     async with asyncio.TaskGroup() as group:
         for _ in range(worker_count):
             group.create_task(document_worker())
-    return server_info
+    final_summary = await ledger.validation_summary(config.run.run_id)
+    if (
+        config.run.expected_pages is not None
+        and final_summary["expected_pages"] != config.run.expected_pages
+    ):
+        raise PipelineError(
+            "registered PDF page count does not match run.expected_pages "
+            f"({final_summary['expected_pages']} != {config.run.expected_pages})"
+        )
+    final_progress = tracker.snapshot("extracting")
+    if final_progress.successful_pages != final_summary["successful_pages"]:
+        raise PipelineError(
+            "progress success count diverged from the extraction ledger "
+            f"({final_progress.successful_pages} != {final_summary['successful_pages']})"
+        )
+    return server_info, final_progress
 
 
 async def _publish_and_complete(
@@ -935,7 +1058,7 @@ async def run_pipeline(
                     config.vllm,
                     max_connections=config.concurrency.max_inflight_pages_global,
                 ) as client:
-                    server_info = await _execute_documents(
+                    server_info, final_progress = await _execute_documents(
                         inventory=inventory,
                         config=config,
                         config_sha256=config_sha256,
@@ -948,7 +1071,7 @@ async def run_pipeline(
                         progress=progress,
                     )
             else:
-                server_info = await _execute_documents(
+                server_info, final_progress = await _execute_documents(
                     inventory=inventory,
                     config=config,
                     config_sha256=config_sha256,
@@ -961,13 +1084,7 @@ async def run_pipeline(
                     progress=progress,
                 )
             if progress is not None:
-                progress(
-                    PipelineProgress(
-                        phase="publishing",
-                        total_documents=len(inventory.objects),
-                        processed_documents=len(inventory.objects),
-                    )
-                )
+                progress(replace(final_progress, phase="publishing"))
             published, summary = await _publish_and_complete(
                 ledger=ledger, config=config, paths=paths
             )

@@ -1,0 +1,14 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-next100-reviewed-consolidated-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1
+selection_sha256: 7c83b9630bc56df135f727f891891e6ffb0ca218c1a5cca49d1018ec77932643
+expected_documents: 100
+
+# Later immutable outcomes take precedence while all considered artifacts remain
+# recorded in lineage.jsonl.
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-next100-held-adjudication-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next100-held-adjudication-v1

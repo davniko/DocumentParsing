@@ -1,0 +1,75 @@
+schema_version: 1
+view_type: glm_ocr_table_recognition
+
+# This view reuses the exact 200-DPI rasters retained by the raw-text run. A
+# quiescent incomplete raw run is accepted only when every missing text page
+# failed at inference/persistence after a valid raster had been published.
+source:
+  type: raw_extraction_rasters
+  expected_documents: 2164
+  expected_pages: 5351
+  extraction_runs:
+    - id: remaining2164_max15_raw
+      run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      config_sha256: 4d003566845e639682f9858f39300f395f4dbc2938090aee3d12f779ef55fcef
+      pipeline_fingerprint: fb77fd3e1f67e4dd8c863125d2524b60aa675b0e1c89bb983c8dafc7ecb3e92f
+      inventory_sha256: 62211568798e08dac45234e00b577f7e3e8de815d9535c14e1afa155934fb92a
+      # The prepare gate verifies and freezes the exact ledger-bound values.
+      # Non-null values may be supplied later as an additional external pin.
+      provenance_sha256: null
+      manifest_sha256: null
+      expected_documents: 2164
+      expected_pages: 5351
+
+output:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/views/blc-swb-remaining-max15-table
+
+run:
+  run_id: glm-ocr-table-blc-swb-remaining2164-23947b3edb6b-r2
+  resume: true
+  fail_fast: false
+  max_total_attempts_per_page: 8
+
+vllm:
+  endpoint: http://127.0.0.1:8000
+  model: zai-org/GLM-OCR
+  served_model_name: glm-ocr
+  revision: ca5d8b3e287e52589e37c28385d9655ee4372f9d
+  engine_version: 0.26.0
+  container_base_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+  container_build_manifest_sha256: c1ffd97e7a6fa3fdb02b5acd84966e6afc10c096a5eec5e7bd47dad7a88197b4
+  dtype: bfloat16
+  quantization: none
+  max_model_len: 32768
+  max_num_batched_tokens: 2048
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.9
+  prompt: "Table Recognition:"
+  request_timeout_seconds: 300.0
+  api_key_env: VLLM_API_KEY
+  sampling:
+    temperature: 0.0
+    top_p: 0.00001
+    top_k: 1
+    repetition_penalty: 1.1
+    max_tokens: 8192
+    seed: 0
+  retry:
+    max_attempts: 4
+    initial_backoff_seconds: 0.5
+    max_backoff_seconds: 8.0
+    backoff_multiplier: 2.0
+    jitter_fraction: 0.2
+  speculative_decoding:
+    method: mtp
+    num_speculative_tokens: 1
+  repetition_detection:
+    min_pattern_size: 5
+    max_pattern_size: 64
+    min_count: 5
+
+concurrency:
+  max_active_documents: 8
+  max_inflight_pages_global: 16
+  max_inflight_pages_per_document: 4

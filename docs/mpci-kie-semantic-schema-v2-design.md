@@ -109,6 +109,11 @@ Tax/VAT/CNPJ/ACID values, phone/email/fax values, role headings, and other label
 inside the address. The current target intentionally has no tax-ID field because the MPCI target
 does not consume it and it created contamination risk.
 
+The contact target has phone, email, and website arrays but no fax array. Omit a value under a
+standalone `FAX` heading and account for it with a page-bound `schema_cannot_represent` warning. A
+single value explicitly headed `TEL/FAX` remains eligible as a phone value because that same OCR
+heading identifies it as both telephone and fax contact.
+
 When city/country cannot be split safely, the label keeps the full logical address and omits the
 separate component. It never emits the same component twice. Country/locality values are copied as
 printed; geographic codes are not part of the semantic target.
@@ -152,6 +157,11 @@ never emits `countryCode`, UN/LOCODE, or a looked-up geographic value. Even when
 an ISO-like abbreviation, that literal is retained under `country`. A separate post-inference MPCI
 projection uses an injected, versioned country resolver. Missing or ambiguous resolution raises
 `MpciProjectionError`; there is no silent fallback and projection output is not a training target.
+
+All other Latin-script semantic strings likewise remain byte-for-byte semantic target values. The
+separate MPCI/CUSCAR projection deterministically converts supported Latin diacritics and punctuation
+to its ASCII wire representation, and fails closed on a character without an explicit deterministic
+mapping. This wire-only conversion never rewrites the annotation, evidence, or training target.
 
 Container and HS identifiers are deterministically normalized only under the frozen lexical rules
 and then schema validated. An invalid container check digit is omitted with a warning; it is never
@@ -197,6 +207,10 @@ High-confidence exclusions include:
   package-limitation clauses from descriptions and marks;
 - labels such as `AGENCY OFFICE`, `ADDRESS`, `DESCRIPTION OF GOODS`, and `GROSS WEIGHT`; and
 - external eBL portal metadata, hashes, audit logs, upload records, and blockchain links.
+
+These routine regulatory, portal/audit, and administrative/security values are omitted silently;
+they do not each require a warning unless they create genuine ambiguity for a supported semantic
+target. Warnings remain for meaningful unsupported transport facts and image-only omissions.
 
 Do not turn this into a global substring denylist. `N/M` under marks, an explicit lot number, or a
 company name under a headed export-reference block can be valid. Unclear segmentation is omitted

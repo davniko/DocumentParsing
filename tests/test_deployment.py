@@ -59,10 +59,15 @@ def test_operator_entrypoints_and_snapshot_config_are_installed() -> None:
     assert pyproject["project"]["scripts"] == {
         "document-ocr": "document_ocr.cli:main",
         "document-ocr-classification-catalog": ("document_ocr.classification_catalog_cli:main"),
+        "document-ocr-catalog-selection": "document_ocr.catalog_selection_cli:main",
         "document-ocr-corpus": "document_ocr.corpus_cli:main",
         "document-ocr-pilot": "document_ocr.pilot_cli:main",
         "document-ocr-quality-filter": "document_ocr.quality_cli:main",
         "document-ocr-snapshot": "document_ocr.snapshot_cli:main",
+        "document-ocr-table-view": "document_ocr.table_views.cli:main",
+        "document-kie-label-agents": "document_ocr.labeling_agents.cli:main",
+        "document-kie-label-source": "document_ocr.labeling_agents.source_cli:main",
+        "document-kie-semantic-v3": "document_ocr.semantic_v3.cli:main",
         "document-kie-train": "document_ocr.training.cli:main",
     }
     snapshot = load_snapshot_config(PROJECT_ROOT / "configs" / "s3_snapshot.blc_swb.yaml")
@@ -277,8 +282,16 @@ def test_example_config_matches_pinned_vllm_compose_contract(config_path: Path) 
         speculative.num_speculative_tokens
     )
     assert json.loads(_single_option(command, "--limit-mm-per-prompt")) == {"image": 1}
+    assert _single_option(command, "--dtype") == config.vllm.dtype
+    if config.vllm.quantization == "none":
+        assert "--quantization" not in command
+    else:
+        assert _single_option(command, "--quantization") == config.vllm.quantization
 
     assert int(_single_option(command, "--max-model-len")) == config.vllm.max_model_len
+    assert int(_single_option(command, "--max-num-batched-tokens")) == (
+        config.vllm.max_num_batched_tokens
+    )
     assert int(_single_option(command, "--max-num-seqs")) == config.vllm.max_num_seqs
     assert (
         float(_single_option(command, "--gpu-memory-utilization"))

@@ -22,6 +22,7 @@ import time
 from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, Any, Literal, Protocol
@@ -276,8 +277,12 @@ def _inspect_raster(entry: RasterManifestEntry) -> RasterFileIdentity:
     path = _canonical_regular_file(Path(entry.raster_path), description="raster path")
     signature_before = _file_signature(path)
     try:
-        actual_sha256 = sha256_file(path)
-        with Image.open(path) as image:
+        # Keep hashing and image verification on the same immutable byte
+        # snapshot. Besides closing the check/use race between two file opens,
+        # this avoids Pillow's small random reads being amplified by WSL/9P.
+        payload = path.read_bytes()
+        actual_sha256 = sha256_bytes(payload)
+        with Image.open(BytesIO(payload)) as image:
             actual_format = image.format
             width, height = image.size
             image.verify()
@@ -310,6 +315,17 @@ def _inspect_raster(entry: RasterManifestEntry) -> RasterFileIdentity:
     )
 
 
+def inspect_raster(entry: RasterManifestEntry) -> RasterFileIdentity:
+    """Validate a raster and return the immutable identity observed on disk.
+
+    This public wrapper lets other inference paths reuse the benchmark harness's
+    exact image, hash, regular-file, and no-symlink contract without duplicating
+    security- and provenance-sensitive checks.
+    """
+
+    return _inspect_raster(entry)
+
+
 def _validate_current_raster(entry: RasterManifestEntry, expected: RasterFileIdentity) -> None:
     """Revalidate bytes and filesystem identity immediately around every request."""
 
@@ -333,6 +349,14 @@ def _validate_current_raster(entry: RasterManifestEntry, expected: RasterFileIde
         )
     if current_sha256 != entry.raster_sha256:
         raise RasterManifestError(f"raster SHA-256 changed: {entry.raster_path}")
+
+
+def validate_current_raster(
+    entry: RasterManifestEntry, expected: RasterFileIdentity
+) -> None:
+    """Revalidate a previously inspected raster immediately around inference."""
+
+    _validate_current_raster(entry, expected)
 
 
 def load_raster_manifest(path: str | Path) -> LoadedRasterManifest:
@@ -401,7 +425,10 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         model=config.vllm.model,
         served_model_name=config.vllm.served_model_name,
         model_revision=config.vllm.revision,
+        dtype=config.vllm.dtype,
+        quantization=config.vllm.quantization,
         max_model_len=config.vllm.max_model_len,
+        max_num_batched_tokens=config.vllm.max_num_batched_tokens,
         max_num_seqs=config.vllm.max_num_seqs,
         gpu_memory_utilization=config.vllm.gpu_memory_utilization,
         generation_config="vllm",
@@ -416,7 +443,10 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         "model_repository": config.vllm.model,
         "served_model_name": config.vllm.served_model_name,
         "model_revision": config.vllm.revision,
+        "dtype": config.vllm.dtype,
+        "quantization": config.vllm.quantization,
         "max_model_len": config.vllm.max_model_len,
+        "max_num_batched_tokens": config.vllm.max_num_batched_tokens,
         "max_num_seqs": config.vllm.max_num_seqs,
         "gpu_memory_utilization": config.vllm.gpu_memory_utilization,
         "generation_config": "vllm",
@@ -432,7 +462,10 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         "model_repository": server.model_repository,
         "served_model_name": server.served_model_name,
         "model_revision": server.model_revision,
+        "dtype": server.dtype,
+        "quantization": server.quantization,
         "max_model_len": server.max_model_len,
+        "max_num_batched_tokens": server.max_num_batched_tokens,
         "max_num_seqs": server.max_num_seqs,
         "gpu_memory_utilization": server.gpu_memory_utilization,
         "generation_config": server.generation_config,
@@ -458,7 +491,10 @@ def _validate_server_info(server: ServerInfo, config: PipelineConfig) -> dict[st
         "model_repository": server.model_repository,
         "served_model_name": server.served_model_name,
         "model_revision": server.model_revision,
+        "dtype": server.dtype,
+        "quantization": server.quantization,
         "max_model_len": server.max_model_len,
+        "max_num_batched_tokens": server.max_num_batched_tokens,
         "max_num_seqs": server.max_num_seqs,
         "gpu_memory_utilization": server.gpu_memory_utilization,
         "generation_config": server.generation_config,
@@ -541,6 +577,14 @@ def _rounded(value: float, digits: int = 6) -> float:
     return round(value, digits)
 
 
+def _request_window_seconds(samples: Sequence[_RequestSample]) -> float:
+    if not samples:
+        return 0.0
+    return max(sample.request_completed for sample in samples) - min(
+        sample.request_started for sample in samples
+    )
+
+
 def _phase_report(
     samples: Sequence[_RequestSample], wall_time_seconds: float, *, include_samples: bool
 ) -> dict[str, Any]:
@@ -563,9 +607,7 @@ def _phase_report(
     completion_tokens = sum(sample.completion_tokens for sample in samples)
     total_tokens = sum(sample.total_tokens for sample in samples)
     attempt_count = sum(sample.attempt_count for sample in samples)
-    request_window_seconds = max(sample.request_completed for sample in samples) - min(
-        sample.request_started for sample in samples
-    )
+    request_window_seconds = _request_window_seconds(samples)
     if wall_time_seconds <= 0 or request_window_seconds <= 0:
         raise BenchmarkExecutionError("benchmark timing window must be positive")
     report: dict[str, Any] = {
@@ -824,7 +866,7 @@ async def run_benchmark(
     }
     benchmark_identity = canonical_json_sha256(
         {
-            "schema": "document-ocr-vllm-benchmark-v1",
+            "schema": "document-ocr-vllm-benchmark-v2",
             "resolved_config_sha256": resolved_config_sha256,
             "benchmark_config_sha256": benchmark_config_sha256,
             "raster_manifest_sha256": manifest.canonical_sha256,
@@ -842,28 +884,21 @@ async def run_benchmark(
             common_prefix = (
                 f"bench-{benchmark_identity[:16]}-p{point_index:03d}-r{repetition_index:03d}"
             )
-            warmup_samples, warmup_wall = await _run_phase(
+            all_samples, _continuous_wall = await _run_phase(
                 client=client,
                 config=config,
                 manifest=manifest,
                 point=point,
-                count=sweep.warmup_pages,
+                count=sweep.warmup_pages + sweep.measured_pages,
                 workload_offset=0,
-                request_prefix=f"{common_prefix}-warmup",
+                request_prefix=f"{common_prefix}-continuous",
                 consistency_hashes=consistency_hashes,
                 consistency_lock=consistency_lock,
             )
-            measured_samples, measured_wall = await _run_phase(
-                client=client,
-                config=config,
-                manifest=manifest,
-                point=point,
-                count=sweep.measured_pages,
-                workload_offset=sweep.warmup_pages,
-                request_prefix=f"{common_prefix}-measured",
-                consistency_hashes=consistency_hashes,
-                consistency_lock=consistency_lock,
-            )
+            warmup_samples = all_samples[: sweep.warmup_pages]
+            measured_samples = all_samples[sweep.warmup_pages :]
+            warmup_wall = _request_window_seconds(warmup_samples)
+            measured_wall = _request_window_seconds(measured_samples)
             repetitions.append(
                 {
                     "point_index": point_index,
@@ -891,8 +926,15 @@ async def run_benchmark(
     if final_harness_identity != harness_identity:
         raise BenchmarkExecutionError("benchmark harness changed while the sweep was running")
     report: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "report_type": "glm-ocr-vllm-concurrency-benchmark",
+        "measurement_method": {
+            "submission": "continuous-refill",
+            "warmup_samples_excluded": sweep.warmup_pages,
+            "measured_window": (
+                "earliest-measured-request-start-to-latest-measured-request-completion"
+            ),
+        },
         "benchmark_identity_sha256": benchmark_identity,
         "resolved_config": resolved_config,
         "resolved_config_sha256": resolved_config_sha256,

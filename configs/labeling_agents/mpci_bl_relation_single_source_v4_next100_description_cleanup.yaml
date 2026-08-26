@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next100-description-cleanup-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_4f8dd7df28839f1417540eddfa1323f78ebb7dd115382a6dd59bdf3bc4d7ef33",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_4f8dd7df28839f1417540eddfa1323f78ebb7dd115382a6dd59bdf3bc4d7ef33.json",
+      "work_item_sha256": "0d7482108e51f6c56fe1a36a12890e4d8e34257a0f6597c0ff5f986d07c9507f",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/validated/e5ec7f43e15512ab79363778a1c4959d83779fc6a6dbe188a399c96689dc1de5.json",
+      "candidate_sha256": "e5ec7f43e15512ab79363778a1c4959d83779fc6a6dbe188a399c96689dc1de5",
+      "candidate_kind": "annotation",
+      "rebuild": {"decision_notes":["Removed UNPACKED and WOODEN CRATE packing descriptors while preserving both printed goods: the mining machine and its related parts."]},
+      "target_corrections": [
+        {"target_path":"/documentPatch/cargoGroups/0/description","expected_value":"UNPACKED MINING MACHINE SPRAYMEC SF050D AUS SN EH227 WOODEN CRATE PARTS RELATED TO SPRAYMEC SN EH227","corrected_value":"MINING MACHINE SPRAYMEC SF050D AUS SN EH227 PARTS RELATED TO SPRAYMEC SN EH227"}
+      ],
+      "adjudication_notes": ["Goods description is package-free; the existing two-PACKAGES fact and container allocation remain unchanged."]
+    }
+  ]
+}

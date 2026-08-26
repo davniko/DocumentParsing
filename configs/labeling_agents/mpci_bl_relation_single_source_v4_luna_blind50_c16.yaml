@@ -1,0 +1,133 @@
+schema_version: 4
+task: bill_of_lading_relation_single_source_v4
+environment_file: .env
+
+run:
+  run_id: mpci-bl-relation-single-source-v4-luna-blind50-remediated-c16-v6
+  output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: absent
+  expected_documents: 1779
+  expected_pages: 4376
+  expected_inventory_sha256: c069d7bd6ba4cb5f4dda14ae518d7f6f5b84cc2499c56944317baf5f317a2a55
+  work_item_roots:
+    - id: remaining1779
+      root: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/selection-records.jsonl
+      selection_records_sha256: 2a6c36e9958665242ff022d555f054873cce3352b0bfacfb5abc145d74983539
+      documents: 1779
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/projects/documentparsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+selection:
+  count: 50
+  seed: 5659
+  namespace: mpci-bl-pydantic-ai-luna-blind50-remediated-c16-v6
+  document_ids:
+    - doc_cf208c27db869a9280df68f63e685adf582d889df83d12ceb66db6babeb6f07c
+    - doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+    - doc_b25a3616d7829f48cf6b879421198005ed3f2730f7e7fb81437b208acc26c216
+    - doc_e28ff6f73f4cea776bf1f1ffc0564bf160aa745c062a5f4b1dec1f2ce1650f80
+    - doc_5d4abbb53a90e9d403f20796ff8690f91b80d31060df3a503282fd46c7ab9df6
+    - doc_6e10f03544ad4ab5a289cdd22f346215f4348ee63d90c61b4b4cf27130824bc3
+    - doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a
+    - doc_5ccc7130c922a3cddd2c97c30a49287ea0c27d10e8959cf88cf2a21fa90b892c
+    - doc_851cec9b4c56458e987a1ee78f9a55e75f2b774d41855e3f54ddb65ffdcd2bb0
+    - doc_1115fc1d226b1c05e90e2478517d4d8a8de96ec268dfe066b96073c638cb5e50
+    - doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8
+    - doc_311407b33587479b4ca40a815b060780f42a751e97e297b681fb19446aed1a07
+    - doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850
+    - doc_da0fffea601fd4e84d271b0664b270e3894636ea267d65fe2fca3691cf6f93da
+    - doc_408b3c704d6c5b45d872c9c61377137709654ca6fb22a440134617b7957c9ed2
+    - doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627
+    - doc_fd095586cec635eb6fd40f725b988e9eccc085ca09b77f0ede99892d2acba2c3
+    - doc_74bd47961de63d40ef7e2b79b687cfeb66c35ae288f2d7f396fe59d03182beb8
+    - doc_f4fbaf4323f9df17c2e8130c65d56623d988a1c1bc2e56b64acf86dae38fc555
+    - doc_6c7a39d06929aae972dc0aec0e56a21444b71274f7e0aaae1720553c8e84c9cf
+    - doc_259d8c3b4fa52f942f09f281143706109a7938863b5e4e790d7f1450e35b6b70
+    - doc_5695be2d2ae4c04cde0f3c5a91c1ae9f283cf4390a09de7c4c6e2f907de818fe
+    - doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c
+    - doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946
+    - doc_761dcaf6d7d66cbbfffd5d9834899b90a28e1f2fb9eb6d7c17012991f47ad2b8
+    - doc_06984148e3060ea495cf6ab57bab41aa339be2ab8e3519cb223f64a13f2c0501
+    - doc_5222fa985e168931a04a418d311cd7c00c12ef044cdc3a868ce40001f7cf2493
+    - doc_a019d8323ac605d50d643166686e25da1378b6baf6e4c3763cb5a5573c01ccc6
+    - doc_78e8864ab17a0618fcb175fa298ee69c317983fc5cf5156836a8610ce85722e7
+    - doc_f155e05229b8d1026ab18d546e4182bb3e4bc619da90c2ebd4a6e7f358e4a7c8
+    - doc_fabe32eb22c937940c4af0bbd6838f42def474d16e8ca544f48471c7a42d2076
+    - doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6
+    - doc_cd979d32956a8f530c956636c1be4c7fb18f9f310b1ff468fd401535734f207c
+    - doc_124c11cf85cf1fa402e51348824fea2a96cfbded9121f803dbccd8096d066344
+    - doc_85d6bc087158b4aa70d1e6b22c5fc8f69b50e7b004553cc0a3e4fa9f16306d0d
+    - doc_b70ceb0f05a82b5828c6a1908596bd62b56e9d69ca1c0f356fb2147039d1ef08
+    - doc_947097576fb4db13657a658d43d15b7d1ecf0abec9dede73b9a98f43cbb19bdc
+    - doc_a41e6b49089d83f49e6712100f46a47a185ab9b3db0419e2f9b8c1a7b93b2bae
+    - doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5
+    - doc_391f36a9d54c936665582d6f77ced5df6317c298d2d804049191dee899d5a82f
+    - doc_3bc039517278debab9023cfda06571b2777b797e9261687f359ef382100c4eef
+    - doc_f7afe5af53db9e3f0837d34aebd584fa86b9402d0cacdd0d4e94309de602b295
+    - doc_dd26bb9b2c0f406e994884ca9906ac2f135c4cf53c777337590d78ce8ead835e
+    - doc_096bcceae8bd5e093ddcb070c848c2ff0165688209eecccd0288d4b9ab10ce38
+    - doc_5d8bcf37e3aed4744a8258f3a621ad8820b70fa655ed91232be9ed838788f2ac
+    - doc_f5948861dc4d080c5b5db3e86a6e4bc59e1a8b27ac065e53cda28b9de58b9bdf
+    - doc_c86736499595806b531e5af9b375fcdc6ad427a4bffe4868343b65e0b1cf4247
+    - doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7
+    - doc_b076778804b87511d7e362f55a20c4177b06d53863d9012cfada9ac81e4216f4
+    - doc_85fd74cc9adb7a0520e48212829deccfe0ebe25837cfb9ea0ef2ad8f2c675422
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v4_extractor.md
+    sha256: 96271317db5f23f628e025b83d0b8f972e56aefcc23dd33ed23e5d0bc4ab1bcb
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v4_reviewer.md
+    sha256: 19c7ba2c6757d258a11c37b2d454901b5fc4c994996aaa578477240cd9e69d8a
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: b279812a4ce8f689db7cf2e1175f9a7e7a9e3cd72ddadcd767ef1d6348088b52
+
+providers:
+  - id: luna_high
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: high
+    supports_pdf_documents: true
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+    pricing:
+      currency: USD
+      effective_date: 2026-08-22
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+      long_context_input_threshold_tokens: 272000
+      long_context_input_multiplier: 2.0
+      long_context_output_multiplier: 1.5
+
+assignments:
+  labeler: luna_high
+  reviewer: luna_high
+  document_layout: luna_high
+
+workflow:
+  max_concurrent_documents: 16
+  max_concurrent_model_requests: 16
+  max_candidate_attempts: 2
+  max_document_escalations_per_document: 1
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false

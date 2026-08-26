@@ -142,6 +142,74 @@ def test_same_as_relation_replaces_repeated_party_payload() -> None:
         BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
 
 
+def test_same_as_relation_accepts_notify_specific_contact_override() -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["parties"] = {
+        "consignee": {
+            "name": "EXAMPLE LTD",
+            "address": "11 MAIN STREET",
+            "contactDetails": {"emailAddresses": ["GENERAL@EXAMPLE.COM"]},
+        },
+        "notifyParties": [
+            {
+                "sameAs": "consignee",
+                "contactDetails": {"phoneNumbers": ["+44 20 7123 4567"]},
+            }
+        ],
+    }
+
+    label = BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+    notify = label.canonical_target()["documentPatch"]["parties"]["notifyParties"][0]
+    assert notify == {
+        "sameAs": "consignee",
+        "contactDetails": {"phoneNumbers": ["+44 20 7123 4567"]},
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("name", "EXAMPLE LTD"),
+        ("address", "11 MAIN STREET"),
+        ("city", "LONDON"),
+        ("country", "UNITED KINGDOM"),
+    ),
+)
+def test_same_as_relation_rejects_repeated_identity_or_location(
+    field: str, value: str
+) -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["parties"] = {
+        "consignee": {"name": "EXAMPLE LTD"},
+        "notifyParties": [
+            {
+                "sameAs": "consignee",
+                field: value,
+                "contactDetails": {"phoneNumbers": ["+44 20 7123 4567"]},
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="sameAs replaces"):
+        BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+
+def test_same_as_relation_requires_the_referenced_source_party() -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["parties"] = {
+        "notifyParties": [
+            {
+                "sameAs": "consignee",
+                "contactDetails": {"phoneNumbers": ["+44 20 7123 4567"]},
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="references absent consignee"):
+        BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+
 def test_contact_details_accepts_a_grounded_name_without_a_communication_channel() -> None:
     payload = _minimal_label()
     payload["documentPatch"]["parties"] = {
@@ -162,6 +230,57 @@ def test_contact_details_rejects_an_empty_object() -> None:
 
     with pytest.raises(ValidationError, match="requires a contact name"):
         BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+
+def test_cargo_accepts_printed_metric_tonnes_but_container_vgm_does_not() -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["goodsItems"] = [
+        {"grossWeight": {"value": 40.5, "unit": "metric_tonne"}}
+    ]
+
+    label = BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+    assert label.canonical_target()["documentPatch"]["goodsItems"][0][
+        "grossWeight"
+    ] == {"value": 40.5, "unit": "metric_tonne"}
+
+    payload["documentPatch"]["containers"] = [
+        {
+            "containerNumber": "TGHU1234567",
+            "verifiedGrossMass": {"value": 40.5, "unit": "metric_tonne"},
+        }
+    ]
+    with pytest.raises(ValidationError, match=r"kilogram.*pound"):
+        BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+
+def test_training_schema_does_not_apply_form_package_or_notify_caps() -> None:
+    payload = _minimal_label()
+    long_printed_package_type = "PALLETS WITH HEAT-TREATED REINFORCED WOODEN COLLARS"
+    payload["documentPatch"].update(
+        {
+            "parties": {
+                "notifyParties": [
+                    {"name": "FIRST NOTIFY PARTY"},
+                    {"name": "SECOND NOTIFY PARTY"},
+                    {"name": "THIRD NOTIFY PARTY"},
+                ]
+            },
+            "goodsItems": [
+                {
+                    "packages": [
+                        {"quantity": 12, "type": long_printed_package_type}
+                    ]
+                }
+            ],
+        }
+    )
+
+    label = BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+    patch = label.canonical_target()["documentPatch"]
+    assert len(patch["parties"]["notifyParties"]) == 3
+    assert patch["goodsItems"][0]["packages"][0]["type"] == long_printed_package_type
 
 
 @pytest.mark.parametrize("forbidden_field", ["countryCode", "unLocode"])
@@ -197,6 +316,7 @@ def test_party_rejects_country_code_and_preserves_printed_abbreviation() -> None
         "ATATÜRK MAH.",
         "Oia\u0303",
         "41 Ø POTS \u2013 2 m³",
+        "Rua de Alvarães, N.º 2447",
     ],
 )
 def test_application_text_preserves_printable_latin_unicode(value: str) -> None:

@@ -88,8 +88,12 @@ services:
       - "1"
       - --limit-mm-per-prompt
       - '{"image":1}'
+      - --dtype
+      - bfloat16
       - --max-model-len
       - "32768"
+      - --max-num-batched-tokens
+      - "2048"
       - --max-num-seqs
       - "16"
       - --gpu-memory-utilization

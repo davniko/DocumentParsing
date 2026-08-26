@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "policy": "printed_package_types_and_product_only_descriptions_v1",
+  "corrections": [
+    {
+      "correctionId": "dfefb578-g1-description",
+      "documentId": "doc_dfefb5789ec42546378d108ebeec4da3769ea53bfdc402c4d5934ea04305f6d6",
+      "kind": "cargo_description",
+      "goodsIndex": 0,
+      "packageIndex": null,
+      "before": "UCAT(TM) UG-150 CATALYST INTERMEDIATE BULK CONTAINER (IBC)",
+      "after": "UCAT(TM) UG-150 CATALYST",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 2,
+          "rawValue": "UCAT(TM) UG-150 CATALYST INTERMEDIATE\nBULK CONTAINER (IBC)"
+        }
+      ],
+      "normalizationRule": "Remove the separately modeled INTERMEDIATE BULK CONTAINER (IBC) transport-package phrase from the product description."
+    },
+    {
+      "correctionId": "920a4297-g1-description",
+      "documentId": "doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53",
+      "kind": "cargo_description",
+      "goodsIndex": 0,
+      "packageIndex": null,
+      "before": "FROTHER DSF 802A 900 KG IBC",
+      "after": "FROTHER DSF 802A",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 1,
+          "rawValue": "FROTHER DSF 802A 900 KG IBC"
+        }
+      ],
+      "normalizationRule": "Remove the separately modeled 900 KG IBC package construction from the product description."
+    },
+    {
+      "correctionId": "95d23f90-g1-description",
+      "documentId": "doc_95d23f9051195a95a8b180b79badc12ab4da97769e29965e3c41cbc4dd7e7c93",
+      "kind": "cargo_description",
+      "goodsIndex": 0,
+      "packageIndex": null,
+      "before": "CORIANDER SEEDS IN BAGS",
+      "after": "CORIANDER SEEDS",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 1,
+          "rawValue": "CORIANDER SEEDS IN BAGS"
+        }
+      ],
+      "normalizationRule": "Remove the separately modeled IN BAGS package phrase from the product description."
+    },
+    {
+      "correctionId": "95d23f90-g1-p1-type",
+      "documentId": "doc_95d23f9051195a95a8b180b79badc12ab4da97769e29965e3c41cbc4dd7e7c93",
+      "kind": "package_type",
+      "goodsIndex": 0,
+      "packageIndex": 0,
+      "before": "UNITS",
+      "after": "BAG",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 1,
+          "rawValue": "880 BAG"
+        }
+      ],
+      "normalizationRule": "Use the printed package type BAG from the repeated container rows; UNITS is the form's aggregate label, not the package type."
+    },
+    {
+      "correctionId": "70d73df1-g1-description",
+      "documentId": "doc_70d73df16bafbe0a16b5bb082435328b7f3186f7ee14bd6d7011cf88328ece1b",
+      "kind": "cargo_description",
+      "goodsIndex": 0,
+      "packageIndex": null,
+      "before": "CORN GRITS TYPE 101 50 KG PP BAGS",
+      "after": "CORN GRITS TYPE 101",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 2,
+          "rawValue": "CORN GRITS TYPE 101 50 KG PP BAGS"
+        }
+      ],
+      "normalizationRule": "Remove the separately modeled 50 KG PP BAGS package construction from the product description."
+    },
+    {
+      "correctionId": "8563ff35-g1-description",
+      "documentId": "doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec",
+      "kind": "cargo_description",
+      "goodsIndex": 0,
+      "packageIndex": null,
+      "before": "DESMODUR N 75 MPA/X ROLL.",
+      "after": "DESMODUR N 75 MPA/X",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 1,
+          "rawValue": "DESMODUR N 75 MPA/X ROLL."
+        }
+      ],
+      "normalizationRule": "Remove the trailing package/layout token ROLL. from the printed product name."
+    },
+    {
+      "correctionId": "8563ff35-g4-description",
+      "documentId": "doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec",
+      "kind": "cargo_description",
+      "goodsIndex": 3,
+      "packageIndex": null,
+      "before": "DESMOSEAL S XP 2636 BARREL",
+      "after": "DESMOSEAL S XP 2636",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 2,
+          "rawValue": "DESMOSEAL S XP 2636 BARREL"
+        }
+      ],
+      "normalizationRule": "Remove the separately modeled barrel/drum package wording from the product description."
+    },
+    {
+      "correctionId": "8563ff35-g5-description",
+      "documentId": "doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec",
+      "kind": "cargo_description",
+      "goodsIndex": 4,
+      "packageIndex": null,
+      "before": "DESMOPHEN 5168 T BARREL",
+      "after": "DESMOPHEN 5168 T",
+      "rawOcrEvidence": [
+        {
+          "pageNumber": 2,
+          "rawValue": "DESMOPHEN 5168 T BARREL"
+        }
+      ],
+      "normalizationRule": "Remove the separately modeled barrel/drum package wording from the product description."
+    },
+    {
+      "correctionId": "910f8b9a-g1-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 0,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "AMFU8407491 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g2-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 1,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "CAAU5860025 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g3-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 2,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "CAIU7743334 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g4-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 3,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "CAIU7752022 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g5-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 4,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "FFAU2329575 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g6-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 5,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "MSCU4974611 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g7-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 6,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "MSDU5045420 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g8-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 7,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "MSDU5156819 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g9-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 8,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 2, "rawValue": "MSDU5200296 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g10-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 9,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 3, "rawValue": "MSDU5301671 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g11-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 10,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 3, "rawValue": "MSDU8257314 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE : 39021000 25,344.000 kgs."}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    },
+    {
+      "correctionId": "910f8b9a-g19-description",
+      "documentId": "doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b",
+      "kind": "cargo_description",
+      "goodsIndex": 18,
+      "packageIndex": null,
+      "before": "BORECO BA212E BAG POLYPROPYLENE",
+      "after": "BORECO BA212E POLYPROPYLENE",
+      "rawOcrEvidence": [{"pageNumber": 4, "rawValue": "TEMU6896559 990 BAG(S) of BORECO BA212E BAG POLYPROPYLENE HS CODE: 39021000"}],
+      "normalizationRule": "Remove the duplicated BAG package noun; BAG(S) remains a separate package fact."
+    }
+  ]
+}

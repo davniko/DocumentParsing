@@ -18,7 +18,7 @@ from document_ocr.training.config import (
 )
 from document_ocr.training.data import inspect_dataset, prepare_datasets
 from document_ocr.training.prompting import load_prompt
-from document_ocr.training.tasks import get_training_task
+from document_ocr.training.tasks import load_training_task
 
 _EXIT_SUCCESS = 0
 _EXIT_USAGE = 2
@@ -173,7 +173,7 @@ def _dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
 
     config_path, config = _load_config(cast(Path, arguments.config))
     try:
-        task = get_training_task(config.task)
+        task = load_training_task(project_root, config)
         prompt = load_prompt(project_root, config.prompt, task)
         config_identity = canonical_json_sha256(config.model_dump(mode="json"))
         common = {

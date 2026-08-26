@@ -1,0 +1,126 @@
+schema_version: 4
+task: bill_of_lading_relation_single_source_v4
+environment_file: .env
+
+run:
+  run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1
+  output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: absent
+  expected_documents: 1779
+  expected_pages: 4376
+  expected_inventory_sha256: c069d7bd6ba4cb5f4dda14ae518d7f6f5b84cc2499c56944317baf5f317a2a55
+  work_item_roots:
+    - id: remaining1779
+      root: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/selection-records.jsonl
+      selection_records_sha256: 2a6c36e9958665242ff022d555f054873cce3352b0bfacfb5abc145d74983539
+      documents: 1779
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/projects/documentparsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+selection:
+  count: 41
+  seed: 5662
+  namespace: mpci-bl-pydantic-ai-luna-blind200-remediation41-c16-v1
+  # Frozen subset of non-genuine blind-200 holds. The ten known OCR-truth or ontology
+  # ambiguities remain explicit quality holds; doc_289656... is resolved by pinned adjudication.
+  document_ids:
+    - doc_04cf3e2e9c722891f79a2ae092aac34655f1148ab8c1c4d4d43d5bf05a9642e6
+    - doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f
+    - doc_069cc83033b015f717fe7f0c1fda884d194b9a30c6347caf2099c49ce83f44b9
+    - doc_0ef73471b70758eb51957f74dff19a662a6f0c7a7a0c373bbb012d3b46ae369e
+    - doc_0f0b1c0beb6436f1ae4471357a214f06b94d2462adb75f70775b53f1cd21196c
+    - doc_1c67c6234ff44848555c125c2442f4b4cd24fd5b94017f37b3da406b89e92daf
+    - doc_215ec030f8782433c60f2e07d060007ae1d5f3ebabcb00a55da1a870477d01ed
+    - doc_24130d38d1bb4ae95e479879cb8fdedb051399ba07d6febc4bdbba705f5d85b4
+    - doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf
+    - doc_33e112111c36f42e78b5e7f7bcac07693e8d179dc5bbc3308d225316356bea88
+    - doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565
+    - doc_446001475f38cdf874b85653a51ecd83e203bbd428dfcc34c283554c0f0c524a
+    - doc_4704110c86e0416aa65fb34474b9235a4be4fc45b24c490445d7efd9b9d600f0
+    - doc_4e83550f9353915e60bf93570672a62e66f5669c38c55d5bd766e2098afe189b
+    - doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e
+    - doc_5884ea9c7c105d0e9eec80058c95deb78844bd3790609708c7b9ef669650d54b
+    - doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b
+    - doc_600a1e8927a5aeb14c85eb98ee4fa39063d4f892779bc507dfb63a11ffa6993c
+    - doc_64513c561b9ba9286c81884f3fde0919628c10a0bf083cd839291551b2752180
+    - doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff
+    - doc_68650dcb7d4ddd39ac36da6c28cf67d4dcd07824d5dea0db3d0016096d57fb8d
+    - doc_6e12ad299941efbb7a6a48153433fb35c93ce9f4d7cd8dcca16ff13600e17d7c
+    - doc_7f6df7bd0b4ccd1b693d13af5c5da316b140c33b2a94f5f63f13d93571871143
+    - doc_854fc3cbac81ccf008c7d9939cf472341a0f091b158766f6f299b7b1d256fc43
+    - doc_937e58b410f54b5dfbec40ae36e2d1b24903a136385817844897a80fbd2cac86
+    - doc_a5f088c96c8547cbc77085ec258175644936f628eecd2f8bc4e4ae438fe5d858
+    - doc_a67bca5b402785d456d669ebbc99db19987c26d5c1de941d79d8e65c9f3fca57
+    - doc_aa9ed483b3688fb2ea2092d1622085ba1da1c34db0ca46e9998e015401431acc
+    - doc_aea6741af5fd97568bd84363e7ec9931c60cc519cee19d882ed163c4f65d6d86
+    - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+    - doc_c21801080ce6fe253ac1db66be33fea6ab00b5ebc3a51192434f304b482ea635
+    - doc_c3245961e3fba00567b233949ff862f8cc9b395a74c7d1deb523135a1cde38a9
+    - doc_c50046f5ac1ee07d1c94120076535b63b062eb2f34a4f8481bd784f87f8dbb2a
+    - doc_c9daacc3313d137479ac60eaa23b19b34dc8f488eee4c7e082699669c7cac054
+    - doc_ca30441768e0ff411e9235749629dc65009f9cbe282b90b365e1ceed1658a645
+    - doc_dc14115630882b2cca9ce51409da38cd0654796f5a92ff0afc0ddd728e4c5697
+    - doc_e29207799e34676fb317de87feba4b77c2ad994f47161116d6d19e88d8d95b0e
+    - doc_ed2d1b59ec1347a72568eafb7c0973ec91e6ec78b2f455fdfa9e7d8833349508
+    - doc_eef5726a4f158ba127a042572eb8b1bd64891071fdcc7dcfdd744b2da65f04cf
+    - doc_efcc5ff31199867fd996d0da05a15f712b7b08128af067b9faf63e3e14245d11
+    - doc_efdbe49b49d61ea431f1d3b32b687458ef3ee3254e0e25b44170643afdb3c8db
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v5_extractor.md
+    sha256: a4da8d2c9ecb5aebcbb23be83864ba8f04064ef8609378739b1465820c421a10
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v5_reviewer.md
+    sha256: d727515e410a030921ddceb4da6a600890f7f88e033dbe34968f3f198148c654
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: 6ecce45e2bea062bbc3e5280760ac2385f547f51525258df8179549a38a8c8dd
+
+providers:
+  - id: luna_high
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: high
+    supports_pdf_documents: true
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+    pricing:
+      currency: USD
+      effective_date: 2026-08-22
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+      long_context_input_threshold_tokens: 272000
+      long_context_input_multiplier: 2.0
+      long_context_output_multiplier: 1.5
+
+assignments:
+  labeler: luna_high
+  reviewer: luna_high
+  document_layout: luna_high
+
+workflow:
+  max_concurrent_documents: 16
+  max_concurrent_model_requests: 16
+  max_candidate_attempts: 4
+  max_document_escalations_per_document: 2
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false

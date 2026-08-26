@@ -1,0 +1,36 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-held-case27-pallet-adjudication-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+items:
+  - document_id: doc_4a4ad172c320dde5741de07b2c4456db630dc376203c400cf059644ce3de860a
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/work-items/doc_4a4ad172c320dde5741de07b2c4456db630dc376203c400cf059644ce3de860a.json
+    work_item_sha256: 11187da2abbf5f23b2e8b7d5f5329e7ff7b8e89a15ba66755e149914d651c737
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/state/candidate-attempts/doc_4a4ad172c320dde5741de07b2c4456db630dc376203c400cf059644ce3de860a/attempt-1/c15ec226f78257de86546e130c3d754ef5b258315ee2218225e9ec1bd5ddcba6.json
+    candidate_sha256: c15ec226f78257de86546e130c3d754ef5b258315ee2218225e9ec1bd5ddcba6
+    rebuild:
+      document_type: sea_waybill
+      decision_notes:
+        - >-
+          Each source-ordered pallet range is one outer package level for its following product
+          row. Its inclusive cardinality and the explicitly printed inner tinplate-container or
+          drum count are retained as separate package facts in the same cargo group.
+        - >-
+          The seven outer pallet quantities 4/2/4/3/5/1/2 form one contiguous partition of the 21
+          pallets printed for MRKU3465181. Each group therefore links only its outer pallet package
+          to that container; the 21-pallet shipment total is not duplicated as another package fact.
+        - >-
+          Row-specific net and gross weights remain attached to their seven product groups. The
+          separately printed consignment totals remain omitted under the frozen schema boundary.
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication confirmed that PALLET is the outer transport-package level while
+        Tinplate Containers, Drums, and Drums Containers are inner package levels. Neither level
+        replaces the other.
+      - >-
+        Pallet ranges 1-4, 5-6, 7-10, 11-13, 14-18, 19, and 20-21 are contiguous, non-overlapping,
+        source ordered, and reconcile exactly to both printed 21-PALLET totals. Evidence is rebuilt
+        from each complete range rather than from unrelated matching page numbers.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2025/2025-05-30_d1ef7104-3c64-473b-a208-7dc43e670fc4.pdf
+        sha256: 821bf53a2937ac5240ee1afc355241348697f9e429ad940d45b8b3aa4de92a72

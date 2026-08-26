@@ -1,0 +1,34 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-held-case2-adjudication-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+items:
+  - document_id: doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-month-first-736-retry-v1/work-items/doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766.json
+    work_item_sha256: 2fbbad85e19b1de8cdf91ab991b55139a60b910d79576d9cd2f2e9b4c886a89f
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-month-first-736-retry-v1/state/candidate-attempts/doc_736b5c85d33e2e24479444ce0dfea8970cad8c6adeb20ead7616fb51e378c766/attempt-1/6dedc7a745fd0e8851218557b6c28a086f1f90c7bfd4b2f98247a75a8f6ec68b.json
+    candidate_sha256: 6dedc7a745fd0e8851218557b6c28a086f1f90c7bfd4b2f98247a75a8f6ec68b
+    rebuild:
+      document_type: bill_of_lading
+      decision_notes:
+        - >-
+          All four raw-OCR container identifiers, types, and seals are retained. Page layout was
+          used only to associate the three independently printed 1,000-BAG rows; the fourth
+          container remains membership-only because its repeated package quantity is image-only.
+        - >-
+          The OCR-conditioned label omits repeated image-only 25,300-kilogram row values and the
+          unqualified 101,200-kilogram total rather than manufacturing gross-weight facts.
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication confirmed TCNU5288066/M907550, CAIU7896610/M997555,
+        TCNU5031139/M907564, and CAAU5050620/M907560 verbatim in page-ordered raw OCR. The PDF was
+        consulted only for page-2 row grouping. Three 1,000-BAG allocations are supported by three
+        distinct OCR occurrences; CAAU5050620 is retained as container membership without an
+        unsupported fourth package occurrence.
+      - >-
+        The explicit ORIGINAL BILL OF LADING form and positive original count retain the
+        bill_of_lading document type, while its completed named non-order consignee supports
+        negotiability=non_negotiable.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2024/2024-07-22_c97856e6-25be-4810-98f4-e9612cf2817e.pdf
+        sha256: 1a7137d5701b5e4ea9b1ab72df52577be26030382537e151506bf74157a95194

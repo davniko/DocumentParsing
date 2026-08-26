@@ -32,7 +32,10 @@ SERVER_CONTRACT_SHA256 = runtime_contract_sha256(
         model="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -67,6 +70,7 @@ def valid_config_data() -> dict[str, Any]:
             "run_id": "glm-ocr-20260805T100000Z",
             "fail_fast": False,
             "resume": True,
+            "expected_pages": None,
         },
         "raster": {
             "dpi": 200,
@@ -88,7 +92,10 @@ def valid_config_data() -> dict[str, Any]:
             "engine_version": "0.26.0",
             "container_base_image": CONTAINER_IMAGE,
             "container_build_manifest_sha256": BUILD_MANIFEST_SHA256,
+            "dtype": "bfloat16",
+            "quantization": "none",
             "max_model_len": 32768,
+            "max_num_batched_tokens": 16384,
             "max_num_seqs": 16,
             "gpu_memory_utilization": 0.9,
             "prompt": "Text Recognition:",
@@ -338,7 +345,7 @@ output:
   retain_page_images: false
   parquet_compression: zstd
   write_batch_rows: 64
-run: {run_id: run-1, fail_fast: false, resume: true}
+run: {run_id: run-1, fail_fast: false, resume: true, expected_pages: null}
 raster:
   dpi: 200
   max_side_pixels: 4096
@@ -362,7 +369,10 @@ vllm:
   container_build_manifest_sha256: """
             + BUILD_MANIFEST_SHA256
             + """
+  dtype: bfloat16
+  quantization: none
   max_model_len: 32768
+  max_num_batched_tokens: 16384
   max_num_seqs: 16
   gpu_memory_utilization: 0.9
   prompt: 'Text Recognition:'
@@ -513,7 +523,7 @@ def test_nonfinite_configuration_numbers_are_rejected(value: float) -> None:
         PipelineConfig.model_validate(data, strict=True)
 
 
-def test_prompt_and_mtp_depth_are_fixed_for_raw_glm_ocr() -> None:
+def test_prompt_and_mtp_depth_follow_documented_raw_glm_ocr_contracts() -> None:
     data = valid_config_data()
     data["vllm"]["prompt"] = "OCR this"
     with pytest.raises(ValidationError):
@@ -521,7 +531,14 @@ def test_prompt_and_mtp_depth_are_fixed_for_raw_glm_ocr() -> None:
 
     data = valid_config_data()
     data["vllm"]["speculative_decoding"]["num_speculative_tokens"] = 3
-    with pytest.raises(ValidationError):
+    assert (
+        PipelineConfig.model_validate(data, strict=True)
+        .vllm.speculative_decoding.num_speculative_tokens
+        == 3
+    )
+
+    data["vllm"]["speculative_decoding"]["num_speculative_tokens"] = 2
+    with pytest.raises(ValidationError, match="num_speculative_tokens"):
         PipelineConfig.model_validate(data, strict=True)
 
 

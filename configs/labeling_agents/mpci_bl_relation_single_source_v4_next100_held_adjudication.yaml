@@ -1,0 +1,281 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-next100-held-adjudication-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+
+# Immutable publication of workbook cases 34-49. Every correction is guarded by
+# the exact source value and followed by deterministic evidence reconstruction.
+items:
+  - document_id: doc_de1dd1acc6997c3c41895846132c63d84148e20f754ab6908d8b79f37939780b
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_de1dd1acc6997c3c41895846132c63d84148e20f754ab6908d8b79f37939780b.json
+    work_item_sha256: 8760f5f1b14be19c59a6170e15415a60c673acc22b588dc26e3f4ced6a988be7
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_de1dd1acc6997c3c41895846132c63d84148e20f754ab6908d8b79f37939780b/attempt-4/1d0c6b578cee55341b9e95da16d8b4f6b0a923fe8e03fbb356b6b331931e8fd1.json
+    candidate_sha256: 1d0c6b578cee55341b9e95da16d8b4f6b0a923fe8e03fbb356b6b331931e8fd1
+    rebuild:
+      decision_notes:
+        - Explicit FREIGHT COLLECT ORIGINAL controls the freight arrangement.
+        - The completed named non-order bank consignee establishes a straight bill.
+    target_corrections:
+      - target_path: /documentPatch/freight/paymentArrangement
+        expected_value: prepaid
+        corrected_value: collect
+      - target_path: /documentPatch/negotiability
+        expected_value: null
+        corrected_value: non_negotiable
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 34.
+
+  - document_id: doc_6eab672f44a2e9bf1ebe60fd2bb368131173043b88b5798232c0ec926ad6e28a
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_6eab672f44a2e9bf1ebe60fd2bb368131173043b88b5798232c0ec926ad6e28a.json
+    work_item_sha256: 02bf77084d9f3e25edd558f17da9fcffca6a5d2fa1c1986fff509db80f7a8411
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_6eab672f44a2e9bf1ebe60fd2bb368131173043b88b5798232c0ec926ad6e28a/attempt-1/b5a1afcf874f5ad1b0085b26bb9dced930d54b47f013ff20e22c7ce1cd8df39f.json
+    candidate_sha256: b5a1afcf874f5ad1b0085b26bb9dced930d54b47f013ff20e22c7ce1cd8df39f
+    rebuild:
+      decision_notes:
+        - Preserve the two explicit 17- and 18-pallet rows as separate groups and allocations.
+        - Do not scope the separately printed 35-pallet shipment total to either row.
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 35.
+
+  - document_id: doc_d1fdcd92fff59ac539b2e1cf4e8aff2a5c1588a7ce45adc283d8de75cd10b5b1
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_d1fdcd92fff59ac539b2e1cf4e8aff2a5c1588a7ce45adc283d8de75cd10b5b1.json
+    work_item_sha256: 03c87d09dd7896450d2651e7de21fe32420c4e10610e06eab97e387981fc927f
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_d1fdcd92fff59ac539b2e1cf4e8aff2a5c1588a7ce45adc283d8de75cd10b5b1/attempt-4/ce448a713e3c20beb3343aa9c25494420f71309f64430782465fcaf131ba70f4.json
+    candidate_sha256: ce448a713e3c20beb3343aa9c25494420f71309f64430782465fcaf131ba70f4
+    rebuild:
+      decision_notes:
+        - The retained candidate already includes the headed BDP forwarding agent and printed localities.
+    adjudication_notes:
+      - Promoted unchanged under the reviewed resolution recorded as workbook case 36.
+
+  - document_id: doc_3bc0bdd0d5d981746bdb9409ee28ea7ce85c33795066172c99f9a5afaaa9adf4
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_3bc0bdd0d5d981746bdb9409ee28ea7ce85c33795066172c99f9a5afaaa9adf4.json
+    work_item_sha256: e7a804f9299c7f337db21836336429e3709c214598d8915797ce8a37e974d88c
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_3bc0bdd0d5d981746bdb9409ee28ea7ce85c33795066172c99f9a5afaaa9adf4/attempt-2/92350d24bce6a403d0691dc088118b38b5be128fe7f070872ce37dffb8ee8003.json
+    candidate_sha256: 92350d24bce6a403d0691dc088118b38b5be128fe7f070872ce37dffb8ee8003
+    rebuild:
+      decision_notes:
+        - Retain the OCR-wrapped NORTH- WEST delivery address and the explicit proforma reference.
+    target_corrections:
+      - target_path: /documentPatch/forwardingAndExportReferences
+        expected_value: null
+        corrected_value: [".834349(1)"]
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 37.
+
+  - document_id: doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1.json
+    work_item_sha256: 4710483f9a0404b670cac14ca10d35d6f8494f8c50ac400d50640c2780b70d50
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1/attempt-4/ca6e84bfd4588a625c6a636a6d238d2425f075b0c0a74005e861ff0505c96de2.json
+    candidate_sha256: ca6e84bfd4588a625c6a636a6d238d2425f075b0c0a74005e861ff0505c96de2
+    rebuild:
+      decision_notes:
+        - Preserve both the SET and PALLET facts and link the printed container row to PALLET.
+        - The named non-order consignee establishes a straight bill.
+    target_corrections:
+      - target_path: /documentPatch/negotiability
+        expected_value: negotiable
+        corrected_value: non_negotiable
+      - target_path: /documentPatch/cargoAllocationGroups/0/packageId
+        expected_value: p1
+        corrected_value: p2
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 38.
+
+  - document_id: doc_7bea05747be80a0ea32b58d2a2a0b4b3dbfa41d21bb0e034cd027154984ccb20
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_7bea05747be80a0ea32b58d2a2a0b4b3dbfa41d21bb0e034cd027154984ccb20.json
+    work_item_sha256: 5772d539b9786e0721e459d5b7dfac4cda4c24fad07749b8ade3d0042c06230e
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_7bea05747be80a0ea32b58d2a2a0b4b3dbfa41d21bb0e034cd027154984ccb20/attempt-4/6ff5232c1b8fbaab9d6f535e9a35c23505bf30fc7fc3bbcfc53eab0875f919a4.json
+    candidate_sha256: 6ff5232c1b8fbaab9d6f535e9a35c23505bf30fc7fc3bbcfc53eab0875f919a4
+    rebuild:
+      decision_notes:
+        - Preserve only the four OCR-printed 620-carton rows; do not infer a fifth allocation.
+        - The named non-order consignee establishes a straight bill.
+    target_corrections:
+      - target_path: /documentPatch/negotiability
+        expected_value: negotiable
+        corrected_value: non_negotiable
+    date_corrections:
+      - target_path: documentPatch.shippedOnBoardDate
+        raw_value: 12/01/2026
+        normalized_value: 2026-12-01
+    adjudication_notes:
+      - Applied the frozen month-first date policy and workbook case 39 resolution.
+
+  - document_id: doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4.json
+    work_item_sha256: a611e7c5ae1b2dacf38933a34c28159c0d013a5288c8905d51f6c2dea3a65b37
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4/attempt-3/7495dd981d0613cb35d8a374952d97c52315e61ea59cd1109bd4e3b742301a3d.json
+    candidate_sha256: 7495dd981d0613cb35d8a374952d97c52315e61ea59cd1109bd4e3b742301a3d
+    rebuild:
+      decision_notes:
+        - Preserve the explicit 72-drums, 28-pallets, and one-container relationship.
+        - Keep 585 LB as per-drum context rather than contaminating the goods description.
+    target_corrections:
+      - target_path: /documentPatch/negotiability
+        expected_value: negotiable
+        corrected_value: non_negotiable
+      - target_path: /documentPatch/cargoGroups/0/description
+        expected_value: UCARSOL(TM) SOLVENT COMPONENT DHM 585 LB
+        corrected_value: UCARSOL(TM) SOLVENT COMPONENT DHM
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 40.
+
+  - document_id: doc_3c79ff3c9fa00bb287e372ca4ffbcfc825892d1bf238fe66efc7f7a49e13d553
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_3c79ff3c9fa00bb287e372ca4ffbcfc825892d1bf238fe66efc7f7a49e13d553.json
+    work_item_sha256: fc95f6943c68b60c29daaa0322fc12bedbe6ba59cdf752abe5f74f31d073d800
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_3c79ff3c9fa00bb287e372ca4ffbcfc825892d1bf238fe66efc7f7a49e13d553/attempt-3/862ee7cb3fdc618dd73e69fa47b00aaf6430ee0b0e3425b46dc394604f2e67ac.json
+    candidate_sha256: 862ee7cb3fdc618dd73e69fa47b00aaf6430ee0b0e3425b46dc394604f2e67ac
+    rebuild:
+      document_type: bill_of_lading
+      decision_notes:
+        - Maritime multimodal carriage with a sea leg and positive originals remains in scope.
+        - The completed named non-order consignee establishes a straight bill.
+    target_corrections:
+      - target_path: /documentPatch/negotiability
+        expected_value: null
+        corrected_value: non_negotiable
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 41.
+
+  - document_id: doc_bf26c9785b3af05cfc328a92aee933b22ab7512a794c30d8a982d6ed979258ce
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_bf26c9785b3af05cfc328a92aee933b22ab7512a794c30d8a982d6ed979258ce.json
+    work_item_sha256: d15db70123a87bb5564198628fd5e1cd615b757317fe2094c47c1395b6f17e7f
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-cost-guard-regression2-v11-v1/validated/f18eeb0b683acc1d013351b72661ad9f92f776e018496d68638de243f059c90d.json
+    candidate_sha256: f18eeb0b683acc1d013351b72661ad9f92f776e018496d68638de243f059c90d
+    adjudication_notes:
+      - Promoted the validated v11 regression under workbook case 42.
+
+  - document_id: doc_fdff56bff806e82dc4dc72c71fd4628a46612ced59b0c4891c7d516829eefa69
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_fdff56bff806e82dc4dc72c71fd4628a46612ced59b0c4891c7d516829eefa69.json
+    work_item_sha256: a7cedbecf997815db62da5b9a16269704249d39f4059f796df3521203b5a8722
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_fdff56bff806e82dc4dc72c71fd4628a46612ced59b0c4891c7d516829eefa69/attempt-4/c1024a2cdff235b67faf6daefff056d58461223abc2e5c547a41ceaf4cd71a5e.json
+    candidate_sha256: c1024a2cdff235b67faf6daefff056d58461223abc2e5c547a41ceaf4cd71a5e
+    rebuild:
+      decision_notes:
+        - Positive original-surrender terms establish negotiability.
+        - Retain the explicit jerrican allocation; do not infer a temperature unit from FLP. +050.
+    target_corrections:
+      - target_path: /documentPatch/negotiability
+        expected_value: null
+        corrected_value: negotiable
+    adjudication_notes:
+      - Applied the OCR-conditioned portion of workbook case 43; flash point remains null because no unit is printed.
+
+  - document_id: doc_39fc076c45f436011d7658820c25f47b6a4ff52c08482a87303393f476ca09cd
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_39fc076c45f436011d7658820c25f47b6a4ff52c08482a87303393f476ca09cd.json
+    work_item_sha256: 29659b831936eea117728d11e267e0aa9ebf2d212d47df475e7868f4a5a264b6
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_39fc076c45f436011d7658820c25f47b6a4ff52c08482a87303393f476ca09cd/attempt-4/eef0ecf00d238311b4e4efc997420a55aa87442ce8ad7d5998d179a7a1f07b37.json
+    candidate_sha256: eef0ecf00d238311b4e4efc997420a55aa87442ce8ad7d5998d179a7a1f07b37
+    rebuild:
+      decision_notes:
+        - Retain only the three explicit 41-package container rows and the shipment total 451.
+        - Other printed containers remain membership-only; no missing allocation is inferred.
+    target_corrections:
+      - target_path: /documentPatch/cargoPackages/0/quantity
+        expected_value: null
+        corrected_value: 451
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 44.
+
+  - document_id: doc_529801a61ac7fe189cf572fbffa5f748d10b3fe5d285724741f19b129305595c
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_529801a61ac7fe189cf572fbffa5f748d10b3fe5d285724741f19b129305595c.json
+    work_item_sha256: 12abb54bc2e5786e0698690b8d80c6e6d8f24457f698e288c795f03500c260f9
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_529801a61ac7fe189cf572fbffa5f748d10b3fe5d285724741f19b129305595c/attempt-3/693819fdf222667dcca18e20cee787c792fc90aba55ddc4d4384c5dc3b1fcd81.json
+    candidate_sha256: 693819fdf222667dcca18e20cee787c792fc90aba55ddc4d4384c5dc3b1fcd81
+    rebuild:
+      decision_notes:
+        - Keep only the explicit B/L number PIR0235694; do not invent a reference from its suffix.
+        - Remove document-wide consignee-risk flavor from the cargo group.
+    target_corrections:
+      - target_path: /documentPatch/forwardingAndExportReferences
+        expected_value: [R0235694]
+        corrected_value: null
+      - target_path: /documentPatch/cargoGroups/0/additionalInformation
+        expected_value: ["PORT SAID FREE ZONE ON CNEE’S RISK AND ACCOUNT"]
+        corrected_value: null
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 45.
+
+  - document_id: doc_21e127e57ff952a3b49289709ea17b7520273bb5ff071cd775cabe7cd054b042
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_21e127e57ff952a3b49289709ea17b7520273bb5ff071cd775cabe7cd054b042.json
+    work_item_sha256: bd6f77ed68f94ee67ac20c656882fa7bbb527e61e67194f948ba3c8a9c9f4c2c
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_21e127e57ff952a3b49289709ea17b7520273bb5ff071cd775cabe7cd054b042/attempt-3/8e8bab21f52d183933bb9cd3a028a0604dea230d3dec1a4ded28586676a30db7.json
+    candidate_sha256: 8e8bab21f52d183933bb9cd3a028a0604dea230d3dec1a4ded28586676a30db7
+    rebuild:
+      decision_notes:
+        - Normalize only punctuation in the two OCR-printed container identifiers.
+        - Preserve the two explicit pallet/box rows; shipment totals remain unscoped audit context.
+    target_corrections:
+      - target_path: /documentPatch/billOfLadingNumber
+        expected_value: null
+        corrected_value: ISD/ALX/00837
+      - target_path: /documentPatch/cargoGroups
+        expected_value:
+          - {additionalInformation: null, dangerousGoods: null, description: "AUTOMOTIVE OIL, FUEL, AIR & AIR FILTERS", grossWeight: {unit: kilogram, value: 13001.0}, groupId: g1, handlingInstructions: null, hsCodes: ["84212300000", "842131009000"], marksAndNumbers: null, netWeight: null, origin: null, volume: null}
+        corrected_value:
+          - {additionalInformation: null, dangerousGoods: null, description: "AUTOMOTIVE OIL, FUEL, AIR & AIR FILTERS", grossWeight: {unit: kilogram, value: 6960}, groupId: g1, handlingInstructions: null, hsCodes: ["84212300000", "842131009000"], marksAndNumbers: null, netWeight: null, origin: null, volume: null}
+          - {additionalInformation: null, dangerousGoods: null, description: "AUTOMOTIVE OIL, FUEL, AIR & AIR FILTERS", grossWeight: {unit: kilogram, value: 6041}, groupId: g2, handlingInstructions: null, hsCodes: ["84212300000", "842131009000"], marksAndNumbers: null, netWeight: null, origin: null, volume: null}
+      - target_path: /documentPatch/cargoPackages
+        expected_value:
+          - {groupId: g1, packageId: p1, quantity: 1799, typeDescription: BOXES}
+          - {groupId: g1, packageId: p2, quantity: 17444, typeDescription: PCS}
+          - {groupId: g1, packageId: p3, quantity: 47, typeDescription: PALLETS}
+        corrected_value:
+          - {groupId: g1, packageId: p1, quantity: 24, typeDescription: PALLETS}
+          - {groupId: g1, packageId: p2, quantity: 956, typeDescription: BOXES}
+          - {groupId: g2, packageId: p3, quantity: 23, typeDescription: PALLETS}
+          - {groupId: g2, packageId: p4, quantity: 843, typeDescription: BOXES}
+      - target_path: /documentPatch/cargoAllocationGroups
+        expected_value:
+          - {allocations: [{containerNumber: CMAU6577545, packageQuantity: 956}], coverage: unlinked_package_quantities, groupId: g1}
+        corrected_value:
+          - {allocations: [{containerNumber: CMAU6577545, packageId: p1, packageQuantity: 24}, {containerNumber: CMAU6577545, packageId: p2, packageQuantity: 956}], coverage: one_to_one_package_allocations, groupId: g1}
+          - {allocations: [{containerNumber: TRLU7369873, packageId: p3, packageQuantity: 23}, {containerNumber: TRLU7369873, packageId: p4, packageQuantity: 843}], coverage: one_to_one_package_allocations, groupId: g2}
+      - target_path: /documentPatch/containers
+        expected_value:
+          - {containerNumber: CMAU6577545, sealNumbers: [L2963613], temperatureSetpoint: null, typeDescription: "40 HC", verifiedGrossMass: null}
+        corrected_value:
+          - {containerNumber: CMAU6577545, sealNumbers: [L2963613], temperatureSetpoint: null, typeDescription: "40 HC", verifiedGrossMass: null}
+          - {containerNumber: TRLU7369873, sealNumbers: [L2964480], temperatureSetpoint: null, typeDescription: "40 HC", verifiedGrossMass: null}
+    adjudication_notes:
+      - Applied the reviewed row-level resolution recorded as workbook case 46.
+
+  - document_id: doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83.json
+    work_item_sha256: 2e52c4c04c98897593613248fd153c3de39ced818ac2ee1435864237b5843b79
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-cost-guard-regression2-v11-v1/validated/0f812af727cf02f3903b8596befd177e96b2687c66f7cfbca3df6c377cd45f76.json
+    candidate_sha256: 0f812af727cf02f3903b8596befd177e96b2687c66f7cfbca3df6c377cd45f76
+    adjudication_notes:
+      - Promoted the validated v11 regression under workbook case 47.
+
+  - document_id: doc_fdbabd0abe4187ecd28486bfc62a82719449398547a9501be5c10aee29a8769f
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_fdbabd0abe4187ecd28486bfc62a82719449398547a9501be5c10aee29a8769f.json
+    work_item_sha256: 1370737842b779d5965a3301cbeae3e3f259eca30ae9fc4b84009307364ba1d8
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_fdbabd0abe4187ecd28486bfc62a82719449398547a9501be5c10aee29a8769f/attempt-3/2794eb3aaad28ad18482665757bd9f37dd888196636badca599dd9eb702440b7.json
+    candidate_sha256: 2794eb3aaad28ad18482665757bd9f37dd888196636badca599dd9eb702440b7
+    rebuild:
+      document_type: sea_waybill
+      decision_notes:
+        - Explicit E / Express B/L wording controls over generic original-surrender boilerplate.
+        - Retain the headed place of receipt and complete OCR-printed shipper address.
+    target_corrections:
+      - target_path: /documentPatch/negotiability
+        expected_value: negotiable
+        corrected_value: non_negotiable
+      - target_path: /documentPatch/issueDate
+        expected_value: null
+        corrected_value: "2025-12-24"
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 48.
+
+  - document_id: doc_98dc46e941c4b81e527a27f47095f6175570d9cf0fb075c8e0c3369ea85517cd
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/work-items/doc_98dc46e941c4b81e527a27f47095f6175570d9cf0fb075c8e0c3369ea85517cd.json
+    work_item_sha256: 5af9b765903ad7d6f9cdeea87db341c8e25ccecacfd7b5b7f0061ca6a4d8e14a
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next100-v10-c16-v1/state/candidate-attempts/doc_98dc46e941c4b81e527a27f47095f6175570d9cf0fb075c8e0c3369ea85517cd/attempt-1/2f241a7fa4ac533051233dd2caaea3ec2c9aed0dc2d6126f317ff5d623d7658b.json
+    candidate_sha256: 2f241a7fa4ac533051233dd2caaea3ec2c9aed0dc2d6126f317ff5d623d7658b
+    rebuild:
+      decision_notes:
+        - Preserve the OCR-truncated notify address without image-only completion.
+        - Keep both package facts and the exact OCR-grounded connection statement without importing S.T.C. boilerplate.
+    adjudication_notes:
+      - Applied the reviewed resolution recorded as workbook case 49.

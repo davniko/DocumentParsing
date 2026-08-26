@@ -1,0 +1,11 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-blind50-consolidated-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-c16-v5
+selection_sha256: 567b3a2ae45a4b9ca200f0ce4fc363faef33feefac07d070d2fc22da1ee9eeb5
+expected_documents: 50
+
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-blind50-c16-v5
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind50-c16-v5
+

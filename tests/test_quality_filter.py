@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import json
+
+import pytest
+from test_exporter import _attempt, _record
+
+from document_ocr.models import InferenceAttempt
 from document_ocr.quality_filter import (
     PageQualityEvidence,
+    _attempts_for_page,
     assess_document_quality,
     scan_unicode_quality,
 )
@@ -80,3 +87,50 @@ def test_missing_registered_page_excludes_whole_document() -> None:
 
     assert result.eligible is False
     assert result.reasons[0]["missing_page_indexes"] == [1]
+
+
+@pytest.mark.parametrize("prior_outcome", ["retryable_error", "terminal_error", "success"])
+def test_attempt_audit_accepts_valid_prior_invocation_outcomes(prior_outcome: str) -> None:
+    base_record = _record(0, 1)
+    record = base_record.model_copy(
+        update={
+            "inference_attempt_count": 2,
+            "inference_request_id": "request-2",
+            "inference_server_request_id": "server-request-2",
+        }
+    )
+    first_values = _attempt(0, 1).model_dump(mode="python")
+    if prior_outcome != "success":
+        first_values.update(
+            {
+                "attempt_outcome": prior_outcome,
+                "error_type": "FixtureError",
+                "error_message": "first invocation ended without a page result",
+            }
+        )
+    first = InferenceAttempt.model_validate(first_values, strict=True)
+    second = _attempt(0, 1).model_copy(
+        update={
+            "attempt_number": 2,
+            "inference_request_id": "request-2",
+            "inference_server_request_id": "server-request-2",
+        }
+    )
+    page_row = {
+        "run_id": record.run_id,
+        "extraction_id": record.extraction_id,
+        "document_id": record.document_id,
+        "page_id": record.page_id,
+        "page_index": record.page_index,
+    }
+
+    audited = _attempts_for_page(
+        attempt_rows=(
+            {"attempt_json": json.dumps(first.model_dump(mode="json"))},
+            {"attempt_json": json.dumps(second.model_dump(mode="json"))},
+        ),
+        page_row=page_row,
+        record=record,
+    )
+
+    assert [attempt.attempt_outcome for attempt in audited] == [prior_outcome, "success"]

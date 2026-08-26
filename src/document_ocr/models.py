@@ -213,7 +213,7 @@ class InferenceMetadata(_FrozenRecord):
     inference_server_build_manifest_sha256: str
     inference_server_contract_sha256: str
     inference_speculative_method: Literal["mtp"]
-    inference_num_speculative_tokens: Literal[1]
+    inference_num_speculative_tokens: Literal[1, 3]
     inference_prompt: Literal["Text Recognition:"]
     inference_prompt_sha256: str
     inference_temperature: float

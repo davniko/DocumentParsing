@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next300-first50-held-adjudication-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d.json",
+      "work_item_sha256": "0693c8507bbccd26a7c79d162581ba6166f248355c99b324d709b0ba71fb58f3",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d/attempt-1/3d2bdb5820c1b6afaced84d9c741d92375decfa9ab071d51c5dbc15c1a428568.json",
+      "candidate_sha256": "3d2bdb5820c1b6afaced84d9c741d92375decfa9ab071d51c5dbc15c1a428568",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Primary BILL OF LADING NUMBER heading controls the represented identifier; the secondary headed value remains documented as a warning."
+      ]
+    },
+    {
+      "document_id": "doc_11a4fc7d08b4b42867346ab6b0221b84a8cdb33fa6b543164cf86e226c0a5f51",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_11a4fc7d08b4b42867346ab6b0221b84a8cdb33fa6b543164cf86e226c0a5f51.json",
+      "work_item_sha256": "b73dc39f603191bd637054a7174d8be6afdf4477c68e907571948dc5d5af3aaf",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_11a4fc7d08b4b42867346ab6b0221b84a8cdb33fa6b543164cf86e226c0a5f51/attempt-4/33e0ec780da1dd2876acf5a5e6c582e9baf0f7653ec51d530ed9aa0684c66c61.json",
+      "candidate_sha256": "33e0ec780da1dd2876acf5a5e6c582e9baf0f7653ec51d530ed9aa0684c66c61",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Retained correction contains the complete OCR-grounded carrier masthead and contacts."
+      ]
+    },
+    {
+      "document_id": "doc_130c0478b9419f78a9e175de4a3425f4b74c9abbedc9d441f2ddcc897811ceb9",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_130c0478b9419f78a9e175de4a3425f4b74c9abbedc9d441f2ddcc897811ceb9.json",
+      "work_item_sha256": "643930714c620db6711df83f4ceef8ca6c03dc558f0ad07066de471cf6801a6b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_130c0478b9419f78a9e175de4a3425f4b74c9abbedc9d441f2ddcc897811ceb9/attempt-2/33cb9ea8c6596fd0271d79e8f103cf53e3894f6b8bcb243844fd9b9bf3d7e8c4.json",
+      "candidate_sha256": "33cb9ea8c6596fd0271d79e8f103cf53e3894f6b8bcb243844fd9b9bf3d7e8c4",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Added the explicit domestic-routing/export instruction value; retained the corrected cargo mark."
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Added the explicit domestic-routing/export instruction value; retained the corrected cargo mark."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "X20231227986364"
+          ]
+        }
+      ]
+    },
+    {
+      "document_id": "doc_144365dd2061de9a908a35de07ac5af24ffa2908d8ea7b25cc69f185ad9b558c",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_144365dd2061de9a908a35de07ac5af24ffa2908d8ea7b25cc69f185ad9b558c.json",
+      "work_item_sha256": "3b055c47c04fb95d0e251e7bc885fd4d190aa1e010208504ef1b72be7b49ccbf",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_144365dd2061de9a908a35de07ac5af24ffa2908d8ea7b25cc69f185ad9b558c/attempt-2/31af6eb864853c0d9281260835fe800e53ab65951bdcb9eedd6253f547e5feeb.json",
+      "candidate_sha256": "31af6eb864853c0d9281260835fe800e53ab65951bdcb9eedd6253f547e5feeb",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Retained the corrected carrier and N/M mark while leaving unsupported place of receipt null."
+      ]
+    },
+    {
+      "document_id": "doc_1a32036db0121bd4f1a9eb0dc97efac38a9b630d5f84a35498876d2f0f42948c",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_1a32036db0121bd4f1a9eb0dc97efac38a9b630d5f84a35498876d2f0f42948c.json",
+      "work_item_sha256": "67ba5ce8db063ad9b6b3d4225c93442e9c0e7652e37ee2f01bbc521819551b83",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_1a32036db0121bd4f1a9eb0dc97efac38a9b630d5f84a35498876d2f0f42948c/attempt-1/5d659b852c3924e59d54ebf91cc18c880bd71643529f149907b692fa998ea794.json",
+      "candidate_sha256": "5d659b852c3924e59d54ebf91cc18c880bd71643529f149907b692fa998ea794",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Normalized dot-grouped 4.713 immediately before BULLS as the integer count 4713."
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Normalized dot-grouped 4.713 immediately before BULLS as the integer count 4713."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages/0/quantity",
+          "expected_value": null,
+          "corrected_value": 4713
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Printed package quantity appears as 4.713 and cannot be safely normalized to a supported integer quantity.",
+          "pageNumbers": [
+            1
+          ],
+          "targetPath": "documentPatch.cargoPackages[0].quantity"
+        }
+      ]
+    },
+    {
+      "document_id": "doc_2f4d1db9a837beeb77e9d1a15dd788fde0487832915a868bf4bc6f735b2a9a5d",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_2f4d1db9a837beeb77e9d1a15dd788fde0487832915a868bf4bc6f735b2a9a5d.json",
+      "work_item_sha256": "20d229fb4c766309b7ff57e7b064679ecd48b42068e8b441c06215f1bd44730a",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_2f4d1db9a837beeb77e9d1a15dd788fde0487832915a868bf4bc6f735b2a9a5d/attempt-1/6a47a6d6bac0cf9a0ed0b50d4907ca154d0ca171ae2df9f40d43d7ece5fb039e.json",
+      "candidate_sha256": "6a47a6d6bac0cf9a0ed0b50d4907ca154d0ca171ae2df9f40d43d7ece5fb039e",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "DG-local C.C. closed-cup notation establishes a 25 degree Celsius flash point."
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "DG-local C.C. closed-cup notation establishes a 25 degree Celsius flash point."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/dangerousGoods/0/flashPoint",
+          "expected_value": null,
+          "corrected_value": {
+            "temperature": {
+              "unit": "celsius",
+              "value": 25
+            }
+          }
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "The printed 25C.C.C. temperature was omitted because its flash-point context is not explicit enough for deterministic grounding.",
+          "pageNumbers": [
+            2
+          ],
+          "targetPath": "documentPatch.cargoGroups[0].dangerousGoods[0].flashPoint"
+        }
+      ]
+    },
+    {
+      "document_id": "doc_317baeb5ea487f06a6d84b6820c504eecd8f3c0d4433e44acf2b9b8ef06385a9",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_317baeb5ea487f06a6d84b6820c504eecd8f3c0d4433e44acf2b9b8ef06385a9.json",
+      "work_item_sha256": "629f38e57a50cc1e11428066ca9457567e9a17abc333601d839928ec95757b90",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_317baeb5ea487f06a6d84b6820c504eecd8f3c0d4433e44acf2b9b8ef06385a9/attempt-2/9ff6c05a11f932288cc4968cefc48fee40b3358de92347d5ec898964ef5101bf.json",
+      "candidate_sha256": "9ff6c05a11f932288cc4968cefc48fee40b3358de92347d5ec898964ef5101bf",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Added the exact domestic-routing/export instruction value."
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Added the exact domestic-routing/export instruction value."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "X20240116846695"
+          ]
+        }
+      ]
+    },
+    {
+      "document_id": "doc_3f4147c451242bb624a4ee573b62e03986f059853e11091ba2877a60fe9aed43",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_3f4147c451242bb624a4ee573b62e03986f059853e11091ba2877a60fe9aed43.json",
+      "work_item_sha256": "6a7df3a8c24a11d98075d976097d7aaa93d5df472f24c9da2a7898af8d447d6d",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_3f4147c451242bb624a4ee573b62e03986f059853e11091ba2877a60fe9aed43/attempt-4/456ca8927e1a1f8e8c5e658ad1be30c63de5b5040b28450e1ed41cee484594f2.json",
+      "candidate_sha256": "456ca8927e1a1f8e8c5e658ad1be30c63de5b5040b28450e1ed41cee484594f2",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "The completed named non-order consignee establishes a straight non-negotiable bill; retained the wood declaration."
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "The completed named non-order consignee establishes a straight non-negotiable bill; retained the wood declaration."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": "negotiable",
+          "corrected_value": "non_negotiable"
+        }
+      ]
+    },
+    {
+      "document_id": "doc_72fc9679aa671bd18e7b49a61eddeb7ccfbb10caa92a893f6c129d60aadbf67b",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_72fc9679aa671bd18e7b49a61eddeb7ccfbb10caa92a893f6c129d60aadbf67b.json",
+      "work_item_sha256": "7b985b928e4ac41769cfdfceda7388eb15ccb579717da43e1985a54484d5f3cd",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_72fc9679aa671bd18e7b49a61eddeb7ccfbb10caa92a893f6c129d60aadbf67b/attempt-2/9f8367b7f4759a48e2ea55f99771eb5bb0fe43adf7e2d363ad56333ec8c4112c.json",
+      "candidate_sha256": "9f8367b7f4759a48e2ea55f99771eb5bb0fe43adf7e2d363ad56333ec8c4112c",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "No valid container is printed; cargoPackages.groupId supplies the cargo relationship and allocation remains null."
+      ]
+    },
+    {
+      "document_id": "doc_7b868608d4e6b85c032bbee1b0ec616bb4d8bbc316bc9b4a1d8c9a6b986dfaa1",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_7b868608d4e6b85c032bbee1b0ec616bb4d8bbc316bc9b4a1d8c9a6b986dfaa1.json",
+      "work_item_sha256": "4a1ff2e88635eeaf243666982a6b94781cf37ae2f1f2f785b6fcf0566c450f90",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_7b868608d4e6b85c032bbee1b0ec616bb4d8bbc316bc9b4a1d8c9a6b986dfaa1/attempt-3/5e7a92865583996fb9e7a6bd32c43d07ea22d0f46287fef32315189bde1c8158.json",
+      "candidate_sha256": "5e7a92865583996fb9e7a6bd32c43d07ea22d0f46287fef32315189bde1c8158",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Retained the corrected shipper address and clean product description."
+      ]
+    },
+    {
+      "document_id": "doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96.json",
+      "work_item_sha256": "57b49221a71afcef803ed65ae8b579f68662df65113313eb9a997df1a328f768",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96/attempt-4/93685571349e73371b951c0b1cb9f9bd6870b8934a1f8832d4b9b5fe9f1fd02e.json",
+      "candidate_sha256": "93685571349e73371b951c0b1cb9f9bd6870b8934a1f8832d4b9b5fe9f1fd02e",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Retained the OCR-grounded shipper country and telephone correction."
+      ]
+    },
+    {
+      "document_id": "doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094.json",
+      "work_item_sha256": "34453bb42abc2ff2b78fd12f72a15dc8e7d1f2841d26713a2543d3862350e177",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094/attempt-3/bdf587f23f78a93f460eef882716c418eed6a83a3e637fdc278b8517823e73a5.json",
+      "candidate_sha256": "bdf587f23f78a93f460eef882716c418eed6a83a3e637fdc278b8517823e73a5",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Added the explicit HS code and preserved the outer/inner package wording; no container allocation was invented."
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Added the explicit HS code and preserved the outer/inner package wording; no container allocation was invented."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/hsCodes",
+          "expected_value": null,
+          "corrected_value": [
+            "330290"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": [
+            "200 LITERS EACH"
+          ],
+          "corrected_value": [
+            "200 LITERS EACH",
+            "2 1A1 STEEL DRUMS"
+          ]
+        }
+      ]
+    },
+    {
+      "document_id": "doc_c1f612a21fa1e68e9b6bee2bb2e99148d84fc5c3059a1d5a4d45986b4be7c9e1",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_c1f612a21fa1e68e9b6bee2bb2e99148d84fc5c3059a1d5a4d45986b4be7c9e1.json",
+      "work_item_sha256": "ee4b69f5b17f61e0f5867835e85cc19174464dd5421a496f6ad542876c569ec5",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_c1f612a21fa1e68e9b6bee2bb2e99148d84fc5c3059a1d5a4d45986b4be7c9e1/attempt-2/5ba273ae92c14e8abb4dca015e091fdecd6c4f62b9122a90511afbd0a43e90c6.json",
+      "candidate_sha256": "5ba273ae92c14e8abb4dca015e091fdecd6c4f62b9122a90511afbd0a43e90c6",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Retained the clean Mercedes Benz-Actros description; allocation remains null because no container is printed."
+      ]
+    },
+    {
+      "document_id": "doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d.json",
+      "work_item_sha256": "47177db846687a171ac41bc9c9ddf1954e8bcb08610c41f0f85303049398473c",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/model-decisions/doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d/attempt-2/302496a46c3d53366938e2c91ed632b6fe9308b29a9fa24e8bc7bb5df528dad9.json",
+      "candidate_sha256": "302496a46c3d53366938e2c91ed632b6fe9308b29a9fa24e8bc7bb5df528dad9",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Retained postal code and unlinked allocation correction; generic ORIGIN does not establish a freight arrangement."
+      ]
+    }
+  ]
+}

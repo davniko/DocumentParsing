@@ -1,0 +1,9 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-test80-remediated-merged-v2
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+
+source_datasets:
+  - dataset_id: mpci-bl-relation-single-source-v4-test30-consolidated-v2-month-first
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-test30-consolidated-v2-month-first
+  - dataset_id: mpci-bl-relation-single-source-v4-blind50-remediated-consolidated-v2
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-blind50-remediated-consolidated-v2

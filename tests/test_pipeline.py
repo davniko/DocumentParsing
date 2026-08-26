@@ -39,7 +39,10 @@ def _server_info() -> ServerInfo:
         model="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -55,7 +58,10 @@ def _server_info() -> ServerInfo:
         model_repository="zai-org/GLM-OCR",
         served_model_name="glm-ocr",
         model_revision=MODEL_REVISION,
+        dtype="bfloat16",
+        quantization="none",
         max_model_len=32768,
+        max_num_batched_tokens=16384,
         max_num_seqs=16,
         gpu_memory_utilization=0.9,
         generation_config="vllm",
@@ -179,7 +185,9 @@ def _write_pdf(path: Path, page_count: int) -> None:
         writer.write(stream)
 
 
-def _pipeline_config(source_root: Path, output_root: Path) -> PipelineConfig:
+def _pipeline_config(
+    source_root: Path, output_root: Path, *, expected_pages: int | None = None
+) -> PipelineConfig:
     data = valid_config_data()
     data["source"] = {
         "type": "local",
@@ -193,6 +201,7 @@ def _pipeline_config(source_root: Path, output_root: Path) -> PipelineConfig:
         "run_id": "pipeline-e2e",
         "fail_fast": True,
         "resume": True,
+        "expected_pages": expected_pages,
     }
     data["raster"] = {
         "dpi": 72,
@@ -223,7 +232,7 @@ async def test_pipeline_extracts_real_pdf_pages_and_resumes_without_server(
     output_root = tmp_path / "output"
     source_root.mkdir()
     _write_pdf(source_root / "four-pages.pdf", page_count=4)
-    config = _pipeline_config(source_root, output_root)
+    config = _pipeline_config(source_root, output_root, expected_pages=4)
     project_root = Path(__file__).parents[1]
     client = FakeOcrClient()
     progress_events: list[PipelineProgress] = []
@@ -243,23 +252,24 @@ async def test_pipeline_extracts_real_pdf_pages_and_resumes_without_server(
     assert result.summary["successful_pages"] == 4
     assert result.summary["audited_successful_pages"] == 4
     assert result.summary["attempt_rows"] == 4
-    assert progress_events == [
-        PipelineProgress(
-            phase="checking_server",
-            total_documents=1,
-            processed_documents=0,
-        ),
-        PipelineProgress(
-            phase="extracting",
-            total_documents=1,
-            processed_documents=1,
-        ),
-        PipelineProgress(
-            phase="publishing",
-            total_documents=1,
-            processed_documents=1,
-        ),
+    assert progress_events[0].phase == "checking_server"
+    assert progress_events[0].processed_pages == 0
+    assert progress_events[0].total_pages == 4
+    assert progress_events[-1].phase == "publishing"
+    assert progress_events[-1].processed_documents == 1
+    assert progress_events[-1].processed_pages == 4
+    assert progress_events[-1].successful_pages == 4
+    assert progress_events[-1].failed_pages_this_invocation == 0
+    assert progress_events[-1].remaining_documents == 0
+    assert progress_events[-1].remaining_pages == 0
+    assert progress_events[-1].eta_seconds == 0.0
+    page_progress = [
+        event.processed_pages
+        for event in progress_events
+        if event.phase == "extracting" and event.processed_pages > 0
     ]
+    assert set(page_progress) == {1, 2, 3, 4}
+    assert progress_events[-1].throughput_pages_per_second > 0.0
 
     manifest_bytes = result.dataset_manifest.read_bytes()
     manifest = json.loads(manifest_bytes)
@@ -339,6 +349,25 @@ async def test_pipeline_extracts_real_pdf_pages_and_resumes_without_server(
         if path.is_file()
     }
     assert after_status == before_status
+
+
+@pytest.mark.asyncio
+async def test_pipeline_rejects_expected_page_count_drift(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    output_root = tmp_path / "output"
+    source_root.mkdir()
+    _write_pdf(source_root / "four-pages.pdf", page_count=4)
+    config = _pipeline_config(source_root, output_root, expected_pages=3)
+
+    with pytest.raises(
+        PipelineError,
+        match=r"registered PDF page count does not match run\.expected_pages \(4 != 3\)",
+    ):
+        await run_pipeline(
+            project_root=Path(__file__).parents[1],
+            config=config,
+            ocr_client=FakeOcrClient(),
+        )
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,19 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-luna-blind200-policy-adjudication1-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+items:
+  - document_id: doc_289656a8e8f85a59f2527008acc1db81ffc42486bce3ab8ce3ad386df8001fea
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/work-items/doc_289656a8e8f85a59f2527008acc1db81ffc42486bce3ab8ce3ad386df8001fea.json
+    work_item_sha256: ae09490940d4e6e9092f17f7a498c5f9170f01d5bb02d8a7c6b00ed91d062f21
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/state/candidate-attempts/doc_289656a8e8f85a59f2527008acc1db81ffc42486bce3ab8ce3ad386df8001fea/attempt-2/6802ab6b318e4a34f08c31416b3d42acf58eb1a7de49a72e4b0457406725cd2c.json
+    candidate_sha256: 6802ab6b318e4a34f08c31416b3d42acf58eb1a7de49a72e4b0457406725cd2c
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication accepted the second immutable candidate after confirming that the
+        sole blocking review demand treated a unitless MEASUREMENT table value as cubic volume.
+        The raw OCR prints no CBM, MTQ, M3, CU. M., or cubic-metre unit for that value, so volume
+        correctly remains null under the frozen OCR-conditioned truth policy.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-c16-v1/state/independent-reviews/doc_289656a8e8f85a59f2527008acc1db81ffc42486bce3ab8ce3ad386df8001fea/attempt-2/82f9823f7e44cd8ae5d14538833aeaa899508442fdaa68e58b87d159acaa66c6.json
+        sha256: 82f9823f7e44cd8ae5d14538833aeaa899508442fdaa68e58b87d159acaa66c6

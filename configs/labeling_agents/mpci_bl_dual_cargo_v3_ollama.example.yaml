@@ -1,0 +1,85 @@
+# Copy this file, replace the exact local model tag/capabilities, and pin the current
+# work-item inventory SHA-256 before running. Never enable automatic Luna fallback.
+schema_version: 3
+task: bill_of_lading_dual_cargo_v3
+environment_file: .env
+
+run:
+  run_id: replace-with-new-immutable-run-id
+  output_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: required
+  expected_documents: 487
+  expected_pages: 881
+  expected_inventory_sha256: d733d6595a64b7e5978388a7a0d4a0088166bfb3ab000277065c9a7b5c54a60e
+  work_item_roots:
+    - id: semantic_v2_pilot106
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-pilot150-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-pilot150-r1/training/records.jsonl
+      selection_records_sha256: 40930f2681043065f02da85bab09ccdf3c1f13fbd0b291797b32d2b4b200cc9c
+      documents: 106
+    - id: semantic_v2_followup381
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-followup420-r3/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-followup420-r3/training/records.jsonl
+      selection_records_sha256: b5fdf1874f297bf86adad2e128e91ece04d1dcc4ceb1eddeb430f4f7f385ee46
+      documents: 381
+  extraction_runs:
+    - run_id: glm-ocr-blc-pilot150-faa3c717dbc4
+      root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/pilots/blc150/runs/glm-ocr-blc-pilot150-faa3c717dbc4
+    - run_id: glm-ocr-blc-followup500-c0139c175677-r1
+      root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/pilots/blc500-followup/runs/glm-ocr-blc-followup500-c0139c175677-r1
+
+selection:
+  count: 50
+  seed: 5656
+  namespace: replace-with-new-selection-namespace
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_dual_cargo_v3_extractor.md
+    sha256: 1ce35886b9eb109985152497a599de85c139e56598eadbbee1fd7db9eb72e8c1
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_dual_cargo_v3_reviewer.md
+    sha256: 89089da6a566dbe7c4f48967a5779e5dabaf2c01be48bb26703600ccecd48a29
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: c135a6ccae5a389dca4a1bb61ec7f584a594de116f2abb8d1118d630b173f361
+
+providers:
+  - id: local_qwen
+    kind: ollama_openai_chat
+    model: replace-with-exact-ollama-tag
+    base_url: http://127.0.0.1:11434/v1
+    api_key: ollama
+    native_json_schema: true
+    supports_pdf_documents: false
+    reasoning_mode: provider_default
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+
+assignments:
+  labeler: local_qwen
+  reviewer: local_qwen
+  document_layout: local_qwen
+
+workflow:
+  max_concurrent_documents: 8
+  max_concurrent_model_requests: 8
+  max_candidate_attempts: 3
+  # The OpenAI-compatible Ollama endpoint has no portable PDF-input contract.
+  # Keep escalation disabled rather than silently dropping the document.
+  max_document_escalations_per_document: 0
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false

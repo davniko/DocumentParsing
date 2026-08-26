@@ -16,7 +16,14 @@ For every non-null target leaf:
 2. retain every contributing exact OCR substring in `rawOcrEvidence[].rawValue`;
 3. put each raw value inside a verbatim `ocrExcerpt` from the same page;
 4. record a precise `normalizationRule` unless the emitted scalar equals the cited raw value; and
-5. keep evidence entries in page/source order.
+5. keep entries inside each `FieldEvidence.rawOcrEvidence` sequence in page/source order.
+
+The outer `evidence[]` array follows canonical target traversal and has no global OCR-order
+contract. Do not reorder independent `FieldEvidence` records merely because their cited values
+occur elsewhere on the page in a different order.
+
+An `ocrExcerpt` is one exact contiguous substring of the cited raw-OCR page. Never reconstruct an
+excerpt by skipping intervening headers/columns, and never place image-visible text in evidence.
 
 If the image is clearer than OCR, do not correct OCR. If another OCR page contains the intact value,
 the intact OCR value is admissible with cross-page evidence.
@@ -51,7 +58,9 @@ the address ends before `- PH:` and the phone belongs only in `contactDetails.ph
 
 Apply the same rule to every field. Exclude headings, labels, neighboring column values, tax text,
 contact text, legal clauses, signatures, portal metadata, and explanatory flavor text. Do not
-silently discard an uncertain fragment: omit the target and add a warning.
+silently discard an uncertain *meaningful transport fact*: omit its target and add a warning.
+Routine tax/regulatory, portal/audit, administrative/security, upload, filename, and blockchain
+metadata is excluded silently unless it creates a genuine ambiguity for a supported target.
 
 ## 3. Text and normalization
 
@@ -65,10 +74,15 @@ Allowed deterministic transformations, with exact raw evidence retained:
 - join wrapped semantic fragments in page order with one space;
 - collapse OCR whitespace introduced by wrapping;
 - preserve OCR-printed Latin Unicode, including diacritics, without transliteration or correction;
-- normalize every explicitly headed issue/on-board date to `YYYY-MM-DD`; when an all-numeric
-  day/month order is ambiguous, retain the date and use the strongest document-internal convention
-  (such as a printed issue country or another unambiguous date), while preserving the exact printed
-  form in evidence and recording the interpretation in a warning;
+- normalize every explicitly headed issue/on-board date to `YYYY-MM-DD`; whenever both leading
+  numeric components are 12 or below, use the frozen dataset convention directly: first component
+  is day and second is month (`01/04/2024` -> `2024-04-01`; `12.07.2024` -> `2024-07-12`). This rule
+  applies to the ambiguous token itself even if another date in the same document establishes a
+  different numeric order. Never infer order from country, port, language, party nationality, or
+  another geographic locality. Preserve the exact printed form in evidence and never omit or hold
+  a document solely for this resolvable numeric-date ambiguity;
+- normalize named-month dates directly, including ordinal forms such as `MAR 4TH 2025` to
+  `2025-03-04`; these are unambiguous and do not require locale inference;
 - preserve a date-like value under the semantic role stated by its OCR heading; for example,
   `INV.NO: 29/03/2024` yields forwarding/export reference `29/03/2024`, not an issue/on-board date;
 - remove OCR-present separators from a supported identifier/number;
@@ -103,7 +117,7 @@ matters to coverage; never place them in a B/L-number field.
 
 | Value | Required evidence |
 |---|---|
-| `non_negotiable` | Explicit `NON-NEGOTIABLE`, `SEA WAYBILL`, or equivalent document wording. |
+| `non_negotiable` | Explicit `NON-NEGOTIABLE`, `SEA WAYBILL`, equivalent document wording, or a completed named non-order consignee that makes the B/L a straight bill. |
 | `negotiable` | Explicit negotiability language or an unambiguous `TO ORDER` consignee construction authorized by this reference. |
 
 Conditional wording such as `NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER` must be resolved against
@@ -111,6 +125,13 @@ the actual consignee construction. A `non_negotiable` target based on that condi
 named consignee that is not a `TO ORDER` construction, and the leaf evidence must cite both the
 conditional wording and the named consignee. If the consignee is explicitly `TO ORDER`, emit
 `negotiable` instead. If the consignee construction is absent from raw OCR, omit the category.
+
+A completed named consignee that is not a `TO ORDER` construction establishes a straight,
+non-negotiable B/L. Generic preprinted positive-original, surrender, one-accomplished/others-void,
+or `delivered unto order or assigns` boilerplate does not turn that completed straight consignment
+into an order bill. A `NON-NEGOTIABLE COPY` stamp remains copy status rather than the deciding
+evidence: cite the completed named consignee (and any applicable conditional term) for the target.
+An explicitly completed `TO ORDER` consignee remains `negotiable`.
 
 `EXPRESS BILL OF LADING` is authorized equivalent document wording for `non_negotiable`.
 Do not map a bare use of `EXPRESS` in unrelated release, service, or shipping text. This
@@ -195,6 +216,10 @@ agent, never merely because an agent address is present.
 - `contactDetails.contactName`: named person, without `CONTACT:`. A grounded contact name is valid
   even when the OCR contains no phone, email, or website for that person.
 - phone/email/website arrays: values only, without `TEL:`, `EMAIL:`, `FAX:`, or similar labels.
+
+A standalone `FAX` value has no semantic-v2 target: omit it and add a page-bound
+`schema_cannot_represent` warning. A single value explicitly shared by a `TEL/FAX` heading may be
+kept as a phone number because the OCR itself also identifies it as telephone contact.
 
 Never include tax ID, VAT ID, CNPJ, ACID code, customs number, phone, email, URL, or fax in an
 address. Never include an address or tax text in a party name. A tax identifier currently has no
@@ -292,12 +317,36 @@ This is preferred to the combined string `60 PALLETS (60 BAGS)`. Do not allocate
 counts across containers unless OCR states the allocation. `typeCode` is allowed only for an exact
 printed or frozen deterministic UNECE code; `type` is the safe source-text form.
 
+An explicitly partitioned outer-pallet schedule is a supported normalization, not an either/or
+package choice. When source-ordered headings such as `Pallet No. 1 - 4`, `Pallet No. 5 - 6`, ...
+form one contiguous, non-overlapping range beginning at pallet 1 and reconcile exactly to the
+printed pallet total for one identified container:
+
+- each headed pallet-range/product row is one cargo group;
+- emit the inclusive range cardinality as that group's outer `PALLET` package quantity;
+- emit the row's drums, tinplate containers, cartons, or other receptacles as a second, inner
+  package level in the same group;
+- attach the row's explicitly printed net and gross weights to that group;
+- link only the outer pallet level to the identified container with `single_package_level`; and
+- do not also emit the document-wide pallet total as another package fact, because it is the exact
+  sum of the same outer pallets and would duplicate them.
+
+For example, `Pallet No. 5 - 6: 8 Drums ...` yields outer quantity `2` `PALLET` plus inner quantity
+`8` `Drums`. The evidence sidecar retains the full printed range and states the inclusive-range
+normalization. Do not synthesize a containment sentence in `additionalInformation`, and do not
+mistake the row's per-receptacle net wording for the cargo group's aggregate `netWeight`. This
+narrow rule is invalid if ranges overlap, leave gaps, reset numbering, fail to reconcile to the
+printed total, or span multiple containers without explicit container linkage.
+
 ### Named measures
 
 - `grossWeight` and `netWeight` accept `kilogram` or `pound`;
 - `volume` accepts `cubic_metre`;
 - a value must be positive, explicitly labeled, and retain its source unit in evidence; and
 - do not treat container VGM as goods gross weight or vice versa.
+
+Do not arithmetically sum per-row or per-container measures into an absent cargo-group aggregate.
+Each emitted scalar must normalize from one printed scalar; a directly printed total remains valid.
 
 When the same value occurs both in a table total and description, use the clearest explicit
 occurrence and cite all occurrences only when they contribute to cross-page resolution.
@@ -308,6 +357,16 @@ occurrence and cite all occurrences only when they contribute to cross-page reso
 container. It repeats the container identifier solely as a relational foreign key. If one goods
 item and all containers are globally listed but no allocation is stated, omit allocations; the
 application may apply a deterministic single-item relation policy separately.
+
+When a goods item contains a package quantity and also contains package quantities in its container
+allocations, every allocation must carry a quantity and their sum must exactly cover either one
+emitted package level or the total of multiple emitted package levels. This supports both nested
+package levels (allocate the source-linked level only) and explicitly additive package categories.
+Never emit a partial allocation, borrow a total from another cargo level, or guess a remainder to
+make the projection validate. Split source-supported per-container goods rows into separate items
+when that is the actual document grouping; otherwise omit the unsupported allocation and warn when
+the omission matters. If OCR flattens a cargo table, use the retained raster only to identify which
+OCR values share a row/column; a raster-only value remains absent from the target.
 
 ### Marks and numbers
 
@@ -334,7 +393,11 @@ hash values as HS codes.
 
 `forwardingAndExportReferences[]` contains value-only strings under an explicit forwarding/export
 reference heading. A company name can be a valid reference if the document actually places it in
-that block. Exclude the heading itself. Do not repurpose portal audit references or blockchain IDs.
+that block. An explicit inline cargo label such as `SHIPPING BILL`, `S/BILL`, `EXPORT REF`, or
+`INV.NO` is also qualifying semantic context; a blank generic form block elsewhere does not cancel
+the later labeled value. Exclude the heading/label itself and explicit empty placeholders such as
+`NO REF`, `N/A`, `NONE`, or `NIL`. Do not repurpose unlabeled booking,
+control, portal-audit, or blockchain identifiers.
 
 ## 12. Portal/audit and legal pages
 
@@ -384,7 +447,10 @@ clause.
 
 Before atomically writing a candidate:
 
-1. Confirm the PDF contains exactly one B/L/SWB; otherwise write an exclusion.
+1. Confirm the PDF contains exactly one eligible maritime B/L, Sea Waybill, or equivalent maritime
+   multimodal/combined transport document with a sea leg; otherwise write an exclusion. Air, road,
+   truck, CMR, rail, invoices, packing lists, unknowns, and generic non-maritime multimodal documents
+   remain outside scope.
 2. Confirm every target character/fact is supported by page-ordered raw OCR.
 3. Confirm every address is one logical scalar and contains no tax/contact data.
 4. Confirm all contacts occur only in contact fields and all tax identifiers are omitted.

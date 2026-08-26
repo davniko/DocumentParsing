@@ -1,0 +1,92 @@
+schema_version: 4
+task: bill_of_lading_relation_single_source_v4
+environment_file: .env
+
+run:
+  run_id: mpci-bl-relation-single-source-v4-luna-blind200-remediation7-v7-c7-v1
+  output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+  resume: true
+
+source:
+  reference_target_mode: absent
+  expected_documents: 1779
+  expected_pages: 4376
+  expected_inventory_sha256: c069d7bd6ba4cb5f4dda14ae518d7f6f5b84cc2499c56944317baf5f317a2a55
+  work_item_roots:
+    - id: remaining1779
+      root: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/work-items
+      include_glob: "*.json"
+      selection_records_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/sources/mpci-bl-dual-cargo-v3-remaining1779-r1/selection-records.jsonl
+      selection_records_sha256: 2a6c36e9958665242ff022d555f054873cce3352b0bfacfb5abc145d74983539
+      documents: 1779
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/projects/documentparsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+selection:
+  count: 7
+  seed: 5665
+  namespace: mpci-bl-relation-single-source-v4-luna-blind200-remediation7-v7-c7-v1
+  # Only OCR-grounded, semantically recoverable v6 holds are retried. The two
+  # confirmed schema-v4 ontology ambiguities remain immutable needs-review cases.
+  document_ids:
+    - doc_446001475f38cdf874b85653a51ecd83e203bbd428dfcc34c283554c0f0c524a
+    - doc_7f6df7bd0b4ccd1b693d13af5c5da316b140c33b2a94f5f63f13d93571871143
+    - doc_b26179019509e8672a2b3a6957f04156c381f95605d92859494993dcbe311799
+    - doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934
+    - doc_baf806435410f5474705794f489b31e103a654b9ca3a5853524a1feb46955dd4
+    - doc_ed2d1b59ec1347a72568eafb7c0973ec91e6ec78b2f455fdfa9e7d8833349508
+    - doc_efcc5ff31199867fd996d0da05a15f712b7b08128af067b9faf63e3e14245d11
+
+prompts:
+  extractor:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v7_extractor.md
+    sha256: 439c9068707f9d23ca552e6a60247ea38f96bc47c37afffcbeebb392da11d73f
+  reviewer:
+    path: prompts/labeling_agents/mpci_bl_relation_single_source_v7_reviewer.md
+    sha256: f6c4fd9c5a1b8a3b4886cee13b65b1660b3581a089c8463f18fa8c6f555da489
+  document_layout:
+    path: prompts/labeling_agents/mpci_bl_pdf_layout_helper.md
+    sha256: 6ecce45e2bea062bbc3e5280760ac2385f547f51525258df8179549a38a8c8dd
+
+providers:
+  - id: luna_high
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: high
+    supports_pdf_documents: true
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 32768
+    pricing:
+      currency: USD
+      effective_date: 2026-08-22
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+      long_context_input_threshold_tokens: 272000
+      long_context_input_multiplier: 2.0
+      long_context_output_multiplier: 1.5
+
+assignments:
+  labeler: luna_high
+  reviewer: luna_high
+  document_layout: luna_high
+
+workflow:
+  max_concurrent_documents: 7
+  max_concurrent_model_requests: 7
+  max_candidate_attempts: 4
+  max_document_escalations_per_document: 2
+  max_pdf_bytes: 50000000
+  structured_output_retries: 1
+  max_requests_per_agent_run: 2
+  input_tokens_limit_per_agent_run: 272000
+  output_tokens_limit_per_agent_run: 65536
+  document_mode: on_explicit_request
+  pdf_page_scope: requested_pages
+  require_independent_review: true
+  fail_fast: false

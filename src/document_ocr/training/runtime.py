@@ -520,6 +520,81 @@ def _update_current_log(
     state.log_history[-1].update(additions)
 
 
+def _base_model_on_start_evaluation_callback(*, enabled: bool) -> Any:
+    """Disable PEFT only for a fresh run's epoch-zero baseline evaluation."""
+
+    from transformers import TrainerCallback
+
+    class BaseModelOnStartEvaluationCallback(TrainerCallback):
+        def __init__(self) -> None:
+            self._adapter_context: Any | None = None
+
+        def on_train_begin(
+            self, args: Any, state: Any, control: Any, **kwargs: Any
+        ) -> None:
+            if not enabled:
+                return
+            if state.global_step != 0:
+                raise RuntimeError("base-model on-start evaluation requires global step zero")
+            if self._adapter_context is not None:
+                raise RuntimeError("base-model evaluation adapter context is already active")
+            model = kwargs.get("model")
+            disable_adapter = getattr(model, "disable_adapter", None)
+            if not callable(disable_adapter):
+                raise RuntimeError("PEFT model does not expose disable_adapter()")
+            adapter_context = disable_adapter()
+            if not hasattr(adapter_context, "__enter__") or not hasattr(
+                adapter_context, "__exit__"
+            ):
+                raise RuntimeError("disable_adapter() did not return a context manager")
+            adapter_context.__enter__()
+            self._adapter_context = adapter_context
+
+        def on_log(
+            self,
+            args: Any,
+            state: Any,
+            control: Any,
+            logs: dict[str, Any] | None = None,
+            **kwargs: Any,
+        ) -> None:
+            if (
+                not enabled
+                or logs is None
+                or "eval_runtime" not in logs
+                or state.global_step != 0
+            ):
+                return
+            if self._adapter_context is None:
+                raise RuntimeError("epoch-zero evaluation ran with PEFT adapters enabled")
+            _update_current_log(
+                state=state,
+                logs=logs,
+                additions={"eval_is_base_model": 1.0},
+            )
+
+        def on_evaluate(
+            self, args: Any, state: Any, control: Any, **kwargs: Any
+        ) -> None:
+            if not enabled or state.global_step != 0:
+                return
+            if self._adapter_context is None:
+                raise RuntimeError("base-model evaluation adapter context is not active")
+            adapter_context = self._adapter_context
+            self._adapter_context = None
+            adapter_context.__exit__(None, None, None)
+
+        def on_epoch_begin(
+            self, args: Any, state: Any, control: Any, **kwargs: Any
+        ) -> None:
+            if self._adapter_context is not None:
+                raise RuntimeError(
+                    "PEFT adapters remained disabled after the on-start evaluation"
+                )
+
+    return BaseModelOnStartEvaluationCallback()
+
+
 def _cumulative_loss_callback() -> Any:
     """Publish the optimizer-step-weighted cumulative training loss."""
 
@@ -1149,6 +1224,9 @@ def run_training(
         # The metric callbacks enrich mutable logs before MLflow and the durable JSONL
         # consume them. Default progress rendering still receives the original payload.
         callbacks = [
+            _base_model_on_start_evaluation_callback(
+                enabled=config.evaluation.on_start and resume_checkpoint is None
+            ),
             _final_evaluation_policy_callback(config.evaluation.run_final_evaluation),
             _cumulative_loss_callback(),
             _evaluation_memory_cleanup_callback(),

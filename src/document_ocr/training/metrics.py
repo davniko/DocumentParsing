@@ -26,6 +26,10 @@ class PredictionAssessment:
     canonical_exact_match: bool
     predicted_field_values: frozenset[tuple[str, str]]
     reference_field_values: frozenset[tuple[str, str]]
+    predicted_cargo_relation_facts: frozenset[tuple[str, ...]]
+    reference_cargo_relation_facts: frozenset[tuple[str, ...]]
+    predicted_category_values: frozenset[tuple[str, ...]]
+    reference_category_values: frozenset[tuple[str, ...]]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -70,6 +74,101 @@ def _optional_document_patch(value: dict[str, Any] | None) -> dict[str, Any] | N
     return patch if isinstance(patch, dict) else None
 
 
+def _relation_explicit_facts(
+    patch: dict[str, Any] | None,
+) -> tuple[frozenset[tuple[str, ...]], frozenset[tuple[str, ...]]]:
+    """Project v3 cargo edges and anchored categories without using array positions."""
+
+    if patch is None:
+        return frozenset(), frozenset()
+    relations: set[tuple[str, ...]] = set()
+    categories: set[tuple[str, ...]] = set()
+
+    containers = patch.get("containers")
+    if isinstance(containers, list):
+        for container in containers:
+            if not isinstance(container, dict):
+                continue
+            number = container.get("containerNumber")
+            category = container.get("typeCategory")
+            if isinstance(number, str) and isinstance(category, str):
+                categories.add(("container_type", number, category))
+
+    packages = patch.get("cargoPackages")
+    if isinstance(packages, list):
+        for package in packages:
+            if not isinstance(package, dict):
+                continue
+            group_id = package.get("groupId")
+            package_id = package.get("packageId")
+            if isinstance(group_id, str) and isinstance(package_id, str):
+                relations.add(("group_has_package", group_id, package_id))
+                category = package.get("typeCategory")
+                if isinstance(category, str):
+                    categories.add(("package_type", group_id, package_id, category))
+
+    allocation_groups = patch.get("cargoAllocationGroups")
+    if isinstance(allocation_groups, list):
+        for allocation_group in allocation_groups:
+            if not isinstance(allocation_group, dict):
+                continue
+            group_id = allocation_group.get("groupId")
+            coverage = allocation_group.get("coverage")
+            if not isinstance(group_id, str):
+                continue
+            if isinstance(coverage, str):
+                relations.add(("allocation_coverage", group_id, coverage))
+            package_ids = allocation_group.get("packageIds")
+            if isinstance(package_ids, list):
+                for package_id in package_ids:
+                    if isinstance(package_id, str):
+                        relations.add(("allocation_covers_package", group_id, package_id))
+            allocations = allocation_group.get("allocations")
+            if not isinstance(allocations, list):
+                continue
+            for allocation in allocations:
+                if not isinstance(allocation, dict):
+                    continue
+                container_number = allocation.get("containerNumber")
+                if not isinstance(container_number, str):
+                    continue
+                relations.add(("group_uses_container", group_id, container_number))
+                quantity = allocation.get("packageQuantity")
+                if isinstance(quantity, int) and not isinstance(quantity, bool):
+                    relations.add(
+                        (
+                            "container_package_quantity",
+                            group_id,
+                            container_number,
+                            str(quantity),
+                        )
+                    )
+                package_id = allocation.get("packageId")
+                if isinstance(package_id, str):
+                    relations.add(
+                        ("container_has_package", group_id, container_number, package_id)
+                    )
+    return frozenset(relations), frozenset(categories)
+
+
+def _micro_set_metrics(
+    predicted_sets: Sequence[frozenset[tuple[str, ...]]],
+    reference_sets: Sequence[frozenset[tuple[str, ...]]],
+) -> tuple[float, float, float]:
+    if len(predicted_sets) != len(reference_sets):
+        raise ValueError("predicted and reference fact-set counts differ")
+    true_positive = sum(
+        len(predicted & reference)
+        for predicted, reference in zip(predicted_sets, reference_sets, strict=True)
+    )
+    predicted_total = sum(len(value) for value in predicted_sets)
+    reference_total = sum(len(value) for value in reference_sets)
+    precision = true_positive / predicted_total if predicted_total else 0.0
+    recall = true_positive / reference_total if reference_total else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return precision, recall, f1
+
+
 def assess_prediction(
     generated_text: str,
     reference_text: str,
@@ -102,6 +201,14 @@ def assess_prediction(
     predicted_patch = _optional_document_patch(
         predicted if predicted is not None else parsed_object
     )
+    if task.name == "bill_of_lading_relation_explicit_v3":
+        predicted_relations, predicted_categories = _relation_explicit_facts(predicted_patch)
+        reference_relations, reference_categories = _relation_explicit_facts(
+            _document_patch(reference)
+        )
+    else:
+        predicted_relations = reference_relations = frozenset()
+        predicted_categories = reference_categories = frozenset()
     return PredictionAssessment(
         generated_text=generated_text,
         reference_text=reference_canonical,
@@ -114,6 +221,10 @@ def assess_prediction(
             else frozenset()
         ),
         reference_field_values=frozenset(_field_value_items(_document_patch(reference))),
+        predicted_cargo_relation_facts=predicted_relations,
+        reference_cargo_relation_facts=reference_relations,
+        predicted_category_values=predicted_categories,
+        reference_category_values=reference_categories,
     )
 
 
@@ -149,8 +260,7 @@ def structured_metrics(
     recall = true_positive / reference_total if reference_total else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     count = len(assessments)
-    return (
-        {
+    metrics = {
             "json_valid": sum(item.json_valid for item in assessments) / count,
             "schema_valid": sum(item.schema_valid for item in assessments) / count,
             "canonical_exact_match": (
@@ -160,9 +270,46 @@ def structured_metrics(
             "field_value_precision": precision,
             "field_value_recall": recall,
             "field_value_f1": f1,
-        },
-        assessments,
-    )
+    }
+    if task.name == "bill_of_lading_relation_explicit_v3":
+        relation_precision, relation_recall, relation_f1 = _micro_set_metrics(
+            [row.predicted_cargo_relation_facts for row in assessments],
+            [row.reference_cargo_relation_facts for row in assessments],
+        )
+        category_precision, category_recall, category_f1 = _micro_set_metrics(
+            [row.predicted_category_values for row in assessments],
+            [row.reference_category_values for row in assessments],
+        )
+        metrics.update(
+            {
+                "cargo_relation_precision": relation_precision,
+                "cargo_relation_recall": relation_recall,
+                "cargo_relation_f1": relation_f1,
+                "cargo_relation_exact_match": sum(
+                    row.predicted_cargo_relation_facts
+                    == row.reference_cargo_relation_facts
+                    for row in assessments
+                )
+                / count,
+                "cargo_relation_support_fraction": sum(
+                    bool(row.reference_cargo_relation_facts) for row in assessments
+                )
+                / count,
+                "category_value_precision": category_precision,
+                "category_value_recall": category_recall,
+                "category_value_f1": category_f1,
+                "category_value_exact_match": sum(
+                    row.predicted_category_values == row.reference_category_values
+                    for row in assessments
+                )
+                / count,
+                "category_value_support_fraction": sum(
+                    bool(row.reference_category_values) for row in assessments
+                )
+                / count,
+            }
+        )
+    return metrics, assessments
 
 
 def make_compute_metrics(tokenizer: DecoderTokenizer, task: TrainingTask) -> Any:

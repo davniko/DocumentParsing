@@ -1,0 +1,27 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-test30-consolidated-v2-month-first
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+selection_sha256: c9184ebbea81559d11ca62d201f81606e93b9d820f74c8a129f7bd488b9c96ae
+expected_documents: 30
+
+# Later runs have precedence. Every considered outcome remains in lineage.jsonl.
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1779-test30-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-failure-regression7-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-failure-regression7-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-correction-regression3-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-correction-regression3-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-deterministic-regression5-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-deterministic-regression5-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-accepted-defect-regression2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-accepted-defect-regression2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v1
+  - run_id: mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v2
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v2
+  - run_id: mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v3
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-maritime-mtd-regression2-v3
+  - run_id: mpci-bl-relation-single-source-v4-test30-month-first-adjudication-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-test30-month-first-adjudication-v1

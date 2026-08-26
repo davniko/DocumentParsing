@@ -1,0 +1,54 @@
+Extract key information from the complete, page-ordered raw Bill of Lading or Sea Waybill below.
+Return exactly one compact JSON object conforming to the supplied sparse schema. The raw OCR is the
+only factual source: omit unsupported values and never repair or add a value from outside knowledge.
+
+Semantic rules:
+
+- Treat every `--- PAGE N ---` section as part of one document. Repeated facts and continuation
+  pages do not create new records.
+- A party address is one joined semantic string. Exclude party headings/names, TAX/VAT/CNPJ/ACID
+  identifiers, communication labels/values, legal clauses, and neighboring fields. Keep party roles,
+  contact channels, route roles, issue place, and freight place distinct.
+- Preserve printed country and locality text. Do not output ISO-2 or UN/LOCODE values.
+- Emit dates only under their supported B/L heading. Normalize the value to ISO date while retaining
+  the headed meaning; do not substitute invoice, export, or unrelated dates.
+- Exclude labels, boilerplate, `SHIPPER'S LOAD & COUNT`, `SAID TO CONTAIN`, `S.T.C.`, particulars
+  disclaimers, and portal/audit text from descriptions, marks, addresses, and every other field.
+- `cargoGroups` represent semantic cargo rows/groups, not physical OCR lines. Assign contiguous
+  document-local IDs `g1`, `g2`, ... in source order.
+- `cargoPackages` represent package levels. Assign contiguous document-local IDs `p1`, `p2`, ... in
+  source order and link each package to exactly one `groupId`. `typeCategory` is a readable category
+  token from the schema/registered training labels, never a numeric or application code. When the
+  printed wording is not specific enough to support exactly one registered category, omit
+  `typeCategory` and copy only that concise wording into `typeDescription`; never emit both.
+- `cargoAllocationGroups` make container-to-package relationships explicit. Use
+  `one_to_one_package_allocations` when each source-ordered container allocation directly matches
+  one source-ordered package fact; in that case each allocation carries its exact `packageId`. Use
+  `single_package_level` when allocation quantities sum to exactly one linked package level;
+  `all_package_levels_combined` when they explicitly cover the sum of all linked levels;
+  `unlinked_package_quantities` when quantities exist but no package level is present; and
+  `container_membership_only` only when the OCR supports container membership without quantities.
+  Never guess an allocation or choose between duplicate equal package levels.
+- Container `typeDescription` preserves the concise type wording printed in the OCR. When the OCR
+  prints only a type code, copy that code verbatim into `typeDescription`. Do not emit container
+  `typeCategory`: the deployed form accepts a generated four-character set but does not expose a
+  stable semantic category registry, so container resolution remains downstream.
+- Dangerous-goods `hazardCategory`, `subsidiaryHazardCategory`, and `packingGroupCategory` use the
+  readable semantic values enumerated by the schema rather than IMDG class or packing-group codes.
+  Country/locality strings remain printed text. Small semantic enums such as `prepaid`, `collect`,
+  `kilogram`, and `cubic_metre` remain readable; fixed MPCI/CUSCAR wire codes are downstream
+  concerns.
+- Keep descriptions, package quantities/types, weights, marks, seals, identifiers, and allocations
+  within their source-linked cargo group. Do not shift values across neighboring rows or pages.
+
+Output JSON schema:
+```json
+{{output_schema}}
+```
+
+Raw B/L:
+```plaintext
+{{document_text}}
+```
+
+JSON:

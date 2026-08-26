@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next300-final15-adjudication-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_2237126f936a2dd9c1bc65060c09e7f227286d1e397337f005469322b6f53939",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_2237126f936a2dd9c1bc65060c09e7f227286d1e397337f005469322b6f53939.json",
+      "work_item_sha256": "473605e079fc63bb2846456b029dffaf8bc7de98512394b0955e3e620847ef72",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/candidate-attempts/doc_2237126f936a2dd9c1bc65060c09e7f227286d1e397337f005469322b6f53939/attempt-1/c98ef840b2de99a718188b7140207ac0c911b29fff24f7f20e0eb3e20e6656ad.json",
+      "candidate_sha256": "c98ef840b2de99a718188b7140207ac0c911b29fff24f7f20e0eb3e20e6656ad",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "The direct PCS package level and all OCR-grounded box and pallet facts are retained; the later training projection will select the task-facing package level without mutating this provenance label."
+      ]
+    },
+    {
+      "document_id": "doc_67d497891e970c5ea835bd41c856d6a2bb70894063dad04428365c109691ae06",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/work-items/doc_67d497891e970c5ea835bd41c856d6a2bb70894063dad04428365c109691ae06.json",
+      "work_item_sha256": "92825146b32c1fa92060bc106a9a2e4569159d80341957b7fa62934dacfc2848",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-v11-cost-guard-c16-v2/state/candidate-attempts/doc_67d497891e970c5ea835bd41c856d6a2bb70894063dad04428365c109691ae06/attempt-1/896f4a56643972f6c855b5c12a57b394f5af746b605a33840a165769b1b56c59.json",
+      "candidate_sha256": "896f4a56643972f6c855b5c12a57b394f5af746b605a33840a165769b1b56c59",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "NEW ZEALAND SCOURED WOOL is retained as goods description, while 144 BALES and the three allocations of 48 remain package facts; the printed 143-versus-144 contradiction remains warned rather than leaking into the description."
+      ]
+    },
+    {
+      "document_id": "doc_05f91e32c5bc536df2c3fb58bd57d74da9d3ba3ed114a99356189b9152248bb1",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_05f91e32c5bc536df2c3fb58bd57d74da9d3ba3ed114a99356189b9152248bb1.json",
+      "work_item_sha256": "6c2dea7efedafb57c5d4616e5b92d2480499dc4e5aabee1fe6cc0a4966c7f3d2",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_05f91e32c5bc536df2c3fb58bd57d74da9d3ba3ed114a99356189b9152248bb1/attempt-2/59fd8187674e315e16fca39210b7420b8cc00a971d6a340b30d8f374ffc2aa10.json",
+      "candidate_sha256": "59fd8187674e315e16fca39210b7420b8cc00a971d6a340b30d8f374ffc2aa10",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "Three printed product rows carry separate pallet quantities 4, 1, and 5; the aggregate 10 PALLETS is not duplicated as a cargo row."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {"groupId":"g1","packageId":"p1","quantity":10,"typeDescription":"PALLETS"}
+          ],
+          "corrected_value": [
+            {"groupId":"g1","packageId":"p1","quantity":4,"typeDescription":"PALLETS"},
+            {"groupId":"g2","packageId":"p2","quantity":1,"typeDescription":"PALLETS"},
+            {"groupId":"g3","packageId":"p3","quantity":5,"typeDescription":"PALLETS"}
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {"allocations":[{"containerNumber":"CMAU3295419","packageQuantity":4}],"coverage":"unlinked_package_quantities","groupId":"g1"},
+            {"allocations":[{"containerNumber":"CMAU3295419","packageQuantity":1}],"coverage":"unlinked_package_quantities","groupId":"g2"},
+            {"allocations":[{"containerNumber":"CMAU3295419","packageQuantity":5}],"coverage":"unlinked_package_quantities","groupId":"g3"}
+          ],
+          "corrected_value": [
+            {"allocations":[{"containerNumber":"CMAU3295419","packageQuantity":4}],"coverage":"single_package_level","groupId":"g1","packageId":"p1"},
+            {"allocations":[{"containerNumber":"CMAU3295419","packageQuantity":1}],"coverage":"single_package_level","groupId":"g2","packageId":"p2"},
+            {"allocations":[{"containerNumber":"CMAU3295419","packageQuantity":5}],"coverage":"single_package_level","groupId":"g3","packageId":"p3"}
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Resolved visually and textually: the three goods are represented separately with 4, 1, and 5 pallets, all allocated to CMAU3295419."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2025/2025-05-30_5ec50a8f-c4a5-42bc-aaa7-b13681681874.pdf","sha256":"632c94ea623754f6b8c2303f2c0595e4d7237157be61f9860a5134540a0ad5a2"}
+      ]
+    },
+    {
+      "document_id": "doc_06f8c293f119440ebbe258b463e753abc130915a9132219606757c92d1fc837a",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_06f8c293f119440ebbe258b463e753abc130915a9132219606757c92d1fc837a.json",
+      "work_item_sha256": "04f8f3c241f610462e66a995706c456f09e357a18f3c0b4dea3ba4ca25d50efb",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/model-decisions/doc_06f8c293f119440ebbe258b463e753abc130915a9132219606757c92d1fc837a/attempt-1/a494edc723354ff0dd42d2bbba18d90e4b959fb34263f210d56a68c07daec1c3.json",
+      "candidate_sha256": "a494edc723354ff0dd42d2bbba18d90e4b959fb34263f210d56a68c07daec1c3",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "adjudication_notes": [
+        "The PDF visually resolves the weight punctuation, but exact OCR-conditioned supervision cannot; grossWeight remains null and the ambiguity warning is retained."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2025/2025-05-31_7f0e1e1f-4750-4773-9158-cf8067d69dcf.pdf","sha256":"1d15fd3d41cbacf36396978564a9c4b33754ed743bb411fee0fc98ee131edf77"}
+      ]
+    },
+    {
+      "document_id": "doc_150e9dad3e2d9d0bcf832980efc9895e9e05cc39e490699f3f820e08d1af950d",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_150e9dad3e2d9d0bcf832980efc9895e9e05cc39e490699f3f820e08d1af950d.json",
+      "work_item_sha256": "fb126482bfe35d553ddb940ad97c993a863608481b730e1fef48b8cc6e6145a0",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_150e9dad3e2d9d0bcf832980efc9895e9e05cc39e490699f3f820e08d1af950d/attempt-3/cc3070b65248c09a76490ebdf40a9bcf16b098620aa5ce44e84fd0402242acdf.json",
+      "candidate_sha256": "cc3070b65248c09a76490ebdf40a9bcf16b098620aa5ce44e84fd0402242acdf",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "Each of the three container rows carries both its pallet and carton package levels; package wording is removed from cargo additional information."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/1/additionalInformation",
+          "expected_value": ["17 PLTS=112 CTNS","NON-WOODEN PACKAGING MATERIAL"],
+          "corrected_value": ["NON-WOODEN PACKAGING MATERIAL"]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {"allocations":[{"containerNumber":"HASU4141533","packageQuantity":16}],"coverage":"single_package_level","groupId":"g1","packageId":"p1"},
+            {"allocations":[{"containerNumber":"MRSU7523099","packageQuantity":17}],"coverage":"single_package_level","groupId":"g2","packageId":"p3"},
+            {"allocations":[{"containerNumber":"SUDU7724711","packageQuantity":5}],"coverage":"single_package_level","groupId":"g3","packageId":"p5"}
+          ],
+          "corrected_value": [
+            {"allocations":[{"containerNumber":"HASU4141533","packageId":"p1","packageQuantity":16},{"containerNumber":"HASU4141533","packageId":"p2","packageQuantity":119}],"coverage":"one_to_one_package_allocations","groupId":"g1"},
+            {"allocations":[{"containerNumber":"MRSU7523099","packageId":"p3","packageQuantity":17},{"containerNumber":"MRSU7523099","packageId":"p4","packageQuantity":112}],"coverage":"one_to_one_package_allocations","groupId":"g2"},
+            {"allocations":[{"containerNumber":"SUDU7724711","packageId":"p5","packageQuantity":5},{"containerNumber":"SUDU7724711","packageId":"p6","packageQuantity":32}],"coverage":"one_to_one_package_allocations","groupId":"g3"}
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Resolved all three printed rows: HASU4141533 has 16 PLTS and 119 CTNS; MRSU7523099 has 17 and 112; SUDU7724711 has 5 and 32."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2026/2026-01-05_28d7a135-7b10-4377-a717-1494437248a7.pdf","sha256":"1cb8230b5eec9fb660b0a7bf12200dd68bcc1fffe192a1beeba61531b1160b0f"}
+      ]
+    },
+    {
+      "document_id": "doc_2ac48368cce36b7521933053fd4bca0c65d3ce2892e68b52e5dc469ea11e6a41",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_2ac48368cce36b7521933053fd4bca0c65d3ce2892e68b52e5dc469ea11e6a41.json",
+      "work_item_sha256": "351fb46965572d749b044864970dd5a2f6f5f1f37a9c8fe92d685c1bdc3f5766",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_2ac48368cce36b7521933053fd4bca0c65d3ce2892e68b52e5dc469ea11e6a41/attempt-4/45d08f5697b3c52438ac7af9d6066183823b1d6da8ba0d10d5123aedb60c7571.json",
+      "candidate_sha256": "45d08f5697b3c52438ac7af9d6066183823b1d6da8ba0d10d5123aedb60c7571",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "Added only the headed service-contract value and the row explicitly labeled Reference/Invoice numbers; shipment-only and invoice-only values remain outside this field."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": ["298822821","SAM/2322","PR-00000787"]
+        }
+      ],
+      "adjudication_notes": [
+        "The nine product rows and their package allocations were already correct; only schema-qualified references are added and flavor identifiers remain excluded."
+      ]
+    },
+    {
+      "document_id": "doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66.json",
+      "work_item_sha256": "f61dbbca1b85954d571e116ed0bdec695812c1af16466e593aa028abe8a8aae9",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66/attempt-4/69e125da31f10c6b86bd86a6b829fba546f5790da01af2894d4e685c2926daab.json",
+      "candidate_sha256": "69e125da31f10c6b86bd86a6b829fba546f5790da01af2894d4e685c2926daab",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "The attached-list column layout establishes ten source-ordered container rows of 96 CARTONS and resolves the country, material, and HS-code membership of each row."
+        ]
+      },
+      "target_corrections": [
+        {"target_path":"/documentPatch/cargoGroups/0/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/1/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/2/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/3/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/4/description","expected_value":"GERMANY FLUE-CURED VIRGINIA LOOSE LEAF","corrected_value":"GREECE FLUE-CURED VIRGINIA LOOSE LEAF SWITZERLAND FLUE-CURED VIRGINIA STRIPS"},
+        {"target_path":"/documentPatch/cargoGroups/4/hsCodes","expected_value":null,"corrected_value":["2401108590","2401208590"]},
+        {"target_path":"/documentPatch/cargoGroups/5/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/6/description","expected_value":null,"corrected_value":"GERMANY FLUE-CURED VIRGINIA LOOSE LEAF"},
+        {"target_path":"/documentPatch/cargoGroups/6/additionalInformation","expected_value":null,"corrected_value":["MATERIAL 13672294","BATCH 0013520735","GRADE EDEFLY2MU"]},
+        {"target_path":"/documentPatch/cargoGroups/6/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/7/description","expected_value":"GERMANY FLUE-CURED VIRGINIA LOOSE LEAF SERBIA FLUE-CURED VIRGINIA LOOSE LEAF","corrected_value":"SERBIA FLUE-CURED VIRGINIA LOOSE LEAF"},
+        {"target_path":"/documentPatch/cargoGroups/7/additionalInformation","expected_value":["MATERIAL 13672294","BATCH 0013520735","GRADE EDEFLY2MU","MATERIAL 13668880","BATCH 0013706266","GRADE ERSFMY4LR"],"corrected_value":["MATERIAL 13668880","BATCH 0013706266","GRADE ERSFMY4LR"]},
+        {"target_path":"/documentPatch/cargoGroups/7/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/8/description","expected_value":"GERMANY FLUE-CURED VIRGINIA LOOSE LEAF SERBIA FLUE-CURED VIRGINIA LOOSE LEAF","corrected_value":"SWITZERLAND FLUE-CURED VIRGINIA STRIPS GERMANY FLUE-CURED VIRGINIA LOOSE LEAF"},
+        {"target_path":"/documentPatch/cargoGroups/8/hsCodes","expected_value":null,"corrected_value":["2401208590","2401108590"]},
+        {"target_path":"/documentPatch/cargoGroups/9/hsCodes","expected_value":null,"corrected_value":["2401108590"]},
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {"groupId":"g1","packageId":"p1","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g2","packageId":"p2","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g3","packageId":"p3","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g4","packageId":"p4","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g5","packageId":"p5","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g6","packageId":"p6","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g7","packageId":"p7","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g8","packageId":"p8","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g8","packageId":"p9","quantity":96,"typeDescription":"CARTONS"}
+          ],
+          "corrected_value": [
+            {"groupId":"g1","packageId":"p1","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g2","packageId":"p2","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g3","packageId":"p3","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g4","packageId":"p4","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g5","packageId":"p5","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g6","packageId":"p6","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g7","packageId":"p7","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g8","packageId":"p8","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g9","packageId":"p9","quantity":96,"typeDescription":"CARTONS"},
+            {"groupId":"g10","packageId":"p10","quantity":96,"typeDescription":"CARTONS"}
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {"allocations":[{"containerNumber":"CBHU9045570","packageId":"p1","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g1"},
+            {"allocations":[{"containerNumber":"CSNU6732328","packageId":"p2","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g2"},
+            {"allocations":[{"containerNumber":"CSNU7536253","packageId":"p3","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g3"},
+            {"allocations":[{"containerNumber":"CSNU8456635","packageId":"p4","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g4"},
+            {"allocations":[{"containerNumber":"FFAU2951660","packageId":"p5","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g5"},
+            {"allocations":[{"containerNumber":"OOCU8355055","packageId":"p6","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g6"},
+            {"allocations":[{"containerNumber":"OOLU9781679","packageId":"p7","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g7"},
+            {"allocations":[{"containerNumber":"TCLU1610520"}],"coverage":"container_membership_only","groupId":"g8"},
+            {"allocations":[{"containerNumber":"TGBU4876620"}],"coverage":"container_membership_only","groupId":"g9"},
+            {"allocations":[{"containerNumber":"TGBU9219649"}],"coverage":"container_membership_only","groupId":"g10"}
+          ],
+          "corrected_value": [
+            {"allocations":[{"containerNumber":"CBHU9045570","packageId":"p1","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g1"},
+            {"allocations":[{"containerNumber":"CSNU6732328","packageId":"p2","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g2"},
+            {"allocations":[{"containerNumber":"CSNU7536253","packageId":"p3","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g3"},
+            {"allocations":[{"containerNumber":"CSNU8456635","packageId":"p4","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g4"},
+            {"allocations":[{"containerNumber":"FFAU2951660","packageId":"p5","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g5"},
+            {"allocations":[{"containerNumber":"OOCU8355055","packageId":"p6","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g6"},
+            {"allocations":[{"containerNumber":"OOLU9781679","packageId":"p7","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g7"},
+            {"allocations":[{"containerNumber":"TCLU1610520","packageId":"p8","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g8"},
+            {"allocations":[{"containerNumber":"TGBU4876620","packageId":"p9","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g9"},
+            {"allocations":[{"containerNumber":"TGBU9219649","packageId":"p10","packageQuantity":96}],"coverage":"one_to_one_package_allocations","groupId":"g10"}
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Resolved the attached-list layout into ten independent 96-CARTON groups; no image-only weights were added because GLM-OCR omitted those numbers."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2024/2024-03-20_19989ef2-a0f6-4491-a8d5-9e48f461b806.pdf","sha256":"ca5bb8eecae5ff6006ba48eaef258f417e1924cda1d998cdd8528ac1b692ef11"}
+      ]
+    },
+    {
+      "document_id": "doc_3c5551dd548b1a28700f648e4a68db73c7a9ce701e3270cd54ce4351559fa08e",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_3c5551dd548b1a28700f648e4a68db73c7a9ce701e3270cd54ce4351559fa08e.json",
+      "work_item_sha256": "57eee27e3088e10da974aa7b68e0de9ec36db18b20d7b30d0a38b09a55e2003e",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_3c5551dd548b1a28700f648e4a68db73c7a9ce701e3270cd54ce4351559fa08e/attempt-4/ed4ccf2673a5aca45828b1c1d2af0cb6cc53adaf90ba05f0c9e1050e55e805de.json",
+      "candidate_sha256": "ed4ccf2673a5aca45828b1c1d2af0cb6cc53adaf90ba05f0c9e1050e55e805de",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "The aggregate 8 PLTS and 51 CTNS are two package levels for the same combined cargo group; carton quantities cannot be split between product rows from OCR."
+        ]
+      },
+      "target_corrections": [
+        {"target_path":"/documentPatch/cargoGroups/0/additionalInformation","expected_value":["NON-WOODEN PACKAGING MATERIAL","8 PLTS = 51 CTNS"],"corrected_value":["NON-WOODEN PACKAGING MATERIAL"]},
+        {
+          "target_path":"/documentPatch/cargoAllocationGroups/0",
+          "expected_value":{"allocations":[{"containerNumber":"MRSU6462384","packageQuantity":8}],"coverage":"single_package_level","groupId":"g1","packageId":"p1"},
+          "corrected_value":{"allocations":[{"containerNumber":"MRSU6462384","packageId":"p1","packageQuantity":8},{"containerNumber":"MRSU6462384","packageId":"p2","packageQuantity":51}],"coverage":"one_to_one_package_allocations","groupId":"g1"}
+        },
+        {"target_path":"/documentPatch/parties/consignee/address","expected_value":"NO.98, ENGINEERING SECTOR, KOM ABU RADI INDUSTRIAL ZONE, AL WASTA","corrected_value":"NO.98, ENGINEERING SECTOR, KOM ABU RADI INDUSTRIAL ZONE, AL WASTA, 62815"},
+        {"target_path":"/documentPatch/parties/consignee/contactDetails","expected_value":null,"corrected_value":{"contactName":null,"emailAddresses":null,"phoneNumbers":["+20-100-539-181"],"websiteUrls":null}}
+      ],
+      "adjudication_notes": [
+        "Both package levels remain in provenance; the later training projection may select CTNS as the task-facing inner package without losing the printed pallet hierarchy."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2026/2026-01-30_773e9fca-0a2e-44ab-b280-e0de0b79974f.pdf","sha256":"480d898af4c07482aee1d2122d52564aac7f857360c089ecc2712676cc93b5cf"}
+      ]
+    },
+    {
+      "document_id": "doc_5e96eed2dd87f1b4bb5df33326469f2d8cc96268eae066c7f1471b960eca2e11",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_5e96eed2dd87f1b4bb5df33326469f2d8cc96268eae066c7f1471b960eca2e11.json",
+      "work_item_sha256": "25672b888a095ba104fdade427aaec76eee0af4aceacb08277c1a8bab9fa7b6c",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_5e96eed2dd87f1b4bb5df33326469f2d8cc96268eae066c7f1471b960eca2e11/attempt-4/d6c1cbda9ef26c156e4e7b5e2e155e25174226c8d49b24a8f7858357567824c9.json",
+      "candidate_sha256": "d6c1cbda9ef26c156e4e7b5e2e155e25174226c8d49b24a8f7858357567824c9",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "The seventh OCR row explicitly assigns 24 INTERMEDIATE BULK CONTAINERS and LENOL CLX 40 to CMAU5487792."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path":"/documentPatch/cargoPackages",
+          "expected_value":[
+            {"groupId":"g1","packageId":"p1","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g2","packageId":"p2","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g3","packageId":"p3","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g4","packageId":"p4","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g5","packageId":"p5","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g6","packageId":"p6","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"}
+          ],
+          "corrected_value":[
+            {"groupId":"g1","packageId":"p1","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g2","packageId":"p2","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g3","packageId":"p3","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g4","packageId":"p4","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g5","packageId":"p5","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g6","packageId":"p6","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"},
+            {"groupId":"g7","packageId":"p7","quantity":24,"typeDescription":"INTERMEDIATE BULK CONTAINERS"}
+          ]
+        },
+        {
+          "target_path":"/documentPatch/cargoAllocationGroups",
+          "expected_value":[
+            {"allocations":[{"containerNumber":"CMAU6787222","packageQuantity":24}],"coverage":"single_package_level","groupId":"g1","packageId":"p1"},
+            {"allocations":[{"containerNumber":"CAIU9397919","packageQuantity":24}],"coverage":"single_package_level","groupId":"g2","packageId":"p2"},
+            {"allocations":[{"containerNumber":"GESU6608672","packageQuantity":24}],"coverage":"single_package_level","groupId":"g3","packageId":"p3"},
+            {"allocations":[{"containerNumber":"TGBU5233459","packageQuantity":24}],"coverage":"single_package_level","groupId":"g4","packageId":"p4"},
+            {"allocations":[{"containerNumber":"APHU6702274","packageQuantity":24}],"coverage":"single_package_level","groupId":"g5","packageId":"p5"},
+            {"allocations":[{"containerNumber":"CMAU8806810","packageQuantity":24}],"coverage":"single_package_level","groupId":"g6","packageId":"p6"},
+            {"allocations":[{"containerNumber":"CMAU5487792"}],"coverage":"container_membership_only","groupId":"g7"}
+          ],
+          "corrected_value":[
+            {"allocations":[{"containerNumber":"CMAU6787222","packageQuantity":24}],"coverage":"single_package_level","groupId":"g1","packageId":"p1"},
+            {"allocations":[{"containerNumber":"CAIU9397919","packageQuantity":24}],"coverage":"single_package_level","groupId":"g2","packageId":"p2"},
+            {"allocations":[{"containerNumber":"GESU6608672","packageQuantity":24}],"coverage":"single_package_level","groupId":"g3","packageId":"p3"},
+            {"allocations":[{"containerNumber":"TGBU5233459","packageQuantity":24}],"coverage":"single_package_level","groupId":"g4","packageId":"p4"},
+            {"allocations":[{"containerNumber":"APHU6702274","packageQuantity":24}],"coverage":"single_package_level","groupId":"g5","packageId":"p5"},
+            {"allocations":[{"containerNumber":"CMAU8806810","packageQuantity":24}],"coverage":"single_package_level","groupId":"g6","packageId":"p6"},
+            {"allocations":[{"containerNumber":"CMAU5487792","packageQuantity":24}],"coverage":"single_package_level","groupId":"g7","packageId":"p7"}
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "All seven containers now have one OCR-grounded 24-IBC cargo allocation; the ambiguous party locality remains sparse rather than guessed."
+      ]
+    },
+    {
+      "document_id": "doc_66d5d7f6d39fc2e8645960e3bd3fdaeb4bfeb29bef6134c13fac4ff6454414de",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_66d5d7f6d39fc2e8645960e3bd3fdaeb4bfeb29bef6134c13fac4ff6454414de.json",
+      "work_item_sha256": "0cd6787cd98fb1c8e7b8a232477eea932f3f6827133e46bb08365a7a800a9f0d",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/candidate-attempts/doc_66d5d7f6d39fc2e8645960e3bd3fdaeb4bfeb29bef6134c13fac4ff6454414de/attempt-1/acc800f0f1b6d91473bb60aa372a53e8b2b23fb7fdf096695fd7c9931329a026.json",
+      "candidate_sha256": "acc800f0f1b6d91473bb60aa372a53e8b2b23fb7fdf096695fd7c9931329a026",
+      "candidate_kind": "annotation",
+      "rebuild": {
+        "decision_notes": [
+          "The four product rows use the detailed 24-IBC inner-package facts; conflicting carrier-summary one-IBC counts remain only in immutable OCR provenance for the later hierarchy projection."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path":"/documentPatch/cargoAllocationGroups",
+          "expected_value":[
+            {"allocations":[{"containerNumber":"HASU5120622"}],"coverage":"container_membership_only","groupId":"g1"},
+            {"allocations":[{"containerNumber":"SUDU6889912"}],"coverage":"container_membership_only","groupId":"g2"},
+            {"allocations":[{"containerNumber":"TGHU6409462"}],"coverage":"container_membership_only","groupId":"g3"},
+            {"allocations":[{"containerNumber":"TXGU5268210"}],"coverage":"container_membership_only","groupId":"g4"}
+          ],
+          "corrected_value":[
+            {"allocations":[{"containerNumber":"HASU5120622","packageId":"p1","packageQuantity":24}],"coverage":"one_to_one_package_allocations","groupId":"g1"},
+            {"allocations":[{"containerNumber":"SUDU6889912","packageId":"p2","packageQuantity":24}],"coverage":"one_to_one_package_allocations","groupId":"g2"},
+            {"allocations":[{"containerNumber":"TGHU6409462","packageId":"p3","packageQuantity":22},{"containerNumber":"TGHU6409462","packageId":"p4","packageQuantity":2}],"coverage":"one_to_one_package_allocations","groupId":"g3"},
+            {"allocations":[{"containerNumber":"TXGU5268210","packageId":"p5","packageQuantity":20},{"containerNumber":"TXGU5268210","packageId":"p6","packageQuantity":4}],"coverage":"one_to_one_package_allocations","groupId":"g4"}
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Each detailed product quantity is now linked to its printed container; the incompatible one-IBC summary is not used as the task target."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2024/2024-02-29_474e8a2a-9bc0-42c9-9d04-0d93fa27b243.pdf","sha256":"91e0d30ab5370983eae517b482e67b832e65e895d05b945f0542f3a59c6d111f"}
+      ]
+    },
+    {
+      "document_id": "doc_714ce9d36fc8605c8c8bbf27a5b6317018bb7ec8e315e9b43c83f13e633d6c74",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_714ce9d36fc8605c8c8bbf27a5b6317018bb7ec8e315e9b43c83f13e633d6c74.json",
+      "work_item_sha256": "af5f0e6d1cbc7eaefff87a016b66fb98a059a2f9885e13381c491a9cd2896d7b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_714ce9d36fc8605c8c8bbf27a5b6317018bb7ec8e315e9b43c83f13e633d6c74/attempt-3/3fe6b0e4ca0ed2c2dd9cffee25fb1e36ecb807f9157dd332f1dae6613558ec79.json",
+      "candidate_sha256": "3fe6b0e4ca0ed2c2dd9cffee25fb1e36ecb807f9157dd332f1dae6613558ec79",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "The clean three-product description is retained. INSULIN occurs only on a separate aggregate line, so it is not concatenated into a target string absent from raw OCR; repeated pallet wording remains one package level."
+      ]
+    },
+    {
+      "document_id": "doc_8a674b13d97a933bb86c5fc7e4fb53334f4373a79bd8b092a392b3607fef5ab7",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_8a674b13d97a933bb86c5fc7e4fb53334f4373a79bd8b092a392b3607fef5ab7.json",
+      "work_item_sha256": "5740b43d9adde6e9a1e73061a9038d7527aaae447185549818c40abb4470a596",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/target-scoped-corrections/doc_8a674b13d97a933bb86c5fc7e4fb53334f4373a79bd8b092a392b3607fef5ab7/attempt-3/cc31706b04b04db818b9b7fcb0aa9b569da5ae6c772aa83dacb66f73e7ddfce6.json",
+      "candidate_sha256": "cc31706b04b04db818b9b7fcb0aa9b569da5ae6c772aa83dacb66f73e7ddfce6",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "The OCR phrase 201 CARTON IN 7 PALLET establishes inner carton and outer pallet package levels for the same cargo and container."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path":"/documentPatch/cargoPackages",
+          "expected_value":[{"groupId":"g1","packageId":"p1","quantity":7,"typeDescription":"PALLETS"}],
+          "corrected_value":[{"groupId":"g1","packageId":"p1","quantity":7,"typeDescription":"PALLETS"},{"groupId":"g1","packageId":"p2","quantity":201,"typeDescription":"CARTON"}]
+        },
+        {
+          "target_path":"/documentPatch/cargoAllocationGroups/0",
+          "expected_value":{"allocations":[{"containerNumber":"WHSU6448154","packageQuantity":7}],"coverage":"single_package_level","groupId":"g1","packageId":"p1"},
+          "corrected_value":{"allocations":[{"containerNumber":"WHSU6448154","packageId":"p1","packageQuantity":7},{"containerNumber":"WHSU6448154","packageId":"p2","packageQuantity":201}],"coverage":"one_to_one_package_allocations","groupId":"g1"}
+        }
+      ],
+      "adjudication_notes": [
+        "Both printed levels remain traceable; the planned non-destructive training projection will use CARTON as the task-facing inner package."
+      ]
+    },
+    {
+      "document_id": "doc_99111075155885045e68a6fb6250fa41c1a55d24c2a2422f82b2dc8aa2089604",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_99111075155885045e68a6fb6250fa41c1a55d24c2a2422f82b2dc8aa2089604.json",
+      "work_item_sha256": "44424594a25615554914b2d5a3fa124bb9bc224504ebfed23291e909656588e7",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/candidate-attempts/doc_99111075155885045e68a6fb6250fa41c1a55d24c2a2422f82b2dc8aa2089604/attempt-1/188b33498168e54264320c7780a9205f91e4000c815bb26f9b57529211e2dfa2.json",
+      "candidate_sha256": "188b33498168e54264320c7780a9205f91e4000c815bb26f9b57529211e2dfa2",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "The primary page-one Sea Waybill Number MC00034672 controls; the conflicting continuation-title rendering remains explicitly warned."
+      ]
+    },
+    {
+      "document_id": "doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290.json",
+      "work_item_sha256": "2e9bc20bf352a3b83517c5250b473e31d9e15d9edde901bf5ae5ec06c43ea146",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/model-decisions/doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290/attempt-1/3f22d6284e06ab243912de4115709b63579aac6fc407f5cd75d2150d1cb7b338.json",
+      "candidate_sha256": "3f22d6284e06ab243912de4115709b63579aac6fc407f5cd75d2150d1cb7b338",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "The correct printed voyage is absent from raw OCR, so voyageNumber remains null rather than selecting either known-wrong OCR candidate."
+      ]
+    },
+    {
+      "document_id": "doc_ffa8239ae2c829363f8fcdea1433113991282f3e5999d1f81ff85d016d89eb78",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/work-items/doc_ffa8239ae2c829363f8fcdea1433113991282f3e5999d1f81ff85d016d89eb78.json",
+      "work_item_sha256": "5ff73f88540075ff38b36bc34126222960b35b4da078310b8096d4710dcb2808",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next300-remaining250-v12-c16-v1/state/model-decisions/doc_ffa8239ae2c829363f8fcdea1433113991282f3e5999d1f81ff85d016d89eb78/attempt-1/124909105389470354f9b3033c26a8014c0dad223db3de3737ccca577c80d15f.json",
+      "candidate_sha256": "124909105389470354f9b3033c26a8014c0dad223db3de3737ccca577c80d15f",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "Repeated OCR pages 2 and 3 contain 0NVI8N1MA exactly, and the print confirms that candidate over the page-one OCR error."
+        ]
+      },
+      "target_corrections": [
+        {"target_path":"/documentPatch/transport/voyageNumber","expected_value":"0NV18N1MA","corrected_value":"0NVI8N1MA"}
+      ],
+      "warning_removals": [
+        {
+          "code":"ambiguous_ocr_candidates",
+          "message":"Voyage number appears as conflicting OCR candidates across repeated document blocks; the page-1 candidate was retained.",
+          "pageNumbers":[1,2,3],
+          "targetPath":"documentPatch.transport.voyageNumber"
+        }
+      ],
+      "adjudication_notes": [
+        "Selected the exact OCR candidate confirmed by two repeated pages; no image-only character was introduced."
+      ],
+      "supporting_artifacts": [
+        {"path":"/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2024/2024-12-23_e08a7e2b-7e96-4625-b8dd-d91ef7b0e6af.pdf","sha256":"8831b15a9161af13b0cc9825f7c958d98e56667b5c824986e04e2532b0e61d57"}
+      ]
+    }
+  ]
+}

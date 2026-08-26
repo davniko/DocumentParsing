@@ -12,6 +12,7 @@ import unicodedata
 from datetime import date
 from typing import Annotated, Any, Literal
 
+import regex
 from pydantic import AfterValidator, Field, StringConstraints, model_validator
 
 from document_ocr.label_schemas.common import (
@@ -27,6 +28,8 @@ from document_ocr.label_schemas.mpci_bill_of_lading import (
     HsCode,
     ImoNumber,
 )
+
+_LATIN_SCRIPT_LETTER = regex.compile(r"(?V1)\A[\p{L}&&\p{scx=Latin}]\Z")
 
 
 def _application_text(value: str) -> str:
@@ -47,7 +50,7 @@ def _application_text(value: str) -> str:
         if not character.isprintable():
             raise ValueError("application text must contain printable characters only")
         if category.startswith("L"):
-            if "LATIN" not in name:
+            if "LATIN" not in name and _LATIN_SCRIPT_LETTER.fullmatch(character) is None:
                 raise ValueError("application text letters must use the Latin script")
             preceding_base_is_latin = True
             continue
@@ -67,7 +70,10 @@ def _application_text(value: str) -> str:
 
 ApplicationText = Annotated[str, AfterValidator(_application_text)]
 CountryText = Annotated[ApplicationText, Field(max_length=128)]
-PackageTypeText = Annotated[ApplicationText, Field(max_length=35)]
+# The MPCI form currently limits its supplementary package description to 35
+# characters.  That is a downstream submission constraint, not a document fact:
+# supervision must retain the complete printed package wording for later mapping.
+PackageTypeText = ApplicationText
 PositiveMeasure = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 NonNegativeQuantity = Annotated[int, Field(ge=0)]
 ContainerTypeCode = Annotated[str, StringConstraints(pattern=r"^[0-9A-Z]{4}$")]
@@ -110,7 +116,7 @@ def _has_content(model: LabelSchemaModel, *, ignore: frozenset[str] = frozenset(
     return any(name not in ignore for name in values)
 
 
-def _unique(values: tuple[str, ...] | None, field_name: str) -> None:
+def _unique(values: tuple[Any, ...] | None, field_name: str) -> None:
     if values is not None and len(values) != len(set(values)):
         raise ValueError(f"{field_name} values must be unique and source ordered")
 
@@ -178,10 +184,15 @@ class SemanticParty(LabelSchemaModel):
 
     @model_validator(mode="after")
     def is_reference_or_party_value(self) -> SemanticParty:
-        details = self.model_dump(mode="python", exclude_none=True, exclude={"sameAs"})
-        if self.sameAs is not None and details:
-            raise ValueError("sameAs replaces repeated party details; it cannot accompany them")
-        if self.sameAs is None and not details:
+        identity_fields = (self.name, self.address, self.city, self.country)
+        if self.sameAs is not None and any(value is not None for value in identity_fields):
+            raise ValueError(
+                "sameAs replaces repeated identity, address, and location details; "
+                "it may accompany only contactDetails as an explicit override"
+            )
+        if self.sameAs is None and not any(
+            value is not None for value in (*identity_fields, self.contactDetails)
+        ):
             raise ValueError("party must contain details or an explicit sameAs relation")
         return self
 
@@ -190,7 +201,7 @@ class BillOfLadingParties(LabelSchemaModel):
     shipper: SemanticParty | None = None
     consignee: SemanticParty | None = None
     notifyParties: tuple[SemanticParty, ...] | None = Field(
-        default=None, min_length=1, max_length=2
+        default=None, min_length=1
     )
     carrier: SemanticParty | None = None
     forwardingAgent: SemanticParty | None = None
@@ -234,11 +245,21 @@ class BillOfLadingTransport(LabelSchemaModel):
 
 
 MassUnit = Literal["kilogram", "pound"]
+CargoMassUnit = Literal["kilogram", "pound", "metric_tonne"]
 
 
 class Mass(LabelSchemaModel):
+    """Container verified gross mass in an MPCI-supported source unit."""
+
     value: PositiveMeasure
     unit: MassUnit
+
+
+class CargoMass(LabelSchemaModel):
+    """Cargo mass in the explicit unit printed by the source document."""
+
+    value: PositiveMeasure
+    unit: CargoMassUnit
 
 
 class Volume(LabelSchemaModel):
@@ -315,8 +336,8 @@ class BillOfLadingGoodsItem(LabelSchemaModel):
     description: CargoText | None = None
     additionalInformation: tuple[CargoText, ...] | None = Field(default=None, min_length=1)
     packages: tuple[PackageRecord, ...] | None = Field(default=None, min_length=1)
-    grossWeight: Mass | None = None
-    netWeight: Mass | None = None
+    grossWeight: CargoMass | None = None
+    netWeight: CargoMass | None = None
     volume: Volume | None = None
     containerAllocations: tuple[ContainerAllocation, ...] | None = Field(
         default=None, min_length=1
@@ -336,8 +357,11 @@ class BillOfLadingGoodsItem(LabelSchemaModel):
         _unique(self.hsCodes, "hsCodes")
         _unique(self.handlingInstructions, "handlingInstructions")
         if self.containerAllocations is not None:
-            identifiers = tuple(item.containerNumber for item in self.containerAllocations)
-            _unique(identifiers, "containerAllocations.containerNumber")
+            allocation_facts = tuple(
+                (item.containerNumber, item.packageQuantity)
+                for item in self.containerAllocations
+            )
+            _unique(allocation_facts, "containerAllocations")
         return self
 
 

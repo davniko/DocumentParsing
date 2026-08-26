@@ -5,7 +5,7 @@ stage of a planned two-model document system:
 
 ```text
 PDF -> page raster -> GLM-OCR raw page text -> versioned Parquet corpus
-    -> later page joining -> T5Gemma 2 270M-270M key-information extraction
+    -> later page joining -> T5Gemma 2 270M key-information extraction
 ```
 
 The pages dataset contains exactly one successful extraction row per page, with enough source,
@@ -32,10 +32,12 @@ read from the environment and are not written to configuration or published data
 - [GLM-OCR](https://github.com/zai-org/GLM-OCR) accepts a page image with the exact prompt
   `Text Recognition:` and has a native Multi-Token Prediction (MTP) head.
 - The [official vLLM GLM-OCR recipe](https://docs.vllm.ai/projects/recipes/en/stable/GLM/GLM-OCR.html)
-  enables the MTP head with one speculative token. This repository's executable extraction
-  contract is therefore MTP depth 1. The
+  demonstrates one speculative token, while the current
+  [GLM-OCR self-hosting example](https://github.com/zai-org/GLM-OCR#deployment) uses three. The
   [vLLM MTP guide](https://docs.vllm.ai/en/latest/features/speculative_decoding/mtp/) documents the
-  server configuration and benchmarking direction.
+  server configuration and benchmarking direction. A controlled target-GPU benchmark selected
+  depth 3 for this repository's executable extraction contract; see the
+  [remaining-corpus throughput report](artifacts/glm-ocr/benchmarks/remaining-throughput-2026-08-23/REPORT.md).
 - vLLM engine batching is not client admission control. The pipeline separately bounds active
   documents, render processes, global inference requests, and inference requests per PDF.
 - PDFium work is isolated in processes, with a bounded process-local document cache.
@@ -208,9 +210,10 @@ docker compose build glm-ocr-vllm
 The model and scheduler settings are intentionally literal values in `compose.yaml`:
 
 - `max-model-len=32768`
+- `max-num-batched-tokens=8192`
 - `max-num-seqs=16`
 - `gpu-memory-utilization=0.90`
-- MTP with one speculative token
+- MTP with three speculative tokens
 - one image per request
 
 The service also enables `VLLM_WSL2_ENABLE_PIN_MEMORY=1`. vLLM's V2 model runner requires Unified
@@ -219,7 +222,9 @@ supported runtime flag is set.
 
 They must match the extraction YAML. A benchmark variant requires an intentional paired edit to
 the server definition and its versioned configuration; environment-variable overrides cannot
-silently change this contract. The current strict extraction schema accepts MTP depth 1 only.
+silently change this contract. The strict configuration schema accepts only the two explicitly
+supported benchmark depths, 1 and 3; the running server contract must still match the selected
+configuration exactly.
 
 Only when the target GPU is free, start the service explicitly:
 
@@ -252,12 +257,40 @@ uv run document-ocr run --config configs/glm_ocr.blc.local.yaml
 uv run document-ocr run --config configs/glm_ocr.swb.local.yaml
 ```
 
-`run` writes canonical JSONL progress events to stderr after server-contract checking and each
-finished document. Every event includes `processed_documents`, `remaining_documents`, and
-`total_documents`; the final result remains a single JSON object on stdout. Page outcomes and
-inference attempts are committed continuously to `state.sqlite3`, so progress is resumable even if
-the terminal output itself is not retained. Redirect or tee stderr when an operator log file is
-required.
+`run` writes canonical JSONL progress events to stderr after server-contract checking and after
+each page and document completion. Events include document counts, page counts, successful and
+failed page outcomes for the invocation, elapsed time, pages/second, pages/hour, and an ETA. Set
+`run.expected_pages` to the exact frozen-corpus page count to enable the page denominator and ETA;
+use an explicit `null` only when the source page count is genuinely unknown. The final result
+remains a single JSON object on stdout. Page outcomes and inference attempts are committed
+continuously to `state.sqlite3`, so progress is resumable even if the terminal output itself is not
+retained. Redirect or tee stderr when an operator log file is required.
+
+The remaining B/L and SWB surface is frozen by
+`configs/catalog_selection.blc_swb_remaining.yaml`. Its configured 15-page cap retains 2,164 of
+2,174 otherwise eligible documents (99.54%) and 5,351 pages. The ten excluded PDFs contain 452
+pages and remain enumerated in the selection artifact rather than being silently dropped. The raw
+and table-recognition configurations both consume this same immutable surface, and table
+recognition reuses the retained 200-DPI page rasters from raw OCR.
+
+Start or resume the frozen remaining-corpus raw run with:
+
+```bash
+docker compose up --wait --wait-timeout 3600 glm-ocr-vllm
+set -a
+. ./.env
+set +a
+mkdir -p artifacts/glm-ocr/remaining/blc-swb-max15/operator-logs
+set -o pipefail
+uv run --frozen document-ocr run \
+  --config configs/glm_ocr.blc_swb_remaining.local.yaml \
+  2>&1 | tee -a artifacts/glm-ocr/remaining/blc-swb-max15/operator-logs/raw-r2.log
+```
+
+After raw OCR publishes successfully, run the page-aligned table view with
+`configs/glm_ocr.table.blc_swb_remaining.local.yaml`. The profiling evidence and precision sweep
+behind these settings are recorded in
+[`artifacts/glm-ocr/benchmarks/remaining-throughput-2026-08-23/REPORT.md`](artifacts/glm-ocr/benchmarks/remaining-throughput-2026-08-23/REPORT.md).
 
 Inspect completion without contacting vLLM:
 
@@ -372,8 +405,15 @@ while it is running.
 The command does **not** start or reconfigure vLLM, render PDFs, vary MTP or server scheduler flags,
 or collect GPU utilization, VRAM, host CPU, or host RAM. Capture hardware telemetry alongside each
 run with the platform's normal monitoring tools. Comparing MTP-off/depth-1/depth-3 or different
-vLLM scheduler settings therefore requires separately identified server/config variants; the current
-production-oriented extraction contract remains MTP depth 1.
+vLLM scheduler settings therefore requires separately identified server/config variants. vLLM does
+not promise bitwise batch-invariant output, so cross-concurrency comparisons use separate fresh
+server runs rather than treating output hashes across batch shapes as a correctness oracle. The
+current production extraction contract is BF16 weights and KV cache, the measured 2,048-token
+scheduler budget, 16 global page requests, and GLM-OCR MTP depth 1. The 2,048/depth-1 and
+8,192/depth-3 points were statistically indistinguishable in the controlled BF16 sweep, while the
+former is also the exact contract of the completed 893-page run that sustained about 806 pages/hour.
+FP8 is deliberately not enabled: on the same 32-page slice it halved throughput, caused three
+timeouts/retries, and produced material text omissions.
 
 ## Prepare KIE adapter training
 
@@ -472,6 +512,9 @@ GPU power samples. `loss` is the average since the previous log event;
 under `artifacts/kie-training/<run_id>/`: frozen config/prompt,
 dataset and environment reports, checkpoints, logs, metrics, the immutable MLflow run reference,
 optional prediction JSONL, the final adapter and tokenizer, and a completion manifest written last.
+On a fresh run, `evaluation.on_start: true` disables PEFT for the epoch-zero base-model baseline,
+records `eval_is_base_model=1`, and restores PEFT before the first training microbatch. Resume runs
+do not repeat that base-model baseline.
 Resume is never guessed: set `checkpoint.resume_from_checkpoint` to an exact checkpoint inside that
 run and `logging.mlflow.resume_run_id` to its recorded MLflow run ID. A completed local run cannot
 be overwritten, and a resume cannot silently create a second MLflow run.
@@ -495,9 +538,76 @@ gate is a 32–64-example generation memorization check.
 
 New invoice, COO, packing-list, or synthetic lineages use new task schema registrations, prompt
 templates, and content-pinned split JSONLs. Each task's current Pydantic target model supplies the
-compact sparse JSON Schema injected into its prompt. They reuse the loader, cache, collator,
+compact sparse JSON Schema injected into its prompt; relation-explicit categorical tasks additionally
+require a hash-pinned vocabulary artifact that narrows category fields to exact enums. They reuse the loader, cache, collator,
 Trainer, logging, and publication contract without coupling future augmentation generation to
 training.
+
+## Prepare the next MPCI B/L experiment
+
+The next experiment remains 270M-only and combines a semantic instructor, an explicit cargo-relation
+target, and readable registry-backed package categories. Container type stays printed text/code
+because the platform has no stable semantic category registry for its generated accepted codes. The
+complete final handoff is in
+[`docs/mpci-bl-dual-cargo-pdf-categorical-training-handoff-2026-08-22.md`](docs/mpci-bl-dual-cargo-pdf-categorical-training-handoff-2026-08-22.md).
+
+The auxiliary table path reuses accepted 200-DPI rasters and calls GLM-OCR directly with the exact
+`Table Recognition:` task prompt. It never invokes DocLayoutV3. The completed corpus contains
+881/881 successful page views across 487 documents; attach its manifest-last output to cloned rows
+with:
+
+```bash
+uv run --frozen document-ocr-table-view prepare \
+  --config configs/glm_ocr.table.mpci_bl_combined487.yaml
+uv run --frozen document-ocr-table-view run \
+  --config configs/glm_ocr.table.mpci_bl_combined487.yaml
+uv run --frozen document-ocr-table-view join \
+  --config configs/glm_ocr.table.mpci_bl_combined487.yaml
+uv run --frozen document-ocr-table-view verify-join \
+  --config configs/glm_ocr.table.mpci_bl_combined487.yaml
+```
+
+The clone stores table pages under `auxiliaryViews.glmOcrTableRecognition`. The trainer still reads
+only `joinedRawText`, so table content cannot enter a prompt without a later explicit task change.
+
+Publish the exact reviewed source-key map, audit, and run the reversible semantic-v2 to
+relation-explicit-v3 transform:
+
+```bash
+uv run --frozen document-kie-semantic-v3 categories \
+  --config configs/transforms/mpci_bl_semantic_v3_relation_explicit_table_view.yaml \
+  --review-config configs/transforms/mpci_bl_semantic_v3_category_review_v1.yaml
+uv run --frozen document-kie-semantic-v3 audit \
+  --config configs/transforms/mpci_bl_semantic_v3_relation_explicit_table_view.yaml
+uv run --frozen document-kie-semantic-v3 transform \
+  --config configs/transforms/mpci_bl_semantic_v3_relation_explicit_table_view.yaml
+```
+
+The 34 reviewed cargo relations and 204 exact category source keys are hash-bound to the table-view
+inventory. Package mapping covers 636/658 occurrences; 22 ambiguous occurrences remain verbatim.
+All container values remain printed fallbacks. The transform never edits semantic-v2 and publishes
+483 examples plus a runnable, hash-pinned training YAML. Its `task-constraints.json` is mandatory for
+relation-explicit training and evaluation, so out-of-vocabulary package categories are rejected
+rather than merely pattern-valid.
+Relation-explicit evaluation additionally logs identifier-anchored cargo-relation and category
+precision/recall/F1 plus document exactness. These facts are compared independently of array
+position, while the original strict leaf metrics remain available to expose ordering mistakes.
+
+Install the optional PydanticAI labeling runtime and prepare the deterministic Luna Max cost/quality
+sample without making an API call:
+
+```bash
+uv sync --frozen --group labeling
+uv run --frozen --group labeling document-kie-label-agents prepare \
+  --config configs/labeling_agents/mpci_bl_dual_cargo_v3_luna_cost50.yaml
+```
+
+The paid `run` action uses `OPENAI_API_KEY` from the standard project-root `.env`, keeps per-response
+and aggregate token/cost receipts, performs mandatory independent review, and sends a hash-verified,
+requested-page PDF only after an explicit layout-ambiguity request. The PDF can inform grouping but
+cannot supply label values absent from raw OCR. Publication also compares outcomes with the hash-pinned
+accepted targets without exposing those references to either agent. The Ollama example config
+supports an exact operator-supplied local model tag with no automatic cloud fallback.
 
 ## Development validation
 

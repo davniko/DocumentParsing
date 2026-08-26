@@ -1,0 +1,36 @@
+schema_version: 1
+run_id: mpci-bl-relation-single-source-v4-luna-blind200-allocation-adjudication2-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+items:
+  - document_id: doc_64513c561b9ba9286c81884f3fde0919628c10a0bf083cd839291551b2752180
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1/work-items/doc_64513c561b9ba9286c81884f3fde0919628c10a0bf083cd839291551b2752180.json
+    work_item_sha256: 1ed896e103c0741f8a07fb7192c63b661f063ba5980d909df3ec49283c3f896f
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1/state/candidate-attempts/doc_64513c561b9ba9286c81884f3fde0919628c10a0bf083cd839291551b2752180/attempt-2/22f67c755020af52a4c6c2fd6d71f3617bb0c155e4d380d85a25ffa2b80f0266.json
+    candidate_sha256: 22f67c755020af52a4c6c2fd6d71f3617bb0c155e4d380d85a25ffa2b80f0266
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication accepted the second immutable candidate after confirming that its
+        shipment-level package fact is the printed Total Items: 40, while the rider prints only a
+        20-package allocation for container MSDU2001032. Linking that partial row to the 40-package
+        fact would assert an unsupported relationship and remainder. The candidate correctly uses
+        an unlinked_package_quantities allocation and preserves both printed quantities.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1/state/independent-reviews/doc_64513c561b9ba9286c81884f3fde0919628c10a0bf083cd839291551b2752180/attempt-2/892d9a0cc171696d22e33edbddd2f9eeb74854a5ee9c64d406fa51de0abd3adc.json
+        sha256: 892d9a0cc171696d22e33edbddd2f9eeb74854a5ee9c64d406fa51de0abd3adc
+  - document_id: doc_4704110c86e0416aa65fb34474b9235a4be4fc45b24c490445d7efd9b9d600f0
+    work_item_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1/work-items/doc_4704110c86e0416aa65fb34474b9235a4be4fc45b24c490445d7efd9b9d600f0.json
+    work_item_sha256: 7f1daa01a773341d0c1e65f501dff80c3ae0fbe52612409e121c1573cb1d3978
+    candidate_path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1/state/candidate-attempts/doc_4704110c86e0416aa65fb34474b9235a4be4fc45b24c490445d7efd9b9d600f0/attempt-3/522b1678a4973c1157a91c4997dca274f34a7d4ebd19c39a87c86427d8534972.json
+    candidate_sha256: 522b1678a4973c1157a91c4997dca274f34a7d4ebd19c39a87c86427d8534972
+    date_corrections: []
+    adjudication_notes:
+      - >-
+        Overseer adjudication accepted the third immutable candidate after confirming that 47
+        Piece(s) is the printed shipment package total and 6 Piece(s) is the only explicit quantity
+        associated with valid OCR container BSIU9478390. Linking 6 to the 47-piece package fact or
+        inferring the unprinted remainder would add an unsupported relation. The candidate's
+        unlinked_package_quantities allocation is therefore the faithful schema-v4 representation.
+    supporting_artifacts:
+      - path: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-blind200-remediation41-c16-v1/state/independent-reviews/doc_4704110c86e0416aa65fb34474b9235a4be4fc45b24c490445d7efd9b9d600f0/attempt-3/ee4f36aeeb05fa23b5ed21a1f47ba47bbcb18f73154d8467c0c4595432e4f4b8.json
+        sha256: ee4f36aeeb05fa23b5ed21a1f47ba47bbcb18f73154d8467c0c4595432e4f4b8

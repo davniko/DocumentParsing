@@ -8,7 +8,11 @@ import yaml
 from pydantic import ValidationError
 from yaml.constructor import ConstructorError
 
-from document_ocr.training.config import TrainingConfig, load_training_config
+from document_ocr.training.config import (
+    TrainingConfig,
+    load_dataset_partition_config,
+    load_training_config,
+)
 from document_ocr.training.prompting import load_prompt
 from document_ocr.training.runtime import (
     _configure_cuda_allocator,
@@ -19,6 +23,27 @@ from document_ocr.training.tasks import get_training_task
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = PROJECT_ROOT / "configs" / "training" / "t5gemma2_270m_lora.pilot106.yaml"
+COMBINED_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "training"
+    / "t5gemma2_270m_lora.mpci_bl_combined487.yaml"
+)
+FOLLOWUP_SPLIT_CONFIG_PATH = (
+    PROJECT_ROOT / "configs" / "training" / "mpci_bl_followup381_split.seed42.yaml"
+)
+PILOT_VAL10_SPLIT_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "training"
+    / "mpci_bl_pilot106_split.seed42.val10.yaml"
+)
+FOLLOWUP_VAL50_SPLIT_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "training"
+    / "mpci_bl_followup381_split.seed42.val50.yaml"
+)
 
 
 def test_pilot_training_configuration_is_strict_and_content_pinned() -> None:
@@ -58,6 +83,84 @@ def test_pilot_training_configuration_is_strict_and_content_pinned() -> None:
     assert config.logging.report_to == ["mlflow"]
     assert config.logging.mlflow.tracking_uri == "http://mlflow-server:5000"
     assert config.logging.mlflow.system_metrics is True
+
+
+def test_relation_explicit_training_requires_frozen_task_constraints() -> None:
+    value = load_training_config(CONFIG_PATH).model_dump(mode="python")
+    value["task"] = "bill_of_lading_relation_explicit_v3"
+
+    with pytest.raises(ValidationError, match="requires a frozen task_constraints"):
+        TrainingConfig.model_validate(value, strict=True)
+
+    value["task_constraints"] = {"path": "constraints.json", "sha256": "a" * 64}
+    constrained = TrainingConfig.model_validate(value, strict=True)
+    assert constrained.task_constraints is not None
+
+    value["task"] = "bill_of_lading_semantic_v2"
+    with pytest.raises(ValidationError, match="must not configure it"):
+        TrainingConfig.model_validate(value, strict=True)
+
+
+def test_combined_training_configuration_pins_both_semantic_v2_cohorts() -> None:
+    config = load_training_config(COMBINED_CONFIG_PATH)
+
+    assert [source.records for source in config.dataset.splits.train] == [96, 331]
+    assert [source.records for source in config.dataset.splits.validation] == [10, 50]
+    assert sum(source.records for source in config.dataset.splits.train) == 427
+    assert sum(source.records for source in config.dataset.splits.validation) == 60
+    assert [source.sha256 for source in config.dataset.splits.train] == [
+        "2e4b01b06a8ab9dbe136259a45c7f6f5231405c75708939972b5bd6aa9f73302",
+        "011d9aa2114739831139355ff3e80350070a4c29440a9a72120846c99dd5e08f",
+    ]
+    assert [source.sha256 for source in config.dataset.splits.validation] == [
+        "c4cb5e80032690c7ef1e2b43886043ff595246fab513796968d8537bd9d29b89",
+        "87c7f599c4492fe1621243f6bee81a6422e5013bde7647082a985e9682c7d1ed",
+    ]
+    assert config.dataset.preprocessing.max_source_length == 8192
+    assert config.dataset.preprocessing.max_target_length == 3072
+    assert config.optimization.per_device_train_batch_size == 2
+    assert config.optimization.gradient_accumulation_steps == 12
+    assert (
+        config.optimization.per_device_train_batch_size
+        * config.optimization.gradient_accumulation_steps
+        == 24
+    )
+    assert config.optimization.num_train_epochs == 25.0
+    assert config.evaluation.per_device_batch_size == 4
+    assert config.evaluation.on_start is True
+    assert config.evaluation.generation_max_length == 3072
+    assert config.evaluation.steps == config.checkpoint.steps == 90
+    assert config.evaluation.early_stopping_patience is None
+    assert config.evaluation.early_stopping_threshold is None
+
+
+def test_followup_partition_configuration_is_content_pinned() -> None:
+    config = load_dataset_partition_config(FOLLOWUP_SPLIT_CONFIG_PATH)
+
+    assert config.source.records == 381
+    assert config.source.sha256 == (
+        "b5fdf1874f297bf86adad2e128e91ece04d1dcc4ceb1eddeb430f4f7f385ee46"
+    )
+    assert config.seed == 42
+    assert config.validation_records == 57
+    assert config.output_dir == (
+        "artifacts/kie-training/datasets/mpci-bl-followup381-seed42-v1"
+    )
+
+
+def test_combined_validation_partition_configurations_are_content_pinned() -> None:
+    pilot = load_dataset_partition_config(PILOT_VAL10_SPLIT_CONFIG_PATH)
+    followup = load_dataset_partition_config(FOLLOWUP_VAL50_SPLIT_CONFIG_PATH)
+
+    assert pilot.seed == followup.seed == 42
+    assert pilot.validation_records == 10
+    assert followup.validation_records == 50
+    assert pilot.output_dir == (
+        "artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1"
+    )
+    assert followup.output_dir == (
+        "artifacts/kie-training/datasets/mpci-bl-followup381-seed42-val50-v1"
+    )
 
 
 def test_training_yaml_rejects_duplicate_keys(tmp_path: Path) -> None:
