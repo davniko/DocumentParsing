@@ -1,0 +1,41 @@
+schema_version: 1
+alignment: mpci_bl_current_single_source_contract_v1
+
+legacy:
+  normal_dataset:
+    dataset_id: mpci-bl-combined487-table-view-v1
+    root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-table-view-v1
+    manifest_sha256: 8c237c3d682d8aebfe9976a07fabaf31d7395508b0aa4472d547df9ddf7ec3c1
+  relation_dataset:
+    dataset_id: mpci-bl-semantic-v3-relation-explicit-table-view-v1
+    root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-table-view-v1
+    manifest_sha256: 062a887e7067ef1097a3fd4ffc18695399aafd2aeb31dd6e73856fec2bca4586
+  annotation_roots:
+    - root_id: semantic-v2-pilot150-r1
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-pilot150-r1
+      manifest_sha256: 6d21adc07885e352b011931d1ffc179b691613b8a21e562aea38d043d2729ec9
+    - root_id: semantic-v2-followup420-r3
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-followup420-r3
+      manifest_sha256: 93a89ba0b1d2a6d40eb2407d24e96e5ae41ff59065a5cdaff7b1af1ec65c64d4
+  prior_corrections:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-pilot106-raw-latin-v1/manifest.json
+    sha256: d8c1d5f8dfa417ad63b21c7288d38e641944b138cc31d7a7e2e875a26fff499f
+  policy_corrections:
+    path: /mnt/d/Projects/DocumentParsing/configs/transforms/mpci_bl_combined487_current_policy_corrections.json
+    sha256: d5b698885c5f7ff4b11684e8c4d7441bef87ec132aebaebef69b992731a4b1f6
+  expected_source_records: 487
+  expected_aligned_records: 483
+  expected_relation_exclusions: 4
+
+current:
+  dataset:
+    dataset_id: mpci-bl-relation-single-source-v4-main730-description-clean-v1
+    root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-main730-description-clean-v1
+    manifest_sha256: 33a52201ee4bf7824d22d91de2bc04229cdba69a9339997c8671b643aecee03f
+  expected_training_records: 674
+
+output:
+  aligned_legacy_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-current-policy-aligned-v1
+  combined_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined1157-current-policy-v1
+  aligned_legacy_dataset_id: mpci-bl-combined487-current-policy-aligned-v1
+  combined_dataset_id: mpci-bl-combined1157-current-policy-v1

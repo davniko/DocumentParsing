@@ -470,6 +470,39 @@ uv run --frozen document-kie-train inspect-dataset \
   --config configs/training/t5gemma2_270m_lora.pilot106.yaml
 ```
 
+New runs may declare one pinned source directly in the training YAML instead of publishing split
+JSONLs first. `dataset.source` and `dataset.partition` must appear together and are mutually
+exclusive with `dataset.splits`. Validation size is either an integer record count or a fraction
+with explicit half-up rounding:
+
+```yaml
+dataset:
+  format: jsonl
+  source:
+    path: artifacts/example/records.jsonl
+    sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    records: 1000
+  partition:
+    algorithm: seeded_sha256_rank_v1
+    seed: 42
+    validation_size:
+      kind: records
+      value: 60
+    coverage_policy: retain_each_target_leaf_in_train
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+  # preprocessing remains fully explicit
+```
+
+`inspect-dataset` validates the complete source, performs the split in memory, and reports exact
+membership IDs and hashes before a tokenizer or model is loaded. Fractional validation uses
+`kind: fraction`, a value strictly between zero and one, and `rounding: half_up`. Runtime
+partitioning rejects duplicate document/input identities and never constructs a test set; use a
+separately frozen test set when measuring generalization.
+
 Before the first GPU run, accept the Gemma license for the Hugging Face account, put its read token
 in the standard project-root `.env` as `HF_TOKEN`, and run the tokenizer-only preparation gate. It
 downloads the exact tokenizer revision, validates all target lengths without truncation, and builds

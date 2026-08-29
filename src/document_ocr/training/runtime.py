@@ -21,11 +21,12 @@ from document_ocr.atomic import (
     atomic_write_bytes,
     read_regular_file_bytes,
 )
-from document_ocr.hashing import canonical_json_bytes, sha256_file
+from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.training.collator import MetadataStrippingCollator
 from document_ocr.training.config import TrainingConfig, parse_training_config, resolve_config_path
 from document_ocr.training.data import PreparedDatasets, prepare_datasets
 from document_ocr.training.metrics import make_compute_metrics, structured_metrics
+from document_ocr.training.prediction import SamplerAwarePredictionMixin
 from document_ocr.training.prompting import PromptTemplate
 from document_ocr.training.tasks import TrainingTask
 
@@ -427,6 +428,9 @@ def build_training_arguments(config: TrainingConfig, run_dir: Path) -> Any:
         "dataloader_persistent_workers": config.dataloader.persistent_workers,
         "dataloader_prefetch_factor": config.dataloader.prefetch_factor,
         "dataloader_drop_last": config.dataloader.drop_last,
+        # Prediction identities are recorded from sampler order, so completed batches
+        # must be returned in that same order when worker processes are enabled.
+        "dataloader_in_order": True,
         # Sampler metadata must survive until LengthGroupedSampler consumes input_length.
         # MetadataStrippingCollator removes it before model.forward.
         "remove_unused_columns": False,
@@ -917,12 +921,16 @@ def _predict_and_publish(
     metric_key_prefix: str,
     predictions_dir: Path,
 ) -> tuple[dict[str, Any], Path]:
-    output = trainer.predict(dataset, metric_key_prefix=metric_key_prefix)
+    ordered_prediction = trainer.predict_with_identities(
+        dataset,
+        metric_key_prefix=metric_key_prefix,
+    )
+    output = ordered_prediction.output
     generated, references = _decode_prediction_output(output, tokenizer)
     prediction_path = predictions_dir / f"{split}.jsonl"
     independently_computed = _write_prediction_rows(
         path=prediction_path,
-        document_ids=cast(list[str], dataset["document_id"]),
+        document_ids=ordered_prediction.document_ids,
         generated_texts=generated,
         reference_texts=references,
         task=task,
@@ -951,8 +959,10 @@ def _source_code_identity(project_root: Path) -> list[dict[str, Any]]:
         "document_ocr.training.config",
         "document_ocr.training.data",
         "document_ocr.training.metrics",
+        "document_ocr.training.prediction",
         "document_ocr.training.prompting",
         "document_ocr.training.runtime",
+        "document_ocr.training.splitting",
         "document_ocr.training.tasks",
     ]
     results = []
@@ -1083,7 +1093,10 @@ def _prepare_run_directory(
             return value.model_copy(
                 update={
                     "checkpoint": value.checkpoint.model_copy(
-                        update={"resume_from_checkpoint": None}
+                        update={
+                            "resume_from_checkpoint": None,
+                            "allow_resume_source_code_drift": False,
+                        }
                     ),
                     "logging": value.logging.model_copy(
                         update={
@@ -1097,12 +1110,75 @@ def _prepare_run_directory(
 
         if without_resume(existing_config) != without_resume(config):
             raise RuntimeError("resumed run configuration differs from its immutable run contract")
-        resume_config_path = run_dir / "resume-invocations" / f"{resume.name}.yaml"
+        resume_invocation_id = f"{resume.name}-{sha256_bytes(config_payload)}"
+        resume_config_path = (
+            run_dir / "resume-invocations" / f"{resume_invocation_id}.yaml"
+        )
         atomic_publish_bytes(resume_config_path, config_payload)
         config_artifacts.append(resume_config_path)
     atomic_publish_bytes(run_dir / "prompt.txt", prompt.encoded)
-    atomic_publish_json(run_dir / "dataset-report.json", prepared.report())
-    atomic_publish_json(run_dir / "environment.json", environment)
+    dataset_report_path = run_dir / "dataset-report.json"
+    # Compare the JSON value that is actually persisted, not Python container
+    # implementation details. DatasetInspection contains tuples (for example,
+    # source_files), which JSON correctly serializes as arrays and loads back as
+    # lists on resume.
+    prepared_report = cast(dict[str, Any], _json_ready(prepared.report()))
+    if resume is None:
+        atomic_publish_json(dataset_report_path, prepared_report)
+    else:
+        try:
+            existing_report = json.loads(
+                read_regular_file_bytes(dataset_report_path).decode("utf-8")
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                "resumed run dataset report is not valid UTF-8 JSON"
+            ) from error
+        if existing_report != prepared_report:
+            raise RuntimeError(
+                "resumed dataset inspection or partition differs from its immutable run report"
+            )
+    environment_path = run_dir / "environment.json"
+    prepared_environment = cast(dict[str, Any], _json_ready(environment))
+    if resume is None:
+        atomic_publish_json(environment_path, prepared_environment)
+    else:
+        try:
+            existing_environment = json.loads(
+                read_regular_file_bytes(environment_path).decode("utf-8")
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                "resumed run environment report is not valid UTF-8 JSON"
+            ) from error
+        if config.checkpoint.allow_resume_source_code_drift:
+            existing_compatible = {
+                key: value
+                for key, value in existing_environment.items()
+                if key != "source_code"
+            }
+            prepared_compatible = {
+                key: value
+                for key, value in prepared_environment.items()
+                if key != "source_code"
+            }
+            if existing_compatible != prepared_compatible:
+                raise RuntimeError(
+                    "resumed environment differs outside the explicitly allowed "
+                    "source-code identity"
+                )
+        elif existing_environment != prepared_environment:
+            raise RuntimeError(
+                "resumed environment differs from its immutable run report; "
+                "source-code-only drift requires explicit acknowledgement"
+            )
+        resume_environment_path = (
+            run_dir
+            / "resume-invocations"
+            / f"{resume_invocation_id}.environment.json"
+        )
+        atomic_publish_json(resume_environment_path, prepared_environment)
+        config_artifacts.append(resume_environment_path)
     atomic_write_bytes(
         run_dir / "status.json",
         canonical_json_bytes(
@@ -1248,7 +1324,10 @@ def run_training(
             )
         )
         evaluation_dataset = prepared.datasets.get(config.evaluation.split)
-        trainer = Seq2SeqTrainer(
+        class SamplerAwareSeq2SeqTrainer(SamplerAwarePredictionMixin, Seq2SeqTrainer):
+            pass
+
+        trainer = SamplerAwareSeq2SeqTrainer(
             model=model,
             args=training_arguments,
             data_collator=collator,

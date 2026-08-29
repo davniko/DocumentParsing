@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next50-held-adjudication-c-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa.json",
+      "work_item_sha256": "26b2331daeeeaa19cfbd06797f714e7ead6a9a57182342fa20c385c0b9a7aab5",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa/attempt-1/e766ac1f69a4de3ca7cbfe939c1b7330f4764797e432c1990ed39eaed3f5699a.json",
+      "candidate_sha256": "e766ac1f69a4de3ca7cbfe939c1b7330f4764797e432c1990ed39eaed3f5699a",
+      "rebuild": {
+        "decision_notes": [
+          "The explicit GROSS WEIGHT Cargo column labels the following KGS 500.000 value."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": null,
+          "corrected_value": {
+            "unit": "kilogram",
+            "value": 500
+          }
+        }
+      ],
+      "adjudication_notes": [
+        "Added the explicitly headed cargo gross weight."
+      ]
+    },
+    {
+      "document_id": "doc_e42f749e931b71c72d16102bf68e0210b0ed2a3a2bf6a35067ef3f86ad31aa2e",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_e42f749e931b71c72d16102bf68e0210b0ed2a3a2bf6a35067ef3f86ad31aa2e.json",
+      "work_item_sha256": "c96ab7d45ffdedc803e3830d10037a2804b865f82f6dcb51af513e1f2264f005",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_e42f749e931b71c72d16102bf68e0210b0ed2a3a2bf6a35067ef3f86ad31aa2e/attempt-4/72b201ff2f1d6441c355e0a2ade13aaa67b87e9d56ad052df6d3f9d7bd96ccd5.json",
+      "candidate_sha256": "72b201ff2f1d6441c355e0a2ade13aaa67b87e9d56ad052df6d3f9d7bd96ccd5",
+      "adjudication_notes": [
+        "Promoted unchanged: IMO 9293442 has a valid checksum, and the two OCR-supported container allocations are complete."
+      ]
+    },
+    {
+      "document_id": "doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53.json",
+      "work_item_sha256": "56f058e34aa1f37ff9e8575e5de413ad37dd1c6159a7d295d44a00540443c4fd",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53/attempt-1/cc2d484630457a14b2e48df8ea5ab1ce42fd2d5de9ae03abb0b069dd43db09ed.json",
+      "candidate_sha256": "cc2d484630457a14b2e48df8ea5ab1ce42fd2d5de9ae03abb0b069dd43db09ed",
+      "rebuild": {
+        "decision_notes": [
+          "Retain exact OCR-grounded carrier, DUS, cargo, marks, valid normalized container, and explicit six-pallet allocation facts."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/parties/carrier",
+          "expected_value": null,
+          "corrected_value": {
+            "sameAs": null,
+            "name": "Traza Logistica Spa",
+            "address": "AV APOQUINDO 5950, PISO 18, OF 119",
+            "city": "7550000 Las Condes",
+            "country": "Chile",
+            "contactDetails": {
+              "contactName": null,
+              "phoneNumbers": [
+                "+56957440567"
+              ],
+              "emailAddresses": [
+                "nicolascastillo@trazalogistica.cl"
+              ],
+              "websiteUrls": null
+            }
+          }
+        },
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "11475832-9"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": [
+            "Wooden Package/Treated and Certified"
+          ],
+          "corrected_value": [
+            "SACO 25 KG(1T)",
+            "Wooden Package/Treated and Certified"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/marksAndNumbers",
+          "expected_value": null,
+          "corrected_value": [
+            "HLG4215508",
+            "2353388"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/containers",
+          "expected_value": null,
+          "corrected_value": [
+            {
+              "containerNumber": "TGBU2246350",
+            "typeDescription": "20 DC",
+              "verifiedGrossMass": null,
+              "sealNumbers": null,
+              "temperatureSetpoint": null
+            }
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": null,
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "single_package_level",
+            "packageId": "p1",
+            "allocations": [
+              {
+                "containerNumber": "TGBU2246350",
+                "packageQuantity": 6
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "invalid_identifier_omitted",
+          "message": "Printed container identifier TGBU224635-0 fails the ISO 6346 checksum and was omitted.",
+          "pageNumbers": [
+            2
+          ],
+          "targetPath": null
+        }
+      ],
+      "adjudication_notes": [
+        "Corrected the false invalid-container finding and restored all exact OCR-grounded relationships."
+      ]
+    },
+    {
+      "document_id": "doc_f02bbfd51efe86d4b8519848096005e83dc153c467a23c0734951215a1d10e7a",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_f02bbfd51efe86d4b8519848096005e83dc153c467a23c0734951215a1d10e7a.json",
+      "work_item_sha256": "e67466a042502767da31b0e15eadb1a2fee01110409ec25ec258c2eddb54acb0",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_f02bbfd51efe86d4b8519848096005e83dc153c467a23c0734951215a1d10e7a/attempt-1/a81385afccf0dbc7f55bc0c0501317d5ff20c11a25f602accb409255a0583c82.json",
+      "candidate_sha256": "a81385afccf0dbc7f55bc0c0501317d5ff20c11a25f602accb409255a0583c82",
+      "adjudication_notes": [
+        "Promoted unchanged; malformed printed gross weight remains null with its explicit warning."
+      ]
+    },
+    {
+      "document_id": "doc_f8d0edfc6b5a3ed5e1031ff7369e78a750519e041555abe5c75f43fac0bcd391",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_f8d0edfc6b5a3ed5e1031ff7369e78a750519e041555abe5c75f43fac0bcd391.json",
+      "work_item_sha256": "a726c4422bdb64afa85dad3be4063a4020dca3a13a4e14d2ec80d4c980629a3e",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_f8d0edfc6b5a3ed5e1031ff7369e78a750519e041555abe5c75f43fac0bcd391/attempt-1/ae925538c41d6b968a7d35fa9019515d0a3ad2ff89fb5e9c7d7734d7e687d33a.json",
+      "candidate_sha256": "ae925538c41d6b968a7d35fa9019515d0a3ad2ff89fb5e9c7d7734d7e687d33a",
+      "rebuild": {
+        "decision_notes": [
+          "Restore the explicitly printed B/L, receipt place, carrier, and three S/B references; ROAD RAIL SEA mode is outside the transport target."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/billOfLadingNumber",
+          "expected_value": null,
+          "corrected_value": "MU23S0042792"
+        },
+        {
+          "target_path": "/documentPatch/route/placeOfReceipt",
+          "expected_value": null,
+          "corrected_value": {
+            "name": "NHAVA SHEVA",
+            "country": "INDIA"
+          }
+        },
+        {
+          "target_path": "/documentPatch/parties/carrier",
+          "expected_value": null,
+          "corrected_value": {
+            "sameAs": null,
+            "name": "EMU LINES PVT. LTD.",
+            "address": "R/O 201, 35-A, Siddharth Chambers-II, Kalu Sarai, Hauz Khas, New Delhi-110016",
+            "city": "New Delhi",
+            "country": "India",
+            "contactDetails": null
+          }
+        },
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "6600762",
+            "7634148",
+            "6854337"
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Added only target-representable OCR facts; unqualified mass and unsupported mode remain omitted."
+      ]
+    },
+    {
+      "document_id": "doc_fc06e47dc8863abcda6c2051fc2863fecbe5a82e9d16e2aa36265d2c4e828a64",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_fc06e47dc8863abcda6c2051fc2863fecbe5a82e9d16e2aa36265d2c4e828a64.json",
+      "work_item_sha256": "b9fb929f2847137725da4e73840577322957a891b399d7433cfc622784aba6f0",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_fc06e47dc8863abcda6c2051fc2863fecbe5a82e9d16e2aa36265d2c4e828a64/attempt-2/0cae2e15eb1d1aa4efbb169d218306f18076b19452eac7e49b915ac593636c1a.json",
+      "candidate_sha256": "0cae2e15eb1d1aa4efbb169d218306f18076b19452eac7e49b915ac593636c1a",
+      "adjudication_notes": [
+        "Promoted the two source-supported container groups and their row package facts; the separately printed shipment total is not duplicated or arbitrarily assigned."
+      ]
+    },
+    {
+      "document_id": "doc_ff29c608c805f6d5ef8f25a669c4aa5f4373149691e77c8a8e19d61278ab7986",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_ff29c608c805f6d5ef8f25a669c4aa5f4373149691e77c8a8e19d61278ab7986.json",
+      "work_item_sha256": "b9bb518822beb9d33ee5b2d38507250022cd14f4cb448324a2619980e49a8044",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_ff29c608c805f6d5ef8f25a669c4aa5f4373149691e77c8a8e19d61278ab7986/attempt-2/3361931ec2f3a89e3058cda92d4776646921163b0d64e9ffba495a0dabb78348.json",
+      "candidate_sha256": "3361931ec2f3a89e3058cda92d4776646921163b0d64e9ffba495a0dabb78348",
+      "rebuild": {
+        "decision_notes": [
+          "Retain per-source-group package facts, add explicit CBM volumes and containment strings, allocate outer pallets, and leave unqualified row KGS unassigned."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/volume",
+          "expected_value": null,
+          "corrected_value": {
+            "unit": "cubic_metre",
+            "value": 55.57
+          }
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/1/volume",
+          "expected_value": null,
+          "corrected_value": {
+            "unit": "cubic_metre",
+            "value": 57.73
+          }
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/2/volume",
+          "expected_value": null,
+          "corrected_value": {
+            "unit": "cubic_metre",
+            "value": 63.32
+          }
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": [
+            "NON-WOODEN PACKAGING MATERIAL"
+          ],
+          "corrected_value": [
+            "NON-WOODEN PACKAGING MATERIAL",
+            "16 PLTS=109 CTNS"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/1/additionalInformation",
+          "expected_value": null,
+          "corrected_value": [
+            "15 PLTS=116 CTNS"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/2/additionalInformation",
+          "expected_value": null,
+          "corrected_value": [
+            "16 PLTS=128 CTNS"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "single_package_level",
+            "packageId": "p2",
+            "allocations": [
+              {
+                "containerNumber": "CAAU8246880",
+                "packageQuantity": 109
+                }
+              ]
+            },
+            {
+              "groupId": "g2",
+              "coverage": "single_package_level",
+            "packageId": "p4",
+            "allocations": [
+              {
+                "containerNumber": "MSKU1662959",
+                "packageQuantity": 116
+                }
+              ]
+            },
+            {
+              "groupId": "g3",
+              "coverage": "single_package_level",
+            "packageId": "p6",
+            "allocations": [
+              {
+                "containerNumber": "SUDU6900349",
+                "packageQuantity": 128
+                }
+              ]
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "single_package_level",
+            "packageId": "p1",
+            "allocations": [
+              {
+                "containerNumber": "CAAU8246880",
+                "packageQuantity": 16
+                }
+              ]
+            },
+            {
+              "groupId": "g2",
+              "coverage": "single_package_level",
+            "packageId": "p3",
+            "allocations": [
+              {
+                "containerNumber": "MSKU1662959",
+                "packageQuantity": 15
+                }
+              ]
+            },
+            {
+              "groupId": "g3",
+              "coverage": "single_package_level",
+            "packageId": "p5",
+            "allocations": [
+              {
+                "containerNumber": "SUDU6900349",
+                "packageQuantity": 16
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "schema_cannot_represent",
+          "message": "Container-row KGS and CBM measures do not establish one aggregate cargo-group gross weight or volume and were omitted.",
+          "pageNumbers": [
+            2,
+            3,
+            4
+          ],
+          "targetPath": null
+        }
+      ],
+      "adjudication_notes": [
+        "Resolved all three row relationships consistently with prior adjudicated per-source-group policy; KGS remains null because no gross/net qualifier is printed."
+      ]
+    }
+  ]
+}

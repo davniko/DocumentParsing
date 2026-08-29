@@ -18,6 +18,9 @@ from test_config import valid_config_data, valid_page_record_data
 import document_ocr.table_views.join as join_module
 from document_ocr.config import PipelineConfig
 from document_ocr.hashing import canonical_json_bytes, canonical_json_sha256, sha256_bytes
+from document_ocr.labeling_agents.models import CompactAnnotationDraft
+from document_ocr.labeling_agents.orchestrator import build_compact_annotation
+from document_ocr.labeling_agents.work_items import AgentWorkItem
 from document_ocr.models import PageExtractionFailure, PageExtractionRecord, SourceObject
 from document_ocr.sources import freeze_source_inventory
 from document_ocr.table_views import cli as table_cli
@@ -658,6 +661,76 @@ def test_table_config_rejects_text_recognition_prompt(tmp_path: Path) -> None:
     config["vllm"]["prompt"] = "Text Recognition:"
     with pytest.raises(ValidationError, match="Table Recognition"):
         TableViewConfig.model_validate(config, strict=True)
+
+
+def test_validated_table_source_accepts_dual_cargo_annotation() -> None:
+    document_id = "doc_" + "8" * 64
+    page_text = "B/L NO: HBL-001"
+    joined_text = f"--- PAGE 1 ---\n{page_text}"
+    item = AgentWorkItem.model_validate(
+        {
+            "source": {
+                "documentId": document_id,
+                "extractionRunId": "source-v1",
+                "sourceUri": "file:///fixture.pdf",
+                "localCanonicalPath": "/fixture.pdf",
+                "sourceSha256": "a" * 64,
+                "documentPageCount": 1,
+                "joinedRawTextSha256": sha256_bytes(joined_text.encode()),
+                "pages": (
+                    {
+                        "pageIndex": 0,
+                        "pageNumber": 1,
+                        "pageId": "page-1",
+                        "extractionId": "extract-1",
+                        "rawOcrTextSha256": sha256_bytes(page_text.encode()),
+                        "rawResponsePath": "raw-response.json",
+                        "rawResponseSha256": "b" * 64,
+                        "rasterPath": "page.png",
+                        "rasterSha256": "c" * 64,
+                    },
+                ),
+            },
+            "joinedRawText": joined_text,
+        },
+        strict=True,
+    )
+    draft = CompactAnnotationDraft.model_validate(
+        {
+            "decision": "annotation",
+            "documentType": "bill_of_lading",
+            "relationExplicitLabel": {
+                "schemaVersion": "3.0.0-experimental",
+                "documentPatch": {"billOfLadingNumber": "HBL-001"},
+            },
+            "warnings": (),
+            "decisionNotes": ("Fixture label.",),
+        },
+        strict=True,
+    )
+    annotation = build_compact_annotation(
+        item, draft, pdf_grouping_used=False
+    ).model_copy(update={"reviewStatus": "validated"})
+    payload = canonical_json_bytes(annotation.model_dump(mode="json"))
+
+    parsed = pipeline_module._validated_bill_of_lading_annotation(
+        payload, document_id=document_id
+    )
+
+    assert pipeline_module._annotation_training_target(parsed) == (
+        annotation.relationExplicitLabel.canonical_target()
+    )
+
+
+def test_validated_table_source_rejects_unknown_annotation_schema() -> None:
+    payload = canonical_json_bytes({"annotationSchemaVersion": "4.0.0"})
+
+    with pytest.raises(
+        pipeline_module.TableViewError, match="unsupported annotation schema version"
+    ):
+        pipeline_module._validated_bill_of_lading_annotation(
+            payload, document_id="doc_" + "9" * 64
+        )
 
 
 def test_raw_extraction_source_accepts_inference_failure_with_retained_raster(

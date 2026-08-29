@@ -1,0 +1,147 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+method: sft
+grpo: null
+
+run:
+  run_id: qwen35-08b-lora-sft-mpci-bl-combined1157-v1
+  output_dir: artifacts/kie-decoder-training
+  seed: 424
+
+model:
+  family: qwen3_5
+  name_or_path: Qwen/Qwen3.5-0.8B
+  revision: 2fc06364715b967f1860aea9cf38778875588b17
+  token_env: HF_TOKEN
+  local_files_only: false
+  trust_remote_code: false
+  text_only: true
+  dtype: bfloat16
+  load_in_4bit: false
+  load_in_8bit: false
+  fast_inference: false
+
+prompt:
+  path: prompts/kie/bill_of_lading_relation_explicit_v3.txt
+  placeholder: "{{document_text}}"
+  schema_placeholder: "{{output_schema}}"
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+  sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+
+dataset:
+  format: jsonl
+  source:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  partition:
+    algorithm: seeded_sha256_rank_v1
+    seed: 424
+    validation_size:
+      kind: records
+      value: 100
+    coverage_policy: retain_each_target_leaf_in_train
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+  cache_dir: artifacts/kie-decoder-training/cache
+
+sequence:
+  thinking: disabled
+  # Measured with the pinned Qwen3.5 tokenizer over all 1,157 records:
+  # prompt max 12,226; completion max 3,630; combined max 14,024.
+  max_prompt_length: 13312
+  max_completion_length: 4096
+  max_sequence_length: 17408
+  overflow: error
+  append_eos: true
+  completion_only_loss: true
+  packing: false
+  dataset_num_proc: 4
+
+adapter:
+  kind: lora
+  rank: 32
+  alpha: 32
+  dropout: 0.0
+  bias: none
+  use_rslora: true
+  target_modules: all-linear
+  modules_to_save: []
+  gradient_checkpointing: unsloth
+
+optimization:
+  num_train_epochs: 10.0
+  max_steps: -1
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 24
+  learning_rate: 0.0001
+  optimizer: adamw_8bit
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 0.00000001
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.05
+  gradient_checkpointing: true
+  bf16: true
+  tf32: true
+  full_determinism: false
+
+runtime:
+  require_cuda: true
+  cuda_allocator_conf: expandable_segments:True
+  torch_compile: false
+  torch_compile_backend: null
+  torch_compile_mode: null
+
+dataloader:
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+  drop_last: false
+
+evaluation:
+  strategy: epoch
+  steps: null
+  on_start: true
+  run_final: true
+  generation_max_new_tokens: 4096
+  generation_do_sample: false
+  generation_num_beams: 1
+  write_predictions: true
+  early_stopping_patience: null
+  early_stopping_threshold: null
+
+checkpoint:
+  strategy: epoch
+  steps: null
+  total_limit: 2
+  resume_from_checkpoint: null
+  save_only_model: false
+  load_best_model_at_end: true
+  metric_for_best_model: field_value_f1
+  greater_is_better: true
+
+logging:
+  strategy: steps
+  steps: 5
+  first_step: true
+  mlflow:
+    tracking_uri: http://mlflow-server:5000
+    experiment_name: document-ocr-kie-decoder
+    run_name: qwen35-08b-lora-sft-mpci-bl-combined1157-v1
+    resume_run_id: null
+    tags:
+      pipeline: document-ocr-kie-decoder
+      task: bill-of-lading-relation-explicit-v3
+      method: sft
+      model: qwen3.5-0.8b
+  disable_tqdm: false

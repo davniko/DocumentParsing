@@ -33,8 +33,16 @@ def test_resume_keeps_training_contract_immutable_and_records_invocation(
         }
     )
     prompt = load_prompt(PROJECT_ROOT, base.prompt, get_training_task(base.task))
-    prepared = SimpleNamespace(report=lambda: {"cache_identity": "test"})
-    environment = {"packages": {"test": "1"}}
+    prepared = SimpleNamespace(
+        report=lambda: {
+            "cache_identity": "test",
+            "source_files": ({"path": "source.jsonl"},),
+        }
+    )
+    environment = {
+        "packages": {"test": "1"},
+        "source_code": [{"path": "runtime.py", "sha256": "original"}],
+    }
 
     run_dir, resume, artifacts = _prepare_run_directory(
         project_root=PROJECT_ROOT,
@@ -52,7 +60,10 @@ def test_resume_keeps_training_contract_immutable_and_records_invocation(
     resumed = base.model_copy(
         update={
             "checkpoint": base.checkpoint.model_copy(
-                update={"resume_from_checkpoint": str(checkpoint)}
+                update={
+                    "resume_from_checkpoint": str(checkpoint),
+                    "allow_resume_source_code_drift": True,
+                }
             ),
             "logging": base.logging.model_copy(
                 update={
@@ -69,13 +80,50 @@ def test_resume_keeps_training_contract_immutable_and_records_invocation(
         config=resumed,
         prompt=prompt,
         prepared=prepared,
-        environment=environment,
+        environment={
+            **environment,
+            "source_code": [{"path": "runtime.py", "sha256": "resumed"}],
+        },
     )
 
     assert resumed_run_dir == run_dir
     assert resume == checkpoint
-    assert artifacts[-1] == run_dir / "resume-invocations" / "checkpoint-1.yaml"
-    assert artifacts[-1].is_file()
+    invocation_artifacts = [
+        path for path in artifacts if path.parent == run_dir / "resume-invocations"
+    ]
+    assert len(invocation_artifacts) == 2
+    assert {path.suffix for path in invocation_artifacts} == {".yaml", ".json"}
+    assert all(path.name.startswith("checkpoint-1-") for path in invocation_artifacts)
+    assert all(path.is_file() for path in invocation_artifacts)
+
+    changed_prepared = SimpleNamespace(
+        report=lambda: {"cache_identity": "different-partition"}
+    )
+    with pytest.raises(RuntimeError, match="differs from its immutable run report"):
+        _prepare_run_directory(
+            project_root=PROJECT_ROOT,
+            config_payload=_payload(resumed),
+            config=resumed,
+            prompt=prompt,
+            prepared=changed_prepared,
+            environment={
+                **environment,
+                "source_code": [{"path": "runtime.py", "sha256": "resumed"}],
+            },
+        )
+
+    with pytest.raises(RuntimeError, match="outside the explicitly allowed"):
+        _prepare_run_directory(
+            project_root=PROJECT_ROOT,
+            config_payload=_payload(resumed),
+            config=resumed,
+            prompt=prompt,
+            prepared=prepared,
+            environment={
+                "packages": {"test": "2"},
+                "source_code": [{"path": "runtime.py", "sha256": "resumed"}],
+            },
+        )
 
     changed = resumed.model_copy(
         update={
@@ -91,5 +139,8 @@ def test_resume_keeps_training_contract_immutable_and_records_invocation(
             config=changed,
             prompt=prompt,
             prepared=prepared,
-            environment=environment,
+            environment={
+                **environment,
+                "source_code": [{"path": "runtime.py", "sha256": "resumed"}],
+            },
         )

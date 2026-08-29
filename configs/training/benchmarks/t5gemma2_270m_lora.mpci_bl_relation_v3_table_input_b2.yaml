@@ -1,0 +1,177 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+objective: seq2seq_teacher_forcing
+
+run:
+  run_id: benchmark-t5gemma2-270m-lora-mpci-bl-relation-v3-table-input-b2-r1
+  output_dir: artifacts/kie-training/benchmarks
+
+model:
+  architecture: seq2seq_lm
+  model_type: t5gemma2
+  name_or_path: google/t5gemma-2-270m-270m
+  revision: 7c38f16641f455ef0685b18431faf1b17722d5a1
+  tokenizer_name_or_path: google/t5gemma-2-270m-270m
+  tokenizer_revision: 7c38f16641f455ef0685b18431faf1b17722d5a1
+  tokenizer_use_fast: true
+  token_env: HF_TOKEN
+  local_files_only: false
+  trust_remote_code: false
+  dtype: bfloat16
+  attention_implementation: sdpa
+  low_cpu_mem_usage: true
+  use_cache: false
+
+prompt:
+  path: prompts/kie/bill_of_lading_relation_explicit_v3_table_view.txt
+  placeholder: "{{document_text}}"
+  schema_placeholder: "{{output_schema}}"
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+  sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+
+dataset:
+  format: jsonl
+  splits:
+    train:
+      - path: artifacts/kie-training/datasets/mpci-bl-combined483-task-facing-table-input-v1/train.jsonl
+        sha256: a725d28d0379f46a2ceb85b94b44aec69b0e3845a5b64fbeb0e55516ca2056be
+        records: 423
+    validation: []
+    test: []
+  fields:
+    document_id: documentId
+    input_text: modelInputText
+    target: target
+    input_sha256: modelInputTextSha256
+  preprocessing:
+    max_source_length: 13312
+    max_target_length: 4096
+    source_overflow: error
+    source_add_special_tokens: true
+    num_proc: 4
+    batch_size: 16
+    load_from_cache_file: true
+    cache_dir: artifacts/kie-training/cache/tokenized
+    pad_to_multiple_of: 8
+
+peft:
+  method: lora
+  adapter_name: benchmark_mpci_bl_relation_v3_table_input_b2
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  bias: none
+  use_rslora: true
+  init_lora_weights: true
+  target_modules_regex: '^model\.(?:encoder\.text_model|decoder)\.layers\.[0-9]+\.(?:self_attn\.(?:q_proj|k_proj|v_proj|o_proj)|mlp\.(?:gate_proj|up_proj|down_proj))$'
+  modules_to_save: []
+  ensure_weight_tying: false
+
+optimization:
+  num_train_epochs: 1.0
+  max_steps: 1
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 1
+  learning_rate: 0.0001
+  optimizer: adamw_torch_fused
+  optimizer_args: null
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 0.00000001
+  lr_scheduler_type: constant
+  lr_scheduler_kwargs: {}
+  warmup_ratio: 0.0
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  label_smoothing_factor: 0.0
+  average_tokens_across_devices: true
+  seed: 424
+  data_seed: 424
+  full_determinism: false
+  # LengthGroupedSampler places the longest encoder-input group first. This historical
+  # probe does not cover the independent decoder-target maximum and is not a capacity proof.
+  train_sampling_strategy: group_by_length
+  length_column_name: input_length
+
+runtime:
+  distributed_processes: 1
+  require_cuda: true
+  cuda_allocator_conf: expandable_segments:True
+  bf16: true
+  fp16: false
+  tf32: true
+  gradient_checkpointing: true
+  gradient_checkpointing_use_reentrant: false
+  torch_compile: false
+  torch_compile_backend: null
+  torch_compile_mode: null
+  torch_empty_cache_steps: null
+  skip_memory_metrics: false
+
+dataloader:
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+  drop_last: false
+
+evaluation:
+  strategy: "no"
+  split: validation
+  steps: null
+  per_device_batch_size: 1
+  on_start: false
+  predict_with_generate: false
+  generation_do_sample: false
+  generation_max_length: 4096
+  generation_num_beams: 1
+  generation_repetition_penalty: 1.0
+  generation_no_repeat_ngram_size: 0
+  generation_length_penalty: 1.0
+  generation_early_stopping: false
+  accumulation_steps: 1
+  early_stopping_patience: null
+  early_stopping_threshold: null
+  run_final_evaluation: false
+  write_predictions_for: []
+
+checkpoint:
+  strategy: "no"
+  steps: null
+  total_limit: null
+  load_best_model_at_end: false
+  metric_for_best_model: null
+  greater_is_better: null
+  resume_from_checkpoint: null
+  enable_jit_checkpoint: false
+  save_only_model: false
+  save_on_each_node: false
+  restore_callback_states_from_checkpoint: true
+
+logging:
+  strategy: steps
+  steps: 1
+  first_step: true
+  report_to:
+    - mlflow
+  mlflow:
+    tracking_uri: http://mlflow-server:5000
+    experiment_name: document-ocr-kie-benchmarks
+    resume_run_id: null
+    log_artifacts: false
+    flatten_params: true
+    max_log_params: null
+    system_metrics: true
+    system_metrics_sampling_interval: 1
+    system_metrics_samples_before_logging: 1
+    tags:
+      pipeline: document-ocr-kie
+      purpose: table-input-longest-batch-b2
+  structured_log: logs/events.jsonl
+  disable_tqdm: false
+  log_level: info
+  include_num_input_tokens_seen: non_padding
+  filter_nan_inf: false
+  on_each_node: false

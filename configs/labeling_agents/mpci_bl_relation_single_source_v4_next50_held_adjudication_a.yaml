@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next50-held-adjudication-a-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_186c6841ed7181729b4c6ad94fc5f7e8d3f6ea038492d21bd166f914bb373869",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_186c6841ed7181729b4c6ad94fc5f7e8d3f6ea038492d21bd166f914bb373869.json",
+      "work_item_sha256": "7d0b6d325dfaff1a9e9a5774c9dd92a8e63a322f59f4a1dba1424f69b908e761",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_186c6841ed7181729b4c6ad94fc5f7e8d3f6ea038492d21bd166f914bb373869/attempt-4/198954c982b8e746a1d2b8f2b5f6fbf0e747a7b8891a8e94155432c85cb390e0.json",
+      "candidate_sha256": "198954c982b8e746a1d2b8f2b5f6fbf0e747a7b8891a8e94155432c85cb390e0",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "The headed invoice value ends at -25; the following FREIGHT COLLECT field is not part of the reference."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": [
+            "LWIX805501-25FREIGHT"
+          ],
+          "corrected_value": [
+            "LWIX805501-25"
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Removed OCR-concatenated FREIGHT flavor text from the headed invoice reference."
+      ]
+    },
+    {
+      "document_id": "doc_2c98a4e425c7f3a9a5c2c83559b4b5d0858ad55bb861c28e7effde7fbc465535",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_2c98a4e425c7f3a9a5c2c83559b4b5d0858ad55bb861c28e7effde7fbc465535.json",
+      "work_item_sha256": "ca1ae03baf764f09246d3cab3df8fe7c26d8740773bbdc7490611b8d795f05ac",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_2c98a4e425c7f3a9a5c2c83559b4b5d0858ad55bb861c28e7effde7fbc465535/attempt-4/4ced5a1d02352feca39e47b2ef5a1711e4f7d73406496eaeb82ca6aab7428954.json",
+      "candidate_sha256": "4ced5a1d02352feca39e47b2ef5a1711e4f7d73406496eaeb82ca6aab7428954",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "Retain the exact explicitly headed marks value; unqualified numeric measures remain warned."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/marksAndNumbers",
+          "expected_value": null,
+          "corrected_value": [
+            "EL-BASHA FOR IMPORT, EXPORT AND CUSTOMS CLEARANCE."
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Added the exact text printed under the Marks and numbers column."
+      ]
+    },
+    {
+      "document_id": "doc_33a8ff971c5e1879f005bc16f90e9732e9422b48c7e990aac0111215baa6ba39",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_33a8ff971c5e1879f005bc16f90e9732e9422b48c7e990aac0111215baa6ba39.json",
+      "work_item_sha256": "4a5298fb2642f9409aca06034981e4eaedb39c71bb29d520bfb96a9445375506",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_33a8ff971c5e1879f005bc16f90e9732e9422b48c7e990aac0111215baa6ba39/attempt-4/25dbdd5acf23ffd102bd409f2b860338eaf9681fe20ab11ffc99fd8ee5c4411d.json",
+      "candidate_sha256": "25dbdd5acf23ffd102bd409f2b860338eaf9681fe20ab11ffc99fd8ee5c4411d",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Promoted the converged source-grounded draft; the terminal non-convergence record was stale bookkeeping."
+      ]
+    },
+    {
+      "document_id": "doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83.json",
+      "work_item_sha256": "261b281c8d520b89270a5869be977084423023c9c8ee7ba8b5db94725c677f5e",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83/attempt-4/63f7bc3baed99891f506df8945f5ffd414ab68ade7d707e179c39214e970e70a.json",
+      "candidate_sha256": "63f7bc3baed99891f506df8945f5ffd414ab68ade7d707e179c39214e970e70a",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "The completed named consignee field contains no order construction and establishes a straight bill."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": null,
+          "corrected_value": "non_negotiable"
+        }
+      ],
+      "adjudication_notes": [
+        "Mapped the completed named non-order consignee to a straight non-negotiable bill."
+      ]
+    },
+    {
+      "document_id": "doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157.json",
+      "work_item_sha256": "1e4e2bf50023c31a15d2542863b3ef51837a765505a45bd905f5ade6880d50f3",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157/attempt-4/47799f9f394fa53d16582692ecc533e59d5633e8be2c6ad5bf4e88bba7da6811.json",
+      "candidate_sha256": "47799f9f394fa53d16582692ecc533e59d5633e8be2c6ad5bf4e88bba7da6811",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "The PRN heading explicitly qualifies the report number as a forwarding/export reference."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "DB9257202403013308159"
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Added the value printed under the PRN Proof of Report Number heading."
+      ]
+    },
+    {
+      "document_id": "doc_588c55396615a7eb5d01fd76913d04a7c9147b9d2f3c23d5d4035361eb14482b",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_588c55396615a7eb5d01fd76913d04a7c9147b9d2f3c23d5d4035361eb14482b.json",
+      "work_item_sha256": "e097d64efeb2edd356191e48c444506941257ec935d10efae9f4450edf8be73b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_588c55396615a7eb5d01fd76913d04a7c9147b9d2f3c23d5d4035361eb14482b/attempt-4/d9f13b8c9b4a3aca628a208a44de7b9bf2d1c1d0a804ea603bcb9ee9f344c43f.json",
+      "candidate_sha256": "d9f13b8c9b4a3aca628a208a44de7b9bf2d1c1d0a804ea603bcb9ee9f344c43f",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "The P.E. label qualifies the printed value as an export reference; SRN, PO, and ACID flavor identifiers remain excluded."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "25001EC01082946Z"
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Added the explicit P.E. export-declaration reference while retaining the cleaned cargo text."
+      ]
+    }
+  ]
+}

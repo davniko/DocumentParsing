@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-next50-held-adjudication-b-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_63db6a2715d046bb892e8776e57ea6d7aafe179328a2175c20abbb781cefa2cf",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_63db6a2715d046bb892e8776e57ea6d7aafe179328a2175c20abbb781cefa2cf.json",
+      "work_item_sha256": "a912a427b063f3545b0210ee1424ded102e4b88bdfd83f70b993572ed67859a5",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_63db6a2715d046bb892e8776e57ea6d7aafe179328a2175c20abbb781cefa2cf/attempt-4/0e281d9aba2b87930ddc51c449812cc0f70a217665dc031980e184e890cfb6e1.json",
+      "candidate_sha256": "0e281d9aba2b87930ddc51c449812cc0f70a217665dc031980e184e890cfb6e1",
+      "rebuild": {
+        "decision_notes": [
+          "The completed zero-original field establishes a non-negotiable document; the OCR prints only the shipper country value ITALY."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": null,
+          "corrected_value": "non_negotiable"
+        },
+        {
+          "target_path": "/documentPatch/parties/shipper",
+          "expected_value": null,
+          "corrected_value": {
+            "sameAs": null,
+            "name": null,
+            "address": null,
+            "city": null,
+            "country": "ITALY",
+            "contactDetails": null
+          }
+        }
+      ],
+      "adjudication_notes": [
+        "Applied the exact zero-original and shipper-country facts while retaining the aggregate-weight warning."
+      ]
+    },
+    {
+      "document_id": "doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38.json",
+      "work_item_sha256": "e2eded0d9692c5591189349a0bee90e478d020f43163e27b9321f9330f51a204",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38/attempt-2/b418bcb1b42cb176ef5b3647d8e93bda11792c2c41928d1cec6b1ea9acfbc144.json",
+      "candidate_sha256": "b418bcb1b42cb176ef5b3647d8e93bda11792c2c41928d1cec6b1ea9acfbc144",
+      "rebuild": {
+        "decision_notes": [
+          "The PRN Proof of Report Number heading explicitly qualifies the exact printed reference."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "DB9257202403133335294"
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Added the headed PRN reference; the existing package allocation is unchanged."
+      ]
+    },
+    {
+      "document_id": "doc_99d129f1d869d650f11c4ac034e236c3903629518cb04c263a4df8c1bcab923f",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_99d129f1d869d650f11c4ac034e236c3903629518cb04c263a4df8c1bcab923f.json",
+      "work_item_sha256": "611e577500520b1bc5f477a3211e0403ded2ae671f94877064763d916a8e1ed0",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_99d129f1d869d650f11c4ac034e236c3903629518cb04c263a4df8c1bcab923f/attempt-4/bc6ca4c984a89d59e3c387fcc429809f38d7dbaf93faae452775a1dde26a379d.json",
+      "candidate_sha256": "bc6ca4c984a89d59e3c387fcc429809f38d7dbaf93faae452775a1dde26a379d",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "rebuild": {
+        "decision_notes": [
+          "Normalize the explicitly printed named date and map the completed named non-order consignee to a straight bill."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/issueDate",
+          "expected_value": null,
+          "corrected_value": "2025-05-30"
+        },
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": null,
+          "corrected_value": "non_negotiable"
+        }
+      ],
+      "adjudication_notes": [
+        "Applied the OCR-grounded issue date and straight-bill negotiability after the phone correction had already converged."
+      ]
+    },
+    {
+      "document_id": "doc_a091dc1d535c29fc972e692a2bfa46ff430595ac125a3ede1fd4060a2faf2d92",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_a091dc1d535c29fc972e692a2bfa46ff430595ac125a3ede1fd4060a2faf2d92.json",
+      "work_item_sha256": "348efa1eba1fa7f60af2b1a2046e8de4589a6f75010114d71ab24b1a7117fce7",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_a091dc1d535c29fc972e692a2bfa46ff430595ac125a3ede1fd4060a2faf2d92/attempt-2/e286282e52f25aa497aeb01cf5a49c6d003872d9b27bbad671e8f322ff6396c2.json",
+      "candidate_sha256": "e286282e52f25aa497aeb01cf5a49c6d003872d9b27bbad671e8f322ff6396c2",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": false,
+      "adjudication_notes": [
+        "Promoted unchanged: the aggregate package fact is grounded, while both printed container identifiers fail ISO 6346 and cannot support allocations."
+      ]
+    },
+    {
+      "document_id": "doc_a3f9f496d3187889490a47c1ac42be1a72897bb91b81e0dd21c9c1a6ae5336a7",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_a3f9f496d3187889490a47c1ac42be1a72897bb91b81e0dd21c9c1a6ae5336a7.json",
+      "work_item_sha256": "b7db76d3a0c74e9ed6c10546589cb4b8d27d8d1c225cf2e023076da534e0b7e6",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/target-scoped-corrections/doc_a3f9f496d3187889490a47c1ac42be1a72897bb91b81e0dd21c9c1a6ae5336a7/attempt-4/fe4f6276ffeb1097401397c11e78664c49516788907adf6454c4414ac3fa5e48.json",
+      "candidate_sha256": "fe4f6276ffeb1097401397c11e78664c49516788907adf6454c4414ac3fa5e48",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "Remove the freight object whose only child is null and retain the explicit quantity-less IN BULK package description."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/freight",
+          "expected_value": {
+            "paymentArrangement": null,
+            "paymentPlace": {
+              "name": "BUENOS AIRES",
+              "country": null
+            }
+          },
+          "corrected_value": null
+        },
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": null,
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": null,
+              "typeDescription": "IN BULK"
+            }
+          ]
+        }
+      ],
+      "adjudication_notes": [
+        "Resolved the two deterministic invariant findings without adding an inferred package quantity."
+      ]
+    },
+    {
+      "document_id": "doc_cdb2d0943855ebd15509bb02c0af5f5c18923cf73fae5a4ade811116a8e74506",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/work-items/doc_cdb2d0943855ebd15509bb02c0af5f5c18923cf73fae5a4ade811116a8e74506.json",
+      "work_item_sha256": "4fcf8407b4db8fffef61aa2ed2ed6e968374c2c678618cf618388190b041977e",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1/state/candidate-attempts/doc_cdb2d0943855ebd15509bb02c0af5f5c18923cf73fae5a4ade811116a8e74506/attempt-1/6b83a0199936306dddeae99b86f4e29bf679d9b9497219711465e349b5e12a32.json",
+      "candidate_sha256": "6b83a0199936306dddeae99b86f4e29bf679d9b9497219711465e349b5e12a32",
+      "rebuild": {
+        "decision_notes": [
+          "Page 1 supplies the explicit aggregate gross weight; remove only the resolved ambiguity warning and retain the unitless net-weight warning."
+        ]
+      },
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Conflicting page-3 total-weight candidate is omitted; page 1 provides the explicit aggregate gross-weight value.",
+          "pageNumbers": [
+            1,
+            3
+          ],
+          "targetPath": "documentPatch.cargoGroups[0].grossWeight"
+        }
+      ],
+      "adjudication_notes": [
+        "Promoted the correct label after removing one stale warning."
+      ]
+    }
+  ]
+}

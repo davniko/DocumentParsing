@@ -40,6 +40,9 @@ from document_ocr.hashing import (
     stable_id,
 )
 from document_ocr.label_schemas.bill_of_lading import BillOfLadingAnnotation
+from document_ocr.label_schemas.bill_of_lading_v3 import (
+    BillOfLadingDualCargoAnnotation,
+)
 from document_ocr.models import (
     DatasetManifest,
     InferenceAttempt,
@@ -236,6 +239,48 @@ def _strict_json(payload: bytes, *, context: str) -> Any:
         )
     except (UnicodeError, ValueError, TypeError) as error:
         raise TableViewError(f"invalid JSON in {context}") from error
+
+
+def _validated_bill_of_lading_annotation(
+    payload: bytes, *, document_id: str
+) -> BillOfLadingAnnotation | BillOfLadingDualCargoAnnotation:
+    """Parse only annotation contracts whose training target is unambiguous."""
+
+    value = _strict_json(payload, context=f"validated annotation {document_id}")
+    if not isinstance(value, dict):
+        raise TableViewError(f"annotation must be a JSON object: {document_id}")
+    schema_version = value.get("annotationSchemaVersion")
+    annotation_type: (
+        type[BillOfLadingAnnotation] | type[BillOfLadingDualCargoAnnotation]
+    )
+    if schema_version == "2.0.0":
+        annotation_type = BillOfLadingAnnotation
+    elif schema_version == "3.0.0-experimental":
+        annotation_type = BillOfLadingDualCargoAnnotation
+    else:
+        raise TableViewError(
+            f"unsupported annotation schema version for {document_id}: "
+            f"{schema_version!r}"
+        )
+    try:
+        # JSON arrays are the canonical representation of tuple fields. Parse the
+        # duplicate-checked value through Pydantic's JSON path to retain strict
+        # scalar validation without incorrectly rejecting those arrays.
+        return annotation_type.model_validate_json(
+            canonical_json_bytes(value), strict=True
+        )
+    except ValueError as error:
+        raise TableViewError(
+            f"annotation schema validation failed: {document_id}"
+        ) from error
+
+
+def _annotation_training_target(
+    annotation: BillOfLadingAnnotation | BillOfLadingDualCargoAnnotation,
+) -> dict[str, Any]:
+    if isinstance(annotation, BillOfLadingAnnotation):
+        return annotation.label.canonical_target()
+    return annotation.relationExplicitLabel.canonical_target()
 
 
 def _canonical_regular_file(path: Path, *, root: Path, context: str) -> Path:
@@ -661,18 +706,13 @@ def _prepare_validated_label_input_pages(
             annotation_bytes = read_regular_file_bytes(annotation_path)
             if sha256_bytes(annotation_bytes) != annotation_sha256:
                 raise TableViewError(f"annotation SHA-256 mismatch: {document_id}")
-            try:
-                annotation = BillOfLadingAnnotation.model_validate_json(
-                    annotation_bytes, strict=True
-                )
-            except ValueError as error:
-                raise TableViewError(
-                    f"annotation schema validation failed: {document_id}"
-                ) from error
+            annotation = _validated_bill_of_lading_annotation(
+                annotation_bytes, document_id=document_id
+            )
             if (
                 annotation.source.documentId != document_id
                 or annotation.source.joinedRawTextSha256 != joined_text_sha256
-                or annotation.label.canonical_target() != target
+                or _annotation_training_target(annotation) != target
                 or annotation.reviewStatus != "validated"
             ):
                 raise TableViewError(f"label record and annotation disagree: {document_id}")

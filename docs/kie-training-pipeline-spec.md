@@ -100,7 +100,8 @@ Every reproducibility- or performance-relevant value is represented in strict YA
 - gated-model token environment-variable name and offline policy;
 - dtype, attention backend, cache policy, and remote-code policy;
 - prompt file and required document/schema placeholders;
-- explicit, hashed JSONL files for train/validation/test splits;
+- exactly one dataset-input mode: explicit hashed train/validation/test JSONLs, or one hashed
+  source JSONL plus a deterministic runtime train/validation partition declaration;
 - source record field mapping;
 - tokenizer limits, overflow policy, multiprocessing, and cache location;
 - LoRA rank, alpha, dropout, bias, rank stabilization, initialization, and exact target regex;
@@ -133,6 +134,16 @@ duplicates and skips a validation candidate if selecting it would remove the las
 of any target leaf path. Production configs must additionally provide an independently frozen test
 split; descendants and non-exact duplicate groups must remain in one fold upstream.
 
+Runtime-partitioned configs use the same content-pinned source and coverage policy without first
+publishing derivative JSONLs. They declare `seeded_sha256_rank_v1`, a non-negative seed, and a
+validation size as either an integer record count or a fraction with explicit `half_up` rounding.
+Inspection validates every source row before selecting membership, rejects duplicate document or
+input identities, preserves source order within both folds, and reports every selected ID,
+membership hash, resolved count, and coverage-skipped candidate. Valid empty target collections
+are coverage leaves; null target values remain forbidden. The resolved membership participates in
+the tokenized-cache identity and immutable run report. A resumed run fails if recomputation differs
+from that report.
+
 ## 4. Prompt contract
 
 A prompt is a UTF-8 text file containing exactly one `{{document_text}}` placeholder and one
@@ -152,7 +163,8 @@ and no explanation or Markdown is allowed.
 
 ## 5. Dataset preparation and collation
 
-The loader scans every explicit JSONL source once and validates:
+The loader scans every explicit split JSONL, or the single runtime-partition source, once and
+validates:
 
 1. the whole-file SHA-256 and declared record count;
 2. unique non-empty document IDs across all splits;
@@ -163,7 +175,7 @@ The loader scans every explicit JSONL source once and validates:
 It then builds Arrow datasets containing only normalized strings and provenance fields. A batched,
 optionally multiprocess tokenization transform emits `input_ids`, `attention_mask`, `labels`,
 `input_length`, `input_original_length`, `source_truncated`, and `target_length`. The cache identity
-binds source hashes, field mapping, task,
+binds source hashes, field mapping, resolved partition membership when applicable, task,
 prompt hash, tokenizer identity/revision, preprocessing settings, and the decoder-target contract.
 Source tokenization uses its explicitly configured special-token behavior. Decoder targets are
 tokenized with tokenizer special tokens disabled, are rejected if their content resolves to a
@@ -304,7 +316,8 @@ Concrete extension points are:
 
 - add a task entry with a Pydantic target model/canonicalizer;
 - provide a new prompt file;
-- provide explicit hashed split JSONLs and field mapping;
+- provide explicit hashed split JSONLs, or one hashed source with a runtime partition, and field
+  mapping;
 - later add another tuning strategy beside `lora` while retaining the same data contract;
 - later add synthetic JSONLs carrying parent IDs, operations, seeds, and generator versions before
   they enter frozen splits.
@@ -315,7 +328,7 @@ Not implemented now:
 - full-parameter fine-tuning;
 - QLoRA/bitsandbytes;
 - TRL chat-style `SFTTrainer`;
-- automatic row-random train/test splitting;
+- automatic test-set construction;
 - automatic truncation or batch-size search;
 - removal/offload of the unused T5Gemma vision tower;
 - automatic model merge or deployment.
@@ -339,7 +352,8 @@ The acceptance sequence is:
 5. Run a 32-64-example memorization experiment. Failure to approach near-perfect training
    extraction blocks scaling and triggers pipeline/label/truncation diagnosis.
 6. Benchmark the optimization matrix above.
-7. Only then start a larger real-data run with independently frozen validation and test splits.
+7. Only then start a larger real-data run with a reproducible validation partition and an
+   independently frozen test split.
 
 Steps 1-4 and the controlled runtime benchmark in step 6 were executed on 2026-08-18 on an RTX
 4090. The exact tokenizer profile across all 106 rows observed source max 4,364 and target max
@@ -364,7 +378,8 @@ generalization claim.
 The implementation is split by responsibility:
 
 - `training/config.py`: strict duplicate-key-rejecting YAML and cross-field validation;
-- `training/splitting.py`: deterministic coverage-guarded train/validation publication;
+- `training/splitting.py`: deterministic coverage-guarded train/validation selection and optional
+  standalone publication;
 - `training/prompting.py`: immutable UTF-8 prompt loading and literal injection;
 - `training/tasks.py`: task registry and strict Pydantic target canonicalization;
 - `training/data.py`: content verification, normalized examples, Arrow caching, and token limits;

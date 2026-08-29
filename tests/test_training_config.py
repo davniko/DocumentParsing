@@ -24,25 +24,34 @@ from document_ocr.training.tasks import get_training_task
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = PROJECT_ROOT / "configs" / "training" / "t5gemma2_270m_lora.pilot106.yaml"
 COMBINED_CONFIG_PATH = (
+    PROJECT_ROOT / "configs" / "training" / "t5gemma2_270m_lora.mpci_bl_combined487.yaml"
+)
+TASK_FACING_CONFIG_PATH = (
     PROJECT_ROOT
     / "configs"
     / "training"
-    / "t5gemma2_270m_lora.mpci_bl_combined487.yaml"
+    / "t5gemma2_270m_lora.mpci_bl_combined1157_task_facing.yaml"
+)
+TASK_FACING_R64_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "training"
+    / "t5gemma2_270m_lora.mpci_bl_combined1157_task_facing_r64_a96_ga32_e30.yaml"
+)
+TABLE_INPUT_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "training"
+    / "t5gemma2_270m_lora.mpci_bl_relation_v3_table_input.yaml"
 )
 FOLLOWUP_SPLIT_CONFIG_PATH = (
     PROJECT_ROOT / "configs" / "training" / "mpci_bl_followup381_split.seed42.yaml"
 )
 PILOT_VAL10_SPLIT_CONFIG_PATH = (
-    PROJECT_ROOT
-    / "configs"
-    / "training"
-    / "mpci_bl_pilot106_split.seed42.val10.yaml"
+    PROJECT_ROOT / "configs" / "training" / "mpci_bl_pilot106_split.seed42.val10.yaml"
 )
 FOLLOWUP_VAL50_SPLIT_CONFIG_PATH = (
-    PROJECT_ROOT
-    / "configs"
-    / "training"
-    / "mpci_bl_followup381_split.seed42.val50.yaml"
+    PROJECT_ROOT / "configs" / "training" / "mpci_bl_followup381_split.seed42.val50.yaml"
 )
 
 
@@ -134,6 +143,119 @@ def test_combined_training_configuration_pins_both_semantic_v2_cohorts() -> None
     assert config.evaluation.early_stopping_threshold is None
 
 
+def test_task_facing_training_configuration_uses_one_seeded_source() -> None:
+    config = load_training_config(TASK_FACING_CONFIG_PATH)
+
+    assert config.task == "bill_of_lading_relation_explicit_v3"
+    assert config.task_constraints is not None
+    assert config.task_constraints.sha256 == (
+        "f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e"
+    )
+    assert config.dataset.input_mode == "runtime_partition"
+    assert config.dataset.source is not None
+    assert config.dataset.source.records == 1157
+    assert config.dataset.source.sha256 == (
+        "2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42"
+    )
+    assert config.dataset.partition is not None
+    assert config.dataset.partition.seed == 424
+    assert config.dataset.partition.validation_size.kind == "records"
+    assert config.dataset.partition.validation_size.value == 100
+    assert config.dataset.preprocessing.max_source_length == 13312
+    assert config.dataset.preprocessing.max_target_length == 4096
+    assert config.optimization.num_train_epochs == 25.0
+    assert config.optimization.per_device_train_batch_size == 1
+    assert config.optimization.gradient_accumulation_steps == 24
+    assert config.evaluation.on_start is True
+    assert config.evaluation.generation_max_length == 4096
+    assert config.evaluation.steps == config.checkpoint.steps == 225
+    assert config.evaluation.early_stopping_patience is None
+    assert config.evaluation.early_stopping_threshold is None
+
+
+def test_task_facing_r64_configuration_changes_only_requested_experiment_axes() -> None:
+    baseline = load_training_config(TASK_FACING_CONFIG_PATH)
+    config = load_training_config(TASK_FACING_R64_CONFIG_PATH)
+
+    assert config.run.run_id != baseline.run.run_id
+    assert config.run.output_dir == baseline.run.output_dir
+    assert config.peft.adapter_name != baseline.peft.adapter_name
+    assert config.dataset == baseline.dataset
+    assert config.prompt == baseline.prompt
+    assert config.task_constraints == baseline.task_constraints
+    assert config.model == baseline.model
+    assert config.runtime == baseline.runtime
+    assert config.dataloader == baseline.dataloader
+    assert config.task == baseline.task
+    assert config.objective == baseline.objective
+    assert config.dataset.fields.input_text == "joinedRawText"
+    assert config.dataset.fields.input_sha256 == "joinedRawTextSha256"
+    assert "table" not in config.prompt.path
+
+    assert config.peft.rank == 64
+    assert config.peft.alpha == 96
+    baseline_peft = baseline.peft.model_dump(mode="python")
+    configured_peft = config.peft.model_dump(mode="python")
+    for key in ("adapter_name", "rank", "alpha"):
+        baseline_peft.pop(key)
+        configured_peft.pop(key)
+    assert configured_peft == baseline_peft
+
+    assert config.optimization.num_train_epochs == 30.0
+    assert config.optimization.per_device_train_batch_size == 1
+    assert config.optimization.gradient_accumulation_steps == 32
+    assert (
+        config.optimization.per_device_train_batch_size
+        * config.optimization.gradient_accumulation_steps
+        == 32
+    )
+    baseline_optimization = baseline.optimization.model_dump(mode="python")
+    configured_optimization = config.optimization.model_dump(mode="python")
+    for key in ("num_train_epochs", "gradient_accumulation_steps"):
+        baseline_optimization.pop(key)
+        configured_optimization.pop(key)
+    assert configured_optimization == baseline_optimization
+
+    assert config.evaluation.on_start is True
+    assert config.evaluation.steps == config.checkpoint.steps == 170
+    assert config.evaluation.early_stopping_patience is None
+    assert config.evaluation.early_stopping_threshold is None
+    baseline_evaluation = baseline.evaluation.model_dump(mode="python")
+    configured_evaluation = config.evaluation.model_dump(mode="python")
+    baseline_evaluation.pop("steps")
+    configured_evaluation.pop("steps")
+    assert configured_evaluation == baseline_evaluation
+    baseline_checkpoint = baseline.checkpoint.model_dump(mode="python")
+    configured_checkpoint = config.checkpoint.model_dump(mode="python")
+    baseline_checkpoint.pop("steps")
+    configured_checkpoint.pop("steps")
+    assert configured_checkpoint == baseline_checkpoint
+
+
+def test_table_input_training_configuration_is_pinned_and_uses_safe_batch_one() -> None:
+    config = load_training_config(TABLE_INPUT_CONFIG_PATH)
+
+    assert config.task == "bill_of_lading_relation_explicit_v3"
+    assert config.dataset.input_mode == "pre_split"
+    assert config.dataset.splits is not None
+    assert config.dataset.splits.train[0].records == 423
+    assert config.dataset.splits.validation[0].records == 60
+    assert config.dataset.fields.input_text == "modelInputText"
+    assert config.dataset.fields.input_sha256 == "modelInputTextSha256"
+    assert config.dataset.preprocessing.max_source_length == 13312
+    assert config.dataset.preprocessing.max_target_length == 4096
+    assert config.optimization.per_device_train_batch_size == 1
+    assert config.optimization.gradient_accumulation_steps == 24
+    assert (
+        config.optimization.per_device_train_batch_size
+        * config.optimization.gradient_accumulation_steps
+        == 24
+    )
+    assert config.evaluation.per_device_batch_size == 2
+    assert config.evaluation.steps == config.checkpoint.steps == 90
+    assert config.prompt.path.endswith("bill_of_lading_relation_explicit_v3_table_view.txt")
+
+
 def test_followup_partition_configuration_is_content_pinned() -> None:
     config = load_dataset_partition_config(FOLLOWUP_SPLIT_CONFIG_PATH)
 
@@ -143,9 +265,7 @@ def test_followup_partition_configuration_is_content_pinned() -> None:
     )
     assert config.seed == 42
     assert config.validation_records == 57
-    assert config.output_dir == (
-        "artifacts/kie-training/datasets/mpci-bl-followup381-seed42-v1"
-    )
+    assert config.output_dir == ("artifacts/kie-training/datasets/mpci-bl-followup381-seed42-v1")
 
 
 def test_combined_validation_partition_configurations_are_content_pinned() -> None:
@@ -155,9 +275,7 @@ def test_combined_validation_partition_configurations_are_content_pinned() -> No
     assert pilot.seed == followup.seed == 42
     assert pilot.validation_records == 10
     assert followup.validation_records == 50
-    assert pilot.output_dir == (
-        "artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1"
-    )
+    assert pilot.output_dir == ("artifacts/kie-training/datasets/mpci-bl-pilot106-seed42-val10-v1")
     assert followup.output_dir == (
         "artifacts/kie-training/datasets/mpci-bl-followup381-seed42-val50-v1"
     )
@@ -179,11 +297,91 @@ def test_training_configuration_rejects_unknown_fields() -> None:
         TrainingConfig.model_validate(raw, strict=True)
 
 
+def test_training_configuration_accepts_one_runtime_partition_source() -> None:
+    raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    source = raw["dataset"].pop("splits")["train"][0]
+    raw["dataset"].update(
+        {
+            "source": source,
+            "partition": {
+                "algorithm": "seeded_sha256_rank_v1",
+                "seed": 42,
+                "validation_size": {"kind": "records", "value": 10},
+                "coverage_policy": "retain_each_target_leaf_in_train",
+            },
+        }
+    )
+
+    config = TrainingConfig.model_validate(raw, strict=True)
+
+    assert config.dataset.input_mode == "runtime_partition"
+    assert config.dataset.splits is None
+    assert config.dataset.source is not None
+    assert config.dataset.partition is not None
+    assert config.dataset.partition.seed == 42
+
+
+def test_training_configuration_accepts_fractional_runtime_partition() -> None:
+    raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    source = raw["dataset"].pop("splits")["train"][0]
+    raw["dataset"].update(
+        {
+            "source": source,
+            "partition": {
+                "algorithm": "seeded_sha256_rank_v1",
+                "seed": 42,
+                "validation_size": {
+                    "kind": "fraction",
+                    "value": 0.125,
+                    "rounding": "half_up",
+                },
+                "coverage_policy": "retain_each_target_leaf_in_train",
+            },
+        }
+    )
+
+    config = TrainingConfig.model_validate(raw, strict=True)
+
+    assert config.dataset.partition is not None
+    assert config.dataset.partition.validation_size.kind == "fraction"
+
+
+def test_training_configuration_requires_exactly_one_dataset_input_mode() -> None:
+    raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    raw["dataset"].update(
+        {
+            "source": raw["dataset"]["splits"]["train"][0],
+            "partition": {
+                "algorithm": "seeded_sha256_rank_v1",
+                "seed": 42,
+                "validation_size": {"kind": "records", "value": 10},
+                "coverage_policy": "retain_each_target_leaf_in_train",
+            },
+        }
+    )
+
+    with pytest.raises(ValidationError, match="exactly one input mode"):
+        TrainingConfig.model_validate(raw, strict=True)
+
+    raw["dataset"].pop("splits")
+    raw["dataset"].pop("partition")
+    with pytest.raises(ValidationError, match="requires both source and partition"):
+        TrainingConfig.model_validate(raw, strict=True)
+
+
 def test_training_configuration_rejects_prediction_without_generation() -> None:
     raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     raw["evaluation"]["predict_with_generate"] = False
 
     with pytest.raises(ValidationError, match="structured evaluation and prediction"):
+        TrainingConfig.model_validate(raw, strict=True)
+
+
+def test_training_configuration_rejects_dropped_prediction_rows() -> None:
+    raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    raw["dataloader"]["drop_last"] = True
+
+    with pytest.raises(ValidationError, match="prediction publication requires"):
         TrainingConfig.model_validate(raw, strict=True)
 
 
@@ -216,6 +414,14 @@ def test_training_configuration_requires_mlflow_and_checkpoint_resume_together()
     raw["checkpoint"]["resume_from_checkpoint"] = "checkpoints/checkpoint-1"
 
     with pytest.raises(ValidationError, match="MLflow resume_run_id"):
+        TrainingConfig.model_validate(raw, strict=True)
+
+
+def test_training_configuration_requires_resume_for_source_code_drift() -> None:
+    raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    raw["checkpoint"]["allow_resume_source_code_drift"] = True
+
+    with pytest.raises(ValidationError, match="requires an explicit resume checkpoint"):
         TrainingConfig.model_validate(raw, strict=True)
 
 
@@ -254,6 +460,7 @@ def test_training_arguments_preserve_configured_warmup_ratio(tmp_path: Path) -> 
     assert arguments.save_steps == 16
     assert arguments.load_best_model_at_end is True
     assert arguments.metric_for_best_model == "field_value_f1"
+    assert arguments.dataloader_in_order is True
 
 
 def test_early_stopping_callback_matches_yaml_configuration() -> None:
@@ -311,9 +518,7 @@ def test_prompt_schema_is_sparse_and_derived_from_latest_target_model() -> None:
         properties = value.get("properties")
         if isinstance(properties, dict):
             found.append(frozenset(properties))
-        return found + [
-            item for child in value.values() for item in property_key_sets(child)
-        ]
+        return found + [item for child in value.values() for item in property_key_sets(child)]
 
     assert schema["required"] == ["schemaVersion", "documentPatch"]
     assert schema["properties"]["schemaVersion"] == {

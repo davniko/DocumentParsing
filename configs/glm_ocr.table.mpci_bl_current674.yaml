@@ -1,0 +1,73 @@
+schema_version: 1
+view_type: glm_ocr_table_recognition
+
+source:
+  type: validated_label_rasters
+  expected_documents: 674
+  expected_pages: 1580
+  record_sets:
+    - id: current_main674
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-main730-description-clean-v1
+      records_path: training/records.jsonl
+      records_sha256: e6bb719fafb6e540178fc5a36511dcf0248a712584d769825176cce8f2deb27d
+      records: 674
+  extraction_runs:
+    - run_id: glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+      root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+output:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/views/mpci-bl-current674-table
+
+run:
+  run_id: glm-ocr-table-mpci-bl-current674-v1
+  resume: true
+  fail_fast: false
+  max_total_attempts_per_page: 8
+
+vllm:
+  endpoint: http://127.0.0.1:8000
+  model: zai-org/GLM-OCR
+  served_model_name: glm-ocr
+  revision: ca5d8b3e287e52589e37c28385d9655ee4372f9d
+  engine_version: 0.26.0
+  container_base_image: vllm/vllm-openai:v0.26.0@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
+  container_build_manifest_sha256: c1ffd97e7a6fa3fdb02b5acd84966e6afc10c096a5eec5e7bd47dad7a88197b4
+  dtype: bfloat16
+  quantization: none
+  max_model_len: 32768
+  max_num_batched_tokens: 2048
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.9
+  prompt: "Table Recognition:"
+  request_timeout_seconds: 300.0
+  api_key_env: VLLM_API_KEY
+  sampling:
+    temperature: 0.0
+    top_p: 0.00001
+    top_k: 1
+    repetition_penalty: 1.1
+    max_tokens: 8192
+    seed: 0
+  retry:
+    max_attempts: 4
+    initial_backoff_seconds: 0.5
+    max_backoff_seconds: 8.0
+    backoff_multiplier: 2.0
+    jitter_fraction: 0.2
+  speculative_decoding:
+    method: mtp
+    num_speculative_tokens: 1
+  repetition_detection:
+    min_pattern_size: 5
+    max_pattern_size: 64
+    min_count: 5
+
+concurrency:
+  max_active_documents: 8
+  max_inflight_pages_global: 16
+  max_inflight_pages_per_document: 4
+
+# The current 674 rows do not yet have a stable train/validation split. Table
+# extraction is therefore published independently; the eventual 1,157-row
+# dual-view materializer will bind views by documentId before seeded partitioning.
+join: null

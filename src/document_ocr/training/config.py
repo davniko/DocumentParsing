@@ -215,6 +215,30 @@ class DatasetPartitionConfig(_StrictModel):
         return self
 
 
+class ValidationRecordsConfig(_StrictModel):
+    kind: Literal["records"]
+    value: PositiveInteger
+
+
+class ValidationFractionConfig(_StrictModel):
+    kind: Literal["fraction"]
+    value: Annotated[float, Field(gt=0.0, lt=1.0)]
+    rounding: Literal["half_up"]
+
+
+ValidationSizeConfig = Annotated[
+    ValidationRecordsConfig | ValidationFractionConfig,
+    Field(discriminator="kind"),
+]
+
+
+class RuntimeDatasetPartitionConfig(_StrictModel):
+    algorithm: Literal["seeded_sha256_rank_v1"]
+    seed: NonNegativeInteger
+    validation_size: ValidationSizeConfig
+    coverage_policy: Literal["retain_each_target_leaf_in_train"]
+
+
 class DatasetSplitsConfig(_StrictModel):
     train: list[DatasetFileConfig] = Field(min_length=1)
     validation: list[DatasetFileConfig]
@@ -270,9 +294,47 @@ class PreprocessingConfig(_StrictModel):
 
 class DatasetConfig(_StrictModel):
     format: Literal["jsonl"]
-    splits: DatasetSplitsConfig
+    splits: DatasetSplitsConfig | None = None
+    source: DatasetFileConfig | None = None
+    partition: RuntimeDatasetPartitionConfig | None = None
     fields: DatasetFieldsConfig
     preprocessing: PreprocessingConfig
+
+    @model_validator(mode="after")
+    def exactly_one_dataset_input_mode(self) -> DatasetConfig:
+        has_pre_split = self.splits is not None
+        has_runtime_source = self.source is not None
+        has_runtime_partition = self.partition is not None
+        has_complete_runtime_partition = has_runtime_source and has_runtime_partition
+        if has_runtime_source != has_runtime_partition:
+            raise ValueError(
+                "runtime dataset partitioning requires both source and partition"
+            )
+        if has_pre_split == has_complete_runtime_partition:
+            raise ValueError(
+                "dataset must configure exactly one input mode: either splits, or both "
+                "source and partition"
+            )
+        if has_complete_runtime_partition:
+            if self.source is None or self.partition is None:
+                raise AssertionError("complete runtime partition failed to narrow")
+            if self.fields.input_sha256 is None:
+                raise ValueError(
+                    "runtime dataset partitioning requires fields.input_sha256"
+                )
+            validation_size = self.partition.validation_size
+            if (
+                isinstance(validation_size, ValidationRecordsConfig)
+                and validation_size.value >= self.source.records
+            ):
+                raise ValueError(
+                    "record-based validation size must be smaller than source.records"
+                )
+        return self
+
+    @property
+    def input_mode(self) -> Literal["pre_split", "runtime_partition"]:
+        return "pre_split" if self.splits is not None else "runtime_partition"
 
 
 class LoraConfig(_StrictModel):
@@ -443,6 +505,7 @@ class CheckpointConfig(_StrictModel):
     metric_for_best_model: NonEmptyString | None
     greater_is_better: bool | None
     resume_from_checkpoint: NonEmptyString | None
+    allow_resume_source_code_drift: bool = False
     enable_jit_checkpoint: bool
     save_only_model: bool
     save_on_each_node: bool
@@ -540,8 +603,12 @@ class TrainingConfig(_StrictModel):
                 "bill_of_lading_relation_explicit_v3 requires a frozen task_constraints "
                 "artifact, and other registered tasks must not configure it"
             )
-        has_validation = bool(self.dataset.splits.validation)
-        has_test = bool(self.dataset.splits.test)
+        if self.dataset.splits is None:
+            has_validation = True
+            has_test = False
+        else:
+            has_validation = bool(self.dataset.splits.validation)
+            has_test = bool(self.dataset.splits.test)
         evaluation_is_active = (
             self.evaluation.strategy != "no" or self.evaluation.run_final_evaluation
         )
@@ -558,6 +625,8 @@ class TrainingConfig(_StrictModel):
                 raise ValueError("validation predictions require a validation split")
             if split == "test" and not has_test:
                 raise ValueError("test predictions require a test split")
+        if self.evaluation.write_predictions_for and self.dataloader.drop_last:
+            raise ValueError("prediction publication requires dataloader.drop_last=false")
         if self.evaluation.generation_max_length != self.dataset.preprocessing.max_target_length:
             raise ValueError("generation_max_length must equal preprocessing.max_target_length")
         if (
@@ -601,6 +670,10 @@ class TrainingConfig(_StrictModel):
         if has_checkpoint_resume != has_mlflow_resume:
             raise ValueError(
                 "checkpoint resume and MLflow resume_run_id must be configured together"
+            )
+        if self.checkpoint.allow_resume_source_code_drift and not has_checkpoint_resume:
+            raise ValueError(
+                "allow_resume_source_code_drift requires an explicit resume checkpoint"
             )
         if self.model.dtype == "bfloat16" and not self.runtime.bf16:
             raise ValueError("bfloat16 model loading requires runtime.bf16=true")

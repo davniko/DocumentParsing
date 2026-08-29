@@ -1,0 +1,26 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined1157-synthesis-foundation-v1
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+  sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+
+sdv:
+  metadata_spec: V1
+  validate_with_sdv: true

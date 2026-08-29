@@ -7,8 +7,19 @@ from typing import Any
 import pytest
 
 from document_ocr.hashing import sha256_bytes
-from document_ocr.training.config import DatasetPartitionConfig
-from document_ocr.training.splitting import partition_dataset
+from document_ocr.training.config import (
+    DatasetPartitionConfig,
+    RuntimeDatasetPartitionConfig,
+)
+from document_ocr.training.splitting import (
+    PartitionCandidate,
+    partition_dataset,
+    resolve_validation_records,
+    select_runtime_partition,
+    target_leaf_paths,
+)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _payload(rows: list[dict[str, Any]]) -> bytes:
@@ -124,3 +135,120 @@ def test_partition_rejects_exact_input_duplicates(tmp_path: Path) -> None:
             project_root=tmp_path,
             config=_config(source, payload, tmp_path / "split"),
         )
+
+
+def test_target_coverage_treats_empty_collections_as_leaves_and_rejects_null() -> None:
+    assert target_leaf_paths(
+        {
+            "documentPatch": {
+                "cargoAllocationGroups": [
+                    {"allocationId": "a1", "packageIds": []}
+                ],
+                "metadata": {},
+            }
+        }
+    ) == {
+        "documentPatch.cargoAllocationGroups[].allocationId",
+        "documentPatch.cargoAllocationGroups[].packageIds",
+        "documentPatch.metadata",
+    }
+
+    with pytest.raises(ValueError, match="contains null"):
+        target_leaf_paths({"documentPatch": {"billOfLadingNumber": None}})
+
+
+def test_fractional_validation_size_uses_half_up_rounding() -> None:
+    config = RuntimeDatasetPartitionConfig.model_validate(
+        {
+            "algorithm": "seeded_sha256_rank_v1",
+            "seed": 42,
+            "validation_size": {
+                "kind": "fraction",
+                "value": 0.25,
+                "rounding": "half_up",
+            },
+            "coverage_policy": "retain_each_target_leaf_in_train",
+        },
+        strict=True,
+    )
+
+    assert resolve_validation_records(config, 10) == 3
+
+
+def test_runtime_partition_is_deterministic_and_preserves_source_order() -> None:
+    candidates = [
+        PartitionCandidate(
+            document_id=f"doc_{index:02d}",
+            input_sha256=f"{index + 1:064x}",
+            target_leaf_paths=frozenset(
+                {"documentPatch.billOfLadingNumber"}
+                | ({"documentPatch.rare"} if index == 0 else set())
+            ),
+        )
+        for index in range(10)
+    ]
+    config = RuntimeDatasetPartitionConfig.model_validate(
+        {
+            "algorithm": "seeded_sha256_rank_v1",
+            "seed": 42,
+            "validation_size": {"kind": "records", "value": 4},
+            "coverage_policy": "retain_each_target_leaf_in_train",
+        },
+        strict=True,
+    )
+
+    first = select_runtime_partition(candidates, config)
+    second = select_runtime_partition(candidates, config)
+
+    assert first == second
+    assert list(first.train_document_ids) == sorted(first.train_document_ids)
+    assert list(first.validation_document_ids) == sorted(first.validation_document_ids)
+    assert set(first.train_document_ids).isdisjoint(first.validation_document_ids)
+    assert len(first.train_document_ids) == 6
+    assert len(first.validation_document_ids) == 4
+    assert first.to_dict()["outputs"]["validation"]["document_ids_sha256"] == (
+        second.to_dict()["outputs"]["validation"]["document_ids_sha256"]
+    )
+
+
+def test_current_combined1109_runtime_partition_regression() -> None:
+    source = (
+        PROJECT_ROOT
+        / "artifacts"
+        / "kie-training"
+        / "datasets"
+        / "mpci-bl-combined1109-current-policy-v1"
+        / "records.jsonl"
+    )
+    candidates = []
+    for line in source.read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        candidates.append(
+            PartitionCandidate(
+                document_id=record["documentId"],
+                input_sha256=record["joinedRawTextSha256"],
+                target_leaf_paths=frozenset(target_leaf_paths(record["target"])),
+            )
+        )
+    config = RuntimeDatasetPartitionConfig.model_validate(
+        {
+            "algorithm": "seeded_sha256_rank_v1",
+            "seed": 42,
+            "validation_size": {"kind": "records", "value": 60},
+            "coverage_policy": "retain_each_target_leaf_in_train",
+        },
+        strict=True,
+    )
+
+    selection = select_runtime_partition(candidates, config)
+
+    assert len(selection.train_document_ids) == 1049
+    assert len(selection.validation_document_ids) == 60
+    assert len(selection.coverage_skipped_document_ids) == 1
+    report = selection.to_dict()
+    assert report["outputs"]["train"]["document_ids_sha256"] == (
+        "b2a7a6980eed9b32028bca7c588c0ae9b7a0c04973caea69f5c06f12601b42f9"
+    )
+    assert report["outputs"]["validation"]["document_ids_sha256"] == (
+        "2940aa27c968947506b25cc1e4f9c868b2097cd12592c14ce00e3f8829a3e74d"
+    )

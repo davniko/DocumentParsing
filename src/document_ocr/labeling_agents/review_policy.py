@@ -43,10 +43,11 @@ _SUPPORTED_REFERENCE = re.compile(
     r"ref\s*\.\s*exp\s*\.?|"
     r"aes|caed(?:\s*(?:no|number))?|shipping\s+bill|s/?bill|"
     r"du-e|f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
-    r"s\.?b\.?(?:\s*(?:no|number))?|"
+    r"s[./]?b\.?(?:\s*(?:no|number))?|dus|"
     r"ed\s*(?:no|number)\.?\s*(?=[:#-]|\s|$)|"
     r"itn\s*(?=[:#-]|\s)|imp\s*/+\s*exp\s*[#]?|"
     r"exp\s*(?=[:#-]?\s*[0-9])|"
+    r"prn(?:\s*\(\s*proof\s+of\s+report\s+number\s*\))?|p\.?\s*e\.?|"
     r"p\s*/?\s*i\s*(?:no|number|ref)|"
     r"inv(?:oice)?\.?\s*(?:(?:no|number|ref)\.?\s*(?=[:#-]|\s|$)|"
     r"(?=[:#-])|(?=[A-Z0-9._/-]*[0-9])))"
@@ -65,6 +66,12 @@ _INVALID_CONTAINER_ASSERTION = re.compile(
     r"(?ix)\b(?:invalid|not\s+valid|fails?|incorrect|bad)\b.{0,40}\b(?:iso|check\s*digit|"
     r"container\s+(?:number|identifier))\b|\b(?:iso|check\s*digit)\b.{0,40}\b(?:invalid|"
     r"fails?|incorrect|bad)\b"
+)
+_INVALID_IMO_ASSERTION = re.compile(
+    r"(?ix)\b(?:invalid|not\s+valid|fails?|incorrect|bad)\b.{0,40}"
+    r"\b(?:imo|check\s*digit|checksum)\b|"
+    r"\b(?:imo|check\s*digit|checksum)\b.{0,40}"
+    r"\b(?:invalid|not\s+valid|fails?|incorrect|bad)\b"
 )
 _CONTAINER_CORRECTION_TARGET = re.compile(
     r"^documentPatch\.containers(?:\[[0-9]+\])?(?:\.containerNumber)?$"
@@ -159,7 +166,7 @@ _CONSIGNEE_FORM_INSTRUCTION = re.compile(
     r"\(?\s*negotiable\s+only\s+if|"
     r"as\s+principal\s*,?\s+where|"
     r"this\s+B/?L\s+is\s+not\s+negotiable\s+unless|"
-    r"\(?\s*if\s+['\u2018\u2019\"]?to\s+order['\u2018\u2019\"]?\s+so\s+indicate|"
+    r"\(?\s*if\s*['\u2018\u2019\"]?to\s+order['\u2018\u2019\"]?\s*,?\s*so\s+indicate|"
     r"name\s+and\s+address"
     r")"
 )
@@ -1286,6 +1293,16 @@ def review_policy_violations(
             violations.append(
                 f"finding {index}: cited container identifier has a valid ISO 6346 check "
                 "digit; reviewers must not override deterministic identifier validation"
+            )
+        if (
+            finding.category == "incorrect_field"
+            and any(path == "documentPatch.transport.vesselImoNumber" for path in targets)
+            and _INVALID_IMO_ASSERTION.search(finding.message)
+            and _contains_valid_imo(text)
+        ):
+            violations.append(
+                f"finding {index}: cited IMO identifier has a valid checksum; reviewers must "
+                "not override deterministic identifier validation"
             )
         if (
             finding.category == "incorrect_field"

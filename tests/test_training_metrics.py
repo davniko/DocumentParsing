@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 
 from document_ocr.training.metrics import make_compute_metrics, structured_metrics
+from document_ocr.training.prediction import SamplerAwarePredictionMixin
 from document_ocr.training.runtime import _predict_and_publish
 from document_ocr.training.tasks import canonical_json, get_training_task
 
@@ -232,11 +233,14 @@ def test_best_model_prediction_is_scored_and_persisted_in_one_pass(tmp_path: Pat
         "field_value_f1": 1.0,
     }
 
-    class StubTrainer:
+    class StubTrainerBase:
         calls = 0
+        args = SimpleNamespace(world_size=1, dataloader_drop_last=False)
 
         def predict(self, dataset: Any, metric_key_prefix: str) -> Any:
             self.calls += 1
+            indices = list(self._get_eval_sampler(dataset))
+            assert indices == [0]
             return SimpleNamespace(
                 predictions=np.asarray([[1, 2, 0]], dtype=np.int64),
                 label_ids=np.asarray([[1, 2, -100]], dtype=np.int64),
@@ -245,6 +249,12 @@ def test_best_model_prediction_is_scored_and_persisted_in_one_pass(tmp_path: Pat
                     f"{metric_key_prefix}_loss": 0.1,
                 },
             )
+
+        def _get_eval_sampler(self, _: Any) -> list[int]:
+            return [0]
+
+    class StubTrainer(SamplerAwarePredictionMixin, StubTrainerBase):
+        pass
 
     trainer = StubTrainer()
     metrics, prediction_path = _predict_and_publish(
@@ -262,3 +272,81 @@ def test_best_model_prediction_is_scored_and_persisted_in_one_pass(tmp_path: Pat
     row = json.loads(prediction_path.read_text(encoding="utf-8"))
     assert row["document_id"] == "doc_one"
     assert row["json_valid"] is True
+
+
+def test_prediction_publication_uses_exact_length_sampler_identity_order(
+    tmp_path: Path,
+) -> None:
+    targets = [_target("SHORT"), _target("LONG"), _target("MEDIUM")]
+
+    class StubTokenizer:
+        pad_token_id = 0
+
+        def batch_decode(self, sequences: Any, **_: Any) -> list[str]:
+            return [targets[int(sequence[0]) - 1] for sequence in sequences]
+
+    expected = {
+        "json_valid": 1.0,
+        "schema_valid": 1.0,
+        "canonical_exact_match": 1.0,
+        "field_value_accuracy": 1.0,
+        "field_value_precision": 1.0,
+        "field_value_recall": 1.0,
+        "field_value_f1": 1.0,
+    }
+
+    class StubTrainerBase:
+        calls = 0
+        args = SimpleNamespace(world_size=1, dataloader_drop_last=False)
+
+        def _get_eval_sampler(self, _: Any) -> list[int]:
+            # This is the order that previously made source-order IDs incorrect.
+            return [2, 0, 1]
+
+        def predict(self, dataset: Any, metric_key_prefix: str) -> Any:
+            self.calls += 1
+            indices = list(self._get_eval_sampler(dataset))
+            tokens = np.asarray([[index + 1, 0] for index in indices], dtype=np.int64)
+            return SimpleNamespace(
+                predictions=tokens,
+                label_ids=tokens.copy(),
+                metrics={
+                    **{f"{metric_key_prefix}_{name}": value for name, value in expected.items()},
+                    f"{metric_key_prefix}_loss": 0.1,
+                },
+            )
+
+    class StubTrainer(SamplerAwarePredictionMixin, StubTrainerBase):
+        pass
+
+    trainer = StubTrainer()
+    _, prediction_path = _predict_and_publish(
+        trainer=trainer,
+        tokenizer=StubTokenizer(),
+        task=get_training_task("bill_of_lading_semantic_v2"),
+        dataset={
+            "document_id": ["doc_short", "doc_long", "doc_medium"],
+            "input_length": [10, 100, 50],
+        },
+        split="validation",
+        metric_key_prefix="eval",
+        predictions_dir=tmp_path / "predictions",
+    )
+
+    rows = [json.loads(line) for line in prediction_path.read_text().splitlines()]
+    assert trainer.calls == 1
+    assert [row["document_id"] for row in rows] == [
+        "doc_medium",
+        "doc_short",
+        "doc_long",
+    ]
+    reference_numbers = [
+        json.loads(row["reference_text"])["documentPatch"]["billOfLadingNumber"]
+        for row in rows
+    ]
+    assert reference_numbers == [
+        "MEDIUM",
+        "SHORT",
+        "LONG",
+    ]
+    assert all(row["canonical_exact_match"] for row in rows)

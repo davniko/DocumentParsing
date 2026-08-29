@@ -20,9 +20,27 @@ x-kie-common: &kie-common
     - training-hf-cache:/cache/huggingface
     - training-torch-cache:/cache/torch-inductor
 
+x-decoder-common: &decoder-common
+  profiles: [decoder-training]
+  build:
+    context: .
+    dockerfile: docker/decoder-training/Dockerfile
+  image: document-ocr/kie-decoder:unsloth2026.8.22-torch2.11.0-cuda13.0
+  working_dir: /workspace
+  shm_size: 16gb
+  environment:
+    HF_TOKEN: ${HF_TOKEN:-}
+    HF_HOME: /cache/huggingface
+    TRITON_CACHE_DIR: /cache/triton
+    TOKENIZERS_PARALLELISM: "false"
+  volumes:
+    - .:/workspace
+    - decoder-hf-cache:/cache/huggingface
+    - decoder-triton-cache:/cache/triton
+
 services:
   mlflow-server:
-    profiles: [training]
+    profiles: [training, decoder-training]
     image: ghcr.io/mlflow/mlflow:v3.15.1@sha256:ea84a0b879f08b35a6f22f22b294024413e780b8fc978eecf5f760ac16cc9ce5
     command:
       - mlflow
@@ -145,9 +163,42 @@ services:
               count: 1
               capabilities: [gpu]
 
+  decoder-tools:
+    <<: *decoder-common
+    command: [--help]
+
+  decoder-trainer:
+    <<: *decoder-common
+    command: [--help]
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  synthesis-tools:
+    profiles: [synthesis]
+    build:
+      context: .
+      dockerfile: docker/synthesis/Dockerfile
+    image: document-ocr/kie-synthesis:sdv1.38.2
+    working_dir: /workspace
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - .:/workspace
+    command: [--help]
+
 volumes:
   hf-cache:
   vllm-cache:
   training-hf-cache:
   training-torch-cache:
+  decoder-hf-cache:
+  decoder-triton-cache:
   mlflow-data:

@@ -13,6 +13,11 @@ from typing import Any, Protocol, cast
 
 from document_ocr.training.config import DatasetFileConfig, TrainingConfig, resolve_config_path
 from document_ocr.training.prompting import PromptTemplate
+from document_ocr.training.splitting import (
+    PartitionCandidate,
+    select_runtime_partition,
+    target_leaf_paths,
+)
 from document_ocr.training.tasks import TrainingTask, canonical_json
 
 
@@ -32,8 +37,10 @@ class Tokenizer(Protocol):
 @dataclass(frozen=True, slots=True)
 class NormalizedRecord:
     document_id: str
+    input_sha256: str
     input_text: str
     target_text: str
+    target_leaf_paths: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +55,7 @@ class SourceFileReport:
 @dataclass(frozen=True, slots=True)
 class DatasetInspection:
     task: str
+    dataset_mode: str
     prompt_path: str
     prompt_sha256: str
     split_records: dict[str, int]
@@ -55,6 +63,7 @@ class DatasetInspection:
     input_characters: dict[str, float | int]
     target_characters: dict[str, float | int]
     source_files: tuple[SourceFileReport, ...]
+    partition: dict[str, Any] | None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -143,6 +152,7 @@ def _read_source_file(
     prompt: PromptTemplate,
     task: TrainingTask,
     seen_document_ids: set[str],
+    collect_partition_metadata: bool,
 ) -> tuple[list[NormalizedRecord], SourceFileReport, list[int], list[int]]:
     path = _regular_source_file(project_root, configured)
     digest = hashlib.sha256()
@@ -174,9 +184,13 @@ def _read_source_file(
                 raise ValueError(f"{context}: duplicate document ID {document_id!r} across splits")
             seen_document_ids.add(document_id)
             raw_input = _require_string(record, fields.input_text, context)
+            actual_input_digest = (
+                hashlib.sha256(raw_input.encode("utf-8")).hexdigest()
+                if fields.input_sha256 is not None or collect_partition_metadata
+                else ""
+            )
             if fields.input_sha256 is not None:
                 declared_input_digest = _require_string(record, fields.input_sha256, context)
-                actual_input_digest = hashlib.sha256(raw_input.encode("utf-8")).hexdigest()
                 if declared_input_digest != actual_input_digest:
                     raise ValueError(
                         f"{context}: input text SHA-256 mismatch: expected "
@@ -199,8 +213,14 @@ def _read_source_file(
             normalized.append(
                 NormalizedRecord(
                     document_id=document_id,
+                    input_sha256=actual_input_digest,
                     input_text=rendered_input,
                     target_text=target_text,
+                    target_leaf_paths=(
+                        frozenset(target_leaf_paths(canonical_target))
+                        if collect_partition_metadata
+                        else frozenset()
+                    ),
                 )
             )
             input_lengths.append(len(rendered_input))
@@ -240,32 +260,75 @@ def inspect_dataset(
 ) -> tuple[dict[str, list[NormalizedRecord]], DatasetInspection]:
     """Verify all immutable split sources and normalize their training strings."""
 
-    split_records: dict[str, list[NormalizedRecord]] = {}
+    split_records: dict[str, list[NormalizedRecord]] = {
+        split: [] for split in _SPLITS
+    }
     reports: list[SourceFileReport] = []
     all_input_lengths: list[int] = []
     all_target_lengths: list[int] = []
     seen_document_ids: set[str] = set()
+    partition_report: dict[str, Any] | None = None
 
-    for split in _SPLITS:
-        records: list[NormalizedRecord] = []
-        for source_config in getattr(config.dataset.splits, split):
-            source_records, report, input_lengths, target_lengths = _read_source_file(
-                project_root=project_root,
-                configured=source_config,
-                split=split,
-                config=config,
-                prompt=prompt,
-                task=task,
-                seen_document_ids=seen_document_ids,
-            )
-            records.extend(source_records)
-            reports.append(report)
-            all_input_lengths.extend(input_lengths)
-            all_target_lengths.extend(target_lengths)
-        split_records[split] = records
+    if config.dataset.splits is not None:
+        for split in _SPLITS:
+            records: list[NormalizedRecord] = []
+            for source_config in getattr(config.dataset.splits, split):
+                source_records, report, input_lengths, target_lengths = _read_source_file(
+                    project_root=project_root,
+                    configured=source_config,
+                    split=split,
+                    config=config,
+                    prompt=prompt,
+                    task=task,
+                    seen_document_ids=seen_document_ids,
+                    collect_partition_metadata=False,
+                )
+                records.extend(source_records)
+                reports.append(report)
+                all_input_lengths.extend(input_lengths)
+                all_target_lengths.extend(target_lengths)
+            split_records[split] = records
+    else:
+        source_config = config.dataset.source
+        partition_config = config.dataset.partition
+        if source_config is None or partition_config is None:
+            raise AssertionError("validated runtime partition config is incomplete")
+        records, report, input_lengths, target_lengths = _read_source_file(
+            project_root=project_root,
+            configured=source_config,
+            split="source",
+            config=config,
+            prompt=prompt,
+            task=task,
+            seen_document_ids=seen_document_ids,
+            collect_partition_metadata=True,
+        )
+        selection = select_runtime_partition(
+            [
+                PartitionCandidate(
+                    document_id=record.document_id,
+                    input_sha256=record.input_sha256,
+                    target_leaf_paths=record.target_leaf_paths,
+                )
+                for record in records
+            ],
+            partition_config,
+        )
+        validation_ids = set(selection.validation_document_ids)
+        split_records["train"] = [
+            record for record in records if record.document_id not in validation_ids
+        ]
+        split_records["validation"] = [
+            record for record in records if record.document_id in validation_ids
+        ]
+        reports.append(report)
+        all_input_lengths.extend(input_lengths)
+        all_target_lengths.extend(target_lengths)
+        partition_report = selection.to_dict()
 
     inspection = DatasetInspection(
         task=task.name,
+        dataset_mode=config.dataset.input_mode,
         prompt_path=str(prompt.path),
         prompt_sha256=prompt.sha256,
         split_records={split: len(split_records[split]) for split in _SPLITS},
@@ -273,6 +336,7 @@ def inspect_dataset(
         input_characters=_distribution(all_input_lengths),
         target_characters=_distribution(all_target_lengths),
         source_files=tuple(reports),
+        partition=partition_report,
     )
     return split_records, inspection
 
@@ -423,7 +487,6 @@ def prepare_datasets(
         "schema_version": config.schema_version,
         "task": config.task,
         "prompt_sha256": prompt.sha256,
-        "sources": config.dataset.splits.model_dump(mode="json"),
         "fields": config.dataset.fields.model_dump(mode="json"),
         "preprocessing": config.dataset.preprocessing.model_dump(mode="json"),
         "tokenizer": {
@@ -433,6 +496,18 @@ def prepare_datasets(
         },
         "decoder_target_contract": decoder_target_contract,
     }
+    if config.dataset.splits is not None:
+        # Preserve the existing pre-split cache identity exactly; adding the runtime
+        # mode must not invalidate immutable pre-split caches.
+        identity_payload["sources"] = config.dataset.splits.model_dump(mode="json")
+    else:
+        source_config = config.dataset.source
+        partition_config = config.dataset.partition
+        if source_config is None or partition_config is None or inspection.partition is None:
+            raise AssertionError("validated runtime partition inspection is incomplete")
+        identity_payload["source"] = source_config.model_dump(mode="json")
+        identity_payload["partition"] = partition_config.model_dump(mode="json")
+        identity_payload["resolved_partition"] = inspection.partition
     cache_identity = hashlib.sha256(
         json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -449,7 +524,16 @@ def prepare_datasets(
         records = records_by_split[split]
         if not records:
             continue
-        dataset = Dataset.from_list([asdict(record) for record in records])
+        dataset = Dataset.from_list(
+            [
+                {
+                    "document_id": record.document_id,
+                    "input_text": record.input_text,
+                    "target_text": record.target_text,
+                }
+                for record in records
+            ]
+        )
         cache_file = cache_dir / f"{split}-{cache_identity}.arrow"
         tokenized = dataset.map(
             _tokenize_batch,

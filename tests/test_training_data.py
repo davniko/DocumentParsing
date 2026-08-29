@@ -80,6 +80,64 @@ def test_published_training_dataset_passes_full_cpu_inspection() -> None:
     assert records["train"][0].target_text.endswith('"schemaVersion":"2.0.0"}')
 
 
+def test_runtime_partition_inspection_is_reported_and_source_ordered() -> None:
+    config, prompt, task = _training_components()
+    source = (
+        PROJECT_ROOT
+        / "artifacts"
+        / "kie-training"
+        / "datasets"
+        / "mpci-bl-pilot106-raw-latin-v1"
+        / "records.jsonl"
+    )
+    payload = source.read_bytes()
+    dataset_value = config.dataset.model_dump(mode="python")
+    dataset_value.update(
+        {
+            "splits": None,
+            "source": {
+                "path": str(source),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "records": 106,
+            },
+            "partition": {
+                "algorithm": "seeded_sha256_rank_v1",
+                "seed": 42,
+                "validation_size": {"kind": "records", "value": 16},
+                "coverage_policy": "retain_each_target_leaf_in_train",
+            },
+        }
+    )
+    dataset = type(config.dataset).model_validate(dataset_value, strict=True)
+    config = config.model_copy(update={"dataset": dataset})
+
+    records, report = inspect_dataset(
+        project_root=PROJECT_ROOT,
+        config=config,
+        prompt=prompt,
+        task=task,
+    )
+
+    source_ids = [json.loads(line)["documentId"] for line in payload.decode().splitlines()]
+    assert report.dataset_mode == "runtime_partition"
+    assert report.split_records == {"train": 90, "validation": 16, "test": 0}
+    assert report.partition is not None
+    assert report.partition["seed"] == 42
+    assert report.partition["resolved_validation_records"] == 16
+    assert len(report.partition["outputs"]["train"]["document_ids"]) == 90
+    assert len(report.partition["outputs"]["validation"]["document_ids"]) == 16
+    assert [record.document_id for record in records["train"]] == [
+        document_id
+        for document_id in source_ids
+        if document_id in {record.document_id for record in records["train"]}
+    ]
+    assert [record.document_id for record in records["validation"]] == [
+        document_id
+        for document_id in source_ids
+        if document_id in {record.document_id for record in records["validation"]}
+    ]
+
+
 def test_published_training_dataset_preserves_audited_latin_corrections() -> None:
     correction_dir = (
         PROJECT_ROOT

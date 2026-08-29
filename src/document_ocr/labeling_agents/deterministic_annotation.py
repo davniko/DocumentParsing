@@ -79,7 +79,7 @@ _DATE_TOKEN = re.compile(
     rf"(?:[0-9]\s+[0-9]|[0-9]{{1,2}})(?:st|nd|rd|th)?\s*[-/. ]\s*"
     rf"(?:{_MONTH_NAME})\.?"
     r"\s*[-/., ]+\s*[0-9]{2,4}|"
-    rf"(?:{_MONTH_NAME})\.?\s*(?:[-/.]\s*|\s+)"
+    rf"(?:{_MONTH_NAME})\.?\s*(?:[-/.,]\s*|\s+)"
     r"[0-9]{1,2}(?:st|nd|rd|th)?\s*(?:,\s*|[-/.]\s*|\s+)"
     r"[0-9]{2,4}"
     r")\b"
@@ -90,7 +90,7 @@ _NUMERIC_DATE_TOKEN = re.compile(
 )
 _FORBIDDEN_METADATA = re.compile(
     r"(?ix)\b(?:acid(?:\s*(?:code|number|no))?|tax(?:\s*(?:id|number|no))?|"
-    r"vat(?:\s*(?:id|number|no))?|c\.?n\.?p\.?j|customs(?:\s*(?:id|number|no))?|"
+    r"vat(?:\s*(?:id|number|no))?|c\.?n\.?p\.?j|customs\s+(?:id|number|no)|"
     r"company\s+registration|exporter\s+registration|importer\s+registration|"
     r"gpc(?:\s*(?:id|number|no))?|blockchain|document\s+hash|portal\s+id)\b"
 )
@@ -101,23 +101,28 @@ _NON_METADATA_FIELD_HEADING = re.compile(
     r"MARKS?(?:\s+AND\s+NO(?:S|S\.)?)?|FORWARD(?:ING)?|"
     r"DOMESTIC\s+ROUTING\s*/?\s*EXPORT\s+INSTRUCTIONS?|"
     r"EXPORT\s+REF(?:ERENCE)?S?|"
-    r"AES|ITN|SHIPPING\s+BILL|S/?BILL|ED\s*(?:NO|NUMBER)|DU-E|"
-    r"F\s*/\s*AGENT(?:\s+NAME)?\s*&\s*REF)\b"
+    r"AES|ITN|SHIPPING\s+BILL|S/?BILL|S[./]?B(?:\s*(?:NO|NUMBER))?|"
+    r"DUS|ED\s*(?:NO|NUMBER)|DU-E|"
+    r"F\s*/\s*AGENT(?:\s+NAME)?\s*&\s*REF|PRN\b|P\.?\s*E\.?)\b"
 )
 _QUALIFYING_NON_INVOICE_REFERENCE = re.compile(
     r"(?ix)\b(?:forward(?:ing)?|export\s+(?:ref(?:erence)?s?|no|number)|"
     r"domestic\s+routing\s*/?\s*export\s+instructions?|"
     r"ref\s*\.\s*exp\s*\.?|aes|itn|caed(?:\s*(?:no|number))?|"
-    r"shipping\s+bill|s/?bill|du-e|f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
-    r"s\.?b\.?(?:\s*(?:no|number))?|imp\s*/+\s*exp\s*[#]?|"
+    r"shipping\s+bill|s/?bill|du-e|dus|f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
+    r"s[./]?b\.?(?:\s*(?:no|number))?|imp\s*/+\s*exp\s*[#]?|"
+    r"prn(?:\s*\(\s*proof\s+of\s+report\s+number\s*\))?|p\.?\s*e\.?|"
     r"exp\s*(?=[:#-]?\s*[0-9])|"
     r"ed\s*(?:no|number)\.?\s*(?=[:#-]|\s|$))"
 )
 _REFERENCE_LABEL_PREFIX = re.compile(
     r"(?ix)^\s*(?:ref\s*\.\s*exp\s*\.?|"
     r"export\s+(?:ref(?:erence)?s?|no|number)|aes|itn|caed(?:\s*(?:no|number))?|"
-    r"shipping\s+bill|s/?bill|ed\s*(?:no|number)|du-e|imp\s*/+\s*exp|exp|"
-    r"f\s*/\s*agent(?:\s+name)?\s*&\s*ref|p\s*/?\s*i\s*(?:no|number|ref))"
+    r"shipping\s+bill|s/?bill|s[./]?b(?:\s*(?:no|number))?|dus|"
+    r"ed\s*(?:no|number)|du-e|imp\s*/+\s*exp|exp|"
+    r"f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
+    r"prn(?:\s*\(\s*proof\s+of\s+report\s+number\s*\))?|p\.?\s*e\.?|"
+    r"p\s*/?\s*i\s*(?:no|number|ref))"
     r"(?:\s*[:#.-]\s*|\s+)"
 )
 _REFERENCE_PLACEHOLDER = re.compile(
@@ -236,8 +241,15 @@ _HEADED_DOT_DECIMAL_VOLUME = re.compile(
     rf"(?ix)(?:\bMEASURE(?:MENT)?\s*)?{_VOLUME_UNIT}\s*[:#-]?\s*"
     r"(?:\r?\n\s*)+(?<![0-9])[0-9]+\.[0-9]+(?![0-9])"
 )
+_HEADED_MULTILINE_GROSS_MASS = re.compile(
+    r"(?im)^[ \t]*GROSS\s+WEIGHT[ \t]*\r?\n"
+    r"(?:[ \t]*(?:CARGO)?[ \t]*\r?\n){0,3}"
+    r"[ \t]*(?:KGS?|KGM)[ \t]*\r?\n"
+    r"[ \t]*(?P<value>[0-9]+(?:[.,][0-9]+)?)[ \t]*$"
+)
 _CONTAINER_ROW = re.compile(
-    r"(?i)(?<![A-Z0-9])(?P<prefix>[A-Z]{4})[ /-]?(?P<serial>[0-9]{7})(?![0-9])"
+    r"(?i)(?<![A-Z0-9])(?P<prefix>[A-Z]{4})[ /-]?"
+    r"(?P<serial>[0-9]{6})[ /-]?(?P<check>[0-9])(?![0-9])"
 )
 _ROW_VOLUME_COUNT = re.compile(r"(?i)\bVOLUMES?\s*[:#-]?\s*(?P<count>[0-9]+)\b")
 _PALLET_RANGE = re.compile(
@@ -248,7 +260,8 @@ _PALLET_PACKAGE_TYPE = re.compile(r"(?ix)^\s*(?:PALLETS?(?:\(S\))?|PLTS?)\s*$")
 _TOTAL_PACKAGES_LOADED_CONTAINER = re.compile(
     r"(?is)\bTOTAL\s+PACKAGES?\s*:\s*(?P<count>[0-9]+)\b.{0,240}?"
     r"\bLOADED\s+INTO\s+CONTAINER(?:\(S\)|S)?\s*:\s*"
-    r"(?P<prefix>[A-Z]{4})[ /-]?(?P<serial>[0-9]{7})(?![0-9])"
+    r"(?P<prefix>[A-Z]{4})[ /-]?(?P<serial>[0-9]{6})[ /-]?"
+    r"(?P<check>[0-9])(?![0-9])"
 )
 _CONTAINER_IDENTIFIER_ADAPTER: TypeAdapter[str] = TypeAdapter(ContainerIdentifier)
 _NumericStyle = Literal["comma_decimal", "dot_decimal"]
@@ -802,6 +815,29 @@ def _numeric_matches(
     style = _numeric_style(pages, path)
     matches: list[_GroundedMatch] = []
     for page_number, source in pages.items():
+        if path.endswith(".grossWeight.value"):
+            for headed in _HEADED_MULTILINE_GROSS_MASS.finditer(source):
+                raw_number = headed.group("value")
+                try:
+                    parsed = Decimal(raw_number.replace(",", "."))
+                except InvalidOperation:
+                    continue
+                if parsed == expected:
+                    matches.append(
+                        _match(
+                            path=path,
+                            page_number=page_number,
+                            source=source,
+                            start=headed.start("value"),
+                            end=headed.end("value"),
+                            evidence_kind="normalized",
+                            normalization_rule=(
+                                "parsed the scalar in the explicit multiline GROSS WEIGHT "
+                                "KGS field"
+                            ),
+                            base_score=150,
+                        )
+                    )
         found_numbers = list(_NUMBER.finditer(source))
         if path.endswith((".quantity", ".packageQuantity")):
             existing_spans = {(found.start(), found.end()) for found in found_numbers}
@@ -1086,6 +1122,10 @@ _SEMANTIC_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
         re.compile(
             r"(?is)\b(?:NO\.?|NUMBER)\s+OF\s+ORIGINAL(?:\s+B\(S\)/L)?\b"
             r".{0,32}\b0\s*/?\s*ORIGINAL\b"
+        ),
+        re.compile(
+            r"(?is)\b(?:NO\.?|NUMBER)\s+OF\s+ORIGINAL(?:\s+BL'?S?|\s+B\(S\)/L)?\b"
+            r".{0,48}\b0+\s*/\s*ZERO(?:E)?S\b"
         ),
         _EXPRESS_RELEASE_NO_ORIGINALS,
     ),
@@ -1476,6 +1516,16 @@ def _explicit_invoice_references(pages: dict[int, str]) -> tuple[str, ...]:
     for page_number in sorted(pages):
         for match in _EXPLICIT_INVOICE_REFERENCE.finditer(pages[page_number]):
             value = match.group("value")
+            trailing = pages[page_number][match.end() :]
+            if value.upper().endswith("FREIGHT") and re.match(
+                r"(?i)^\s+(?:COLLECT|PREPAID)\b", trailing
+            ):
+                # Flattened OCR can glue the next freight field to an invoice
+                # value without a separator (``...-25FREIGHT COLLECT``).  The
+                # headed invoice value ends before that independently modelled
+                # field; retain the exact source substring and trim only the
+                # unambiguous heading suffix.
+                value = value[: -len("FREIGHT")]
             if not any(character.isdigit() for character in value):
                 continue
             key, _ = _fold_with_offsets(value)
@@ -1570,7 +1620,11 @@ def _explicit_container_volume_rows(
             container = _CONTAINER_ROW.search(line)
             if container is None:
                 continue
-            identifier = (container.group("prefix") + container.group("serial")).upper()
+            identifier = (
+                container.group("prefix")
+                + container.group("serial")
+                + container.group("check")
+            ).upper()
             window = [line]
             for following in lines[index + 1 : index + 3]:
                 if _CONTAINER_ROW.search(following):
@@ -1589,7 +1643,9 @@ def _explicit_valid_container_identifiers(pages: dict[int, str]) -> tuple[str, .
     seen: set[str] = set()
     for page_number in sorted(pages):
         for found in _CONTAINER_ROW.finditer(pages[page_number]):
-            identifier = (found.group("prefix") + found.group("serial")).upper()
+            identifier = (
+                found.group("prefix") + found.group("serial") + found.group("check")
+            ).upper()
             try:
                 _CONTAINER_IDENTIFIER_ADAPTER.validate_python(identifier, strict=True)
             except ValidationError:
@@ -1625,7 +1681,9 @@ def _explicit_total_package_container_links(
     seen: set[tuple[str, int]] = set()
     for page_number in sorted(pages):
         for found in _TOTAL_PACKAGES_LOADED_CONTAINER.finditer(pages[page_number]):
-            identifier = (found.group("prefix") + found.group("serial")).upper()
+            identifier = (
+                found.group("prefix") + found.group("serial") + found.group("check")
+            ).upper()
             try:
                 _CONTAINER_IDENTIFIER_ADAPTER.validate_python(identifier, strict=True)
             except ValidationError:

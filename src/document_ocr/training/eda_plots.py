@@ -43,9 +43,7 @@ def _font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(name, size=size)
 
 
-def _canvas(
-    title: str, subtitle: str, footnote: str
-) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+def _canvas(title: str, subtitle: str, footnote: str) -> tuple[Image.Image, ImageDraw.ImageDraw]:
     image = Image.new("RGB", (_WIDTH, _HEIGHT), _BACKGROUND)
     draw = ImageDraw.Draw(image)
     draw.text((70, 48), title, fill=_INK, font=_font(38, bold=True))
@@ -186,9 +184,7 @@ def histogram(
     for value in values:
         index = min(len(counts) - 1, int((value - edges[0]) / (edges[-1] - edges[0]) * len(counts)))
         counts[max(0, index)] += 1
-    labels = [
-        f"{edges[index]:.1f}–{edges[index + 1]:.1f}" for index in range(len(counts))
-    ]
+    labels = [f"{edges[index]:.1f}-{edges[index + 1]:.1f}" for index in range(len(counts))]
     image, draw = _canvas(title, subtitle, footnote)
     left, right, top, bottom = 115, 1510, 165, 850
     maximum = max(counts) or 1
@@ -208,7 +204,9 @@ def histogram(
         x1 = left + slot * (index + 1) - 1
         y0 = bottom - (bottom - top) * count / maximum
         draw.rectangle((x0, y0, x1, bottom), fill=color)
-    tick_indexes = sorted({0, len(labels) // 4, len(labels) // 2, 3 * len(labels) // 4, len(labels) - 1})
+    tick_indexes = sorted(
+        {0, len(labels) // 4, len(labels) // 2, 3 * len(labels) // 4, len(labels) - 1}
+    )
     for index in tick_indexes:
         draw.text(
             (left + slot * (index + 0.5), bottom + 15),
@@ -264,7 +262,7 @@ def line_chart(
         draw.text((1202, 165 + index * 34), name, anchor="lm", fill=_INK, font=_font(16))
     draw.text(((left + right) / 2, 910), x_label, anchor="mm", fill=_MUTED, font=_font(17))
     if y_label:
-        draw.text((40, (top + bottom) / 2), y_label, anchor="mm", fill=_MUTED, font=_font(17))
+        draw.text((left, top - 18), y_label, anchor="ls", fill=_MUTED, font=_font(17))
     return _png(image)
 
 
@@ -277,6 +275,7 @@ def heatmap(
     matrix: Sequence[Sequence[float]],
     footnote: str = "",
     value_format: str = "count",
+    center_zero: bool = False,
 ) -> bytes:
     if not x_labels or not y_labels:
         raise ValueError("heatmap requires both axes")
@@ -289,9 +288,15 @@ def heatmap(
     maximum = max((value for row in matrix for value in row), default=1.0) or 1.0
     for y_index, row in enumerate(matrix):
         for x_index, value in enumerate(row):
-            intensity = math.sqrt(max(0.0, value) / maximum)
-            base = (235, 241, 255)
-            accent = (37, 99, 235)
+            if center_zero:
+                bounded = max(-1.0, min(1.0, value))
+                intensity = abs(bounded)
+                base = (247, 249, 252)
+                accent = (37, 99, 235) if bounded >= 0 else (220, 38, 38)
+            else:
+                intensity = math.sqrt(max(0.0, value) / maximum)
+                base = (235, 241, 255)
+                accent = (37, 99, 235)
             fill = tuple(round(a + (b - a) * intensity) for a, b in zip(base, accent, strict=True))
             x0 = left + x_index * width
             y0 = top + y_index * height
@@ -371,8 +376,10 @@ def grouped_bar(
             fill=_INK,
             font=_font(max(10, min(15, int(group_width / 8)))),
         )
+    legend_width = min(230, 1040 // len(series))
+    legend_start = right - legend_width * len(series)
     for index, (name, _) in enumerate(series):
-        x = 1110 + index * 190
+        x = legend_start + index * legend_width
         draw.rounded_rectangle((x, 150, x + 28, 170), 4, fill=_PALETTE[index])
         draw.text((x + 38, 160), name, anchor="lm", fill=_INK, font=_font(15))
     return _png(image)
@@ -436,11 +443,19 @@ def scatter(
         radius = 5 + 16 * math.sqrt(max(0.0, row.size) / max_size)
         x, y = px(row.x), py(row.y)
         color = _PALETTE[row.series % len(_PALETTE)]
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=color, outline="white", width=2)
+        draw.ellipse(
+            (x - radius, y - radius, x + radius, y + radius), fill=color, outline="white", width=2
+        )
         if id(row) in label_ids and row.label:
-            draw.text((x + radius + 5, y), _short(row.label, 24), anchor="lm", fill=_INK, font=_font(13, bold=True))
+            draw.text(
+                (x + radius + 5, y),
+                _short(row.label, 24),
+                anchor="lm",
+                fill=_INK,
+                font=_font(13, bold=True),
+            )
     draw.text(((left + right) / 2, 915), x_label, anchor="mm", fill=_MUTED, font=_font(17))
-    draw.text((40, (top + bottom) / 2), y_label, anchor="mm", fill=_MUTED, font=_font(17))
+    draw.text((left, top - 18), y_label, anchor="ls", fill=_MUTED, font=_font(17))
     return _png(image)
 
 

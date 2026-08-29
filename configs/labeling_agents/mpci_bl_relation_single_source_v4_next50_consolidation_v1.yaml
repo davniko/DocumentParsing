@@ -1,0 +1,15 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-next50-adjudicated-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1
+selection_sha256: 6b21ac03e6267b44c4aa7a979f53623eca55f4ec3a94f991193015e978914911
+expected_documents: 50
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-next50-v13-day-first-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-next50-held-adjudication-a-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next50-held-adjudication-a-v1
+  - run_id: mpci-bl-relation-single-source-v4-next50-held-adjudication-b-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next50-held-adjudication-b-v1
+  - run_id: mpci-bl-relation-single-source-v4-next50-held-adjudication-c-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-next50-held-adjudication-c-v1

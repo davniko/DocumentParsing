@@ -5113,6 +5113,19 @@ def test_review_policy_rejects_invalid_imo_demand_but_accepts_valid_imo() -> Non
     validate_review_policy((valid,))
 
 
+def test_review_policy_rejects_false_invalid_imo_assertion() -> None:
+    false_rejection = _review_finding(
+        raw_value="9293442",
+        excerpt="IMO NUMBER 9293442",
+        target_path="documentPatch.transport.vesselImoNumber",
+        category="incorrect_field",
+        message="IMO 9293442 has an invalid checksum and must be removed.",
+    )
+
+    with pytest.raises(ReviewPolicyError, match="valid checksum"):
+        validate_review_policy((false_rejection,))
+
+
 def test_review_policy_rejects_load_stow_count_as_handling_instruction() -> None:
     boilerplate = _review_finding(
         raw_value="Shippers Load, Stow and Count",
@@ -7316,6 +7329,8 @@ async def test_unlabeled_source_publishes_training_records_without_fake_referenc
             "ACME IMPORTS LIMITED"
         ),
         "Consignee (if 'To Order' so indicate)\nACME IMPORTS LIMITED",
+        "Consignee (if To Order, so indicate)\nACME IMPORTS LIMITED",
+        'Consignee( if"To order" so indicate ) / Alci\nACME IMPORTS LIMITED',
         "CONSIGNED TO\nACME IMPORTS LIMITED",
         "CONSIGNEE: ACME IMPORTS LIMITED",
     ],
@@ -7366,6 +7381,7 @@ def test_pdf_grouping_can_assign_an_exact_ocr_consignee_without_supplying_its_va
     [
         "TELEX RELEASE",
         "No. of original 0/ORIGINAL",
+        "Number of Original BL's\nB/L No.\n00/zeroes\n3909024A",
     ],
 )
 def test_release_or_zero_original_field_grounds_non_negotiable(raw: str) -> None:
@@ -7376,6 +7392,153 @@ def test_release_or_zero_original_field_grounds_non_negotiable(raw: str) -> None
     )
 
     assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+def test_comma_separated_named_month_date_is_grounded() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("PLACE AND DATE OF ISSUE\nISTANBUL, MAY,30TH 2025"),
+        _compact_annotation({"issueDate": date(2025, 5, 30)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.issueDate == date(2025, 5, 30)
+
+
+def test_glued_freight_field_is_not_part_of_invoice_reference() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "INVOICE NO:LWIX805501-25FREIGHT COLLECT (FOB SHENZHEN, CHINA)"
+        ),
+        _compact_annotation(
+            {"forwardingAndExportReferences": ("LWIX805501-25",)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "LWIX805501-25",
+    )
+
+
+def test_explicit_marks_may_contain_customs_clearance_company_wording() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "Marks and numbers\nEL-BASHA FOR IMPORT, EXPORT AND CUSTOMS CLEARANCE."
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "marksAndNumbers": (
+                            "EL-BASHA FOR IMPORT, EXPORT AND CUSTOMS CLEARANCE.",
+                        ),
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].marksAndNumbers == (
+        "EL-BASHA FOR IMPORT, EXPORT AND CUSTOMS CLEARANCE.",
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "reference"),
+    [
+        (
+            "PRN (Proof of Report Number): DB9257202403013308159",
+            "DB9257202403013308159",
+        ),
+        ("P.E. 25001EC01082946Z", "25001EC01082946Z"),
+        ("DUS 11475832-9", "11475832-9"),
+        (
+            "S/B NO. 6600762,7634148,6854337 DT. 08-01-2024",
+            "6600762",
+        ),
+    ],
+)
+def test_explicit_report_and_export_permit_references_are_grounded(
+    raw: str, reference: str
+) -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(raw),
+            _compact_annotation({"forwardingAndExportReferences": (reference,)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        reference,
+    )
+
+
+def test_hyphen_before_container_check_digit_is_normalized() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("CONTAINER\nTGBU224635-0\n20 DC"),
+        _compact_annotation(
+            {
+                "containers": (
+                    {
+                        "containerNumber": "TGBU2246350",
+                        "typeDescription": "20 DC",
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.containers[0].containerNumber == (
+        "TGBU2246350"
+    )
+
+
+def test_multiline_gross_weight_column_grounds_its_following_kgs_scalar() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "GROSS WEIGHT\nCargo\n\nKGS\n500.000\n\nKGS\nCBM\n\nTARE\n120.000"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "grossWeight": {"unit": "kilogram", "value": 500.0},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].grossWeight.value == 500.0
+
+
+def test_multiline_gross_weight_heading_wins_over_equal_tare_scalar() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "TARE\nKGS\n500.000\n\nGROSS WEIGHT\nCargo\nKGS\n500.000"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "grossWeight": {"unit": "kilogram", "value": 500.0},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    evidence = {row.targetPath: row for row in annotation.evidence}
+    gross_evidence = evidence[
+        "documentPatch.goodsItems[0].grossWeight.value"
+    ].rawOcrEvidence[0]
+    assert gross_evidence.ocrExcerpt == "Cargo\nKGS\n500.000"
 
 
 def test_glued_package_abbreviations_and_overlapping_table_columns_ground_counts() -> None:
