@@ -8,6 +8,7 @@ dependencies = [
   "pydantic==2.13.4",
   "pydantic-ai-slim[openai,retries]==2.36.0",
   "pyyaml==6.0.3",
+  "scipy==1.18.1",
   "sdv==1.38.2",
   "seaborn==0.13.2",
   "torch==2.9.1+cpu",

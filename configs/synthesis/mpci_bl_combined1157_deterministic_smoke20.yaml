@@ -1,0 +1,88 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined1157-deterministic-smoke20-v5
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+  sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+
+inputs:
+  preparation:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3
+    manifest_sha256: 42cd4a9be6f9b907d6c98dbc29315262934b54484e15196611b0a984de2e14e7
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3/anchors/ocr-anchors.jsonl
+    sha256: bd606e5fc390906b49b40a54f499793bb368b08c22d3b7462661eb9644396fc4
+    records: 54462
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4305ee49db94f4ee34d8d416a0e9fe1a193b1899bab644f43419dd40e7e642aa
+    records: 1157
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: f37ef3707007a97742cda7ff9b23318716b67e5435d2a4f5e4247ef128b9dfe5
+    records: 682
+  partition_report:
+    path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+    sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+
+selection:
+  split: train
+  requested_documents: 20
+  seed: 20260830
+  minimum_template_documents: 3
+  require_template_wholly_in_split: true
+  maximum_per_template: 1
+  maximum_per_carrier: 3
+  minimum_carriers: 8
+  family_exact:
+    container_identifier: 4
+    seal_identifier: 4
+    document_dates: 4
+    package_quantity: 4
+    cargo_mass: 4
+  strata_exact:
+    document_type:
+      bill_of_lading: 14
+      sea_waybill: 6
+    source_corpus:
+      legacy_combined487: 8
+      current_main680: 12
+    page_bucket:
+      one: 7
+      two: 8
+      three_or_more: 5
+  context_minimums:
+    multi_container: 5
+    multi_cargo: 2
+    multiple_package_levels: 2
+    container_allocations: 14
+    refrigerated: 1
+    dangerous_goods: 1
+    delivery_agent: 6
+    forwarding_agent: 1
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  seed: 20260830
+  variant_index: 0
+  date_minimum: 2020-01-01
+  date_maximum: 2030-12-31
+  preserve_source_missingness: true
+  preserve_source_cardinality: true
+  publish_training_records: false

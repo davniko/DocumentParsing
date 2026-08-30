@@ -52,8 +52,9 @@ introduced.
 - Version 1 is **cardinality-preserving**: it may replace values and coherent repeated blocks, but it
   does not invent additional cargo rows, containers, parties, or pages. Adding/removing repeated
   structures is a later, separately validated renderer capability.
-- A raw-text “diff” is a typed, occurrence-aware patch plan—not global string replacement and not an
-  unconstrained LLM rewrite of the entire document.
+- A raw-text “diff” is a typed, exact-context edit plan—not global string replacement and not an
+  unconstrained LLM rewrite of the entire document. The planner may inspect the complete raw OCR in
+  one request, but it returns only compact edits and never the rewritten document.
 - SDV learns distributions and correlations; deterministic code owns formal identifiers, arithmetic,
   registries, chronology, relation integrity, and rendering. PydanticAI owns only genuinely
   linguistic or ambiguous block-realization work.
@@ -269,8 +270,8 @@ Before synthesis, create an immutable inventory for every eligible real training
 - template-family ID and confidence/source;
 - raw OCR and target hashes;
 - page boundaries and repeated header/footer regions;
-- field evidence anchors with page, start/end offsets, raw value, normalized target value, nearby
-  prefix/suffix, and all role-equivalent occurrences;
+- field evidence anchors with page, deterministic start/end offsets, raw value, normalized target
+  value, nearby prefix/suffix, and all role-equivalent occurrences;
 - presentation profiles for dates, decimal separators, thousands separators, units, casing, spacing,
   line breaks, and identifier punctuation;
 - repeated-block capabilities for parties, containers, cargo rows, marks, and totals;
@@ -281,8 +282,9 @@ Before synthesis, create an immutable inventory for every eligible real training
 This inventory cannot be built by matching normalized labels blindly. Dates and readable categories
 may differ from printed OCR; a value may occur on several pages; and the same string may appear in an
 unrelated role. Prefer existing annotation evidence. Use deterministic exact/normalized matching
-only where it yields a unique role-aware mapping. A PydanticAI anchoring call is allowed only for the
-remaining bounded block and must return structured spans and evidence, never a rewritten document.
+only where it yields a unique role-aware mapping. A PydanticAI anchoring call may inspect the whole
+document and must return structured exact quotes plus context, never model-counted offsets or a
+rewritten document. Deterministic code resolves the returned quotes to offsets.
 
 ## A6. Typed mutation and rendering contract
 
@@ -313,11 +315,16 @@ FieldMutation
   old normalized value / new normalized value
   presentation formatter and version
 
-BlockMutation
-  block kind and exact source span
-  replacement block
-  field-to-subspan map
-  deterministic or agent renderer receipt
+TextEdit
+  page number and target/auxiliary kind
+  exact old text plus prefix/suffix context
+  replacement text and expected occurrence count
+  field paths, entity ID, and coupling group
+
+TextPatchPlan
+  planner version and source/synthetic hashes
+  text edits[]
+  structured-output, usage, cost, and validation receipt
 ```
 
 Renderer rules:
@@ -335,7 +342,10 @@ Renderer rules:
    text locations.
 
 Global `str.replace` is forbidden. A full-document LLM rewrite is also forbidden: it is expensive,
-destroys template fidelity, and makes exact source/target agreement difficult to prove.
+destroys template fidelity, and makes exact source/target agreement difficult to prove. The default
+planner instead receives the whole page-ordered OCR, both complete labels, a compact semantic diff,
+and categorical/field metadata in one request, then returns only `TextEdit` objects. It does not
+emit character offsets; the executor resolves exact text plus context locally.
 
 ## A7. Cardinality-preserving v1 versus expandable v2
 
@@ -368,15 +378,16 @@ appropriate than OCR-text patching for large cardinality changes.
 
 PydanticAI calls should use provider-native structured output (`NativeOutput`) where supported,
 Pydantic output validation, explicit output retry limits, request/token/cost limits, and immutable
-message transcripts and receipts. The existing provider already demonstrates these contracts.
+message transcripts and receipts. The existing provider already demonstrates these contracts. The
+normal edit-planning path is one request per document with no tools and no narrative reasoning. One
+repair request is allowed only for a precise deterministic validation failure.
 
 Allowed agent tasks:
 
 - generate or paraphrase a goods description from fixed structured cargo/HS/DG facts;
-- realize one bounded cargo or party block into the exact surface conventions of a template when a
-  deterministic formatter cannot express it cleanly;
-- identify evidence spans inside a bounded source block when deterministic anchoring is ambiguous;
-  and
+- realize linguistic party, goods, or auxiliary values from already fixed semantic facts;
+- identify exact old text and context for target facts and residual party-sensitive flavor data
+  using the complete raw OCR, source label, synthetic label, and typed diff; and
 - review a failed deterministic round-trip by describing the mismatch, without directly publishing
   a correction.
 
@@ -385,7 +396,7 @@ Not allowed:
 - choose formal codes or silently repair an invalid generated plan;
 - invent cross-table relations or arithmetic;
 - see validation/test examples;
-- return a whole-document rewrite when a block is sufficient; or
+- return a whole-document rewrite instead of compact exact-context edits; or
 - promote its own output without deterministic validation.
 
 Each call records model/provider ID, exact model settings, prompt hash, input block hash, structured
@@ -428,9 +439,11 @@ targets:
     maximum_share_per_family: 0.10
 
 agents:
-  enabled_tasks: [goods_description, bounded_block_realization]
+  enabled_tasks: [linguistic_values, whole_document_edit_plan]
   concurrency: 16
   per_document_request_limit: 2
+  default_tool_calls: 0
+  whole_document_rewrite: forbidden
   total_cost_limit_usd: 100
 ```
 
@@ -544,9 +557,9 @@ Statistical similarity alone cannot approve a synthetic dataset.
 |---|---|---|
 | A0 | Refresh 1,157-row EDA; source-aware split; template/evidence inventory spec | Cohort support and template capability report reviewed |
 | A1 | Normalizer and inverse projector for relational tables | Exact round-trip on all real source rows |
-| A2 | Deterministic replacement-only renderer for IDs, dates, route, parties, quantities | 100% round-trip on a stratified real mutation test set |
+| A2 | Typed draft-scenario generator for non-linguistic fields, route scenarios, and deterministic reconciliation | Every source-present field has a declared policy; unresolved linguistic work is typed explicitly and drafts cannot project to labels or training rows |
 | A3 | SDV baseline benchmark: Gaussian Copula, HMA simplified view, selected CTGAN/TVAE arms | Best model chosen per table/profile on quality, speed, and support targeting |
-| A4 | PydanticAI goods/block generation with receipts and limits | Targeted quality/cost audit; no unreceipted output |
+| A4 | Whole-document-context edit planner, residual-sensitive inventory, and deterministic executor | Full party anonymization, targeted quality/cost audit, one-call default, and no unreceipted or free-form document rewrite |
 | A5 | 100–250 synthetic pilot | 100% hard gates plus human audit and no real-test regression |
 | A6 | 1×/2×/5× train augmentation ablation | Paired real-test improvement identifies useful ratio/cohorts |
 | A7 | One-template cardinality expansion prototype | Separate approval before any general expansion |
@@ -555,13 +568,18 @@ Statistical similarity alone cannot approve a synthetic dataset.
 
 1. Which rare cohort combinations are operationally plausible and supported by at least one known
    template family?
-2. Are synthetic party/address fields intended only for augmentation, or must this pipeline meet an
-   explicit anonymization standard?
+2. Full party anonymization is mandatory from pilot one: target party facts and unlabeled sensitive
+   values are replaced, harmless flavor structure is retained, and empirical leakage gates are
+   required without claiming formal differential privacy.
 3. Which authoritative port, HS, UN/DG, container, and locality registries may be bundled or pinned?
 4. Should template-family caps optimize carrier balance, layout diversity, or deployment frequency?
 5. What maximum number of variants from one real source is acceptable before source wording dominates?
-6. For version 2, is synthetic raw OCR sufficient, or should expandable variants be rendered to PDF
-   and passed through GLM-OCR to reproduce OCR noise?
+6. Synthetic generation is raw-text-only: structured labels are back-inserted into page-ordered raw
+   OCR while preserving the source text format. PDF generation, rerendering, and synthetic OCR
+   passes are outside scope.
+7. The initial route prior is a configurable bilateral export-flow artifact intersected with
+   maritime UN/LOCODE eligibility; the exact time window, weighting, smoothing, and regional
+   targets remain configuration decisions rather than hard-coded country exclusions.
 
 ---
 

@@ -8,6 +8,10 @@ what the preparation artifacts mean, and how the subsequent augmentation system 
 It deliberately separates implemented foundations from proposed generation behavior. No synthetic
 training row and no paid PydanticAI call was produced in this pass.
 
+The generation scope is text-only: construct a synthetic structured target, then apply a validated
+set of exact edits to the selected source document's page-ordered raw OCR while preserving its
+textual format. Generating, editing, or rerendering PDFs is outside this pipeline.
+
 ## 1. Completed implementation
 
 ### 1.1 Exact source refresh and EDA
@@ -47,6 +51,15 @@ The conservative template proxy produces 682 groups; 570 are singletons and the 
 44 documents. This is a proxy inventory, not a ground-truth carrier-template registry. Its safe use
 is source grouping, leakage protection, and minimum-support checks—not asserting that two visually
 similar forms are the same template.
+
+The proxy is constructed deterministically. Documents are first partitioned by normalized carrier
+family and document type. Inside each partition, a greedy representative-based clustering pass uses
+the first-page 20 x 20 normalized ink-layout vector and the ordered first occurrence of known OCR
+headings. A document can join a representative only when visual similarity is at least 0.90, OCR
+heading-order similarity is at least 0.70, and `0.60 * visual + 0.40 * OCR` is at least 0.88. The
+proxy ID hashes the carrier/type and representative identity. These deliberately conservative
+groups organize sources; the individual source document, not the proxy representative, supplies the
+raw-text skeleton for a synthetic descendant.
 
 ### 1.2 Domain-specific relational projection
 
@@ -178,6 +191,33 @@ Current semantic-generator support is deliberately narrower than evidence suppor
 These counts are capability diagnostics, not a promise that all listed source documents can be
 published synthetically today.
 
+### 1.6 Route dependencies and auxiliary-text gap
+
+The current relational projection represents route locations and party localities, but it does not
+yet encode their dependency edges or generate them hierarchically. Corpus evidence supports adding
+that layer. Among documents where both values are printed, shipper country equals port-of-loading
+country in 359/436 cases, consignee country equals port-of-discharge country in 375/417,
+notify-party country equals port-of-discharge country in 332/391, delivery-agent country equals
+port-of-discharge country in 140/149, place-of-receipt country equals port-of-loading country in
+191/196, and place-of-delivery country equals port-of-discharge country in 237/242. These are strong
+conditional tendencies, not universal rules. Party city names only rarely equal port names, so the
+dependency belongs at jurisdiction/role level rather than literal city equality. Port-of-discharge
+country is Egypt in 482/520 documents that print it, so fitting an uncontrolled destination model
+to the source corpus would reproduce the acquisition bias.
+
+The anchor inventory also covers label facts, not unlabeled identifying material around them. A
+conservative syntax-and-party-proximity scan finds at least 2,042 VAT, tax, TIN/GST, CNPJ, ACID,
+EORI, registration, import/export-ID, or fax surfaces in 767/1,157 documents. This is a heuristic
+lower bound, not yet a published party-block annotation, but inspected examples confirm that these
+identifiers frequently sit inside shipper, consignee, or notify blocks while intentionally remaining
+outside the KIE target.
+The text-only renderer therefore needs a party-block residual inventory: known target spans are
+protected, residual sensitive identifiers are replaced with format-preserving synthetic distractors,
+and non-sensitive headings/flavor text remain unchanged. The generated distractors remain absent
+from the label so they continue teaching the model what to ignore. Existing label-validation and
+annotation policies already recognize tax, VAT, ACID, customs, CNPJ, and registration metadata;
+those audited rules should seed the residual classifier instead of duplicating a new regex policy.
+
 ## 2. Recommended generation architecture
 
 The pipeline should be a staged compiler from a pinned real document to a constrained synthetic
@@ -189,8 +229,9 @@ immutable real corpus and source-grouped split
   -> eligible base/template selector
   -> typed scenario proposal
   -> deterministic semantic reconciliation
-  -> role-aware surface renderer
-  -> optional bounded PydanticAI linguistic realization
+  -> optional bounded PydanticAI linguistic value realization
+  -> one-call PydanticAI typed text-edit plan from whole-document context
+  -> deterministic raw-text patch executor
   -> target projection and evidence regeneration
   -> structural, semantic, leakage, diversity, and utility gates
   -> immutable synthetic-only and real-plus-synthetic publications
@@ -208,7 +249,7 @@ rules. At minimum this concerns countries/localities, ports, HS/product descript
 goods and packing groups, package vocabulary, and container categories. Unsupported values fail;
 there is no silent generic fallback.
 
-### Stage 1 — cohort deficit and template selection
+### Stage 1 — cohort deficit, template, and base-document selection
 
 The scheduler takes target counts, minimums, exact quotas, and caps as distinct concepts. It solves
 for source documents that jointly cover the requested cohort while respecting:
@@ -225,6 +266,23 @@ Independent sampling will miss rare intersections and overuse the few eligible t
 feasible plan exists, publish the unsatisfied constraints and support counts instead of weakening
 them.
 
+Implement the optimizer as a deterministic mixed-integer linear program using SciPy's HiGHS-backed
+`milp`, which is already present in the isolated synthesis environment. Integer variables allocate
+variant counts per eligible source; binary variables express whether a source/template is used.
+Hard constraints own requested total, cohort minimum/exact/maximum counts, per-source/template/
+carrier caps, split, and capability. A lexicographic objective first minimizes target-distribution
+deviation and maximum concentration, then maximizes supported template/source/cohort diversity with
+a deterministic document-ID tie break. Solver status, objective terms, achieved quotas, and any
+infeasible constraints are published; a greedy fallback is not permitted.
+
+Selection is cohort-first. For cardinality-preserving version 1, a requested feature must already
+exist in the source document. The selector then applies renderer/anchor capability, split, total
+template support, cohort-specific template support, carrier/template caps, and per-source reuse caps
+before choosing one individual document. The selected document's complete raw OCR is the template;
+the proxy only supplies grouping and diversity constraints. For example, a dangerous-goods request
+starts from an actual dangerous-goods document rather than inserting a new DG block into a non-DG
+sibling from the same proxy.
+
 ### Stage 2 — typed statistical proposals
 
 Do not fit one synthesizer to the full 17-table graph. SDV documents public HMA as optimized for
@@ -232,7 +290,7 @@ roughly five tables and one relationship level, while this graph is deeper and c
 relations. Use compact modeling views whose outputs are still only proposals:
 
 1. document/scenario view: type, carrier/template family, route class, counts, feature flags;
-2. route/party-locality view;
+2. route-scenario and party-role/locality view;
 3. cargo/package/weight view;
 4. container/type/temperature view; and
 5. dangerous-goods/HS/product view once authoritative registries exist.
@@ -249,6 +307,16 @@ HMA is an explicit simplified-depth-one ablation. It is not the default for the 
 Public multi-table targeted sampling is not assumed because SDV documents that capability as an
 Enterprise feature. Community mode instead uses profile-specific models, eligible-template
 selection, deterministic interventions, and bounded rejection with reported yield.
+
+Route generation is hierarchical rather than a set of independent country columns. First sample a
+typed shipment scenario: direct or transshipment route, origin/destination countries, seaports,
+places of receipt/delivery/final destination, and issue-location role. Then sample party roles
+conditioned on that scenario: shipper and origin forwarder usually belong to the origin side;
+consignee, notify, and delivery agent usually belong to the destination side; explicit third-party
+and `sameAs` relationships preserve real exceptions. Canonical registry identities remain internal
+constraints while the task-facing label and raw text use locality/country spellings generated in the
+selected source format. Destination targets must be configured explicitly rather than learned from
+the Egypt-heavy marginal.
 
 ### Stage 3 — deterministic semantic generation and reconciliation
 
@@ -273,38 +341,129 @@ Version 1 should preserve party, container, cargo, package, and allocation cardi
 the relation topology/coverage class. This is the safest way to prove useful augmentation before
 solving layout expansion.
 
-### Stage 4 — role-aware OCR surface rendering
+Semantic completeness is a hard contract. Every source-present task fact must receive a declared
+policy: regenerate, statistically resample, deterministically derive, or explicitly preserve as an
+approved non-identifying categorical. A generator may not omit a field because its method is not
+implemented. Null remains valid only when the selected scenario/source structure legitimately lacks
+that field. Container size/type and similar non-identifying categoricals may initially be preserved
+or resampled from compatible support; “exception” never means deleting them from the label.
 
-The renderer consumes a validated semantic plan and the anchor/format inventory. It must:
+Represent phase boundaries as distinct types rather than partially valid labels:
+
+```text
+DraftScenarioPlan (may contain typed PendingRealization tasks)
+  -> ResolvedSemanticPlan (no pending task; all relations and values valid)
+  -> TextPatchPlan (all target and auxiliary text operations located)
+  -> PublishedSyntheticRecord (final OCR text, target, evidence, lineage, receipts)
+```
+
+Only `ResolvedSemanticPlan` can project into the task label, and only
+`PublishedSyntheticRecord` can enter training. The initial non-linguistic implementation may emit
+auditable `DraftScenarioPlan` artifacts, but it may not use placeholders, source PII, or missing
+fields to masquerade as a completed synthetic label.
+
+### Stage 4 — whole-document edit planning and deterministic raw-OCR rendering
+
+The renderer consumes a validated semantic plan and the anchor/format inventory. The default is one
+agent request for one document. That request receives:
+
+- the complete page-ordered raw OCR with explicit page boundaries;
+- the complete source task label and complete synthetic task label in compact JSON;
+- a deterministic typed diff containing field path, entity/role identity, source label value,
+  synthetic value, coupling group, and any source evidence or printable aliases;
+- field semantics and the relevant categorical display mapping when a canonical label value differs
+  from what a document would print; and
+- the full-party anonymization and format-preservation rules.
+
+Providing the whole document lets the model resolve repetitions, cross-page copies, composite rows,
+and nearby flavor data in one coherent operation. The agent is not asked to rewrite the text. It
+returns only a compact list of typed exact-context edits:
+
+```text
+TextEdit
+  page_number
+  kind: target_fact | auxiliary_sensitive
+  target_paths[]
+  entity_id / coupling_group
+  exact_old_text
+  replacement_text
+  prefix_context / suffix_context
+  expected_occurrences
+```
+
+Character offsets are deliberately not model output: asking a language model to count characters is
+unnecessary and brittle. Deterministic code resolves each exact quote plus context to unique offsets,
+records those resolved spans in the receipt, and applies non-overlapping edits from the end of each
+page toward the beginning. A repeated semantic fact is represented by an explicit edit for each
+intended surface or by an occurrence policy whose complete match set is proven locally.
+
+The planner covers both task facts and residual party-sensitive flavor data in the same request.
+For example, it can identify a VAT, tax, registration, account, or unlabeled contact value inside a
+party block even though that value is intentionally absent from both task labels, and return a
+shape-appropriate synthetic replacement that remains outside the target. Known deterministic
+detectors seed this inventory; the model handles semantic residuals rather than receiving a second
+routine review call.
+
+The deterministic executor must:
 
 1. recheck all source, target, evidence, and template hashes;
-2. identify a scalar field span or a bounded block span, never call global `str.replace`;
-3. render according to the role-specific format profile;
+2. resolve every proposed quote and context uniquely, never call global `str.replace`;
+3. reject missing, overlapping, protected, or unexpectedly repeated matches;
 4. couple repeated role-equivalent surfaces so one semantic fact is consistent everywhere;
 5. apply non-overlapping edits from the end of each page toward the beginning;
 6. preserve page order, headings, separators, units, and OCR/template grammar;
-7. recompute and render dependent totals from semantic facts; and
-8. fail on stale, overlapping, missing, or unresolved repeated evidence.
+7. require dependent totals to agree with the already reconciled semantic plan; and
+8. fail on stale, missing, ungrounded, or unresolved repeated evidence.
 
-A deterministic renderer should cover identifiers, simple dates, simple numeric values, registry
-tokens, and fixed-layout rows. Composite evidence needs an explicit field parser or block renderer.
-The unresolved 4,471 repeated anchors should be handled by a unique role/order solution or remain
-ineligible; ambiguity must not be resolved by occurrence number alone.
+The Pydantic output schema enforces shape and primitive constraints only. Requirements such as
+complete diff coverage, identical coupled replacements, evidence grounding, absence of old party
+data, and unchanged bytes outside edits are checked by deterministic validators. Encoding those
+cross-record invariants as Pydantic model validators would turn otherwise valid structured output
+into costly contract-repair loops.
+
+The normal path uses provider-native structured output and no agent tools. All required context is
+already present, so tool round trips add cost without adding information. One bounded repair request
+is allowed only after a deterministic validator returns precise edit-level errors; a second failure
+holds the document instead of starting an unbounded retry/review cascade. An occurrence-query or
+patch-preview toolset may be enabled later for a measured class of ambiguous documents, but it is
+an explicit escalation backend rather than the default.
+
+The agent cannot write files, apply patches, change synthetic semantic values, or return an
+unconstrained whole-document rewrite. It also returns no chain-of-thought or narrative rationale;
+the edit list, validation report, local transcript, usage, and cost receipt are the audit record.
+
+Rendering operates only on raw text. It does not generate or modify a PDF, and it does not rerun
+OCR. Page separators, headings, line/block grammar, formatting conventions, and intended OCR noise
+come from the selected real raw-text skeleton.
+
+Party blocks have two coordinated edit classes. The semantic class replaces target facts such as
+name, address, city, country, and labeled contacts. The anonymization class replaces residual
+sensitive identifiers such as VAT, tax, registration, or unlabeled contact values while preserving
+their labels and surface patterns. Publication fails if any known source-sensitive value remains or
+if an auxiliary replacement accidentally appears in the target.
+
+A deterministic pre-planner may still emit obvious scalar edits for identifiers, simple dates,
+numeric values, and unambiguous fixed-layout rows. Those edits are supplied as fixed/protected input
+to the same planner or bypass the model entirely; they do not justify a separate model call. The
+unresolved 4,471 repeated anchors must be resolved by exact document context or remain ineligible;
+ambiguity must not be resolved by occurrence number alone.
 
 ### Stage 5 — bounded PydanticAI linguistic realization
 
 PydanticAI is reserved for genuinely linguistic work:
 
 - controlled goods-description variation from fixed HS/product/package/DG facts;
-- one bounded cargo/marks/handling block when deterministic formatting cannot express it;
-- synthetic party/address realization from fixed locality and contact facts; and
-- diagnosis of a failed bounded round trip, without permission to publish a correction.
+- synthetic party/address realization from fixed locality and contact facts;
+- realistic auxiliary-sensitive replacements that preserve a detected surface role and format; and
+- diagnosis of a failed round trip, without permission to publish a correction.
 
 Use provider-native `NativeOutput` when the configured provider/model supports it, otherwise strict
 tool output; prompted JSON is not the default. Each output is a small Pydantic contract. Apply
 request, input-token, output-token, and total-cost limits, bounded output retries, concurrency
 limits, and immutable message/usage/cost receipts. A model may phrase text but may not choose codes,
-relations, quantities, or authoritative facts.
+relations, quantities, or authoritative facts. Static system instructions and schemas are kept
+stable for provider prompt caching, while document-specific payloads are compact and contain no
+duplicated prose.
 
 Avoid repetitive names and descriptions through a seed-first process:
 
@@ -318,6 +477,11 @@ Avoid repetitive names and descriptions through a seed-first process:
 
 The agent should not be asked open-endedly for “50 company names” or “50 goods descriptions.” That
 produces narrow model-prior repetition and weak provenance.
+
+PydanticAI work is deliberately a later phase. The first implementation pass may publish complete
+structured semantic plans for audit, but those intermediate plans are not training samples. A final
+synthetic sample exists only after full party anonymization, raw-text rendering, regenerated
+evidence, and all privacy/round-trip gates pass.
 
 ### Stage 6 — target, evidence, and lineage regeneration
 
@@ -391,10 +555,11 @@ source:
   template_inventory_manifest: artifacts/.../manifest.json
 
 selection:
-  method: constrained_deficit_optimizer_v1
+  method: scipy_milp_deficit_optimizer_v1
   requested_documents: 250
   maximum_variants_per_source: 2
-  minimum_template_support: 3
+  minimum_total_template_documents: 3
+  minimum_cohort_documents_per_template: 1
   template_share_cap: 0.05
   carrier_share_cap: 0.10
   cardinality_policy: preserve
@@ -418,23 +583,58 @@ modeling:
     hma_ablation: {enabled: false, method: hma_depth_one_v1}
 
 generators:
+  completeness:
+    source_present_fields: require_declared_policy
+    unsupported_policy: reject
+    preserve_allowed: [container_size_type, non_identifying_categorical]
   identifiers: {method: deterministic_domain_v1}
   dates: {method: joint_bounded_shift_v1}
   quantities: {method: conditional_statistical_then_reconcile_v1}
   relations: {method: preserve_and_reconcile_v1}
+  route_scenario:
+    method: registry_backed_hierarchical_v1
+    distribution:
+      method: bilateral_trade_flow_v1
+      dataset: {path: registries/trade-flows.jsonl, sha256: "..."}
+      weight: trade_value
+      year_window: {start: 2022, end: 2025}
+      smoothing_temperature: 1.0
+      empirical_corpus_mixture: 0.0
+    country_eligibility:
+      method: active_maritime_trade_v1
+      require_positive_flow: true
+      require_maritime_locode: true
+      allow_domestic_route: false
+    preserve_relation_class: true
+  party_roles:
+    method: route_conditioned_seeded_v1
   registries:
     ports: {path: registries/ports.jsonl, sha256: "..."}
     hs: {path: registries/hs.jsonl, sha256: "..."}
     dangerous_goods: {path: registries/dg.jsonl, sha256: "..."}
 
 rendering:
-  scalar_method: role_aware_anchor_v1
-  block_method: bounded_template_block_v1
-  repeated_surface_policy: require_unique_role_solution
+  preplanner: deterministic_unambiguous_edits_v1
+  planner:
+    method: pydanticai_whole_document_edit_plan_v1
+    input_scope: whole_page_ordered_raw_text
+    include_source_label: true
+    include_synthetic_label: true
+    include_typed_diff: true
+    default_tool_calls: 0
+    repair_requests: 1
+    whole_document_rewrite: forbidden
+    execution: deterministic_only
+  executor: exact_context_nonoverlap_v1
+  repeated_surface_policy: require_complete_context_resolved_set
   unresolved_policy: reject
+  output_mode: raw_ocr_text_only
+  auxiliary_party_text:
+    method: classify_then_format_preserving_replace_v1
+    unknown_sensitive_policy: reject
 
 agents:
-  enabled_tasks: [goods_description, party_block, bounded_cargo_block]
+  enabled_tasks: [linguistic_values, whole_document_edit_plan]
   output_mode: native
   concurrency: 16
   per_call_request_limit: 2
@@ -443,6 +643,12 @@ agents:
   seed_catalog:
     reuse_window: 500
     maximum_normalized_duplicate_rate: 0.0
+
+anonymization:
+  party_target_fields: replace
+  auxiliary_sensitive_fields: replace_preserve_surface
+  non_sensitive_flavor_text: preserve
+  unresolved_sensitive_span: reject
 
 quality:
   hard_gate_policy: all
@@ -492,18 +698,37 @@ multi-package, multi-container, allocation, temperature, DG, and agent-role coho
 uniformly multiplying common documents. Exact quotas should follow feasibility output; zero-support
 schema fields such as container VGM require real seeds before synthesis.
 
-### Decision 3 — augmentation versus anonymization
+### Fixed policy — full party anonymization from pilot one
 
-Choose whether every party/contact/address must be replaced or whether the pilot only varies selected
-training facts. **Recommended for eventual full synthesis:** replace all party and identifying values
-and report empirical leakage, without claiming formal differential privacy. This materially expands
-renderer and catalog work and should not be implied by the word “synthetic.”
+Every party name, address, locality, labeled contact, and auxiliary identifying value is replaced.
+VAT/tax/registration and similar distractors retain their presence, label, and source-style surface
+form but receive synthetic values and remain outside the KIE label. Every original party-sensitive
+value must be absent before publication. This is empirical anonymization with measured leakage
+gates, not a claim of formal differential privacy.
 
 ### Decision 4 — approved reference registries
 
 Approve sources/licenses for port-country-locality, HS/product, UN/DG, package, container, and any
 carrier/owner data. **Recommended:** no DG/HS/route synthesis until these are pinned. Existing
 MPCI-derived readable categories remain the output vocabulary; numeric UI codes stay downstream.
+
+Also approve the target destination prior. The source corpus cannot supply this automatically:
+among printed port-of-discharge countries it is 92.7% Egypt. The recommended interface accepts a
+pinned country/region distribution or explicit minimums and caps, then samples valid seaports and
+dependent party localities from approved registries. Uniform-over-country is not an automatic
+default because it is unlikely to reflect realistic trade volume. The production UN/LOCODE release
+is the recommended route-location backbone because it supplies country, subdivision, location,
+function, and status fields; restrict port roles to maritime-function entries and retain the pinned
+release and SHA-256 in every run.
+
+The initial distribution method is now defined as a configurable bilateral export-flow artifact,
+not independent hard-coded country lists. Build joint origin/destination weights from a pinned
+trade dataset, then intersect its positive-flow pairs with countries having eligible maritime
+UN/LOCODE entries. This excludes non-commercial or unsupported destinations through data and
+registry predicates rather than country-name exceptions. The year window, trade-value versus mass
+weight, smoothing temperature, minimum observations/value, regional caps/floors, commodity scope,
+and optional corpus mixture remain explicit settings. Publish the included/excluded country and
+route audit for every run.
 
 ### Decision 5 — statistical model selection budget
 
@@ -533,27 +758,101 @@ synthesis demonstrates downstream utility. Expansion is a separate version and r
 repeat-unit spans, insertion/reflow rules, totals, new identities/relations, and likely template-
 specific renderers. Start with one well-supported template family.
 
-### Decision 9 — OCR-text-only versus rendered-document variants
+### Fixed scope — text-only synthesis
 
-**Recommended for version 1:** patch audited raw OCR and preserve existing page/layout grammar. For
-large repeated-block expansion, decide whether to render a PDF and pass it through GLM-OCR so OCR
-noise and layout remain realistic. Do not mix those two provenance classes without labeling them.
+This is no longer an open decision. The pipeline publishes a structured synthetic label and a
+page-ordered raw-OCR text variant created from an existing raw-text skeleton. PDF generation,
+rerendering, and synthetic OCR passes are outside scope. Cardinality expansion, if later approved,
+must be expressed through bounded text-block insertion while preserving the source's textual grammar.
 
 ## 5. Implementation sequence after decisions
 
-1. Freeze the source/template split and approved registries.
-2. Implement strict generation configuration and the task-adapter interfaces.
-3. Implement the constrained cohort/template planner and feasibility report.
-4. Implement field and bounded-block renderers, including repeated-surface coupling.
+1. Freeze the source/template split and implement strict generation configuration, task-adapter,
+   semantic-completeness, and registry-provider contracts.
+2. Implement the MILP cohort/template/base-document planner and infeasibility report.
+3. Implement the bilateral trade-flow distribution loader, UN/LOCODE eligibility join, route
+   scenario graph, and included/excluded-country audit. Production data paths remain required inputs.
+4. Implement deterministic non-linguistic semantic generators and reconciliation, then publish
+   typed `DraftScenarioPlan` artifacts with explicit pending linguistic tasks for audit only; they
+   are neither task labels nor training rows.
 5. Benchmark statistical candidates per modeling view and freeze model-selection receipts.
-6. Complete registry-backed route, HS/DG, category, and temperature generators.
-7. Add bounded PydanticAI tasks with seed reservation, structured output, budgets, receipts, and
-   novelty/back-extraction validation.
-8. Run a deterministic mutation probe on stratified real documents and require 100% hard gates.
-9. Generate the 100–250-record pilot, audit it, and publish synthetic-only data.
-10. Run real-only versus mixed-ratio training ablations on untouched real evaluation.
-11. Scale toward 10,000 only when the learning curve identifies useful cohorts/ratios.
+6. Complete registry-backed route, HS/DG, package/category, temperature, and seed-catalog-backed
+   party/cargo generators until every source-present field has a declared complete policy.
+7. Implement the semantic diff builder, deterministic obvious-edit pre-planner, and party-block
+   residual-sensitive inventory.
+8. Add the one-call PydanticAI whole-document edit planner and bounded linguistic realization using
+   native/tool output, budgets, receipts, and novelty/back-extraction validation. Keep tools as an
+   evidence-based escalation backend rather than the default path.
+9. Implement exact-context resolution, the deterministic patch executor, full-party anonymization
+   proof, evidence regeneration, and immutable final publication.
+10. Run a stratified mutation probe and require 100% hard gates before generating the 100–250-record
+    text-only pilot.
+11. Run real-only versus mixed-ratio training ablations on untouched real evaluation and scale
+    toward 10,000 only when the learning curve identifies useful cohorts/ratios.
 12. Treat cardinality expansion and each new document type as separately approved task-plugin work.
+
+### 5.1 Proposed next implementation pass for approval
+
+This pass can proceed without deciding the final destination mixture, statistical winner, or
+linguistic provider. It should implement and validate the contracts that make those choices safe:
+
+1. **Strict generation state and policy models.** Add `DraftScenarioPlan`,
+   `PendingRealization`, `ResolvedSemanticPlan`, `SemanticChange`, `TextEdit`, `TextPatchPlan`, and
+   `PublishedSyntheticRecord`. Add a task-owned policy registry that requires every B/L target path
+   to declare one of regenerate, resample, derive, approved non-identifying preserve, or
+   legitimately absent. Unknown paths and incomplete policies fail configuration.
+2. **Cohort/template/base selection.** Implement the SciPy MILP selector with cardinality-preserving
+   cohort eligibility, total-template and cohort-template support, source/template/carrier caps,
+   exact quota accounting, deterministic tie-breaking, and an infeasibility report. The selected
+   individual raw OCR—not the template-proxy representative—is always the text skeleton.
+3. **Route and locality provider boundary.** Implement pinned bilateral-trade and UN/LOCODE provider
+   schemas, loaders, hashes, maritime eligibility predicates, a hierarchical route graph, and
+   included/excluded country/pair reports. Tests use pinned fixtures; a production run requires an
+   explicit trade snapshot, UN/LOCODE snapshot, year window, weight, and thresholds, with no
+   hard-coded country-name fallback.
+4. **Complete deterministic draft semantics.** Extend the existing order-independent generators for
+   identifiers, dates, quantities, weights, allocations, and compatible relations. Add route-first
+   party-role dependencies and explicit pending tasks for linguistic party/goods values. A draft
+   with pending work cannot project to a task label, so partial synthetic records cannot enter
+   training.
+5. **One-call edit-planner implementation.** Implement the compact source/synthetic diff, strict
+   PydanticAI `TextPatchPlan` output, reusable system prompt, whole-document request builder,
+   transcript/usage/cost receipts, and exactly one validator-driven repair allowance. The output
+   contract has no rationale and no model-generated offsets. Tools are disabled by default.
+6. **Deterministic execution and proof.** Resolve exact quotes plus context, apply non-overlapping
+   edits, and prove diff coverage, coupled-value consistency, target grounding, source-party-value
+   removal, auxiliary-value exclusion from labels, page-order preservation, and byte equality
+   outside declared edits. Add fake-model tests and hand-authored real-document fixtures for target
+   and auxiliary-sensitive edits.
+7. **CLI, immutable artifacts, and measurements.** Add separate plan and render-pilot commands,
+   strict YAML, atomic manifests, resumable per-document states, and reports for feasibility,
+   generator support, country eligibility, planner acceptance, retry/hold taxonomy, latency,
+   input/output tokens, and cost.
+
+The pass does **not** fit the final SDV model, invent a final trade prior, generate PDFs, mutate the
+1,157-row real corpus, or publish synthetic training rows. Its offline acceptance gates are:
+
+- all new config/error branches covered by targeted tests;
+- exact relational projection/inverse retained on the pinned source corpus;
+- deterministic output independent of concurrency and resume order;
+- zero changed bytes outside declared edit spans in every render fixture;
+- all old party target and detected auxiliary-sensitive values absent from rendered fixtures;
+- benchmarked selector, generator, and patch-executor throughput and peak memory; and
+- no network/API call in the default test suite.
+
+After those gates pass, the same pass may end with an explicitly approved, hard-budgeted
+eight-document agent probe: one simple document and one each stressing multi-page repetition,
+multi-container, multi-cargo/package relations, dangerous goods, temperature, auxiliary party data,
+and ambiguous repeated evidence. The probe defaults to one request per document, at most one repair,
+and abort-before-request cost enforcement. It publishes single-pass acceptance, repair and held
+rates, complete validator taxonomy, latency, tokens, and provider-receipted cost. It does not publish
+the records as training data.
+
+The concrete end state is therefore a runnable, audited semantic-planning and text-editing engine,
+plus evidence from a small cost-capped planner probe if that probe is included in the approval. The
+next decision can then use measured results rather than assumptions: select statistical generators,
+pin production registries/distributions and seed catalogs, complete linguistic realization, and run
+the first 100–250 fully anonymized text-only synthetic pilot.
 
 ## 6. Authoritative references used for the design
 
@@ -562,5 +861,8 @@ noise and layout remain realistic. Do not mix those two provenance classes witho
 - [SDV multi-table conditional sampling](https://docs.sdv.dev/sdv/multi-table-data/sampling/conditional-sampling)
 - [SDV constraints and probabilistic-rule boundary](https://docs.sdv.dev/sdv/multi-table-data/modeling/customizations/constraints)
 - [PydanticAI structured output modes](https://pydantic.dev/docs/ai/core-concepts/output/)
+- [PydanticAI tools and toolsets](https://pydantic.dev/docs/ai/tools-toolsets/tools/)
 - [PydanticAI agents, usage accounting, and limits](https://pydantic.dev/docs/ai/core-concepts/agent/)
 - [PydanticAI durable execution options](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
+- [UN Trade Statistics and UN Comtrade](https://unstats.un.org/unsd/trade/)
+- [UN/LOCODE Recommendation 16 and maritime function codes](https://unlocode.unece.org/recommendation16/)

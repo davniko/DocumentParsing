@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
+from datetime import date
 from pathlib import Path, PurePath
 from typing import Annotated, Any, Literal
 
@@ -196,6 +197,103 @@ class SynthesisPreparationConfig(_StrictModel):
         return self
 
 
+class PinnedFileConfig(_StrictModel):
+    path: NonEmptyString
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+    @field_validator("path")
+    @classmethod
+    def safe_path(cls, value: str) -> str:
+        return _safe_path(value)
+
+
+MutationFamily = Literal[
+    "container_identifier",
+    "seal_identifier",
+    "document_dates",
+    "package_quantity",
+    "cargo_mass",
+]
+DETERMINISTIC_MUTATION_FAMILIES = frozenset(
+    {
+        "container_identifier",
+        "seal_identifier",
+        "document_dates",
+        "package_quantity",
+        "cargo_mass",
+    }
+)
+
+
+class GenerationInputsConfig(_StrictModel):
+    preparation: PinnedDirectoryConfig
+    anchors: DatasetFileConfig
+    document_features: DatasetFileConfig
+    template_groups: DatasetFileConfig
+    partition_report: PinnedFileConfig
+
+
+class SmokeSelectionConfig(_StrictModel):
+    split: NonEmptyString
+    requested_documents: Annotated[int, Field(gt=0)]
+    seed: int
+    minimum_template_documents: Annotated[int, Field(gt=0)]
+    require_template_wholly_in_split: bool
+    maximum_per_template: Annotated[int, Field(gt=0)]
+    maximum_per_carrier: Annotated[int, Field(gt=0)]
+    minimum_carriers: Annotated[int, Field(gt=0)]
+    family_exact: dict[MutationFamily, Annotated[int, Field(ge=0)]]
+    strata_exact: dict[NonEmptyString, dict[NonEmptyString, Annotated[int, Field(ge=0)]]]
+    context_minimums: dict[NonEmptyString, Annotated[int, Field(ge=0)]]
+
+    @model_validator(mode="after")
+    def exact_counts(self) -> SmokeSelectionConfig:
+        if set(self.family_exact) != DETERMINISTIC_MUTATION_FAMILIES:
+            raise ValueError("family_exact must name every deterministic mutation family")
+        if sum(self.family_exact.values()) != self.requested_documents:
+            raise ValueError("family_exact counts must sum to requested_documents")
+        for name, values in self.strata_exact.items():
+            if not values or sum(values.values()) != self.requested_documents:
+                raise ValueError(f"strata_exact.{name} must partition requested_documents")
+        if self.minimum_carriers > self.requested_documents:
+            raise ValueError("minimum_carriers exceeds requested_documents")
+        return self
+
+
+class DeterministicGenerationConfig(_StrictModel):
+    random_stream: Literal["hmac_sha256_counter_v1"]
+    seed: int
+    variant_index: Annotated[int, Field(ge=0)]
+    date_minimum: date
+    date_maximum: date
+    preserve_source_missingness: Literal[True]
+    preserve_source_cardinality: Literal[True]
+    publish_training_records: Literal[False]
+
+    @model_validator(mode="after")
+    def ordered_dates(self) -> DeterministicGenerationConfig:
+        if self.date_minimum >= self.date_maximum:
+            raise ValueError("generation date window must contain at least two dates")
+        return self
+
+
+class SynthesisDeterministicSmokeConfig(_StrictModel):
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v3"]
+    run: SynthesisRunConfig
+    source: SynthesisSourceConfig
+    task_constraints: TaskConstraintsConfig
+    inputs: GenerationInputsConfig
+    selection: SmokeSelectionConfig
+    generation: DeterministicGenerationConfig
+
+    @model_validator(mode="after")
+    def pinned_source(self) -> SynthesisDeterministicSmokeConfig:
+        if self.source.fields.input_sha256 is None:
+            raise ValueError("deterministic synthesis requires source input SHA-256 values")
+        return self
+
+
 def load_synthesis_foundation_config(path: Path) -> SynthesisFoundationConfig:
     try:
         value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
@@ -214,3 +312,15 @@ def load_synthesis_preparation_config(path: Path) -> SynthesisPreparationConfig:
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisPreparationConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_deterministic_smoke_config(
+    path: Path,
+) -> SynthesisDeterministicSmokeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisDeterministicSmokeConfig.model_validate(value, strict=True)
