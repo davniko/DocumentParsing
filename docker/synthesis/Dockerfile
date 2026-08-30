@@ -21,7 +21,7 @@ RUN uv sync --project environments/synthesis --frozen --no-dev \
 
 COPY src ./src
 
-RUN python -c "import sdv; from document_ocr.synthesis.config import SynthesisFoundationConfig"
+RUN python -c "import matplotlib, sdv, seaborn; from document_ocr.synthesis.bill_of_lading_domain import ADAPTER; from document_ocr.synthesis.config import SynthesisFoundationConfig, SynthesisPreparationConfig; from document_ocr.synthesis.generators import generate_unique_container_numbers; from document_ocr.synthesis.preparation import prepare_synthesis_corpus; assert len(ADAPTER.table_order) == 17"
 
 ENTRYPOINT ["python", "-m", "document_ocr.synthesis.cli"]
 CMD ["--help"]

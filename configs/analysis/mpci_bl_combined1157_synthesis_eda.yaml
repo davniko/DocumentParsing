@@ -1,0 +1,48 @@
+schema_version: 1
+analysis_id: mpci-bl-combined1157-synthesis-readiness-eda-v1
+
+dataset:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2
+  manifest_sha256: bcc7c5411792beb80889cdc800ef5029ebba82085b5f90bcdb3838d82fbb3622
+  expected_records: 1157
+
+current_annotation_dataset:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-main730-description-clean-v1
+  manifest_sha256: 33a52201ee4bf7824d22d91de2bc04229cdba69a9339997c8671b643aecee03f
+
+raster_run_roots:
+  glm-ocr-blc-pilot150-faa3c717dbc4: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/pilots/blc150/runs/glm-ocr-blc-pilot150-faa3c717dbc4
+  glm-ocr-blc-followup500-c0139c175677-r1: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/pilots/blc500-followup/runs/glm-ocr-blc-followup500-c0139c175677-r1
+  glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2: /mnt/d/Projects/DocumentParsing/artifacts/glm-ocr/remaining/blc-swb-max15/runs/glm-ocr-blc-swb-remaining2164-23947b3edb6b-r2
+
+analysis:
+  top_n: 25
+  histogram_bins: 24
+  raster_workers: 8
+  raster_grid_size: 20
+  template_visual_minimum: 0.90
+  template_ocr_minimum: 0.70
+  template_combined_minimum: 0.88
+  template_visual_weight: 0.60
+  template_sensitivity:
+    - label: strict
+      visual_minimum: 0.94
+      ocr_minimum: 0.75
+      combined_minimum: 0.90
+    - label: conservative
+      visual_minimum: 0.90
+      ocr_minimum: 0.70
+      combined_minimum: 0.88
+    - label: moderate
+      visual_minimum: 0.88
+      ocr_minimum: 0.65
+      combined_minimum: 0.86
+    - label: broad
+      visual_minimum: 0.85
+      ocr_minimum: 0.60
+      combined_minimum: 0.84
+  augmentation_minimum_documents: 100
+  augmentation_minimum_joint_documents: 50
+
+output:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1

@@ -8,6 +8,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from document_ocr.decoder_training.completions import (
+    THINKING_CLOSE_TAG,
+    THINKING_PROMPT_SUFFIX,
+)
 from document_ocr.decoder_training.config import DecoderTrainingConfig
 from document_ocr.hashing import sha256_file
 from document_ocr.training.prompting import PromptTemplate, load_prompt
@@ -191,7 +195,7 @@ def project_for_trl(
     tokenizer: ChatTokenizer,
     config: DecoderTrainingConfig,
 ) -> tuple[Any, TokenInspection]:
-    """Render non-thinking chat prompts and enforce zero truncation before TRL sees data."""
+    """Render exact chat prompts and enforce zero truncation before TRL sees data."""
 
     try:
         from datasets import Dataset, DatasetDict
@@ -201,6 +205,7 @@ def project_for_trl(
         raise ValueError("decoder tokenizer must define an EOS token")
     projected: dict[str, Any] = {}
     maxima = {"prompt": 0, "completion": 0, "sequence": 0}
+    thinking_enabled = config.sequence.thinking == "enabled"
     for split_name, split_rows in records.items():
         output_rows: list[dict[str, Any]] = []
         for row in split_rows:
@@ -208,11 +213,19 @@ def project_for_trl(
                 [{"role": "user", "content": row.prompt_message}],
                 tokenize=False,
                 add_generation_prompt=True,
-                enable_thinking=False,
+                enable_thinking=thinking_enabled,
             )
             if not isinstance(rendered, str) or not rendered:
                 raise ValueError("chat template produced an empty prompt")
-            completion = row.reference_target + tokenizer.eos_token
+            if thinking_enabled and not rendered.endswith(THINKING_PROMPT_SUFFIX):
+                raise ValueError(
+                    "thinking-enabled chat template does not expose Qwen's native <think> boundary"
+                )
+            # GRPO does not train on this reference completion, but retaining a
+            # minimally valid native completion makes the zero-truncation audit
+            # account for the closing thinking boundary and complete final JSON.
+            completion_prefix = f"{THINKING_CLOSE_TAG}\n\n" if thinking_enabled else ""
+            completion = completion_prefix + row.reference_target + tokenizer.eos_token
             prompt_length = len(_token_ids(tokenizer, rendered))
             completion_length = len(_token_ids(tokenizer, completion))
             sequence_length = len(_token_ids(tokenizer, rendered + completion))

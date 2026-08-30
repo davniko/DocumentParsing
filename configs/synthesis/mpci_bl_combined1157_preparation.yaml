@@ -1,0 +1,81 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined1157-synthesis-preparation-v3
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+  sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+
+sidecars:
+  lineage:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/lineage.jsonl
+    sha256: d406bfb39f4bd5e8f03089abc2c1ee8ba3a946895088e374f50fe47f7059d9f4
+    records: 1157
+  package_metadata:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-packages-v2/package-metadata.jsonl
+    sha256: 1a9c762bc9942224121fe9db522a575030464250098e5f55384cdc3ba36088a9
+    records: 1157
+  category_metadata:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/category-metadata.jsonl
+    sha256: 7739f2dab15bd5a1e402922bd47d05b3db0a0b004519077a95ce49225d093743
+    records: 1157
+  current_annotations:
+    path: artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-main730-description-clean-v1
+    manifest_sha256: 33a52201ee4bf7824d22d91de2bc04229cdba69a9339997c8671b643aecee03f
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4305ee49db94f4ee34d8d416a0e9fe1a193b1899bab644f43419dd40e7e642aa
+    records: 1157
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: f37ef3707007a97742cda7ff9b23318716b67e5435d2a4f5e4247ef128b9dfe5
+    records: 682
+
+sdv:
+  metadata_spec: V1
+  validate_with_sdv: true
+
+anchors:
+  source: validated_annotation_evidence
+  require_all_source_fact_evidence: true
+  patchable_locations:
+    - exact_unique
+    - excerpt_scoped_unique
+
+generators:
+  random_stream: hmac_sha256_counter_v1
+  container_identifiers: preserve_observed_prefix_iso6346_v1
+  seals: simple_scalar_surface_pattern_v1
+  dates: joint_bounded_day_shift_v1
+  quantities: coverage_aware_largest_remainder_v1
+  masses: decimal_scale_preserve_unit_v1
+
+support:
+  cohorts:
+    - all_documents
+    - multi_page
+    - multi_container
+    - multi_cargo
+    - multiple_package_levels
+    - container_allocations
+    - refrigerated
+    - dangerous_goods
+    - delivery_agent
+    - forwarding_agent
+    - hs_codes
+  minimum_template_documents: 3

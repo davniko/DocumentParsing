@@ -6,14 +6,23 @@ import argparse
 import json
 from pathlib import Path
 
-from document_ocr.synthesis.config import load_synthesis_foundation_config
+from document_ocr.synthesis.config import (
+    load_synthesis_foundation_config,
+    load_synthesis_preparation_config,
+)
 from document_ocr.synthesis.pipeline import prepare_synthesis_foundation
+from document_ocr.synthesis.preparation import prepare_synthesis_corpus
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="document-kie-synthesis")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("validate-config", "prepare-foundation"):
+    for name in (
+        "validate-config",
+        "prepare-foundation",
+        "validate-preparation-config",
+        "prepare-corpus",
+    ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
         command.add_argument("--project-root", type=Path, default=Path.cwd())
@@ -25,15 +34,40 @@ def main() -> None:
         config_path = arguments.config.resolve(strict=True)
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
-        config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-config":
-            result = {"command": arguments.command, "status": "valid", "run_id": config.run.run_id}
+        if arguments.command in {"validate-preparation-config", "prepare-corpus"}:
+            preparation_config = load_synthesis_preparation_config(config_path)
+        else:
+            foundation_config = load_synthesis_foundation_config(config_path)
+        if arguments.command == "validate-preparation-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": preparation_config.run.run_id,
+            }
+        elif arguments.command == "validate-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": foundation_config.run.run_id,
+            }
+        elif arguments.command == "prepare-corpus":
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": prepare_synthesis_corpus(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=preparation_config,
+                ),
+            }
         else:
             result = {
                 "command": arguments.command,
                 "status": "complete",
                 "result": prepare_synthesis_foundation(
-                    project_root=project_root, config_path=config_path, config=config
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=foundation_config,
                 ),
             }
     except KeyboardInterrupt:

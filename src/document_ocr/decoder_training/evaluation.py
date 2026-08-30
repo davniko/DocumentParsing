@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from document_ocr.atomic import atomic_publish_bytes, atomic_publish_json
+from document_ocr.decoder_training.completions import ThinkingMode, split_completion
 from document_ocr.training.metrics import structured_metrics
 from document_ocr.training.tasks import TrainingTask
 
@@ -29,6 +30,7 @@ def generated_evaluation(
     batch_size: int,
     max_new_tokens: int,
     num_beams: int,
+    thinking: ThinkingMode,
     output_path: Path | None,
 ) -> dict[str, float]:
     """Generate exact completions without a JSON grammar and publish a full audit trail."""
@@ -42,11 +44,13 @@ def generated_evaluation(
     if len(dataset) == 0:
         raise ValueError("generated evaluation requires at least one record")
     device = _model_device(model)
-    generated_texts: list[str] = []
+    final_answers: list[str] = []
     reference_texts: list[str] = []
     published_rows: list[dict[str, Any]] = []
     generated_token_counts: list[int] = []
     eos_reached: list[bool] = []
+    reasoning_boundary_valid: list[bool] = []
+    reasoning_token_counts: list[int] = []
     started = time.perf_counter()
     was_training = bool(model.training)
     model.eval()
@@ -85,14 +89,31 @@ def generated_evaluation(
                 index = start + offset
                 reference = str(batch["reference_target"][offset])
                 document_id = str(batch["document_id"][offset])
-                generated_texts.append(text.strip())
+                parts = split_completion(text, thinking=thinking)
+                final_answers.append(parts.final_answer or "")
                 reference_texts.append(reference)
                 generated_token_counts.append(count)
                 eos_reached.append(ended)
+                reasoning_boundary_valid.append(parts.boundary_valid)
+                reasoning_ids = (
+                    tokenizer(
+                        parts.reasoning_trace,
+                        add_special_tokens=False,
+                        truncation=False,
+                        padding=False,
+                    )["input_ids"]
+                    if parts.reasoning_trace is not None
+                    else []
+                )
+                reasoning_token_counts.append(len(reasoning_ids))
                 published_rows.append(
                     {
                         "documentId": document_id,
-                        "generatedText": text.strip(),
+                        "generatedText": parts.raw_text,
+                        "reasoningTrace": parts.reasoning_trace,
+                        "finalAnswer": parts.final_answer,
+                        "reasoningBoundaryValid": parts.boundary_valid,
+                        "reasoningBoundaryError": parts.boundary_error,
                         "referenceTarget": reference,
                         "generatedTokens": count,
                         "eosReached": ended,
@@ -103,7 +124,7 @@ def generated_evaluation(
         if was_training:
             model.train()
     elapsed = time.perf_counter() - started
-    metrics, assessments = structured_metrics(generated_texts, reference_texts, task)
+    metrics, assessments = structured_metrics(final_answers, reference_texts, task)
     metrics.update(
         {
             "generated_tokens_mean": sum(generated_token_counts) / len(generated_token_counts),
@@ -113,6 +134,18 @@ def generated_evaluation(
             "generation_samples_per_second": len(dataset) / elapsed,
         }
     )
+    if thinking == "enabled":
+        metrics.update(
+            {
+                "reasoning_boundary_valid_fraction": (
+                    sum(reasoning_boundary_valid) / len(reasoning_boundary_valid)
+                ),
+                "reasoning_tokens_mean": (
+                    sum(reasoning_token_counts) / len(reasoning_token_counts)
+                ),
+                "reasoning_tokens_max": float(max(reasoning_token_counts)),
+            }
+        )
     if output_path is not None:
         payload = b"".join(
             json.dumps(

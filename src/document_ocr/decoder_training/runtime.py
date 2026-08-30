@@ -62,7 +62,7 @@ def _token(config: DecoderTrainingConfig) -> str | None:
 
 def _grpo_initialization_path(project_root: Path, config: DecoderTrainingConfig) -> Path | None:
     method = config.grpo
-    if method is None:
+    if method is None or method.initialize_from is None:
         return None
     unresolved = Path(method.initialize_from)
     path = unresolved if unresolved.is_absolute() else project_root / unresolved
@@ -220,6 +220,7 @@ def _generation_trainer_class(base_class: type[Any]) -> type[Any]:
                 batch_size=self._kie_config.optimization.per_device_eval_batch_size,
                 max_new_tokens=self._kie_config.evaluation.generation_max_new_tokens,
                 num_beams=self._kie_config.evaluation.generation_num_beams,
+                thinking=self._kie_config.sequence.thinking,
                 output_path=prediction_path,
             )
             prefixed = {f"eval_{name}": value for name, value in generated.items()}
@@ -309,6 +310,7 @@ def run_training(
             batch_size=config.optimization.per_device_eval_batch_size,
             max_new_tokens=config.evaluation.generation_max_new_tokens,
             num_beams=config.evaluation.generation_num_beams,
+            thinking=config.sequence.thinking,
             output_path=(
                 run_dir
                 / "predictions"
@@ -374,6 +376,8 @@ def run_training(
             num_generations=method.rollout.num_generations,
             temperature=method.rollout.temperature,
             top_p=method.rollout.top_p,
+            top_k=method.rollout.top_k,
+            repetition_penalty=method.rollout.repetition_penalty,
             use_vllm=False,
             loss_type=method.policy_optimization.loss_type,
             scale_rewards=method.policy_optimization.scale_rewards,
@@ -390,6 +394,7 @@ def run_training(
                 completions,
                 reference_target,
                 task=task,
+                thinking=config.sequence.thinking,
                 **kwargs,
             )
 

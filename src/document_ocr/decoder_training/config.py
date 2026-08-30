@@ -19,6 +19,7 @@ from pydantic import (
 from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode
 
+from document_ocr.decoder_training.completions import ThinkingMode
 from document_ocr.training.config import (
     DatasetFieldsConfig,
     DatasetFileConfig,
@@ -157,7 +158,7 @@ class DatasetConfig(_StrictModel):
 
 
 class SequenceConfig(_StrictModel):
-    thinking: Literal["disabled"]
+    thinking: ThinkingMode
     max_prompt_length: PositiveInteger
     max_completion_length: PositiveInteger
     max_sequence_length: PositiveInteger
@@ -333,6 +334,8 @@ class RolloutConfig(_StrictModel):
     max_completion_length: PositiveInteger
     temperature: Annotated[float, Field(gt=0.0, allow_inf_nan=False)]
     top_p: OpenUnitFloat
+    top_k: PositiveInteger
+    repetition_penalty: PositiveFloat
     mask_truncated_completions: Literal[True]
 
 
@@ -351,15 +354,17 @@ class PolicyOptimizationConfig(_StrictModel):
 
 
 class GrpoConfig(_StrictModel):
-    initialize_from: NonEmptyString
+    # Null starts from model.name_or_path and creates a fresh LoRA adapter. A
+    # path loads and continues an existing adapter (for example, an SFT result).
+    initialize_from: NonEmptyString | None
     reward: RewardConfig
     rollout: RolloutConfig
     policy_optimization: PolicyOptimizationConfig
 
     @field_validator("initialize_from")
     @classmethod
-    def safe_checkpoint(cls, value: str) -> str:
-        return _safe_path(value)
+    def safe_checkpoint(cls, value: str | None) -> str | None:
+        return _safe_path(value) if value is not None else None
 
 
 class DecoderTrainingConfig(_StrictModel):
@@ -407,6 +412,10 @@ class DecoderTrainingConfig(_StrictModel):
             raise ValueError("checkpoint and MLflow resumption must be configured together")
         if (self.method == "grpo") != (self.grpo is not None):
             raise ValueError("grpo settings are required only when method='grpo'")
+        if self.sequence.thinking == "enabled" and self.method != "grpo":
+            raise ValueError(
+                "native thinking is supported only for GRPO; SFT has no supervised reasoning trace"
+            )
         if self.grpo is not None:
             if self.grpo.rollout.max_completion_length != self.sequence.max_completion_length:
                 raise ValueError("GRPO rollout limit must equal sequence max_completion_length")

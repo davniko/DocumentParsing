@@ -108,6 +108,8 @@ class ModelConfig(_StrictModel):
     local_files_only: bool
     trust_remote_code: Literal[False]
     dtype: Literal["bfloat16", "float16", "float32"]
+    # T5Gemma 2's merged decoder attention currently supports these two
+    # Transformers backends. FlashAttention-2 dispatch is explicitly disabled.
     attention_implementation: Literal["sdpa", "eager"]
     low_cpu_mem_usage: bool
     use_cache: Literal[False]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, cast
 
+from document_ocr.decoder_training.completions import ThinkingMode, split_completion
 from document_ocr.training.metrics import assess_prediction
 from document_ocr.training.tasks import TrainingTask
 
@@ -26,16 +27,21 @@ def schema_gated_field_f1(
     reference_target: Sequence[str],
     *,
     task: TrainingTask,
+    thinking: ThinkingMode,
     **_: Any,
 ) -> list[float]:
-    """Return exact leaf F1 only for schema-valid completions; malformed output gets zero."""
+    """Score only a boundary-valid, schema-valid final answer with exact leaf F1."""
 
     if len(completions) != len(reference_target):
         raise ValueError("completion/reference counts differ")
     rewards: list[float] = []
     for raw_completion, reference in zip(completions, reference_target, strict=True):
+        parts = split_completion(completion_text(raw_completion), thinking=thinking)
+        if parts.final_answer is None:
+            rewards.append(0.0)
+            continue
         try:
-            assessment = assess_prediction(completion_text(raw_completion).strip(), reference, task)
+            assessment = assess_prediction(parts.final_answer, reference, task)
         except ValueError:
             rewards.append(0.0)
             continue

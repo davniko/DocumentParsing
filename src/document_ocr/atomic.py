@@ -71,6 +71,12 @@ def atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    atomic_write_bytes(path, json_artifact_bytes(value))
+
+
+def json_artifact_bytes(value: Any) -> bytes:
+    """Serialize JSON exactly as the atomic JSON publishers persist it."""
+
     payload = json.dumps(
         value,
         allow_nan=False,
@@ -78,7 +84,7 @@ def atomic_write_json(path: Path, value: Any) -> None:
         indent=2,
         sort_keys=True,
     ).encode("utf-8")
-    atomic_write_bytes(path, payload + b"\n")
+    return payload + b"\n"
 
 
 def atomic_publish_bytes(path: Path, payload: bytes) -> bool:
@@ -127,11 +133,4 @@ def atomic_publish_bytes(path: Path, payload: bytes) -> bool:
 
 
 def atomic_publish_json(path: Path, value: Any) -> bool:
-    payload = json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=False,
-        indent=2,
-        sort_keys=True,
-    ).encode("utf-8")
-    return atomic_publish_bytes(path, payload + b"\n")
+    return atomic_publish_bytes(path, json_artifact_bytes(value))

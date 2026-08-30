@@ -13,7 +13,7 @@ grpo:
   rollout:
     backend: unsloth
     num_generations: 2
-    max_completion_length: 4096
+    max_completion_length: 6144
     temperature: 1.0
     top_p: 0.95
     top_k: 20
@@ -27,7 +27,7 @@ grpo:
     epsilon: 0.2
 
 run:
-  run_id: qwen35-08b-lora-dr-grpo-probe-mpci-bl-combined1157-v1
+  run_id: qwen35-08b-lora-dr-grpo-reasoning-probe-mpci-bl-combined1157-v1
   output_dir: artifacts/kie-decoder-training
   seed: 424
 
@@ -74,10 +74,12 @@ dataset:
   cache_dir: artifacts/kie-decoder-training/cache
 
 sequence:
-  thinking: disabled
+  thinking: enabled
+  # The direct JSON maximum is 3,630 tokens. This probe reserves more than
+  # 2,500 additional tokens for native reasoning plus the closing boundary.
   max_prompt_length: 13312
-  max_completion_length: 4096
-  max_sequence_length: 17408
+  max_completion_length: 6144
+  max_sequence_length: 19456
   overflow: error
   append_eos: true
   completion_only_loss: true
@@ -134,7 +136,7 @@ evaluation:
   steps: 10
   on_start: true
   run_final: true
-  generation_max_new_tokens: 4096
+  generation_max_new_tokens: 6144
   generation_do_sample: false
   generation_num_beams: 1
   write_predictions: true
@@ -158,11 +160,11 @@ logging:
   mlflow:
     tracking_uri: http://mlflow-server:5000
     experiment_name: document-ocr-kie-decoder
-    run_name: qwen35-08b-lora-dr-grpo-probe-mpci-bl-combined1157-v1
+    run_name: qwen35-08b-lora-dr-grpo-reasoning-probe-mpci-bl-combined1157-v1
     resume_run_id: null
     tags:
       pipeline: document-ocr-kie-decoder
       task: bill-of-lading-relation-explicit-v3
-      method: dr-grpo-probe
+      method: dr-grpo-native-reasoning-probe
       model: qwen3.5-0.8b
   disable_tqdm: false

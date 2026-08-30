@@ -71,11 +71,12 @@ introduced.
   not interpretable without this lower-complexity control.
 - Decoder training gets its own uv lock, Docker image, Compose service, CLI, and artifact namespace.
   The current T5Gemma seq2seq runtime remains unchanged.
-- SFT with completion-only loss is the first stage. GRPO/Dr. GRPO starts from a successful SFT
-  checkpoint, not from an unadapted base model.
+- SFT with completion-only loss is the recommended first experiment, not a runtime prerequisite.
+  GRPO/Dr. GRPO supports either a fresh LoRA adapter on the configured base model or continuation of
+  an explicitly selected adapter such as a successful SFT result.
 - The default RL reward is deterministic and label-derived. Invalid JSON or schema receives zero;
-  valid outputs receive task F1. This strict gate is enabled only after a readiness probe proves the
-  SFT policy produces enough schema-valid, reward-diverse samples.
+  valid outputs receive task F1. A readiness probe should establish that whichever initialization
+  policy is selected produces enough schema-valid, reward-diverse samples.
 - “Reasoning before output” is an experiment, not an assumption. Direct JSON, auditable
   evidence-plan reasoning, and native thinking must be compared for F1, termination, latency, and
   output length. Hidden, unverified chain-of-thought is not manufactured as ground truth.
@@ -138,6 +139,12 @@ scalar copying—dominate the remaining error budget. These are the cohorts synt
 ---
 
 # Track A — structured synthesis and raw-OCR augmentation
+
+Implementation update (2026-08-30): phases A0 and A1 are complete for the exact 1,157-row corpus.
+The measured tables, anchor/support inventory, deterministic generator contracts, remaining product
+decisions, and refined execution/configuration plan are in
+[`kie-synthesis-preparation-and-generation-plan-2026-08-30.md`](kie-synthesis-preparation-and-generation-plan-2026-08-30.md).
+No synthetic row has been generated yet.
 
 ## A1. Objective and truth contract
 
@@ -751,11 +758,13 @@ latency.
 
 ## B7. GRPO and Dr. GRPO design
 
-### Why SFT first
+### Why SFT is recommended first
 
 With a strict zero reward for malformed JSON or invalid schema, a raw policy can produce groups where
 all samples receive zero. TRL reports this as `frac_reward_zero_std`; such groups provide no useful
-relative signal. SFT must first establish the output grammar and basic extraction mapping.
+relative signal. SFT is therefore the recommended initialization for the first controlled RL arm,
+but the runtime also permits a fresh adapter on the base model when a readiness probe demonstrates
+adequate schema-valid output and reward variance.
 
 RL readiness gate on a frozen probe set:
 
@@ -862,6 +871,8 @@ model:
   family: qwen3_5
   text_only: true
   dtype: bfloat16
+
+sequence:
   thinking: disabled
 
 dataset:
@@ -890,27 +901,27 @@ GRPO adds a discriminated block:
 
 ```yaml
 method: grpo
-initialize_from:
-  sft_run_manifest: artifacts/.../manifest.json
-  checkpoint: best_generated_f1
-
-rollout:
+sequence:
   thinking: enabled
-  num_generations: <measured>
-  max_completion_length: <measured>
-  temperature: <frozen rollout policy>
-  backend: unsloth
-
-reward:
-  policy: schema_gated_field_f1_v1
-  invalid_json: 0.0
-  invalid_schema: 0.0
-
-policy_optimization:
-  loss_type: dr_grpo
-  scale_rewards: false
-  mask_truncated_completions: true
-  beta: <experiment value>
+grpo:
+  initialize_from: null  # fresh LoRA on model.name_or_path; or an existing adapter directory
+  rollout:
+    num_generations: <measured>
+    max_completion_length: <measured>
+    temperature: <frozen rollout policy>
+    top_p: <frozen rollout policy>
+    top_k: <frozen rollout policy>
+    repetition_penalty: <frozen rollout policy>
+    backend: unsloth
+    mask_truncated_completions: true
+  reward:
+    policy: schema_gated_field_f1_v1
+    invalid_json: 0.0
+    invalid_schema: 0.0
+  policy_optimization:
+    loss_type: dr_grpo
+    scale_rewards: false
+    beta: <experiment value>
 ```
 
 Placeholder values cannot pass config validation. The implementation should require measured values

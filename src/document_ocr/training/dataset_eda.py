@@ -276,6 +276,26 @@ def _document_id(row: dict[str, Any], *, context: str) -> str:
     return value
 
 
+def _unwrap_source_lineage(row: dict[str, Any]) -> dict[str, Any]:
+    """Traverse immutable projection wrappers to the corpus-origin lineage row."""
+
+    document_id = _document_id(row, context="lineage row")
+    current = row
+    seen: set[int] = set()
+    while "sourceCorpus" not in current:
+        identity = id(current)
+        if identity in seen:
+            raise DatasetEdaError(f"cyclic lineage wrapper: {document_id}")
+        seen.add(identity)
+        child = current.get("sourceLineage")
+        if not isinstance(child, dict):
+            raise DatasetEdaError(f"lineage has no corpus-origin payload: {document_id}")
+        if _document_id(child, context="nested lineage row") != document_id:
+            raise DatasetEdaError(f"lineage wrapper changes document ID: {document_id}")
+        current = child
+    return current
+
+
 def _load_inputs(
     config: DatasetEdaConfig,
 ) -> tuple[
@@ -304,7 +324,7 @@ def _load_inputs(
         document_id = _document_id(row, context="lineage row")
         if document_id in lineage:
             raise DatasetEdaError(f"duplicate lineage document: {document_id}")
-        lineage[document_id] = row
+        lineage[document_id] = _unwrap_source_lineage(row)
     if set(record_ids) != set(lineage):
         raise DatasetEdaError("record and lineage document sets differ")
     current_root = _root(

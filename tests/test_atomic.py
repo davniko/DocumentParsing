@@ -12,6 +12,7 @@ from document_ocr.atomic import (
     atomic_publish_bytes,
     atomic_publish_json,
     atomic_write_json,
+    json_artifact_bytes,
     read_regular_file_bytes,
 )
 
@@ -22,6 +23,7 @@ def test_atomic_json_is_canonical_fsynced_publication_payload(tmp_path: Path) ->
     atomic_write_json(target, {"z": "café", "a": [2, 1]})
 
     assert target.read_bytes() == b'{\n  "a": [\n    2,\n    1\n  ],\n  "z": "caf\xc3\xa9"\n}\n'
+    assert target.read_bytes() == json_artifact_bytes({"z": "caf\u00e9", "a": [2, 1]})
     assert not list(target.parent.glob(f".{target.name}.*.tmp"))
 
 

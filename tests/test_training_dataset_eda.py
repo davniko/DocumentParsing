@@ -15,6 +15,7 @@ from document_ocr.training.dataset_eda import (
     _parquet_bytes,
     _percentile,
     _template_clusters,
+    _unwrap_source_lineage,
     _vessel_present,
     carrier_family,
     country_group,
@@ -49,6 +50,19 @@ def test_vessel_presence_uses_the_schema_field_names() -> None:
     assert _vessel_present({"vesselName": "EXAMPLE"})
     assert _vessel_present({"vesselImoNumber": "IMO1234567"})
     assert not _vessel_present({"voyageNumber": "V001"})
+
+
+def test_projection_lineage_unwraps_to_the_corpus_origin() -> None:
+    document_id = "doc_" + "a" * 64
+    origin = {"documentId": document_id, "sourceCorpus": "current_main680"}
+    wrapped = {
+        "documentId": document_id,
+        "sourceLineage": {"documentId": document_id, "sourceLineage": origin},
+    }
+    assert _unwrap_source_lineage(wrapped) is origin
+    wrapped["sourceLineage"]["documentId"] = "doc_" + "b" * 64
+    with pytest.raises(DatasetEdaError, match="changes document ID"):
+        _unwrap_source_lineage(wrapped)
 
 
 def _feature(document_id: str, vector: tuple[float, ...]) -> dict[str, object]:

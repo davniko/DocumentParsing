@@ -6,12 +6,16 @@ weights were loaded and no training run was started.
 
 ## Decoder training
 
-The decoder runtime supports Qwen3.5/Qwen3 BF16 LoRA SFT and SFT-initialized GRPO/Dr. GRPO. It uses
-completion-only loss, direct non-thinking JSON, unconstrained generated evaluation, the existing
-task canonicalizer/metrics, MLflow, immutable run contracts, and resumable TRL checkpoints. Invalid
-JSON or schema output receives zero RL reward; valid output receives deterministic exact leaf F1.
-An on-start evaluation runs before SFT attaches LoRA; GRPO instead evaluates the loaded SFT adapter
-before its first policy update. Both are saved with predictions and logged to MLflow at step zero.
+The decoder runtime supports Qwen3.5/Qwen3 BF16 LoRA SFT and GRPO/Dr. GRPO initialized either from
+the configured base model or an existing adapter. It uses completion-only SFT loss, direct JSON or
+optional native Qwen thinking for GRPO, unconstrained generated evaluation, the existing task
+canonicalizer/metrics, MLflow, immutable run contracts, and resumable TRL checkpoints. Invalid JSON,
+invalid schema, or an invalid native-thinking boundary receives zero RL reward; valid final JSON
+receives deterministic exact leaf F1.
+
+An on-start evaluation runs before SFT or direct GRPO attaches fresh LoRA; adapter-initialized GRPO
+instead evaluates the loaded adapter before its first policy update. Both are saved with predictions
+and logged to MLflow at step zero.
 
 The executable first baseline is
 `configs/decoder_training/qwen35_08b_lora_sft.mpci_bl_combined1157.yaml`. Its sequence limits were
@@ -59,13 +63,55 @@ model run.
 
 The Dr-GRPO config
 `configs/decoder_training/qwen35_08b_lora_dr_grpo_probe.mpci_bl_combined1157.yaml` is a 20-step
-readiness probe, not a full RL recipe. It is fail-closed on the SFT adapter path and must run only
-after SFT evaluation demonstrates adequate schema-valid output and within-prompt reward variance.
-It uses two generations, schema-invalid reward zero, exact field/value F1 otherwise, and unscaled
-Dr-GRPO loss. The SFT adapter is loaded as the trainable policy and is not wrapped in a second LoRA
-adapter; this follows Unsloth's documented continued-finetuning path.
+readiness probe, not a full RL recipe. `grpo.initialize_from` is an explicit, required nullable
+field: `null` loads `model.name_or_path` and creates a fresh LoRA adapter, while an adapter directory
+loads and continues that adapter. The latter is not wrapped in a second LoRA adapter and follows
+Unsloth's documented continued-finetuning path. Both initialization modes otherwise use the same
+GRPO/Dr-GRPO trainer, reward, evaluation, checkpoint, and logging path. The supplied probe points to
+the SFT result and should run only after that adapter demonstrates adequate schema-valid output and
+within-prompt reward variance. It uses two generations, schema-invalid reward zero, exact
+field/value F1 otherwise, and unscaled Dr-GRPO loss.
 
-References: [Unsloth Qwen3.5 fine-tuning](https://unsloth.ai/docs/models/qwen3.5/fine-tune),
+The direct-JSON probe keeps `sequence.thinking: disabled` as the latency/reliability control. The
+separate
+`configs/decoder_training/qwen35_08b_lora_dr_grpo_reasoning_probe.mpci_bl_combined1157.yaml`
+sets `sequence.thinking: enabled`. This uses the pinned tokenizer's official chat-template contract:
+the prompt ends with `<think>`, the generated continuation contains the trace followed by one
+`</think>` boundary, and only the subsequent final JSON is passed to schema validation, reward, and
+field metrics. Evaluation artifacts retain the full generated text, separated reasoning trace,
+final answer, and boundary diagnostics. Missing/duplicate boundaries and thinking-only output fail
+closed; the code never searches for a JSON-looking substring.
+
+The reasoning probe reserves 6,144 completion tokens versus the measured 3,630-token maximum direct
+target, leaving over 2,500 tokens for reasoning and the boundary. Exact-container inspection of all
+1,157 rows measured maxima of 12,224 prompt, 3,632 minimal boundary-plus-final completion, and
+14,024 combined tokens in 22.90 seconds (50.51 records/second), all within its 13,312 / 6,144 /
+19,456 limits. This is not yet a claim that two stochastic generations fit or are
+throughput-optimal on the GPU. Run the same longest-sequence memory benchmark before launching this
+arm. SFT remains direct JSON because the dataset contains no auditable supervised reasoning traces.
+The reasoning rollout also pins Qwen's recommended text-thinking values `temperature: 1.0`,
+`top_p: 0.95`, `top_k: 20`, and `repetition_penalty: 1.0`; the 0.8B model card warns that thinking
+can loop, so EOS, truncation, reasoning length, and boundary validity remain explicit go/no-go
+metrics.
+
+## T5Gemma 2 attention backend
+
+The existing T5Gemma 2 runtime uses `attn_implementation: sdpa`. FlashAttention-2 is deliberately
+not accepted by its strict configuration because Transformers 5.15 reports
+`T5Gemma2ForConditionalGeneration._supports_flash_attn = False`. T5Gemma 2 merges decoder self- and
+cross-attention and requires custom masks that are currently incompatible with the Transformers
+FlashAttention path. Adding the `flash-attn` package or bypassing dispatch checks would therefore
+not produce a supported implementation. Keep SDPA until upstream T5Gemma 2 support and equivalence
+tests exist; do not silently substitute eager attention.
+
+This does not mean training falls back entirely to unfused quadratic eager kernels. A BF16
+forward/backward profiler probe of the T5Gemma 2 architecture in the pinned PyTorch 2.13/CUDA 13
+trainer recorded PyTorch SDPA flash kernels for compatible attention calls and memory-efficient
+SDPA kernels for the custom-mask calls. That is the supported optimized path currently available;
+it is distinct from selecting Transformers' external `flash_attention_2` backend.
+
+References: [Qwen3.5 0.8B model card](https://huggingface.co/Qwen/Qwen3.5-0.8B),
+[Unsloth Qwen3.5 fine-tuning](https://unsloth.ai/docs/models/qwen3.5/fine-tune),
 [TRL SFTTrainer](https://huggingface.co/docs/trl/v0.24.0/sft_trainer), and
 [TRL GRPOTrainer](https://huggingface.co/docs/trl/v0.24.0/grpo_trainer).
 
@@ -96,3 +142,50 @@ workflow. A subsequent instrumented full pass took 4.24 seconds with 512.6 MiB p
 
 References: [SDV metadata API](https://docs.sdv.dev/sdv/concepts/metadata/metadata-api) and
 [PydanticAI models](https://ai.pydantic.dev/models/).
+
+### Domain and synthesis-readiness preparation
+
+The next non-generative stage is now implemented for the exact 1,157-row corpus. It refreshes the
+provenance-aware EDA, projects every relation-v3 target into 17 B/L-specific tables, proves exact
+inverse projection, validates the resulting graph and data with SDV 1.38.2, resolves immutable
+annotation evidence into role-aware OCR anchors/format profiles, and publishes cohort/template
+support. It also exposes tested deterministic primitives for ISO 6346 containers, scalar seals,
+joint date shifts, quantities, masses, and allocation reconciliation. It does not generate or
+publish a synthetic training row.
+
+The full design, completed measurements, remaining decisions, and recommended configurable
+generation architecture are recorded in
+[`kie-synthesis-preparation-and-generation-plan-2026-08-30.md`](kie-synthesis-preparation-and-generation-plan-2026-08-30.md).
+
+Refresh the EDA on the host with:
+
+```bash
+TMPDIR=/tmp UV_CACHE_DIR=/tmp/documentparsing-uv-cache \
+uv run --frozen --group analysis document-kie-dataset-eda \
+  --config configs/analysis/mpci_bl_combined1157_synthesis_eda.yaml
+```
+
+Rebuild the synthesis image whenever `src/` or the synthesis lock changes, then validate and run
+the preparation contract:
+
+```bash
+docker compose --profile synthesis build synthesis-tools
+
+docker compose --profile synthesis run --rm synthesis-tools \
+  validate-preparation-config \
+  --config configs/synthesis/mpci_bl_combined1157_preparation.yaml \
+  --project-root /workspace
+
+docker compose --profile synthesis run --rm synthesis-tools \
+  prepare-corpus \
+  --config configs/synthesis/mpci_bl_combined1157_preparation.yaml \
+  --project-root /workspace
+```
+
+The final preparation publication is
+`artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3/`: 27,625 domain rows across
+17 tables, 54,462 audited anchor rows, 13,201 role-aware format profiles, six
+matplotlib/seaborn plots, complete support tables, and an immutable manifest. All 1,157 targets
+round-trip exactly and every source-fact leaf has evidence. Unique or unique-within-excerpt anchors
+cover 49,991/54,462 evidence rows; 4,471 repeated values remain explicitly ambiguous rather than
+being assigned by guesswork.

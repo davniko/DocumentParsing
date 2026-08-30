@@ -58,7 +58,19 @@ CommunicationMeans = Literal["TE", "EM", "AO"]
 ContactIdentifier = Literal["COM", "IND"]
 
 
-def _iso6346_expected_check_digit(identifier_without_check_digit: str) -> int:
+def iso6346_expected_check_digit(identifier_without_check_digit: str) -> int:
+    """Return the ISO 6346 check digit for a validated ten-character body."""
+
+    if len(identifier_without_check_digit) != 10:
+        raise ValueError("ISO 6346 body must contain exactly ten characters")
+    if (
+        not identifier_without_check_digit[:4].isalpha()
+        or not identifier_without_check_digit[:4].isascii()
+        or not identifier_without_check_digit[:4].isupper()
+        or not identifier_without_check_digit[4:].isascii()
+        or not identifier_without_check_digit[4:].isdigit()
+    ):
+        raise ValueError("ISO 6346 body must contain four uppercase letters and six digits")
     letter_values = {
         letter: value
         for letter, value in zip(
@@ -107,7 +119,7 @@ def _validate_container_identifier(value: str) -> str:
         raise ValueError("equipmentIdentifier must be an ISO 6346 identifier")
     if not value[:4].isupper() or not value[4:].isdigit():
         raise ValueError("equipmentIdentifier must be uppercase letters followed by digits")
-    if _iso6346_expected_check_digit(value[:10]) != int(value[-1]):
+    if iso6346_expected_check_digit(value[:10]) != int(value[-1]):
         raise ValueError("equipmentIdentifier has an invalid ISO 6346 check digit")
     return value
 

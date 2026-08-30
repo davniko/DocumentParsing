@@ -110,6 +110,14 @@ def test_relation_explicit_training_requires_frozen_task_constraints() -> None:
         TrainingConfig.model_validate(value, strict=True)
 
 
+def test_t5gemma2_configuration_rejects_unsupported_flash_attention_2() -> None:
+    value = load_training_config(CONFIG_PATH).model_dump(mode="python")
+    value["model"]["attention_implementation"] = "flash_attention_2"
+
+    with pytest.raises(ValidationError, match="attention_implementation"):
+        TrainingConfig.model_validate(value, strict=True)
+
+
 def test_combined_training_configuration_pins_both_semantic_v2_cohorts() -> None:
     config = load_training_config(COMBINED_CONFIG_PATH)
 
