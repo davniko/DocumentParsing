@@ -4,6 +4,7 @@ import importlib.util
 import json
 import math
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -18,6 +19,7 @@ from document_ocr.synthesis.sdv_evaluation import (
     select_candidate,
 )
 from document_ocr.synthesis.sdv_harness import (
+    AcceleratorSelection,
     BenchmarkSettings,
     BenchmarkView,
     CandidateRunReceipt,
@@ -28,8 +30,10 @@ from document_ocr.synthesis.sdv_harness import (
     SdvBenchmarkError,
     bounded_sample,
     dataframe_sha256,
+    default_candidate_specs,
     grouped_folds,
     load_selected_model,
+    preflight_sdv_accelerator,
     run_view_benchmark,
 )
 
@@ -78,8 +82,35 @@ def _view(*, rows: int = 24, partitions: tuple[str, ...] | None = None) -> Bench
     )
 
 
+def _cpu_accelerator() -> AcceleratorSelection:
+    return AcceleratorSelection(
+        enable_gpu=False,
+        torch_version="2.0-test",
+        torch_cuda_version=None,
+        cuda_available=False,
+        cuda_device_count=0,
+        device="cpu",
+        device_name=None,
+        device_capability=None,
+        device_total_memory_bytes=None,
+    )
+
+
 def _resources() -> PhaseResources:
-    return PhaseResources(0.01, 100, 110, 120, 130)
+    return PhaseResources(
+        elapsed_seconds=0.01,
+        rss_before_bytes=100,
+        rss_after_bytes=110,
+        peak_rss_before_bytes=120,
+        peak_rss_after_bytes=130,
+        accelerator=_cpu_accelerator(),
+        cuda_allocated_before_bytes=None,
+        cuda_allocated_after_bytes=None,
+        cuda_reserved_before_bytes=None,
+        cuda_reserved_after_bytes=None,
+        cuda_peak_allocated_bytes=None,
+        cuda_peak_reserved_bytes=None,
+    )
 
 
 def _fake_version(package: str) -> str:
@@ -90,6 +121,18 @@ def _fake_version(package: str) -> str:
         "sdv": "1.38.2",
         "torch": "2.0-test",
     }[package]
+
+
+def _fake_torch_environment_receipt() -> dict[str, object]:
+    return {
+        "torch_version": "2.0-test",
+        "torch_cuda_version": None,
+        "cuda_available": False,
+        "cuda_device_count": 0,
+        "cuda_visible_devices": None,
+        "current_cuda_device": None,
+        "devices": [],
+    }
 
 
 def _evaluation(quality: float) -> EvaluationBundle:
@@ -168,7 +211,7 @@ def _fake_receipt(**kwargs: object) -> CandidateRunReceipt:
         model_artifact=model_artifact,
         sdv_version="1.38.2",
         sdmetrics_version="0.30.0",
-        seed_contract="isolated_python_numpy_torch_fit_and_pinned_sdv_sample_state_v1",
+        seed_contract=sdv_harness.SEED_CONTRACT,
     )
 
 
@@ -176,6 +219,119 @@ def test_view_rejects_non_train_rows_before_any_fit() -> None:
     partitions = ("train",) * 23 + ("validation",)
     with pytest.raises(ValueError, match="not train-only"):
         _view(partitions=partitions)
+
+
+def test_default_neural_candidates_make_gpu_request_explicit() -> None:
+    cpu = default_candidate_specs(neural_epochs=7)
+    gpu = default_candidate_specs(neural_epochs=7, enable_gpu=True)
+    assert [candidate.parameters.get("enable_gpu") for candidate in cpu[2:]] == [False, False]
+    assert [candidate.parameters.get("enable_gpu") for candidate in gpu[2:]] == [True, True]
+    with pytest.raises(ValueError, match="explicitly set boolean enable_gpu"):
+        CandidateSpec("ctgan", {"epochs": 1})
+    with pytest.raises(ValueError, match="must use enable_gpu"):
+        CandidateSpec("tvae", {"epochs": 1, "enable_gpu": True, "cuda": True})
+    with pytest.raises(ValueError, match="does not support enable_gpu"):
+        CandidateSpec("gaussian_copula", {"enable_gpu": True})
+
+
+def test_gpu_preflight_fails_closed_when_cuda_is_not_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_torch = SimpleNamespace(
+        __version__="2.13.0+cu130",
+        version=SimpleNamespace(cuda="13.0"),
+        cuda=SimpleNamespace(
+            is_available=lambda: False,
+            device_count=lambda: 0,
+        ),
+    )
+    real_import = sdv_harness.import_module
+    monkeypatch.setattr(
+        sdv_harness,
+        "import_module",
+        lambda name: fake_torch if name == "torch" else real_import(name),
+    )
+    with pytest.raises(SdvBenchmarkError, match="requires a CUDA-built Torch runtime"):
+        preflight_sdv_accelerator(enable_gpu=True)
+    cpu = preflight_sdv_accelerator(enable_gpu=False)
+    assert cpu.device == "cpu"
+    assert cpu.torch_cuda_version == "13.0"
+    assert not cpu.cuda_available
+
+
+def test_fitted_neural_model_must_prove_its_underlying_device() -> None:
+    accelerator = AcceleratorSelection(
+        enable_gpu=True,
+        torch_version="2.13.0+cu130",
+        torch_cuda_version="13.0",
+        cuda_available=True,
+        cuda_device_count=1,
+        device="cuda:0",
+        device_name="fixture GPU",
+        device_capability=(9, 0),
+        device_total_memory_bytes=24 * 1024**3,
+    )
+
+    class _SilentCpuFallback:
+        def fit(self, data: pd.DataFrame) -> None:
+            del data
+            self._model = SimpleNamespace(_device="cpu")
+
+    model = sdv_harness._SdvSynthesizer(
+        _SilentCpuFallback(),
+        candidate="ctgan",
+        accelerator=accelerator,
+    )
+    with pytest.raises(SdvBenchmarkError, match="selected cpu, expected audited device cuda:0"):
+        model.fit(_data(2))
+
+
+def test_gpu_phase_receipt_records_peak_allocated_and_reserved_vram(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    accelerator = AcceleratorSelection(
+        enable_gpu=True,
+        torch_version="2.13.0+cu130",
+        torch_cuda_version="13.0",
+        cuda_available=True,
+        cuda_device_count=1,
+        device="cuda:0",
+        device_name="fixture GPU",
+        device_capability=(9, 0),
+        device_total_memory_bytes=24 * 1024**3,
+    )
+    allocated = iter((100, 140))
+    reserved = iter((200, 260))
+    fake_torch = SimpleNamespace(
+        device=lambda value: value,
+        cuda=SimpleNamespace(
+            synchronize=lambda device: None,
+            reset_peak_memory_stats=lambda device: None,
+            memory_allocated=lambda device: next(allocated),
+            memory_reserved=lambda device: next(reserved),
+            max_memory_allocated=lambda device: 180,
+            max_memory_reserved=lambda device: 300,
+        ),
+    )
+    real_import = sdv_harness.import_module
+    monkeypatch.setattr(
+        sdv_harness,
+        "import_module",
+        lambda name: fake_torch if name == "torch" else real_import(name),
+    )
+    result, resources = sdv_harness._measure(lambda: "done", accelerator=accelerator)
+    assert result == "done"
+    assert resources.cuda_allocated_before_bytes == 100
+    assert resources.cuda_allocated_after_bytes == 140
+    assert resources.cuda_reserved_before_bytes == 200
+    assert resources.cuda_reserved_after_bytes == 260
+    assert resources.cuda_peak_allocated_bytes == 180
+    assert resources.cuda_peak_reserved_bytes == 300
+    assert resources.to_dict()["accelerator"]["device"] == "cuda:0"
+    assert (
+        sdv_harness._phase_resources_from_dict(resources.to_dict(), label="fixture GPU resources")
+        == resources
+    )
 
 
 def test_grouped_folds_are_balanced_deterministic_and_group_disjoint() -> None:
@@ -385,6 +541,9 @@ def test_candidate_failure_is_receipted_and_does_not_fall_back(
     candidates = (CandidateSpec("empirical", {}), CandidateSpec("gaussian_copula", {}))
     monkeypatch.setattr(sdv_harness, "_validate_metadata", lambda _view: None)
     monkeypatch.setattr(sdv_harness, "version", _fake_version)
+    monkeypatch.setattr(
+        sdv_harness, "_torch_environment_receipt", _fake_torch_environment_receipt
+    )
 
     def fail(**kwargs: object) -> CandidateRunReceipt:
         spec = kwargs["spec"]
@@ -413,6 +572,9 @@ def test_interrupted_run_resumes_existing_arms_and_complete_run_fast_paths(
     candidates = (CandidateSpec("empirical", {}), CandidateSpec("gaussian_copula", {}))
     monkeypatch.setattr(sdv_harness, "_validate_metadata", lambda _view: None)
     monkeypatch.setattr(sdv_harness, "version", _fake_version)
+    monkeypatch.setattr(
+        sdv_harness, "_torch_environment_receipt", _fake_torch_environment_receipt
+    )
     first_calls = 0
 
     def interrupt_after_one(**kwargs: object) -> CandidateRunReceipt:
@@ -471,6 +633,9 @@ def test_verified_selected_model_handle_supports_repeated_independent_requests(
     monkeypatch.setattr(sdv_harness, "_validate_metadata", lambda _view: None)
     monkeypatch.setattr(sdv_harness, "_candidate_run", _fake_receipt)
     monkeypatch.setattr(sdv_harness, "version", _fake_version)
+    monkeypatch.setattr(
+        sdv_harness, "_torch_environment_receipt", _fake_torch_environment_receipt
+    )
     run_view_benchmark(
         view=_view(),
         candidates=(CandidateSpec("empirical", {}),),
@@ -504,6 +669,9 @@ def test_completed_benchmark_remains_valid_after_staging_directory_rename(
     monkeypatch.setattr(sdv_harness, "_validate_metadata", lambda _view: None)
     monkeypatch.setattr(sdv_harness, "_candidate_run", _fake_receipt)
     monkeypatch.setattr(sdv_harness, "version", _fake_version)
+    monkeypatch.setattr(
+        sdv_harness, "_torch_environment_receipt", _fake_torch_environment_receipt
+    )
     staged_result = run_view_benchmark(
         view=view,
         candidates=candidates,

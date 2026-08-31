@@ -116,6 +116,13 @@ class PinnedDirectoryConfig(_StrictModel):
         return _safe_path(value)
 
 
+class CommittedDirectoryConfig(PinnedDirectoryConfig):
+    """Pinned immutable run directory with its transaction receipt."""
+
+    commit_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    transaction_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+
 class SynthesisSidecarsConfig(_StrictModel):
     lineage: DatasetFileConfig
     package_metadata: DatasetFileConfig
@@ -310,6 +317,7 @@ class StructuredGenerationInputsConfig(_StrictModel):
     document_features: DatasetFileConfig
     template_groups: DatasetFileConfig
     partition_report: PinnedFileConfig
+    iso3166_snapshot: PinnedFileConfig
     category_metadata: DatasetFileConfig
     package_hierarchy_metadata: DatasetFileConfig
     package_registry: PinnedFileConfig
@@ -506,6 +514,243 @@ class SynthesisStructuredBaselineConfig(_StrictModel):
         return self
 
 
+class RouteScenarioInputsConfig(_StrictModel):
+    """Pinned inputs for route-first scenario fitting and sampling."""
+
+    template_groups: DatasetFileConfig
+    partition_report: PinnedFileConfig
+    iso3166_snapshot: PinnedFileConfig
+    route_locations: DatasetFileConfig
+    route_registry_manifest: PinnedFileConfig
+    world_ports: DatasetFileConfig
+    world_port_registry_manifest: PinnedFileConfig
+    locality_registry: PinnedDirectoryConfig
+    trade_flows: DatasetFileConfig
+    trade_flow_registry_manifest: PinnedFileConfig
+
+
+class RouteScenarioSelectionConfig(_StrictModel):
+    split: NonEmptyString
+    requested_documents: Annotated[int, Field(gt=0)]
+    seed: int
+    require_template_wholly_in_split: Literal[True]
+    maximum_per_template: Literal[1]
+
+
+class RouteScenarioObservedOriginComponentConfig(_StrictModel):
+    """Observed-exporter component of the commercial-origin mixture."""
+
+    mixture_permyriad: Annotated[int, Field(gt=0, lt=10_000)]
+    weighting: Literal["train_isolated_shipper_country_document_count_v1"]
+
+
+class RouteScenarioMaritimeOriginComponentConfig(_StrictModel):
+    """Pinned maritime-registry component of the commercial-origin mixture."""
+
+    mixture_permyriad: Annotated[int, Field(gt=0, lt=10_000)]
+    weighting: Literal["uniform_route_feasible_iso_country_v1"]
+
+
+class RouteScenarioOriginPriorConfig(_StrictModel):
+    """Explicit component-first commercial-origin mixture."""
+
+    method: Literal["observed_exporter_plus_maritime_registry_mixture_v1"]
+    observed_exporter: RouteScenarioObservedOriginComponentConfig
+    maritime_registry: RouteScenarioMaritimeOriginComponentConfig
+
+    @model_validator(mode="after")
+    def mixture_weights_sum_to_one(self) -> RouteScenarioOriginPriorConfig:
+        total = self.observed_exporter.mixture_permyriad + self.maritime_registry.mixture_permyriad
+        if total != 10_000:
+            raise ValueError("commercial-origin mixture weights must sum to 10000")
+        return self
+
+
+class RouteScenarioGenerationConfig(_StrictModel):
+    random_stream: Literal["hmac_sha256_counter_v1"]
+    seed: int
+    commercial_origin_prior: RouteScenarioOriginPriorConfig
+    commercial_destination_prior: Literal[
+        "wits_latest_bilateral_numeric_iso_identity_conditioned_on_origin_v2"
+    ]
+    physical_endpoint_relation_method: Literal[
+        "train_empirical_loading_by_origin_discharge_by_destination_else_commercial_destination_v1"
+    ]
+    party_locality_relation_method: Literal["train_empirical_role_relation_and_locality_mode_v1"]
+    freight_method: Literal["train_empirical_arrangement_and_payment_side_v1"]
+    port_method: Literal["observed_empirical_plus_nga_wpi_whitelist_mixture_v1"]
+    locality_method: Literal["geonames_cities15000_population_weighted_v1"]
+    registry_exploration_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    preserve_source_leaf_presence: Literal[True]
+    preserve_source_party_cardinality: Literal[True]
+    direct_routes_only: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisRouteScenarioPilotConfig(_StrictModel):
+    """Non-publishable route/party-locality scenario pilot contract."""
+
+    schema_version: Literal[2]
+    task: Literal["bill_of_lading_relation_explicit_v3"]
+    run: SynthesisRunConfig
+    source: SynthesisSourceConfig
+    task_constraints: TaskConstraintsConfig
+    inputs: RouteScenarioInputsConfig
+    selection: RouteScenarioSelectionConfig
+    generation: RouteScenarioGenerationConfig
+
+    @model_validator(mode="after")
+    def route_pilot_is_pinned_and_non_publishable(self) -> SynthesisRouteScenarioPilotConfig:
+        if self.source.fields.input_sha256 is None:
+            raise ValueError("route scenario pilot requires source input SHA-256 values")
+        return self
+
+
+class ControlledPilotInputsConfig(_StrictModel):
+    """Pinned semantic and statistical dependencies for the controlled pilot."""
+
+    route_scenario_run: CommittedDirectoryConfig
+    route_scenarios: DatasetFileConfig
+    route_targets: DatasetFileConfig
+    preparation: PinnedDirectoryConfig
+    template_groups: DatasetFileConfig
+    partition_report: PinnedFileConfig
+    category_metadata: DatasetFileConfig
+    package_hierarchy_metadata: DatasetFileConfig
+    package_registry: PinnedFileConfig
+    package_registry_entries: Annotated[int, Field(gt=0)]
+    iso3166_snapshot: PinnedFileConfig
+    equipment_registry_manifest: PinnedFileConfig
+    hs_registry_manifest: PinnedFileConfig
+    hs_metadata: PinnedFileConfig
+    hs_commodities_report: PinnedFileConfig
+    party_identity_benchmark_summary: PinnedFileConfig
+
+
+class ControlledHsGenerationConfig(_StrictModel):
+    schema_version: Literal[1]
+    observed_chapter_mixture_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    registry_wide_mixture_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    gb_tariff_extension_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    observed_chapter_weighting: Literal["fit_document_count_v1"]
+    observed_chapter_hs6_weighting: Literal["uniform_registry_hs6_within_selected_chapter_v1"]
+    registry_hs6_weighting: Literal["uniform_registry_hs6_v1"]
+    gb_tariff_leaf_weighting: Literal["uniform_registry_leaves_v1"]
+
+    @model_validator(mode="after")
+    def chapter_mixture_is_complete(self) -> ControlledHsGenerationConfig:
+        if self.observed_chapter_mixture_permyriad + self.registry_wide_mixture_permyriad != 10_000:
+            raise ValueError("controlled HS mixture weights must sum exactly to 10000")
+        return self
+
+
+class ControlledTransportGenerationConfig(_StrictModel):
+    vessel_name_method: Literal["deferred_by_explicit_scope_v1"]
+    voyage_number_method: Literal["observed_character_class_shape_v1"]
+    minimum_normalized_edit_distance: Annotated[float, Field(ge=0, lt=1)]
+    maximum_realization_attempts: Annotated[int, Field(gt=0)]
+    imo_policy: Literal["absent_without_authoritative_assigned_number_registry_v1"]
+
+
+class ControlledPilotGenerationConfig(_StrictModel):
+    random_stream: Literal["hmac_sha256_counter_v1"]
+    seed: int
+    package_method: Literal["fit_role_conditioned_registry_category_v2"]
+    package_registry_exploration_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    package_registry_exploration_scope: Literal[
+        "same_authoritative_display_family_within_task_vocabulary_v1"
+    ]
+    equipment_method: Literal["fit_exact_bic_identity_plus_registry_exploration_v1"]
+    equipment_registry_exploration_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    hs: ControlledHsGenerationConfig
+    cargo_origin_method: Literal["fit_country_relation_reproject_name_only_origin_v2"]
+    cargo_origin_name_only_policy: Literal[
+        "replace_without_resolving_or_copying_source_name_v2"
+    ]
+    dangerous_goods_method: Literal["disabled_pending_licensed_maritime_authoritative_registry_v1"]
+    handling_instructions_method: Literal["pending_linguistic_realization_v1"]
+    transport: ControlledTransportGenerationConfig
+    preserve_source_field_presence: Literal[True]
+    preserve_source_cardinality: Literal[True]
+    preserve_relation_topology: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisControlledPilotConfig(_StrictModel):
+    """Non-publishable controlled semantic generation over one route pilot."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v3"]
+    run: SynthesisRunConfig
+    source: SynthesisSourceConfig
+    task_constraints: TaskConstraintsConfig
+    inputs: ControlledPilotInputsConfig
+    selection: RouteScenarioSelectionConfig
+    generation: ControlledPilotGenerationConfig
+
+    @model_validator(mode="after")
+    def controlled_pilot_is_pinned_and_non_publishable(
+        self,
+    ) -> SynthesisControlledPilotConfig:
+        if self.source.fields.input_sha256 is None:
+            raise ValueError("controlled synthesis requires source input SHA-256 values")
+        if self.inputs.route_scenarios.records != self.selection.requested_documents:
+            raise ValueError("route scenario count differs from controlled selection")
+        if self.inputs.route_targets.records != self.selection.requested_documents:
+            raise ValueError("route target count differs from controlled selection")
+        return self
+
+
+class PartyStructureBenchmarkInputsConfig(_StrictModel):
+    preparation_root: NonEmptyString
+    preparation_manifest: PinnedFileConfig
+    template_groups: DatasetFileConfig
+    partition_report: PinnedFileConfig
+    iso3166_snapshot: PinnedFileConfig
+
+
+class PartyStructureBenchmarkSelectionConfig(_StrictModel):
+    split: NonEmptyString
+    require_template_wholly_in_split: Literal[True]
+    unresolved_source_country_policy: Literal["exclude_document_and_audit_v1"]
+
+
+class PartyStructureBenchmarkModelingConfig(_StrictModel):
+    scope: Literal["full_gpu"]
+    view: Literal["party_structure"]
+    candidates: list[Literal["empirical", "gaussian_copula", "ctgan", "tvae"]] = Field(
+        min_length=4, max_length=4
+    )
+    fold_count: Annotated[int, Field(ge=2)]
+    fold_seed: Annotated[int, Field(ge=0, lt=2**32)]
+    seeds: list[Annotated[int, Field(ge=0, lt=2**32)]] = Field(min_length=1)
+    neural_epochs: Annotated[int, Field(gt=0)]
+    neural_batch_size: Annotated[int, Field(ge=10)]
+    proposal_multiplier: Annotated[int, Field(gt=0)]
+    proposal_batch_rows: Annotated[int, Field(gt=0)] | None = None
+    production_selection: Literal[False]
+
+    @model_validator(mode="after")
+    def comparison_is_complete_and_identifiable(self) -> PartyStructureBenchmarkModelingConfig:
+        expected = ("empirical", "gaussian_copula", "ctgan", "tvae")
+        if tuple(self.candidates) != expected:
+            raise ValueError(f"party benchmark requires candidates in order {expected}")
+        if len(self.seeds) != len(set(self.seeds)):
+            raise ValueError("party benchmark seeds must be unique")
+        if self.neural_batch_size % 10:
+            raise ValueError("neural_batch_size must be divisible by CTGAN pac=10")
+        return self
+
+
+class SynthesisPartyStructureBenchmarkConfig(_StrictModel):
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v3"]
+    run: SynthesisRunConfig
+    inputs: PartyStructureBenchmarkInputsConfig
+    selection: PartyStructureBenchmarkSelectionConfig
+    modeling: PartyStructureBenchmarkModelingConfig
+
+
 def load_synthesis_foundation_config(path: Path) -> SynthesisFoundationConfig:
     try:
         value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
@@ -548,3 +793,37 @@ def load_synthesis_structured_baseline_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisStructuredBaselineConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_route_scenario_pilot_config(
+    path: Path,
+) -> SynthesisRouteScenarioPilotConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRouteScenarioPilotConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_party_structure_benchmark_config(
+    path: Path,
+) -> SynthesisPartyStructureBenchmarkConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisPartyStructureBenchmarkConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_controlled_pilot_config(path: Path) -> SynthesisControlledPilotConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisControlledPilotConfig.model_validate(value, strict=True)

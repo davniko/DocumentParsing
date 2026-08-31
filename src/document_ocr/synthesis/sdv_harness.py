@@ -50,6 +50,7 @@ SUPPORTED_CANDIDATES = frozenset({"empirical", "gaussian_copula", "ctgan", "tvae
 DEFAULT_COMPLEXITY_RANKS: Mapping[str, int] = MappingProxyType(
     {"empirical": 0, "gaussian_copula": 1, "ctgan": 2, "tvae": 2}
 )
+SEED_CONTRACT = "isolated_python_numpy_torch_cuda_fit_and_pinned_sdv_sample_state_v2"
 
 
 class SdvBenchmarkError(RuntimeError):
@@ -141,6 +142,14 @@ class CandidateSpec:
             raise ValueError(f"candidate {self.name} parameters must be finite JSON") from error
         if self.name == "empirical" and parameters:
             raise ValueError("empirical candidate accepts no parameters")
+        if "cuda" in parameters:
+            raise ValueError(
+                f"candidate {self.name} must use enable_gpu; SDV's cuda parameter is deprecated"
+            )
+        if self.name in {"ctgan", "tvae"} and type(parameters.get("enable_gpu")) is not bool:
+            raise ValueError(f"candidate {self.name} must explicitly set boolean enable_gpu")
+        if self.name not in {"ctgan", "tvae"} and "enable_gpu" in parameters:
+            raise ValueError(f"candidate {self.name} does not support enable_gpu")
         object.__setattr__(self, "parameters", MappingProxyType(parameters))
 
 
@@ -200,12 +209,131 @@ class GroupedFold:
 
 
 @dataclass(frozen=True, slots=True)
+class AcceleratorSelection:
+    """Audited Torch device selected before an SDV phase begins."""
+
+    enable_gpu: bool
+    torch_version: str
+    torch_cuda_version: str | None
+    cuda_available: bool
+    cuda_device_count: int
+    device: str
+    device_name: str | None
+    device_capability: tuple[int, int] | None
+    device_total_memory_bytes: int | None
+
+    def __post_init__(self) -> None:
+        if type(self.enable_gpu) is not bool or type(self.cuda_available) is not bool:
+            raise ValueError("accelerator boolean fields must be booleans")
+        if (
+            not isinstance(self.torch_version, str)
+            or not self.torch_version
+            or type(self.cuda_device_count) is not int
+            or self.cuda_device_count < 0
+        ):
+            raise ValueError("accelerator Torch version/count is invalid")
+        if self.torch_cuda_version is not None and (
+            not isinstance(self.torch_cuda_version, str) or not self.torch_cuda_version
+        ):
+            raise ValueError("accelerator Torch CUDA version is invalid")
+        if self.cuda_available != (self.cuda_device_count > 0):
+            raise ValueError("CUDA availability and device count are inconsistent")
+        if self.enable_gpu:
+            try:
+                device_index = int(self.device.removeprefix("cuda:"))
+            except (AttributeError, ValueError):
+                device_index = -1
+            if (
+                not self.cuda_available
+                or self.torch_cuda_version is None
+                or self.device != f"cuda:{device_index}"
+                or not 0 <= device_index < self.cuda_device_count
+                or not isinstance(self.device_name, str)
+                or not self.device_name
+                or self.device_capability is None
+                or len(self.device_capability) != 2
+                or any(type(value) is not int or value < 0 for value in self.device_capability)
+                or type(self.device_total_memory_bytes) is not int
+                or self.device_total_memory_bytes <= 0
+            ):
+                raise ValueError("GPU selection lacks a complete CUDA device receipt")
+        elif (
+            self.device != "cpu"
+            or self.device_name is not None
+            or self.device_capability is not None
+            or self.device_total_memory_bytes is not None
+        ):
+            raise ValueError("CPU selection contains CUDA device-specific values")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enable_gpu": self.enable_gpu,
+            "torch_version": self.torch_version,
+            "torch_cuda_version": self.torch_cuda_version,
+            "cuda_available": self.cuda_available,
+            "cuda_device_count": self.cuda_device_count,
+            "device": self.device,
+            "device_name": self.device_name,
+            "device_capability": (
+                list(self.device_capability) if self.device_capability is not None else None
+            ),
+            "device_total_memory_bytes": self.device_total_memory_bytes,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PhaseResources:
     elapsed_seconds: float
     rss_before_bytes: int
     rss_after_bytes: int
     peak_rss_before_bytes: int
     peak_rss_after_bytes: int
+    accelerator: AcceleratorSelection
+    cuda_allocated_before_bytes: int | None
+    cuda_allocated_after_bytes: int | None
+    cuda_reserved_before_bytes: int | None
+    cuda_reserved_after_bytes: int | None
+    cuda_peak_allocated_bytes: int | None
+    cuda_peak_reserved_bytes: int | None
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.elapsed_seconds) not in (int, float)
+            or not math.isfinite(float(self.elapsed_seconds))
+            or self.elapsed_seconds < 0
+        ):
+            raise ValueError("phase elapsed time must be finite and non-negative")
+        rss_values = (
+            self.rss_before_bytes,
+            self.rss_after_bytes,
+            self.peak_rss_before_bytes,
+            self.peak_rss_after_bytes,
+        )
+        if any(type(value) is not int or value < 0 for value in rss_values):
+            raise ValueError("phase RSS values must be non-negative integers")
+        cuda_values = (
+            self.cuda_allocated_before_bytes,
+            self.cuda_allocated_after_bytes,
+            self.cuda_reserved_before_bytes,
+            self.cuda_reserved_after_bytes,
+            self.cuda_peak_allocated_bytes,
+            self.cuda_peak_reserved_bytes,
+        )
+        if self.accelerator.enable_gpu:
+            if any(type(value) is not int or value < 0 for value in cuda_values):
+                raise ValueError("GPU phase must contain non-negative CUDA memory values")
+            assert self.cuda_peak_allocated_bytes is not None
+            assert self.cuda_peak_reserved_bytes is not None
+            if self.cuda_peak_allocated_bytes < max(
+                self.cuda_allocated_before_bytes or 0,
+                self.cuda_allocated_after_bytes or 0,
+            ) or self.cuda_peak_reserved_bytes < max(
+                self.cuda_reserved_before_bytes or 0,
+                self.cuda_reserved_after_bytes or 0,
+            ):
+                raise ValueError("CUDA peak memory is lower than an observed phase snapshot")
+        elif any(value is not None for value in cuda_values):
+            raise ValueError("CPU phase cannot contain CUDA memory values")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -217,6 +345,13 @@ class PhaseResources:
             "peak_rss_increase_bytes": max(
                 0, self.peak_rss_after_bytes - self.peak_rss_before_bytes
             ),
+            "accelerator": self.accelerator.to_dict(),
+            "cuda_allocated_before_bytes": self.cuda_allocated_before_bytes,
+            "cuda_allocated_after_bytes": self.cuda_allocated_after_bytes,
+            "cuda_reserved_before_bytes": self.cuda_reserved_before_bytes,
+            "cuda_reserved_after_bytes": self.cuda_reserved_after_bytes,
+            "cuda_peak_allocated_bytes": self.cuda_peak_allocated_bytes,
+            "cuda_peak_reserved_bytes": self.cuda_peak_reserved_bytes,
         }
 
 
@@ -437,26 +572,75 @@ class LoadedSelectedModel:
         return data, receipt
 
 
-def default_candidate_specs(*, neural_epochs: int = 300) -> tuple[CandidateSpec, ...]:
+@dataclass(slots=True)
+class FittedCandidateModel:
+    """One audited fitted candidate exposed for focused benchmark extensions.
+
+    The harness retains ownership of model construction, deterministic fit
+    seeding, accelerator verification, bounded sampling, and resource
+    measurement.  Task-specific benchmarks can therefore add domain validity
+    or novelty metrics without duplicating those safety-critical paths.
+    """
+
+    candidate: CandidateName
+    parameters: Mapping[str, Any]
+    fit: PhaseResources
+    _model: Any
+
+    def sample(
+        self,
+        *,
+        requested_rows: int,
+        seed: int,
+        columns: Sequence[str],
+        acceptance: Callable[[Any], Sequence[bool]] | None,
+        proposal_multiplier: int,
+        proposal_batch_rows: int | None,
+    ) -> tuple[Any, ProposalReceipt, PhaseResources]:
+        """Run the existing bounded sampler with audited resource accounting."""
+
+        def operation() -> tuple[Any, ProposalReceipt]:
+            return bounded_sample(
+                model=self._model,
+                requested_rows=requested_rows,
+                seed=seed,
+                columns=columns,
+                acceptance=acceptance,
+                proposal_multiplier=proposal_multiplier,
+                proposal_batch_rows=proposal_batch_rows,
+            )
+
+        sampled, resources = _measure(operation, accelerator=self._model.accelerator)
+        data, proposal = sampled
+        return data, proposal, resources
+
+
+def default_candidate_specs(
+    *, neural_epochs: int = 300, enable_gpu: bool = False
+) -> tuple[CandidateSpec, ...]:
     """Return the complete Community-SDV comparison set.
 
     The official 300-epoch neural default is retained. Smaller values are for
-    explicit smoke tests only and remain visible in every receipt.
+    explicit smoke tests only and remain visible in every receipt. ``enable_gpu``
+    is strict: requesting it requires a working CUDA runtime and the fitted SDV
+    neural model must prove that it selected that CUDA device.
     """
 
     if neural_epochs < 1:
         raise ValueError("neural_epochs must be positive")
+    if type(enable_gpu) is not bool:
+        raise ValueError("enable_gpu must be boolean")
     shared = {"enforce_min_max_values": True, "enforce_rounding": True}
     return (
         CandidateSpec("empirical", {}),
         CandidateSpec("gaussian_copula", shared),
         CandidateSpec(
             "ctgan",
-            {**shared, "epochs": neural_epochs, "enable_gpu": False, "verbose": False},
+            {**shared, "epochs": neural_epochs, "enable_gpu": enable_gpu, "verbose": False},
         ),
         CandidateSpec(
             "tvae",
-            {**shared, "epochs": neural_epochs, "enable_gpu": False, "verbose": False},
+            {**shared, "epochs": neural_epochs, "enable_gpu": enable_gpu, "verbose": False},
         ),
     )
 
@@ -578,6 +762,35 @@ def _implementation_receipt() -> dict[str, str]:
     return {name: sha256_file(path) for name, path in sorted(paths.items())}
 
 
+def _torch_environment_receipt() -> dict[str, Any]:
+    torch = import_module("torch")
+    cuda_available = bool(torch.cuda.is_available())
+    device_count = int(torch.cuda.device_count())
+    if cuda_available != (device_count > 0):
+        raise SdvBenchmarkError("Torch reports inconsistent CUDA availability/device count")
+    devices = []
+    if cuda_available:
+        for index in range(device_count):
+            properties = torch.cuda.get_device_properties(index)
+            devices.append(
+                {
+                    "index": index,
+                    "name": str(properties.name),
+                    "capability": list(torch.cuda.get_device_capability(index)),
+                    "total_memory_bytes": int(properties.total_memory),
+                }
+            )
+    return {
+        "torch_version": str(torch.__version__),
+        "torch_cuda_version": (str(torch.version.cuda) if torch.version.cuda is not None else None),
+        "cuda_available": cuda_available,
+        "cuda_device_count": device_count,
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "current_cuda_device": int(torch.cuda.current_device()) if cuda_available else None,
+        "devices": devices,
+    }
+
+
 def _environment_receipt() -> dict[str, Any]:
     return {
         "python": platform.python_version(),
@@ -585,7 +798,57 @@ def _environment_receipt() -> dict[str, Any]:
             package: version(package)
             for package in ("numpy", "pandas", "sdmetrics", "sdv", "torch")
         },
+        "torch_cuda": _torch_environment_receipt(),
     }
+
+
+def preflight_sdv_accelerator(*, enable_gpu: bool) -> AcceleratorSelection:
+    """Resolve the SDV Torch device, failing before fit when CUDA was requested.
+
+    CTGAN 0.12.1 silently selects CPU when ``enable_gpu=True`` but CUDA is not
+    available. The benchmark contract does not permit that fallback: a GPU arm
+    is either proven to run on the selected CUDA device or it fails.
+    """
+
+    if type(enable_gpu) is not bool:
+        raise ValueError("enable_gpu must be boolean")
+    runtime = _torch_environment_receipt()
+    if enable_gpu and (
+        runtime["torch_cuda_version"] is None
+        or not runtime["cuda_available"]
+        or runtime["cuda_device_count"] < 1
+    ):
+        raise SdvBenchmarkError(
+            "enable_gpu=True requires a CUDA-built Torch runtime with a visible CUDA device"
+        )
+    if not enable_gpu:
+        return AcceleratorSelection(
+            enable_gpu=False,
+            torch_version=runtime["torch_version"],
+            torch_cuda_version=runtime["torch_cuda_version"],
+            cuda_available=runtime["cuda_available"],
+            cuda_device_count=runtime["cuda_device_count"],
+            device="cpu",
+            device_name=None,
+            device_capability=None,
+            device_total_memory_bytes=None,
+        )
+
+    device_index = runtime["current_cuda_device"]
+    if type(device_index) is not int or not 0 <= device_index < runtime["cuda_device_count"]:
+        raise SdvBenchmarkError("Torch returned an invalid current CUDA device")
+    device = runtime["devices"][device_index]
+    return AcceleratorSelection(
+        enable_gpu=True,
+        torch_version=runtime["torch_version"],
+        torch_cuda_version=runtime["torch_cuda_version"],
+        cuda_available=True,
+        cuda_device_count=runtime["cuda_device_count"],
+        device=f"cuda:{device_index}",
+        device_name=device["name"],
+        device_capability=tuple(device["capability"]),
+        device_total_memory_bytes=device["total_memory_bytes"],
+    )
 
 
 def _rss_bytes() -> int:
@@ -605,11 +868,34 @@ def _peak_rss_bytes() -> int:
     return int(usage * (1 if os.uname().sysname == "Darwin" else 1024))
 
 
-def _measure(operation: Callable[[], Any]) -> tuple[Any, PhaseResources]:
+def _measure(
+    operation: Callable[[], Any], *, accelerator: AcceleratorSelection
+) -> tuple[Any, PhaseResources]:
+    torch = import_module("torch") if accelerator.enable_gpu else None
+    cuda_before: tuple[int, int] | None = None
+    if accelerator.enable_gpu:
+        assert torch is not None
+        device = torch.device(accelerator.device)
+        torch.cuda.synchronize(device)
+        torch.cuda.reset_peak_memory_stats(device)
+        cuda_before = (
+            int(torch.cuda.memory_allocated(device)),
+            int(torch.cuda.memory_reserved(device)),
+        )
     rss_before = _rss_bytes()
     peak_before = _peak_rss_bytes()
     started = time.perf_counter()
     result = operation()
+    cuda_after: tuple[int, int, int, int] | None = None
+    if accelerator.enable_gpu:
+        assert torch is not None
+        torch.cuda.synchronize(device)
+        cuda_after = (
+            int(torch.cuda.memory_allocated(device)),
+            int(torch.cuda.memory_reserved(device)),
+            int(torch.cuda.max_memory_allocated(device)),
+            int(torch.cuda.max_memory_reserved(device)),
+        )
     elapsed = time.perf_counter() - started
     receipt = PhaseResources(
         elapsed_seconds=elapsed,
@@ -617,33 +903,59 @@ def _measure(operation: Callable[[], Any]) -> tuple[Any, PhaseResources]:
         rss_after_bytes=_rss_bytes(),
         peak_rss_before_bytes=peak_before,
         peak_rss_after_bytes=_peak_rss_bytes(),
+        accelerator=accelerator,
+        cuda_allocated_before_bytes=(cuda_before[0] if cuda_before is not None else None),
+        cuda_allocated_after_bytes=(cuda_after[0] if cuda_after is not None else None),
+        cuda_reserved_before_bytes=(cuda_before[1] if cuda_before is not None else None),
+        cuda_reserved_after_bytes=(cuda_after[1] if cuda_after is not None else None),
+        cuda_peak_allocated_bytes=(cuda_after[2] if cuda_after is not None else None),
+        cuda_peak_reserved_bytes=(cuda_after[3] if cuda_after is not None else None),
     )
     return result, receipt
 
 
 @contextlib.contextmanager
-def _seeded_fit_runtime(seed: int) -> Any:
+def _seeded_fit_runtime(seed: int, *, accelerator: AcceleratorSelection) -> Any:
     """Isolate Python, NumPy, and Torch state used while an SDV model fits."""
 
     numpy = import_module("numpy")
-    torch = import_module("torch")
+    try:
+        torch = import_module("torch")
+    except ModuleNotFoundError as error:
+        if error.name != "torch" or accelerator.enable_gpu:
+            raise
+        torch = None
     python_state = random.getstate()
     numpy_state = numpy.random.get_state()
-    torch_state = torch.random.get_rng_state()
+    torch_state = torch.random.get_rng_state() if torch is not None else None
+    cuda_states = (
+        torch.cuda.get_rng_state_all()
+        if torch is not None and accelerator.enable_gpu
+        else None
+    )
     random.seed(seed)
     numpy.random.seed(seed)
-    torch.manual_seed(seed)
+    if torch is not None:
+        torch.manual_seed(seed)
+    if accelerator.enable_gpu:
+        assert torch is not None
+        torch.cuda.manual_seed_all(seed)
     try:
         yield
     finally:
         random.setstate(python_state)
         numpy.random.set_state(numpy_state)
-        torch.random.set_rng_state(torch_state)
+        if torch is not None and torch_state is not None:
+            torch.random.set_rng_state(torch_state)
+        if cuda_states is not None:
+            assert torch is not None
+            torch.cuda.set_rng_state_all(cuda_states)
 
 
 class _EmpiricalSynthesizer:
-    def __init__(self) -> None:
+    def __init__(self, *, accelerator: AcceleratorSelection) -> None:
         self._data: Any | None = None
+        self.accelerator = accelerator
 
     def fit(self, data: Any) -> None:
         self._data = data.copy(deep=True).reset_index(drop=True)
@@ -678,11 +990,82 @@ class _EmpiricalSynthesizer:
 
 
 class _SdvSynthesizer:
-    def __init__(self, synthesizer: Any) -> None:
+    def __init__(
+        self,
+        synthesizer: Any,
+        *,
+        candidate: CandidateName,
+        accelerator: AcceleratorSelection,
+        fitted: bool = False,
+    ) -> None:
         self._synthesizer = synthesizer
+        self._candidate = candidate
+        self.accelerator = accelerator
+        if fitted:
+            self._place_loaded_neural_model()
 
     def fit(self, data: Any) -> None:
         self._synthesizer.fit(data)
+        self._verify_neural_device()
+
+    def _neural_model(self) -> Any:
+        model = getattr(self._synthesizer, "_model", None)
+        if model is None:
+            raise SdvBenchmarkError(
+                f"fitted {self._candidate} synthesizer has no auditable underlying model"
+            )
+        return model
+
+    def _actual_device(self) -> str:
+        device_value = getattr(self._neural_model(), "_device", None)
+        if device_value is None:
+            raise SdvBenchmarkError(
+                f"fitted {self._candidate} model exposes no selected Torch device"
+            )
+        device = str(device_value)
+        if device == "cpu":
+            return device
+        if device == "cuda":
+            torch = import_module("torch")
+            return f"cuda:{int(torch.cuda.current_device())}"
+        if device.startswith("cuda:"):
+            try:
+                index = int(device.removeprefix("cuda:"))
+            except ValueError as error:
+                raise SdvBenchmarkError(
+                    f"fitted {self._candidate} model exposes invalid Torch device {device!r}"
+                ) from error
+            if index < 0:
+                raise SdvBenchmarkError(
+                    f"fitted {self._candidate} model exposes invalid Torch device {device!r}"
+                )
+            return f"cuda:{index}"
+        raise SdvBenchmarkError(
+            f"fitted {self._candidate} model exposes unsupported Torch device {device!r}"
+        )
+
+    def _verify_neural_device(self) -> None:
+        if self._candidate not in {"ctgan", "tvae"}:
+            return
+        actual = self._actual_device()
+        if actual != self.accelerator.device:
+            raise SdvBenchmarkError(
+                f"{self._candidate} selected {actual}, expected audited device "
+                f"{self.accelerator.device}"
+            )
+
+    def _place_loaded_neural_model(self) -> None:
+        if self._candidate not in {"ctgan", "tvae"}:
+            return
+        torch = import_module("torch")
+        model = self._neural_model()
+        setter = getattr(model, "set_device", None)
+        if not callable(setter):
+            raise SdvBenchmarkError(
+                f"loaded {self._candidate} model cannot be placed on its audited device"
+            )
+        setter(torch.device(self.accelerator.device))
+        self._verify_neural_device()
 
     def sample_seeded(self, num_rows: int, seed: int) -> Any:
         # SDV 1.38.2 exposes deterministic reset_sampling publicly, but not a
@@ -700,9 +1083,28 @@ class _SdvSynthesizer:
         self._synthesizer.save(filepath=str(path))
 
 
-def _create_model(spec: CandidateSpec, metadata: Mapping[str, Any]) -> Any:
+def _candidate_enable_gpu(spec: CandidateSpec) -> bool:
+    if spec.name not in {"ctgan", "tvae"}:
+        return False
+    value = spec.parameters["enable_gpu"]
+    if type(value) is not bool:
+        raise SdvBenchmarkError(f"candidate {spec.name} enable_gpu is not boolean")
+    return value
+
+
+def _create_model(
+    spec: CandidateSpec,
+    metadata: Mapping[str, Any],
+    *,
+    accelerator: AcceleratorSelection,
+) -> Any:
+    requested_gpu = _candidate_enable_gpu(spec)
+    if accelerator.enable_gpu != requested_gpu:
+        raise SdvBenchmarkError(
+            f"candidate {spec.name} accelerator preflight differs from enable_gpu"
+        )
     if spec.name == "empirical":
-        return _EmpiricalSynthesizer()
+        return _EmpiricalSynthesizer(accelerator=accelerator)
     metadata_class = import_module("sdv.metadata").Metadata
     sdv_metadata = metadata_class.load_from_dict(dict(metadata))
     candidates = import_module("sdv.single_table")
@@ -718,7 +1120,11 @@ def _create_model(spec: CandidateSpec, metadata: Mapping[str, Any]) -> Any:
         raise SdvBenchmarkError(
             f"invalid {spec.name} parameters for pinned SDV: {error}"
         ) from error
-    return _SdvSynthesizer(synthesizer)
+    return _SdvSynthesizer(
+        synthesizer,
+        candidate=spec.name,
+        accelerator=accelerator,
+    )
 
 
 def _validate_metadata(view: BenchmarkView) -> None:
@@ -901,6 +1307,12 @@ def _nonnegative_int(value: Any, *, label: str) -> int:
     return value
 
 
+def _nullable_nonnegative_int(value: Any, *, label: str) -> int | None:
+    if value is None:
+        return None
+    return _nonnegative_int(value, label=label)
+
+
 def _relative_artifact_path(root: Path, value: Any, *, label: str) -> Path:
     if not isinstance(value, str) or not value:
         raise SdvBenchmarkError(f"{label} path must be a non-empty string")
@@ -933,6 +1345,64 @@ def _verify_file_receipt(
     return path
 
 
+def _accelerator_from_dict(value: Any, *, label: str) -> AcceleratorSelection:
+    if not isinstance(value, dict):
+        raise SdvBenchmarkError(f"{label} is not an object")
+    _exact_keys(
+        value,
+        {
+            "enable_gpu",
+            "torch_version",
+            "torch_cuda_version",
+            "cuda_available",
+            "cuda_device_count",
+            "device",
+            "device_name",
+            "device_capability",
+            "device_total_memory_bytes",
+        },
+        label=label,
+    )
+    if type(value["enable_gpu"]) is not bool or type(value["cuda_available"]) is not bool:
+        raise SdvBenchmarkError(f"{label} has a non-boolean flag")
+    for key in ("torch_version", "device"):
+        if not isinstance(value[key], str) or not value[key]:
+            raise SdvBenchmarkError(f"{label}.{key} is invalid")
+    for key in ("torch_cuda_version", "device_name"):
+        if value[key] is not None and (not isinstance(value[key], str) or not value[key]):
+            raise SdvBenchmarkError(f"{label}.{key} is invalid")
+    capability_value = value["device_capability"]
+    if capability_value is None:
+        capability = None
+    elif (
+        not isinstance(capability_value, list)
+        or len(capability_value) != 2
+        or any(type(part) is not int or part < 0 for part in capability_value)
+    ):
+        raise SdvBenchmarkError(f"{label}.device_capability is invalid")
+    else:
+        capability = (capability_value[0], capability_value[1])
+    try:
+        return AcceleratorSelection(
+            enable_gpu=value["enable_gpu"],
+            torch_version=value["torch_version"],
+            torch_cuda_version=value["torch_cuda_version"],
+            cuda_available=value["cuda_available"],
+            cuda_device_count=_nonnegative_int(
+                value["cuda_device_count"], label=f"{label}.cuda_device_count"
+            ),
+            device=value["device"],
+            device_name=value["device_name"],
+            device_capability=capability,
+            device_total_memory_bytes=_nullable_nonnegative_int(
+                value["device_total_memory_bytes"],
+                label=f"{label}.device_total_memory_bytes",
+            ),
+        )
+    except ValueError as error:
+        raise SdvBenchmarkError(f"{label} is inconsistent: {error}") from error
+
+
 def _phase_resources_from_dict(value: Any, *, label: str) -> PhaseResources:
     if not isinstance(value, dict):
         raise SdvBenchmarkError(f"{label} is not an object")
@@ -945,20 +1415,57 @@ def _phase_resources_from_dict(value: Any, *, label: str) -> PhaseResources:
             "peak_rss_before_bytes",
             "peak_rss_after_bytes",
             "peak_rss_increase_bytes",
+            "accelerator",
+            "cuda_allocated_before_bytes",
+            "cuda_allocated_after_bytes",
+            "cuda_reserved_before_bytes",
+            "cuda_reserved_after_bytes",
+            "cuda_peak_allocated_bytes",
+            "cuda_peak_reserved_bytes",
         },
         label=label,
     )
-    receipt = PhaseResources(
-        elapsed_seconds=_finite_float(value["elapsed_seconds"], label=f"{label}.elapsed"),
-        rss_before_bytes=_nonnegative_int(value["rss_before_bytes"], label=f"{label}.rss_before"),
-        rss_after_bytes=_nonnegative_int(value["rss_after_bytes"], label=f"{label}.rss_after"),
-        peak_rss_before_bytes=_nonnegative_int(
-            value["peak_rss_before_bytes"], label=f"{label}.peak_before"
-        ),
-        peak_rss_after_bytes=_nonnegative_int(
-            value["peak_rss_after_bytes"], label=f"{label}.peak_after"
-        ),
-    )
+    try:
+        receipt = PhaseResources(
+            elapsed_seconds=_finite_float(value["elapsed_seconds"], label=f"{label}.elapsed"),
+            rss_before_bytes=_nonnegative_int(
+                value["rss_before_bytes"], label=f"{label}.rss_before"
+            ),
+            rss_after_bytes=_nonnegative_int(value["rss_after_bytes"], label=f"{label}.rss_after"),
+            peak_rss_before_bytes=_nonnegative_int(
+                value["peak_rss_before_bytes"], label=f"{label}.peak_before"
+            ),
+            peak_rss_after_bytes=_nonnegative_int(
+                value["peak_rss_after_bytes"], label=f"{label}.peak_after"
+            ),
+            accelerator=_accelerator_from_dict(value["accelerator"], label=f"{label}.accelerator"),
+            cuda_allocated_before_bytes=_nullable_nonnegative_int(
+                value["cuda_allocated_before_bytes"],
+                label=f"{label}.cuda_allocated_before_bytes",
+            ),
+            cuda_allocated_after_bytes=_nullable_nonnegative_int(
+                value["cuda_allocated_after_bytes"],
+                label=f"{label}.cuda_allocated_after_bytes",
+            ),
+            cuda_reserved_before_bytes=_nullable_nonnegative_int(
+                value["cuda_reserved_before_bytes"],
+                label=f"{label}.cuda_reserved_before_bytes",
+            ),
+            cuda_reserved_after_bytes=_nullable_nonnegative_int(
+                value["cuda_reserved_after_bytes"],
+                label=f"{label}.cuda_reserved_after_bytes",
+            ),
+            cuda_peak_allocated_bytes=_nullable_nonnegative_int(
+                value["cuda_peak_allocated_bytes"],
+                label=f"{label}.cuda_peak_allocated_bytes",
+            ),
+            cuda_peak_reserved_bytes=_nullable_nonnegative_int(
+                value["cuda_peak_reserved_bytes"],
+                label=f"{label}.cuda_peak_reserved_bytes",
+            ),
+        )
+    except ValueError as error:
+        raise SdvBenchmarkError(f"{label} is inconsistent: {error}") from error
     if value["peak_rss_increase_bytes"] != receipt.to_dict()["peak_rss_increase_bytes"]:
         raise SdvBenchmarkError(f"{label}.peak_rss_increase_bytes is inconsistent")
     return receipt
@@ -1156,7 +1663,7 @@ def _load_candidate_receipt(
         raise SdvBenchmarkError("candidate synthetic data SHA-256 is invalid")
     if value["sdv_version"] != version("sdv") or value["sdmetrics_version"] != version("sdmetrics"):
         raise SdvBenchmarkError("candidate receipt package versions differ")
-    seed_contract = "isolated_python_numpy_torch_fit_and_pinned_sdv_sample_state_v1"
+    seed_contract = SEED_CONTRACT
     if value["seed_contract"] != seed_contract:
         raise SdvBenchmarkError("candidate receipt seed contract differs")
     model_value = value["model_artifact"]
@@ -1169,6 +1676,16 @@ def _load_candidate_receipt(
         if model_value is not None
         else None
     )
+    fit_resources = _phase_resources_from_dict(value["fit"], label="candidate fit resources")
+    sample_resources = _phase_resources_from_dict(
+        value["sample"], label="candidate sample resources"
+    )
+    requested_gpu = _candidate_enable_gpu(spec)
+    if (
+        fit_resources.accelerator.enable_gpu != requested_gpu
+        or sample_resources.accelerator != fit_resources.accelerator
+    ):
+        raise SdvBenchmarkError("candidate phase accelerator receipts differ from its parameters")
     return CandidateRunReceipt(
         candidate=spec.name,
         parameters=spec.parameters,
@@ -1179,8 +1696,8 @@ def _load_candidate_receipt(
         train_data_sha256=value["train_data_sha256"],
         validation_data_sha256=value["validation_data_sha256"],
         synthetic_data_sha256=synthetic_digest,
-        fit=_phase_resources_from_dict(value["fit"], label="candidate fit resources"),
-        sample=_phase_resources_from_dict(value["sample"], label="candidate sample resources"),
+        fit=fit_resources,
+        sample=sample_resources,
         proposal=_proposal_from_dict(value["proposal"], requested_rows=len(validation_data)),
         evaluation=_evaluation_from_dict(value["evaluation"]),
         model_artifact=model_artifact,
@@ -1270,6 +1787,7 @@ def _load_selected_model_receipt(
     view: BenchmarkView,
     selection: ModelSelection,
     settings: BenchmarkSettings,
+    selected_spec: CandidateSpec,
 ) -> SelectedModelReceipt | None:
     if not settings.fit_selected_model:
         if value is not None:
@@ -1298,11 +1816,16 @@ def _load_selected_model_receipt(
     )
     if artifact.serialization != expected_serialization:
         raise SdvBenchmarkError("selected model serialization differs from its candidate")
+    fit_resources = _phase_resources_from_dict(value["fit"], label="selected model fit resources")
+    if fit_resources.accelerator.enable_gpu != _candidate_enable_gpu(selected_spec):
+        raise SdvBenchmarkError(
+            "selected model accelerator receipt differs from its candidate parameters"
+        )
     return SelectedModelReceipt(
         candidate=selection.selected_candidate,
         seed=min(settings.seeds),
         full_train_data_sha256=value["full_train_data_sha256"],
-        fit=_phase_resources_from_dict(value["fit"], label="selected model fit resources"),
+        fit=fit_resources,
         artifact=artifact,
     )
 
@@ -1338,6 +1861,9 @@ def _load_complete_result(
                     )
                 )
     selection = _selection_from_receipts(receipts, settings)
+    selected_spec = next(
+        candidate for candidate in candidates if candidate.name == selection.selected_candidate
+    )
     raw_result = _read_json_object(artifact_dir / "result.json", label="benchmark result")
     selected_model = _load_selected_model_receipt(
         value=raw_result.get("selected_model"),
@@ -1345,6 +1871,7 @@ def _load_complete_result(
         view=view,
         selection=selection,
         settings=settings,
+        selected_spec=selected_spec,
     )
     result = ViewBenchmarkResult(
         view_name=view.name,
@@ -1364,13 +1891,49 @@ def _load_complete_result(
 def _fit_model(
     *, spec: CandidateSpec, metadata: Mapping[str, Any], train_data: Any, seed: int
 ) -> tuple[Any, PhaseResources]:
+    accelerator = preflight_sdv_accelerator(enable_gpu=_candidate_enable_gpu(spec))
+
     def fit() -> Any:
-        with _seeded_fit_runtime(seed):
-            model = _create_model(spec, metadata)
+        with _seeded_fit_runtime(seed, accelerator=accelerator):
+            model = _create_model(spec, metadata, accelerator=accelerator)
             model.fit(train_data)
             return model
 
-    return _measure(fit)
+    return _measure(fit, accelerator=accelerator)
+
+
+def fit_candidate_model(
+    *,
+    view: BenchmarkView,
+    spec: CandidateSpec,
+    train_data: Any,
+    seed: int,
+) -> FittedCandidateModel:
+    """Fit one candidate through the harness's audited seed/device path.
+
+    This is the supported extension seam for task-specific comparative
+    benchmarks.  It deliberately does not select or persist a model.
+    """
+
+    if seed < 0 or seed >= 2**32:
+        raise ValueError("candidate fit seed must be a uint32 value")
+    if len(train_data) < 2:
+        raise ValueError("candidate fit requires at least two training rows")
+    if list(train_data.columns) != list(view.data.columns):
+        raise ValueError("candidate fit columns differ from or reorder the benchmark view")
+    _validate_metadata(view)
+    model, resources = _fit_model(
+        spec=spec,
+        metadata=view.metadata,
+        train_data=train_data,
+        seed=seed,
+    )
+    return FittedCandidateModel(
+        candidate=spec.name,
+        parameters=spec.parameters,
+        fit=resources,
+        _model=model,
+    )
 
 
 def _candidate_run(
@@ -1420,7 +1983,7 @@ def _candidate_run(
             proposal_batch_rows=settings.proposal_batch_rows,
         )
 
-    sampled, sample_resources = _measure(sample)
+    sampled, sample_resources = _measure(sample, accelerator=model.accelerator)
     synthetic_data, proposal = sampled
     evaluation = evaluate_single_table(
         real_data=validation_data,
@@ -1450,7 +2013,7 @@ def _candidate_run(
         model_artifact=model_artifact,
         sdv_version=version("sdv"),
         sdmetrics_version=version("sdmetrics"),
-        seed_contract="isolated_python_numpy_torch_fit_and_pinned_sdv_sample_state_v1",
+        seed_contract=SEED_CONTRACT,
     )
 
 
@@ -1723,7 +2286,12 @@ def run_view_benchmark(
     return result
 
 
-def _load_empirical_model(path: Path, *, expected_columns: Sequence[str]) -> _EmpiricalSynthesizer:
+def _load_empirical_model(
+    path: Path,
+    *,
+    expected_columns: Sequence[str],
+    accelerator: AcceleratorSelection,
+) -> _EmpiricalSynthesizer:
     value = _read_json_object(path, label="empirical selected model")
     _exact_keys(
         value,
@@ -1751,7 +2319,7 @@ def _load_empirical_model(path: Path, *, expected_columns: Sequence[str]) -> _Em
         data = data.astype(dict(zip(expected_columns, dtypes, strict=True)))
     except (TypeError, ValueError) as error:
         raise SdvBenchmarkError("empirical selected model dtypes cannot be restored") from error
-    model = _EmpiricalSynthesizer()
+    model = _EmpiricalSynthesizer(accelerator=accelerator)
     model.fit(data)
     return model
 
@@ -1779,6 +2347,24 @@ def load_selected_model(artifact_dir: Path) -> LoadedSelectedModel:
     contract = _read_json_object(
         artifact_dir / "benchmark-contract.json", label="benchmark contract"
     )
+    candidate_values = contract.get("candidates")
+    if not isinstance(candidate_values, list):
+        raise SdvBenchmarkError("benchmark contract has no candidate specifications")
+    matching_candidates = [
+        value
+        for value in candidate_values
+        if isinstance(value, dict) and value.get("name") == candidate
+    ]
+    if len(matching_candidates) != 1 or set(matching_candidates[0]) != {
+        "name",
+        "parameters",
+    }:
+        raise SdvBenchmarkError("benchmark contract has no unique selected candidate")
+    try:
+        selected_spec = CandidateSpec(candidate, matching_candidates[0]["parameters"])
+    except (TypeError, ValueError) as error:
+        raise SdvBenchmarkError("selected candidate specification is invalid") from error
+    accelerator = preflight_sdv_accelerator(enable_gpu=_candidate_enable_gpu(selected_spec))
     tables = metadata.get("tables")
     if not isinstance(tables, dict) or set(tables) != {view_name}:
         raise SdvBenchmarkError("benchmark metadata does not describe its selected view")
@@ -1801,14 +2387,23 @@ def load_selected_model(artifact_dir: Path) -> LoadedSelectedModel:
     if artifact.serialization == "empirical_bootstrap_model_v1":
         if candidate != "empirical":
             raise SdvBenchmarkError("empirical serialization belongs to a non-empirical candidate")
-        model: Any = _load_empirical_model(model_path, expected_columns=columns)
+        model: Any = _load_empirical_model(
+            model_path,
+            expected_columns=columns,
+            accelerator=accelerator,
+        )
     elif artifact.serialization == "sdv_pickle_executable_version_pinned_v1":
         if candidate == "empirical":
             raise SdvBenchmarkError("SDV pickle belongs to the empirical candidate")
         if version("sdv") != manifest["sdv_version"]:
             raise SdvBenchmarkError("installed SDV differs from the model manifest")
         synthesizer = import_module("sdv.utils").load_synthesizer(filepath=str(model_path))
-        model = _SdvSynthesizer(synthesizer)
+        model = _SdvSynthesizer(
+            synthesizer,
+            candidate=selected_spec.name,
+            accelerator=accelerator,
+            fitted=True,
+        )
     else:
         raise SdvBenchmarkError("unsupported selected model serialization")
     return LoadedSelectedModel(

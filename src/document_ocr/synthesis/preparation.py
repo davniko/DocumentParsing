@@ -144,10 +144,15 @@ def _normal_path_aliases(
         for row in cast(Sequence[Mapping[str, Any]], annotation.get("evidence", []))
     }
     aliases: dict[str, str] = {}
-    annotation_normal = annotation.get("normalLabel") or annotation.get("label")
-    annotation_patch = (
-        annotation_normal.get("documentPatch", {}) if isinstance(annotation_normal, dict) else {}
-    )
+    normal_fields = tuple(field for field in ("normalLabel", "label") if field in annotation)
+    if len(normal_fields) != 1:
+        raise ValueError("annotation must contain exactly one source-schema normal-label field")
+    annotation_normal = annotation[normal_fields[0]]
+    if not isinstance(annotation_normal, dict):
+        raise ValueError("annotation normal-label field must be an object")
+    annotation_patch = annotation_normal.get("documentPatch", {})
+    if not isinstance(annotation_patch, dict):
+        raise ValueError("annotation normal label has a malformed documentPatch")
     for index, container in enumerate(annotation_patch.get("containers") or []):
         description_path = f"documentPatch.containers[{index}].typeDescription"
         code_path = f"documentPatch.containers[{index}].typeCode"

@@ -327,9 +327,9 @@ def _registry() -> dict[str, FieldPolicy]:
     )
     add(
         "documentPatch.cargoGroups[].handlingInstructions[]",
-        "resample",
-        "pending_registry",
-        "controlled_handling_catalog_v1",
+        "pending_linguistic",
+        "pending_linguistic",
+        "cargo_handling_text_conditioned_on_goods_and_route_v1",
         "cargo_semantics",
     )
     add(

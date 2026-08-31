@@ -195,6 +195,28 @@ services:
       - .:/workspace
     command: [--help]
 
+  synthesis-tools-cuda:
+    profiles: [synthesis-cuda]
+    build:
+      context: .
+      dockerfile: docker/synthesis/Dockerfile.cuda
+    image: document-ocr/kie-synthesis:sdv1.38.2-torch2.13.0-cuda13.0
+    working_dir: /workspace
+    shm_size: 4gb
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PYTORCH_ALLOC_CONF: expandable_segments:True
+    volumes:
+      - .:/workspace
+    command: [--help]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
 volumes:
   hf-cache:
   vllm-cache:

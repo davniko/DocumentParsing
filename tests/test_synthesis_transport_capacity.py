@@ -38,21 +38,22 @@ def _target(
     }
 
 
-def test_printed_equipment_aliases_resolve_to_supported_capacity_families() -> None:
-    assert classify_equipment({"typeDescription": "20ST"}) == "twenty_standard"
-    assert classify_equipment({"typeDescription": "DC 20"}) == "twenty_standard"
-    assert classify_equipment({"typeDescription": "40'"}) == "forty_standard"
-    assert classify_equipment({"typeDescription": "40 DRY 9'6"}) == "forty_high_cube"
-    assert classify_equipment({"typeDescription": "40HQ"}) == "forty_high_cube"
+def test_only_exact_iso_size_type_codes_resolve_to_capacity_families() -> None:
+    assert classify_equipment({"typeCode": "22G1"}) == "twenty_standard"
+    assert classify_equipment({"typeCode": "42G1"}) == "forty_standard"
     assert classify_equipment({"typeCode": "45G1"}) == "forty_high_cube"
-    assert classify_equipment({"typeDescription": "1 X 45HC"}) == "forty_five_high_cube"
-    assert classify_equipment({"typeDescription": "40 FLAT RACK"}) == "out_of_gauge"
+    assert classify_equipment({"typeCode": "L5G1"}) == "forty_five_high_cube"
+    assert classify_equipment({"typeCode": "42P1"}) == "out_of_gauge"
+    assert classify_equipment({"typeDescription": "45G1"}) == "forty_high_cube"
+    assert classify_equipment({"typeDescription": "40HQ"}) == "unclassified"
+    assert classify_equipment({"typeDescription": "MERCHANT HC LTD"}) == "unclassified"
+    assert classify_equipment({"typeDescription": "PART 96"}) == "unclassified"
     assert classify_equipment({"typeDescription": "CTNR"}) == "unclassified"
 
 
 def test_document_capacity_is_decimal_exact_at_boundary_and_rejects_excess() -> None:
     target = _target(
-        containers=[{"containerNumber": "MSCU0000000", "typeDescription": "20ST"}],
+        containers=[{"containerNumber": "MSCU0000000", "typeCode": "22G1"}],
         groups=[
             {
                 "groupId": "g1",
@@ -76,8 +77,7 @@ def test_document_capacity_is_decimal_exact_at_boundary_and_rejects_excess() -> 
 def test_five_twenty_foot_regression_is_rejected_for_mass_and_volume() -> None:
     target = _target(
         containers=[
-            {"containerNumber": f"MSCU00000{index}0", "typeDescription": "20ST"}
-            for index in range(5)
+            {"containerNumber": f"MSCU00000{index}0", "typeCode": "22G1"} for index in range(5)
         ],
         groups=[
             {
@@ -104,7 +104,7 @@ def test_five_twenty_foot_regression_is_rejected_for_mass_and_volume() -> None:
 
 def test_minor_type_specific_excess_is_not_a_severe_numeric_fit_anomaly() -> None:
     target = _target(
-        containers=[{"containerNumber": "MSCU0000000", "typeDescription": "40HC"}],
+        containers=[{"containerNumber": "MSCU0000000", "typeCode": "45G1"}],
         groups=[
             {
                 "groupId": "g1",
@@ -141,8 +141,8 @@ def test_non_containerized_breakbulk_is_explicitly_not_capacity_constrained() ->
 def test_group_budgets_preserve_document_capacity_and_tighten_explicit_links() -> None:
     target = _target(
         containers=[
-            {"containerNumber": "MSCU0000000", "typeDescription": "20ST"},
-            {"containerNumber": "MSCU0000018", "typeDescription": "40HC"},
+            {"containerNumber": "MSCU0000000", "typeCode": "22G1"},
+            {"containerNumber": "MSCU0000018", "typeCode": "45G1"},
         ],
         groups=[
             {"groupId": "g1", "grossWeight": {"value": 10000, "unit": "kilogram"}},
@@ -172,7 +172,7 @@ def test_vgm_is_not_mistaken_for_cargo_mass_and_oog_volume_is_receipted_unbounde
         containers=[
             {
                 "containerNumber": "MSCU0000000",
-                "typeDescription": "40 FLAT RACK",
+                "typeCode": "42P1",
                 "verifiedGrossMass": {"value": 999999, "unit": "kilogram"},
             }
         ],

@@ -36,6 +36,9 @@ inputs:
   partition_report:
     path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
     sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
   category_metadata:
     path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/category-metadata.jsonl
     sha256: 7739f2dab15bd5a1e402922bd47d05b3db0a0b004519077a95ce49225d093743

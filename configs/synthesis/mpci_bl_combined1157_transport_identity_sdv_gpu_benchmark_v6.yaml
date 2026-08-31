@@ -1,0 +1,52 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined1157-transport-identity-sdv-gpu-benchmark-v6
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  preparation_root: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3
+  preparation_manifest:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3/manifest.json
+    sha256: 42cd4a9be6f9b907d6c98dbc29315262934b54484e15196611b0a984de2e14e7
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: f37ef3707007a97742cda7ff9b23318716b67e5435d2a4f5e4247ef128b9dfe5
+    records: 682
+  partition_report:
+    path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+    sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+
+selection:
+  split: train
+  require_template_wholly_in_split: true
+
+modeling:
+  candidates:
+    - empirical
+    - gaussian_copula
+    - ctgan
+    - tvae
+  fold_count: 3
+  fold_seed: 20260831
+  seeds:
+    - 20260831
+  neural_epochs: 300
+  neural_batch_size: 200
+  proposal_multiplier: 8
+  proposal_batch_rows: 4096
+  quality_margin: 0.01
+  stability_penalty: 0.25
+  example_rows_per_candidate: 50
+  production_pilot_rows: 50
+  lexical_ngram_orders:
+    - 2
+    - 3
+    - 4
+  lexical_quality_margin: 0.01
+  lexical_stability_penalty: 0.25
+
+privacy:
+  minimum_normalized_edit_distance: 0.20
+  maximum_attempts: 512

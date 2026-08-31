@@ -62,10 +62,10 @@ def test_field_policy_is_exhaustive_over_real_1157_target_contract() -> None:
         "policy_derive": 62,
         "policy_forbidden": 6,
         "policy_legitimately_absent": 11,
-        "policy_pending_linguistic": 9,
+        "policy_pending_linguistic": 10,
         "policy_preserve_nonidentifying": 8,
         "policy_regenerate": 15,
-        "policy_resample": 20,
+        "policy_resample": 19,
     }
 
 

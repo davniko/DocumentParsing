@@ -1,10 +1,12 @@
 """Type-aware transport-capacity gates for structured B/L synthesis.
 
 The task labels preserve carrier-written equipment descriptions rather than a
-normalized equipment code.  This module therefore classifies only the
-well-supported size families needed to apply conservative upper bounds.  An
-unrecognized container remains explicit and receives the configured absolute
-equipment ceiling; it is never silently treated as a standard dry box.
+normalized equipment code.  Free-text shorthands are therefore never mapped to
+equipment families here.  Classification is restricted to an exact four-byte
+ISO 6346 size/type code present in ``typeCode`` or, when that field is absent,
+an exact code-only ``typeDescription``.  An unrecognized container remains
+explicit and receives the configured absolute equipment ceiling; it is never
+silently treated as a standard dry box.
 
 The default values are configured by the run.  The reference configuration is
 based on Maersk's published dry-equipment cargo limits (20 standard, 40
@@ -166,49 +168,44 @@ class TransportCapacityReceipt:
         }
 
 
-def _equipment_surface(container: Mapping[str, Any]) -> str:
-    parts = [
-        value
-        for field in ("typeCategory", "typeDescription", "typeCode")
-        if isinstance((value := container.get(field)), str) and value.strip()
-    ]
-    return " ".join(parts).upper()
+# Conservative subset of ISO 6346:2022 detailed type-code characters published
+# by BIC. Group codes (for example GP) are intentionally left unclassified;
+# accepting fewer codes only loosens this safety gate, whereas accepting an
+# invalid shorthand could apply the wrong equipment ceiling.
+_ISO_DETAILED_SIZE_TYPE_CODE = re.compile(r"^[A-Z0-9]{2}[GVBSRHUPKNA][0-9ABDGJMVWXY]$")
+
+
+def _exact_iso_size_type_code(container: Mapping[str, Any]) -> str | None:
+    type_code = container.get("typeCode")
+    if type_code is not None:
+        if not isinstance(type_code, str):
+            return None
+        candidate = type_code.strip().upper()
+        return candidate if _ISO_DETAILED_SIZE_TYPE_CODE.fullmatch(candidate) else None
+    description = container.get("typeDescription")
+    if not isinstance(description, str):
+        return None
+    candidate = description.strip().upper()
+    return candidate if _ISO_DETAILED_SIZE_TYPE_CODE.fullmatch(candidate) else None
 
 
 def classify_equipment(container: Mapping[str, Any]) -> EquipmentFamily:
-    """Classify supported size families from printed descriptions or ISO size/type codes."""
+    """Classify only exact ISO 6346 size/type codes; free text stays unclassified."""
 
-    surface = _equipment_surface(container)
-    normalized = re.sub(r"[^A-Z0-9]+", " ", surface).strip()
-    compact = normalized.replace(" ", "")
-    if not compact:
+    code = _exact_iso_size_type_code(container)
+    if code is None:
         return "unclassified"
-    if any(token in compact for token in ("FLATRACK", "OPENTOP")) or re.search(
-        r"(?:^|[^A-Z])FR(?:[^A-Z]|$)", normalized
-    ):
+    length_code, height_code, type_code = code[0], code[1], code[2]
+    if type_code in {"P", "U"}:
         return "out_of_gauge"
-
-    # ISO 6346 size/type codes commonly appear as 22G1, 42G1, or 45G1.
-    iso_code = re.search(r"(?:^|\s)([24L])([025])?[A-Z][0-9](?:\s|$)", normalized)
-    iso_only = bool(re.fullmatch(r"[24L][025]?[A-Z][0-9]", normalized))
-    has_20 = bool(re.search(r"(?<!\d)20(?!\d)", compact)) or bool(
-        iso_code and iso_code.group(1) == "2"
-    )
-    has_45 = (not iso_only and bool(re.search(r"(?<!\d)45(?!\d)", compact))) or bool(
-        iso_code and iso_code.group(1) == "L"
-    )
-    has_40 = bool(re.search(r"(?<!\d)40(?!\d)", compact)) or bool(
-        iso_code and iso_code.group(1) == "4"
-    )
-    high_cube = any(
-        token in compact for token in ("HIGHCUBE", "HC", "HQ", "RH", "9FT6", "96")
-    ) or bool(iso_code and iso_code.group(1) == "4" and iso_code.group(2) == "5")
-    if has_45:
+    if length_code == "L" and height_code == "5":
         return "forty_five_high_cube"
-    if has_20:
+    if length_code == "2" and height_code in {"0", "2"}:
         return "twenty_standard"
-    if has_40:
-        return "forty_high_cube" if high_cube else "forty_standard"
+    if length_code == "4" and height_code == "5":
+        return "forty_high_cube"
+    if length_code == "4" and height_code in {"0", "2"}:
+        return "forty_standard"
     return "unclassified"
 
 

@@ -35,7 +35,7 @@ Locode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}[A-Z0-9]{3}$")]
 FunctionCode = Annotated[str, StringConstraints(pattern=r"^[1-7B]$")]
 NonNegativeWeight = Annotated[
     Decimal,
-    Field(ge=0, max_digits=30, decimal_places=6, allow_inf_nan=False),
+    Field(ge=0, max_digits=35, decimal_places=11, allow_inf_nan=False),
 ]
 FlowWeightField = Literal["trade_value", "net_mass"]
 

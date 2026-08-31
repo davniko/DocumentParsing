@@ -7,9 +7,12 @@ import json
 from pathlib import Path
 
 from document_ocr.synthesis.config import (
+    load_synthesis_controlled_pilot_config,
     load_synthesis_deterministic_smoke_config,
     load_synthesis_foundation_config,
+    load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
+    load_synthesis_route_scenario_pilot_config,
     load_synthesis_structured_baseline_config,
 )
 from document_ocr.synthesis.pipeline import prepare_synthesis_foundation
@@ -28,6 +31,12 @@ def main() -> None:
         "run-deterministic-smoke",
         "validate-structured-baseline-config",
         "run-structured-baseline",
+        "validate-route-scenario-pilot-config",
+        "run-route-scenario-pilot",
+        "validate-party-structure-benchmark-config",
+        "run-party-structure-benchmark",
+        "validate-controlled-pilot-config",
+        "run-controlled-pilot",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -41,6 +50,21 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-controlled-pilot-config",
+            "run-controlled-pilot",
+        }:
+            controlled_config = load_synthesis_controlled_pilot_config(config_path)
+        elif arguments.command in {
+            "validate-party-structure-benchmark-config",
+            "run-party-structure-benchmark",
+        }:
+            party_benchmark_config = load_synthesis_party_structure_benchmark_config(config_path)
+        elif arguments.command in {
+            "validate-route-scenario-pilot-config",
+            "run-route-scenario-pilot",
+        }:
+            route_scenario_config = load_synthesis_route_scenario_pilot_config(config_path)
+        elif arguments.command in {
             "validate-structured-baseline-config",
             "run-structured-baseline",
         }:
@@ -54,7 +78,34 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-structured-baseline-config":
+        if arguments.command == "validate-controlled-pilot-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": controlled_config.run.run_id,
+                "requested_documents": controlled_config.selection.requested_documents,
+                "vessel_name_method": controlled_config.generation.transport.vessel_name_method,
+                "voyage_number_method": (
+                    controlled_config.generation.transport.voyage_number_method
+                ),
+            }
+        elif arguments.command == "validate-party-structure-benchmark-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": party_benchmark_config.run.run_id,
+                "scope": party_benchmark_config.modeling.scope,
+                "candidates": list(party_benchmark_config.modeling.candidates),
+            }
+        elif arguments.command == "validate-route-scenario-pilot-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": route_scenario_config.run.run_id,
+                "requested_documents": route_scenario_config.selection.requested_documents,
+                "direct_routes_only": route_scenario_config.generation.direct_routes_only,
+            }
+        elif arguments.command == "validate-structured-baseline-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -79,6 +130,46 @@ def main() -> None:
                 "command": arguments.command,
                 "status": "valid",
                 "run_id": foundation_config.run.run_id,
+            }
+        elif arguments.command == "run-controlled-pilot":
+            from document_ocr.synthesis.controlled_generation_pipeline import (
+                run_controlled_pilot,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_controlled_pilot(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=controlled_config,
+                ),
+            }
+        elif arguments.command == "run-party-structure-benchmark":
+            from document_ocr.synthesis.scenario_benchmark_pipeline import (
+                run_party_structure_benchmark_pipeline,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_party_structure_benchmark_pipeline(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=party_benchmark_config,
+                ),
+            }
+        elif arguments.command == "run-route-scenario-pilot":
+            from document_ocr.synthesis.route_scenario_pipeline import run_route_scenario_pilot
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_route_scenario_pilot(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=route_scenario_config,
+                ),
             }
         elif arguments.command == "run-structured-baseline":
             from document_ocr.synthesis.structured_generation import run_structured_baseline

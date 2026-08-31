@@ -25,7 +25,10 @@ from document_ocr.synthesis.generators import (
     validate_container_number,
     validate_mass_order,
 )
-from document_ocr.synthesis.preparation import _resolve_recorded_artifact_file
+from document_ocr.synthesis.preparation import (
+    _normal_path_aliases,
+    _resolve_recorded_artifact_file,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATASET = (
@@ -46,6 +49,30 @@ def test_recorded_artifact_path_relocates_to_explicit_project_root(tmp_path: Pat
     assert _resolve_recorded_artifact_file(tmp_path, recorded, "annotation") == artifact
     with pytest.raises(ValueError, match="one project artifacts component"):
         _resolve_recorded_artifact_file(tmp_path, "/outside/doc.json", "annotation")
+
+
+def test_normal_path_aliases_requires_one_explicit_annotation_schema() -> None:
+    package_metadata: dict[str, object] = {
+        "groupDiagnoses": [],
+        "sourceNormalTarget": {"documentPatch": {}},
+    }
+    with pytest.raises(ValueError, match="exactly one"):
+        _normal_path_aliases(
+            annotation={"normalLabel": {}, "label": {}, "evidence": []},
+            package_metadata=package_metadata,
+        )
+    with pytest.raises(ValueError, match="exactly one"):
+        _normal_path_aliases(
+            annotation={"evidence": []},
+            package_metadata=package_metadata,
+        )
+    assert (
+        _normal_path_aliases(
+            annotation={"normalLabel": {"documentPatch": {}}, "evidence": []},
+            package_metadata=package_metadata,
+        )
+        == {}
+    )
 
 
 def test_bill_of_lading_domain_projection_inverts_all_1157_targets() -> None:
