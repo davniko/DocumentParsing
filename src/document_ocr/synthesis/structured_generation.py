@@ -469,6 +469,17 @@ def _selection_candidates(
         )
 
         patch = cast(Mapping[str, Any], source_targets[document_id]["documentPatch"])
+        route = patch.get("route")
+        parties = patch.get("parties")
+        if not isinstance(route, Mapping):
+            reasons.append("route_synthesis_missing_route")
+        else:
+            if route.get("transshipmentPort") is not None:
+                reasons.append("route_synthesis_transshipment_requires_connectivity")
+            if route.get("portOfLoading") is None or route.get("portOfDischarge") is None:
+                reasons.append("route_synthesis_missing_physical_endpoint")
+        if not isinstance(parties, Mapping) or not isinstance(parties.get("shipper"), Mapping):
+            reasons.append("route_synthesis_missing_shipper")
         packages = cast(Sequence[Mapping[str, Any]], patch.get("cargoPackages") or [])
         cargo_groups = cast(Sequence[Mapping[str, Any]], patch.get("cargoGroups") or [])
         quantified_groups = {

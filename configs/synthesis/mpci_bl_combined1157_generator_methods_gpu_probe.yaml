@@ -1,0 +1,106 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined1157-generator-methods-gpu-probe-v3
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  preparation_root: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3
+  preparation_manifest:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3/manifest.json
+    sha256: 42cd4a9be6f9b907d6c98dbc29315262934b54484e15196611b0a984de2e14e7
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: f37ef3707007a97742cda7ff9b23318716b67e5435d2a4f5e4247ef128b9dfe5
+    records: 682
+  partition_report:
+    path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+    sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  vessel_sdv_result:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-transport-identity-sdv-gpu-benchmark-v5/result.json
+    sha256: dec12bd821195e29e6e26f5bb9f2e6ec60d3ac1a410159d1bb12c576b4aba55c
+  vessel_lexical_result:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-transport-identity-sdv-gpu-benchmark-v5/lexical-renderer-comparison.json
+    sha256: 41396dd9e4bf4f2b7f485f7b050ecdf91440c73de9ba902d9a81ed924945fcda
+  party_sdv_result:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-party-structure-sdv-gpu-benchmark-v8/summary.json
+    sha256: 46889803035ff60b0574130d2e07374806cdfb53765d7d9860776329f2f3911d
+
+selection:
+  split: train
+  require_template_wholly_in_split: true
+  fold_count: 3
+  fold_seed: 20260831
+  names_per_fold: 100
+
+vessel:
+  candidates:
+    - namemaker_order2
+    - namemaker_order3
+    - namemaker_order4
+    - char_gru
+    - char_lstm
+    - mostlyai_lstm_from_scratch
+  seed: 20260831
+  proposal_multiplier: 20
+  namemaker_maximum_attempts: 5000
+  recurrent:
+    architectures:
+      - gru
+      - lstm
+    embedding_dim: 64
+    hidden_dim: 192
+    layers: 2
+    dropout: 0.15
+    batch_size: 64
+    learning_rate: 0.002
+    weight_decay: 0.0001
+    maximum_epochs: 250
+    patience: 25
+    validation_fraction: 0.15
+    temperatures:
+      - 0.8
+      - 0.9
+      - 1.0
+    top_p: 0.95
+    minimum_characters: 3
+    maximum_characters: 32
+  mostlyai:
+    model: MOSTLY_AI/LSTMFromScratch-3m
+    maximum_epochs: 100
+    maximum_training_minutes: 5.0
+    batch_size: 64
+    gradient_accumulation_steps: 1
+    temperature: 0.9
+    top_p: 0.95
+
+party:
+  model: MOSTLY_AI/Small
+  maximum_epochs: 75
+  maximum_training_minutes: 5.0
+  batch_size: 256
+  gradient_accumulation_steps: 1
+  sample_rows: 300
+  temperature: 0.9
+  top_p: 0.95
+
+hs_suffix:
+  model: MOSTLY_AI/Small
+  maximum_epochs: 50
+  maximum_training_minutes: 5.0
+  batch_size: 128
+  gradient_accumulation_steps: 1
+  sample_rows: 200
+  temperature: 0.9
+  top_p: 0.95
+
+privacy:
+  minimum_normalized_edit_distance: 0.20
+  minimum_absolute_edit_distance: 2
+  maximum_source_substring_fraction: 0.70
+  minimum_source_substring_characters: 5
+  maximum_attempts: 512
+
+publish_model_weights: false
+publish_unsafe_generated_values: false

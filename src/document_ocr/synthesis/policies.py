@@ -112,9 +112,9 @@ def _registry() -> dict[str, FieldPolicy]:
     add(
         "documentPatch.transport.vesselName",
         "resample",
-        "pending_registry",
-        "vessel_registry_entity_v1",
-        "vessel_entity",
+        "pending_linguistic",
+        "synthetic_vessel_name_realization_v1",
+        "transport_identity",
     )
     for field in ("vesselImoNumber", "vesselFlagCountry"):
         add(
@@ -335,9 +335,9 @@ def _registry() -> dict[str, FieldPolicy]:
     add(
         "documentPatch.cargoGroups[].dangerousGoods[].unNumber",
         "resample",
-        "pending_registry",
-        "dangerous_goods_registry_tuple_v1",
-        "dangerous_goods_tuple",
+        "pending_linguistic",
+        "goods_first_coherent_dangerous_goods_realization_v1",
+        "dangerous_goods_semantics",
     )
     for field in (
         "hazardCategory",
@@ -348,16 +348,16 @@ def _registry() -> dict[str, FieldPolicy]:
         add(
             f"documentPatch.cargoGroups[].dangerousGoods[].{field}",
             "derive",
-            "pending_registry",
-            "dangerous_goods_registry_tuple_v1",
-            "dangerous_goods_tuple",
+            "pending_linguistic",
+            "goods_first_coherent_dangerous_goods_realization_v1",
+            "dangerous_goods_semantics",
         )
     add(
         "documentPatch.cargoGroups[].dangerousGoods[].flashPoint.temperature.unit",
         "preserve_nonidentifying",
         "structural",
         "preserve_temperature_unit_v1",
-        "dangerous_goods_tuple",
+        "dangerous_goods_semantics",
     )
     for field in ("name", "identifier"):
         add(

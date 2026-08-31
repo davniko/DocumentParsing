@@ -13,6 +13,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
     load_synthesis_route_scenario_pilot_config,
+    load_synthesis_semantic_plan_config,
     load_synthesis_structured_baseline_config,
 )
 from document_ocr.synthesis.pipeline import prepare_synthesis_foundation
@@ -37,6 +38,8 @@ def main() -> None:
         "run-party-structure-benchmark",
         "validate-controlled-pilot-config",
         "run-controlled-pilot",
+        "validate-semantic-plan-config",
+        "run-semantic-plan",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -50,6 +53,11 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-semantic-plan-config",
+            "run-semantic-plan",
+        }:
+            semantic_plan_config = load_synthesis_semantic_plan_config(config_path)
+        elif arguments.command in {
             "validate-controlled-pilot-config",
             "run-controlled-pilot",
         }:
@@ -78,7 +86,15 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-controlled-pilot-config":
+        if arguments.command == "validate-semantic-plan-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": semantic_plan_config.run.run_id,
+                "requested_documents": (semantic_plan_config.inputs.structured_selection.records),
+                "dangerous_goods_policy": (semantic_plan_config.generation.dangerous_goods_policy),
+            }
+        elif arguments.command == "validate-controlled-pilot-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -130,6 +146,20 @@ def main() -> None:
                 "command": arguments.command,
                 "status": "valid",
                 "run_id": foundation_config.run.run_id,
+            }
+        elif arguments.command == "run-semantic-plan":
+            from document_ocr.synthesis.semantic_plan_pipeline import (
+                run_semantic_plan_pipeline,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_semantic_plan_pipeline(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=semantic_plan_config,
+                ),
             }
         elif arguments.command == "run-controlled-pilot":
             from document_ocr.synthesis.controlled_generation_pipeline import (

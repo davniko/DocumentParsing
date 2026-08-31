@@ -2,9 +2,11 @@
 
 Source labels contribute only a coarse chapter prior after their first six
 digits have been validated against the pinned HS edition.  Every generated
-identity is sampled from the compiled registry.  National extensions are a
-separate, explicit GB-only decision; source national suffixes are never copied,
-reinterpreted, padded, or truncated.
+global identity is sampled from the compiled registry.  A source field longer
+than six digits retains its exact digit length: an exact UK tariff leaf is used
+when available and selected for a GB route; otherwise a fresh, explicitly
+unregistered national suffix is generated.  Source suffixes are never copied or
+claimed to be authoritative tariff identities.
 
 Dangerous-goods status and printed OCR formatting are deliberately outside
 this module.  Neither can be inferred from an HS identity.
@@ -37,7 +39,16 @@ HsScenarioComponent = Literal[
     "fit_observed_chapter_registry_hs6",
     "registry_wide_hs6_exploration",
 ]
-HsOutputScope = Literal["global_hs6", "gb_tariff_10"]
+HsOutputScope = Literal[
+    "global_hs6",
+    "gb_tariff_10",
+    "synthetic_national_extension",
+]
+HsExtensionStatus = Literal[
+    "not_applicable_global_hs6",
+    "exact_gb_tariff_registry_leaf",
+    "synthetic_unregistered_national_suffix",
+]
 
 
 class HsScenarioPolicy(BaseModel):
@@ -53,11 +64,17 @@ class HsScenarioPolicy(BaseModel):
     observed_chapter_hs6_weighting: Literal["uniform_registry_hs6_within_selected_chapter_v1"]
     registry_hs6_weighting: Literal["uniform_registry_hs6_v1"]
     gb_tariff_leaf_weighting: Literal["uniform_registry_leaves_v1"]
+    output_length_method: Literal["preserve_source_length_exact_registry_else_random_suffix_v1"]
+    minimum_output_digits: Literal[6]
+    maximum_output_digits: Annotated[int, Field(ge=6, le=18)]
+    maximum_extension_attempts: Annotated[int, Field(gt=0)]
 
     @model_validator(mode="after")
     def mixture_is_complete(self) -> HsScenarioPolicy:
         if self.observed_chapter_mixture_permyriad + self.registry_wide_mixture_permyriad != 10_000:
             raise ValueError("HS chapter mixture weights must sum exactly to 10000")
+        if self.maximum_output_digits < self.minimum_output_digits:
+            raise ValueError("HS output digit bounds are reversed")
         return self
 
 
@@ -162,24 +179,40 @@ class HsScenario(BaseModel):
     customs_jurisdiction: IsoCountryCode
     global_identity: HsGlobalSubheading
     output_scope: HsOutputScope
-    output_code: Annotated[str, StringConstraints(pattern=r"^(?:[0-9]{6}|[0-9]{10})$")]
+    output_code: Annotated[str, StringConstraints(pattern=r"^[0-9]{6,18}$")]
+    output_digits: Annotated[int, Field(ge=6, le=18)]
+    extension_status: HsExtensionStatus
     gb_tariff_identity: UkTariffCommodity | None
     printed_surface_status: Literal["pending_text_realization"]
     dangerous_goods_status: Literal["independent_not_inferred_from_hs"]
 
     @model_validator(mode="after")
     def identity_scope_is_consistent(self) -> HsScenario:
+        if len(self.output_code) != self.output_digits:
+            raise ValueError("HS output digit count differs from its code")
         if self.output_scope == "global_hs6":
-            if self.gb_tariff_identity is not None or self.output_code != self.global_identity.code:
+            if (
+                self.gb_tariff_identity is not None
+                or self.output_code != self.global_identity.code
+                or self.extension_status != "not_applicable_global_hs6"
+            ):
                 raise ValueError("global HS scenario carries a national extension")
-        else:
+        elif self.output_scope == "gb_tariff_10":
             if self.customs_jurisdiction != "GB" or self.gb_tariff_identity is None:
                 raise ValueError("GB tariff output requires GB customs jurisdiction")
             if (
                 self.gb_tariff_identity.hs6 != self.global_identity.code
                 or self.output_code != self.gb_tariff_identity.code
+                or self.extension_status != "exact_gb_tariff_registry_leaf"
             ):
                 raise ValueError("GB tariff output is not an exact child of its global HS6")
+        elif (
+            self.gb_tariff_identity is not None
+            or self.output_digits <= 6
+            or not self.output_code.startswith(self.global_identity.code)
+            or self.extension_status != "synthetic_unregistered_national_suffix"
+        ):
+            raise ValueError("synthetic national HS extension is internally inconsistent")
         return self
 
 
@@ -316,11 +349,12 @@ def sample_hs_scenario(
     registry: UkGlobalTariffRegistry,
     policy: HsScenarioPolicy,
     customs_jurisdiction: str,
+    source_output_digits: int,
     stream: DeterministicStream,
     excluded_output_codes: Collection[str] = (),
     excluded_global_hs6: Collection[str] = (),
 ) -> HsScenario:
-    """Sample one unique exact global or GB-specific identity.
+    """Sample one unique global identity and preserve the source digit length.
 
     GB extension is decided before the global subheading is selected.  When an
     extension is requested, the eligible HS6 pool is restricted to subheadings
@@ -335,16 +369,19 @@ def sample_hs_scenario(
         raise ValueError("HS scenario support and registry receipts differ")
     if re.fullmatch(r"[A-Z]{2}", customs_jurisdiction) is None:
         raise ValueError("customs jurisdiction must be an ISO alpha-2 code")
+    if not policy.minimum_output_digits <= source_output_digits <= policy.maximum_output_digits:
+        raise ValueError("source HS output length lies outside configured bounds")
     output_exclusions = frozenset(excluded_output_codes)
     global_exclusions = frozenset(excluded_global_hs6)
-    if any(re.fullmatch(r"(?:[0-9]{6}|[0-9]{10})", value) is None for value in output_exclusions):
-        raise ValueError("excluded HS output codes must contain 6 or 10 digits")
+    if any(re.fullmatch(r"[0-9]{6,18}", value) is None for value in output_exclusions):
+        raise ValueError("excluded HS output codes must contain 6-18 digits")
     if any(re.fullmatch(r"[0-9]{6}", value) is None for value in global_exclusions):
         raise ValueError("excluded global HS identities must contain exactly 6 digits")
 
-    request_gb_extension = customs_jurisdiction == "GB" and (
-        stream.derive("gb-extension").randbelow(10_000)
-        < policy.gb_tariff_extension_permyriad
+    request_gb_extension = (
+        source_output_digits == 10
+        and customs_jurisdiction == "GB"
+        and (stream.derive("gb-extension").randbelow(10_000) < policy.gb_tariff_extension_permyriad)
     )
     component_draw = stream.derive("component").randbelow(10_000)
     if component_draw < policy.observed_chapter_mixture_permyriad:
@@ -384,9 +421,7 @@ def sample_hs_scenario(
         raise HsRegistryError(
             "HS scenario has no eligible unique identity for its sampled component and scope"
         )
-    global_code = eligible_codes[
-        stream.derive("global-hs6").randbelow(len(eligible_codes))
-    ]
+    global_code = eligible_codes[stream.derive("global-hs6").randbelow(len(eligible_codes))]
     global_identity = registry.require_global(global_code, on_date=support.on_date)
 
     gb_identity: UkTariffCommodity | None = None
@@ -400,12 +435,37 @@ def sample_hs_scenario(
             raise AssertionError("eligible GB extension code has no eligible tariff leaf")
         gb_identity = candidates[stream.derive("gb-tariff-leaf").randbelow(len(candidates))]
 
+    output_scope: HsOutputScope = "global_hs6"
+    output_code = global_identity.code
+    extension_status: HsExtensionStatus = "not_applicable_global_hs6"
+    if gb_identity is not None:
+        output_scope = "gb_tariff_10"
+        output_code = gb_identity.code
+        extension_status = "exact_gb_tariff_registry_leaf"
+    elif source_output_digits > 6:
+        suffix_digits = source_output_digits - 6
+        suffix_space = 10**suffix_digits
+        for attempt in range(policy.maximum_extension_attempts):
+            suffix = stream.derive(f"national-suffix:{attempt}").randbelow(suffix_space)
+            candidate = f"{global_identity.code}{suffix:0{suffix_digits}d}"
+            if candidate not in output_exclusions:
+                output_code = candidate
+                break
+        else:
+            raise HsRegistryError(
+                "HS national extension exhausted its configured unique proposal attempts"
+            )
+        output_scope = "synthetic_national_extension"
+        extension_status = "synthetic_unregistered_national_suffix"
+
     return HsScenario(
         component=component,
         customs_jurisdiction=customs_jurisdiction,
         global_identity=global_identity,
-        output_scope="gb_tariff_10" if gb_identity is not None else "global_hs6",
-        output_code=gb_identity.code if gb_identity is not None else global_identity.code,
+        output_scope=output_scope,
+        output_code=output_code,
+        output_digits=source_output_digits,
+        extension_status=extension_status,
         gb_tariff_identity=gb_identity,
         printed_surface_status="pending_text_realization",
         dangerous_goods_status="independent_not_inferred_from_hs",

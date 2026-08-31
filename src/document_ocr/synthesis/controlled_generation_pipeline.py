@@ -854,17 +854,20 @@ def run_controlled_pilot(
         ),
         maximum_attempts=config.generation.transport.maximum_realization_attempts,
     )
-    voyage_realizations = realize_voyage_numbers(
-        rows=expanded_transport,
-        row_ids=selected_ids,
-        stream=DeterministicStream(
-            config.generation.seed,
-            "controlled-voyage-v1",
-            config.run.run_id,
-        ),
-        guard=transport_bundle.guard,
-        policy=voyage_policy,
-    )
+    if config.generation.transport.voyage_number_method == "observed_character_class_shape_v1":
+        voyage_realizations = realize_voyage_numbers(
+            rows=expanded_transport,
+            row_ids=selected_ids,
+            stream=DeterministicStream(
+                config.generation.seed,
+                "controlled-voyage-v1",
+                config.run.run_id,
+            ),
+            guard=transport_bundle.guard,
+            policy=voyage_policy,
+        )
+    else:
+        voyage_realizations = ()
     voyage_by_document = {row.row_id: row for row in voyage_realizations}
     generated_voyages = tuple(
         row.voyage_number for row in voyage_realizations if row.voyage_number is not None
@@ -927,6 +930,7 @@ def run_controlled_pilot(
         equipment_container_row_by_identity[view_row.projection.view_row_key] = direct[0].row_key
 
     output_rows: list[dict[str, Any]] = []
+    draft_target_rows: list[dict[str, Any]] = []
     validated_draft_targets = 0
     blocker_counts: Counter[str] = Counter()
     component_coverage: dict[str, Counter[str]] = defaultdict(Counter)
@@ -936,6 +940,10 @@ def run_controlled_pilot(
     equipment_sampling_components: Counter[str] = Counter()
     hs_chapters: Counter[str] = Counter()
     hs_sampling_components: Counter[str] = Counter()
+    hs_output_lengths: Counter[int] = Counter()
+    hs_extension_statuses: Counter[str] = Counter()
+    reserved_hs_outputs = {cast(str, row["value"]) for row in tables["cargo_hs_codes"]}
+    reserved_global_hs6 = {value[:6] for value in reserved_hs_outputs}
     commercial_origins: Counter[str] = Counter()
     commercial_destinations: Counter[str] = Counter()
     freight_arrangements: Counter[str] = Counter()
@@ -1071,8 +1079,6 @@ def run_controlled_pilot(
         )
 
         hs_scenarios: list[dict[str, Any]] = []
-        used_hs_outputs_by_group: dict[str, set[str]] = defaultdict(set)
-        used_global_hs_by_group: dict[str, set[str]] = defaultdict(set)
         for source_hs in sorted(
             hs_by_document.get(document_id, ()),
             key=lambda row: (cast(str, row["cargo_group_row_id"]), cast(int, row["value_order"])),
@@ -1083,18 +1089,21 @@ def run_controlled_pilot(
                 registry=hs_registry,
                 policy=hs_policy,
                 customs_jurisdiction=cast(str, route["commercialDestinationCountryCode"]),
+                source_output_digits=len(cast(str, source_hs["value"])),
                 stream=DeterministicStream(
                     config.generation.seed,
                     "controlled-hs-v1",
                     f"{synthetic_id}:{cast(str, source_hs['cargo_group_value_id'])}",
                 ),
-                excluded_output_codes=used_hs_outputs_by_group[group_id],
-                excluded_global_hs6=used_global_hs_by_group[group_id],
+                excluded_output_codes=reserved_hs_outputs,
+                excluded_global_hs6=reserved_global_hs6,
             )
-            used_hs_outputs_by_group[group_id].add(sampled_hs.output_code)
-            used_global_hs_by_group[group_id].add(sampled_hs.global_identity.code)
+            reserved_hs_outputs.add(sampled_hs.output_code)
+            reserved_global_hs6.add(sampled_hs.global_identity.code)
             hs_chapters[sampled_hs.global_identity.chapter_code] += 1
             hs_sampling_components[sampled_hs.component] += 1
+            hs_output_lengths[sampled_hs.output_digits] += 1
+            hs_extension_statuses[sampled_hs.extension_status] += 1
             hs_scenarios.append(
                 {
                     "groupId": group_id,
@@ -1104,6 +1113,8 @@ def run_controlled_pilot(
                     "customsJurisdiction": sampled_hs.customs_jurisdiction,
                     "outputScope": sampled_hs.output_scope,
                     "outputCode": sampled_hs.output_code,
+                    "outputDigits": sampled_hs.output_digits,
+                    "extensionStatus": sampled_hs.extension_status,
                     "globalHs6": sampled_hs.global_identity.code,
                     "chapterCode": sampled_hs.global_identity.chapter_code,
                     "printedSurfaceStatus": sampled_hs.printed_surface_status,
@@ -1140,19 +1151,35 @@ def run_controlled_pilot(
                 bool(origin_projection.origins)
             )
 
-        voyage = voyage_by_document[document_id]
         source_transport_structure = expanded_transport_by_document[document_id]
         vessel_source_present = bool(source_transport_structure["vessel_name_present"])
         imo_source_present = bool(source_transport_structure["source_imo_present"])
+        if config.generation.transport.voyage_number_method == (
+            "observed_character_class_shape_v1"
+        ):
+            voyage = voyage_by_document[document_id]
+            voyage_number = voyage.voyage_number
+            voyage_attempts = voyage.attempts
+            _patch_voyage_target(target, {"voyageNumber": voyage_number})
+            component_coverage["transport"]["generatedDocuments"] += int(voyage_number is not None)
+        else:
+            patch = cast(dict[str, Any], target["documentPatch"])
+            source_transport = cast(dict[str, Any] | None, patch.get("transport"))
+            voyage_number = (
+                cast(str | None, source_transport.get("voyageNumber"))
+                if source_transport is not None
+                else None
+            )
+            voyage_attempts = 0
         transport_payload = {
             "vesselName": None,
             "vesselNameSourcePresent": vessel_source_present,
             "vesselNameStatus": (
                 "deferred_by_explicit_scope" if vessel_source_present else "not_present"
             ),
-            "voyageNumber": voyage.voyage_number,
-            "voyageAttempts": voyage.attempts,
-            "voyageMethod": voyage.method,
+            "voyageNumber": voyage_number,
+            "voyageAttempts": voyage_attempts,
+            "voyageMethod": config.generation.transport.voyage_number_method,
             "vesselImoNumber": None,
             "vesselImoSourcePresent": imo_source_present,
             "imoStatus": (
@@ -1162,10 +1189,6 @@ def run_controlled_pilot(
             ),
             "imoPolicy": config.generation.transport.imo_policy,
         }
-        _patch_voyage_target(target, transport_payload)
-        component_coverage["transport"]["generatedDocuments"] += int(
-            voyage.voyage_number is not None
-        )
         if vessel_source_present:
             blockers.append("vessel_name_deferred_by_explicit_scope")
         if imo_source_present:
@@ -1178,14 +1201,14 @@ def run_controlled_pilot(
         dangerous_goods = {
             "sourceRecordCount": dangerous_count,
             "status": (
-                "blocked_pending_licensed_maritime_authoritative_registry"
+                "deferred_goods_first_coherent_semantic_realization"
                 if dangerous_count
                 else "not_present"
             ),
             "hsInferenceForbidden": True,
         }
         if dangerous_count:
-            blockers.append("dangerous_goods_requires_licensed_imdg_registry")
+            blockers.append("dangerous_goods_requires_goods_first_semantic_realization")
             component_coverage["dangerousGoods"]["blockedDocuments"] += 1
 
         handling_count = handling_by_document[document_id]
@@ -1260,6 +1283,18 @@ def run_controlled_pilot(
             "trainingEligible": False,
         }
         output_rows.append(output_scenario)
+        draft_target_rows.append(
+            {
+                "baseDocumentId": document_id,
+                "syntheticDocumentId": synthetic_id,
+                "templateId": template_by_document[document_id],
+                "sourceTargetSha256": route_target_row["sourceTargetSha256"],
+                "routeProjectedTargetSha256": route_target_row["projectedTargetSha256"],
+                "draftTargetSha256": target_sha256,
+                "target": target,
+                "trainingEligible": False,
+            }
+        )
 
     component_keys = (
         "routeAndFreight",
@@ -1287,6 +1322,10 @@ def run_controlled_pilot(
         "equipmentSamplingComponentCounts": dict(sorted(equipment_sampling_components.items())),
         "hsChapterCounts": dict(sorted(hs_chapters.items())),
         "hsSamplingComponentCounts": dict(sorted(hs_sampling_components.items())),
+        "hsOutputLengthCounts": {
+            str(length): count for length, count in sorted(hs_output_lengths.items())
+        },
+        "hsExtensionStatusCounts": dict(sorted(hs_extension_statuses.items())),
         "commercialOriginCountryCounts": dict(sorted(commercial_origins.items())),
         "commercialDestinationCountryCounts": dict(sorted(commercial_destinations.items())),
         "freightArrangementCounts": dict(sorted(freight_arrangements.items())),
@@ -1302,7 +1341,15 @@ def run_controlled_pilot(
             row["transportIdentity"]["vesselNameSourcePresent"] for row in output_rows
         ),
         "actualGeneratedVoyageNumbers": sum(
-            row["transportIdentity"]["voyageNumber"] is not None for row in output_rows
+            row["transportIdentity"]["voyageNumber"] is not None
+            for row in output_rows
+            if row["transportIdentity"]["voyageMethod"] == "observed_character_class_shape_v1"
+        ),
+        "preservedUpstreamVoyageNumbers": sum(
+            row["transportIdentity"]["voyageNumber"] is not None
+            for row in output_rows
+            if row["transportIdentity"]["voyageMethod"]
+            == "preserve_for_upstream_structured_identifier_v1"
         ),
         "sourceTransportIdentityCollisions": source_voyage_collisions,
         "duplicateGeneratedVoyageNumbers": duplicate_generated_voyages,
@@ -1390,6 +1437,7 @@ def run_controlled_pilot(
         party_benchmark["decision"],
     )
     stage.publish_bytes("generation/controlled-scenarios.jsonl", _jsonl(output_rows))
+    stage.publish_bytes("generation/draft-targets.jsonl", _jsonl(draft_target_rows))
     stage.publish_json("generation/distribution-summary.json", distribution)
     stage.publish_json("generation/validation-summary.json", validation)
     stage.publish_bytes("plots/01_component_coverage.png", _plot_bytes(distribution))
@@ -1436,6 +1484,7 @@ def run_controlled_pilot(
     expected = (
         "config.yaml",
         "generation/controlled-scenarios.jsonl",
+        "generation/draft-targets.jsonl",
         "generation/distribution-summary.json",
         "generation/validation-summary.json",
         "manifest.json",

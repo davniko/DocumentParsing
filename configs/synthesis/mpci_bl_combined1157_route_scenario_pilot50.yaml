@@ -1,8 +1,8 @@
-schema_version: 2
+schema_version: 3
 task: bill_of_lading_relation_explicit_v3
 
 run:
-  run_id: mpci-bl-combined1157-route-scenario-pilot50-v12
+  run_id: mpci-bl-combined1157-route-scenario-pilot50-v13
   output_dir: artifacts/kie-synthesis
 
 source:
@@ -22,6 +22,10 @@ task_constraints:
   sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
 
 inputs:
+  upstream_selection:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-structured-baseline50-v11/selection/selected-sources.jsonl
+    sha256: 1e8cd1e08c79ecd088d73e3747b42c49e72a22be344073902fa8026341390035
+    records: 50
   template_groups:
     path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/template-groups.jsonl
     sha256: f37ef3707007a97742cda7ff9b23318716b67e5435d2a4f5e4247ef128b9dfe5
@@ -60,7 +64,6 @@ inputs:
 selection:
   split: train
   requested_documents: 50
-  seed: 20260831
   require_template_wholly_in_split: true
   maximum_per_template: 1
 

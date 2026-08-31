@@ -23,10 +23,11 @@ def test_structured_baseline_config_pins_complete_pass_one_and_two_contract() ->
 
     assert config.selection.requested_documents == 50
     assert config.selection.require_template_wholly_in_split is True
-    assert config.selection.maximum_per_carrier == 6
+    assert config.selection.require_route_synthesis_support is True
+    assert config.selection.maximum_per_carrier == 7
     assert config.selection.strata_exact["document_type"] == {
-        "bill_of_lading": 34,
-        "sea_waybill": 16,
+        "bill_of_lading": 35,
+        "sea_waybill": 15,
     }
     assert config.selection.context_minimums["dangerous_goods"] == 2
     assert config.modeling.candidates == (

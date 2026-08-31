@@ -174,21 +174,18 @@ vessel-name model call.
 
 ## Dangerous goods and handling instructions
 
-The dangerous-goods registry boundary is implemented, including:
+Dangerous-goods synthesis is deliberately deferred to a goods-first coherent semantic
+realization stage. The 38 validated rows in this corpus are useful evaluation evidence,
+but they are not broad enough to train a generator with the required goods variability.
+The future stage must first synthesize or select the goods, determine dangerous-goods
+applicability, and then jointly ground the UN number, proper shipping name, hazard class,
+subsidiary risk, packing group, and conditional flashpoint. The current controlled stage
+must not sample those fields independently, replay one of the 38 rows as if it were broad
+coverage, or infer regulatory facts from an HS code alone.
 
-- atomic tuples for UN number, proper shipping name, primary class/division,
-  compatibility group, subsidiary risks, packing group, and technical-name requirement;
-- independent shipment flashpoint evidence;
-- exact edition/source hashes;
-- explicit licence/permission receipts;
-- fail-closed production sampling unless the source is maritime-authoritative and permits
-  automated processing, compiled artifacts, and synthetic generation.
-
-No qualifying IMDG data source is currently pinned. IMO presents the IMDG Code through
-commercial publications/IMO-Vega, while the downloadable UN Model Regulations state
-United Nations copyright and are not the maritime IMDG source. The pipeline therefore
-correctly did not fabricate regulatory tuples. The accepted pilot encountered two
-dangerous-goods documents and blocked both.
+The accepted pilot encountered two dangerous-goods documents and blocked both with the
+explicit `dangerous_goods_requires_goods_first_semantic_realization` reason. No DG value
+was generated.
 
 Handling instructions are linguistic cargo facts rather than categories. A small
 hard-coded phrase registry was rejected. Three handling-instruction documents remain

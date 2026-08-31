@@ -2,7 +2,7 @@ schema_version: 1
 task: bill_of_lading_relation_explicit_v3
 
 run:
-  run_id: mpci-bl-combined1157-structured-baseline50-v8
+  run_id: mpci-bl-combined1157-structured-baseline50-v11
   output_dir: artifacts/kie-synthesis
 
 source:
@@ -68,13 +68,14 @@ selection:
   seed: 20260830
   minimum_template_documents: 2
   require_template_wholly_in_split: true
+  require_route_synthesis_support: true
   maximum_per_template: 1
-  maximum_per_carrier: 6
+  maximum_per_carrier: 7
   minimum_carriers: 15
   strata_exact:
     document_type:
-      bill_of_lading: 34
-      sea_waybill: 16
+      bill_of_lading: 35
+      sea_waybill: 15
     source_corpus:
       current_main680: 29
       legacy_combined487: 21

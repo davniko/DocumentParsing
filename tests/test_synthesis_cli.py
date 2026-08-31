@@ -15,7 +15,7 @@ from document_ocr.synthesis.config import SynthesisRouteScenarioPilotConfig
 
 def _route_config_value(tmp_path: Path) -> dict[str, Any]:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "task": "bill_of_lading_relation_explicit_v3",
         "run": {
             "run_id": "route-scenario-pilot-test-v1",
@@ -40,6 +40,11 @@ def _route_config_value(tmp_path: Path) -> dict[str, Any]:
             "sha256": "b" * 64,
         },
         "inputs": {
+            "upstream_selection": {
+                "path": str(tmp_path / "structured-selection.jsonl"),
+                "sha256": "9" * 64,
+                "records": 4,
+            },
             "template_groups": {
                 "path": str(tmp_path / "template-groups.jsonl"),
                 "sha256": "c" * 64,
@@ -88,7 +93,6 @@ def _route_config_value(tmp_path: Path) -> dict[str, Any]:
         "selection": {
             "split": "train",
             "requested_documents": 4,
-            "seed": 20260831,
             "require_template_wholly_in_split": True,
             "maximum_per_template": 1,
         },

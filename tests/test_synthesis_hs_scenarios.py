@@ -49,6 +49,10 @@ def _policy(
         observed_chapter_hs6_weighting=("uniform_registry_hs6_within_selected_chapter_v1"),
         registry_hs6_weighting="uniform_registry_hs6_v1",
         gb_tariff_leaf_weighting="uniform_registry_leaves_v1",
+        output_length_method="preserve_source_length_exact_registry_else_random_suffix_v1",
+        minimum_output_digits=6,
+        maximum_output_digits=18,
+        maximum_extension_attempts=512,
     )
 
 
@@ -107,7 +111,7 @@ def test_support_uses_document_weighted_chapters_and_audits_unsupported_codes(
     assert support.exclusions[0].reason == "global_hs6_absent_from_pinned_edition"
 
 
-def test_non_gb_routes_always_emit_exact_global_hs6(registry: UkGlobalTariffRegistry) -> None:
+def test_six_digit_source_emits_exact_global_hs6(registry: UkGlobalTariffRegistry) -> None:
     support = _support(registry)
     policy = _policy(observed=10_000, registry_wide=0, gb_extension=10_000)
 
@@ -117,6 +121,7 @@ def test_non_gb_routes_always_emit_exact_global_hs6(registry: UkGlobalTariffRegi
             registry=registry,
             policy=policy,
             customs_jurisdiction="EG",
+            source_output_digits=6,
             stream=DeterministicStream(seed=5, namespace="hs", identity=f"sample-{index}"),
         )
         for index in range(100)
@@ -143,6 +148,7 @@ def test_gb_extension_is_explicit_exact_and_never_odd_length(
             registry=registry,
             policy=always_gb,
             customs_jurisdiction="GB",
+            source_output_digits=10,
             stream=DeterministicStream(seed=8, namespace="hs", identity=f"gb-{index}"),
         )
         for index in range(50)
@@ -160,10 +166,63 @@ def test_gb_extension_is_explicit_exact_and_never_odd_length(
         registry=registry,
         policy=never_gb,
         customs_jurisdiction="GB",
+        source_output_digits=6,
         stream=DeterministicStream(seed=8, namespace="hs", identity="global-only"),
     )
     assert len(global_only.output_code) == 6
     assert global_only.gb_tariff_identity is None
+
+
+@pytest.mark.parametrize("digits", (7, 8, 9, 10, 11, 12, 18))
+def test_non_gb_national_extension_preserves_source_length_without_claiming_registry_identity(
+    registry: UkGlobalTariffRegistry,
+    digits: int,
+) -> None:
+    scenario = sample_hs_scenario(
+        support=_support(registry),
+        registry=registry,
+        policy=_policy(observed=0, registry_wide=10_000, gb_extension=10_000),
+        customs_jurisdiction="EG",
+        source_output_digits=digits,
+        stream=DeterministicStream(seed=88, namespace="hs", identity=f"length-{digits}"),
+    )
+
+    assert len(scenario.output_code) == digits
+    assert scenario.output_code.startswith(scenario.global_identity.code)
+    if digits == 6:
+        assert scenario.output_scope == "global_hs6"
+        assert scenario.extension_status == "not_applicable_global_hs6"
+    else:
+        assert scenario.output_scope == "synthetic_national_extension"
+        assert scenario.extension_status == "synthetic_unregistered_national_suffix"
+        assert scenario.gb_tariff_identity is None
+
+
+def test_synthetic_national_extension_retries_a_reserved_full_code(
+    registry: UkGlobalTariffRegistry,
+) -> None:
+    support = _support(registry)
+    policy = _policy(observed=0, registry_wide=10_000, gb_extension=0)
+    first = sample_hs_scenario(
+        support=support,
+        registry=registry,
+        policy=policy,
+        customs_jurisdiction="EG",
+        source_output_digits=12,
+        stream=DeterministicStream(seed=91, namespace="hs", identity="collision"),
+    )
+    second = sample_hs_scenario(
+        support=support,
+        registry=registry,
+        policy=policy,
+        customs_jurisdiction="EG",
+        source_output_digits=12,
+        stream=DeterministicStream(seed=91, namespace="hs", identity="collision"),
+        excluded_output_codes=(first.output_code,),
+    )
+
+    assert second.global_identity == first.global_identity
+    assert second.output_code != first.output_code
 
 
 def test_sampling_exclusions_produce_distinct_semantic_codes(
@@ -180,6 +239,7 @@ def test_sampling_exclusions_produce_distinct_semantic_codes(
             registry=registry,
             policy=policy,
             customs_jurisdiction="EG",
+            source_output_digits=6,
             stream=DeterministicStream(seed=17, namespace="hs", identity=f"unique-{index}"),
             excluded_output_codes=output_codes,
             excluded_global_hs6=global_codes,
@@ -204,6 +264,7 @@ def test_mixture_and_sampling_are_deterministic_and_configured(
                 registry=registry,
                 policy=policy,
                 customs_jurisdiction="EG",
+                source_output_digits=6,
                 stream=DeterministicStream(
                     seed=99,
                     namespace="hs",

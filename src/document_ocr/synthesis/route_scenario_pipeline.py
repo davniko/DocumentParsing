@@ -240,45 +240,43 @@ def _eligible_base_document(target: Mapping[str, Any]) -> tuple[bool, str | None
     return True, None
 
 
-def _select_documents(
+def _validate_pinned_documents(
     *,
+    pinned_document_ids: Sequence[str],
     candidate_ids: Sequence[str],
     targets: Mapping[str, Mapping[str, Any]],
     template_by_document: Mapping[str, str],
     requested: int,
-    seed: int,
-) -> tuple[tuple[str, ...], dict[str, int]]:
-    exclusions = Counter[str]()
-    eligible: list[str] = []
-    for document_id in candidate_ids:
-        accepted, reason = _eligible_base_document(targets[document_id])
-        if accepted:
-            eligible.append(document_id)
-        else:
-            exclusions[cast(str, reason)] += 1
-    ordered = sorted(
-        eligible,
-        key=lambda document_id: (
-            identity_sha256("route-scenario-base-selection-v1", seed, document_id),
-            document_id,
-        ),
-    )
-    selected: list[str] = []
-    used_templates: set[str] = set()
-    for document_id in ordered:
-        template_id = template_by_document[document_id]
-        if template_id in used_templates:
-            exclusions["maximum_per_template"] += 1
-            continue
-        selected.append(document_id)
-        used_templates.add(template_id)
-        if len(selected) == requested:
-            break
+) -> tuple[str, ...]:
+    """Validate an upstream selection without reordering or silently replacing rows."""
+
+    selected = tuple(pinned_document_ids)
     if len(selected) != requested:
         raise RouteScenarioPipelineError(
-            f"requested {requested} route scenarios but only {len(selected)} are feasible"
+            f"pinned route selection has {len(selected)} rows; expected {requested}"
         )
-    return tuple(selected), dict(sorted(exclusions.items()))
+    if len(selected) != len(set(selected)):
+        raise RouteScenarioPipelineError("pinned route selection contains duplicate documents")
+    candidates = frozenset(candidate_ids)
+    outside = tuple(document_id for document_id in selected if document_id not in candidates)
+    if outside:
+        raise RouteScenarioPipelineError(
+            f"pinned route selection lies outside the isolated fit scope: {outside!r}"
+        )
+    templates = tuple(template_by_document[document_id] for document_id in selected)
+    if len(templates) != len(set(templates)):
+        raise RouteScenarioPipelineError("pinned route selection repeats a template")
+    failures = tuple(
+        (document_id, reason)
+        for document_id in selected
+        for accepted, reason in (_eligible_base_document(targets[document_id]),)
+        if not accepted
+    )
+    if failures:
+        raise RouteScenarioPipelineError(
+            f"pinned route selection contains unsupported documents: {failures!r}"
+        )
+    return selected
 
 
 def _validate_projected_target(*, document_id: str, target: dict[str, Any]) -> None:
@@ -541,13 +539,32 @@ def run_route_scenario_pilot(
         trade_flows=trade_flows,
         origin_prior=config.generation.commercial_origin_prior,
     )
-    selected_ids, selection_exclusions = _select_documents(
+    upstream_selection_path = _resolve_file(
+        project_root,
+        config.inputs.upstream_selection.path,
+        label="upstream structured selection",
+    )
+    upstream_selection_rows = _read_jsonl(
+        upstream_selection_path,
+        expected_sha256=config.inputs.upstream_selection.sha256,
+        expected_records=config.inputs.upstream_selection.records,
+        label="upstream structured selection",
+    )
+    upstream_document_ids: list[str] = []
+    for row_number, row in enumerate(upstream_selection_rows, start=1):
+        document_id = row.get("document_id")
+        if not isinstance(document_id, str) or not document_id:
+            raise ValueError(f"upstream structured selection row {row_number} has no document_id")
+        upstream_document_ids.append(document_id)
+    selected_ids = _validate_pinned_documents(
+        pinned_document_ids=upstream_document_ids,
         candidate_ids=isolated_ids,
         targets=targets,
         template_by_document=template_by_document,
         requested=config.selection.requested_documents,
-        seed=config.selection.seed,
     )
+    selection_exclusions: dict[str, int] = {}
+    selection_method = "pinned_upstream_structured_selection_v1"
     scenarios: list[ShipmentScenario] = []
     projected_rows: list[dict[str, Any]] = []
     for document_id in selected_ids:
@@ -620,6 +637,11 @@ def run_route_scenario_pilot(
                 "config": config.model_dump(mode="json"),
                 "sourceSha256": config.source.file.sha256,
                 "scopeSha256": scope.scope_sha256,
+                "selection": {
+                    "method": selection_method,
+                    "documentIdsSha256": sha256_bytes(canonical_json_bytes(selected_ids)),
+                    "upstreamSelectionSha256": config.inputs.upstream_selection.sha256,
+                },
                 "registries": {
                     "iso3166SnapshotSha256": config.inputs.iso3166_snapshot.sha256,
                     "unlocodeReceiptFileSha256": (config.inputs.route_registry_manifest.sha256),
@@ -704,6 +726,15 @@ def run_route_scenario_pilot(
         },
     )
     stage.publish_json("selection/exclusions.json", selection_exclusions)
+    stage.publish_json(
+        "selection/selection-receipt.json",
+        {
+            "method": selection_method,
+            "upstreamSelectionSha256": config.inputs.upstream_selection.sha256,
+            "documentIds": list(selected_ids),
+            "documentIdsSha256": sha256_bytes(canonical_json_bytes(selected_ids)),
+        },
+    )
     stage.publish_bytes("generation/shipment-scenarios.jsonl", _jsonl(scenario_rows))
     stage.publish_bytes("generation/projected-targets.jsonl", _jsonl(projected_rows))
     stage.publish_json("generation/distribution-summary.json", distribution)
@@ -758,6 +789,7 @@ def run_route_scenario_pilot(
         },
         "implementationSha256": implementation_sha256,
         "generationMethods": {
+            "selection": selection_method,
             "physicalEndpoints": config.generation.physical_endpoint_relation_method,
             "partyLocalities": config.generation.party_locality_relation_method,
             "ports": config.generation.port_method,
@@ -786,6 +818,7 @@ def run_route_scenario_pilot(
         "modeling/world-port-registry-metadata.json",
         "runtime.json",
         "selection/exclusions.json",
+        "selection/selection-receipt.json",
         "source-scope.json",
     )
     commit = stage.commit(

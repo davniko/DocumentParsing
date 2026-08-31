@@ -2,7 +2,7 @@ schema_version: 1
 task: bill_of_lading_relation_explicit_v3
 
 run:
-  run_id: mpci-bl-combined1157-controlled-semantic-pilot50-v3
+  run_id: mpci-bl-combined1157-controlled-semantic-pilot50-v4
   output_dir: artifacts/kie-synthesis
 
 source:
@@ -23,17 +23,17 @@ task_constraints:
 
 inputs:
   route_scenario_run:
-    path: artifacts/kie-synthesis/mpci-bl-combined1157-route-scenario-pilot50-v12
-    manifest_sha256: 02ebf60cdc4b8e2568647daf42737f9b98d49cfc16363af9980943b631636577
-    commit_sha256: 00d914406b9d03ae1ad250d3a2ff002a7c68c11ccfa0827aa49da03fc93d1f62
-    transaction_sha256: 90bbc998af991cf94bf73fd173e08d27decf67ca46188fea5f9e35e9734f03ca
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-route-scenario-pilot50-v13
+    manifest_sha256: 805b40855fdf9702104bb36e97d0fc0368ab7e2de8a460529d96e393ad64072a
+    commit_sha256: 845b82bf68ee0f1f4446d823242c32aee2efb2121ae885cc94743a8a0941d66f
+    transaction_sha256: 169e7038f8b900534db2ff0cc701be9e3629a4a373ca988ec7399f71d8f57f2b
   route_scenarios:
-    path: artifacts/kie-synthesis/mpci-bl-combined1157-route-scenario-pilot50-v12/generation/shipment-scenarios.jsonl
-    sha256: 13381d015ac35698e7203734259cd216b67ab58479dccadca69c9a545e177987
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-route-scenario-pilot50-v13/generation/shipment-scenarios.jsonl
+    sha256: 799594213d7008616b46fe975e0f329ec3dbd2767761f046b7652f1e7b496856
     records: 50
   route_targets:
-    path: artifacts/kie-synthesis/mpci-bl-combined1157-route-scenario-pilot50-v12/generation/projected-targets.jsonl
-    sha256: fc4c732f4e0e9a0ea6b9ecdde14ad53ec4a8f0b4bb508626b435e8fa6ff77c7f
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-route-scenario-pilot50-v13/generation/projected-targets.jsonl
+    sha256: 9938c38c643736b24b83ab968d0365b3cf750ffaa5b10a67b3aacb57ed6899d0
     records: 50
   preparation:
     path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3
@@ -79,7 +79,6 @@ inputs:
 selection:
   split: train
   requested_documents: 50
-  seed: 20260831
   require_template_wholly_in_split: true
   maximum_per_template: 1
 
@@ -100,13 +99,17 @@ generation:
     observed_chapter_hs6_weighting: uniform_registry_hs6_within_selected_chapter_v1
     registry_hs6_weighting: uniform_registry_hs6_v1
     gb_tariff_leaf_weighting: uniform_registry_leaves_v1
+    output_length_method: preserve_source_length_exact_registry_else_random_suffix_v1
+    minimum_output_digits: 6
+    maximum_output_digits: 18
+    maximum_extension_attempts: 512
   cargo_origin_method: fit_country_relation_reproject_name_only_origin_v2
   cargo_origin_name_only_policy: replace_without_resolving_or_copying_source_name_v2
-  dangerous_goods_method: disabled_pending_licensed_maritime_authoritative_registry_v1
+  dangerous_goods_method: deferred_goods_first_coherent_semantic_realization_v1
   handling_instructions_method: pending_linguistic_realization_v1
   transport:
     vessel_name_method: deferred_by_explicit_scope_v1
-    voyage_number_method: observed_character_class_shape_v1
+    voyage_number_method: preserve_for_upstream_structured_identifier_v1
     minimum_normalized_edit_distance: 0.2
     maximum_realization_attempts: 512
     imo_policy: absent_without_authoritative_assigned_number_registry_v1

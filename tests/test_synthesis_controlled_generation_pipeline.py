@@ -35,6 +35,14 @@ def test_controlled_transport_config_is_explicitly_voyage_only() -> None:
     assert config.vessel_name_method == "deferred_by_explicit_scope_v1"
 
 
+def test_controlled_transport_can_defer_voyage_ownership_to_structured_stage() -> None:
+    config = _transport_config(
+        voyage_number_method="preserve_for_upstream_structured_identifier_v1"
+    )
+
+    assert config.voyage_number_method == "preserve_for_upstream_structured_identifier_v1"
+
+
 def test_cargo_origin_name_only_policy_matches_generation_contract() -> None:
     fields = ControlledPilotGenerationConfig.model_fields
     annotation = str(fields["cargo_origin_name_only_policy"].annotation)

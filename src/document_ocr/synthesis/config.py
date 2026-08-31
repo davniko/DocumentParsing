@@ -345,6 +345,7 @@ class StructuredSelectionConfig(_StrictModel):
     seed: int
     minimum_template_documents: Annotated[int, Field(gt=0)]
     require_template_wholly_in_split: Literal[True]
+    require_route_synthesis_support: Literal[True]
     maximum_per_template: Annotated[int, Field(gt=0)]
     maximum_per_carrier: Annotated[int, Field(gt=0)]
     minimum_carriers: Annotated[int, Field(gt=0)]
@@ -517,6 +518,7 @@ class SynthesisStructuredBaselineConfig(_StrictModel):
 class RouteScenarioInputsConfig(_StrictModel):
     """Pinned inputs for route-first scenario fitting and sampling."""
 
+    upstream_selection: DatasetFileConfig
     template_groups: DatasetFileConfig
     partition_report: PinnedFileConfig
     iso3166_snapshot: PinnedFileConfig
@@ -532,7 +534,6 @@ class RouteScenarioInputsConfig(_StrictModel):
 class RouteScenarioSelectionConfig(_StrictModel):
     split: NonEmptyString
     requested_documents: Annotated[int, Field(gt=0)]
-    seed: int
     require_template_wholly_in_split: Literal[True]
     maximum_per_template: Literal[1]
 
@@ -590,7 +591,7 @@ class RouteScenarioGenerationConfig(_StrictModel):
 class SynthesisRouteScenarioPilotConfig(_StrictModel):
     """Non-publishable route/party-locality scenario pilot contract."""
 
-    schema_version: Literal[2]
+    schema_version: Literal[3]
     task: Literal["bill_of_lading_relation_explicit_v3"]
     run: SynthesisRunConfig
     source: SynthesisSourceConfig
@@ -603,6 +604,8 @@ class SynthesisRouteScenarioPilotConfig(_StrictModel):
     def route_pilot_is_pinned_and_non_publishable(self) -> SynthesisRouteScenarioPilotConfig:
         if self.source.fields.input_sha256 is None:
             raise ValueError("route scenario pilot requires source input SHA-256 values")
+        if self.inputs.upstream_selection.records != self.selection.requested_documents:
+            raise ValueError("upstream selection count differs from route scenario selection")
         return self
 
 
@@ -636,17 +639,26 @@ class ControlledHsGenerationConfig(_StrictModel):
     observed_chapter_hs6_weighting: Literal["uniform_registry_hs6_within_selected_chapter_v1"]
     registry_hs6_weighting: Literal["uniform_registry_hs6_v1"]
     gb_tariff_leaf_weighting: Literal["uniform_registry_leaves_v1"]
+    output_length_method: Literal["preserve_source_length_exact_registry_else_random_suffix_v1"]
+    minimum_output_digits: Literal[6]
+    maximum_output_digits: Annotated[int, Field(ge=6, le=18)]
+    maximum_extension_attempts: Annotated[int, Field(gt=0)]
 
     @model_validator(mode="after")
     def chapter_mixture_is_complete(self) -> ControlledHsGenerationConfig:
         if self.observed_chapter_mixture_permyriad + self.registry_wide_mixture_permyriad != 10_000:
             raise ValueError("controlled HS mixture weights must sum exactly to 10000")
+        if self.maximum_output_digits < self.minimum_output_digits:
+            raise ValueError("controlled HS output digit bounds are reversed")
         return self
 
 
 class ControlledTransportGenerationConfig(_StrictModel):
     vessel_name_method: Literal["deferred_by_explicit_scope_v1"]
-    voyage_number_method: Literal["observed_character_class_shape_v1"]
+    voyage_number_method: Literal[
+        "observed_character_class_shape_v1",
+        "preserve_for_upstream_structured_identifier_v1",
+    ]
     minimum_normalized_edit_distance: Annotated[float, Field(ge=0, lt=1)]
     maximum_realization_attempts: Annotated[int, Field(gt=0)]
     imo_policy: Literal["absent_without_authoritative_assigned_number_registry_v1"]
@@ -664,10 +676,8 @@ class ControlledPilotGenerationConfig(_StrictModel):
     equipment_registry_exploration_permyriad: Annotated[int, Field(ge=0, le=10_000)]
     hs: ControlledHsGenerationConfig
     cargo_origin_method: Literal["fit_country_relation_reproject_name_only_origin_v2"]
-    cargo_origin_name_only_policy: Literal[
-        "replace_without_resolving_or_copying_source_name_v2"
-    ]
-    dangerous_goods_method: Literal["disabled_pending_licensed_maritime_authoritative_registry_v1"]
+    cargo_origin_name_only_policy: Literal["replace_without_resolving_or_copying_source_name_v2"]
+    dangerous_goods_method: Literal["deferred_goods_first_coherent_semantic_realization_v1"]
     handling_instructions_method: Literal["pending_linguistic_realization_v1"]
     transport: ControlledTransportGenerationConfig
     preserve_source_field_presence: Literal[True]
@@ -698,6 +708,55 @@ class SynthesisControlledPilotConfig(_StrictModel):
             raise ValueError("route scenario count differs from controlled selection")
         if self.inputs.route_targets.records != self.selection.requested_documents:
             raise ValueError("route target count differs from controlled selection")
+        return self
+
+
+class SemanticPlanInputsConfig(_StrictModel):
+    """Hash-pinned stages that must resolve to one identical source selection."""
+
+    structured_run: CommittedDirectoryConfig
+    structured_selection: DatasetFileConfig
+    structured_targets: DatasetFileConfig
+    structured_plans: DatasetFileConfig
+    controlled_run: CommittedDirectoryConfig
+    controlled_scenarios: DatasetFileConfig
+    controlled_targets: DatasetFileConfig
+
+
+class SemanticPlanGenerationConfig(_StrictModel):
+    scenario_namespace: NonEmptyString
+    seed: Annotated[int, Field(ge=0, lt=2**64)]
+    variant_index_method: Literal["selected_position_zero_based_v1"]
+    structured_stage_contract: Literal["structured_numeric_identifier_temporal_v1"]
+    controlled_stage_contract: Literal["route_and_controlled_semantics_v1"]
+    require_disjoint_change_ownership: Literal[True]
+    dangerous_goods_policy: Literal["defer_goods_first_coherent_realization_v1"]
+    publish_training_records: Literal[False]
+
+
+class SynthesisSemanticPlanConfig(_StrictModel):
+    """Compose the complete non-linguistic same-template semantic target."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v3"]
+    run: SynthesisRunConfig
+    source: SynthesisSourceConfig
+    inputs: SemanticPlanInputsConfig
+    generation: SemanticPlanGenerationConfig
+
+    @model_validator(mode="after")
+    def stage_counts_and_source_contract_match(self) -> SynthesisSemanticPlanConfig:
+        if self.source.fields.input_sha256 is None:
+            raise ValueError("semantic composition requires source input SHA-256 values")
+        counts = {
+            self.inputs.structured_selection.records,
+            self.inputs.structured_targets.records,
+            self.inputs.structured_plans.records,
+            self.inputs.controlled_scenarios.records,
+            self.inputs.controlled_targets.records,
+        }
+        if len(counts) != 1:
+            raise ValueError("semantic plan input record counts differ")
         return self
 
 
@@ -827,3 +886,13 @@ def load_synthesis_controlled_pilot_config(path: Path) -> SynthesisControlledPil
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisControlledPilotConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_semantic_plan_config(path: Path) -> SynthesisSemanticPlanConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisSemanticPlanConfig.model_validate(value, strict=True)

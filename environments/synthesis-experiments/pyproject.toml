@@ -1,0 +1,18 @@
+[project]
+name = "document-ocr-synthesis-experiments"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "matplotlib==3.11.1",
+  "mostlyai-engine==2.6.2",
+  "namemaker==1.2",
+  "pandas==3.0.5",
+  "pydantic==2.13.5",
+  "pyyaml==6.0.3",
+  "scikit-learn==1.9.0",
+  "seaborn==0.13.2",
+  "torch==2.11.0",
+]
+
+[tool.uv]
+package = false

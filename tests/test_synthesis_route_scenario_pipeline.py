@@ -12,6 +12,7 @@ from document_ocr.synthesis.route_scenario_pipeline import (
     RouteScenarioPipelineError,
     _publish_runtime_once,
     _validate_locality_dependency,
+    _validate_pinned_documents,
     _validate_world_port_dependency,
 )
 from document_ocr.synthesis.run_safety import StagedArtifactRun
@@ -166,4 +167,67 @@ def test_runtime_receipt_rejects_a_malformed_interrupted_observation(tmp_path: P
         _publish_runtime_once(
             stage,
             {"elapsedSeconds": 0.1, "peakRssMiB": 1.0},
+        )
+
+
+def _route_target(*, transshipment: bool = False) -> dict[str, object]:
+    return {
+        "documentPatch": {
+            "route": {
+                "portOfLoading": {"name": "PORT A"},
+                "portOfDischarge": {"name": "PORT B"},
+                "transshipmentPort": {"name": "PORT C"} if transshipment else None,
+            },
+            "parties": {"shipper": {"name": "SHIPPER"}},
+        }
+    }
+
+
+def test_pinned_route_selection_preserves_upstream_order_and_identity() -> None:
+    selected = _validate_pinned_documents(
+        pinned_document_ids=("doc_b", "doc_a"),
+        candidate_ids=("doc_a", "doc_b", "doc_c"),
+        targets={
+            "doc_a": _route_target(),
+            "doc_b": _route_target(),
+            "doc_c": _route_target(),
+        },
+        template_by_document={
+            "doc_a": "template_a",
+            "doc_b": "template_b",
+            "doc_c": "template_c",
+        },
+        requested=2,
+    )
+
+    assert selected == ("doc_b", "doc_a")
+
+
+@pytest.mark.parametrize(
+    ("pinned", "targets", "templates", "message"),
+    (
+        (("doc_a", "doc_a"), None, None, "duplicate"),
+        (("doc_a", "doc_x"), None, None, "outside"),
+        (("doc_a", "doc_b"), None, {"doc_a": "same", "doc_b": "same"}, "template"),
+        (
+            ("doc_a", "doc_b"),
+            {"doc_a": _route_target(), "doc_b": _route_target(transshipment=True)},
+            None,
+            "unsupported",
+        ),
+    ),
+)
+def test_pinned_route_selection_rejects_any_substitution_or_unsupported_row(
+    pinned: tuple[str, ...],
+    targets: dict[str, dict[str, object]] | None,
+    templates: dict[str, str] | None,
+    message: str,
+) -> None:
+    with pytest.raises(RouteScenarioPipelineError, match=message):
+        _validate_pinned_documents(
+            pinned_document_ids=pinned,
+            candidate_ids=("doc_a", "doc_b"),
+            targets=targets or {"doc_a": _route_target(), "doc_b": _route_target()},
+            template_by_document=templates or {"doc_a": "template_a", "doc_b": "template_b"},
+            requested=2,
         )
