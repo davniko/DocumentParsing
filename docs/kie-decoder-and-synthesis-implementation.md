@@ -189,3 +189,56 @@ matplotlib/seaborn plots, complete support tables, and an immutable manifest. Al
 round-trip exactly and every source-fact leaf has evidence. Unique or unique-within-excerpt anchors
 cover 49,991/54,462 evidence rows; 4,471 repeated values remain explicitly ambiguous rather than
 being assigned by guesswork.
+
+### Structured synthesis baseline
+
+The next two non-agentic passes are implemented behind `run-structured-baseline`. They construct
+complete inspection-grade structured proposals while preserving source language, party and goods
+facts, package categories, container types, and relation cardinality. They do not patch raw OCR or
+publish training rows.
+
+The runner first freezes a template-isolated train scope and solves the exact configured 50-source
+selection with SciPy MILP. It then benchmarks profile-specific SDV candidates on template-grouped
+folds. Statistical models propose cargo-group driver quantities and present per-driver measures;
+task-owned deterministic code derives totals, every retained package level, allocations, identifiers,
+and dates. Global identifier reservations exclude the complete real corpus. Every accepted proposal
+must pass schema, relational inverse, exact-diff, arithmetic, collision, package-context, and
+type-aware equipment-capacity checks.
+
+Rebuild the image after any synthesis source change, copy the resulting image ID into both the
+Compose environment and YAML runtime receipt, then run:
+
+```bash
+DOCKER_CONFIG=/tmp/documentparsing-docker-config \
+docker compose --profile synthesis build synthesis-tools
+
+DOCKER_CONFIG=/tmp/documentparsing-docker-config \
+docker compose --profile synthesis run --rm synthesis-tools \
+  validate-structured-baseline-config \
+  --config configs/synthesis/mpci_bl_combined1157_structured_baseline50.yaml \
+  --project-root /workspace
+
+DOCKER_CONFIG=/tmp/documentparsing-docker-config \
+docker compose --profile synthesis run --rm synthesis-tools \
+  run-structured-baseline \
+  --config configs/synthesis/mpci_bl_combined1157_structured_baseline50.yaml \
+  --project-root /workspace
+```
+
+The accepted publication is
+`artifacts/kie-synthesis/mpci-bl-combined1157-structured-baseline50-v8/`. It contains 50 distinct
+templates across 20 carrier strata (19 named plus one missing-value stratum), 93 cargo-group
+proposals, 105 changed task-facing package quantities,
+92 valid unique ISO 6346 containers, complete CSV/JSON receipts, and 13 matplotlib/seaborn plots.
+All 50 scenarios pass the hard gates and zero records are training eligible. Runtime was 197.48
+seconds with 832.59 MiB peak Python RSS; the immutable committed-run fast path completed in 4.72
+seconds without changing any artifact byte.
+
+The statistical proposal layer explicitly separates model-routing support from package-plausibility
+support. Role-wide rows can support a fit but never a plausibility decision. Accepted values must
+lie inside an exact-identity or meaningful semantic-family support envelope. The generic
+`UNREGISTERED_PRINTED_PACKAGE` and `UNTYPED_PACKAGE` labels cannot serve as semantic families.
+
+The next stage is full party/goods/auxiliary-sensitive anonymization plus text-only realization.
+PDF generation or editing remains outside scope. Until that stage proves complete source-sensitive
+value removal and target-to-text grounding, these structured proposals must remain inspection-only.

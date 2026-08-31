@@ -190,6 +190,7 @@ services:
     working_dir: /workspace
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SYNTHESIS_IMAGE_DIGEST: sha256:05ecd7506235dd6b25d8056c94710e53f6826cce8bd695684e38abd44ad288b7
     volumes:
       - .:/workspace
     command: [--help]

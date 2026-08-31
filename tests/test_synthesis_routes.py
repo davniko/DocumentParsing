@@ -25,16 +25,13 @@ from document_ocr.synthesis.routes import (
 
 def _jsonl(path: Path, rows: list[dict[str, object]]) -> str:
     payload = b"".join(
-        json.dumps(row, sort_keys=True, separators=(",", ":")).encode() + b"\n"
-        for row in rows
+        json.dumps(row, sort_keys=True, separators=(",", ":")).encode() + b"\n" for row in rows
     )
     path.write_bytes(payload)
     return hashlib.sha256(payload).hexdigest()
 
 
-def _location(
-    locode: str, name: str, *, functions: tuple[str, ...] = ("1",)
-) -> RouteLocation:
+def _location(locode: str, name: str, *, functions: tuple[str, ...] = ("1",)) -> RouteLocation:
     return RouteLocation.model_validate(
         {
             "locode": locode,
@@ -94,9 +91,7 @@ def test_pinned_loaders_validate_hash_count_and_strict_records(tmp_path: Path) -
         ],
     )
 
-    flows = load_pinned_trade_flows(
-        flow_path, expected_sha256=flow_sha, expected_records=1
-    )
+    flows = load_pinned_trade_flows(flow_path, expected_sha256=flow_sha, expected_records=1)
     locations = load_pinned_route_locations(
         location_path, expected_sha256=location_sha, expected_records=1
     )
@@ -104,13 +99,9 @@ def test_pinned_loaders_validate_hash_count_and_strict_records(tmp_path: Path) -
     assert locations[0].locode == "BRSSZ"
 
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
-        load_pinned_trade_flows(
-            flow_path, expected_sha256="0" * 64, expected_records=1
-        )
+        load_pinned_trade_flows(flow_path, expected_sha256="0" * 64, expected_records=1)
     with pytest.raises(ValueError, match="record count mismatch"):
-        load_pinned_route_locations(
-            location_path, expected_sha256=location_sha, expected_records=2
-        )
+        load_pinned_route_locations(location_path, expected_sha256=location_sha, expected_records=2)
 
     invalid_path = tmp_path / "invalid.jsonl"
     invalid_sha = _jsonl(
@@ -126,9 +117,7 @@ def test_pinned_loaders_validate_hash_count_and_strict_records(tmp_path: Path) -
         ],
     )
     with pytest.raises(ValueError, match="Extra inputs are not permitted"):
-        load_pinned_trade_flows(
-            invalid_path, expected_sha256=invalid_sha, expected_records=1
-        )
+        load_pinned_trade_flows(invalid_path, expected_sha256=invalid_sha, expected_records=1)
 
 
 def test_location_contract_and_maritime_filter_are_data_driven() -> None:
@@ -243,9 +232,7 @@ def test_domestic_support_requires_two_ports_and_never_samples_same_port() -> No
         year_end=2024,
         allow_domestic=True,
     )
-    sampled = sample_maritime_route(
-        support, stream=DeterministicStream(17, "routes", "domestic")
-    )
+    sampled = sample_maritime_route(support, stream=DeterministicStream(17, "routes", "domestic"))
     assert sampled.origin.locode != sampled.destination.locode
 
     only_port = _location("ZACPT", "Cape Town")
@@ -323,10 +310,13 @@ def test_flow_aggregation_and_weight_conversion_do_not_use_decimal_context() -> 
         year_end=2024,
     )
     assert support.routes[0].weight == Decimal("1999999999999999999999998.246912")
-    assert weighted_index(
-        (support.routes[0].weight, Decimal("0.000001")),
-        stream=DeterministicStream(31, "routes", "high-precision"),
-    ) == 0
+    assert (
+        weighted_index(
+            (support.routes[0].weight, Decimal("0.000001")),
+            stream=DeterministicStream(31, "routes", "high-precision"),
+        )
+        == 0
+    )
 
 
 @pytest.mark.parametrize(

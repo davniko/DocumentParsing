@@ -19,8 +19,7 @@ from document_ocr.synthesis.rendering import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
-    PROJECT_ROOT
-    / "artifacts/kie-training/datasets/"
+    PROJECT_ROOT / "artifacts/kie-training/datasets/"
     "mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl"
 )
 CONFIG = PROJECT_ROOT / "configs/synthesis/mpci_bl_combined1157_deterministic_smoke20.yaml"

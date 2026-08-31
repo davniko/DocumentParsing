@@ -10,6 +10,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_deterministic_smoke_config,
     load_synthesis_foundation_config,
     load_synthesis_preparation_config,
+    load_synthesis_structured_baseline_config,
 )
 from document_ocr.synthesis.pipeline import prepare_synthesis_foundation
 from document_ocr.synthesis.preparation import prepare_synthesis_corpus
@@ -25,6 +26,8 @@ def main() -> None:
         "prepare-corpus",
         "validate-deterministic-smoke-config",
         "run-deterministic-smoke",
+        "validate-structured-baseline-config",
+        "run-structured-baseline",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -38,6 +41,11 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-structured-baseline-config",
+            "run-structured-baseline",
+        }:
+            structured_config = load_synthesis_structured_baseline_config(config_path)
+        elif arguments.command in {
             "validate-deterministic-smoke-config",
             "run-deterministic-smoke",
         }:
@@ -46,7 +54,15 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-deterministic-smoke-config":
+        if arguments.command == "validate-structured-baseline-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": structured_config.run.run_id,
+                "requested_documents": structured_config.selection.requested_documents,
+                "benchmark_candidates": list(structured_config.modeling.candidates),
+            }
+        elif arguments.command == "validate-deterministic-smoke-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -63,6 +79,18 @@ def main() -> None:
                 "command": arguments.command,
                 "status": "valid",
                 "run_id": foundation_config.run.run_id,
+            }
+        elif arguments.command == "run-structured-baseline":
+            from document_ocr.synthesis.structured_generation import run_structured_baseline
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_structured_baseline(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=structured_config,
+                ),
             }
         elif arguments.command == "run-deterministic-smoke":
             from document_ocr.synthesis.generation import run_deterministic_smoke

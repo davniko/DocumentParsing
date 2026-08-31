@@ -98,9 +98,7 @@ def validate_allocation_arithmetic(target: Mapping[str, Any]) -> None:
         cast(str, package["packageId"]): package
         for package in cast(Sequence[Mapping[str, Any]], patch.get("cargoPackages") or [])
     }
-    for group in cast(
-        Sequence[Mapping[str, Any]], patch.get("cargoAllocationGroups") or []
-    ):
+    for group in cast(Sequence[Mapping[str, Any]], patch.get("cargoAllocationGroups") or []):
         coverage = group["coverage"]
         package_ids = cast(Sequence[str], group.get("packageIds") or [])
         allocations = cast(Sequence[Mapping[str, Any]], group["allocations"])
@@ -111,8 +109,7 @@ def validate_allocation_arithmetic(target: Mapping[str, Any]) -> None:
                     raise ValueError("one-to-one allocation quantity differs from its package")
         elif coverage in {"single_package_level", "all_package_levels_combined"}:
             package_total = sum(
-                cast(int, packages[package_id]["quantity"])
-                for package_id in package_ids
+                cast(int, packages[package_id]["quantity"]) for package_id in package_ids
             )
             allocation_total = sum(
                 cast(int, allocation["packageQuantity"]) for allocation in allocations
@@ -304,10 +301,7 @@ def _seal_changes(
         containers[container_index]["sealNumbers"][seal_index] = new
         changes.append(
             _change(
-                path=(
-                    f"documentPatch.containers[{container_index}]"
-                    f".sealNumbers[{seal_index}]"
-                ),
+                path=(f"documentPatch.containers[{container_index}].sealNumbers[{seal_index}]"),
                 family="seal_identifier",
                 old=old,
                 new=new,
@@ -324,9 +318,7 @@ def _date_changes(
     patch = target["documentPatch"]
     old_issue = date.fromisoformat(patch["issueDate"]) if patch.get("issueDate") else None
     old_shipped = (
-        date.fromisoformat(patch["shippedOnBoardDate"])
-        if patch.get("shippedOnBoardDate")
-        else None
+        date.fromisoformat(patch["shippedOnBoardDate"]) if patch.get("shippedOnBoardDate") else None
     )
     if old_issue is None and old_shipped is None:
         raise ValueError("document has no date")
@@ -512,9 +504,7 @@ def _pending_realizations(
         policy = policy_for_target_path(path)
         if policy.implementation_status in {"pending_registry", "pending_linguistic"}:
             kind = (
-                "registry"
-                if policy.implementation_status == "pending_registry"
-                else "linguistic"
+                "registry" if policy.implementation_status == "pending_registry" else "linguistic"
             )
         elif policy.implementation_status == "implemented" and policy.value_policy in {
             "regenerate",
@@ -582,9 +572,14 @@ def build_draft(
     validate_change_ledger(source_target, target, changes)
     if family in {"package_quantity", "cargo_mass"}:
         validate_allocation_arithmetic(target)
-    synthetic_document_id = "syn_" + sha256_bytes(
-        canonical_json_bytes([document_id, template_id, family, variant_index, seed, target_sha])
-    )[:40]
+    synthetic_document_id = (
+        "syn_"
+        + sha256_bytes(
+            canonical_json_bytes(
+                [document_id, template_id, family, variant_index, seed, target_sha]
+            )
+        )[:40]
+    )
     counts: dict[str, int] = defaultdict(int)
     for policy in FIELD_POLICIES.values():
         counts[policy.value_policy] += 1

@@ -350,6 +350,10 @@ def reconcile_allocation_group(
         if any(value is None for value in (row.get("packageQuantity") for row in allocations)):
             raise ValueError("covered allocation lacks its source proportion")
         values = largest_remainder_allocation(total, weights)
+        if any(
+            source > 0 and generated <= 0 for source, generated in zip(weights, values, strict=True)
+        ):
+            raise ValueError("reconciled allocation would erase a positive container membership")
         for row, value in zip(allocations, values, strict=True):
             row["packageQuantity"] = value
     elif coverage == "unlinked_package_quantities":

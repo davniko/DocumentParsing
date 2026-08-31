@@ -308,7 +308,7 @@ def _registry() -> dict[str, FieldPolicy]:
             f"documentPatch.cargoGroups[].{measure}.value",
             "derive",
             "implemented",
-            "single_package_quantity_ratio_v1",
+            "profile_routed_per_driver_measure_then_exact_unit_inverse_v1",
             "cargo_measures",
         )
         add(
@@ -476,9 +476,7 @@ def validate_policy_registry(targets: tuple[Mapping[str, Any], ...]) -> dict[str
         extra = sorted(policy_paths - schema_paths)
         raise ValueError(f"field-policy/schema mismatch: missing={missing}, extra={extra}")
     observed = {
-        normalized_role_path(path)
-        for target in targets
-        for path, _value in leaf_items(target)
+        normalized_role_path(path) for target in targets for path, _value in leaf_items(target)
     }
     outside = sorted(observed - schema_paths)
     if outside:

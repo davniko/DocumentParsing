@@ -71,10 +71,13 @@ class RouteLocation(BaseModel):
     locode: Locode
     country_code: CountryCode
     name: Annotated[str, StringConstraints(min_length=1, max_length=256)]
-    subdivision_code: Annotated[
-        str,
-        StringConstraints(pattern=r"^[A-Z0-9][A-Z0-9-]{0,7}$"),
-    ] | None = None
+    subdivision_code: (
+        Annotated[
+            str,
+            StringConstraints(pattern=r"^[A-Z0-9][A-Z0-9-]{0,7}$"),
+        ]
+        | None
+    ) = None
     function_codes: tuple[FunctionCode, ...] = Field(min_length=1)
     status: Annotated[str, StringConstraints(min_length=1, max_length=64)] | None = None
 
@@ -121,20 +124,16 @@ class CountryRouteSupport(BaseModel):
         ):
             raise ValueError("destination route support contains an ineligible location")
         origin_locodes = tuple(location.locode for location in self.origin_locations)
-        destination_locodes = tuple(
-            location.locode for location in self.destination_locations
-        )
+        destination_locodes = tuple(location.locode for location in self.destination_locations)
         if origin_locodes != tuple(sorted(set(origin_locodes))) or (
             destination_locodes != tuple(sorted(set(destination_locodes)))
         ):
             raise ValueError("route locations must be unique and sorted by UN/LOCODE")
-        if (
-            self.origin_country_code == self.destination_country_code
-            and (len(origin_locodes) < 2 or len(destination_locodes) < 2)
+        if self.origin_country_code == self.destination_country_code and (
+            len(origin_locodes) < 2 or len(destination_locodes) < 2
         ):
             raise ValueError(
-                "domestic route support requires at least two maritime locations "
-                "for each endpoint"
+                "domestic route support requires at least two maritime locations for each endpoint"
             )
         return self
 
@@ -190,8 +189,7 @@ class RouteSupport(BaseModel):
     @model_validator(mode="after")
     def routes_are_unique_and_sorted(self) -> RouteSupport:
         keys = tuple(
-            (route.origin_country_code, route.destination_country_code)
-            for route in self.routes
+            (route.origin_country_code, route.destination_country_code) for route in self.routes
         )
         if keys != tuple(sorted(set(keys))):
             raise ValueError("route support must contain unique, sorted country pairs")
@@ -410,9 +408,7 @@ def build_route_support(
         excluded_country_without_maritime_location_records=excluded[
             "country_without_maritime_location"
         ],
-        excluded_insufficient_domestic_ports_records=excluded[
-            "insufficient_domestic_ports"
-        ],
+        excluded_insufficient_domestic_ports_records=excluded["insufficient_domestic_ports"],
     )
     return RouteSupport(
         weight_field=weight_field,
@@ -456,9 +452,8 @@ def _add_decimals_exact(left: Decimal, right: Decimal) -> Decimal:
     left_coefficient, left_exponent = _decimal_coefficient_and_exponent(left)
     right_coefficient, right_exponent = _decimal_coefficient_and_exponent(right)
     common_exponent = min(left_exponent, right_exponent)
-    total = (
-        left_coefficient * 10 ** (left_exponent - common_exponent)
-        + right_coefficient * 10 ** (right_exponent - common_exponent)
+    total = left_coefficient * 10 ** (left_exponent - common_exponent) + right_coefficient * 10 ** (
+        right_exponent - common_exponent
     )
     return _decimal_from_coefficient(total, common_exponent)
 
@@ -469,8 +464,7 @@ def _integral_weights(weights: Sequence[Decimal]) -> tuple[int, ...]:
     parts = tuple(_decimal_coefficient_and_exponent(value) for value in weights)
     common_exponent = min(exponent for _, exponent in parts)
     integers = tuple(
-        coefficient * 10 ** (exponent - common_exponent)
-        for coefficient, exponent in parts
+        coefficient * 10 ** (exponent - common_exponent) for coefficient, exponent in parts
     )
     divisor = reduce(math.gcd, integers)
     return tuple(value // divisor for value in integers)
@@ -502,15 +496,11 @@ def sample_maritime_route(
     origin_index = stream.derive("origin-location").randbelow(len(route.origin_locations))
     origin = route.origin_locations[origin_index]
     destination_candidates = tuple(
-        location
-        for location in route.destination_locations
-        if location.locode != origin.locode
+        location for location in route.destination_locations if location.locode != origin.locode
     )
     if not destination_candidates:
         raise RuntimeError("route support cannot provide a distinct destination location")
-    destination_index = stream.derive("destination-location").randbelow(
-        len(destination_candidates)
-    )
+    destination_index = stream.derive("destination-location").randbelow(len(destination_candidates))
     return SampledMaritimeRoute(
         origin=origin,
         destination=destination_candidates[destination_index],

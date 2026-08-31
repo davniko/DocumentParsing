@@ -163,9 +163,7 @@ def _report(
 ) -> str:
     family_counts = Counter(cast(str, row["assigned_family"]) for row in selected)
     family_support = Counter(
-        family
-        for row in candidate_rows
-        for family in cast(Sequence[str], row["eligible_families"])
+        family for row in candidate_rows for family in cast(Sequence[str], row["eligible_families"])
     )
     pending_counts: Counter[str] = Counter()
     for row in selected:
@@ -422,7 +420,19 @@ def run_deterministic_smoke(
     if not split_ids <= set(source_by_id):
         raise ValueError("partition split contains unknown document IDs")
 
-    donors = numeric_cargo_tuples(source_rows)
+    isolated_fit_ids = frozenset(
+        document_id
+        for document_id in split_ids
+        if frozenset(
+            cast(Sequence[str], templates[member_template[document_id]]["member_document_ids"])
+        )
+        <= split_ids
+    )
+    if not isolated_fit_ids:
+        raise ValueError("configured split has no template-isolated numeric donors")
+    donors = numeric_cargo_tuples(
+        [source_by_id[document_id] for document_id in sorted(isolated_fit_ids)]
+    )
     preflight: dict[tuple[str, str], dict[str, Any]] = {}
     candidate_rows: list[dict[str, Any]] = []
     candidates: list[SelectionCandidate] = []
@@ -475,11 +485,15 @@ def run_deterministic_smoke(
                     if rendered == row[fields.input_text] or changed_characters <= 0:
                         raise ValueError("renderer produced no source-text change")
                     for change in plan.changes:
-                        if change.family in {
-                            "container_identifier",
-                            "seal_identifier",
-                            "allocation_reference",
-                        } and str(change.old_value) in rendered:
+                        if (
+                            change.family
+                            in {
+                                "container_identifier",
+                                "seal_identifier",
+                                "allocation_reference",
+                            }
+                            and str(change.old_value) in rendered
+                        ):
                             raise ValueError("old formal identifier remains in rendered OCR")
                     preflight[(document_id, family)] = {
                         "target": target,

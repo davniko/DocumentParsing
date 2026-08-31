@@ -1,12 +1,13 @@
 # KIE synthesis preparation and generation plan
 
 Date: 2026-08-30  
-Status: non-generative preparation implemented and validated; generation design ready for decisions
+Status: preparation plus structured non-linguistic Passes 1-2 implemented and validated
 
 This document records what is now proven for the exact 1,157-document MPCI bill-of-lading corpus,
 what the preparation artifacts mean, and how the subsequent augmentation system should be built.
-It deliberately separates implemented foundations from proposed generation behavior. No synthetic
-training row and no paid PydanticAI call was produced in this pass.
+It deliberately separates implemented structured generation from the still-pending linguistic and
+raw-text realization stages. No synthetic training row and no paid PydanticAI call has been
+produced.
 
 The generation scope is text-only: construct a synthetic structured target, then apply a validated
 set of exact edits to the selected source document's page-ordered raw OCR while preserving its
@@ -217,6 +218,66 @@ and non-sensitive headings/flavor text remain unchanged. The generated distracto
 from the label so they continue teaching the model what to ignore. Existing label-validation and
 annotation policies already recognize tax, VAT, ACID, customs, CNPJ, and registration metadata;
 those audited rules should seed the residual classifier instead of duplicating a new regex policy.
+
+### 1.7 Structured non-linguistic Passes 1-2
+
+The first two structured-generation passes are now implemented. They deliberately stop before
+party/goods linguistic generation or raw-OCR realization and therefore publish inspection plans,
+not training rows. The accepted 50-scenario baseline is:
+
+```text
+artifacts/kie-synthesis/mpci-bl-combined1157-structured-baseline50-v8/
+```
+
+Its strict configuration is:
+
+```text
+configs/synthesis/mpci_bl_combined1157_structured_baseline50.yaml
+```
+
+Pass 1 provides the fail-closed execution and semantic layer:
+
+- a template-isolated train-only source scope and receipts;
+- an exact-quota SciPy MILP selector with template and carrier caps;
+- immutable staged publication with behavior, environment, image, source, fit, and transaction
+  hashes;
+- run-global container, seal, document-reference, and voyage reservations against the complete
+  real corpus;
+- deterministic HMAC-keyed streams whose results do not depend on worker or request order;
+- coherent date, identifier, package-quantity, measure, allocation, and relation updates; and
+- exact schema, canonicalization, relational-inverse, change-ledger, collision, arithmetic, and
+  equipment-capacity gates.
+
+Pass 2 supplies statistically generated cargo quantities and measures. The complete 17-table graph
+remains the semantic authority; SDV models only compact, dense cargo-group profiles. Gross, net,
+and volume missingness are hard routing dimensions. A profile selects the narrowest train-supported
+route from exact package identity and role, semantic package family and role, then role-wide fit
+support. Role-wide rows may fit a proposal model but can never define plausibility. Every accepted
+proposal must also lie inside the raw marginal bounds and log-scaled nearest-neighbor envelope of
+an exact identity or a meaningful package family. Generic `UNREGISTERED_PRINTED_PACKAGE` and
+`UNTYPED_PACKAGE` labels are explicitly forbidden as semantic-family fallbacks.
+
+For each supported profile, empirical resampling and four selectable Gaussian Copula variants are
+evaluated over five template-grouped folds and five seeds. CTGAN and TVAE are configured but remain
+ineligible below the declared 1,000-row/100-template support threshold. Candidate selection requires
+perfect diagnostic validity, bounded paired quality deficit versus the empirical baseline, at least
+90% novel proposals, at least 25% post-projection proposal yield, and all task-owned business-rule
+gates. Statistical output proposes only a driver quantity and present per-driver-package measures;
+deterministic projection derives totals and all dependent package/allocation values.
+
+The accepted run produced 50 distinct templates across 20 carrier strata (19 named carrier
+families plus one missing-value stratum), 93 cargo-group proposals, and 105 changed task-facing
+package quantities. It generated 92 collision-free,
+ISO-6346-valid containers. All 50 targets passed strict schema, canonical, inverse, exact-ledger,
+allocation, and capacity validation, with no exact train-row copies. The generated cargo-group
+proposal yield was 92.09%. Pipeline runtime was 197.48 seconds with 832.59 MiB peak Python RSS.
+An immediate repeat returned the committed artifact in 4.72 seconds and left its complete content
+tree byte-identical.
+
+This baseline remains `trainingEligible=false`. It preserves source language, party identities,
+goods descriptions, package categories, container types, and relation cardinality. Those retained
+facts are useful template context but are not anonymous synthetic training data. Seven retained
+metadata-only package-hierarchy facts also remain explicitly pending text realization.
 
 ## 2. Recommended generation architecture
 
@@ -732,9 +793,12 @@ route audit for every run.
 
 ### Decision 5 — statistical model selection budget
 
-Choose allowed fit time and benchmark candidates. **Recommended:** Community SDV with per-view
-Gaussian Copula/CTGAN/TVAE benchmark and HMA simplified-view ablation. Enterprise multi-table
-targeting can be added as a registered backend later; the core design must not depend on it.
+The cargo-profile baseline now has a pinned five-fold/five-seed Community SDV benchmark and selects
+among four Gaussian Copula representations. CTGAN and TVAE remain declared but fail closed below
+the configured 1,000-row/100-template evidence threshold. For each additional modeling view, choose
+and benchmark its own support thresholds and fit-time budget rather than inheriting the cargo result.
+HMA remains only a possible simplified-view ablation. Enterprise multi-table targeting can be added
+as a registered backend later; the core design must not depend on it.
 
 ### Decision 6 — linguistic provider, budget, and retention
 
@@ -791,10 +855,13 @@ must be expressed through bounded text-block insertion while preserving the sour
     toward 10,000 only when the learning curve identifies useful cohorts/ratios.
 12. Treat cardinality expansion and each new document type as separately approved task-plugin work.
 
-### 5.1 Proposed next implementation pass for approval
+### 5.1 Original Passes 1-2 contract and completion boundary
 
-This pass can proceed without deciding the final destination mixture, statistical winner, or
-linguistic provider. It should implement and validate the contracts that make those choices safe:
+The following contract is retained as the implementation trace. The strict state/policy models,
+train-isolated MILP selection, non-linguistic document mutation, profile-routed SDV benchmark,
+global reservations, task projection, immutable CLI publication, and inspection reporting are now
+complete. Route/locality generation, linguistic realization, and text patching remain intentionally
+deferred. The original contract specified:
 
 1. **Strict generation state and policy models.** Add `DraftScenarioPlan`,
    `PendingRealization`, `ResolvedSemanticPlan`, `SemanticChange`, `TextEdit`, `TextPatchPlan`, and
@@ -829,8 +896,9 @@ linguistic provider. It should implement and validate the contracts that make th
    generator support, country eligibility, planner acceptance, retry/hold taxonomy, latency,
    input/output tokens, and cost.
 
-The pass does **not** fit the final SDV model, invent a final trade prior, generate PDFs, mutate the
-1,157-row real corpus, or publish synthetic training rows. Its offline acceptance gates are:
+The completed structured pass fits only bounded cargo-profile SDV proposal models. It does **not**
+invent a trade prior, generate PDFs, mutate the 1,157-row real corpus, or publish synthetic training
+rows. The text-renderer-specific acceptance gates in the original contract remain future gates:
 
 - all new config/error branches covered by targeted tests;
 - exact relational projection/inverse retained on the pinned source corpus;
@@ -840,7 +908,8 @@ The pass does **not** fit the final SDV model, invent a final trade prior, gener
 - benchmarked selector, generator, and patch-executor throughput and peak memory; and
 - no network/API call in the default test suite.
 
-After those gates pass, the same pass may end with an explicitly approved, hard-budgeted
+After those remaining gates pass, the subsequent rendering pass may end with an explicitly
+approved, hard-budgeted
 eight-document agent probe: one simple document and one each stressing multi-page repetition,
 multi-container, multi-cargo/package relations, dangerous goods, temperature, auxiliary party data,
 and ambiguous repeated evidence. The probe defaults to one request per document, at most one repair,
@@ -848,11 +917,10 @@ and abort-before-request cost enforcement. It publishes single-pass acceptance, 
 rates, complete validator taxonomy, latency, tokens, and provider-receipted cost. It does not publish
 the records as training data.
 
-The concrete end state is therefore a runnable, audited semantic-planning and text-editing engine,
-plus evidence from a small cost-capped planner probe if that probe is included in the approval. The
-next decision can then use measured results rather than assumptions: select statistical generators,
-pin production registries/distributions and seed catalogs, complete linguistic realization, and run
-the first 100–250 fully anonymized text-only synthetic pilot.
+The current concrete end state is a runnable, audited structured semantic-planning engine with
+measured statistical proposals and no training publication. The next boundary is to pin production
+route/party/goods registries and seed catalogs, complete linguistic and raw-text realization, and
+then run the first 100–250 fully anonymized text-only synthetic pilot.
 
 ## 6. Authoritative references used for the design
 

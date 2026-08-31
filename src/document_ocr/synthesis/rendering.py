@@ -60,9 +60,7 @@ def _page_spans(joined_raw_text: str) -> tuple[_PageSpan, ...]:
     spans: list[_PageSpan] = []
     for index, match in enumerate(matches):
         section_end = (
-            matches[index + 1].start()
-            if index + 1 < len(matches)
-            else len(joined_raw_text)
+            matches[index + 1].start() if index + 1 < len(matches) else len(joined_raw_text)
         )
         body_start = match.end()
         while body_start < section_end and joined_raw_text[body_start] == "\n":
@@ -275,9 +273,12 @@ def build_patch_plan(
     edits = []
     for key, row in sorted(planned.items()):
         row["target_paths"] = tuple(sorted(row["target_paths"]))
-        row["edit_id"] = "edit_" + sha256_bytes(
-            canonical_json_bytes([synthetic_document_id, *key, row["replacement_text"]])
-        )[:24]
+        row["edit_id"] = (
+            "edit_"
+            + sha256_bytes(
+                canonical_json_bytes([synthetic_document_id, *key, row["replacement_text"]])
+            )[:24]
+        )
         edits.append(DeterministicTextEdit.model_validate(row, strict=True))
     return DeterministicTextPatchPlan.model_validate(
         {

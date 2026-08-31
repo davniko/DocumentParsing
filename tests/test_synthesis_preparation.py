@@ -180,6 +180,17 @@ def test_date_quantity_mass_and_allocation_invariants() -> None:
     }
     reconciled = reconcile_allocation_group(packages=packages, allocation_group=allocation)
     assert [row["packageQuantity"] for row in reconciled["allocations"]] == [4, 7]
+    with pytest.raises(ValueError, match="erase a positive container membership"):
+        reconcile_allocation_group(
+            packages=({"packageId": "p1", "quantity": 1},),
+            allocation_group={
+                **allocation,
+                "allocations": [
+                    {"containerNumber": "TGHU1234567", "packageQuantity": 1},
+                    {"containerNumber": "MSCU6639870", "packageQuantity": 1},
+                ],
+            },
+        )
     validate_mass_order(
         gross_weight={"value": 134865, "unit": "kilogram"},
         net_weight={"value": 134.865, "unit": "metric_tonne"},

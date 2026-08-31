@@ -1,0 +1,189 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined1157-structured-baseline50-v8
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+  sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+
+inputs:
+  preparation:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-preparation-v3
+    manifest_sha256: 42cd4a9be6f9b907d6c98dbc29315262934b54484e15196611b0a984de2e14e7
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4305ee49db94f4ee34d8d416a0e9fe1a193b1899bab644f43419dd40e7e642aa
+    records: 1157
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: f37ef3707007a97742cda7ff9b23318716b67e5435d2a4f5e4247ef128b9dfe5
+    records: 682
+  partition_report:
+    path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+    sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  category_metadata:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/category-metadata.jsonl
+    sha256: 7739f2dab15bd5a1e402922bd47d05b3db0a0b004519077a95ce49225d093743
+    records: 1157
+  package_hierarchy_metadata:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-packages-v2/package-metadata.jsonl
+    sha256: 1a9c762bc9942224121fe9db522a575030464250098e5f55384cdc3ba36088a9
+    records: 1157
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  package_registry_entries: 405
+
+runtime:
+  image_reference: document-ocr/kie-synthesis:sdv1.38.2
+  image_digest: sha256:05ecd7506235dd6b25d8056c94710e53f6826cce8bd695684e38abd44ad288b7
+  expected_versions:
+    numpy: 2.5.2
+    pandas: 2.3.3
+    scipy: 1.18.1
+    sdmetrics: 0.30.0
+    sdv: 1.38.2
+
+selection:
+  split: train
+  requested_documents: 50
+  seed: 20260830
+  minimum_template_documents: 2
+  require_template_wholly_in_split: true
+  maximum_per_template: 1
+  maximum_per_carrier: 6
+  minimum_carriers: 15
+  strata_exact:
+    document_type:
+      bill_of_lading: 34
+      sea_waybill: 16
+    source_corpus:
+      current_main680: 29
+      legacy_combined487: 21
+    page_bucket:
+      one: 13
+      two: 23
+      three_or_more: 14
+    container_bucket:
+      none: 8
+      one: 29
+      two_to_four: 9
+      five_to_ten: 3
+      over_ten: 1
+  context_minimums:
+    multi_container: 12
+    multi_cargo: 6
+    multiple_package_levels: 5
+    container_allocations: 40
+    refrigerated: 5
+    dangerous_goods: 2
+    delivery_agent: 15
+    forwarding_agent: 6
+
+modeling:
+  view: cargo_group_numeric
+  candidates:
+    - empirical
+    - gaussian_copula_default
+    - gaussian_copula_gaussian_kde
+    - gaussian_copula_domain_mixed
+    - gaussian_copula_physical_factors
+    - ctgan
+    - tvae
+  selectable_candidates:
+    - gaussian_copula_default
+    - gaussian_copula_gaussian_kde
+    - gaussian_copula_domain_mixed
+    - gaussian_copula_physical_factors
+  grouped_folds: 5
+  seeds:
+    - 20260830
+    - 20260831
+    - 20260832
+    - 20260833
+    - 20260834
+  fold_seed: 20260830
+  neural_epochs: 300
+  minimum_rows_for_neural: 1000
+  minimum_templates_for_neural: 100
+  simplest_within_quality_margin: 0.01
+  stability_penalty: 0.25
+  maximum_mean_quality_deficit_vs_empirical: 0.05
+  maximum_property_quality_deficit_vs_empirical: 0.10
+  maximum_detail_quality_deficit_vs_empirical: 0.10
+  paired_confidence_level: 0.95
+  maximum_paired_quality_lcb_deficit: 0.10
+  maximum_raw_proposals_per_accept: 64
+  proposal_batch_rows: 64
+  proposal_assignment_oversample_factor: 16
+  minimum_final_acceptance_yield: 0.25
+  minimum_final_novelty_fraction: 0.90
+  routing:
+    exact_identity_role:
+      minimum_rows: 20
+      minimum_templates: 5
+    semantic_family_role:
+      minimum_rows: 16
+      minimum_templates: 5
+    role_profile:
+      minimum_rows: 20
+      minimum_templates: 10
+  contextual_plausibility:
+    exact_identity_role:
+      minimum_rows: 3
+      minimum_templates: 3
+    semantic_family_role:
+      minimum_rows: 5
+      minimum_templates: 5
+  source_quality:
+    maximum_gross_to_net_ratio: 50.0
+    robust_minimum_rows: 8
+    robust_z_threshold: 8.0
+    maximum_median_factor: 100.0
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  seed: 20260830
+  date_minimum: 2020-01-01
+  date_maximum: 2030-12-31
+  preserve_source_missingness: true
+  preserve_source_cardinality: true
+  preserve_relation_topology: true
+  regenerate_all_supported_identifiers: true
+  date_method: train_empirical_anchor_plus_bounded_jitter_v1
+  maximum_date_jitter_days: 45
+  quantity_method: profile_routed_group_driver_then_reconcile_v1
+  quantity_compatibility_profile: package_category_role_hierarchical_pool_v1
+  cargo_measure_method: profile_routed_per_driver_measure_then_exact_unit_inverse_v1
+  package_category_policy: preserve_validated_source_category_v1
+  container_type_policy: preserve_source_nonidentifying_category_v1
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.05
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  publish_training_records: false
