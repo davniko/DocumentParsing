@@ -24,6 +24,9 @@ from document_ocr.label_schemas.bill_of_lading import (
     SemanticLocation,
     SemanticParty,
 )
+from document_ocr.label_schemas.bill_of_lading_v4 import (
+    RelationExplicitDangerousGoodsV4,
+)
 from document_ocr.label_schemas.mpci_bill_of_lading import MpciBillOfLadingLabel
 
 CountryResolver = Callable[[str], str | None]
@@ -37,6 +40,23 @@ _PAYMENT_CODES = {
 _MASS_UNIT_CODES = {"kilogram": "KGM", "pound": "LBR"}
 _TEMPERATURE_UNIT_CODES = {"celsius": "CEL", "fahrenheit": "FAH"}
 _PACKING_GROUP_CODES = {"I": "1", "II": "2", "III": "3"}
+_RELATION_HAZARD_CATEGORY_CODES = {
+    "EXPLOSIVES": "1",
+    "GASES": "2",
+    "FLAMMABLE_LIQUIDS": "3",
+    "FLAMMABLE_SOLIDS": "4",
+    "OXIDIZING_SUBSTANCES_AND_ORGANIC_PEROXIDES": "5",
+    "TOXIC_AND_INFECTIOUS_SUBSTANCES": "6",
+    "RADIOACTIVE_MATERIAL": "7",
+    "CORROSIVE_SUBSTANCES": "8",
+    "MISCELLANEOUS_DANGEROUS_SUBSTANCES_AND_ARTICLES": "9",
+}
+_RELATION_PACKING_GROUP_CODES = {
+    "HIGH_DANGER": "1",
+    "MEDIUM_DANGER": "2",
+    "LOW_DANGER": "3",
+    "NOT_ASSIGNED": "4",
+}
 _ASCII_TRANSLITERATION = str.maketrans(
     {
         "Æ": "AE",
@@ -319,6 +339,54 @@ def _dangerous_goods(value: DangerousGoods) -> dict[str, Any]:
         if value.flashPoint.packingGroup is not None:
             flashpoint["packagingDangerLevelCode"] = _PACKING_GROUP_CODES[
                 value.flashPoint.packingGroup
+            ]
+        result["dangerousGoodsShipmentFlashpoint"] = [flashpoint]
+    return result
+
+
+def project_relation_v4_dangerous_goods_to_mpci(
+    value: RelationExplicitDangerousGoodsV4,
+) -> dict[str, Any]:
+    """Project one v4 DG tuple without inventing form facts.
+
+    MPCI's researched form exposes one additional-hazard slot.  Multiple
+    subsidiary hazards therefore fail explicitly until the platform's actual
+    serialization contract is known.
+    """
+
+    result: dict[str, Any] = {}
+    subsidiaries = value.subsidiaryHazardCategories or ()
+    if len(subsidiaries) > 1:
+        raise MpciProjectionError(
+            "MPCI projection for multiple subsidiary hazards is not established"
+        )
+    if value.hazardCategory is not None:
+        hazard: dict[str, Any] = {
+            "hazardIdentificationCode": _RELATION_HAZARD_CATEGORY_CODES[value.hazardCategory]
+        }
+        if subsidiaries:
+            hazard["additionalHazardClassificationIdentifier"] = _RELATION_HAZARD_CATEGORY_CODES[
+                subsidiaries[0]
+            ]
+        result["hazardCode"] = [hazard]
+    elif subsidiaries:
+        raise MpciProjectionError("subsidiary hazard cannot be projected without a primary hazard")
+    if value.unNumber is not None:
+        result["undgInformation"] = {"identifier": value.unNumber}
+    if value.flashPoint is not None or value.packingGroupCategory is not None:
+        flashpoint: dict[str, Any] = {}
+        if value.flashPoint is not None:
+            flashpoint.update(
+                {
+                    "shipmentFlashpointDegree": value.flashPoint.temperature.value,
+                    "measurementUnitCode": _TEMPERATURE_UNIT_CODES[
+                        value.flashPoint.temperature.unit
+                    ],
+                }
+            )
+        if value.packingGroupCategory is not None:
+            flashpoint["packagingDangerLevelCode"] = _RELATION_PACKING_GROUP_CODES[
+                value.packingGroupCategory
             ]
         result["dangerousGoodsShipmentFlashpoint"] = [flashpoint]
     return result

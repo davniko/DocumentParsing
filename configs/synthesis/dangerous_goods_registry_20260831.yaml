@@ -1,0 +1,11 @@
+schema_version: 1
+
+run:
+  run_id: dangerous-goods-phmsa-ecics-20260831-v4
+  output_dir: artifacts/kie-synthesis/registries
+
+inputs:
+  source_root: data/registries/dangerous-goods
+  source_manifest:
+    path: data/registries/dangerous-goods/source-manifest-20260831.json
+    sha256: 839c08a3502e473d3136e3c86680510249cc8c2c5a7ff45b188d2255118402f9

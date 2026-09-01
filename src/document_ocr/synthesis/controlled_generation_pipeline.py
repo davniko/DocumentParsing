@@ -76,6 +76,13 @@ from document_ocr.synthesis.transport_identity import (
     build_transport_identity_bundle,
     expand_transport_identity_structure,
     realize_voyage_numbers,
+    transport_identity_key,
+)
+from document_ocr.synthesis.vessel_name_registry import (
+    LoadedVesselNameRegistry,
+    SampledVesselName,
+    VesselNameRegistryReceipt,
+    load_vessel_name_registry,
 )
 from document_ocr.training.tasks import RelationExplicitTaskConstraints, get_training_task
 
@@ -453,6 +460,22 @@ def _patch_voyage_target(target: dict[str, Any], realization: Mapping[str, Any])
         raise ControlledGenerationError("transport presence changed for voyageNumber")
     if generated is not None:
         transport["voyageNumber"] = generated
+
+
+def _patch_vessel_target(target: dict[str, Any], realization: Mapping[str, Any]) -> None:
+    patch = cast(dict[str, Any], target["documentPatch"])
+    source_transport = patch.get("transport")
+    if source_transport is None:
+        if realization["vesselName"] is not None:
+            raise ControlledGenerationError("vessel realization added an absent transport object")
+        return
+    transport = cast(dict[str, Any], source_transport)
+    source_present = "vesselName" in transport
+    generated = realization["vesselName"]
+    if source_present != (generated is not None):
+        raise ControlledGenerationError("transport presence changed for vesselName")
+    if generated is not None:
+        transport["vesselName"] = generated
 
 
 def _patch_temperature_target(
@@ -881,6 +904,75 @@ def run_controlled_pilot(
         raise ControlledGenerationError(
             "generated voyage numbers failed source or batch collision validation"
         )
+
+    vessel_registry: LoadedVesselNameRegistry | None = None
+    vessel_registry_receipt: VesselNameRegistryReceipt | None = None
+    vessel_by_document: dict[str, SampledVesselName | None] = {
+        document_id: None for document_id in selected_ids
+    }
+    source_vessel_keys = frozenset(
+        transport_identity_key(value)
+        for row in document_rows
+        if isinstance(value := row.get("transport_vessel_name"), str) and value.strip()
+    )
+    if config.generation.transport.vessel_name_method == (
+        "public_cargo_vessel_registry_uniform_v1"
+    ):
+        registry_config = config.inputs.vessel_name_registry
+        receipt_config = config.inputs.vessel_name_registry_receipt
+        assert registry_config is not None and receipt_config is not None
+        receipt_payload = _read_json(
+            _resolve_file(
+                project_root,
+                receipt_config.path,
+                label="vessel-name registry receipt",
+            ),
+            expected_sha256=receipt_config.sha256,
+            label="vessel-name registry receipt",
+        )
+        vessel_registry_receipt = VesselNameRegistryReceipt.model_validate(
+            receipt_payload, strict=True
+        )
+        if (
+            vessel_registry_receipt.registry_sha256 != registry_config.sha256
+            or vessel_registry_receipt.registry_records != registry_config.records
+        ):
+            raise ValueError("vessel-name registry pin differs from its receipt")
+        vessel_registry = load_vessel_name_registry(
+            _resolve_file(
+                project_root,
+                registry_config.path,
+                label="vessel-name registry",
+            ),
+            expected_sha256=registry_config.sha256,
+            expected_records=registry_config.records,
+        )
+        used_vessel_keys: set[str] = set()
+        for document_id in selected_ids:
+            if not bool(expanded_transport_by_document[document_id]["vessel_name_present"]):
+                continue
+            synthetic_id = cast(str, target_by_base[document_id]["syntheticDocumentId"])
+            sampled = vessel_registry.sample(
+                stream=DeterministicStream(
+                    config.generation.seed,
+                    "controlled-public-vessel-name-v1",
+                    synthetic_id,
+                ),
+                excluded_identity_keys=source_vessel_keys,
+                used_identity_keys=used_vessel_keys,
+                maximum_attempts=config.generation.transport.maximum_realization_attempts,
+            )
+            vessel_by_document[document_id] = sampled
+            used_vessel_keys.add(sampled.identity_key)
+    generated_vessels = tuple(row.name for row in vessel_by_document.values() if row is not None)
+    source_vessel_collisions = sum(
+        transport_identity_key(value) in source_vessel_keys for value in generated_vessels
+    )
+    duplicate_generated_vessels = len(generated_vessels) - len(set(generated_vessels))
+    if source_vessel_collisions or duplicate_generated_vessels:
+        raise ControlledGenerationError(
+            "sampled vessel names failed source or batch collision validation"
+        )
     party_benchmark = _read_json(
         _resolve_file(
             project_root,
@@ -1161,7 +1253,6 @@ def run_controlled_pilot(
             voyage_number = voyage.voyage_number
             voyage_attempts = voyage.attempts
             _patch_voyage_target(target, {"voyageNumber": voyage_number})
-            component_coverage["transport"]["generatedDocuments"] += int(voyage_number is not None)
         else:
             patch = cast(dict[str, Any], target["documentPatch"])
             source_transport = cast(dict[str, Any] | None, patch.get("transport"))
@@ -1171,11 +1262,29 @@ def run_controlled_pilot(
                 else None
             )
             voyage_attempts = 0
+        vessel_sample = vessel_by_document[document_id]
+        if config.generation.transport.vessel_name_method == (
+            "public_cargo_vessel_registry_uniform_v1"
+        ):
+            vessel_name = vessel_sample.name if vessel_sample is not None else None
+            vessel_attempts = vessel_sample.attempts if vessel_sample is not None else 0
+            _patch_vessel_target(target, {"vesselName": vessel_name})
+            vessel_status = "generated_public_registry_sample" if vessel_name else "not_present"
+        else:
+            vessel_name = None
+            vessel_attempts = 0
+            vessel_status = "deferred_by_explicit_scope" if vessel_source_present else "not_present"
         transport_payload = {
-            "vesselName": None,
+            "vesselName": vessel_name,
             "vesselNameSourcePresent": vessel_source_present,
-            "vesselNameStatus": (
-                "deferred_by_explicit_scope" if vessel_source_present else "not_present"
+            "vesselNameStatus": vessel_status,
+            "vesselNameAttempts": vessel_attempts,
+            "vesselNameMethod": config.generation.transport.vessel_name_method,
+            "vesselNameSourceFamilies": (
+                list(vessel_sample.source_families) if vessel_sample is not None else []
+            ),
+            "vesselNameNoaaYears": (
+                list(vessel_sample.noaa_years) if vessel_sample is not None else []
             ),
             "voyageNumber": voyage_number,
             "voyageAttempts": voyage_attempts,
@@ -1189,12 +1298,23 @@ def run_controlled_pilot(
             ),
             "imoPolicy": config.generation.transport.imo_policy,
         }
-        if vessel_source_present:
+        if (
+            vessel_source_present
+            and config.generation.transport.vessel_name_method == "deferred_by_explicit_scope_v1"
+        ):
             blockers.append("vessel_name_deferred_by_explicit_scope")
         if imo_source_present:
             blockers.append("vessel_imo_requires_authoritative_assigned_number_registry")
+        component_coverage["transport"]["generatedDocuments"] += int(
+            vessel_name is not None or voyage_number is not None
+        )
         component_coverage["transport"]["blockedDocuments"] += int(
-            vessel_source_present or imo_source_present
+            (
+                vessel_source_present
+                and config.generation.transport.vessel_name_method
+                == "deferred_by_explicit_scope_v1"
+            )
+            or imo_source_present
         )
 
         dangerous_count = dangerous_by_document[document_id]
@@ -1329,6 +1449,10 @@ def run_controlled_pilot(
         "commercialOriginCountryCounts": dict(sorted(commercial_origins.items())),
         "commercialDestinationCountryCounts": dict(sorted(commercial_destinations.items())),
         "freightArrangementCounts": dict(sorted(freight_arrangements.items())),
+        "vesselNameMethod": config.generation.transport.vessel_name_method,
+        "vesselNameRegistryRecords": (
+            len(vessel_registry.records) if vessel_registry is not None else 0
+        ),
         "voyageShapeGenerationMethod": config.generation.transport.voyage_number_method,
     }
     validation = {
@@ -1336,9 +1460,10 @@ def run_controlled_pilot(
         "controlledScenarios": len(output_rows),
         "strictSchemaValidDraftTargets": validated_draft_targets,
         "relationalInverseValidDraftTargets": validated_draft_targets,
-        "actualGeneratedVesselNames": 0,
+        "actualGeneratedVesselNames": len(generated_vessels),
         "pendingVesselNames": sum(
-            row["transportIdentity"]["vesselNameSourcePresent"] for row in output_rows
+            row["transportIdentity"]["vesselNameStatus"] == "deferred_by_explicit_scope"
+            for row in output_rows
         ),
         "actualGeneratedVoyageNumbers": sum(
             row["transportIdentity"]["voyageNumber"] is not None
@@ -1351,7 +1476,19 @@ def run_controlled_pilot(
             if row["transportIdentity"]["voyageMethod"]
             == "preserve_for_upstream_structured_identifier_v1"
         ),
-        "sourceTransportIdentityCollisions": source_voyage_collisions,
+        "sourceTransportIdentityCollisions": (source_vessel_collisions + source_voyage_collisions),
+        "sourceVesselNameCollisions": source_vessel_collisions,
+        "duplicateGeneratedVesselNames": duplicate_generated_vessels,
+        "generatedVesselNameAttemptsMean": (
+            sum(row.attempts for row in vessel_by_document.values() if row is not None)
+            / len(generated_vessels)
+            if generated_vessels
+            else 0.0
+        ),
+        "generatedVesselNameAttemptsMaximum": max(
+            (row.attempts for row in vessel_by_document.values() if row is not None),
+            default=0,
+        ),
         "duplicateGeneratedVoyageNumbers": duplicate_generated_voyages,
         "generatedVoyageNumberAttemptsMean": (
             sum(row.attempts for row in voyage_realizations if row.voyage_number is not None)
@@ -1376,6 +1513,7 @@ def run_controlled_pilot(
             Path(__file__).with_name("hs_registry.py"),
             Path(__file__).with_name("hs_scenarios.py"),
             Path(__file__).with_name("cargo_origin_scenarios.py"),
+            Path(__file__).with_name("vessel_name_registry.py"),
         )
     }
     transaction = sha256_bytes(
@@ -1431,6 +1569,23 @@ def run_controlled_pilot(
             ),
             "imoPolicy": config.generation.transport.imo_policy,
         },
+    )
+    stage.publish_json(
+        "modeling/vessel-name-registry.json",
+        (
+            {
+                "status": "loaded",
+                "method": config.generation.transport.vessel_name_method,
+                "registrySha256": vessel_registry.sha256,
+                "registryRecords": len(vessel_registry.records),
+                "receipt": vessel_registry_receipt.model_dump(mode="json"),
+            }
+            if vessel_registry is not None and vessel_registry_receipt is not None
+            else {
+                "status": "deferred",
+                "method": config.generation.transport.vessel_name_method,
+            }
+        ),
     )
     stage.publish_json(
         "modeling/party-identity-benchmark-decision.json",
@@ -1495,6 +1650,7 @@ def run_controlled_pilot(
         "modeling/party-identity-benchmark-decision.json",
         "modeling/reefer-support-audit.json",
         "modeling/transport-generation-policy.json",
+        "modeling/vessel-name-registry.json",
         "plots/01_component_coverage.png",
         "runtime.json",
         "source-scope.json",

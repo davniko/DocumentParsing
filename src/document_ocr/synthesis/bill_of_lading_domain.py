@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from document_ocr.synthesis.domain import RelationalTables
 
@@ -62,8 +62,7 @@ def _ordered(rows: Sequence[Mapping[str, Any]], field: str) -> list[Mapping[str,
 class BillOfLadingRelationDomainAdapter:
     """Task-specific, cardinality-preserving B/L relational contract."""
 
-    task = "bill_of_lading_relation_explicit_v3"
-    table_order = (
+    _BASE_TABLE_ORDER = (
         "documents",
         "document_locations",
         "document_references",
@@ -83,12 +82,33 @@ class BillOfLadingRelationDomainAdapter:
         "dangerous_goods",
     )
 
+    def __init__(
+        self,
+        *,
+        task: Literal[
+            "bill_of_lading_relation_explicit_v3",
+            "bill_of_lading_relation_explicit_v4",
+            "bill_of_lading_relation_explicit_v5",
+        ] = "bill_of_lading_relation_explicit_v3",
+    ) -> None:
+        self.task = task
+        self.schema_version = {
+            "bill_of_lading_relation_explicit_v3": "3.0.0-experimental",
+            "bill_of_lading_relation_explicit_v4": "4.0.0-experimental",
+            "bill_of_lading_relation_explicit_v5": "5.0.0-experimental",
+        }[task]
+        self.table_order = self._BASE_TABLE_ORDER + (
+            ("dangerous_goods_subsidiary_hazards",)
+            if task != "bill_of_lading_relation_explicit_v3"
+            else ()
+        )
+
     def project(
         self, *, document_id: str, source_row_index: int, target: Mapping[str, Any]
     ) -> RelationalTables:
         patch = target.get("documentPatch")
-        if target.get("schemaVersion") != "3.0.0-experimental" or not isinstance(patch, dict):
-            raise ValueError("B/L domain projection requires a canonical relation-v3 target")
+        if target.get("schemaVersion") != self.schema_version or not isinstance(patch, dict):
+            raise ValueError(f"B/L domain projection requires a canonical {self.task} target")
         tables = RelationalTables({name: [] for name in self.table_order})
         route_value = patch.get("route")
         transport_value = patch.get("transport")
@@ -209,6 +229,7 @@ class BillOfLadingRelationDomainAdapter:
                     "container_order": container_order,
                     "container_number": container.get("containerNumber"),
                     "type_description": container.get("typeDescription"),
+                    "size_category": container.get("sizeCategory"),
                     "type_category": container.get("typeCategory"),
                     **_measure_columns("verified_gross_mass", container.get("verifiedGrossMass")),
                     **_measure_columns(
@@ -277,22 +298,50 @@ class BillOfLadingRelationDomainAdapter:
                     if isinstance(dangerous.get("flashPoint"), dict)
                     else {}
                 )
+                dangerous_goods_id = _row_id(
+                    document_id, "dangerous-goods", group_id, dangerous_order
+                )
+                is_v4 = self.task != "bill_of_lading_relation_explicit_v3"
                 tables.add(
                     "dangerous_goods",
                     {
-                        "dangerous_goods_id": _row_id(
-                            document_id, "dangerous-goods", group_id, dangerous_order
-                        ),
+                        "dangerous_goods_id": dangerous_goods_id,
                         "document_id": document_id,
                         "cargo_group_row_id": cargo_group_row_id,
                         "dangerous_goods_order": dangerous_order,
                         "un_number": dangerous.get("unNumber"),
                         "hazard_category": dangerous.get("hazardCategory"),
-                        "subsidiary_hazard_category": dangerous.get("subsidiaryHazardCategory"),
+                        "subsidiary_hazard_category": (
+                            None if is_v4 else dangerous.get("subsidiaryHazardCategory")
+                        ),
                         **_measure_columns("flash_point", flash.get("temperature")),
-                        "packing_group_category": flash.get("packingGroupCategory"),
+                        "packing_group_category": (
+                            dangerous.get("packingGroupCategory")
+                            if is_v4
+                            else flash.get("packingGroupCategory")
+                        ),
                     },
                 )
+                if is_v4:
+                    for subsidiary_order, category in enumerate(
+                        dangerous.get("subsidiaryHazardCategories") or []
+                    ):
+                        tables.add(
+                            "dangerous_goods_subsidiary_hazards",
+                            {
+                                "subsidiary_hazard_id": _row_id(
+                                    document_id,
+                                    "dangerous-goods-subsidiary",
+                                    group_id,
+                                    dangerous_order,
+                                    subsidiary_order,
+                                ),
+                                "document_id": document_id,
+                                "dangerous_goods_id": dangerous_goods_id,
+                                "subsidiary_hazard_order": subsidiary_order,
+                                "hazard_category": category,
+                            },
+                        )
 
         package_row_ids: dict[str, str] = {}
         for package_order, package in enumerate(patch.get("cargoPackages") or []):
@@ -494,6 +543,7 @@ class BillOfLadingRelationDomainAdapter:
                     name: container_row[column]
                     for name, column in (
                         ("typeDescription", "type_description"),
+                        ("sizeCategory", "size_category"),
                         ("typeCategory", "type_category"),
                     )
                     if container_row.get(column) is not None
@@ -535,6 +585,11 @@ class BillOfLadingRelationDomainAdapter:
         }
         dangerous_rows = [
             r for r in tables.get("dangerous_goods", ()) if r["document_id"] == document_id
+        ]
+        subsidiary_hazard_rows = [
+            r
+            for r in tables.get("dangerous_goods_subsidiary_hazards", ())
+            if r["document_id"] == document_id
         ]
         groups = []
         for group_row in _ordered(
@@ -588,9 +643,28 @@ class BillOfLadingRelationDomainAdapter:
                     )
                     if dangerous_row.get(column) is not None
                 }
+                if self.task != "bill_of_lading_relation_explicit_v3":
+                    dangerous.pop("subsidiaryHazardCategory", None)
+                    subsidiary_values = _ordered(
+                        [
+                            row
+                            for row in subsidiary_hazard_rows
+                            if row["dangerous_goods_id"] == dangerous_row["dangerous_goods_id"]
+                        ],
+                        "subsidiary_hazard_order",
+                    )
+                    if subsidiary_values:
+                        dangerous["subsidiaryHazardCategories"] = [
+                            row["hazard_category"] for row in subsidiary_values
+                        ]
                 flash_temperature = _measure_from_row(dangerous_row, "flash_point")
                 packing = dangerous_row.get("packing_group_category")
-                if flash_temperature is not None or packing is not None:
+                if self.task != "bill_of_lading_relation_explicit_v3":
+                    if packing is not None:
+                        dangerous["packingGroupCategory"] = packing
+                    if flash_temperature is not None:
+                        dangerous["flashPoint"] = {"temperature": flash_temperature}
+                elif flash_temperature is not None or packing is not None:
                     flash: dict[str, Any] = {}
                     if flash_temperature is not None:
                         flash["temperature"] = flash_temperature
@@ -694,6 +768,8 @@ class BillOfLadingRelationDomainAdapter:
             "allocations": "allocation_id",
             "dangerous_goods": "dangerous_goods_id",
         }
+        if self.task != "bill_of_lading_relation_explicit_v3":
+            primary_keys["dangerous_goods_subsidiary_hazards"] = "subsidiary_hazard_id"
         relationships = [
             _relationship("documents", "document_id", table, "document_id")
             for table in (
@@ -734,6 +810,15 @@ class BillOfLadingRelationDomainAdapter:
                 ),
             )
         )
+        if self.task != "bill_of_lading_relation_explicit_v3":
+            relationships.append(
+                _relationship(
+                    "dangerous_goods",
+                    "dangerous_goods_id",
+                    "dangerous_goods_subsidiary_hazards",
+                    "dangerous_goods_id",
+                )
+            )
         return {
             "METADATA_SPEC_VERSION": "V1",
             "tables": {
@@ -768,6 +853,7 @@ _INTEGER_COLUMNS = {
     "group_order",
     "value_order",
     "dangerous_goods_order",
+    "subsidiary_hazard_order",
     "package_order",
     "allocation_group_order",
     "allocation_order",
@@ -855,6 +941,7 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "container_order",
         "container_number",
         "type_description",
+        "size_category",
         "type_category",
         "verified_gross_mass_value",
         "verified_gross_mass_unit",
@@ -961,7 +1048,16 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "flash_point_unit",
         "packing_group_category",
     ),
+    "dangerous_goods_subsidiary_hazards": (
+        "subsidiary_hazard_id",
+        "document_id",
+        "dangerous_goods_id",
+        "subsidiary_hazard_order",
+        "hazard_category",
+    ),
 }
 
 
 ADAPTER = BillOfLadingRelationDomainAdapter()
+V4_ADAPTER = BillOfLadingRelationDomainAdapter(task="bill_of_lading_relation_explicit_v4")
+V5_ADAPTER = BillOfLadingRelationDomainAdapter(task="bill_of_lading_relation_explicit_v5")

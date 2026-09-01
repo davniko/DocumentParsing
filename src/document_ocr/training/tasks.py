@@ -16,6 +16,8 @@ from document_ocr.label_schemas.bill_of_lading_v3 import (
     BillOfLadingRelationExplicitLabel,
     CategoryToken,
 )
+from document_ocr.label_schemas.bill_of_lading_v4 import BillOfLadingRelationExplicitV4Label
+from document_ocr.label_schemas.bill_of_lading_v5 import BillOfLadingRelationExplicitV5Label
 from document_ocr.training.config import TrainingConfig, resolve_config_path
 
 Canonicalizer = Callable[[dict[str, Any]], dict[str, Any]]
@@ -28,7 +30,11 @@ class RelationExplicitTaskConstraints(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 
     schemaVersion: Literal[1]
-    task: Literal["bill_of_lading_relation_explicit_v3"]
+    task: Literal[
+        "bill_of_lading_relation_explicit_v3",
+        "bill_of_lading_relation_explicit_v4",
+        "bill_of_lading_relation_explicit_v5",
+    ]
     basePromptSchemaSha256: Sha256
     targetSchemaSha256: Sha256
     packageRegistrySha256: Sha256
@@ -71,18 +77,21 @@ class TrainingTask:
             definitions = schema.get("$defs")
             if not isinstance(definitions, dict):
                 raise ValueError("relation-explicit prompt schema has no $defs map")
+            container_definition = (
+                "RelationExplicitContainerV5"
+                if self.name == "bill_of_lading_relation_explicit_v5"
+                else "RelationExplicitContainer"
+            )
             constrained_fields = (
                 (
-                    "RelationExplicitContainer",
+                    container_definition,
                     self.constraints.containerCategoryTokens,
                 ),
                 ("CargoPackageFact", self.constraints.packageCategoryTokens),
             )
             for definition_name, tokens in constrained_fields:
                 definition = definitions.get(definition_name)
-                properties = (
-                    definition.get("properties") if isinstance(definition, dict) else None
-                )
+                properties = definition.get("properties") if isinstance(definition, dict) else None
                 if not isinstance(properties, dict) or "typeCategory" not in properties:
                     raise ValueError(
                         f"relation-explicit prompt schema lacks {definition_name}.typeCategory"
@@ -121,9 +130,7 @@ class TrainingTask:
                 raise ValueError(f"package typeCategory is outside the frozen vocabulary: {token}")
         return canonical
 
-    def bind_constraints(
-        self, constraints: RelationExplicitTaskConstraints
-    ) -> TrainingTask:
+    def bind_constraints(self, constraints: RelationExplicitTaskConstraints) -> TrainingTask:
         if self.name != constraints.task:
             raise ValueError("task-constraints artifact names a different training task")
         if self.base_prompt_schema_sha256() != constraints.basePromptSchemaSha256:
@@ -158,8 +165,7 @@ def _sparse_prompt_schema(value: Any) -> Any:
             # Keys inside schema maps are model field/definition names, not JSON Schema
             # annotations. A real field named `description` must therefore survive.
             compact[key] = {
-                name: _sparse_prompt_schema(child_schema)
-                for name, child_schema in item.items()
+                name: _sparse_prompt_schema(child_schema) for name, child_schema in item.items()
             }
         else:
             compact[key] = _sparse_prompt_schema(item)
@@ -220,6 +226,28 @@ def _canonicalize_bill_of_lading_relation_explicit_v3(
     return canonical
 
 
+def _canonicalize_bill_of_lading_relation_explicit_v4(
+    value: dict[str, Any],
+) -> dict[str, Any]:
+    encoded = canonical_json(value)
+    label = BillOfLadingRelationExplicitV4Label.model_validate_json(encoded, strict=True)
+    canonical = label.canonical_target()
+    if canonical != value:
+        raise ValueError("target differs from the task schema's canonical sparse representation")
+    return canonical
+
+
+def _canonicalize_bill_of_lading_relation_explicit_v5(
+    value: dict[str, Any],
+) -> dict[str, Any]:
+    encoded = canonical_json(value)
+    label = BillOfLadingRelationExplicitV5Label.model_validate_json(encoded, strict=True)
+    canonical = label.canonical_target()
+    if canonical != value:
+        raise ValueError("target differs from the task schema's canonical sparse representation")
+    return canonical
+
+
 _TASKS = {
     "bill_of_lading_semantic_v2": TrainingTask(
         name="bill_of_lading_semantic_v2",
@@ -230,6 +258,16 @@ _TASKS = {
         name="bill_of_lading_relation_explicit_v3",
         canonicalizer=_canonicalize_bill_of_lading_relation_explicit_v3,
         target_model=BillOfLadingRelationExplicitLabel,
+    ),
+    "bill_of_lading_relation_explicit_v4": TrainingTask(
+        name="bill_of_lading_relation_explicit_v4",
+        canonicalizer=_canonicalize_bill_of_lading_relation_explicit_v4,
+        target_model=BillOfLadingRelationExplicitV4Label,
+    ),
+    "bill_of_lading_relation_explicit_v5": TrainingTask(
+        name="bill_of_lading_relation_explicit_v5",
+        canonicalizer=_canonicalize_bill_of_lading_relation_explicit_v5,
+        target_model=BillOfLadingRelationExplicitV5Label,
     ),
 }
 
@@ -263,9 +301,7 @@ def load_training_task(project_root: Path, config: TrainingConfig) -> TrainingTa
     if sha256_bytes(payload) != configured.sha256:
         raise ValueError(f"task-constraints SHA-256 mismatch: {path}")
     try:
-        constraints = RelationExplicitTaskConstraints.model_validate_json(
-            payload, strict=True
-        )
+        constraints = RelationExplicitTaskConstraints.model_validate_json(payload, strict=True)
     except ValueError as error:
         raise ValueError(f"task-constraints artifact failed validation: {path}") from error
     canonical_payload = canonical_json_bytes(constraints.model_dump(mode="json")) + b"\n"

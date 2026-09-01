@@ -1,0 +1,27 @@
+schema_version: 1
+
+run:
+  run_id: mpci-bl-dangerous-goods-registry-analysis-20260831-v5
+  output_dir: artifacts/kie-synthesis
+
+registry:
+  run:
+    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4
+    commit_sha256: 16ac5d50ddff4398e8fd128eb0c097da2bc55935f848613000a6bd0d8130c3bc
+    transaction_sha256: 6ca96bd3a0596d04edf7a688f55b9f0a53142fe102516e8e72c4660be3ad6557
+  receipt:
+    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/registry-receipt.json
+    sha256: e528d350aaeb4cf7ebb9595d5171a55766fc3c0d624f421ae76a6b8c543afab7
+  hmt_records:
+    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics_links:
+    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+
+corpus:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+  sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+  records: 1157

@@ -19,6 +19,7 @@ from pydantic import (
 from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode
 
+from document_ocr.label_schemas.bill_of_lading_v3 import HazardCategory
 from document_ocr.training.config import (
     DatasetFieldsConfig,
     DatasetFileConfig,
@@ -121,6 +122,19 @@ class CommittedDirectoryConfig(PinnedDirectoryConfig):
 
     commit_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
     transaction_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+
+class CommittedArtifactDirectoryConfig(_StrictModel):
+    """Pinned staged run whose commit receipt is its complete artifact inventory."""
+
+    path: NonEmptyString
+    commit_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    transaction_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+    @field_validator("path")
+    @classmethod
+    def safe_path(cls, value: str) -> str:
+        return _safe_path(value)
 
 
 class SynthesisSidecarsConfig(_StrictModel):
@@ -628,6 +642,8 @@ class ControlledPilotInputsConfig(_StrictModel):
     hs_metadata: PinnedFileConfig
     hs_commodities_report: PinnedFileConfig
     party_identity_benchmark_summary: PinnedFileConfig
+    vessel_name_registry: DatasetFileConfig | None = None
+    vessel_name_registry_receipt: PinnedFileConfig | None = None
 
 
 class ControlledHsGenerationConfig(_StrictModel):
@@ -654,7 +670,10 @@ class ControlledHsGenerationConfig(_StrictModel):
 
 
 class ControlledTransportGenerationConfig(_StrictModel):
-    vessel_name_method: Literal["deferred_by_explicit_scope_v1"]
+    vessel_name_method: Literal[
+        "deferred_by_explicit_scope_v1",
+        "public_cargo_vessel_registry_uniform_v1",
+    ]
     voyage_number_method: Literal[
         "observed_character_class_shape_v1",
         "preserve_for_upstream_structured_identifier_v1",
@@ -697,6 +716,21 @@ class SynthesisControlledPilotConfig(_StrictModel):
     inputs: ControlledPilotInputsConfig
     selection: RouteScenarioSelectionConfig
     generation: ControlledPilotGenerationConfig
+
+    @model_validator(mode="after")
+    def vessel_registry_matches_generation_method(self) -> SynthesisControlledPilotConfig:
+        uses_registry = (
+            self.generation.transport.vessel_name_method
+            == "public_cargo_vessel_registry_uniform_v1"
+        )
+        has_registry = self.inputs.vessel_name_registry is not None
+        has_receipt = self.inputs.vessel_name_registry_receipt is not None
+        if uses_registry != has_registry or uses_registry != has_receipt:
+            raise ValueError(
+                "public vessel-name sampling requires both pinned registry and receipt; "
+                "deferred sampling requires neither"
+            )
+        return self
 
     @model_validator(mode="after")
     def controlled_pilot_is_pinned_and_non_publishable(
@@ -757,6 +791,247 @@ class SynthesisSemanticPlanConfig(_StrictModel):
         }
         if len(counts) != 1:
             raise ValueError("semantic plan input record counts differ")
+        return self
+
+
+class DangerousGoodsRegistryInputsConfig(_StrictModel):
+    source_root: NonEmptyString
+    source_manifest: PinnedFileConfig
+
+    @field_validator("source_root")
+    @classmethod
+    def safe_source_root(cls, value: str) -> str:
+        return _safe_path(value)
+
+
+class SynthesisDangerousGoodsRegistryConfig(_StrictModel):
+    """Pinned source-to-compiled-registry contract."""
+
+    schema_version: Literal[1]
+    run: SynthesisRunConfig
+    inputs: DangerousGoodsRegistryInputsConfig
+
+
+class DangerousGoodsRegistryArtifactsConfig(_StrictModel):
+    run: CommittedArtifactDirectoryConfig
+    receipt: PinnedFileConfig
+    hmt_records: DatasetFileConfig
+    ecics_links: DatasetFileConfig
+
+
+class SynthesisDangerousGoodsAnalysisConfig(_StrictModel):
+    """Plot-heavy registry and real-corpus coverage analysis."""
+
+    schema_version: Literal[1]
+    run: SynthesisRunConfig
+    registry: DangerousGoodsRegistryArtifactsConfig
+    corpus: DatasetFileConfig
+
+
+class DangerousGoodsPlanInputsConfig(_StrictModel):
+    semantic_plan_run: CommittedDirectoryConfig
+    semantic_plans: DatasetFileConfig
+    source_task_constraints: PinnedFileConfig
+    registry: DangerousGoodsRegistryArtifactsConfig
+
+
+class DangerousGoodsPlanGenerationConfig(_StrictModel):
+    random_stream: Literal["hmac_sha256_counter_v1"]
+    seed: Annotated[int, Field(ge=0, lt=2**64)]
+    branch_method: Literal["source_hs_presence_exact_identity_chemical_else_general_v2"]
+    category_weights_permyriad: dict[HazardCategory, Annotated[int, Field(gt=0)]]
+    unsupported_category_policy: Literal["renormalize_over_branch_support_v1"]
+    maximum_subsidiary_hazards: Literal[1]
+    maximum_collision_attempts: Annotated[int, Field(gt=0)]
+    sampling_validation_draws_per_branch: Annotated[int, Field(ge=1000)]
+    maximum_category_deviation_permyriad: Annotated[int, Field(gt=0, le=1000)]
+    flashpoint_policy: Literal["omit_without_formulation_property_source_v1"]
+    preserve_dangerous_goods_cardinality: Literal[True]
+    publish_training_records: Literal[False]
+
+    @model_validator(mode="after")
+    def category_weights_are_complete(self) -> DangerousGoodsPlanGenerationConfig:
+        if sum(self.category_weights_permyriad.values()) != 10_000:
+            raise ValueError("DG category weights must sum exactly to 10000")
+        return self
+
+
+class SynthesisDangerousGoodsPlanConfig(_StrictModel):
+    """Final non-linguistic DG stage over one committed semantic plan."""
+
+    schema_version: Literal[1]
+    source_task: Literal["bill_of_lading_relation_explicit_v3"]
+    target_task: Literal["bill_of_lading_relation_explicit_v4"]
+    run: SynthesisRunConfig
+    inputs: DangerousGoodsPlanInputsConfig
+    generation: DangerousGoodsPlanGenerationConfig
+
+    @model_validator(mode="after")
+    def counts_match(self) -> SynthesisDangerousGoodsPlanConfig:
+        if self.inputs.semantic_plans.records <= 0:
+            raise ValueError("DG plan requires at least one semantic plan")
+        return self
+
+
+class SemanticCompletionInputsConfig(_StrictModel):
+    dangerous_goods_run: CommittedArtifactDirectoryConfig
+    dangerous_goods_plans: DatasetFileConfig
+    equipment_registry_manifest: PinnedFileConfig
+    mpci_container_registry: PinnedFileConfig
+    hs_registry_manifest: PinnedFileConfig
+    hs_metadata: PinnedFileConfig
+    hs_commodities_report: PinnedFileConfig
+    iso3166_snapshot: PinnedFileConfig
+    world_ports: DatasetFileConfig
+    world_port_registry_receipt: PinnedFileConfig
+
+
+class SemanticCompletionThermalConfig(_StrictModel):
+    document_prevalence_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    prevalence_method: Literal["exact_hmac_ranked_quota_over_eligible_documents_v1"]
+    profile_weights_permyriad: dict[
+        Literal["FROZEN", "CHILLED"],
+        Annotated[int, Field(ge=0, le=10_000)],
+    ]
+    ambient_hs_chapters: tuple[Annotated[str, StringConstraints(pattern=r"^[0-9]{2}$")], ...]
+    frozen_minimum_celsius: float
+    frozen_maximum_celsius: float
+    chilled_minimum_celsius: float
+    chilled_maximum_celsius: float
+    step_celsius: Annotated[float, Field(gt=0)]
+
+    @field_validator("ambient_hs_chapters", mode="before")
+    @classmethod
+    def freeze_ambient_hs_chapters(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def thermal_policy_is_complete(self) -> SemanticCompletionThermalConfig:
+        if (
+            set(self.profile_weights_permyriad) != {"FROZEN", "CHILLED"}
+            or sum(self.profile_weights_permyriad.values()) != 10_000
+        ):
+            raise ValueError("thermal profile weights must name both profiles and sum to 10000")
+        if not self.ambient_hs_chapters or self.ambient_hs_chapters != tuple(
+            sorted(set(self.ambient_hs_chapters))
+        ):
+            raise ValueError("ambient HS chapters must be non-empty, unique, and sorted")
+        for minimum, maximum, label in (
+            (self.frozen_minimum_celsius, self.frozen_maximum_celsius, "frozen"),
+            (self.chilled_minimum_celsius, self.chilled_maximum_celsius, "chilled"),
+        ):
+            if minimum > maximum:
+                raise ValueError(f"{label} temperature bounds are reversed")
+            steps = round((maximum - minimum) / self.step_celsius)
+            if abs(minimum + steps * self.step_celsius - maximum) > 1e-9:
+                raise ValueError(f"{label} temperature range is not divisible by its step")
+        return self
+
+
+class SemanticCompletionEquipmentConfig(_StrictModel):
+    distribution_method: Literal[
+        "source_type_marginal_then_size_conditional_with_configurable_overrides_v1"
+    ]
+    configured_active_joint_weights: dict[NonEmptyString, Annotated[int, Field(ge=0)]] = Field(
+        default_factory=dict
+    )
+    configured_inactive_joint_weights: dict[NonEmptyString, Annotated[int, Field(ge=0)]] = Field(
+        default_factory=dict
+    )
+    generated_label_method: Literal["separate_readable_size_and_type_categories_v1"]
+    application_projection: Literal["bic_size_plus_mpci_type_group_v1"]
+
+
+class SemanticCompletionTransportConfig(_StrictModel):
+    imo_presence_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    flag_presence_permyriad: Annotated[int, Field(ge=0, le=10_000)]
+    presence_method: Literal["configured_exact_hmac_ranked_quota_v1"]
+    imo_method: Literal["random_six_digits_plus_imo_check_digit_v1"]
+    imo_leading_digit_weights: dict[
+        Annotated[str, StringConstraints(pattern=r"^[1-9]$")],
+        Annotated[int, Field(gt=0)],
+    ]
+    maximum_collision_attempts: Annotated[int, Field(gt=0)]
+    flag_method: Literal["uniform_pinned_world_port_country_v1"]
+    source_correlation_policy: Literal["independent_no_supported_source_correlation_v1"]
+
+
+class SemanticCompletionFlashpointConfig(_StrictModel):
+    method: Literal["hazard_and_physical_form_conditioned_property_v1"]
+    presence_permyriad: dict[
+        Literal[
+            "CLASS3_FLAMMABLE_LIQUID",
+            "NON_CLASS3_EXPLICIT_LIQUID",
+            "DESENSITIZED_FLAMMABLE_SOLID",
+        ],
+        Annotated[int, Field(ge=0, le=10_000)],
+    ]
+    class3_minimum_celsius: float
+    class3_maximum_celsius: Annotated[float, Field(le=60)]
+    non_class3_liquid_minimum_celsius: Annotated[float, Field(gt=60)]
+    non_class3_liquid_maximum_celsius: float
+    desensitized_solid_minimum_celsius: float
+    desensitized_solid_maximum_celsius: Annotated[float, Field(le=60)]
+    step_celsius: Annotated[float, Field(gt=0)]
+
+    @model_validator(mode="after")
+    def flashpoint_grid_is_exact(self) -> SemanticCompletionFlashpointConfig:
+        expected = {
+            "CLASS3_FLAMMABLE_LIQUID",
+            "NON_CLASS3_EXPLICIT_LIQUID",
+            "DESENSITIZED_FLAMMABLE_SOLID",
+        }
+        if set(self.presence_permyriad) != expected:
+            raise ValueError("flashpoint presence weights must name every eligibility class")
+        for minimum, maximum, label in (
+            (self.class3_minimum_celsius, self.class3_maximum_celsius, "class 3"),
+            (
+                self.non_class3_liquid_minimum_celsius,
+                self.non_class3_liquid_maximum_celsius,
+                "non-class-3 liquid",
+            ),
+            (
+                self.desensitized_solid_minimum_celsius,
+                self.desensitized_solid_maximum_celsius,
+                "desensitized solid",
+            ),
+        ):
+            if minimum > maximum:
+                raise ValueError(f"{label} flashpoint bounds are reversed")
+            steps = round((maximum - minimum) / self.step_celsius)
+            if abs(minimum + steps * self.step_celsius - maximum) > 1e-9:
+                raise ValueError(f"{label} flashpoint range is not divisible by its step")
+        return self
+
+
+class SemanticCompletionGenerationConfig(_StrictModel):
+    random_stream: Literal["hmac_sha256_counter_v1"]
+    seed: Annotated[int, Field(ge=0, lt=2**64)]
+    equipment: SemanticCompletionEquipmentConfig
+    thermal: SemanticCompletionThermalConfig
+    transport: SemanticCompletionTransportConfig
+    flashpoint: SemanticCompletionFlashpointConfig
+    preserve_container_cardinality: Literal[True]
+    preserve_cargo_cardinality: Literal[True]
+    preserve_relation_topology: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisSemanticCompletionConfig(_StrictModel):
+    """Final deterministic/registry semantic stage before linguistic rendering."""
+
+    schema_version: Literal[1]
+    source_task: Literal["bill_of_lading_relation_explicit_v4"]
+    target_task: Literal["bill_of_lading_relation_explicit_v5"]
+    run: SynthesisRunConfig
+    source: SynthesisSourceConfig
+    inputs: SemanticCompletionInputsConfig
+    generation: SemanticCompletionGenerationConfig
+
+    @model_validator(mode="after")
+    def completion_inputs_match(self) -> SynthesisSemanticCompletionConfig:
+        if self.source.fields.input_sha256 is None:
+            raise ValueError("semantic completion requires source input SHA-256 values")
         return self
 
 
@@ -896,3 +1171,51 @@ def load_synthesis_semantic_plan_config(path: Path) -> SynthesisSemanticPlanConf
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisSemanticPlanConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_dangerous_goods_registry_config(
+    path: Path,
+) -> SynthesisDangerousGoodsRegistryConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisDangerousGoodsRegistryConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_dangerous_goods_analysis_config(
+    path: Path,
+) -> SynthesisDangerousGoodsAnalysisConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisDangerousGoodsAnalysisConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_dangerous_goods_plan_config(
+    path: Path,
+) -> SynthesisDangerousGoodsPlanConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisDangerousGoodsPlanConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_semantic_completion_config(
+    path: Path,
+) -> SynthesisSemanticCompletionConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisSemanticCompletionConfig.model_validate(value, strict=True)

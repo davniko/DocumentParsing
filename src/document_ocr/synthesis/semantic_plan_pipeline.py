@@ -228,6 +228,13 @@ def _controlled_change_contract(path: str) -> tuple[str, str, str, str]:
         return "geography", "exact_scalar", "route_conditioned_party_locality_v1", "route"
     if role.startswith("documentPatch.freight."):
         return "categorical", "exact_scalar", "route_conditioned_freight_v1", "freight"
+    if role == "documentPatch.transport.vesselName":
+        return (
+            "identifier",
+            "exact_scalar",
+            "public_cargo_vessel_registry_uniform_v1",
+            "transport",
+        )
     if role.endswith(".typeCategory") and ".cargoPackages[]" in role:
         return "categorical", "exact_scalar", "role_conditioned_package_category_v2", "packages"
     if role.endswith(".typeDescription") and ".containers[]" in role:
@@ -557,13 +564,14 @@ def run_semantic_plan_pipeline(
         ):
             raise SemanticPlanPipelineError(f"controlled scenario hash differs: {document_id}")
         template_id = cast(str, selection_rows[position]["template_id"])
-        for row in (
+        stage_rows: tuple[Mapping[str, Any], ...] = (
             structured_target_row,
             structured_plan,
             controlled_target_row,
             controlled_scenario,
-        ):
-            candidate_template = row.get("templateId", row.get("template_id"))
+        )
+        for stage_row in stage_rows:
+            candidate_template = stage_row.get("templateId", stage_row.get("template_id"))
             if candidate_template != template_id:
                 raise SemanticPlanPipelineError(f"stage template differs: {document_id}")
         state = compose_semantic_targets(
@@ -669,19 +677,23 @@ def run_semantic_plan_pipeline(
             "peakRssMiB": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
         },
     )
-    manifest = {
-        "schemaVersion": 1,
-        "runId": config.run.run_id,
-        "status": "composed_non_dg_semantic_plan_complete_pending_text_and_dg",
-        "trainingEligible": False,
-        "scenarioDocuments": len(plans),
-        "trainingRecordsPublished": 0,
-        "dangerousGoodsPolicy": config.generation.dangerous_goods_policy,
-        "distribution": distribution,
-        "validation": validation,
-        "implementationSha256": implementation,
-        "transactionSha256": transaction,
-    }
+    manifest_status = "composed_non_dg_semantic_plan_complete_pending_text_and_dg"
+    manifest = cast(
+        dict[str, JsonValue],
+        {
+            "schemaVersion": 1,
+            "runId": config.run.run_id,
+            "status": manifest_status,
+            "trainingEligible": False,
+            "scenarioDocuments": len(plans),
+            "trainingRecordsPublished": 0,
+            "dangerousGoodsPolicy": config.generation.dangerous_goods_policy,
+            "distribution": distribution,
+            "validation": validation,
+            "implementationSha256": implementation,
+            "transactionSha256": transaction,
+        },
+    )
     stage.publish_json("manifest.json", manifest)
     commit = stage.commit(
         expected_artifacts=(
@@ -694,7 +706,7 @@ def run_semantic_plan_pipeline(
             "source-context.json",
         ),
         metadata={
-            "status": manifest["status"],
+            "status": manifest_status,
             "trainingEligible": False,
             "scenarioDocuments": len(plans),
         },

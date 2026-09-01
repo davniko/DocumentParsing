@@ -10,13 +10,16 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.label_schemas.bill_of_lading_v3 import BillOfLadingRelationExplicitLabel
-from document_ocr.synthesis.bill_of_lading_domain import ADAPTER
+from document_ocr.label_schemas.bill_of_lading_v4 import BillOfLadingRelationExplicitV4Label
+from document_ocr.label_schemas.bill_of_lading_v5 import BillOfLadingRelationExplicitV5Label
+from document_ocr.synthesis.bill_of_lading_domain import ADAPTER, V4_ADAPTER, V5_ADAPTER
 from document_ocr.synthesis.domain import DomainAdapter, RelationalTables
 from document_ocr.synthesis.generation_models import FieldPolicy
-from document_ocr.synthesis.policies import FIELD_POLICIES, policy_for_target_path
+from document_ocr.synthesis.policies import FIELD_POLICIES, V4_FIELD_POLICIES, V5_FIELD_POLICIES
 
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+_DEFAULT_DOMAIN_ADAPTER: DomainAdapter = cast(DomainAdapter, ADAPTER)
 
 
 class _StrictFrozenModel(BaseModel):
@@ -59,13 +62,21 @@ class SynthesisTaskAdapter(Protocol):
 class BillOfLadingSynthesisTaskAdapter:
     """Relation-v3 B/L task wrapper around the existing lossless ADAPTER."""
 
-    task = ADAPTER.task
-    contract_id = "bill-of-lading-relation-explicit-v3-synthesis-adapter-v1"
-    domain_adapter: DomainAdapter = cast(DomainAdapter, ADAPTER)
-    field_policies: Mapping[str, FieldPolicy] = MappingProxyType(dict(FIELD_POLICIES))
-
-    def __init__(self) -> None:
-        schema = BillOfLadingRelationExplicitLabel.model_json_schema(mode="serialization")
+    def __init__(
+        self,
+        *,
+        task: str = ADAPTER.task,
+        contract_id: str = "bill-of-lading-relation-explicit-v3-synthesis-adapter-v1",
+        target_model: type[BaseModel] = BillOfLadingRelationExplicitLabel,
+        domain_adapter: DomainAdapter = _DEFAULT_DOMAIN_ADAPTER,
+        field_policies: Mapping[str, FieldPolicy] = FIELD_POLICIES,
+    ) -> None:
+        self.task = task
+        self.contract_id = contract_id
+        self.target_model = target_model
+        self.domain_adapter = domain_adapter
+        self.field_policies: Mapping[str, FieldPolicy] = MappingProxyType(dict(field_policies))
+        schema = target_model.model_json_schema(mode="serialization")
         policies = {
             path: policy.model_dump(mode="json")
             for path, policy in sorted(self.field_policies.items())
@@ -91,10 +102,10 @@ class BillOfLadingSynthesisTaskAdapter:
 
         if not document_id.strip():
             raise ValueError("task-adapter document ID must be non-empty")
-        validated = BillOfLadingRelationExplicitLabel.model_validate_json(
+        validated = self.target_model.model_validate_json(
             canonical_json_bytes(dict(target)), strict=True
         )
-        canonical = validated.canonical_target()
+        canonical = cast(dict[str, Any], cast(Any, validated).canonical_target())
         if canonical != target:
             raise ValueError("B/L synthesis target is not canonical")
         tables: RelationalTables = self.domain_adapter.project(
@@ -111,7 +122,27 @@ class BillOfLadingSynthesisTaskAdapter:
         return canonical
 
     def policy_for_target_path(self, path: str) -> FieldPolicy:
-        return policy_for_target_path(path)
+        from document_ocr.synthesis.anchors import normalized_role_path
+
+        role_path = normalized_role_path(path)
+        try:
+            return self.field_policies[role_path]
+        except KeyError as error:
+            raise KeyError(f"no synthesis policy for target path: {path}") from error
 
 
 BILL_OF_LADING_TASK_ADAPTER: SynthesisTaskAdapter = BillOfLadingSynthesisTaskAdapter()
+BILL_OF_LADING_V4_TASK_ADAPTER: SynthesisTaskAdapter = BillOfLadingSynthesisTaskAdapter(
+    task=V4_ADAPTER.task,
+    contract_id="bill-of-lading-relation-explicit-v4-synthesis-adapter-v1",
+    target_model=BillOfLadingRelationExplicitV4Label,
+    domain_adapter=cast(DomainAdapter, V4_ADAPTER),
+    field_policies=V4_FIELD_POLICIES,
+)
+BILL_OF_LADING_V5_TASK_ADAPTER: SynthesisTaskAdapter = BillOfLadingSynthesisTaskAdapter(
+    task=V5_ADAPTER.task,
+    contract_id="bill-of-lading-relation-explicit-v5-synthesis-adapter-v1",
+    target_model=BillOfLadingRelationExplicitV5Label,
+    domain_adapter=cast(DomainAdapter, V5_ADAPTER),
+    field_policies=V5_FIELD_POLICIES,
+)

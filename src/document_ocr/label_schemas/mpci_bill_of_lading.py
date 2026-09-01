@@ -480,9 +480,19 @@ class UndgInformation(LabelSchemaModel):
 
 
 class DangerousGoodsShipmentFlashpoint(LabelSchemaModel):
-    shipmentFlashpointDegree: Annotated[float, Field(allow_inf_nan=False)]
-    measurementUnitCode: TemperatureUnit
+    shipmentFlashpointDegree: Annotated[float, Field(allow_inf_nan=False)] | None = None
+    measurementUnitCode: TemperatureUnit | None = None
     packagingDangerLevelCode: Literal["1", "2", "3", "4"] | None = None
+
+    @model_validator(mode="after")
+    def contains_paired_temperature_or_packing_group(
+        self,
+    ) -> DangerousGoodsShipmentFlashpoint:
+        if (self.shipmentFlashpointDegree is None) != (self.measurementUnitCode is None):
+            raise ValueError("shipment flashpoint degree and unit must be present together")
+        if self.shipmentFlashpointDegree is None and self.packagingDangerLevelCode is None:
+            raise ValueError("dangerous-goods flashpoint row must contain supported evidence")
+        return self
 
 
 class DangerousGoods(LabelSchemaModel):
@@ -724,9 +734,7 @@ class MpciBillOfLadingAnnotation(LabelSchemaModel):
             )
         page_numbers = {page.pageNumber for page in self.source.pages}
         for evidence_item in self.evidence:
-            evidence_page_numbers = {
-                item.pageNumber for item in evidence_item.rawOcrEvidence
-            }
+            evidence_page_numbers = {item.pageNumber for item in evidence_item.rawOcrEvidence}
             if not evidence_page_numbers.issubset(page_numbers):
                 raise ValueError("evidence references a page outside the source document")
         for warning in self.warnings:

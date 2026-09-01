@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "matplotlib==3.11.1",
+  "openpyxl==3.1.5",
   "pandas==2.3.3",
   "pydantic==2.13.4",
   "pydantic-ai-slim[openai,retries]==2.36.0",
@@ -12,6 +13,7 @@ dependencies = [
   "sdv==1.38.2",
   "seaborn==0.13.2",
   "torch==2.9.1+cpu",
+  "xlrd==2.0.2",
 ]
 
 [tool.uv]

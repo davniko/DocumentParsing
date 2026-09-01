@@ -8,11 +8,15 @@ from pathlib import Path
 
 from document_ocr.synthesis.config import (
     load_synthesis_controlled_pilot_config,
+    load_synthesis_dangerous_goods_analysis_config,
+    load_synthesis_dangerous_goods_plan_config,
+    load_synthesis_dangerous_goods_registry_config,
     load_synthesis_deterministic_smoke_config,
     load_synthesis_foundation_config,
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
     load_synthesis_route_scenario_pilot_config,
+    load_synthesis_semantic_completion_config,
     load_synthesis_semantic_plan_config,
     load_synthesis_structured_baseline_config,
 )
@@ -40,6 +44,14 @@ def main() -> None:
         "run-controlled-pilot",
         "validate-semantic-plan-config",
         "run-semantic-plan",
+        "validate-dangerous-goods-registry-config",
+        "build-dangerous-goods-registry",
+        "validate-dangerous-goods-analysis-config",
+        "run-dangerous-goods-analysis",
+        "validate-dangerous-goods-plan-config",
+        "run-dangerous-goods-plan",
+        "validate-semantic-completion-config",
+        "run-semantic-completion",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -53,6 +65,30 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-semantic-completion-config",
+            "run-semantic-completion",
+        }:
+            semantic_completion_config = load_synthesis_semantic_completion_config(config_path)
+        elif arguments.command in {
+            "validate-dangerous-goods-plan-config",
+            "run-dangerous-goods-plan",
+        }:
+            dangerous_goods_plan_config = load_synthesis_dangerous_goods_plan_config(config_path)
+        elif arguments.command in {
+            "validate-dangerous-goods-analysis-config",
+            "run-dangerous-goods-analysis",
+        }:
+            dangerous_goods_analysis_config = load_synthesis_dangerous_goods_analysis_config(
+                config_path
+            )
+        elif arguments.command in {
+            "validate-dangerous-goods-registry-config",
+            "build-dangerous-goods-registry",
+        }:
+            dangerous_goods_registry_config = load_synthesis_dangerous_goods_registry_config(
+                config_path
+            )
+        elif arguments.command in {
             "validate-semantic-plan-config",
             "run-semantic-plan",
         }:
@@ -86,7 +122,36 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-semantic-plan-config":
+        if arguments.command == "validate-semantic-completion-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": semantic_completion_config.run.run_id,
+                "records": semantic_completion_config.inputs.dangerous_goods_plans.records,
+                "target_task": semantic_completion_config.target_task,
+            }
+        elif arguments.command == "validate-dangerous-goods-plan-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": dangerous_goods_plan_config.run.run_id,
+                "records": dangerous_goods_plan_config.inputs.semantic_plans.records,
+            }
+        elif arguments.command == "validate-dangerous-goods-analysis-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": dangerous_goods_analysis_config.run.run_id,
+                "hmt_records": dangerous_goods_analysis_config.registry.hmt_records.records,
+                "ecics_links": dangerous_goods_analysis_config.registry.ecics_links.records,
+            }
+        elif arguments.command == "validate-dangerous-goods-registry-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": dangerous_goods_registry_config.run.run_id,
+            }
+        elif arguments.command == "validate-semantic-plan-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -146,6 +211,62 @@ def main() -> None:
                 "command": arguments.command,
                 "status": "valid",
                 "run_id": foundation_config.run.run_id,
+            }
+        elif arguments.command == "build-dangerous-goods-registry":
+            from document_ocr.synthesis.dangerous_goods_pipeline import (
+                run_dangerous_goods_registry_build,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_dangerous_goods_registry_build(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=dangerous_goods_registry_config,
+                ),
+            }
+        elif arguments.command == "run-dangerous-goods-analysis":
+            from document_ocr.synthesis.dangerous_goods_analysis import (
+                run_dangerous_goods_analysis,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_dangerous_goods_analysis(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=dangerous_goods_analysis_config,
+                ),
+            }
+        elif arguments.command == "run-semantic-completion":
+            from document_ocr.synthesis.semantic_completion_pipeline import (
+                run_semantic_completion,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_semantic_completion(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=semantic_completion_config,
+                ),
+            }
+        elif arguments.command == "run-dangerous-goods-plan":
+            from document_ocr.synthesis.dangerous_goods_plan_pipeline import (
+                run_dangerous_goods_plan,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_dangerous_goods_plan(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=dangerous_goods_plan_config,
+                ),
             }
         elif arguments.command == "run-semantic-plan":
             from document_ocr.synthesis.semantic_plan_pipeline import (

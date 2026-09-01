@@ -88,6 +88,34 @@ def test_semantic_composition_applies_disjoint_stages_and_retains_exact_history(
     assert len(state.changes) == 2
 
 
+def test_semantic_composition_assigns_vessel_registry_change_to_controlled_stage() -> None:
+    context, source, document_id = _fixture()
+    vessel = source["documentPatch"]["transport"].get("vesselName")  # type: ignore[index,union-attr]
+    if vessel is None:
+        pytest.skip("semantic fixture has no vessel-name leaf")
+    controlled = deepcopy(source)
+    controlled["documentPatch"]["transport"]["vesselName"] = "PUBLIC REGISTRY VESSEL"  # type: ignore[index]
+
+    state = compose_semantic_targets(
+        context=context,
+        base_document_id=document_id,
+        variant_index=0,
+        seed=5,
+        structured_target=deepcopy(source),
+        structured_plan={"changes": []},
+        controlled_target=controlled,
+        structured_provenance=_provenance("structured-test"),
+        controlled_provenance=_provenance("controlled-test"),
+    )
+
+    change = state.changes[0]
+    assert change.target_path == "documentPatch.transport.vesselName"
+    assert change.stage_id == "controlled-semantics"
+    assert change.change_kind == "identifier"
+    assert change.method == "public_cargo_vessel_registry_uniform_v1"
+    assert change.coupling_group == "transport"
+
+
 def test_semantic_composition_rejects_overlapping_stage_ownership() -> None:
     context, source, document_id = _fixture()
     structured = deepcopy(source)

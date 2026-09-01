@@ -1,0 +1,114 @@
+schema_version: 1
+source_task: bill_of_lading_relation_explicit_v4
+target_task: bill_of_lading_relation_explicit_v5
+
+run:
+  run_id: mpci-bl-combined1157-semantic-completion50-v5-v9
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+inputs:
+  dangerous_goods_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-plan50-dangerous-goods-v4-v6
+    commit_sha256: 95ea1567a791a938fe26d891fc592d4c6c4b53a297270c8ca507780f2e2426e0
+    transaction_sha256: b42471305f9b5f08aa17f208d743b00238bedff3dbee2815bd06330e0b178873
+  dangerous_goods_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-plan50-dangerous-goods-v4-v6/generation/dg-plans.jsonl
+    sha256: 767784f3b3b799ce42ffca7437bc7f0d0b5a23bf8b49ea89ac30fb41c6a57c34
+    records: 50
+  equipment_registry_manifest:
+    path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+    sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+  mpci_container_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/container-registry.raw.json
+    sha256: e04e702f9b3de9548c3cb86bc04fb86264c10a350c9b2664f5f802c0f52a200c
+  hs_registry_manifest:
+    path: data/registries/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+  hs_metadata:
+    path: data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+  hs_commodities_report:
+    path: data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+  world_ports:
+    path: artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  world_port_registry_receipt:
+    path: artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/registry-receipt.json
+    sha256: 4bfe37499b6bae3fee2125fc718f81aa9fff2d929a224f17fc310883bd805453
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  seed: 20260901
+  equipment:
+    distribution_method: source_type_marginal_then_size_conditional_with_configurable_overrides_v1
+    configured_active_joint_weights: {}
+    configured_inactive_joint_weights: {}
+    generated_label_method: separate_readable_size_and_type_categories_v1
+    application_projection: bic_size_plus_mpci_type_group_v1
+  thermal:
+    document_prevalence_permyriad: 389
+    prevalence_method: exact_hmac_ranked_quota_over_eligible_documents_v1
+    profile_weights_permyriad:
+      FROZEN: 6047
+      CHILLED: 3953
+    ambient_hs_chapters:
+      - "25"
+      - "39"
+      - "48"
+      - "68"
+      - "69"
+      - "70"
+      - "72"
+      - "73"
+      - "84"
+      - "85"
+      - "94"
+    frozen_minimum_celsius: -24.0
+    frozen_maximum_celsius: -18.0
+    chilled_minimum_celsius: -3.0
+    chilled_maximum_celsius: 5.5
+    step_celsius: 0.5
+  transport:
+    imo_presence_permyriad: 95
+    flag_presence_permyriad: 69
+    presence_method: configured_exact_hmac_ranked_quota_v1
+    imo_method: random_six_digits_plus_imo_check_digit_v1
+    imo_leading_digit_weights:
+      "9": 1
+    maximum_collision_attempts: 512
+    flag_method: uniform_pinned_world_port_country_v1
+    source_correlation_policy: independent_no_supported_source_correlation_v1
+  flashpoint:
+    method: hazard_and_physical_form_conditioned_property_v1
+    presence_permyriad:
+      CLASS3_FLAMMABLE_LIQUID: 4545
+      NON_CLASS3_EXPLICIT_LIQUID: 2500
+      DESENSITIZED_FLAMMABLE_SOLID: 10000
+    class3_minimum_celsius: -40.0
+    class3_maximum_celsius: 60.0
+    non_class3_liquid_minimum_celsius: 60.5
+    non_class3_liquid_maximum_celsius: 160.0
+    desensitized_solid_minimum_celsius: -20.0
+    desensitized_solid_maximum_celsius: 60.0
+    step_celsius: 0.5
+  preserve_container_cardinality: true
+  preserve_cargo_cardinality: true
+  preserve_relation_topology: true
+  publish_training_records: false

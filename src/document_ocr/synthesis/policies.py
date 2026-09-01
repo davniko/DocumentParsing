@@ -416,6 +416,99 @@ def _registry() -> dict[str, FieldPolicy]:
 FIELD_POLICIES = _registry()
 
 
+def _v4_registry() -> dict[str, FieldPolicy]:
+    rows = dict(FIELD_POLICIES)
+    rows["schemaVersion"] = _policy(
+        "schemaVersion",
+        "preserve_nonidentifying",
+        "structural",
+        "preserve_relation_v4_schema_version",
+        "schema",
+    )
+    replacements = {
+        "documentPatch.cargoGroups[].dangerousGoods[].subsidiaryHazardCategory": (
+            "documentPatch.cargoGroups[].dangerousGoods[].subsidiaryHazardCategories[]"
+        ),
+        "documentPatch.cargoGroups[].dangerousGoods[].flashPoint.packingGroupCategory": (
+            "documentPatch.cargoGroups[].dangerousGoods[].packingGroupCategory"
+        ),
+    }
+    for old_path, new_path in replacements.items():
+        old = rows.pop(old_path)
+        rows[new_path] = old.model_copy(update={"role_path": new_path})
+    for path in (
+        "documentPatch.cargoGroups[].dangerousGoods[].unNumber",
+        "documentPatch.cargoGroups[].dangerousGoods[].hazardCategory",
+        "documentPatch.cargoGroups[].dangerousGoods[].subsidiaryHazardCategories[]",
+        "documentPatch.cargoGroups[].dangerousGoods[].packingGroupCategory",
+    ):
+        old = rows[path]
+        rows[path] = old.model_copy(
+            update={
+                "implementation_status": "implemented",
+                "method": "phmsa_atomic_tuple_with_optional_exact_ecics_hs6_v1",
+            }
+        )
+    return rows
+
+
+V4_FIELD_POLICIES = _v4_registry()
+
+
+def _v5_registry() -> dict[str, FieldPolicy]:
+    rows = dict(V4_FIELD_POLICIES)
+    rows["schemaVersion"] = _policy(
+        "schemaVersion",
+        "preserve_nonidentifying",
+        "structural",
+        "preserve_relation_v5_schema_version",
+        "schema",
+    )
+    rows["documentPatch.containers[].sizeCategory"] = _policy(
+        "documentPatch.containers[].sizeCategory",
+        "resample",
+        "implemented",
+        "goods_conditioned_source_joint_equipment_semantics_v1",
+        "container_equipment",
+    )
+    rows["documentPatch.containers[].typeCategory"] = _policy(
+        "documentPatch.containers[].typeCategory",
+        "resample",
+        "implemented",
+        "goods_conditioned_source_joint_equipment_semantics_v1",
+        "container_equipment",
+    )
+    for path, method in (
+        (
+            "documentPatch.transport.vesselImoNumber",
+            "random_six_digits_plus_imo_check_digit_v1",
+        ),
+        (
+            "documentPatch.transport.vesselFlagCountry",
+            "uniform_pinned_world_port_country_v1",
+        ),
+        (
+            "documentPatch.containers[].temperatureSetpoint.value",
+            "goods_profile_conditioned_temperature_v1",
+        ),
+        (
+            "documentPatch.cargoGroups[].dangerousGoods[].flashPoint.temperature.value",
+            "hazard_and_physical_form_conditioned_flashpoint_v1",
+        ),
+    ):
+        old = rows[path]
+        rows[path] = old.model_copy(
+            update={
+                "implementation_status": "implemented",
+                "method": method,
+            }
+        )
+    return rows
+
+
+V5_FIELD_POLICIES = _v5_registry()
+
+
 def schema_leaf_paths(schema: Mapping[str, Any]) -> frozenset[str]:
     """Expand object/ref/array JSON Schema branches into normalized leaf paths."""
 

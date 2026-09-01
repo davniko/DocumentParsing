@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
 from document_ocr.synthesis.config import (
     ControlledPilotGenerationConfig,
     ControlledTransportGenerationConfig,
+    SynthesisControlledPilotConfig,
+    load_synthesis_controlled_pilot_config,
 )
 from document_ocr.synthesis.controlled_generation_pipeline import (
+    ControlledGenerationError,
     _equipment_scenario_payload,
     _package_scenario_payload,
+    _patch_vessel_target,
     _temperature_scenario_payload,
 )
 from document_ocr.synthesis.equipment_scenarios import EquipmentTypeScenario
@@ -41,6 +50,40 @@ def test_controlled_transport_can_defer_voyage_ownership_to_structured_stage() -
     )
 
     assert config.voyage_number_method == "preserve_for_upstream_structured_identifier_v1"
+
+
+def test_public_vessel_method_requires_both_pinned_registry_inputs() -> None:
+    root = Path(__file__).resolve().parents[1]
+    current = load_synthesis_controlled_pilot_config(
+        root / "configs/synthesis/mpci_bl_combined1157_controlled_semantic_pilot50.yaml"
+    ).model_dump(mode="python")
+    current["generation"]["transport"]["vessel_name_method"] = (
+        "public_cargo_vessel_registry_uniform_v1"
+    )
+    with pytest.raises(ValidationError, match="requires both pinned registry and receipt"):
+        SynthesisControlledPilotConfig.model_validate(current, strict=True)
+
+    current["inputs"]["vessel_name_registry"] = {
+        "path": "data/vessel-names.jsonl",
+        "sha256": "a" * 64,
+        "records": 10,
+    }
+    current["inputs"]["vessel_name_registry_receipt"] = {
+        "path": "data/registry-receipt.json",
+        "sha256": "b" * 64,
+    }
+    parsed = SynthesisControlledPilotConfig.model_validate(current, strict=True)
+    assert parsed.inputs.vessel_name_registry is not None
+
+
+def test_vessel_patch_preserves_presence_and_replaces_only_the_value() -> None:
+    target = {"documentPatch": {"transport": {"vesselName": "SOURCE", "voyageNumber": "1"}}}
+    _patch_vessel_target(target, {"vesselName": "PUBLIC SAMPLE"})
+    assert target == {
+        "documentPatch": {"transport": {"vesselName": "PUBLIC SAMPLE", "voyageNumber": "1"}}
+    }
+    with pytest.raises(ControlledGenerationError, match="presence changed"):
+        _patch_vessel_target(target, {"vesselName": None})
 
 
 def test_cargo_origin_name_only_policy_matches_generation_contract() -> None:
