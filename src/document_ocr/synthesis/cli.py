@@ -13,6 +13,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_dangerous_goods_registry_config,
     load_synthesis_deterministic_smoke_config,
     load_synthesis_foundation_config,
+    load_synthesis_party_identity_probe_config,
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
     load_synthesis_route_scenario_pilot_config,
@@ -52,6 +53,8 @@ def main() -> None:
         "run-dangerous-goods-plan",
         "validate-semantic-completion-config",
         "run-semantic-completion",
+        "validate-party-identity-probe-config",
+        "run-party-identity-probe",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -65,6 +68,11 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-party-identity-probe-config",
+            "run-party-identity-probe",
+        }:
+            party_identity_config = load_synthesis_party_identity_probe_config(config_path)
+        elif arguments.command in {
             "validate-semantic-completion-config",
             "run-semantic-completion",
         }:
@@ -122,7 +130,19 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-semantic-completion-config":
+        if arguments.command == "validate-party-identity-probe-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": party_identity_config.run.run_id,
+                "cases": len(party_identity_config.cases),
+                "model": party_identity_config.provider.model,
+                "reasoning_effort": party_identity_config.provider.reasoning_effort,
+                "structured_output_retries": (
+                    party_identity_config.workflow.structured_output_retries
+                ),
+            }
+        elif arguments.command == "validate-semantic-completion-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -224,6 +244,18 @@ def main() -> None:
                     project_root=project_root,
                     config_path=config_path,
                     config=dangerous_goods_registry_config,
+                ),
+            }
+        elif arguments.command == "run-party-identity-probe":
+            from document_ocr.synthesis.party_identity_probe import run_party_identity_probe
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_party_identity_probe(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=party_identity_config,
                 ),
             }
         elif arguments.command == "run-dangerous-goods-analysis":

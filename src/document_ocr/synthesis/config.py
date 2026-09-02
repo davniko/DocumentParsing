@@ -6,6 +6,7 @@ from collections.abc import Hashable
 from datetime import date
 from pathlib import Path, PurePath
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import (
@@ -549,7 +550,7 @@ class RouteScenarioSelectionConfig(_StrictModel):
     split: NonEmptyString
     requested_documents: Annotated[int, Field(gt=0)]
     require_template_wholly_in_split: Literal[True]
-    maximum_per_template: Literal[1]
+    maximum_per_template: Annotated[int, Field(gt=0)]
 
 
 class RouteScenarioObservedOriginComponentConfig(_StrictModel):
@@ -1085,6 +1086,114 @@ class SynthesisPartyStructureBenchmarkConfig(_StrictModel):
     modeling: PartyStructureBenchmarkModelingConfig
 
 
+PartyIdentityRole = Literal[
+    "shipper",
+    "consignee",
+    "notifyParties",
+    "carrier",
+    "forwardingAgent",
+    "deliveryAgent",
+]
+
+
+class PartyIdentityProbeInputsConfig(_StrictModel):
+    semantic_completion_run: CommittedArtifactDirectoryConfig
+    completion_plans: DatasetFileConfig
+    source_corpus: DatasetFileConfig
+    source_target_field: Literal["target"]
+
+
+class PartyIdentityProbeCaseConfig(_StrictModel):
+    document_id: Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")]
+    party_role: PartyIdentityRole
+    occurrence: Annotated[int, Field(ge=0)]
+
+
+class PartyIdentityProbePromptConfig(_StrictModel):
+    path: NonEmptyString
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+    @field_validator("path")
+    @classmethod
+    def safe_path(cls, value: str) -> str:
+        return _safe_path(value)
+
+
+class PartyIdentityProbePricingConfig(_StrictModel):
+    currency: Literal["USD"]
+    effective_date: date
+    source_url: NonEmptyString
+    input_usd_per_million: Annotated[float, Field(gt=0)]
+    cached_input_usd_per_million: Annotated[float, Field(gt=0)]
+    cache_write_multiplier: Annotated[float, Field(ge=1)]
+    output_usd_per_million: Annotated[float, Field(gt=0)]
+
+    @field_validator("source_url")
+    @classmethod
+    def source_is_https(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ValueError("pricing source_url must be an absolute HTTPS URL")
+        return value
+
+
+class PartyIdentityProbeProviderConfig(_StrictModel):
+    kind: Literal["openai_responses"]
+    model: Literal["gpt-5.6-luna"]
+    api_key_env: Literal["OPENAI_API_KEY"]
+    reasoning_effort: Literal["none", "low", "medium", "high", "xhigh", "max"]
+    request_timeout_seconds: Annotated[float, Field(gt=0)]
+    transport_max_retries: Annotated[int, Field(ge=0, le=5)]
+    max_output_tokens: Annotated[int, Field(gt=0)]
+    store_responses: Literal[True]
+    pricing: PartyIdentityProbePricingConfig
+
+
+class PartyIdentityProbeWorkflowConfig(_StrictModel):
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=5)]
+    requests_per_case: Literal[1]
+    structured_output_retries: Literal[0]
+    provider_native_strict_json_schema: Literal[True]
+    preserve_source_field_presence: Literal[True]
+    provide_source_name_style_reference: Literal[True]
+    persist_model_visible_messages: Literal[True]
+
+
+class SynthesisPartyIdentityProbeConfig(_StrictModel):
+    """Five or fewer first-pass, independently attributable party generations."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v5_party_identity_probe"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: PartyIdentityProbeInputsConfig
+    cases: tuple[PartyIdentityProbeCaseConfig, ...] = Field(min_length=3, max_length=5)
+    prompt: PartyIdentityProbePromptConfig
+    provider: PartyIdentityProbeProviderConfig
+    workflow: PartyIdentityProbeWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def cases_are_unique_and_fit_concurrency(self) -> SynthesisPartyIdentityProbeConfig:
+        identities = tuple(
+            (row.document_id, row.party_role, row.occurrence) for row in self.cases
+        )
+        if len(identities) != len(set(identities)):
+            raise ValueError("party identity probe cases must be unique")
+        if self.workflow.max_concurrent_requests > len(self.cases):
+            raise ValueError("party identity concurrency cannot exceed the case count")
+        return self
+
+
 def load_synthesis_foundation_config(path: Path) -> SynthesisFoundationConfig:
     try:
         value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
@@ -1219,3 +1328,15 @@ def load_synthesis_semantic_completion_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisSemanticCompletionConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_party_identity_probe_config(
+    path: Path,
+) -> SynthesisPartyIdentityProbeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisPartyIdentityProbeConfig.model_validate(value, strict=True)

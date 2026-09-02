@@ -1,0 +1,61 @@
+schema_version: 1
+source_task: bill_of_lading_relation_explicit_v3
+target_task: bill_of_lading_relation_explicit_v4
+
+run:
+  run_id: mpci-bl-combined1157-dangerous-goods-audit100-v1
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  semantic_plan_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-plan-audit100-v1
+    manifest_sha256: 0d71cbf0c79f7f54d5642a945613c3c5b7fd286b637e94f21a42182301e40d99
+    commit_sha256: 60091b05d11954a84eb85bd953afaeabcebba2b0e43a7e5f37dea71c6a16b768
+    transaction_sha256: deafb40471ab91196a81cd4d8e0aefb9d510b7fca6187d99d2959b7e17ed164f
+  semantic_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-plan-audit100-v1/generation/semantic-plans.jsonl
+    sha256: 4d471c3c0f12f7fdbcfc73fe4a4318e6a6acb38e6fc11e89a6bdd7cc5f4c86a2
+    records: 100
+  source_task_constraints:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+    sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+  registry:
+    run:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4
+      commit_sha256: 16ac5d50ddff4398e8fd128eb0c097da2bc55935f848613000a6bd0d8130c3bc
+      transaction_sha256: 6ca96bd3a0596d04edf7a688f55b9f0a53142fe102516e8e72c4660be3ad6557
+    receipt:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/registry-receipt.json
+      sha256: e528d350aaeb4cf7ebb9595d5171a55766fc3c0d624f421ae76a6b8c543afab7
+    hmt_records:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+      sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+      records: 2934
+    ecics_links:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+      sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+      records: 3480
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  seed: 20260901
+  branch_method: source_hs_presence_exact_identity_chemical_else_general_v2
+  category_weights_permyriad:
+    EXPLOSIVES: 250
+    GASES: 250
+    FLAMMABLE_LIQUIDS: 8000
+    FLAMMABLE_SOLIDS: 250
+    OXIDIZING_SUBSTANCES_AND_ORGANIC_PEROXIDES: 250
+    TOXIC_AND_INFECTIOUS_SUBSTANCES: 250
+    RADIOACTIVE_MATERIAL: 250
+    CORROSIVE_SUBSTANCES: 250
+    MISCELLANEOUS_DANGEROUS_SUBSTANCES_AND_ARTICLES: 250
+  unsupported_category_policy: renormalize_over_branch_support_v1
+  maximum_subsidiary_hazards: 1
+  maximum_collision_attempts: 512
+  sampling_validation_draws_per_branch: 10000
+  maximum_category_deviation_permyriad: 300
+  flashpoint_policy: omit_without_formulation_property_source_v1
+  preserve_dangerous_goods_cardinality: true
+  publish_training_records: false
+

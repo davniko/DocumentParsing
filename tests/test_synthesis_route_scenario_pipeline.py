@@ -198,6 +198,7 @@ def test_pinned_route_selection_preserves_upstream_order_and_identity() -> None:
             "doc_c": "template_c",
         },
         requested=2,
+        maximum_per_template=1,
     )
 
     assert selected == ("doc_b", "doc_a")
@@ -230,4 +231,26 @@ def test_pinned_route_selection_rejects_any_substitution_or_unsupported_row(
             targets=targets or {"doc_a": _route_target(), "doc_b": _route_target()},
             template_by_document=templates or {"doc_a": "template_a", "doc_b": "template_b"},
             requested=2,
+            maximum_per_template=1,
         )
+
+
+def test_pinned_route_selection_accepts_a_bounded_repeated_template() -> None:
+    selected = _validate_pinned_documents(
+        pinned_document_ids=("doc_a", "doc_b", "doc_c"),
+        candidate_ids=("doc_a", "doc_b", "doc_c"),
+        targets={
+            "doc_a": _route_target(),
+            "doc_b": _route_target(),
+            "doc_c": _route_target(),
+        },
+        template_by_document={
+            "doc_a": "template_shared",
+            "doc_b": "template_shared",
+            "doc_c": "template_shared",
+        },
+        requested=3,
+        maximum_per_template=3,
+    )
+
+    assert selected == ("doc_a", "doc_b", "doc_c")

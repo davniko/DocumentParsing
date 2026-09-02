@@ -247,6 +247,7 @@ def _validate_pinned_documents(
     targets: Mapping[str, Mapping[str, Any]],
     template_by_document: Mapping[str, str],
     requested: int,
+    maximum_per_template: int,
 ) -> tuple[str, ...]:
     """Validate an upstream selection without reordering or silently replacing rows."""
 
@@ -264,8 +265,19 @@ def _validate_pinned_documents(
             f"pinned route selection lies outside the isolated fit scope: {outside!r}"
         )
     templates = tuple(template_by_document[document_id] for document_id in selected)
-    if len(templates) != len(set(templates)):
-        raise RouteScenarioPipelineError("pinned route selection repeats a template")
+    template_counts = Counter(templates)
+    excess_templates = tuple(
+        sorted(
+            (template_id, count)
+            for template_id, count in template_counts.items()
+            if count > maximum_per_template
+        )
+    )
+    if excess_templates:
+        raise RouteScenarioPipelineError(
+            "pinned route selection exceeds maximum_per_template="
+            f"{maximum_per_template}: {excess_templates!r}"
+        )
     failures = tuple(
         (document_id, reason)
         for document_id in selected
@@ -562,6 +574,7 @@ def run_route_scenario_pilot(
         targets=targets,
         template_by_document=template_by_document,
         requested=config.selection.requested_documents,
+        maximum_per_template=config.selection.maximum_per_template,
     )
     selection_exclusions: dict[str, int] = {}
     selection_method = "pinned_upstream_structured_selection_v1"

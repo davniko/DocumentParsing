@@ -160,14 +160,13 @@ def _leaf_map(target: Mapping[str, Any]) -> dict[str, JsonValue]:
 def _changed_paths(source: Mapping[str, Any], proposed: Mapping[str, Any]) -> tuple[str, ...]:
     source_leaves = _leaf_map(source)
     proposed_leaves = _leaf_map(proposed)
-    if set(source_leaves) != set(proposed_leaves):
-        added = sorted(set(proposed_leaves) - set(source_leaves))
-        removed = sorted(set(source_leaves) - set(proposed_leaves))
-        raise SemanticPlanPipelineError(
-            f"semantic stage changed leaf presence: added={added}, removed={removed}"
-        )
     return tuple(
-        sorted(path for path in source_leaves if source_leaves[path] != proposed_leaves[path])
+        sorted(
+            path
+            for path in source_leaves.keys() | proposed_leaves.keys()
+            if (path in source_leaves) != (path in proposed_leaves)
+            or source_leaves.get(path) != proposed_leaves.get(path)
+        )
     )
 
 
@@ -203,6 +202,55 @@ def _set_existing_leaf(target: dict[str, Any], path: str, value: JsonValue) -> N
         current[final] = value
 
 
+def _apply_leaf_change(
+    target: dict[str, Any],
+    path: str,
+    *,
+    present: bool,
+    value: JsonValue,
+) -> None:
+    """Apply one exact scalar presence/value change without changing array topology."""
+
+    tokens: list[str | int] = []
+    consumed = ""
+    for match in _PATH_TOKEN.finditer(path):
+        if match.start() != len(consumed) + (1 if consumed and path[len(consumed)] == "." else 0):
+            raise SemanticPlanPipelineError(f"cannot parse target path: {path}")
+        field, index = match.groups()
+        tokens.append(field if field is not None else int(cast(str, index)))
+        consumed = path[: match.end()]
+    if not tokens or consumed != path:
+        raise SemanticPlanPipelineError(f"cannot parse target path: {path}")
+    current: Any = target
+    for token in tokens[:-1]:
+        if isinstance(token, str):
+            if not isinstance(current, dict) or token not in current:
+                raise SemanticPlanPipelineError(f"target parent path is absent: {path}")
+            current = current[token]
+        else:
+            if not isinstance(current, list) or not 0 <= token < len(current):
+                raise SemanticPlanPipelineError(f"target parent list path is absent: {path}")
+            current = current[token]
+    final = tokens[-1]
+    if isinstance(final, int):
+        if not isinstance(current, list) or not 0 <= final < len(current):
+            raise SemanticPlanPipelineError(f"target list path is absent: {path}")
+        if not present:
+            raise SemanticPlanPipelineError(
+                f"leaf removal cannot change array cardinality: {path}"
+            )
+        current[final] = value
+        return
+    if not isinstance(current, dict):
+        raise SemanticPlanPipelineError(f"target parent is not an object: {path}")
+    if present:
+        current[final] = value
+    elif final in current:
+        del current[final]
+    else:
+        raise SemanticPlanPipelineError(f"target leaf is already absent: {path}")
+
+
 def _structured_change_contract(family: str) -> tuple[str, str]:
     if family in {
         "document_identifier",
@@ -235,7 +283,7 @@ def _controlled_change_contract(path: str) -> tuple[str, str, str, str]:
             "public_cargo_vessel_registry_uniform_v1",
             "transport",
         )
-    if role.endswith(".typeCategory") and ".cargoPackages[]" in role:
+    if role.endswith((".typeCategory", ".typeDescription")) and ".cargoPackages[]" in role:
         return "categorical", "exact_scalar", "role_conditioned_package_category_v2", "packages"
     if role.endswith(".typeDescription") and ".containers[]" in role:
         return "categorical", "exact_scalar", "registry_conditioned_equipment_type_v1", "equipment"
@@ -274,10 +322,10 @@ def _proposal(
                     "stage_id": stage_id,
                     "change_kind": kind,
                     "rendering_kind": rendering,
-                    "old_present": True,
-                    "old_value": old_leaves[path],
-                    "new_present": True,
-                    "new_value": new_leaves[path],
+                    "old_present": path in old_leaves,
+                    "old_value": old_leaves.get(path),
+                    "new_present": path in new_leaves,
+                    "new_value": new_leaves.get(path),
                     "method": method,
                     "coupling_group": coupling,
                 },
@@ -354,7 +402,12 @@ def compose_semantic_targets(
     controlled_leaves = _leaf_map(controlled_target)
     controlled_metadata: dict[str, tuple[str, str, str, str]] = {}
     for path in controlled_paths:
-        _set_existing_leaf(final_target, path, controlled_leaves[path])
+        _apply_leaf_change(
+            final_target,
+            path,
+            present=path in controlled_leaves,
+            value=controlled_leaves.get(path),
+        )
         controlled_metadata[path] = _controlled_change_contract(path)
     controlled_proposal = _proposal(
         state=structured_state,

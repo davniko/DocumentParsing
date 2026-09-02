@@ -158,6 +158,62 @@ def test_leaf_patch_is_exact_and_presence_preserving() -> None:
         _set_existing_leaf(target, "a[1].b", "bad")
 
 
+def test_semantic_composition_ledgers_a_package_representation_change() -> None:
+    row = next(
+        json.loads(line)
+        for line in SOURCE.read_text(encoding="utf-8").splitlines()
+        if '"typeDescription":"SETS"' in line
+    )
+    source = row["target"]
+    document_id = row["documentId"]
+    context = SynthesisRunContext(
+        task_adapter=BILL_OF_LADING_TASK_ADAPTER,
+        scenario_namespace="semantic-package-representation-test-v1",
+        source_records=(
+            ScenarioSourceRecord.from_target(
+                document_id=document_id,
+                template_id="template_package_representation_test",
+                target=source,
+                source_raw_text_sha256=row["joinedRawTextSha256"],
+            ),
+        ),
+    )
+    controlled = deepcopy(source)
+    package = controlled["documentPatch"]["cargoPackages"][0]
+    assert package.pop("typeDescription") == "SETS"
+    package["typeCategory"] = "PACKAGE_SET"
+
+    state = compose_semantic_targets(
+        context=context,
+        base_document_id=document_id,
+        variant_index=0,
+        seed=5,
+        structured_target=deepcopy(source),
+        structured_plan={"changes": []},
+        controlled_target=controlled,
+        structured_provenance=_provenance("structured-test"),
+        controlled_provenance=_provenance("controlled-test"),
+    )
+
+    output_package = state.target["documentPatch"]["cargoPackages"][0]
+    assert output_package == {
+        **{key: value for key, value in package.items()},
+    }
+    changes = {change.target_path: change for change in state.changes}
+    added = changes["documentPatch.cargoPackages[0].typeCategory"]
+    removed = changes["documentPatch.cargoPackages[0].typeDescription"]
+    assert (added.old_present, added.new_present, added.new_value) == (
+        False,
+        True,
+        "PACKAGE_SET",
+    )
+    assert (removed.old_present, removed.old_value, removed.new_present) == (
+        True,
+        "SETS",
+        False,
+    )
+
+
 def test_committed_dependency_uses_logical_transaction_identity(tmp_path: Path) -> None:
     transaction = "f" * 64
     run = StagedArtifactRun(
