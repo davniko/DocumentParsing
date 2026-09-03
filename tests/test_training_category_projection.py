@@ -302,3 +302,41 @@ def test_category_projection_rejects_re_reviewing_prior_exact_key(tmp_path: Path
 
     with pytest.raises(CategoryProjectionError, match="redundantly re-reviews"):
         project_package_categories(load_category_projection_config(config_path))
+
+
+def test_category_projection_reuses_a_pinned_prior_projection_inventory(
+    tmp_path: Path,
+) -> None:
+    config_path = _fixture(tmp_path)
+    value = yaml.safe_load(config_path.read_text())
+    inventory_path = tmp_path / "prior-projection-inventory.jsonl"
+    inventory_sha, _ = _jsonl(
+        inventory_path,
+        [
+            {
+                "categoryToken": "PACKAGE_PAIL",
+                "rationale": "The exact prior source description names pails.",
+                "reviewBasis": "manual_semantic_review",
+                "sourceTypeDescription": "PAILS",
+            }
+        ],
+    )
+    value["registries"]["prior_projection_inventory"] = {
+        "path": str(inventory_path),
+        "sha256": inventory_sha,
+    }
+    value["review"]["extension_resolution_groups"] = []
+    config_path.write_text(yaml.safe_dump(value, sort_keys=False))
+
+    manifest_path = project_package_categories(
+        load_category_projection_config(config_path)
+    )
+    inventory = [
+        json.loads(line)
+        for line in (
+            manifest_path.parent / "package-category-inventory.jsonl"
+        ).read_text().splitlines()
+    ]
+    by_description = {row["sourceTypeDescription"]: row for row in inventory}
+    assert by_description["PAILS"]["categoryToken"] == "PACKAGE_PAIL"
+    assert by_description["PAILS"]["decisionProvenance"] == "reused_prior_projection"

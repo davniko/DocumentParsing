@@ -154,6 +154,14 @@ class CurrentDatasetSource(_ConfigModel):
     expected_training_records: PositiveInteger
 
 
+class CrossSourceDuplicateResolution(_ConfigModel):
+    joined_raw_text_sha256: Sha256
+    legacy_document_id: DocumentId
+    current_document_id: DocumentId
+    retain: Literal["legacy", "current"]
+    rationale: NonEmptyString
+
+
 class AlignmentOutput(_ConfigModel):
     aligned_legacy_root: NonEmptyString
     combined_root: NonEmptyString
@@ -186,7 +194,17 @@ class DatasetAlignmentConfig(_ConfigModel):
     alignment: Literal["mpci_bl_current_single_source_contract_v1"]
     legacy: LegacyAlignmentSource
     current: CurrentDatasetSource
+    cross_source_duplicate_resolutions: tuple[CrossSourceDuplicateResolution, ...] = ()
     output: AlignmentOutput
+
+    @field_validator("cross_source_duplicate_resolutions", mode="before")
+    @classmethod
+    def duplicate_resolutions_are_frozen(cls, value: Any) -> Any:
+        if isinstance(value, tuple):
+            return value
+        if not isinstance(value, list):
+            raise ValueError("cross_source_duplicate_resolutions must be a YAML sequence")
+        return tuple(value)
 
     @model_validator(mode="after")
     def identifiers_and_roots_are_unique(self) -> DatasetAlignmentConfig:
@@ -209,6 +227,16 @@ class DatasetAlignmentConfig(_ConfigModel):
             raise ValueError("aligned legacy output aliases a source root")
         if self.output.combined_root in source_roots:
             raise ValueError("combined output aliases a source root")
+        resolutions = self.cross_source_duplicate_resolutions
+        hashes = tuple(row.joined_raw_text_sha256 for row in resolutions)
+        legacy_ids = tuple(row.legacy_document_id for row in resolutions)
+        current_ids = tuple(row.current_document_id for row in resolutions)
+        if len(hashes) != len(set(hashes)):
+            raise ValueError("duplicate-resolution raw OCR hashes must be unique")
+        if len(legacy_ids) != len(set(legacy_ids)):
+            raise ValueError("duplicate-resolution legacy document IDs must be unique")
+        if len(current_ids) != len(set(current_ids)):
+            raise ValueError("duplicate-resolution current document IDs must be unique")
         return self
 
 
@@ -1141,6 +1169,117 @@ def _file_entry(path: Path, root: Path, payload: bytes, rows: int, kind: str) ->
     }
 
 
+def _resolve_cross_source_duplicates(
+    *,
+    legacy_records: Sequence[dict[str, Any]],
+    legacy_lineage: Sequence[dict[str, Any]],
+    current_records: Sequence[dict[str, Any]],
+    current_lineage: Sequence[dict[str, Any]],
+    resolutions: Sequence[CrossSourceDuplicateResolution],
+) -> tuple[
+    tuple[dict[str, Any], ...],
+    tuple[dict[str, Any], ...],
+    tuple[dict[str, Any], ...],
+    tuple[dict[str, Any], ...],
+    tuple[dict[str, Any], ...],
+]:
+    """Apply explicit, exhaustive duplicate decisions across two source datasets."""
+
+    legacy_by_raw = {
+        cast(str, row["joinedRawTextSha256"]): row for row in legacy_records
+    }
+    current_by_raw = {
+        cast(str, row["joinedRawTextSha256"]): row for row in current_records
+    }
+    overlap = set(legacy_by_raw) & set(current_by_raw)
+    configured = {row.joined_raw_text_sha256: row for row in resolutions}
+    if missing := sorted(overlap - set(configured)):
+        raise DatasetAlignmentError(
+            "legacy/current raw OCR hashes lack explicit duplicate resolutions: "
+            + ", ".join(missing)
+        )
+    if unexpected := sorted(set(configured) - overlap):
+        raise DatasetAlignmentError(
+            "configured duplicate resolutions are not cross-source overlaps: "
+            + ", ".join(unexpected)
+        )
+
+    drop_legacy_ids: set[str] = set()
+    drop_current_ids: set[str] = set()
+    audit: list[dict[str, Any]] = []
+    for joined_hash in sorted(overlap):
+        resolution = configured[joined_hash]
+        legacy_row = legacy_by_raw[joined_hash]
+        current_row = current_by_raw[joined_hash]
+        legacy_document_id = cast(str, legacy_row["documentId"])
+        current_document_id = cast(str, current_row["documentId"])
+        if legacy_document_id != resolution.legacy_document_id:
+            raise DatasetAlignmentError(
+                "duplicate-resolution legacy document ID differs for raw OCR hash: "
+                f"{joined_hash}"
+            )
+        if current_document_id != resolution.current_document_id:
+            raise DatasetAlignmentError(
+                "duplicate-resolution current document ID differs for raw OCR hash: "
+                f"{joined_hash}"
+            )
+        if resolution.retain == "current":
+            drop_legacy_ids.add(legacy_document_id)
+            retained_source = "current"
+            retained_document_id = current_document_id
+            discarded_source = "legacy"
+            discarded_document_id = legacy_document_id
+        else:
+            drop_current_ids.add(current_document_id)
+            retained_source = "legacy"
+            retained_document_id = legacy_document_id
+            discarded_source = "current"
+            discarded_document_id = current_document_id
+        audit.append(
+            {
+                "joinedRawTextSha256": joined_hash,
+                "retainedSource": retained_source,
+                "retainedDocumentId": retained_document_id,
+                "discardedSource": discarded_source,
+                "discardedDocumentId": discarded_document_id,
+                "legacyTargetCanonicalSha256": sha256_bytes(
+                    canonical_json_bytes(legacy_row["target"])
+                ),
+                "currentTargetCanonicalSha256": sha256_bytes(
+                    canonical_json_bytes(current_row["target"])
+                ),
+                "rationale": resolution.rationale,
+            }
+        )
+
+    retained_legacy_records = tuple(
+        row for row in legacy_records if row["documentId"] not in drop_legacy_ids
+    )
+    retained_current_records = tuple(
+        row for row in current_records if row["documentId"] not in drop_current_ids
+    )
+    retained_legacy_lineage = tuple(
+        row for row in legacy_lineage if row["documentId"] not in drop_legacy_ids
+    )
+    retained_current_lineage = tuple(
+        row for row in current_lineage if row["documentId"] not in drop_current_ids
+    )
+    retained_raw = {
+        cast(str, row["joinedRawTextSha256"])
+        for row in (*retained_legacy_records, *retained_current_records)
+    }
+    retained_count = len(retained_legacy_records) + len(retained_current_records)
+    if len(retained_raw) != retained_count:
+        raise DatasetAlignmentError("cross-source duplicate resolution left duplicate raw OCR")
+    return (
+        retained_legacy_records,
+        retained_legacy_lineage,
+        retained_current_records,
+        retained_current_lineage,
+        tuple(audit),
+    )
+
+
 def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
     """Publish aligned legacy records and a disjoint combined training corpus."""
 
@@ -1150,12 +1289,21 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
     current_records, current_lineage, current_manifest = _load_current_records(config.current)
     legacy_ids = {cast(str, row["documentId"]) for row in legacy_records}
     current_ids = {cast(str, row["documentId"]) for row in current_records}
-    legacy_raw = {cast(str, row["joinedRawTextSha256"]) for row in legacy_records}
-    current_raw = {cast(str, row["joinedRawTextSha256"]) for row in current_records}
     if overlap := sorted(legacy_ids & current_ids):
         raise DatasetAlignmentError("legacy/current document IDs overlap: " + ", ".join(overlap))
-    if overlap := sorted(legacy_raw & current_raw):
-        raise DatasetAlignmentError("legacy/current raw OCR hashes overlap: " + ", ".join(overlap))
+    (
+        combined_legacy_records,
+        combined_legacy_lineage,
+        combined_current_records,
+        combined_current_lineage,
+        duplicate_audit,
+    ) = _resolve_cross_source_duplicates(
+        legacy_records=legacy_records,
+        legacy_lineage=legacy_lineage,
+        current_records=current_records,
+        current_lineage=current_lineage,
+        resolutions=config.cross_source_duplicate_resolutions,
+    )
 
     aligned_root = Path(config.output.aligned_legacy_root).resolve(strict=False)
     combined_root = Path(config.output.combined_root).resolve(strict=False)
@@ -1231,7 +1379,7 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
     legacy_manifest_payload = canonical_json_bytes(legacy_manifest) + b"\n"
     _publish_immutable(aligned_root / "manifest.json", legacy_manifest_payload)
 
-    combined_records = (*legacy_records, *current_records)
+    combined_records = (*combined_legacy_records, *combined_current_records)
     combined_lineage = (
         *(
             {
@@ -1239,7 +1387,7 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
                 "immediateSourceDatasetId": config.output.aligned_legacy_dataset_id,
                 "immediateSourceDatasetManifestSha256": sha256_bytes(legacy_manifest_payload),
             }
-            for row in legacy_lineage
+            for row in combined_legacy_lineage
         ),
         *(
             {
@@ -1247,11 +1395,12 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
                 "immediateSourceDatasetId": config.current.dataset.dataset_id,
                 "immediateSourceDatasetManifestSha256": config.current.dataset.manifest_sha256,
             }
-            for row in current_lineage
+            for row in combined_current_lineage
         ),
     )
     combined_record_payload = _jsonl_bytes(combined_records)
     combined_lineage_payload = _jsonl_bytes(combined_lineage)
+    duplicate_audit_payload = _jsonl_bytes(duplicate_audit)
     comparison = {
         "schemaVersion": 1,
         "legacy": _profile(legacy_records),
@@ -1260,6 +1409,7 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
         "overlap": {
             "documentIds": 0,
             "joinedRawTextSha256": 0,
+            "resolvedJoinedRawTextSha256": len(duplicate_audit),
         },
         "validation": {
             "legacyNormalRelationConsistencyPass": len(legacy_records),
@@ -1271,10 +1421,12 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
     comparison_payload = canonical_json_bytes(comparison) + b"\n"
     combined_record_path = combined_root / "records.jsonl"
     combined_lineage_path = combined_root / "lineage.jsonl"
+    duplicate_audit_path = combined_root / "cross-source-duplicate-resolutions.jsonl"
     comparison_path = combined_root / "quality-comparison.json"
     for path, payload in (
         (combined_record_path, combined_record_payload),
         (combined_lineage_path, combined_lineage_payload),
+        (duplicate_audit_path, duplicate_audit_payload),
         (comparison_path, comparison_payload),
     ):
         _publish_immutable(path, payload)
@@ -1289,15 +1441,18 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
             {
                 "datasetId": config.output.aligned_legacy_dataset_id,
                 "manifestSha256": sha256_bytes(legacy_manifest_payload),
-                "records": len(legacy_records),
+                "availableRecords": len(legacy_records),
+                "records": len(combined_legacy_records),
             },
             {
                 "datasetId": config.current.dataset.dataset_id,
                 "manifestSha256": config.current.dataset.manifest_sha256,
-                "records": len(current_records),
+                "availableRecords": len(current_records),
+                "records": len(combined_current_records),
                 "sourceOutcomes": current_manifest.get("outcomes"),
             },
         ],
+        "crossSourceDuplicateResolutions": len(duplicate_audit),
         "files": [
             _file_entry(
                 combined_record_path,
@@ -1312,6 +1467,13 @@ def align_and_combine_datasets(config: DatasetAlignmentConfig) -> Path:
                 combined_lineage_payload,
                 len(combined_lineage),
                 "lineage",
+            ),
+            _file_entry(
+                duplicate_audit_path,
+                combined_root,
+                duplicate_audit_payload,
+                len(duplicate_audit),
+                "cross_source_duplicate_resolutions",
             ),
             _file_entry(
                 comparison_path, combined_root, comparison_payload, 1, "quality_comparison"

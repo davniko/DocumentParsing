@@ -1,0 +1,56 @@
+schema_version: 1
+alignment: mpci_bl_current_single_source_contract_v1
+
+legacy:
+  normal_dataset:
+    dataset_id: mpci-bl-combined487-table-view-v1
+    root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-table-view-v1
+    manifest_sha256: 8c237c3d682d8aebfe9976a07fabaf31d7395508b0aa4472d547df9ddf7ec3c1
+  relation_dataset:
+    dataset_id: mpci-bl-semantic-v3-relation-explicit-table-view-v1
+    root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-semantic-v3-relation-explicit-table-view-v1
+    manifest_sha256: 062a887e7067ef1097a3fd4ffc18695399aafd2aeb31dd6e73856fec2bca4586
+  annotation_roots:
+    - root_id: semantic-v2-pilot150-r1
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-pilot150-r1
+      manifest_sha256: 6d21adc07885e352b011931d1ffc179b691613b8a21e562aea38d043d2729ec9
+    - root_id: semantic-v2-followup420-r3
+      root: /mnt/d/Projects/DocumentParsing/artifacts/kie-labels/mpci-bl-semantic-v2-followup420-r3
+      manifest_sha256: 93a89ba0b1d2a6d40eb2407d24e96e5ae41ff59065a5cdaff7b1af1ec65c64d4
+  prior_corrections:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-pilot106-raw-latin-v1/manifest.json
+    sha256: d8c1d5f8dfa417ad63b21c7288d38e641944b138cc31d7a7e2e875a26fff499f
+  policy_corrections:
+    path: /mnt/d/Projects/DocumentParsing/configs/transforms/mpci_bl_combined487_current_policy_corrections.json
+    sha256: d5b698885c5f7ff4b11684e8c4d7441bef87ec132aebaebef69b992731a4b1f6
+  expected_source_records: 487
+  expected_aligned_records: 483
+  expected_relation_exclusions: 4
+
+current:
+  dataset:
+    dataset_id: mpci-bl-relation-single-source-v4-main1779-adjudicated-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/consolidated/mpci-bl-relation-single-source-v4-main1779-adjudicated-v1
+    manifest_sha256: 9269f08706b7ec71187f4fd733d8da0a11b3eea661a229f376b87e547b3e76da
+  expected_training_records: 1692
+
+# The two source PDFs have different file hashes and IDs, but every rendered
+# page and the complete joined OCR are byte-identical. Retain the newer v4
+# single-source annotation, whose cargo grouping follows the current contract,
+# and omit the older aligned-v3 annotation from only the combined publication.
+cross_source_duplicate_resolutions:
+  - joined_raw_text_sha256: 52567ab72052c6abc0e3b45e31a7343432ed65ff395a53bb9e41d298a727b4ca
+    legacy_document_id: doc_6ce54cdfd7938df9ed7bb8b74e10cc4fface4d0622ef73d386f483156d076ac9
+    current_document_id: doc_d62ed77c6cdae398284d66a9140481085842e17bd8517971f94ceeca2fa04716
+    retain: current
+    rationale: >-
+      Both pages have identical raster and OCR hashes and identify B/L
+      CHP0138681. The current v4 annotation retains one coherent cargo group
+      with its six container allocations, whereas the legacy aligned-v3 target
+      fragments the same goods across container-indexed groups.
+
+output:
+  aligned_legacy_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined487-current-policy-aligned-for-combined2174-v1
+  combined_root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined2174-current-policy-v1
+  aligned_legacy_dataset_id: mpci-bl-combined487-current-policy-aligned-for-combined2174-v1
+  combined_dataset_id: mpci-bl-combined2174-current-policy-v1

@@ -91,10 +91,24 @@ class PinnedJson(_ConfigModel):
         return value
 
 
+class PinnedJsonl(_ConfigModel):
+    path: NonEmptyString
+    sha256: Sha256
+
+    @field_validator("path")
+    @classmethod
+    def path_is_absolute_jsonl(cls, value: str) -> str:
+        _absolute_path(value, "pinned JSONL path", directory=False)
+        if Path(value).suffix != ".jsonl":
+            raise ValueError("pinned JSONL path must end in .jsonl")
+        return value
+
+
 class RegistryInputs(_ConfigModel):
     package: PinnedJson
     container: PinnedJson
     prior_assignments: PinnedJson
+    prior_projection_inventory: PinnedJsonl | None = None
 
 
 class ExtensionResolutionGroup(_ConfigModel):
@@ -265,6 +279,16 @@ def _load_pinned_model[ModelT: LabelSchemaModel](
     except ValueError as error:
         raise CategoryProjectionError(f"{context} failed schema validation: {path}") from error
     return value, payload
+
+
+def _load_pinned_jsonl(
+    configured: PinnedJsonl, *, context: str
+) -> tuple[tuple[dict[str, Any], ...], bytes]:
+    path = _canonical_file(Path(configured.path), context=context)
+    payload = read_regular_file_bytes(path)
+    if sha256_bytes(payload) != configured.sha256:
+        raise CategoryProjectionError(f"{context} SHA-256 differs: {path}")
+    return _strict_jsonl(payload, context=context), payload
 
 
 def _manifest_file(
@@ -484,6 +508,43 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
             continue
         prior_map[row.sourceTypeText] = (row.categoryToken, row.reviewBasis)
 
+    projection_prior_map: dict[str, tuple[str | None, str, str]] = {}
+    prior_projection = config.registries.prior_projection_inventory
+    if prior_projection is not None:
+        prior_rows, _ = _load_pinned_jsonl(
+            prior_projection, context="prior projection inventory"
+        )
+        for row_number, inventory_row in enumerate(prior_rows, start=1):
+            description = inventory_row.get("sourceTypeDescription")
+            token = inventory_row.get("categoryToken")
+            basis = inventory_row.get("reviewBasis")
+            rationale = inventory_row.get("rationale")
+            if (
+                not isinstance(description, str)
+                or not description
+                or (token is not None and not isinstance(token, str))
+                or not isinstance(basis, str)
+                or not basis
+                or not isinstance(rationale, str)
+                or not rationale
+            ):
+                raise CategoryProjectionError(
+                    f"prior projection inventory row is malformed: {row_number}"
+                )
+            if description in projection_prior_map:
+                raise CategoryProjectionError(
+                    f"prior projection inventory repeats a source key: {description!r}"
+                )
+            if token is not None and token not in registry_by_token:
+                raise CategoryProjectionError(
+                    f"prior projection category is absent from registry: {token}"
+                )
+            if description in prior_map and prior_map[description][0] != token:
+                raise CategoryProjectionError(
+                    f"prior projection conflicts with prior assignments: {description!r}"
+                )
+            projection_prior_map[description] = (token, basis, rationale)
+
     extension_map: dict[str, tuple[str, str]] = {}
     for group in config.review.extension_resolution_groups:
         if group.category_token not in registry_by_token:
@@ -491,7 +552,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
                 f"extension category is absent from registry: {group.category_token}"
             )
         for description in group.source_type_descriptions:
-            if description in prior_map:
+            if description in prior_map or description in projection_prior_map:
                 raise CategoryProjectionError(
                     f"extension redundantly re-reviews prior source key: {description!r}"
                 )
@@ -502,7 +563,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
     }
     if set(extension_map) & set(unresolved_map):
         raise CategoryProjectionError("extension review contains conflicting decisions")
-    if set(prior_map) & set(unresolved_map):
+    if (set(prior_map) | set(projection_prior_map)) & set(unresolved_map):
         raise CategoryProjectionError("prior-reviewed key is redundantly marked unresolved")
 
     package_counts: Counter[str] = Counter()
@@ -550,7 +611,12 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
         or len(container_counts) != review.expected_container_variants
     ):
         raise CategoryProjectionError("observed category inventory differs from config")
-    decided_keys = set(prior_map) | set(extension_map) | set(unresolved_map)
+    decided_keys = (
+        set(prior_map)
+        | set(projection_prior_map)
+        | set(extension_map)
+        | set(unresolved_map)
+    )
     observed_keys = set(package_counts)
     missing = sorted(observed_keys - decided_keys)
     extra = sorted((set(extension_map) | set(unresolved_map)) - observed_keys)
@@ -566,7 +632,10 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
         source_key_sha256 = sha256_bytes(
             canonical_json_bytes({"sourceTypeDescription": description})
         )
-        if description in prior_map:
+        if description in projection_prior_map:
+            token, basis, rationale = projection_prior_map[description]
+            provenance = "reused_prior_projection"
+        elif description in prior_map:
             token, basis = prior_map[description]
             provenance = "reused_prior_review"
             rationale = (
@@ -733,7 +802,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
 
     resolved_variants = {description for description, token in resolved_map.items() if token}
     fallback_variants = set(resolved_map) - resolved_variants
-    reused_variants = set(package_counts) & set(prior_map)
+    reused_variants = set(package_counts) & (set(prior_map) | set(projection_prior_map))
     extension_variants = set(package_counts) - reused_variants
     constraints = _category_task_constraints(
         package_registry_sha256=config.registries.package.sha256,
@@ -820,6 +889,11 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
             "containerRegistrySha256": config.registries.container.sha256,
             "packageRegistrySha256": config.registries.package.sha256,
             "priorAssignmentsSha256": config.registries.prior_assignments.sha256,
+            "priorProjectionInventorySha256": (
+                config.registries.prior_projection_inventory.sha256
+                if config.registries.prior_projection_inventory is not None
+                else None
+            ),
         },
         "schemaVersion": 1,
         "sourceDataset": {

@@ -1,0 +1,259 @@
+schema_version: 1
+projection: mpci_bl_task_facing_package_categories_v1
+
+source:
+  dataset_id: mpci-bl-combined2174-task-facing-packages-v2
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-packages-v2
+  manifest_sha256: c2eb2930532674aec6c6e13a01f9d577cace94688760590fd4e91ecd55eda227
+  expected_records: 2174
+
+registries:
+  package:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  container:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/mpci-ai-schema/categorical-registry-followup/container-category-registry.json
+    sha256: fa1b327b8e9eb2b38a5c86c2d53fc1abe8d88f26cb08b4ed1c26d5670f41f3f0
+  prior_assignments:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/reviews/mpci-bl-semantic-v3-relation-explicit-table-view-v1/category-assignments.json
+    sha256: e36652e068839aa329a76a186bfe9ffe5e0c2a61fc45e61cde7c5367e59ce4a3
+  prior_projection_inventory:
+    path: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/package-category-inventory.jsonl
+    sha256: 79e18bb17b33cdb3505c8a4e9785e3a1602f5ce22ba721f022d978070d0a8b2a
+
+review:
+  reviewed_by: codex_exact_source_variant_extension_v2
+  reviewed_on: 2026-09-03
+  expected_package_occurrences: 2754
+  expected_package_variants: 275
+  expected_container_occurrences: 3946
+  expected_container_variants: 253
+
+  extension_resolution_groups:
+    - category_token: PACKAGE_BAG
+      rationale: The exact descriptions explicitly identify bags without requiring a narrower material category.
+      source_type_descriptions:
+        - 10 KG BAGS
+        - BULK BAGS ON PALLETS - 1200KGS EACH
+        - BIG BAGS
+        - 25KG BAGS
+        - 25kg net bag
+        - BAGS(S)
+        - Bags
+        - Sample bag
+    - category_token: PACKAGE_BAG_PLASTIC
+      rationale: PP and polypropylene explicitly identify plastic bags.
+      source_type_descriptions:
+        - M/PP BAGS
+        - polypropilene bags
+    - category_token: PACKAGE_RECEPTACLE_METAL
+      rationale: The exact descriptions identify metal receptacles without a narrower shape supported by the registry.
+      source_type_descriptions:
+        - METAL CANS
+        - METAL RECIPTACLES
+    - category_token: PACKAGE_RECEPTACLE_PLASTIC
+      rationale: The exact descriptions identify plastic receptacles without a narrower registry-supported shape.
+      source_type_descriptions:
+        - PLASTIC CANS
+        - PLASTIC RECEPTACLE
+        - PLASTIC RECEPTACLES
+    - category_token: PACKAGE_CRATE
+      rationale: The source explicitly identifies a generic crate.
+      source_type_descriptions:
+        - CRATE
+    - category_token: PACKAGE_DRUM
+      rationale: The exact descriptions establish a drum but not one narrower material-specific registry entry.
+      source_type_descriptions:
+        - DR
+        - METAL DRUMS
+    - category_token: PACKAGE_VEHICLE
+      rationale: Each exact description identifies an unpacked vehicle or vehicle-like transport unit.
+      source_type_descriptions:
+        - USED TRAILER
+        - TRAILER ATTACHED
+        - USED TRUCK
+        - USED UNPACKED VEHICLE
+        - NEW UNPACKED VEHICLE (S)
+        - UNITS OF USED CAR
+        - USED BOOM LIFT
+    - category_token: PACKAGE_CARTON
+      rationale: The exact descriptions explicitly identify cartons, including a reviewed OCR spelling variant.
+      source_type_descriptions:
+        - CARTONS PALLETIZED
+        - CARTONS ONLY
+        - CARTOONS
+        - CTN (OUTER)
+        - CTN 4X5LT
+    - category_token: PACKAGE_COIL
+      rationale: The source explicitly identifies coils.
+      source_type_descriptions:
+        - Coils
+    - category_token: PACKAGE_PARCEL
+      rationale: The source explicitly identifies parcels.
+      source_type_descriptions:
+        - PARCEL
+    - category_token: PACKAGE_PACKAGE
+      rationale: These exact descriptions identify a generic package without a supported narrower category.
+      source_type_descriptions:
+        - Pkgs
+        - COLLIS
+        - INNERS PACKAGE
+        - OUTERS PACKAGE
+        - PACKAGE(8)
+        - PACKAGES KOS
+        - PKGS (HI-CUBE)
+        - pckgs
+    - category_token: PACKAGE_ROLL
+      rationale: The source explicitly identifies rolls.
+      source_type_descriptions:
+        - Roll(s)
+    - category_token: PACKAGE_BIN
+      rationale: The source explicitly identifies a tote bin.
+      source_type_descriptions:
+        - TOTE BIN
+    - category_token: PACKAGE_UNIT
+      rationale: The exact descriptions explicitly identify units.
+      source_type_descriptions:
+        - UNIT(S)
+        - NEW Units
+    - category_token: PACKAGE_BUNDLE
+      rationale: BDL is the printed bundle abbreviation in package context.
+      source_type_descriptions:
+        - BDL
+    - category_token: PACKAGE_BOX
+      rationale: The source explicitly identifies boxes without a narrower material category.
+      source_type_descriptions:
+        - BOXES OF 25KG EACH
+    - category_token: PACKAGE_CASE
+      rationale: These exact spelling and case variants explicitly identify cases.
+      source_type_descriptions:
+        - CASE(s)
+        - case
+        - cases
+    - category_token: PACKAGE_CASK
+      rationale: The source explicitly identifies casks.
+      source_type_descriptions:
+        - CASKS
+    - category_token: PACKAGE_DRUM_PLASTIC_REMOVABLE_HEAD
+      rationale: The printed description states both plastic material and a removable head.
+      source_type_descriptions:
+        - DRUM, PLASTIC, REMOVABLE HEAD
+    - category_token: PACKAGE_PAIL
+      rationale: The exact descriptions explicitly identify pails.
+      source_type_descriptions:
+        - EA PAIL 18-24 LITER
+        - PAIL
+    - category_token: PACKAGE_DRUM_FIBRE
+      rationale: Fiber is the source spelling for a fibre drum.
+      source_type_descriptions:
+        - FIBER DRUMS
+    - category_token: PACKAGE_FLEXITANK
+      rationale: The source explicitly identifies flexitanks.
+      source_type_descriptions:
+        - FLEXITANK(S)
+    - category_token: PACKAGE_FLEXIBAG
+      rationale: The source explicitly identifies flexibags.
+      source_type_descriptions:
+        - Flexibag(s)
+    - category_token: PACKAGE_PALLET
+      rationale: The exact descriptions explicitly identify pallets without a narrower standardized size.
+      source_type_descriptions:
+        - HALF PALLET
+        - PALLET(s)
+        - PALLETS KOS
+    - category_token: PACKAGE_SKID
+      rationale: The exact descriptions explicitly identify skids.
+      source_type_descriptions:
+        - SKD
+        - SKIDS
+    - category_token: PACKAGE_INTERMEDIATE_BULK_CONTAINER_COMPOSITE
+      rationale: The source explicitly identifies a composite IBC.
+      source_type_descriptions:
+        - IBC, Composite
+    - category_token: PACKAGE_INTERMEDIATE_BULK_CONTAINER
+      rationale: The source explicitly identifies an IBC without a narrower material category.
+      source_type_descriptions:
+        - Intermediate Bulk Container(s)
+    - category_token: PACKAGE_JUTEBAG
+      rationale: The source explicitly identifies jute bags.
+      source_type_descriptions:
+        - JUTEBAGS
+    - category_token: PACKAGE_LOG
+      rationale: The source explicitly identifies logs without asserting bundled packaging.
+      source_type_descriptions:
+        - LOGS
+    - category_token: PACKAGE_LOT
+      rationale: The source explicitly identifies lots.
+      source_type_descriptions:
+        - LOT(s)
+    - category_token: PACKAGE_ONEWAY_PALLET
+      rationale: The source explicitly identifies a one-way pallet.
+      source_type_descriptions:
+        - ONE-WAY PALLET
+    - category_token: PACKAGE_DRUM_PLASTIC
+      rationale: The source explicitly identifies plastic drums.
+      source_type_descriptions:
+        - PLASTIC DRUMS
+    - category_token: PACKAGE_BLOCK
+      rationale: The package wording explicitly identifies marble blocks.
+      source_type_descriptions:
+        - ROUGH MARBLE BLOCKS
+    - category_token: PACKAGE_REEL
+      rationale: The source explicitly identifies reels.
+      source_type_descriptions:
+        - Reel(s)
+    - category_token: PACKAGE_SACK
+      rationale: The source explicitly identifies sacks without a narrower material category.
+      source_type_descriptions:
+        - Sack(s)
+        - Sacks
+    - category_token: PACKAGE_TUBE
+      rationale: The source explicitly identifies tubes without a narrower construction category.
+      source_type_descriptions:
+        - TUBES
+    - category_token: PACKAGE_UNPACKED_OR_UNPACKAGED
+      rationale: UNP explicitly indicates unpacked cargo; HI-CUBE is incidental equipment wording.
+      source_type_descriptions:
+        - UNP (HI-CUBE)
+    - category_token: PACKAGE_UNPACKED_OR_UNPACKAGED_SINGLE_UNIT
+      rationale: The source explicitly identifies one unpacked unit.
+      source_type_descriptions:
+        - UNPACKED SINGLE UNIT
+
+  unresolved_descriptions:
+    - source_type_description: BALE(S)
+      rationale: The source does not distinguish compressed from non-compressed bales.
+    - source_type_description: Bale
+      rationale: The source does not distinguish compressed from non-compressed bales.
+    - source_type_description: EX-PROTECTION-EVOH CAN 30 L
+      rationale: The source does not establish one registry can shape or protection category.
+    - source_type_description: FOG
+      rationale: The printed abbreviation has no exact authoritative package meaning.
+    - source_type_description: ITEMS
+      rationale: Item does not select exactly one of piece, unit, or generic package.
+    - source_type_description: Male cattle
+      rationale: The package registry has no exact livestock-head category for this source value.
+    - source_type_description: PC
+      rationale: PC can denote parcel by registry code or piece in local document shorthand.
+    - source_type_description: BULK ONLY
+      rationale: The source does not identify one solid, liquid, gas, or particle-size bulk category.
+    - source_type_description: CARTON CASES
+      rationale: The combined wording does not establish whether carton or case is the primary category.
+    - source_type_description: HEADS
+      rationale: The package registry has no exact livestock-head category for this source value.
+    - source_type_description: PIECES (CRATES)
+      rationale: The combined wording contains two package levels and does not select one category.
+    - source_type_description: REMBLEND_TP_BLK_GB_10%
+      rationale: The value is product wording and has no authoritative package-category meaning.
+    - source_type_description: TANK
+      rationale: Tank alone does not prove tank-container, rectangular, or cylindrical registry semantics.
+    - source_type_description: Tank
+      rationale: Tank alone does not prove tank-container, rectangular, or cylindrical registry semantics.
+    - source_type_description: UTS
+      rationale: The printed abbreviation has no exact authoritative package meaning.
+    - source_type_description: WOODEN BOXES
+      rationale: Wooden does not distinguish natural wood, plywood, or reconstituted wood registry entries.
+
+output:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1
+  dataset_id: mpci-bl-combined2174-task-facing-package-categories-v1

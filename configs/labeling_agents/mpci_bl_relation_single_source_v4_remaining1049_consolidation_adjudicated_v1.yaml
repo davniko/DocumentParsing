@@ -1,0 +1,31 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-remaining1049-adjudicated-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1
+selection_sha256: f6d7d1fd4c46d8e6d8aa930a1f4a548c6e85d3420eb3a602acd609ad9e3faaec
+expected_documents: 1049
+
+# Later runs have precedence for the documents they adjudicate. The residual
+# run is deliberately last because it completes two records absent from their
+# nominal batch publications.
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-001-030-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-001-030-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-031-060-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-031-060-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-061-090-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-061-090-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-091-120-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-091-120-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-121-149-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-121-149-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-151-180-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-151-180-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-181-210-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-181-210-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-211-237-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-211-237-v1
+  - run_id: mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-residual-150-177-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-residual-150-177-v1

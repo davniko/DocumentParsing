@@ -1,0 +1,54 @@
+schema_version: 1
+projection: mpci_bl_task_facing_packages_v1
+
+source:
+  dataset_id: mpci-bl-combined2174-current-policy-v1
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined2174-current-policy-v1
+  manifest_sha256: 62920493e7dea017f4c9432eeafe52f8fbc0e94d5990dde59c3749b295f5b82f
+  expected_records: 2174
+
+# These are exact, reviewed surface forms. New observed pallet/skid variants
+# are included so the larger corpus follows the same outer-versus-inner policy
+# as the prior 1,157-record training publication.
+policy:
+  normalized_outer_types:
+    - PALLET
+    - PALLETS
+    - PALLET S
+    - PLT
+    - PLTS
+    - PLT S
+    - SKID
+    - SKIDS
+    - SKD
+    - SHRINK WRAPPED PALLETS
+    - HEAT TREATED PALLETS
+    - PALLETS SLAC
+    - PALLET SLAC
+    - WOODEN PALLETS
+    - ONE WAY PALLET
+    - HALF PALLET
+    - PALLETS KOS
+    - PSLLETS
+    - 1000 KG PALLET WITH FILM
+    - CTNR
+  normalized_generic_types:
+    - PACKAGE
+    - PACKAGES
+    - PACKAGE S
+    - PKG
+    - PKGS
+
+reviewed_role_overrides:
+  - document_id: doc_04cf3e2e9c722891f79a2ae092aac34655f1148ab8c1c4d4d43d5bf05a9642e6
+    group_id: g1
+    package_id: p1
+    expected_package_sha256: 7650e6cb7e8605989fe6ff7950f31b1b6c32f5182d06709fe4372abce972993b
+    role: direct_goods
+    rationale: >-
+      Quantity 1 is explicitly row-linked to the semi-trailer cargo; no package
+      type is printed, so the fact is retained without a type.
+
+output:
+  dataset_id: mpci-bl-combined2174-task-facing-packages-v2
+  root: /mnt/d/Projects/DocumentParsing/artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-packages-v2
