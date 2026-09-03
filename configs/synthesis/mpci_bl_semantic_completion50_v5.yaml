@@ -3,7 +3,7 @@ source_task: bill_of_lading_relation_explicit_v4
 target_task: bill_of_lading_relation_explicit_v5
 
 run:
-  run_id: mpci-bl-combined1157-semantic-completion50-v5-v9
+  run_id: mpci-bl-combined1157-semantic-completion50-v5-v16-package-goods-final
   output_dir: artifacts/kie-synthesis
 
 source:
@@ -27,6 +27,17 @@ inputs:
     path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-plan50-dangerous-goods-v4-v6/generation/dg-plans.jsonl
     sha256: 767784f3b3b799ce42ffca7437bc7f0d0b5a23bf8b49ea89ac30fb41c6a57c34
     records: 50
+  fit_partition_report:
+    path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+    sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  package_registry_entries: 405
+  package_compatibility_resolutions:
+    path: artifacts/kie-synthesis/mpci-bl-package-compatibility-luna-high50-v2/generation/resolutions.jsonl
+    sha256: 0df3993511291f0540b075216e5710fea2d2adcfe77dce3bc98e9617b3847956
+    records: 1
   equipment_registry_manifest:
     path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
     sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
@@ -56,6 +67,9 @@ inputs:
 generation:
   random_stream: hmac_sha256_counter_v1
   seed: 20260901
+  package_goods_method: fit_hs_heading_or_thermal_joint_with_constrained_dg_catalog_v1
+  package_signature_distribution: source_group_occurrence_weighted_v1
+  registry_identity_distribution: uniform_within_selected_hs_heading_v1
   equipment:
     distribution_method: source_type_marginal_then_size_conditional_with_configurable_overrides_v1
     configured_active_joint_weights: {}
@@ -65,6 +79,7 @@ generation:
   thermal:
     document_prevalence_permyriad: 389
     prevalence_method: exact_hmac_ranked_quota_over_eligible_documents_v1
+    profile_compatibility_policy: renormalize_configured_weights_over_fit_supported_profiles_v1
     profile_weights_permyriad:
       FROZEN: 6047
       CHILLED: 3953

@@ -1,0 +1,45 @@
+schema_version: 1
+task: bill_of_lading_linguistic_probe_eda_v1
+
+run:
+  run_id: mpci-bl-linguistic-probe50-eda-v3
+  output_dir: artifacts/kie-synthesis
+
+party:
+  run:
+    path: artifacts/kie-synthesis/mpci-bl-party-identity-luna-high-probe50-v1
+    commit_sha256: 12dbd7787fffc4c3e083af3232660065ee6f725294aea2e422166eb5ff33cdf2
+    transaction_sha256: 0ca76759e8370bd0e1e4f2ef2a71ea1b69db69c7e036e55d5c5cfaedad073cd1
+  results:
+    path: artifacts/kie-synthesis/mpci-bl-party-identity-luna-high-probe50-v1/generation/results.jsonl
+    sha256: 43cb68c92534c9b286237619c02b1fabeb1850509dcef224cbc4fcb381f96603
+    records: 50
+  summary:
+    path: artifacts/kie-synthesis/mpci-bl-party-identity-luna-high-probe50-v1/generation/summary.json
+    sha256: df1a412d92b5922e9dd0db7fde627ca30fbec223e0360203e28e6951f417f4dc
+
+cargo:
+  run:
+    path: artifacts/kie-synthesis/mpci-bl-cargo-language-luna-high-probe50-v1
+    commit_sha256: b5f222e7b4177aa25ce7a957a79ed24132b2b7418380cae99cd6184451d9b108
+    transaction_sha256: 0a2b3b004bfcb3aa11aa69e280aff885dac9b1eb1eb9a51142d3d4871a8db1e6
+  results:
+    path: artifacts/kie-synthesis/mpci-bl-cargo-language-luna-high-probe50-v1/generation/results.jsonl
+    sha256: abc02d413ead31034659a98f211bb9f1a75746521568787d2caf124a9098e325
+    records: 50
+  summary:
+    path: artifacts/kie-synthesis/mpci-bl-cargo-language-luna-high-probe50-v1/generation/summary.json
+    sha256: 2497267e194e63f4e369961e6f3b5c8b31663e23d75cab2eb9e981e6c04412c8
+
+cargo_contract_probe:
+  run:
+    path: artifacts/kie-synthesis/mpci-bl-cargo-language-luna-high-probe1-marks40-v1
+    commit_sha256: 7d3aa6b84fdc42db27efc62406dd27d7d8ce534dfb306f8214479dfb4774d6b7
+    transaction_sha256: 5a0c18d1340a9997300a29f166b54ae51687e52a5e65d68265bb33421660321f
+  results:
+    path: artifacts/kie-synthesis/mpci-bl-cargo-language-luna-high-probe1-marks40-v1/generation/results.jsonl
+    sha256: 87c675909afe7bc4477495b5a7923b057b36eb9f4ef69f4d9c8b4c6e17d301b6
+    records: 1
+  summary:
+    path: artifacts/kie-synthesis/mpci-bl-cargo-language-luna-high-probe1-marks40-v1/generation/summary.json
+    sha256: 98e944c5c74319c8fbcbfa762660e52913b26ff9f75470f30be03f8676198980

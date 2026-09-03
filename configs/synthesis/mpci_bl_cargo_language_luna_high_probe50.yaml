@@ -1,0 +1,101 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v5_cargo_language_probe
+environment_file: .env
+
+run:
+  run_id: mpci-bl-cargo-language-luna-high-probe50-v1
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  semantic_completion_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-completion-audit100-v5-package-goods-joint
+    commit_sha256: 304258471dfbe2d8da80145b0322085d39d0c7fb865d58b4ac4c39ec8b2aade8
+    transaction_sha256: 95fac5f5ce13f8b67d4daf840a7bdfd8d08f42643d31fdfc6dc5fa817e7e2c14
+  completion_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-completion-audit100-v5-package-goods-joint/generation/completion-plans.jsonl
+    sha256: a740372d9a55038dd8fd44f13e88a4a837f654d8e5e97ee9493231c82ed17c6d
+    records: 100
+
+cases:
+  - {document_id: doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6}
+  - {document_id: doc_ab905fd40d2afadc45840dc00b569e510bfd6a1017218d16c2ce125ea38288a7}
+  - {document_id: doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d}
+  - {document_id: doc_99111075155885045e68a6fb6250fa41c1a55d24c2a2422f82b2dc8aa2089604}
+  - {document_id: doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110}
+  - {document_id: doc_624696c0616d1160d1016765c6477ab690d398d7eced5fc770e46d8730bfbd05}
+  - {document_id: doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932}
+  - {document_id: doc_836b99c1dc8c6b2a9b80439117d2d9ec3a58b3961630acf2c879781f0333be13}
+  - {document_id: doc_5055721d806ead0d56ee07e1fd1753e2f5eb5351dc6d1f1a0bde76680a9cfa4c}
+  - {document_id: doc_5a9931ac4afe45793441d9d50bbd931a5e72eaefbe346eb66aee78f40c3640c0}
+  - {document_id: doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046}
+  - {document_id: doc_6eb3a3ef8a2cfc38e862804544100b53450de1f4e4ca20d5d0d1e574d971396a}
+  - {document_id: doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb}
+  - {document_id: doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66}
+  - {document_id: doc_2ac48368cce36b7521933053fd4bca0c65d3ce2892e68b52e5dc469ea11e6a41}
+  - {document_id: doc_220dc9e558ded440e4cb879cee0f00a22713993ff32ae127f9f81ed0d9ce4037}
+  - {document_id: doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b}
+  - {document_id: doc_b362e747375b7102c2f64838492add721278375758e3c57ae2e57fc098d6ea1b}
+  - {document_id: doc_d9deb73858f5388f7b8f3a78083d2828e10571dc7eda1583b4a29274e5f0f0b1}
+  - {document_id: doc_efdbe49b49d61ea431f1d3b32b687458ef3ee3254e0e25b44170643afdb3c8db}
+  - {document_id: doc_0bfda48a5067e2b6209ca211d408e3138fb09eac654f589025c79c61c2031cf1}
+  - {document_id: doc_0701d45724beffe041be7cdd56049394c2df556d179b95d3e94e0d16d1d0781f}
+  - {document_id: doc_dd8cea1cfa0d47caf799ccbc2ec38062a84f599a6411fa7be76811af3b14e47c}
+  - {document_id: doc_41f8ac545d39a0e443f637b352a5e3cf0558b856f68a5bc863a66c82cff49df6}
+  - {document_id: doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069}
+  - {document_id: doc_245db42f109575d44265e7a70107402d86283711472cf4d68b7ae7d386d12aa6}
+  - {document_id: doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f}
+  - {document_id: doc_275a9b4d91bcc5b60a7e1dd28e1e01fc62498465f68d57da07986c74bdc364d0}
+  - {document_id: doc_600a1e8927a5aeb14c85eb98ee4fa39063d4f892779bc507dfb63a11ffa6993c}
+  - {document_id: doc_2032d34e429736f040541a605f725716be70898e015d7fa48c4e8b9248adfb0f}
+  - {document_id: doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc}
+  - {document_id: doc_8c54d9747c25cdec7c9c1f5f386a195ebb75a0dddead6e81994372a1f6be62a5}
+  - {document_id: doc_9f97c8edd5d4fd625822b0dd8287e6b32e8356fe3381970b185ffaba9677a6ca}
+  - {document_id: doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5}
+  - {document_id: doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e}
+  - {document_id: doc_f28ea2b051f8abef3fd1751dac3ca70d000235d3232aa943eaf6ff054d442cce}
+  - {document_id: doc_5cab6d581c601393fb66ccfcc17bb2af12bacfa4b8934456a018c3891d894828}
+  - {document_id: doc_18d0efcfeba2ee32e0fa8180ad48d8d912c8c64cd7740894da42fc4381c5830f}
+  - {document_id: doc_3056615e8eef37402744ca3a7debc11d8fd859f1eabb144efac0277ee4a63b88}
+  - {document_id: doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7}
+  - {document_id: doc_cf208c27db869a9280df68f63e685adf582d889df83d12ceb66db6babeb6f07c}
+  - {document_id: doc_4f8dd7df28839f1417540eddfa1323f78ebb7dd115382a6dd59bdf3bc4d7ef33}
+  - {document_id: doc_c53e50f3a05a7b33e28e5d1687bebec669530d42383a88cf84fbd2e97f297c82}
+  - {document_id: doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee}
+  - {document_id: doc_f511e174c97958c131cbc37a5a73f4fc43979cb9178fde704a342eda876a5cae}
+  - {document_id: doc_d46ff3129d13bdd3446b6c6749c38c7a292372590754c199a54795cb1f3547cc}
+  - {document_id: doc_d670d18ff1b6a0a43f2136970b1bed4776448ec1efbc6b3a33a59c30d89775c5}
+  - {document_id: doc_c563456890978e179e41a08073b9e603405a443e4842d0bc6579ae094bb50ac1}
+  - {document_id: doc_05b97047048ebbd8b4d213b0cd58a5ad78b4e5ce26a1ed6af037723211ff1b85}
+  - {document_id: doc_93985d0795ad38b290476c2e68924d73fb486fb5d1cca3628d71bcd1b9f3ae1b}
+
+prompt:
+  path: prompts/synthesis/mpci_bl_cargo_language_v1.md
+  sha256: ea78d9f37a1dc62a18a503c617d8ddb630de5aa1f39751d85bc17b74d2904080
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 8192
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-01
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+workflow:
+  max_concurrent_requests: 5
+  requests_per_case: 1
+  structured_output_retries: 0
+  provider_native_strict_json_schema: true
+  preserve_source_field_presence: true
+  preserve_generic_marks_literals: true
+  exclude_categorical_printed_surfaces: true
+  persist_model_visible_messages: true

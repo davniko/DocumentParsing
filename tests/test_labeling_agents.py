@@ -2530,6 +2530,63 @@ def test_adjudication_removes_only_an_exact_pinned_warning(
     ]
 
 
+def test_adjudication_adds_an_exact_pinned_warning_after_rebuild(
+    tmp_path: Path,
+) -> None:
+    item = _work_item_with_text("MACHINERY\nWEIGHT\n2744.000 KGS")
+    draft = _compact_annotation(
+        {"cargoGroups": ({"groupId": "g1", "description": "MACHINERY"},)}
+    )
+    added_warning = {
+        "code": "schema_cannot_represent",
+        "message": "Printed mass is governed only by a generic Weight heading.",
+        "pageNumbers": [1],
+        "targetPath": None,
+    }
+    work_item_path = tmp_path / "work-item.json"
+    candidate_path = tmp_path / "compact-draft.json"
+    work_item_payload = canonical_json_bytes(item.model_dump(mode="json"))
+    candidate_payload = canonical_json_bytes(draft.model_dump(mode="json"))
+    work_item_path.write_bytes(work_item_payload)
+    candidate_path.write_bytes(candidate_payload)
+    output_root = tmp_path / "output"
+    output_root.mkdir()
+    config = AdjudicationConfig.model_validate(
+        {
+            "schema_version": 1,
+            "run_id": "warning-addition-adjudication-v1",
+            "output_root": str(output_root),
+            "items": [
+                {
+                    "document_id": item.source.documentId,
+                    "work_item_path": str(work_item_path),
+                    "work_item_sha256": sha256_bytes(work_item_payload),
+                    "candidate_path": str(candidate_path),
+                    "candidate_sha256": sha256_bytes(candidate_payload),
+                    "candidate_kind": "compact_draft",
+                    "pdf_grouping_used": False,
+                    "rebuild": {"decision_notes": ["Preserved generic mass warning."]},
+                    "warning_additions": [added_warning],
+                    "adjudication_notes": ["Added the audited representability warning."],
+                }
+            ],
+        },
+        strict=True,
+    )
+
+    manifest_path = publish_adjudication_run(config)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    published = BillOfLadingDualCargoAnnotation.model_validate_json(
+        (manifest_path.parent / manifest["items"][0]["finalArtifactPath"]).read_bytes(),
+        strict=True,
+    )
+
+    assert tuple(row.model_dump(mode="json") for row in published.warnings) == (
+        added_warning,
+    )
+    assert manifest["items"][0]["warningAdditions"] == [added_warning]
+
+
 def test_adjudication_rebuilds_evidence_and_applies_pinned_document_type(
     tmp_path: Path,
 ) -> None:
@@ -3413,7 +3470,12 @@ def test_invoice_reference_is_not_rejected_by_neighboring_acid_metadata() -> Non
     [
         ("ITN X20240205979223", "X20240205979223"),
         ("P/I NO. 863089 (4)", "863089"),
+        ("INVOICE NUMBER: 240003 - ORDER\nNUMBER: 1689", "240003"),
+        ("INVOICE NO. & DATE : HG0240301 & MAR. 18,2024", "HG0240301"),
+        ("PROFORMA: 500359", "500359"),
         ("DU-E 24BR001164384-4", "24BR001164384-4"),
+        ("DUE: 23BR001666144-1", "23BR001666144-1"),
+        ("DAE: 028-2023-40-01245411", "028-2023-40-01245411"),
         ("F/Agent Name & Ref.\n108288", "108288"),
         (
             "FORWARDING AGENT:\nTTS WORLDWIDE\n265 POST AVENUE\nREF #: 100246627",
@@ -3788,6 +3850,30 @@ def test_explicit_face_field_prepaid_takes_precedence_over_generic_destination_t
     assert freight is not None
     assert freight.paymentArrangement == "prepaid"
     assert freight.paymentPlace is None
+
+
+def test_final_freight_prepaid_status_resolves_conflicting_destination_phrase() -> None:
+    item = _work_item_with_text(
+        "FREIGHT TO BE PAID AT\nLIMA\n"
+        "FREIGHT PAYABLE AT DESTINATION\nFREIGHT PREPAID"
+    )
+    annotation = build_compact_annotation(
+        item,
+        _compact_annotation(
+            {
+                "freight": {
+                    "paymentArrangement": "prepaid",
+                    "paymentPlace": {"name": "LIMA", "country": None},
+                }
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    freight = annotation.relationExplicitLabel.documentPatch.freight
+    assert freight is not None
+    assert freight.paymentArrangement == "prepaid"
+    assert freight.paymentPlace is not None and freight.paymentPlace.name == "LIMA"
 
 
 def test_explicit_face_field_prepaid_cannot_be_labeled_collect() -> None:
@@ -4174,7 +4260,7 @@ def test_deterministic_annotation_rejects_standalone_fax_as_phone() -> None:
         build_compact_annotation(item, draft, pdf_grouping_used=False)
 
 
-@pytest.mark.parametrize("heading", ("TEL", "TEL/FAX", "TEL & FAX"))
+@pytest.mark.parametrize("heading", ("TEL", "TEL/FAX", "TEL:/FAX", "TEL & FAX"))
 def test_deterministic_annotation_accepts_phone_or_combined_phone_fax(
     heading: str,
 ) -> None:
@@ -4998,6 +5084,845 @@ def test_wrapped_hs_suffix_is_not_treated_as_a_second_truncated_code() -> None:
         "760429900000",
         "721661909000",
     )
+
+
+def test_space_grouped_hs_codes_are_not_treated_as_truncated_suffix_codes() -> None:
+    item = _work_item_with_text(
+        "GOODS\n"
+        "HS CODE: 7610 900000\n"
+        "8302 410000\n"
+        "3919 100000\n"
+        "3919 901000\n"
+        "8302 410010\n"
+        "4008 290000"
+    )
+    expected = (
+        "7610900000",
+        "8302410000",
+        "3919100000",
+        "3919901000",
+        "8302410010",
+        "4008290000",
+    )
+    draft = _compact_annotation(
+        {"cargoGroups": ({"groupId": "g1", "hsCodes": expected},)}
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == expected
+
+
+def test_hs_heading_combines_valid_six_digit_prefix_with_printed_suffix() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("HS CODE: 090111 49"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("09011149",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "09011149",
+    )
+
+
+def test_hs_heading_combines_odd_length_prefix_with_wrapped_suffix_line() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("HS CODE 2710199\n900\nFRECO ISO 68"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("2710199900",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "2710199900",
+    )
+
+
+def test_unambiguous_document_volume_style_governs_three_decimal_mass() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "TOTAL:\n1 PALLET\n230,080 KGS\n0,672 CBM\n"
+            "IMO GROSS WEIGHT: 105,540 KGS\nIMO NET WEIGHT: 100,000 KGS"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "grossWeight": {"value": 105.54, "unit": "kilogram"},
+                        "netWeight": {"value": 100.0, "unit": "kilogram"},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    group = annotation.relationExplicitLabel.documentPatch.cargoGroups[0]
+    assert group.grossWeight is not None and group.grossWeight.value == 105.54
+    assert group.netWeight is not None and group.netWeight.value == 100.0
+
+
+def test_headed_volume_style_governs_same_document_mass_separator() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "TOTAL PACKAGES: 3, TOTAL GROSS WEIGHT: 240,000 KGS, "
+            "TOTAL CBM: 1,602"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "grossWeight": {"value": 240.0, "unit": "kilogram"},
+                        "volume": {"value": 1.602, "unit": "cubic_metre"},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    group = annotation.relationExplicitLabel.documentPatch.cargoGroups[0]
+    assert group.grossWeight is not None and group.grossWeight.value == 240.0
+    assert group.volume is not None and group.volume.value == 1.602
+
+
+def test_multiline_metric_tonne_pair_grounds_gross_and_net_values() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "NUMBER OF PACKAGES\n789\n\nMT\n"
+            "GROSS WEIGHT / NET WEIGHT\n982,981 982,979"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "grossWeight": {"value": 982.981, "unit": "metric_tonne"},
+                        "netWeight": {"value": 982.979, "unit": "metric_tonne"},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    group = annotation.relationExplicitLabel.documentPatch.cargoGroups[0]
+    assert group.grossWeight is not None and group.grossWeight.value == 982.981
+    assert group.netWeight is not None and group.netWeight.value == 982.979
+
+
+def test_composite_address_prefers_later_role_continuation_over_route_token() -> None:
+    target = (
+        "ROOM 2303, BUILDING ONE, NO.18 FENJIANGNAN RD., "
+        "CHANCHENG DISTRICT, GUANGDONG PROVINCE"
+    )
+    annotation = build_compact_annotation(
+        _work_item_with_pages(
+            "SHIPPER/EXPORTER\nADD: ROOM 2303, BUILDING ONE,\n"
+            "NO.18 FENJIANGNAN RD.,\nCHANCHENG DISTRICT, FOSHAN, SH>\n\n"
+            "PORT OF LOADING\nSHEKOU, GUANGDONG",
+            "SH>\nGUANGDONG PROVINCE, CHINA",
+        ),
+        _compact_annotation(
+            {
+                "parties": {
+                    "shipper": {
+                        "name": None,
+                        "address": target,
+                        "city": None,
+                        "country": None,
+                        "sameAs": None,
+                        "contactDetails": None,
+                    }
+                }
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.parties.shipper is not None
+    assert annotation.normalLabel.documentPatch.parties.shipper.address == target
+
+
+def test_asterisk_keyed_postal_footnote_extends_party_address() -> None:
+    target = "NO.169, CHUANGQIANG ROAD, YONGNING STREET, ZENGCHENG DISTRICT, 511300"
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "SHIPPER\nNO.169, CHUANGQIANG ROAD,\n"
+            "YONGNING STREET, ZENGCHENG\nDISTRICT, GUANGZHOU, CHINA*\n\n"
+            "CARGO DETAILS\n" + ("PALLET GOODS 12345\n" * 40) +
+            "*TEL:+86-020-3282-8888\nZIP CODE / POSTAL CODE : 511300"
+        ),
+        _compact_annotation(
+            {"parties": {"shipper": {"address": target}}}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.parties.shipper.address == target
+
+
+def test_composite_party_name_preserves_slash_connected_cross_page_continuation() -> None:
+    target = "CMPC IGUACU EMBALAGENS LTDA C/O ARABCO INTERNATIONAL LOGISTICS"
+    annotation = build_compact_annotation(
+        _work_item_with_pages(
+            "Shipper\nCMPC IGUACU EMBALAGENS LTDA\nOther face fields",
+            "*SHIPPER:\nC/O ARABCO INTERNATIONAL LOGISTICS",
+        ),
+        _compact_annotation(
+            {"parties": {"shipper": {"name": target}}}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.parties.shipper.name == target
+
+
+@pytest.mark.parametrize("raw", ["BOX -836 CRT", "ROW 22PL"])
+def test_attached_abbreviated_package_counts_ground_allocations(raw: str) -> None:
+    quantity = 836 if "CRT" in raw else 22
+    annotation = build_compact_annotation(
+        _work_item_with_text(f"SEKU6020780\nGOODS\n{raw}"),
+        _compact_annotation(
+            {
+                "cargoGroups": ({"groupId": "g1", "description": "GOODS"},),
+                "containers": ({"containerNumber": "SEKU6020780"},),
+                "cargoAllocationGroups": (
+                    {
+                        "groupId": "g1",
+                        "coverage": "unlinked_package_quantities",
+                        "allocations": (
+                            {
+                                "containerNumber": "SEKU6020780",
+                                "packageQuantity": quantity,
+                            },
+                        ),
+                    },
+                ),
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert (
+        annotation.normalLabel.documentPatch.goodsItems[0]
+        .containerAllocations[0]
+        .packageQuantity
+        == quantity
+    )
+
+
+def test_package_count_glued_after_mass_unit_is_grounded() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("4.366,21 KG954 PACKAGES\n616 PACKAGES 1.809,97 KG"),
+        _compact_annotation(
+            {
+                "cargoGroups": ({"groupId": "g1"},),
+                "cargoPackages": (
+                    {
+                        "packageId": "p1",
+                        "groupId": "g1",
+                        "quantity": 954,
+                        "typeDescription": "PACKAGES",
+                    },
+                ),
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoPackages[0].quantity == 954
+
+
+def test_pda_tariff_prefix_grounds_hs_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("PDA.1302.19"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("130219",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "130219",
+    )
+
+
+def test_hc_tariff_prefix_grounds_hs_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("H.C. #8716.80.1000"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("8716801000",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "8716801000",
+    )
+
+
+def test_hsc_tariff_prefix_grounds_hs_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("HSC 84295210"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("84295210",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "84295210",
+    )
+
+
+def test_spanish_tariff_fraction_heading_grounds_hs_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("FRACCIÓN ARANCELARIA 340213"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("340213",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "340213",
+    )
+
+
+def test_harmonised_code_heading_grounds_hs_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("HARMONISED CODE 08081080"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("08081080",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "08081080",
+    )
+
+
+def test_spaced_hs_suffix_groups_form_one_complete_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("HTS Code:68042218 00 00"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("680422180000",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes == (
+        "680422180000",
+    )
+
+
+def test_cers_heading_grounds_export_reference() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("CERS# DC5535202309052875366"),
+        _compact_annotation(
+            {"forwardingAndExportReferences": ("DC5535202309052875366",)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.forwardingAndExportReferences == (
+        "DC5535202309052875366",
+    )
+
+
+def test_numbered_references_nos_heading_grounds_multiple_references() -> None:
+    references = (
+        "OA164-00007080",
+        "PHO23A3533/656110/R141",
+        "PHO23A3534/656016/TR16",
+    )
+    annotation = build_compact_annotation(
+        _work_item_with_text("(6) REFERENCES NOS:\n" + "\n".join(references)),
+        _compact_annotation({"forwardingAndExportReferences": references}),
+        pdf_grouping_used=False,
+    )
+
+    assert (
+        annotation.relationExplicitLabel.documentPatch.forwardingAndExportReferences
+        == references
+    )
+
+
+def test_bare_hc_container_type_does_not_create_an_hs_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "PIECES CONTAINER NO SIZE / TYPE SEAL NO TARE IMDG UN CARGO GROSS WEIGHT\n"
+            "20 Pallets MKLU4004696 40 HC 413811 3700 2.1 1950 13.560,00"
+        ),
+        _compact_annotation(
+            {
+                "containers": ({"containerNumber": "MKLU4004696"},),
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "dangerousGoods": ({"unNumber": "1950"},),
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.relationExplicitLabel.documentPatch.cargoGroups[0].hsCodes is None
+
+
+def test_iso_looking_identifier_in_explicit_seal_field_is_not_a_container() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "B/L NO HBL001\ncontainer no SEAWAY BILL OF LADING\n"
+            "seal no SIMU2529232\n"
+            "cargo description 1 x 20 FT ISO TANK CONTAINER"
+        ),
+        _compact_annotation({"billOfLadingNumber": "HBL001"}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.containers is None
+
+
+def test_explicit_express_release_is_non_negotiable() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("BILL OF LADING\nExpress Release"),
+        _compact_annotation({"negotiability": "non_negotiable"}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+def test_un_number_is_grounded_by_adjacent_imdg_table_heading() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "PIECES CONTAINER NO SIZE / TYPE SEAL NO TARE IMDG UN CARGO GROSS WEIGHT\n"
+            "20 Pallets MKLU4004696 40 HC 413811 3700 2.1 1950 13.560,00"
+        ),
+        _compact_annotation(
+            {
+                "containers": ({"containerNumber": "MKLU4004696"},),
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "dangerousGoods": (
+                            {"unNumber": "1950"},
+                        ),
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert (
+        annotation.relationExplicitLabel.documentPatch.cargoGroups[0]
+        .dangerousGoods[0]
+        .unNumber
+        == "1950"
+    )
+
+
+def test_dotted_proforma_invoice_number_is_a_qualified_forwarding_reference() -> None:
+    item = _work_item_with_text("GOODS\nP.I.NO.5004709 DD.20-02-2024")
+    draft = _compact_annotation({"forwardingAndExportReferences": ("5004709",)})
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "5004709",
+    )
+
+
+def test_spaced_invoice_identifier_is_retained_as_one_reference() -> None:
+    reference = "TP 11 0016487/22.05.25"
+    annotation = build_compact_annotation(
+        _work_item_with_text(f"INVOICE NO {reference}"),
+        _compact_annotation({"forwardingAndExportReferences": (reference,)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        reference,
+    )
+
+
+def test_pi_fragment_inside_purchase_order_is_not_an_invoice_reference() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "*INVOICE NO.: HLC-I-24-039\n*P/O NO.: HLC-PI-23-333"
+        ),
+        _compact_annotation(
+            {"forwardingAndExportReferences": ("HLC-I-24-039",)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "HLC-I-24-039",
+    )
+
+
+def test_reference_invoice_row_qualifies_each_printed_value() -> None:
+    references = ("SAM/2183", "24/00233")
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "Reference/Invoices numbers: SAM/2183 , 24/00233"
+        ),
+        _compact_annotation({"forwardingAndExportReferences": references}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == references
+
+
+def test_repeated_character_invoice_ocr_variant_does_not_force_duplicate_reference() -> None:
+    item = _work_item_with_text(
+        "INVOICE: 80001668-01\n"
+        "INVOICE: 80001669-01\n\n"
+        "INVOICE: 800016668-01\n"
+        "INVOICE: 800016669-01"
+    )
+    draft = _compact_annotation(
+        {
+            "forwardingAndExportReferences": (
+                "80001668-01",
+                "80001669-01",
+            )
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "80001668-01",
+        "80001669-01",
+    )
+
+
+def test_complete_repeated_invoice_copy_supersedes_one_character_ocr_loss() -> None:
+    item = _work_item_with_text(
+        "INVOICE: 80001668-01\n"
+        "INVOICE: 80001669-01\n\n"
+        "INVOICE: 800016668-01\n"
+        "INVOICE: 800016669-01"
+    )
+    draft = _compact_annotation(
+        {
+            "forwardingAndExportReferences": (
+                "800016668-01",
+                "800016669-01",
+            )
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=True)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "800016668-01",
+        "800016669-01",
+    )
+
+
+def test_digit_qualified_hs_heading_grounds_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("HS8:39199000"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("39199000",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].hsCodes == ("39199000",)
+
+
+def test_glued_numeric_field_before_hs_heading_still_grounds_code() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "D NO. 1000562372023090019HS CODE: 3802.90TAX NUMBER: 100/056/237"
+        ),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("380290",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].hsCodes == ("380290",)
+
+
+def test_invoice_number_and_date_heading_excludes_adjacent_date_value() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "INVOICE NO&DATE:\nSHIN-FRESH-230410VCM & 10.APR.2023"
+        ),
+        _compact_annotation(
+            {"forwardingAndExportReferences": ("SHIN-FRESH-230410VCM",)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "SHIN-FRESH-230410VCM",
+    )
+
+
+def test_invoice_value_starting_with_exp_is_not_mistaken_for_a_label() -> None:
+    item = _work_item_with_text("INVOICE NO: EXP-PB-191-24-25")
+    draft = _compact_annotation(
+        {"forwardingAndExportReferences": ("EXP-PB-191-24-25",)}
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "EXP-PB-191-24-25",
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw_text", "value"),
+    (
+        ("Measure CBM 1,170", 1.17),
+        ("Total: 9,297.674kgs. 19,255cu. m.", 19.255),
+    ),
+)
+def test_volume_decimal_style_is_grounded_on_either_side_of_unit(
+    raw_text: str, value: float
+) -> None:
+    item = _work_item_with_text(raw_text)
+    draft = _compact_annotation(
+        {
+            "cargoGroups": (
+                {
+                    "groupId": "g1",
+                    "volume": {"value": value, "unit": "cubic_metre"},
+                },
+            )
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].volume.value == value
+
+
+def test_multidot_grouped_integer_mass_is_grounded_under_gross_weight_heading() -> None:
+    item = _work_item_with_text("Gross weight kg.\n1.650.780")
+    draft = _compact_annotation(
+        {
+            "cargoGroups": (
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 1650780.0, "unit": "kilogram"},
+                },
+            )
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].grossWeight.value == 1650780.0
+
+
+def test_line_wrapped_invoice_value_is_joined_under_its_explicit_heading() -> None:
+    item = _work_item_with_text("INVOICE NUMBER: MELI-\nEGI20240730")
+    draft = _compact_annotation(
+        {"forwardingAndExportReferences": ("MELI-EGI20240730",)}
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "MELI-EGI20240730",
+    )
+
+
+def test_commercial_invoice_nr_prefix_keeps_only_the_reference_value() -> None:
+    item = _work_item_with_text(
+        "AS PER COMMERCIAL INVOICE NR.4806\nCOMMERCIAL INVOICE .4806"
+    )
+    draft = _compact_annotation({"forwardingAndExportReferences": ("4806",)})
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "4806",
+    )
+
+
+def test_invoice_hash_dash_prefix_qualifies_reference_value() -> None:
+    item = _work_item_with_text("INV # - FDN-EG-1671-2023")
+    draft = _compact_annotation(
+        {"forwardingAndExportReferences": ("FDN-EG-1671-2023",)}
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "FDN-EG-1671-2023",
+    )
+
+
+def test_export_license_number_is_a_qualified_export_reference() -> None:
+    item = _work_item_with_text("EXPORT LICENSE NO. RI3273824")
+    draft = _compact_annotation(
+        {"forwardingAndExportReferences": ("RI3273824",)}
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "RI3273824",
+    )
+
+
+def test_invoice_num_and_parenthesized_negative_reefer_temperature_are_grounded() -> None:
+    item = _work_item_with_text(
+        "FBIU5385937\nINVOICE NUM: AAFT/081/23-24\nTEMP:(-)18 DEG CEL"
+    )
+    draft = _compact_annotation(
+        {
+            "forwardingAndExportReferences": ("AAFT/081/23-24",),
+            "containers": (
+                {
+                    "containerNumber": "FBIU5385937",
+                    "temperatureSetpoint": {"value": -18.0, "unit": "celsius"},
+                },
+            ),
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences == (
+        "AAFT/081/23-24",
+    )
+    assert annotation.normalLabel.documentPatch.containers[0].temperatureSetpoint.value == -18.0
+
+
+def test_spaced_numeric_date_uses_explicit_printed_month_day_year_order() -> None:
+    item = _work_item_with_text(
+        "DATE AT\nBy\n04 26 2024\n\nMonth Day Year"
+    )
+    draft = _compact_annotation({"issueDate": date(2024, 4, 26)})
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.issueDate.isoformat() == "2024-04-26"
+
+
+@pytest.mark.parametrize(
+    ("raw_date", "expected"),
+    [
+        ("28 MARS 2024", date(2024, 3, 28)),
+        ("18 FEV. 2024", date(2024, 2, 18)),
+    ],
+)
+def test_french_named_month_dates_are_normalized(
+    raw_date: str, expected: date
+) -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(f"Place and date of issue\n{raw_date}"),
+        _compact_annotation({"issueDate": expected}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.issueDate == expected
+
+
+def test_compact_yymmdd_issue_date_is_normalized_under_explicit_heading() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("DATE OF ISSUE : 230508"),
+        _compact_annotation({"issueDate": date(2023, 5, 8)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.issueDate == date(2023, 5, 8)
+
+
+def test_ppd_is_a_grounded_prepaid_freight_abbreviation() -> None:
+    item = _work_item_with_text("Freight Charges\nPPD | COL")
+    draft = _compact_annotation(
+        {"freight": {"paymentArrangement": "prepaid", "paymentPlace": None}}
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=True)
+
+    assert annotation.normalLabel.documentPatch.freight is not None
+    assert annotation.normalLabel.documentPatch.freight.paymentArrangement == "prepaid"
+
+
+def test_compact_seawaybill_printing_is_non_negotiable() -> None:
+    item = _work_item_with_text("*** SEAWAYBILL ***")
+    draft = _compact_annotation({"negotiability": "non_negotiable"})
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+def test_multimodal_tcn_waybill_title_is_non_negotiable() -> None:
+    item = _work_item_with_text(
+        "MULTIMODAL TRANSPORT BILL OF LADING / TCN / WAYBILL"
+    )
+    draft = _compact_annotation({"negotiability": "non_negotiable"})
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+def test_odd_length_hs_copy_missing_a_repeated_digit_does_not_force_bad_variant() -> None:
+    item = _work_item_with_text(
+        "HS CODE: 85049010\nIMPORTER HS CODE: 850490090\n\n"
+        "HS CODE: 85049010\nIMPORTER HS CODE: 8504900090"
+    )
+    draft = _compact_annotation(
+        {
+            "cargoGroups": (
+                {
+                    "groupId": "g1",
+                    "hsCodes": ("85049010", "8504900090"),
+                },
+            )
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].hsCodes == (
+        "85049010",
+        "8504900090",
+    )
+
+
+def test_volume_uses_adjacent_flattened_table_unit_row_for_decimal_style() -> None:
+    item = _work_item_with_text(
+        "1024 PACKAGES 50850,000 114,000\nKGM MTQ"
+    )
+    draft = _compact_annotation(
+        {
+            "cargoGroups": (
+                {
+                    "groupId": "g1",
+                    "volume": {"value": 114.0, "unit": "cubic_metre"},
+                },
+            )
+        }
+    )
+
+    annotation = build_compact_annotation(item, draft, pdf_grouping_used=False)
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].volume.value == 114.0
 
 
 def test_two_digit_dotted_date_uses_day_first_ambiguity_policy() -> None:
@@ -6610,6 +7535,60 @@ def test_explicit_selection_is_exact_ordered_and_count_bound(tmp_path: Path) -> 
         AgentLabelingConfig.model_validate(config_value, strict=True)
 
 
+def test_pinned_selection_file_is_exact_ordered_and_hash_bound(tmp_path: Path) -> None:
+    config_value = _config(tmp_path).model_dump(mode="python")
+    one = _work_item()
+    alternate_id = "doc_" + "9" * 64
+    alternate_item = one.item.model_copy(
+        update={"source": one.item.source.model_copy(update={"documentId": alternate_id})}
+    )
+    two = InventoriedWorkItem("fixture", Path("/alternate.json"), "8" * 64, alternate_item)
+    payload = b"".join(
+        canonical_json_bytes({"documentId": value}) + b"\n"
+        for value in (alternate_id, one.item.source.documentId)
+    )
+    selection_path = tmp_path / "selection.jsonl"
+    selection_path.write_bytes(payload)
+    config_value["source"]["expected_documents"] = 2
+    config_value["source"]["expected_pages"] = 2
+    config_value["source"]["work_item_roots"][0]["documents"] = 2
+    config_value["selection"] = {
+        "count": 2,
+        "seed": 8127,
+        "namespace": "pinned-file-fixture",
+        "document_ids_file": {
+            "path": str(selection_path),
+            "sha256": sha256_bytes(payload),
+            "records": 2,
+        },
+    }
+    config = AgentLabelingConfig.model_validate(config_value, strict=True)
+
+    selected = select_work_items(config, (one, two))
+
+    assert [row.item.source.documentId for row in selected] == [
+        alternate_id,
+        one.item.source.documentId,
+    ]
+
+    selection_path.write_bytes(payload + b"\n")
+    with pytest.raises(WorkItemError, match="SHA-256 differs"):
+        select_work_items(config, (one, two))
+
+
+def test_selection_rejects_inline_and_file_ids_together(tmp_path: Path) -> None:
+    config_value = _config(tmp_path).model_dump(mode="python")
+    config_value["selection"]["document_ids"] = [_work_item().item.source.documentId]
+    config_value["selection"]["document_ids_file"] = {
+        "path": str(tmp_path / "selection.jsonl"),
+        "sha256": "a" * 64,
+        "records": 1,
+    }
+
+    with pytest.raises(ValueError, match="document_ids or document_ids_file"):
+        AgentLabelingConfig.model_validate(config_value, strict=True)
+
+
 @pytest.mark.parametrize(
     "hold_code",
     (
@@ -7330,7 +8309,13 @@ async def test_unlabeled_source_publishes_training_records_without_fake_referenc
         ),
         "Consignee (if 'To Order' so indicate)\nACME IMPORTS LIMITED",
         "Consignee (if To Order, so indicate)\nACME IMPORTS LIMITED",
+        "Consignee (if 'to order' is indicated)\nACME IMPORTS LIMITED",
+        "CONSIGNEE (If “to order” so indicate)\nACME IMPORTS LIMITED",
         'Consignee( if"To order" so indicate ) / Alci\nACME IMPORTS LIMITED',
+        (
+            'Consignee\u2019s Name and Address (unless provided otherwise, a consignment '
+            '"To Order" shall mean "To Order of Shipper")\nACME IMPORTS LIMITED'
+        ),
         "CONSIGNED TO\nACME IMPORTS LIMITED",
         "CONSIGNEE: ACME IMPORTS LIMITED",
     ],
@@ -7381,6 +8366,7 @@ def test_pdf_grouping_can_assign_an_exact_ocr_consignee_without_supplying_its_va
     [
         "TELEX RELEASE",
         "No. of original 0/ORIGINAL",
+        "No. of original B(s)/L / 0 / N O N E",
         "Number of Original BL's\nB/L No.\n00/zeroes\n3909024A",
     ],
 )
@@ -7392,6 +8378,200 @@ def test_release_or_zero_original_field_grounds_non_negotiable(raw: str) -> None
     )
 
     assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+def test_spaced_zero_original_field_grounds_non_negotiable() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("No. of Original B(s) /L\nZERO(0)"),
+        _compact_annotation({"negotiability": "non_negotiable"}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+def test_importer_name_field_grounds_straight_non_negotiable_bill() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "Exporter Name\nACME EXPORTS\n\nImporter Name\nACME IMPORTS LIMITED"
+        ),
+        _compact_annotation(
+            {
+                "parties": {"consignee": {"name": "ACME IMPORTS LIMITED"}},
+                "negotiability": "non_negotiable",
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.negotiability == "non_negotiable"
+
+
+@pytest.mark.parametrize(
+    ("raw", "references"),
+    [
+        ("PFI MS20240523", ("MS20240523",)),
+        ("Export Contract 298763641", ("298763641",)),
+        (
+            "ED NO.201-07444443-24, 201-07447683-24",
+            ("201-07444443-24", "201-07447683-24"),
+        ),
+    ],
+)
+def test_observed_export_reference_headings_are_supported(
+    raw: str, references: tuple[str, ...]
+) -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(raw),
+        _compact_annotation({"forwardingAndExportReferences": references}),
+        pdf_grouping_used=False,
+    )
+
+    assert (
+        annotation.normalLabel.documentPatch.forwardingAndExportReferences
+        == references
+    )
+
+
+def test_comma_separated_day_month_year_date_is_grounded() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("Shipped on Board Date:\n18,APR,2024"),
+        _compact_annotation({"shippedOnBoardDate": date(2024, 4, 18)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.shippedOnBoardDate == date(2024, 4, 18)
+
+
+def test_un_table_heading_governs_following_table_row() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "CONTAINER NO / UN NO / DG CLASS / FLASH POINT /\n"
+            "PACKAGING GROUP\nTCNU5538437 / 1993 / 3 / 15.0 C / II"
+        ),
+        _compact_annotation(
+            {
+                "containers": ({"containerNumber": "TCNU5538437"},),
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "dangerousGoods": ({"unNumber": "1993"},),
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    dangerous = annotation.normalLabel.documentPatch.goodsItems[0].dangerousGoods
+    assert dangerous is not None and dangerous[0].unNumber == "1993"
+
+
+def test_customs_tarif_ocr_heading_is_valid_hs_context() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("CUSTOMS TARIF NO.:84385000"),
+        _compact_annotation(
+            {"cargoGroups": ({"groupId": "g1", "hsCodes": ("84385000",)},)}
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].hsCodes == ("84385000",)
+
+
+def test_arithmetic_gross_tare_total_block_grounds_grouped_gross_mass() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "Gross Weight\nKGS\n16,939\n\nTara: 3,900\nTotal Weight: 20,839"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "grossWeight": {"value": 16939.0, "unit": "kilogram"},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].grossWeight.value == 16939.0
+
+
+@pytest.mark.parametrize(
+    "containment",
+    ["PALLET STC: 1 PAIL", "442 CTN (STC : 670 PCS)"],
+)
+def test_explicit_package_containment_is_valid_additional_information(
+    containment: str,
+) -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(containment),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {"groupId": "g1", "additionalInformation": (containment,)},
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert (
+        annotation.normalLabel.documentPatch.goodsItems[0].additionalInformation
+        == (containment,)
+    )
+
+
+def test_allocation_quantity_does_not_bind_to_container_check_digit() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "Marks & Numbers\nMCLU 509007/7\nSEAL: 6265313\n\n"
+            "7 PALLETS\nPUMPS SPARE PARTS"
+        ),
+        _compact_annotation(
+            {
+                "containers": ({"containerNumber": "MCLU5090077"},),
+                "cargoGroups": ({"groupId": "g1", "description": "PUMPS SPARE PARTS"},),
+                "cargoPackages": (
+                    {
+                        "packageId": "p1",
+                        "groupId": "g1",
+                        "quantity": 7,
+                        "typeDescription": "PALLETS",
+                    },
+                ),
+                "cargoAllocationGroups": (
+                    {
+                        "groupId": "g1",
+                        "coverage": "single_package_level",
+                        "packageId": "p1",
+                        "allocations": (
+                            {"containerNumber": "MCLU5090077", "packageQuantity": 7},
+                        ),
+                    },
+                ),
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    relation_evidence = annotation.relationEvidence[0].rawOcrEvidence
+    quantity_rows = tuple(row for row in relation_evidence if row.rawValue == "7")
+    assert len(quantity_rows) == 1
+    assert "7 PALLETS" in quantity_rows[0].ocrExcerpt
+
+
+def test_hyphenated_ordinal_named_month_issue_date_is_normalized() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("Place and date of issue\nNOVOROSSIYSK\n18-th June 2023"),
+        _compact_annotation({"issueDate": date(2023, 6, 18)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.issueDate.isoformat() == "2023-06-18"
 
 
 def test_comma_separated_named_month_date_is_grounded() -> None:
@@ -7627,6 +8807,51 @@ def test_parenthesized_units_disambiguate_comma_grouped_mass_and_decimal_volume(
     assert cargo.volume is not None and cargo.volume.value == 0.1
 
 
+def test_pdf_grouping_can_disambiguate_three_decimal_mass_separator() -> None:
+    work_item = _work_item_with_text("Gross Weight\n703.075 KG")
+    draft = _compact_annotation(
+        {
+            "cargoGroups": (
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 703.075, "unit": "kilogram"},
+                },
+            )
+        }
+    )
+
+    with pytest.raises(DeterministicAnnotationError, match="not exactly groundable"):
+        build_compact_annotation(work_item, draft, pdf_grouping_used=False)
+
+    annotation = build_compact_annotation(work_item, draft, pdf_grouping_used=True)
+
+    evidence = next(
+        row
+        for row in annotation.evidence
+        if row.targetPath == "documentPatch.goodsItems[0].grossWeight.value"
+    )
+    assert evidence.rawOcrEvidence[0].rawValue == "703.075"
+    assert evidence.imageUse == "grouping_only"
+
+
+def test_pdf_grouping_does_not_ground_unqualified_ambiguous_number_as_mass() -> None:
+    with pytest.raises(DeterministicAnnotationError, match="not exactly groundable"):
+        build_compact_annotation(
+            _work_item_with_text("Reference 703.075"),
+            _compact_annotation(
+                {
+                    "cargoGroups": (
+                        {
+                            "groupId": "g1",
+                            "grossWeight": {"value": 703.075, "unit": "kilogram"},
+                        },
+                    )
+                }
+            ),
+            pdf_grouping_used=True,
+        )
+
+
 def test_temperature_setpoint_accepts_glued_celsius_value() -> None:
     annotation = build_compact_annotation(
         _work_item_with_text(
@@ -7711,6 +8936,109 @@ def test_post_terminal_correspondence_does_not_expand_bill_container_completenes
     ) == ("ESDU4122375",)
 
 
+def test_unit_qualified_row_volume_controls_style_over_following_row_mass() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text(
+            "TRAILER ONE\nWeight kg. 10,000.000 KGS 142.506 CBM\n"
+            "TRAILER TWO\n8,864.000 KGS 139.400 CBM"
+        ),
+        _compact_annotation(
+            {
+                "cargoGroups": (
+                    {
+                        "groupId": "g1",
+                        "description": "TRAILER ONE",
+                        "volume": {"unit": "cubic_metre", "value": 142.506},
+                    },
+                    {
+                        "groupId": "g2",
+                        "description": "TRAILER TWO",
+                        "volume": {"unit": "cubic_metre", "value": 139.4},
+                    },
+                )
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert tuple(
+        row.volume.value for row in annotation.normalLabel.documentPatch.goodsItems
+    ) == (142.506, 139.4)
+
+
+def test_glued_pces_quantity_is_grounded_as_a_package_count() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("56PLTS=1000CTNS=20000PCES"),
+        _compact_annotation(
+            {
+                "cargoGroups": ({"groupId": "g1"},),
+                "cargoPackages": (
+                    {
+                        "packageId": "p1",
+                        "groupId": "g1",
+                        "quantity": 20000,
+                        "typeDescription": "PCES",
+                    },
+                ),
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.goodsItems[0].packages[0].quantity == 20000
+
+
+def test_single_package_total_reconciles_explicit_container_row_quantities() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("FYCU1086910 20 BAG\nONLU2207538 20 BAG"),
+        _compact_annotation(
+            {
+                "containers": (
+                    {"containerNumber": "FYCU1086910"},
+                    {"containerNumber": "ONLU2207538"},
+                ),
+                "cargoGroups": ({"groupId": "g1"},),
+                "cargoPackages": (
+                    {
+                        "packageId": "p1",
+                        "groupId": "g1",
+                        "quantity": 40,
+                        "typeDescription": "BAG",
+                    },
+                ),
+                "cargoAllocationGroups": (
+                    {
+                        "groupId": "g1",
+                        "coverage": "single_package_level",
+                        "packageId": "p1",
+                        "allocations": (
+                            {
+                                "containerNumber": "FYCU1086910",
+                                "packageQuantity": 20,
+                            },
+                            {
+                                "containerNumber": "ONLU2207538",
+                                "packageQuantity": 20,
+                            },
+                        ),
+                    },
+                ),
+            }
+        ),
+        pdf_grouping_used=False,
+    )
+
+    quantity_evidence = next(
+        row
+        for row in annotation.evidence
+        if row.targetPath == "documentPatch.goodsItems[0].packages[0].quantity"
+    )
+    assert len(quantity_evidence.rawOcrEvidence) == 2
+    assert "summed the exact OCR-grounded" in (
+        quantity_evidence.normalizationRule or ""
+    )
+
+
 def test_spaced_proforma_reference_is_governed_by_previous_nonblank_heading() -> None:
     annotation = build_compact_annotation(
         _work_item_with_text(
@@ -7732,6 +9060,25 @@ def test_unqualified_pi_text_is_not_an_explicit_invoice_reference(raw: str) -> N
     annotation = build_compact_annotation(
         _work_item_with_text(f"CARGO DESCRIPTION\nPRODUCT\n{raw}"),
         _compact_annotation({"cargoGroups": ({"groupId": "g1", "description": "PRODUCT"},)}),
+        pdf_grouping_used=False,
+    )
+
+    assert annotation.normalLabel.documentPatch.forwardingAndExportReferences is None
+
+
+def test_inv_prefix_inside_investment_address_is_not_an_invoice_reference() -> None:
+    annotation = build_compact_annotation(
+        _work_item_with_text("CONSIGNEE\nACME\nINVESTMENT-10TH OF RAMADAN"),
+        _compact_annotation(
+            {
+                "parties": {
+                    "consignee": {
+                        "name": "ACME",
+                        "address": "INVESTMENT-10TH OF RAMADAN",
+                    }
+                }
+            }
+        ),
         pdf_grouping_used=False,
     )
 

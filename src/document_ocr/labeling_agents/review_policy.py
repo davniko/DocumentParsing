@@ -42,9 +42,9 @@ _SUPPORTED_REFERENCE = re.compile(
     r"(?ix)\b(?:forward(?:ing)?|export\s+(?:ref(?:erence)?s?|no|number)|"
     r"ref\s*\.\s*exp\s*\.?|"
     r"aes|caed(?:\s*(?:no|number))?|shipping\s+bill|s/?bill|"
-    r"du-e|f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
+    r"du-e|pfi|export\s+contract|f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
     r"s[./]?b\.?(?:\s*(?:no|number))?|dus|"
-    r"ed\s*(?:no|number)\.?\s*(?=[:#-]|\s|$)|"
+    r"ed\s*(?:no|number)\.?\s*(?=[:#-]|\s|[0-9]|$)|"
     r"itn\s*(?=[:#-]|\s)|imp\s*/+\s*exp\s*[#]?|"
     r"exp\s*(?=[:#-]?\s*[0-9])|"
     r"prn(?:\s*\(\s*proof\s+of\s+report\s+number\s*\))?|p\.?\s*e\.?|"
@@ -152,10 +152,11 @@ _ORIGINAL_SURRENDER_OR_VOID = re.compile(
 _EXPRESS_RELEASE = re.compile(r"(?ix)\b(?:express|telex)\s+release\b")
 _CONSIGNEE_HEADING = re.compile(
     r"(?ix)^\s*(?:\(?[0-9]+\)?\s*[.)-]?\s*)?"
-    r"(?:CONSIGNEE(?:\s*/\s*ORDER\s+OF)?|CONSIGNED\s+TO)\b"
+    r"(?:CONSIGNEE(?:['\u2019]S)?(?:\s+NAME\s+AND\s+ADDRESS)?"
+    r"(?:\s*/\s*ORDER\s+OF)?|CONSIGNED\s+TO|IMPORTER\s+NAME)\b"
 )
 _PARTY_OR_FORM_HEADING = re.compile(
-    r"(?ix)^(?:shipper|exporter|consignee|notify(?:\s+party)?|carrier|forwarding\s+agent|"
+    r"(?ix)^(?:shipper|exporter|importer|consignee|notify(?:\s+party)?|carrier|forwarding\s+agent|"
     r"delivery\s+agent|vessel|voyage|port\s+of|place\s+of|marks(?:\s+and\s+numbers)?|"
     r"description\s+of\s+goods|container|freight|bill\s+of\s+lading)\b"
 )
@@ -166,7 +167,10 @@ _CONSIGNEE_FORM_INSTRUCTION = re.compile(
     r"\(?\s*negotiable\s+only\s+if|"
     r"as\s+principal\s*,?\s+where|"
     r"this\s+B/?L\s+is\s+not\s+negotiable\s+unless|"
-    r"\(?\s*if\s*['\u2018\u2019\"]?to\s+order['\u2018\u2019\"]?\s*,?\s*so\s+indicate|"
+    r"\(?\s*unless\s+provided\s+otherwise\s*,?\s+a\s+consignment\b|"
+    r"\(?\s*if\s*['\u2018\u2019\u201c\u201d\"]?to\s+order"
+    r"['\u2018\u2019\u201c\u201d\"]?\s*,?\s*"
+    r"(?:so\s+indicate|is\s+indicated)|"
     r"name\s+and\s+address"
     r")"
 )

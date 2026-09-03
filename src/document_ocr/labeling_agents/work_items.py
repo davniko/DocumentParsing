@@ -33,6 +33,7 @@ from document_ocr.labeling_agents.config import AgentLabelingConfig, PromptArtif
 from document_ocr.labeling_agents.models import PdfConstructionMethod
 
 _PAGE_HEADER = re.compile(r"(?:\A|\n\n)--- PAGE ([1-9][0-9]*) ---\n")
+_DOCUMENT_ID = re.compile(r"^doc_[0-9a-f]{64}$")
 
 
 class WorkItemError(RuntimeError):
@@ -479,15 +480,54 @@ def inventory_payload(rows: tuple[InventoriedWorkItem, ...]) -> bytes:
 def select_work_items(
     config: AgentLabelingConfig, rows: tuple[InventoriedWorkItem, ...]
 ) -> tuple[InventoriedWorkItem, ...]:
+    explicit_ids: tuple[str, ...] | None = None
     if config.selection.document_ids is not None:
+        explicit_ids = tuple(config.selection.document_ids)
+    elif config.selection.document_ids_file is not None:
+        configured = config.selection.document_ids_file
+        path = Path(configured.path)
+        try:
+            payload = read_regular_file_bytes(path)
+        except (OSError, ValueError) as error:
+            raise WorkItemError(f"selection document ID file is not readable: {path}") from error
+        if sha256_bytes(payload) != configured.sha256:
+            raise WorkItemError(f"selection document ID file SHA-256 differs: {path}")
+        explicit: list[str] = []
+        for line_number, raw in enumerate(payload.splitlines(keepends=True), start=1):
+            if not raw.strip() or not raw.endswith(b"\n"):
+                raise WorkItemError(
+                    f"selection document ID row {line_number} is blank or unterminated"
+                )
+            try:
+                value = json.loads(raw)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise WorkItemError(
+                    f"selection document ID row {line_number} is invalid JSON"
+                ) from error
+            if not isinstance(value, dict) or set(value) != {"documentId"}:
+                raise WorkItemError(
+                    f"selection document ID row {line_number} must contain only documentId"
+                )
+            document_id = value["documentId"]
+            if not isinstance(document_id, str) or _DOCUMENT_ID.fullmatch(document_id) is None:
+                raise WorkItemError(
+                    f"selection document ID row {line_number} has an invalid documentId"
+                )
+            explicit.append(document_id)
+        if len(explicit) != configured.records:
+            raise WorkItemError("selection document ID file count differs from configuration")
+        if len(explicit) != len(set(explicit)):
+            raise WorkItemError("selection document ID file contains duplicate documentIds")
+        explicit_ids = tuple(explicit)
+    if explicit_ids is not None:
         by_id = {row.item.source.documentId: row for row in rows}
-        missing = [value for value in config.selection.document_ids if value not in by_id]
+        missing = [value for value in explicit_ids if value not in by_id]
         if missing:
             raise WorkItemError(
                 "explicit selection contains documentIds absent from the frozen inventory: "
                 + ", ".join(missing)
             )
-        return tuple(by_id[value] for value in config.selection.document_ids)
+        return tuple(by_id[value] for value in explicit_ids)
     if config.selection.count > len(rows):
         raise WorkItemError("selection count exceeds the frozen work-item inventory")
     ranked = sorted(

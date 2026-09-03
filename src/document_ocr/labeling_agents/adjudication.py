@@ -141,6 +141,7 @@ class AdjudicationItemConfig(_ConfigModel):
     rebuild: CandidateRebuildConfig | None = None
     target_corrections: list[TargetCorrectionConfig] = Field(default_factory=list)
     warning_removals: list[WarningRemovalConfig] = Field(default_factory=list)
+    warning_additions: list[WarningRemovalConfig] = Field(default_factory=list)
     date_corrections: list[DateCorrectionConfig] = Field(default_factory=list)
     adjudication_notes: list[
         Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -164,14 +165,20 @@ class AdjudicationItemConfig(_ConfigModel):
             raise ValueError("target correction paths must be unique per document")
         if self.target_corrections and self.rebuild is None:
             raise ValueError("target corrections require an evidence rebuild")
-        if self.warning_removals and self.rebuild is None:
-            raise ValueError("warning removals require an evidence rebuild")
-        warning_values = tuple(
+        if (self.warning_removals or self.warning_additions) and self.rebuild is None:
+            raise ValueError("warning updates require an evidence rebuild")
+        warning_removal_values = tuple(
             canonical_json_bytes(row.as_warning().model_dump(mode="json"))
             for row in self.warning_removals
         )
-        if len(warning_values) != len(set(warning_values)):
+        if len(warning_removal_values) != len(set(warning_removal_values)):
             raise ValueError("warning removals must be unique per document")
+        warning_addition_values = tuple(
+            canonical_json_bytes(row.as_warning().model_dump(mode="json"))
+            for row in self.warning_additions
+        )
+        if len(warning_addition_values) != len(set(warning_addition_values)):
+            raise ValueError("warning additions must be unique per document")
         if self.candidate_kind == "compact_draft" and self.pdf_grouping_used is None:
             raise ValueError(
                 "compact-draft candidates require an explicit pdf_grouping_used value"
@@ -395,9 +402,10 @@ def _correct_relation_label(
     )
 
 
-def _warnings_after_removals(
+def _warnings_after_updates(
     warnings: Sequence[LabelWarning],
     removals: Sequence[WarningRemovalConfig],
+    additions: Sequence[WarningRemovalConfig],
 ) -> tuple[LabelWarning, ...]:
     retained = list(warnings)
     for configured_removal in removals:
@@ -414,16 +422,31 @@ def _warnings_after_removals(
                 "configured warning removal differs from the pinned candidate"
             ) from error
         retained.pop(index)
+    existing = {
+        canonical_json_bytes(warning.model_dump(mode="json")) for warning in retained
+    }
+    for configured_addition in additions:
+        addition = configured_addition.as_warning()
+        payload = canonical_json_bytes(addition.model_dump(mode="json"))
+        if payload in existing:
+            raise AdjudicationError(
+                "configured warning addition already exists in the pinned candidate"
+            )
+        retained.append(addition)
+        existing.add(payload)
     return tuple(retained)
 
 
-def _remove_warnings(
+def _update_warnings(
     annotation: BillOfLadingDualCargoAnnotation,
     removals: Sequence[WarningRemovalConfig],
+    additions: Sequence[WarningRemovalConfig],
 ) -> BillOfLadingDualCargoAnnotation:
     return annotation.model_copy(
         update={
-            "warnings": _warnings_after_removals(annotation.warnings, removals)
+            "warnings": _warnings_after_updates(
+                annotation.warnings, removals, additions
+            )
         }
     )
 
@@ -455,9 +478,10 @@ def _adjudicate_item(
                 compact_draft.relationExplicitLabel,
                 item.target_corrections,
             )
-            warnings = _warnings_after_removals(
+            warnings = _warnings_after_updates(
                 compact_draft.warnings,
                 item.warning_removals,
+                item.warning_additions,
             )
             if item.rebuild is not None:
                 compact_draft = CompactAnnotationDraft.model_validate(
@@ -501,7 +525,9 @@ def _adjudicate_item(
     for support in item.supporting_artifacts:
         _read_pinned(support.path, support.sha256, context="supporting artifact")
     if item.candidate_kind == "annotation":
-        annotation = _remove_warnings(annotation, item.warning_removals)
+        annotation = _update_warnings(
+            annotation, item.warning_removals, item.warning_additions
+        )
         corrected_relation = _correct_relation_label(annotation, item.target_corrections)
         if item.rebuild is not None:
             draft = CompactAnnotationDraft.model_validate(
@@ -588,6 +614,9 @@ def publish_adjudication_run(config: AdjudicationConfig) -> Path:
                 ],
                 "warningRemovals": [
                     row.model_dump(mode="json") for row in item.warning_removals
+                ],
+                "warningAdditions": [
+                    row.model_dump(mode="json") for row in item.warning_additions
                 ],
                 "rebuild": item.rebuild.model_dump(mode="json") if item.rebuild else None,
                 "supportingArtifacts": [

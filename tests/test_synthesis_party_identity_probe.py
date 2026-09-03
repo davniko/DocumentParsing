@@ -15,12 +15,12 @@ from document_ocr.synthesis.config import (
     SynthesisPartyIdentityProbeConfig,
     load_synthesis_party_identity_probe_config,
 )
+from document_ocr.synthesis.linguistic_probe_runtime import price_usage
 from document_ocr.synthesis.party_identity_probe import (
     GeneratedPartyContacts,
     GeneratedPartyIdentity,
     PartyIdentityGenerationOutput,
     PartyIdentityGenerationSeed,
-    _price_usage,
     build_party_generation_seed,
     validate_generated_party,
 )
@@ -88,6 +88,25 @@ def test_probe_config_is_strict_and_pins_one_request_per_case() -> None:
         SynthesisPartyIdentityProbeConfig.model_validate(value, strict=True)
 
 
+def test_probe50_config_has_unique_documents_and_role_coverage() -> None:
+    config = load_synthesis_party_identity_probe_config(
+        Path("configs/synthesis/mpci_bl_party_identity_luna_high_probe50.yaml")
+    )
+
+    assert len(config.cases) == 50
+    assert len({case.document_id for case in config.cases}) == 50
+    assert {case.party_role for case in config.cases} == {
+        "shipper",
+        "consignee",
+        "notifyParties",
+        "carrier",
+        "forwardingAgent",
+        "deliveryAgent",
+    }
+    assert config.workflow.requests_per_case == 1
+    assert config.workflow.structured_output_retries == 0
+
+
 def test_seed_preserves_target_locality_field_shape_and_goods() -> None:
     seed = _seed()
     assert seed.partyRole == "shipper"
@@ -148,4 +167,4 @@ def test_pricing_counts_reasoning_as_output() -> None:
         Path("configs/synthesis/mpci_bl_party_identity_luna_high_probe5.yaml")
     )
     usage = RequestUsage(input_tokens=1_000, output_tokens=500)
-    assert _price_usage(usage, config.provider.pricing) == Decimal("0.000800000000")
+    assert price_usage(usage, config.provider.pricing) == Decimal("0.000800000000")

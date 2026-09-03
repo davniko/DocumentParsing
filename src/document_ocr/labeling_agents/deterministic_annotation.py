@@ -14,7 +14,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from itertools import pairwise
+from itertools import chain, pairwise
 from typing import Any, Literal
 
 from pydantic import TypeAdapter, ValidationError
@@ -50,33 +50,51 @@ _NUMBER = re.compile(
     r"(?<![A-Za-z0-9])(?<![0-9]['\u2019\u2032\"])[-+]?(?:"
     r"[0-9]{1,3}(?:\.[0-9]{3})+,[0-9]+|"
     r"[0-9]{1,3}(?:,[0-9]{3})+\.[0-9]+|"
+    r"[0-9]{1,3}(?:\.[0-9]{3})+|"
     r"[0-9]{1,3}(?:[ ,][0-9]{3})+(?:\.[0-9]+)?|"
     r"[0-9]+(?:[.,][0-9]+)?"
     r")"
-    r"(?=$|[^A-Za-z0-9]|[xX]|(?:KGS?|KGM|LBS?|M/?TS?|TONNES?|CBM|MTQ|M(?:3|³)|PCS?|"
-    r"CS|PK|PKGS?|PACKAGES?|CARTONS?|PIECES?|"
-    r"CTNS?|BAGS?|PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|BULLS?|CATTLE|HEADS?)\b)"
+    r"(?=$|[^A-Za-z0-9]|[xX]|(?:KGS?|KGM|LBS?|M/?TS?|TONNES?|CBM|MTQ|M(?:3|³)|PCS?|PCES?|"
+    r"CS|PK|PKGS?|PACKAGES?|CARTONS?|PIECES?|CU\.?\s*M\.?|CUBIC\s+MET(?:ER|RE)S?|"
+    r"CTNS?|CRTS?|BAGS?|PL|PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|"
+    r"BULLS?|CATTLE|HEADS?)\b)",
+    flags=re.IGNORECASE,
 )
 _COUNT_NUMBER = re.compile(
     r"(?ix)(?<![A-Za-z0-9])(?P<value>[0-9]+)"
-    r"(?=\s*(?:PCS?|PIECES?|CS|PK|PKGS?|PACKAGES?|CARTONS?|CTNS?|BAGS?|"
-    r"PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|BULLS?|CATTLE|HEADS?)\b)"
+    r"(?=\s*(?:PCS?|PCES?|PIECES?|CS|PK|PKGS?|PACKAGES?|CARTONS?|CTNS?|BAGS?|"
+    r"PL|PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|CRTS?|BULLS?|CATTLE|"
+    r"HEADS?)\b)"
+)
+_GLUED_COUNT_AFTER_MASS_UNIT = re.compile(
+    r"(?ix)\b(?:KGS?|KGM)(?P<value>[0-9]+)"
+    r"(?=\s*(?:PCS?|PCES?|PIECES?|CS|PK|PKGS?|PACKAGES?|CARTONS?|CTNS?|BAGS?|"
+    r"PL|PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|CRTS?)\b)"
 )
 _GLUED_CELSIUS_TEMPERATURE = re.compile(
     r"(?ix)(?<![A-Za-z0-9])[-+]?[0-9]+(?:[.,][0-9]+)?"
     r"(?=\s*(?:\N{DEGREE SIGN}\s*)?C(?:\.?\s*C\.?(?:\s*C\.?)?)?\b)"
 )
-_MONTH_NAME = (
+_PARENTHESIZED_NEGATIVE_TEMPERATURE = re.compile(
+    r"(?ix)\(\s*-\s*\)\s*(?P<value>[0-9]+(?:[.,][0-9]+)?)"
+    r"(?=\s*(?:(?:DEG(?:REE)?S?\.?\s*)?(?:CEL(?:SIUS)?|C)\b|\N{DEGREE SIGN}\s*C\b))"
+)
+_ENGLISH_MONTH_NAME = (
     r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
     r"jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|"
     r"dec(?:ember)?"
 )
+_FRENCH_MONTH_NAME = (
+    r"janv(?:ier)?|f[ée]v(?:r(?:ier)?)?|mars|avr(?:il)?|mai|juin|juil(?:let)?|"
+    r"ao[uû]t|sept(?:embre)?|oct(?:obre)?|nov(?:embre)?|d[ée]c(?:embre)?"
+)
+_MONTH_NAME = rf"(?:{_ENGLISH_MONTH_NAME}|{_FRENCH_MONTH_NAME})"
 _DATE_TOKEN = re.compile(
     r"(?ix)\b(?:"
     r"[0-9]{4}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|"
     rf"[0-9]{{4}}[-/.](?:{_MONTH_NAME})\.?[-/.][0-9]{{1,2}}|"
     r"[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{2,4}|"
-    rf"(?:[0-9]\s+[0-9]|[0-9]{{1,2}})(?:st|nd|rd|th)?\s*[-/. ]\s*"
+    rf"(?:[0-9]\s+[0-9]|[0-9]{{1,2}})(?:-?(?:st|nd|rd|th))?\s*[-/., ]\s*"
     rf"(?:{_MONTH_NAME})\.?"
     r"\s*[-/., ]+\s*[0-9]{2,4}|"
     rf"(?:{_MONTH_NAME})\.?\s*(?:[-/.,]\s*|\s+)"
@@ -87,6 +105,15 @@ _DATE_TOKEN = re.compile(
 _NUMERIC_DATE_TOKEN = re.compile(
     r"(?<![0-9])(?P<first>[0-9]{1,2})[-/.](?P<second>[0-9]{1,2})"
     r"[-/.](?P<year>[0-9]{2,4})(?![0-9])"
+)
+_SPACED_NUMERIC_DATE_WITH_PRINTED_ORDER = re.compile(
+    r"(?ix)(?P<first>[0-9]{1,2})[ \t]+(?P<second>[0-9]{1,2})[ \t]+"
+    r"(?P<year>[0-9]{4})(?:[ \t]*\r?\n){1,3}[ \t]*"
+    r"(?P<order>MONTH[ \t]+DAY[ \t]+YEAR|DAY[ \t]+MONTH[ \t]+YEAR)\b"
+)
+_COMPACT_YYMMDD_ISSUE_DATE = re.compile(
+    r"(?im)\bDATE[ \t]+OF[ \t]+ISSUE[ \t]*[:#-]?[ \t]*"
+    r"(?P<value>[0-9]{6})\b"
 )
 _FORBIDDEN_METADATA = re.compile(
     r"(?ix)\b(?:acid(?:\s*(?:code|number|no))?|tax(?:\s*(?:id|number|no))?|"
@@ -99,30 +126,37 @@ _NON_METADATA_FIELD_HEADING = re.compile(
     r"ENGINE\s*(?:NO|NUMBER)|INV(?:OICE)?\.?\s*(?:NO|NUMBER|REF)|"
     r"H\.?S\.?N?\.?\s*(?:CODE|NO|NUMBER)?|HTS|TARIFF|NCM|GTIP|CAED|"
     r"MARKS?(?:\s+AND\s+NO(?:S|S\.)?)?|FORWARD(?:ING)?|"
+    r"REFERENCES?\s+(?:NOS?|NUMBERS?)|"
     r"DOMESTIC\s+ROUTING\s*/?\s*EXPORT\s+INSTRUCTIONS?|"
-    r"EXPORT\s+REF(?:ERENCE)?S?|"
+    r"EXPORT\s+(?:REF(?:ERENCE)?S?|LICEN[CS]E(?:\s*(?:NO|NUMBER))?)|"
     r"AES|ITN|SHIPPING\s+BILL|S/?BILL|S[./]?B(?:\s*(?:NO|NUMBER))?|"
-    r"DUS|ED\s*(?:NO|NUMBER)|DU-E|"
+    r"DUS|DAE|ED\s*(?:NO|NUMBER)|DU-?E|PFI|EXPORT\s+CONTRACT|"
     r"F\s*/\s*AGENT(?:\s+NAME)?\s*&\s*REF|PRN\b|P\.?\s*E\.?)\b"
 )
 _QUALIFYING_NON_INVOICE_REFERENCE = re.compile(
-    r"(?ix)\b(?:forward(?:ing)?|export\s+(?:ref(?:erence)?s?|no|number)|"
+    r"(?ix)\b(?:forward(?:ing)?|references?\s+(?:nos?|numbers?)|"
+    r"export\s+(?:ref(?:erence)?s?|no|number|"
+    r"licen[cs]e(?:\s*(?:no|number))?)|"
     r"domestic\s+routing\s*/?\s*export\s+instructions?|"
     r"ref\s*\.\s*exp\s*\.?|aes|itn|caed(?:\s*(?:no|number))?|"
-    r"shipping\s+bill|s/?bill|du-e|dus|f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
+    r"cers(?:\s*(?:no|number))?|"
+    r"shipping\s+bill|s/?bill|du-?e|dae|dus|pfi|export\s+contract|"
+    r"f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
+    r"(?:reference|shipment)\s*/\s*invoices?\s+numbers?|"
     r"s[./]?b\.?(?:\s*(?:no|number))?|imp\s*/+\s*exp\s*[#]?|"
     r"prn(?:\s*\(\s*proof\s+of\s+report\s+number\s*\))?|p\.?\s*e\.?|"
     r"exp\s*(?=[:#-]?\s*[0-9])|"
-    r"ed\s*(?:no|number)\.?\s*(?=[:#-]|\s|$))"
+    r"ed\s*(?:no|number)\.?\s*(?=[:#-]|\s|[0-9]|$))"
 )
 _REFERENCE_LABEL_PREFIX = re.compile(
-    r"(?ix)^\s*(?:ref\s*\.\s*exp\s*\.?|"
-    r"export\s+(?:ref(?:erence)?s?|no|number)|aes|itn|caed(?:\s*(?:no|number))?|"
-    r"shipping\s+bill|s/?bill|s[./]?b(?:\s*(?:no|number))?|dus|"
-    r"ed\s*(?:no|number)|du-e|imp\s*/+\s*exp|exp|"
+    r"(?ix)^\s*(?:ref\s*\.\s*exp\s*\.?|references?\s+(?:nos?|numbers?)|"
+    r"export\s+(?:ref(?:erence)?s?|no|number|licen[cs]e(?:\s*(?:no|number))?)|"
+    r"aes|itn|caed(?:\s*(?:no|number))?|cers(?:\s*(?:no|number))?|"
+    r"shipping\s+bill|s/?bill|s[./]?b(?:\s*(?:no|number))?|dus|dae|"
+    r"ed\s*(?:no|number)|du-?e|imp\s*/+\s*exp|exp|pfi|export\s+contract|"
     r"f\s*/\s*agent(?:\s+name)?\s*&\s*ref|"
     r"prn(?:\s*\(\s*proof\s+of\s+report\s+number\s*\))?|p\.?\s*e\.?|"
-    r"p\s*/?\s*i\s*(?:no|number|ref))"
+    r"p\s*[./]?\s*i\.?\s*(?:no|number|ref))"
     r"(?:\s*[:#.-]\s*|\s+)"
 )
 _REFERENCE_PLACEHOLDER = re.compile(
@@ -151,37 +185,75 @@ _FACE_FIELD_PREPAID = re.compile(
     r"(?im)^[ \t]*FREIGHT(?:[ \t]+AND[ \t]+CHARGES)?[ \t]+PAYABLE[ \t]+AT"
     r"[ \t]*(?:[:#-][ \t]*)?(?:\r?\n[ \t]*)?PREPAID[ \t]*$"
 )
+_FINAL_FREIGHT_PREPAID = re.compile(r"(?im)^[ \t]*FREIGHT[ \t]+PREPAID[ \t]*$")
 _EXPRESS_RELEASE_NO_ORIGINALS = re.compile(
     r"(?is)\bEXPRESS\s+RELEASE\b.{0,80}\bNO\s+ORIGINALS?\s+ISSUED\b"
 )
 _HS_HEADING = re.compile(
-    r"(?ix)(?:\b(?:H\s*[.-]?\s*S\s*\.?\s*N?\s*\.?|HTS|TARIFF|NCM|GTIP)"
+    r"(?ix)(?:\b(?:H\s*[.-]?\s*S\s*\.?\s*N?\s*\.?(?:\s*[0-9]{1,2})?|"
+    r"HTS|TARIFF|NCM|GTIP)"
     r"(?:\s*(?:CODE|NO|NUMBER))?\b|"
     r"\bCUSTOMS\s+C(?:O)?DE\b|"
+    r"\bCUSTOMS\s+TARIF(?:F)?(?:\s*(?:CODE|NO|NUMBER))?\b|"
+    r"\bHARMONI[ZS]ED(?:\s+TARIFF)?\s+CODE\b|"
+    r"(?<=[0-9])HS\s+(?:CODE|NO|NUMBER)\b|"
+    r"\bFRACCI[ÓO]N\s+ARANCELARIA\b|"
+    r"\bPDA\.?(?=\s*[:#.-]?\s*[0-9])|"
+    r"\bHSC(?=\s*[:#.-]?\s*[0-9])|"
+    r"\bH\s*(?:[.-]\s*C\.?|C\s*\.)(?=\s*[:#.-]?\s*[0-9])|"
     r"\b(?:BAGS?|BOX(?:ES)?|CARTONS?|CASES?|CRATES?|DRUMS?|PACKAGES?|PALLETS?)"
     r"HS(?=\s*[:#]))"
 )
 _UN_NUMBER_CONTEXT = re.compile(
     r"(?ix)\bUN(?:DG)?(?:\s*(?:NO|NUMBER)\.?)?\s*[:#.-]?\s*[0-9]"
 )
+_UN_TABLE_HEADING = re.compile(
+    r"(?im)^(?=[^\r\n]*\bUN\b)"
+    r"(?=[^\r\n]*\b(?:IMDG|DG\s+CLASS|FLASH\s+POINT|CARGO|WEIGHT|CONTAINER|PIECES?)\b)"
+    r"[^\r\n]+$"
+)
 _MADE_IN_CARGO_ORIGIN = re.compile(
     r"(?m)\b(?:MADE IN|Made in)[ \t]+[A-Z][A-Za-z .'-]{1,40}[ \t]*$"
 )
 _INVOICE_REFERENCE_PREFIX = (
-    r"\b(?:(?:INV(?:OICE)?\.?|NVOICE\.?|PROFORMA\s+INVOICES?)\s*"
-    r"(?:(?:NO(?:S)?|NUMBER(?:S)?|REF)\.?\s*[:#-]?\s*|[:#-]\s*)?|"
-    r"P\s*/?\s*I(?![A-Z])\s*(?:(?:NO|NUMBER|REF)\.?\s*[:#-]?\s*|[:#-]\s*))"
+    r"\b(?:(?:INVOICE\.?|INV(?:\.|(?=\s|[:#-]|NO\b))|"
+    r"NVOICE\.?(?![A-Z])|PROFORMA(?:\s+INVOICES?)?|"
+    r"COMMERCIAL\s+INVOICES?)\s*"
+    r"(?:(?:NO(?:S)?|NR|NUM|NUMBER(?:S)?|REF)\.?(?:\s*&\s*DATE)?"
+    r"\s*[:#-]?\s*|(?:[:#-]\s*)+)?|"
+    r"P\s*[./]?\s*I\.?\s*(?:(?:NO|NR|NUM|NUMBER|REF)\.?\s*[:#-]?\s*|(?:[:#-]\s*)+))"
 )
 _EXPLICIT_INVOICE_REFERENCE = re.compile(
     rf"(?ix){_INVOICE_REFERENCE_PREFIX}"
     r"(?P<value>(?=[A-Z0-9&._/()-]*[0-9])\.?[A-Z0-9][A-Z0-9&._/-]*"
     r"(?:\([A-Z0-9&._/-]+\))?)"
 )
+_EXPLICIT_SPACED_INVOICE_REFERENCE = re.compile(
+    rf"(?imx)^[ \t]*{_INVOICE_REFERENCE_PREFIX}"
+    r"(?P<value>(?=[^\r\n]*[0-9])[A-Z0-9][A-Z0-9 &._/()/-]*?)"
+    r"(?=[ \t]+(?:DD|DATED?|DT)\.?[ \t]*[0-9]|[ \t]*$)"
+)
 _EXPLICIT_INVOICE_HEADING = re.compile(
     r"(?ix)^\s*(?:.*\bAS\s+PER\s+)?"
-    r"(?:(?:INV(?:OICE)?\.?|NVOICE\.?|PROFORMA\s+INVOICES?)\s*"
-    r"(?:NO(?:S)?|NUMBER(?:S)?|REF)\.?\s*[:#-]?|"
-    r"P\s*/?\s*I\s*(?:NO|NUMBER|REF)\.?\s*[:#-]?)\s*$"
+    r"(?:(?:INV(?:OICE)?\.?|NVOICE\.?|PROFORMA\s+INVOICES?|"
+    r"COMMERCIAL\s+INVOICES?)\s*"
+    r"(?:NO(?:S)?|NR|NUM|NUMBER(?:S)?|REF)\.?\s*[:#-]?|"
+    r"P\s*[./]?\s*I\.?\s*(?:NO|NR|NUM|NUMBER|REF)\.?\s*[:#-]?)\s*$"
+)
+_TRAILING_INVOICE_DATE_VALUE = re.compile(
+    r"(?ix)\s*&\s*(?:"
+    r"[0-9]{1,2}[./-](?:[A-Z]{3,9}|[0-9]{1,2})[./-][0-9]{2,4}|"
+    r"[0-9]{4}[./-][0-9]{1,2}[./-][0-9]{1,2}"
+    r")\s*$"
+)
+_PURCHASE_ORDER_REFERENCE_PREFIX = re.compile(
+    r"(?ix)\bP\s*/\s*O\s*(?:NO|NR|NUM|NUMBER|REF)?\.?\s*[:#-]?"
+)
+_LINE_WRAPPED_INVOICE_VALUE_PREFIX = re.compile(
+    r"(?im)^\s*(?:(?:INV(?:OICE)?\.?|NVOICE\.?|COMMERCIAL\s+INVOICES?)\s*"
+    r"(?:NO(?:S)?|NR|NUM|NUMBER(?:S)?|REF)\.?|"
+    r"P\s*[./]?\s*I\.?\s*(?:NO|NR|NUM|NUMBER|REF)\.?)\s*[:#-]?\s*"
+    r"[A-Z0-9][A-Z0-9&._/-]*-\s*$"
 )
 _ENGLISH_NUMBER_WORD = (
     r"zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
@@ -195,10 +267,12 @@ _PACKAGE_TOTAL_IN_WORDS = re.compile(
     rf"\b(?:{_ENGLISH_NUMBER_WORD})\b)"
 )
 _UNAMBIGUOUS_COMMA_DECIMAL = re.compile(
-    r"(?<![0-9.,])[0-9]{1,3}(?:\.[0-9]{3})+,[0-9]+(?![0-9])"
+    r"(?<![0-9.,])(?:[0-9]{1,3}(?:\.[0-9]{3})+,[0-9]+|"
+    r"[0-9]{4,},[0-9]+)(?![0-9])"
 )
 _UNAMBIGUOUS_DOT_DECIMAL = re.compile(
-    r"(?<![0-9.,])[0-9]{1,3}(?:,[0-9]{3})+\.[0-9]+(?![0-9])"
+    r"(?<![0-9.,])(?:[0-9]{1,3}(?:,[0-9]{3})+\.[0-9]+|"
+    r"[0-9]{4,}\.[0-9]+)(?![0-9])"
 )
 _COMMA_GROUPED_INTEGER_CONTEXT = re.compile(
     r"(?ix)(?<![0-9.,])[0-9]{1,3}(?:,[0-9]{3})+(?=\s*(?:x(?=[0-9])|(?:pcs?|pkgs?|"
@@ -229,17 +303,24 @@ _DOT_DECIMAL_VOLUME_CONTEXT = re.compile(
     rf"(?ix)(?<![0-9])[0-9]+\.[0-9]+"
     rf"(?=\s*\(?\s*{_VOLUME_UNIT}(?![A-Z]))"
 )
+_HEADED_PARENTHESIZED_COMMA_GROUPED_GROSS_VOLUME_ROW = re.compile(
+    rf"(?im)^[^\r\n]*\bGROSS\s+WEIGHT\b[^\r\n]*"
+    rf"\b(?:MEASURE(?:MENT)?|{_VOLUME_UNIT})\b[^\r\n]*\r?\n"
+    rf"[^\r\n]*?(?P<gross>[0-9]{{1,3}}(?:,[0-9]{{3}})+)"
+    rf"\s*\(\s*{_MASS_UNIT}\s*\)[^\r\n]*?"
+    rf"0,[0-9]+\s*\(\s*{_VOLUME_UNIT}\s*\)[^\r\n]*$"
+)
 _END_OF_BILL_OF_LADING = re.compile(
     r"(?im)^\s*END\s+OF\s+(?:THE\s+)?BILL\s+OF\s+LADING"
     r"(?:\s+[A-Z0-9._/-]+)?\s*$"
 )
 _HEADED_COMMA_DECIMAL_VOLUME = re.compile(
-    rf"(?ix)(?:\bMEASURE(?:MENT)?\s*)?{_VOLUME_UNIT}\s*[:#-]?\s*"
-    r"(?:\r?\n\s*)+(?<![0-9])[0-9]+,[0-9]+(?![0-9])"
+    rf"(?ix)(?:\bMEASURE(?:MENT)?\s*)?{_VOLUME_UNIT}[ \t]*[:#-]?"
+    r"(?:[ \t]+|(?:\r?\n[ \t]*)+)(?<![0-9])[0-9]+,[0-9]+(?![0-9])"
 )
 _HEADED_DOT_DECIMAL_VOLUME = re.compile(
-    rf"(?ix)(?:\bMEASURE(?:MENT)?\s*)?{_VOLUME_UNIT}\s*[:#-]?\s*"
-    r"(?:\r?\n\s*)+(?<![0-9])[0-9]+\.[0-9]+(?![0-9])"
+    rf"(?ix)(?:\bMEASURE(?:MENT)?\s*)?{_VOLUME_UNIT}[ \t]*[:#-]?"
+    r"(?:[ \t]+|(?:\r?\n[ \t]*)+)(?<![0-9])[0-9]+\.[0-9]+(?![0-9])"
 )
 _HEADED_MULTILINE_GROSS_MASS = re.compile(
     r"(?im)^[ \t]*GROSS\s+WEIGHT[ \t]*\r?\n"
@@ -247,10 +328,27 @@ _HEADED_MULTILINE_GROSS_MASS = re.compile(
     r"[ \t]*(?:KGS?|KGM)[ \t]*\r?\n"
     r"[ \t]*(?P<value>[0-9]+(?:[.,][0-9]+)?)[ \t]*$"
 )
+_ARITHMETIC_GROSS_TARE_TOTAL_MASS = re.compile(
+    r"(?im)^[ \t]*GROSS\s+WEIGHT[ \t]*(?:\r?\n[ \t]*)+"
+    r"(?:KGS?|KGM)[ \t]*(?:\r?\n[ \t]*)+"
+    r"(?P<gross>[0-9]{1,3}(?:,[0-9]{3})+)[ \t]*(?:\r?\n[ \t]*)+"
+    r"TAR(?:A|E)[ \t]*:[ \t]*(?P<tare>[0-9]{1,3}(?:,[0-9]{3})+)"
+    r"[ \t]*(?:\r?\n[ \t]*)+"
+    r"[ \t]*TOTAL\s+WEIGHT[ \t]*:[ \t]*"
+    r"(?P<total>[0-9]{1,3}(?:,[0-9]{3})+)[ \t]*$"
+)
+_HEADED_METRIC_TONNE_GROSS_NET_PAIR = re.compile(
+    r"(?im)^[ \t]*(?:M\s*/?\s*TS?|METRIC\s+TON(?:NE)?S?)[ \t]*\r?\n"
+    r"[ \t]*GROSS\s+WEIGHT\s*/\s*NET\s+WEIGHT[ \t]*\r?\n"
+    r"[ \t]*(?P<gross>[0-9]+(?:[.,][0-9]+)?)"
+    r"[ \t]+(?P<net>[0-9]+(?:[.,][0-9]+)?)[ \t]*$"
+)
 _CONTAINER_ROW = re.compile(
     r"(?i)(?<![A-Z0-9])(?P<prefix>[A-Z]{4})[ /-]?"
     r"(?P<serial>[0-9]{6})[ /-]?(?P<check>[0-9])(?![0-9])"
 )
+_CONTAINER_FIELD_HEADING = re.compile(r"(?ix)\bCONTAINERS?\s*(?:NO|NUMBER)?\b")
+_SEAL_FIELD_HEADING = re.compile(r"(?ix)\bSEALS?\s*(?:NO|NUMBER)?\b")
 _ROW_VOLUME_COUNT = re.compile(r"(?i)\bVOLUMES?\s*[:#-]?\s*(?P<count>[0-9]+)\b")
 _PALLET_RANGE = re.compile(
     r"(?im)^[ \t]*PALLETS?\s+(?:NO|NUMBER)\.?\s*:?\s*"
@@ -339,7 +437,7 @@ def _line_bounds(source: str, offset: int) -> tuple[int, int]:
 
 
 _CONTACT_FIELD_HEADING = re.compile(
-    r"(?ix)(?:(?P<combined>\bTEL(?:EPHONE)?\s*(?:/|&|\bAND\b)\s*"
+    r"(?ix)(?:(?P<combined>\bTEL(?:EPHONE)?\s*(?:[:#-]\s*)?(?:/|&|\bAND\b)\s*"
     r"(?:FAX|FACSIMILE))|"
     r"(?P<fax>\b(?:FAX|FACSIMILE))|"
     r"(?P<phone>\b(?:TEL(?:EPHONE)?|PHONE|MOBILE)))"
@@ -370,6 +468,15 @@ def _line_and_preceding_line(source: str, start: int, end: int) -> str:
     previous_end = line_start - 1
     previous_start = source.rfind("\n", 0, previous_end) + 1
     return source[previous_start:line_end]
+
+
+def _has_un_number_context(source: str, start: int, end: int) -> bool:
+    local = _line_and_preceding_line(source, start, end)
+    if _UN_NUMBER_CONTEXT.search(local):
+        return True
+    return _UN_TABLE_HEADING.search(
+        _contiguous_nonblank_block(source, start, end)
+    ) is not None
 
 
 def _reference_scope(source: str, start: int, end: int) -> str:
@@ -443,6 +550,8 @@ def _explicit_invoice_reference_governs(source: str, start: int, end: int) -> bo
     line = source[line_start:line_end]
     relative_start = start - line_start
     relative_end = end - line_start
+    if _purchase_order_heading_governs(line, relative_start):
+        return False
     return any(
         found.start("value") <= relative_start
         and relative_end <= found.end("value")
@@ -450,10 +559,26 @@ def _explicit_invoice_reference_governs(source: str, start: int, end: int) -> bo
     )
 
 
+def _purchase_order_heading_governs(line: str, relative_start: int) -> bool:
+    """Return whether the nearest explicit field heading is purchase-order metadata."""
+
+    purchase_orders = tuple(
+        _PURCHASE_ORDER_REFERENCE_PREFIX.finditer(line, 0, relative_start)
+    )
+    if not purchase_orders:
+        return False
+    invoice_headings = tuple(
+        re.finditer(rf"(?ix){_INVOICE_REFERENCE_PREFIX}", line[:relative_start])
+    )
+    return not invoice_headings or purchase_orders[-1].start() > invoice_headings[-1].start()
+
+
 def _has_qualifying_reference(value: str) -> bool:
     return bool(
         _QUALIFYING_NON_INVOICE_REFERENCE.search(value)
         or _EXPLICIT_INVOICE_REFERENCE.search(value)
+        or _EXPLICIT_SPACED_INVOICE_REFERENCE.search(value)
+        or _LINE_WRAPPED_INVOICE_VALUE_PREFIX.search(value)
         or any(
             _EXPLICIT_INVOICE_HEADING.fullmatch(line) is not None
             for line in value.splitlines()
@@ -668,19 +793,23 @@ def _numeric_scope_sources(pages: dict[int, str], path: str) -> tuple[str, ...]:
         marker = re.compile(r"(?ix)\b(?:SET|TEMPERATURE|REEFER)\b")
     elif path.endswith((".quantity", ".packageQuantity")):
         marker = re.compile(
-            r"(?ix)\b(?:PCS?|CS|PK|PKGS?|PACKAGES?|CARTONS?|CTNS?|BAGS?|"
-            r"PIECES?|PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|"
+            r"(?ix)\b(?:PCS?|PCES?|CS|PK|PKGS?|PACKAGES?|CARTONS?|CTNS?|BAGS?|"
+            r"PIECES?|PL|PLTS?|PALLETS?|BUNDLES?|DRUMS?|CRATES?|CASES?|CRTS?|"
             r"BULLS?|CATTLE|HEADS?)\b"
         )
     if marker is None:
         return tuple(pages.values())
-    relevant = tuple(
-        line
-        for source in pages.values()
-        for line in source.splitlines()
-        if marker.search(line)
-    )
-    return relevant or tuple(pages.values())
+    relevant: list[str] = []
+    for source in pages.values():
+        lines = source.splitlines()
+        for index, line in enumerate(lines):
+            if marker.search(line) is None:
+                continue
+            # Flattened OCR tables often place a numeric row immediately before
+            # or after a unit/header row. Keep that local row context without
+            # widening style inference to unrelated document numbers.
+            relevant.extend(lines[max(0, index - 1) : min(len(lines), index + 2)])
+    return tuple(relevant) or tuple(pages.values())
 
 
 def _numeric_style(pages: dict[int, str], path: str) -> _NumericStyle | None:
@@ -688,15 +817,30 @@ def _numeric_style(pages: dict[int, str], path: str) -> _NumericStyle | None:
     mass_path = path.endswith(
         (".grossWeight.value", ".netWeight.value", ".verifiedGrossMass.value")
     )
+    if mass_path:
+        # A unit-qualified volume such as ``0,672 CBM`` is unambiguous
+        # document-level separator evidence.  Bills commonly apply that same
+        # numeric convention to three-decimal masses such as ``230,080 KGS``;
+        # interpreting the latter as a thousands grouping would contradict the
+        # printed volume convention.  Use this cross-field evidence only when
+        # the document contains exactly one volume style.
+        comma_volume_decimal = any(
+            _COMMA_DECIMAL_VOLUME_CONTEXT.search(source)
+            or _HEADED_COMMA_DECIMAL_VOLUME.search(source)
+            for source in pages.values()
+        )
+        dot_volume_decimal = any(
+            _DOT_DECIMAL_VOLUME_CONTEXT.search(source)
+            or _HEADED_DOT_DECIMAL_VOLUME.search(source)
+            for source in pages.values()
+        )
+        if comma_volume_decimal != dot_volume_decimal:
+            return "comma_decimal" if comma_volume_decimal else "dot_decimal"
     if path.endswith(".volume.value"):
-        headed_comma_decimal = any(
-            _HEADED_COMMA_DECIMAL_VOLUME.search(source) for source in pages.values()
-        )
-        headed_dot_decimal = any(
-            _HEADED_DOT_DECIMAL_VOLUME.search(source) for source in pages.values()
-        )
-        if headed_comma_decimal != headed_dot_decimal:
-            return "comma_decimal" if headed_comma_decimal else "dot_decimal"
+        # A number immediately qualified by a volume unit is stronger than a
+        # standalone header followed by a flattened table row.  Inspect it
+        # first so ``142.506 CBM\n8,864.000 KGS`` cannot misread the following
+        # row's mass as a comma-decimal volume beneath the preceding header.
         comma_volume_decimal = any(
             _COMMA_DECIMAL_VOLUME_CONTEXT.search(source) for source in sources
         )
@@ -705,6 +849,14 @@ def _numeric_style(pages: dict[int, str], path: str) -> _NumericStyle | None:
         )
         if comma_volume_decimal != dot_volume_decimal:
             return "comma_decimal" if comma_volume_decimal else "dot_decimal"
+        headed_comma_decimal = any(
+            _HEADED_COMMA_DECIMAL_VOLUME.search(source) for source in pages.values()
+        )
+        headed_dot_decimal = any(
+            _HEADED_DOT_DECIMAL_VOLUME.search(source) for source in pages.values()
+        )
+        if headed_comma_decimal != headed_dot_decimal:
+            return "comma_decimal" if headed_comma_decimal else "dot_decimal"
         # Flattened table rows often carry the unit only in the header, e.g.
         # ``... Gross weight Kg M3`` followed by ``... 20,79 0,414``.  A
         # zero-prefixed final cell is unambiguously decimal, so use it without
@@ -815,7 +967,73 @@ def _numeric_matches(
     style = _numeric_style(pages, path)
     matches: list[_GroundedMatch] = []
     for page_number, source in pages.items():
+        if path.endswith(
+            (".flashPoint.temperature.value", ".temperatureSetpoint.value")
+        ):
+            for negative in _PARENTHESIZED_NEGATIVE_TEMPERATURE.finditer(source):
+                raw_number = "-" + negative.group("value")
+                if _decimal(
+                    raw_number,
+                    style=style,
+                    integer_target=isinstance(target, int),
+                ) == expected:
+                    matches.append(
+                        _match(
+                            path=path,
+                            page_number=page_number,
+                            source=source,
+                            start=negative.start(),
+                            end=negative.end(),
+                            evidence_kind="normalized",
+                            normalization_rule=(
+                                "normalized the printed parenthesized negative temperature sign"
+                            ),
+                            base_score=145,
+                        )
+                    )
         if path.endswith(".grossWeight.value"):
+            for headed in _HEADED_PARENTHESIZED_COMMA_GROUPED_GROSS_VOLUME_ROW.finditer(
+                source
+            ):
+                gross = Decimal(headed.group("gross").replace(",", ""))
+                if gross != expected:
+                    continue
+                matches.append(
+                    _match(
+                        path=path,
+                        page_number=page_number,
+                        source=source,
+                        start=headed.start("gross"),
+                        end=headed.end("gross"),
+                        evidence_kind="normalized",
+                        normalization_rule=(
+                            "parsed the comma-grouped mass in the explicitly headed "
+                            "parenthesized mass/volume row"
+                        ),
+                        base_score=155,
+                    )
+                )
+            for headed in _ARITHMETIC_GROSS_TARE_TOTAL_MASS.finditer(source):
+                gross = int(headed.group("gross").replace(",", ""))
+                tare = int(headed.group("tare").replace(",", ""))
+                total = int(headed.group("total").replace(",", ""))
+                if gross + tare != total or Decimal(gross) != expected:
+                    continue
+                matches.append(
+                    _match(
+                        path=path,
+                        page_number=page_number,
+                        source=source,
+                        start=headed.start("gross"),
+                        end=headed.end("gross"),
+                        evidence_kind="normalized",
+                        normalization_rule=(
+                            "parsed the comma-grouped gross mass whose printed gross plus "
+                            "tare exactly equals the printed total weight"
+                        ),
+                        base_score=155,
+                    )
+                )
             for headed in _HEADED_MULTILINE_GROSS_MASS.finditer(source):
                 raw_number = headed.group("value")
                 try:
@@ -838,12 +1056,38 @@ def _numeric_matches(
                             base_score=150,
                         )
                     )
+        if path.endswith((".grossWeight.value", ".netWeight.value")):
+            value_group = "gross" if path.endswith(".grossWeight.value") else "net"
+            for headed in _HEADED_METRIC_TONNE_GROSS_NET_PAIR.finditer(source):
+                raw_number = headed.group(value_group)
+                try:
+                    parsed = Decimal(raw_number.replace(",", "."))
+                except InvalidOperation:
+                    continue
+                if parsed == expected:
+                    matches.append(
+                        _match(
+                            path=path,
+                            page_number=page_number,
+                            source=source,
+                            start=headed.start(value_group),
+                            end=headed.end(value_group),
+                            evidence_kind="normalized",
+                            normalization_rule=(
+                                "parsed the scalar in the explicit MT gross/net field pair"
+                            ),
+                            base_score=150,
+                        )
+                    )
         found_numbers = list(_NUMBER.finditer(source))
         if path.endswith((".quantity", ".packageQuantity")):
             existing_spans = {(found.start(), found.end()) for found in found_numbers}
             found_numbers.extend(
                 found
-                for found in _COUNT_NUMBER.finditer(source)
+                for found in chain(
+                    _COUNT_NUMBER.finditer(source),
+                    _GLUED_COUNT_AFTER_MASS_UNIT.finditer(source),
+                )
                 if (found.start(), found.end()) not in existing_spans
             )
         if path.endswith(
@@ -855,7 +1099,16 @@ def _numeric_matches(
                 for found in _GLUED_CELSIUS_TEMPERATURE.finditer(source)
                 if (found.start(), found.end()) not in existing_spans
             )
+        container_spans = tuple(
+            (container.start(), container.end())
+            for container in _CONTAINER_ROW.finditer(source)
+        )
         for found in found_numbers:
+            if any(
+                found.start() < container_end and container_start < found.end()
+                for container_start, container_end in container_spans
+            ):
+                continue
             raw_number = found.groupdict().get("value") or found.group()
             occurrence_style = style
             if (
@@ -888,6 +1141,74 @@ def _numeric_matches(
                 )
             )
     return matches
+
+
+def _pdf_grouped_ambiguous_measure_match(
+    pages: dict[int, str], path: str, target: Any
+) -> _GroundedMatch | None:
+    """Ground an ambiguous three-digit separator after source-layout review.
+
+    A period or comma followed by exactly three digits can be either a decimal
+    separator or a thousands separator. The deterministic path must reject
+    that ambiguity by default. A manual adjudication may, however, use the PDF
+    to determine how the OCR-printed scalar is grouped, provided that the same
+    digits and a compatible measure unit remain present in raw OCR.
+    """
+
+    if not isinstance(target, float):
+        return None
+    unit_pattern: re.Pattern[str] | None = None
+    if path.endswith(
+        (".grossWeight.value", ".netWeight.value", ".verifiedGrossMass.value")
+    ):
+        unit_pattern = re.compile(r"(?ix)^\s*(?:KGS?|KILOGRAMS?|LBS?|POUNDS?|MT)\b")
+    elif path.endswith(".volume.value"):
+        unit_pattern = re.compile(rf"(?ix)^\s*(?:{_VOLUME_UNIT})\b")
+    if unit_pattern is None:
+        return None
+
+    expected = Decimal(str(target))
+    candidates: list[_GroundedMatch] = []
+    for page_number, source in pages.items():
+        container_spans = tuple(
+            (container.start(), container.end())
+            for container in _CONTAINER_ROW.finditer(source)
+        )
+        for found in _NUMBER.finditer(source):
+            if any(
+                found.start() < container_end and container_start < found.end()
+                for container_start, container_end in container_spans
+            ):
+                continue
+            raw_number = found.group()
+            if not re.fullmatch(r"[+-]?[0-9]{1,3}[.,][0-9]{3}", raw_number):
+                continue
+            if unit_pattern.match(source[found.end() : found.end() + 24]) is None:
+                continue
+            interpretations = {
+                _decimal(raw_number, style=style, integer_target=False)
+                for style in ("comma_decimal", "dot_decimal")
+            }
+            if expected not in interpretations:
+                continue
+            candidates.append(
+                _match(
+                    path=path,
+                    page_number=page_number,
+                    source=source,
+                    start=found.start(),
+                    end=found.end(),
+                    evidence_kind="normalized",
+                    normalization_rule=(
+                        "interpreted the OCR-printed three-digit separator using the "
+                        "reviewed source-table grouping"
+                    ),
+                    base_score=150,
+                )
+            )
+    if not candidates:
+        return None
+    return max(candidates, key=lambda row: (row.score, -row.page_number, -row.start))
 
 
 _SMALL_ENGLISH_NUMBERS = {
@@ -1022,7 +1343,23 @@ _DATE_FORMATS = (
 
 def _parsed_dates(raw: str) -> set[date]:
     normalized = raw.strip()
-    normalized = re.sub(r"(?i)(?<=\d)(?:st|nd|rd|th)\b", "", normalized)
+    normalized = re.sub(r"(?i)(?<=\d)-?(?:st|nd|rd|th)\b", "", normalized)
+    french_months = (
+        (r"janv(?:ier)?", "Jan"),
+        (r"f[ée]v(?:r(?:ier)?)?", "Feb"),
+        (r"mars", "Mar"),
+        (r"avr(?:il)?", "Apr"),
+        (r"mai", "May"),
+        (r"juin", "Jun"),
+        (r"juil(?:let)?", "Jul"),
+        (r"ao[uû]t", "Aug"),
+        (r"sept(?:embre)?", "Sep"),
+        (r"oct(?:obre)?", "Oct"),
+        (r"nov(?:embre)?", "Nov"),
+        (r"d[ée]c(?:embre)?", "Dec"),
+    )
+    for pattern, english in french_months:
+        normalized = re.sub(rf"(?i)\b(?:{pattern})\b", english, normalized)
     # OCR can insert a space between the two digits of a day (for example,
     # ``3 0 JAN 2024``).  Collapse only the day position immediately before a
     # named month so ordinary spaced numbers elsewhere remain untouched.
@@ -1067,6 +1404,53 @@ def _date_matches(
     expected = date.fromisoformat(target)
     matches: list[_GroundedMatch] = []
     for page_number, source in pages.items():
+        if path.endswith("issueDate"):
+            for compact in _COMPACT_YYMMDD_ISSUE_DATE.finditer(source):
+                raw_value = compact.group("value")
+                try:
+                    parsed_compact = datetime.strptime(raw_value, "%y%m%d").date()
+                except ValueError:
+                    continue
+                if parsed_compact == expected:
+                    matches.append(
+                        _match(
+                            path=path,
+                            page_number=page_number,
+                            source=source,
+                            start=compact.start("value"),
+                            end=compact.end("value"),
+                            evidence_kind="normalized",
+                            normalization_rule=(
+                                "normalized the explicitly headed compact YYMMDD issue date"
+                            ),
+                            base_score=145,
+                        )
+                    )
+        for headed in _SPACED_NUMERIC_DATE_WITH_PRINTED_ORDER.finditer(source):
+            first = int(headed.group("first"))
+            second = int(headed.group("second"))
+            year = int(headed.group("year"))
+            order = re.sub(r"\s+", " ", headed.group("order").upper())
+            month, day = (first, second) if order == "MONTH DAY YEAR" else (second, first)
+            try:
+                parsed_headed = date(year, month, day)
+            except ValueError:
+                continue
+            if parsed_headed == expected:
+                matches.append(
+                    _match(
+                        path=path,
+                        page_number=page_number,
+                        source=source,
+                        start=headed.start(),
+                        end=headed.end(),
+                        evidence_kind="normalized",
+                        normalization_rule=(
+                            "normalized the spaced numeric date using its printed field order"
+                        ),
+                        base_score=145,
+                    )
+                )
         for found in _DATE_TOKEN.finditer(source):
             parsed = _parsed_dates(found.group())
             if expected not in parsed:
@@ -1111,12 +1495,23 @@ _SEMANTIC_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
         re.compile(r"(?i)(?<![A-Z])CU\.?\s*M\.?(?![A-Z])"),
         re.compile(r"(?i)\bCUBIC\s+MET(?:ER|RE)S?\b"),
     ),
-    "celsius": (re.compile(r"(?i)(?:°\s*)?C\b"), re.compile(r"(?i)\bCELSIUS\b")),
+    "celsius": (
+        re.compile(r"(?i)(?:°\s*)?C\b"),
+        re.compile(r"(?i)\bCELSIUS\b"),
+        re.compile(r"(?i)\bDEG(?:REE)?S?\.?\s+CEL(?:SIUS)?\b"),
+    ),
     "fahrenheit": (re.compile(r"(?i)(?:°\s*)?F\b"), re.compile(r"(?i)\bFAHRENHEIT\b")),
     "non_negotiable": (
         re.compile(r"(?i)\bNON[- ]?NEGOTIABLE(?:\s+WAYBILL)?\b"),
         re.compile(r"(?i)\bNOT\s+NEGOTIABLE\b"),
-        re.compile(r"(?i)\bSEA\s+WAYBILL\b"),
+        re.compile(r"(?i)\bSEA\s*WAYBILL\b"),
+        _EXPRESS_RELEASE_NO_ORIGINALS,
+        re.compile(r"(?i)\bEXPRESS\s+RELEASE\b"),
+        re.compile(
+            r"(?im)^[ \t]*(?:MULTIMODAL[ \t]+TRANSPORT[ \t]+)?"
+            r"BILL[ \t]+OF[ \t]+LADING[ \t]*/[ \t]*TCN[ \t]*/[ \t]*"
+            r"WAYBILL[ \t]*$"
+        ),
         re.compile(r"(?i)\bEXPRESS\s+(?:BILL\s+OF\s+LADING|B/?L)\b"),
         re.compile(r"(?i)\bTELEX\s+RELEASE\b"),
         re.compile(
@@ -1127,7 +1522,14 @@ _SEMANTIC_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
             r"(?is)\b(?:NO\.?|NUMBER)\s+OF\s+ORIGINAL(?:\s+BL'?S?|\s+B\(S\)/L)?\b"
             r".{0,48}\b0+\s*/\s*ZERO(?:E)?S\b"
         ),
-        _EXPRESS_RELEASE_NO_ORIGINALS,
+        re.compile(
+            r"(?is)\b(?:NO\.?|NUMBER)\s+OF\s+ORIGINAL(?:\s+BL'?S?|\s+B\(S\)/L)?\b"
+            r".{0,48}\b0+\s*/\s*N\s*O\s*N\s*E\b"
+        ),
+        re.compile(
+            r"(?is)\b(?:NO\.?|NUMBER)\s+OF\s+ORIGINAL"
+            r"(?:\s+B\s*\(S\)\s*/?\s*L)?\b.{0,48}\bZERO\s*\(\s*0\s*\)"
+        ),
     ),
     "negotiable": (
         re.compile(r"(?i)(?<!NON[- ])\bTO\s+(?:THE\s+)?ORDER(?:\s+OF)?\b"),
@@ -1162,7 +1564,11 @@ _SEMANTIC_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
             r"\bOTHERS?(?:\s*\(S\))?(?=\s|$).{0,32}\b(?:STAND|BE)\s+VOID\b"
         ),
     ),
-    "prepaid": (re.compile(r"(?i)\bFREIGHT\s+PREPAID\b"), re.compile(r"(?i)\bPREPAID\b")),
+    "prepaid": (
+        re.compile(r"(?i)\bFREIGHT\s+PREPAID\b"),
+        re.compile(r"(?i)\bPREPAID\b"),
+        re.compile(r"(?i)\bPPD\b"),
+    ),
     "collect": (
         re.compile(r"(?i)\bFREIGHT\s+COLLECT\b"),
         re.compile(r"(?i)\bCOLLECT\b"),
@@ -1328,6 +1734,34 @@ def _explicit_footnote_linked_gap(
     )
 
 
+def _explicit_footnote_postal_continuation(
+    source: str, previous_end: int, current_start: int
+) -> bool:
+    """Recognize a keyed party footnote that carries a later postal field.
+
+    Some carrier forms terminate the face party address with ``*`` and print
+    the matching ``*TEL`` plus ``ZIP CODE / POSTAL CODE`` block after cargo
+    details.  The two asterisks provide the source relationship; without both
+    markers, the distant postal value remains ineligible for address assembly.
+    """
+
+    current_line_start = source.rfind("\n", 0, current_start) + 1
+    if re.fullmatch(
+        r"(?ix)[ \t]*(?:ZIP[ \t]+CODE(?:[ \t]*/[ \t]*POSTAL[ \t]+CODE)?|"
+        r"POSTAL[ \t]+CODE)[ \t]*:[ \t]*",
+        source[current_line_start:current_start],
+    ) is None:
+        return False
+    primary_suffix = source[previous_end : min(current_start, previous_end + 240)]
+    if re.search(r"\*[ \t]*(?:\r?\n|$)", primary_suffix) is None:
+        return False
+    intervening = source[previous_end:current_start]
+    return re.search(
+        r"(?im)^[ \t]*\*+[ \t]*(?:TEL(?:EPHONE)?|PHONE|CONTACT)\b",
+        intervening,
+    ) is not None
+
+
 def _pdf_grouped_straight_consignee_match(
     pages: dict[int, str], patch: dict[str, Any], path: str, target: Any
 ) -> _GroundedMatch | None:
@@ -1374,7 +1808,13 @@ def _composite_text_matches(
 ) -> tuple[_GroundedMatch, ...]:
     """Ground source-ordered text fragments around separately modeled facts."""
 
-    target_tokens = tuple(re.findall(r"[\w]+", target, flags=re.UNICODE))
+    # Keep slash-connected lexical units (for example ``C/O``) together.
+    # Splitting them into one-character tokens lets unrelated OCR letters
+    # satisfy the ordered search and can prevent a real continuation from
+    # being selected.
+    target_tokens = tuple(
+        re.findall(r"[\w]+(?:\s*/\s*[\w]+)+|[\w]+", target, flags=re.UNICODE)
+    )
     folded_tokens = tuple(_fold_with_offsets(token)[0] for token in target_tokens)
     if len(folded_tokens) < 2 or any(not token for token in folded_tokens):
         return ()
@@ -1404,6 +1844,32 @@ def _composite_text_matches(
                 break
             positions.append((found, found + len(token)))
             cursor = positions[-1][1]
+        # A repeated token in an unrelated field can satisfy the forward
+        # search while the same token appears again beside the following
+        # target fragment (for example, a province in a shipper continuation
+        # after an earlier port name). Compact the already ordered chain from
+        # right to left so each intermediate token uses its nearest valid
+        # occurrence before the next token. This preserves source order and
+        # the first/last anchors while avoiding greedy cross-field bindings.
+        if valid and len(positions) > 2:
+            for token_index in range(len(positions) - 2, 0, -1):
+                lower = positions[token_index - 1][1]
+                upper = positions[token_index + 1][0]
+                if positions[token_index][0] - lower <= 32:
+                    # Preserve an already local left-hand phrase. Moving a
+                    # contiguous token toward a later continuation can bind a
+                    # repeated legal suffix (for example ``LTDA``) from an
+                    # unrelated signature block and destroy the real party
+                    # name at the start of the chain.
+                    continue
+                nearer = global_source.rfind(
+                    folded_tokens[token_index], lower, upper
+                )
+                if nearer >= 0:
+                    positions[token_index] = (
+                        nearer,
+                        nearer + len(folded_tokens[token_index]),
+                    )
         first_location = global_locations[first]
         last_location = global_locations[positions[-1][1] - 1] if valid else None
         token_locations = (
@@ -1423,10 +1889,17 @@ def _composite_text_matches(
                     current_raw_start = current_location[1]
                     if not (
                         path.endswith(".address")
-                        and _explicit_footnote_linked_gap(
-                            pages[previous_location[0]],
-                            previous_raw_end,
-                            current_raw_start,
+                        and (
+                            _explicit_footnote_linked_gap(
+                                pages[previous_location[0]],
+                                previous_raw_end,
+                                current_raw_start,
+                            )
+                            or _explicit_footnote_postal_continuation(
+                                pages[previous_location[0]],
+                                previous_raw_end,
+                                current_raw_start,
+                            )
                         )
                     ):
                         in_page_gap += current[0] - previous[1]
@@ -1514,9 +1987,39 @@ def _explicit_invoice_references(pages: dict[int, str]) -> tuple[str, ...]:
     values: list[str] = []
     seen: set[str] = set()
     for page_number in sorted(pages):
-        for match in _EXPLICIT_INVOICE_REFERENCE.finditer(pages[page_number]):
+        source = pages[page_number]
+        matches = sorted(
+            (
+                *_EXPLICIT_INVOICE_REFERENCE.finditer(source),
+                *_EXPLICIT_SPACED_INVOICE_REFERENCE.finditer(source),
+            ),
+            key=lambda row: (row.start(), -len(row.group("value"))),
+        )
+        for match in matches:
+            line_start, line_end = _line_bounds(source, match.start())
+            if _purchase_order_heading_governs(
+                source[line_start:line_end], match.start() - line_start
+            ):
+                continue
             value = match.group("value")
-            trailing = pages[page_number][match.end() :]
+            if match.re is _EXPLICIT_SPACED_INVOICE_REFERENCE:
+                # A whitespace-separated numeric parenthesis after a headed
+                # P/I or invoice reference is an adjacent count/qualifier,
+                # not part of the identifier (``863089 (4)``).  Attached
+                # parentheses remain valid identifier surfaces (for example,
+                # ``.834349(1)``) and are intentionally preserved by the
+                # compact-reference matcher.
+                value = re.sub(r"[ \t]+\([0-9]+\)[ \t]*$", "", value)
+                # Flattened forms can place an adjacent ORDER heading on the
+                # invoice line and its value on the following line:
+                # ``INVOICE NUMBER: 240003 - ORDER\nNUMBER: 1689``.  ORDER is
+                # a field label in that exact separated form, not invoice-ID
+                # content.
+                value = re.sub(r"[ \t]+-[ \t]+ORDER[ \t]*$", "", value, flags=re.I)
+                prefix = source[match.start() : match.start("value")]
+                if re.search(r"(?ix)\bNO\s*&\s*DATE\b", prefix):
+                    value = _TRAILING_INVOICE_DATE_VALUE.sub("", value)
+            trailing = source[match.end() :]
             if value.upper().endswith("FREIGHT") and re.match(
                 r"(?i)^\s+(?:COLLECT|PREPAID)\b", trailing
             ):
@@ -1535,6 +2038,33 @@ def _explicit_invoice_references(pages: dict[int, str]) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _is_repeated_character_ocr_variant(value: str, retained: str) -> bool:
+    """Recognize a single duplicated OCR character in a repeated identifier copy."""
+
+    candidate = _fold_with_offsets(value)[0]
+    expected = _fold_with_offsets(retained)[0]
+    if len(candidate) != len(expected) + 1:
+        return False
+    for index in range(1, len(candidate)):
+        if candidate[index] == candidate[index - 1] and (
+            candidate[:index] + candidate[index + 1 :] == expected
+        ):
+            return True
+    return False
+
+
+def _is_truncated_odd_length_hs_variant(value: str, retained: str) -> bool:
+    """Recognize an odd-length HS OCR copy missing one repeated digit."""
+
+    candidate = re.sub(r"[^0-9]", "", value)
+    expected = re.sub(r"[^0-9]", "", retained)
+    return bool(
+        len(candidate) % 2 == 1
+        and len(expected) % 2 == 0
+        and _is_repeated_character_ocr_variant(expected, candidate)
+    )
+
+
 def _hs_codes_from_value_line(value: str) -> tuple[str, ...]:
     candidate = value.strip(" \t:;,-|/")
     if not candidate or re.search(r"[A-Za-z]", candidate):
@@ -1551,7 +2081,18 @@ def _hs_codes_from_value_line(value: str) -> tuple[str, ...]:
     combined = "".join(digit_tokens)
     if (
         len(digit_tokens) > 1
-        and all(1 <= len(token) <= 4 for token in digit_tokens)
+        and (
+            all(1 <= len(token) <= 4 for token in digit_tokens)
+            or (
+                len(digit_tokens) == 2
+                and 1 <= len(digit_tokens[0]) <= 4
+                and 5 <= len(digit_tokens[1]) <= 8
+            )
+            or (
+                6 <= len(digit_tokens[0]) <= 17
+                and all(1 <= len(token) <= 4 for token in digit_tokens[1:])
+            )
+        )
         and 6 <= len(combined) <= 18
     ):
         return (combined,)
@@ -1571,10 +2112,26 @@ def _explicit_hs_codes(pages: dict[int, str]) -> tuple[str, ...]:
             next_index = index + 1
             while next_index < len(lines) and lines[next_index].strip():
                 next_row_values = _hs_codes_from_value_line(lines[next_index])
-                suffix_only = re.fullmatch(
-                    r"\s*[0-9]{1,2}\s*,\s*", lines[next_index]
+                preceding_prefix = re.search(
+                    r"(?<![0-9])(?P<prefix>[0-9]{6,17})\s*$",
+                    value_lines[-1],
                 )
-                if not next_row_values and suffix_only is None:
+                suffix_only = re.fullmatch(
+                    r"\s*(?:/\s*)?(?P<suffix>[0-9]{1,4})\s*,?\s*",
+                    lines[next_index],
+                )
+                joins_odd_prefix = bool(
+                    preceding_prefix is not None
+                    and suffix_only is not None
+                    and len(preceding_prefix.group("prefix")) % 2 == 1
+                    and (
+                        len(preceding_prefix.group("prefix"))
+                        + len(suffix_only.group("suffix"))
+                    )
+                    % 2
+                    == 0
+                )
+                if not next_row_values and not joins_odd_prefix:
                     break
                 value_lines.append(lines[next_index])
                 next_index += 1
@@ -1584,7 +2141,8 @@ def _explicit_hs_codes(pages: dict[int, str]) -> tuple[str, ...]:
                 if value_index + 1 < len(value_lines):
                     trailing = re.search(r"(?<![0-9])(?P<prefix>[0-9]{6,17})\s*$", value_line)
                     continuation = re.match(
-                        r"^\s*(?P<suffix>[0-9]{1,2})\s*,\s*(?P<remainder>.*)$",
+                        r"^\s*(?:/\s*)?(?P<suffix>[0-9]{1,4})"
+                        r"(?:\s*,\s*(?P<remainder>.*)|\s*)$",
                         value_lines[value_index + 1],
                     )
                     if trailing is not None and continuation is not None:
@@ -1592,7 +2150,9 @@ def _explicit_hs_codes(pages: dict[int, str]) -> tuple[str, ...]:
                         combined = prefix + continuation.group("suffix")
                         if prefix in row_codes and len(combined) <= 18:
                             row_codes[row_codes.index(prefix)] = combined
-                            value_lines[value_index + 1] = continuation.group("remainder")
+                            value_lines[value_index + 1] = (
+                                continuation.group("remainder") or ""
+                            )
                 candidates.extend(row_codes)
             for value in candidates:
                 if value not in seen:
@@ -1642,7 +2202,29 @@ def _explicit_valid_container_identifiers(pages: dict[int, str]) -> tuple[str, .
     values: list[str] = []
     seen: set[str] = set()
     for page_number in sorted(pages):
-        for found in _CONTAINER_ROW.finditer(pages[page_number]):
+        source = pages[page_number]
+        for found in _CONTAINER_ROW.finditer(source):
+            line_start, _ = _line_bounds(source, found.start())
+            prefix = source[line_start:found.start()]
+            seal_headings = tuple(_SEAL_FIELD_HEADING.finditer(prefix))
+            container_headings = tuple(_CONTAINER_FIELD_HEADING.finditer(prefix))
+            governed_by_seal = bool(
+                seal_headings
+                and (
+                    not container_headings
+                    or seal_headings[-1].start() > container_headings[-1].start()
+                )
+            )
+            if not governed_by_seal and not prefix.strip() and line_start > 0:
+                previous_end = line_start - 1
+                previous_start = source.rfind("\n", 0, previous_end) + 1
+                previous = source[previous_start:previous_end].strip()
+                governed_by_seal = bool(
+                    _SEAL_FIELD_HEADING.fullmatch(previous)
+                    and not _CONTAINER_FIELD_HEADING.search(previous)
+                )
+            if governed_by_seal:
+                continue
             identifier = (
                 found.group("prefix") + found.group("serial") + found.group("check")
             ).upper()
@@ -1723,6 +2305,8 @@ def _explicit_fact_completeness_errors(
                 present.startswith(_fold_with_offsets(value)[0])
                 and len(present) > len(_fold_with_offsets(value)[0])
             )
+            or _is_repeated_character_ocr_variant(value, present)
+            or _is_repeated_character_ocr_variant(present, value)
             for present in present_references
         )
     )
@@ -1735,6 +2319,10 @@ def _explicit_fact_completeness_errors(
         value
         for value in _explicit_hs_codes(completeness_pages)
         if value not in present_hs_codes
+        and not any(
+            _is_truncated_odd_length_hs_variant(value, present)
+            for present in present_hs_codes
+        )
     )
     present_containers = {row.containerNumber for row in patch.containers or ()}
     missing_containers = tuple(
@@ -1743,8 +2331,15 @@ def _explicit_fact_completeness_errors(
         if value not in present_containers
     )
     errors: list[str] = []
-    if _explicit_destination_collect(completeness_pages) and (
-        patch.freight is None or patch.freight.paymentArrangement != "collect"
+    if (
+        _explicit_destination_collect(completeness_pages)
+        and not any(
+            _FINAL_FREIGHT_PREPAID.search(source)
+            for source in completeness_pages.values()
+        )
+        and (
+            patch.freight is None or patch.freight.paymentArrangement != "collect"
+        )
     ):
         errors.append(
             "explicit 'Freight and Charges payable at destination: Yes' requires "
@@ -1947,7 +2542,14 @@ def _validate_semantic_policy(
             raise DeterministicAnnotationError(
                 f"forwarding/export reference is an explicit empty placeholder: {path}"
             )
-        if isinstance(target, str) and _REFERENCE_LABEL_PREFIX.match(target):
+        explicit_invoice_value = _explicit_invoice_reference_governs(
+            source, match.start, match.end
+        )
+        if (
+            isinstance(target, str)
+            and _REFERENCE_LABEL_PREFIX.match(target)
+            and not explicit_invoice_value
+        ):
             raise DeterministicAnnotationError(
                 f"forwarding/export reference must contain the value only, not its label: {path}"
             )
@@ -1957,7 +2559,7 @@ def _validate_semantic_policy(
                 f"target path {path} contains excluded tax/regulatory/portal metadata"
             )
         if not (
-            _explicit_invoice_reference_governs(source, match.start, match.end)
+            explicit_invoice_value
             or _has_qualifying_reference(reference_scope)
         ):
             raise DeterministicAnnotationError(
@@ -1973,7 +2575,9 @@ def _validate_semantic_policy(
         _contiguous_nonblank_block(source, match.start, match.end)
     ):
         raise DeterministicAnnotationError(f"HS code lacks explicit HS/tariff context: {path}")
-    if path.endswith(".unNumber") and not _UN_NUMBER_CONTEXT.search(match.excerpt):
+    if path.endswith(".unNumber") and not _has_un_number_context(
+        source, match.start, match.end
+    ):
         raise DeterministicAnnotationError(f"UN number lacks explicit UN context: {path}")
     if ".flashPoint." in path and not has_flash_point_context(
         _contiguous_nonblank_block(source, match.start, match.end)
@@ -2201,6 +2805,91 @@ def _partitioned_pallet_range_evidence(
     return matches, frozenset(governed_paths)
 
 
+def _allocation_reconciled_package_evidence(
+    pages: dict[int, str],
+    patch: dict[str, Any],
+) -> dict[str, tuple[_GroundedMatch, ...]]:
+    """Ground one aggregate package quantity from explicit container-row quantities.
+
+    This applies only when a goods item has exactly one package level and at
+    least two container allocations, every allocation prints an integer
+    package quantity beside its emitted container identifier, and those values
+    sum exactly to the package quantity. Multiple package levels remain
+    ineligible because their allocation membership cannot be recovered from
+    the normal projection without an assumption.
+    """
+
+    goods = patch.get("goodsItems")
+    if not isinstance(goods, list):
+        return {}
+    evidence: dict[str, tuple[_GroundedMatch, ...]] = {}
+    for goods_index, item in enumerate(goods):
+        if not isinstance(item, dict):
+            continue
+        packages = item.get("packages")
+        allocations = item.get("containerAllocations")
+        if not (
+            isinstance(packages, list)
+            and len(packages) == 1
+            and isinstance(packages[0], dict)
+            and isinstance(allocations, list)
+            and len(allocations) >= 2
+        ):
+            continue
+        quantity = packages[0].get("quantity")
+        if not isinstance(quantity, int):
+            continue
+        allocation_rows: list[tuple[int, str, int]] = []
+        for allocation_index, allocation in enumerate(allocations):
+            if not isinstance(allocation, dict):
+                break
+            container = allocation.get("containerNumber")
+            allocated = allocation.get("packageQuantity")
+            if not isinstance(container, str) or not isinstance(allocated, int):
+                break
+            allocation_rows.append((allocation_index, container, allocated))
+        if len(allocation_rows) != len(allocations):
+            continue
+        if sum(row[2] for row in allocation_rows) != quantity:
+            continue
+        matches: list[_GroundedMatch] = []
+        for allocation_index, container, allocated in allocation_rows:
+            allocation_path = (
+                f"documentPatch.goodsItems[{goods_index}].containerAllocations"
+                f"[{allocation_index}].packageQuantity"
+            )
+            try:
+                allocation_match = _best_match(
+                    pages, allocation_path, allocated, anchor=container
+                )
+            except DeterministicAnnotationError:
+                matches = []
+                break
+            source = pages[allocation_match.page_number]
+            matches.append(
+                _match(
+                    path=(
+                        f"documentPatch.goodsItems[{goods_index}].packages[0].quantity"
+                    ),
+                    page_number=allocation_match.page_number,
+                    source=source,
+                    start=allocation_match.start,
+                    end=allocation_match.end,
+                    evidence_kind="normalized",
+                    normalization_rule=(
+                        "summed the exact OCR-grounded per-container package quantities "
+                        "for the sole emitted package level"
+                    ),
+                    base_score=145,
+                )
+            )
+        if matches:
+            evidence[
+                f"documentPatch.goodsItems[{goods_index}].packages[0].quantity"
+            ] = tuple(matches)
+    return evidence
+
+
 def derive_field_evidence(
     work_item: AgentWorkItem,
     normal_label: BillOfLadingLabel,
@@ -2211,6 +2900,9 @@ def derive_field_evidence(
 
     pages = page_texts(work_item.joinedRawText)
     patch = normal_label.canonical_target()["documentPatch"]
+    allocation_reconciled_matches = _allocation_reconciled_package_evidence(
+        pages, patch
+    )
     pallet_range_matches, pallet_range_governed_paths = _partitioned_pallet_range_evidence(
         pages, patch
     )
@@ -2220,7 +2912,10 @@ def derive_field_evidence(
         matches: tuple[_GroundedMatch, ...]
         grouping_only = False
         range_match = pallet_range_matches.get(path)
-        if range_match is not None:
+        allocation_matches = allocation_reconciled_matches.get(path)
+        if allocation_matches is not None:
+            matches = allocation_matches
+        elif range_match is not None:
             matches = (range_match,)
         elif path in pallet_range_governed_paths:
             errors.append(
@@ -2246,6 +2941,10 @@ def derive_field_evidence(
                     if pdf_grouping_used
                     else None
                 )
+                if grouped_match is None and pdf_grouping_used:
+                    grouped_match = _pdf_grouped_ambiguous_measure_match(
+                        pages, path, target
+                    )
                 if grouped_match is not None:
                     matches = (grouped_match,)
                     grouping_only = True

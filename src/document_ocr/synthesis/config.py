@@ -877,6 +877,10 @@ class SynthesisDangerousGoodsPlanConfig(_StrictModel):
 class SemanticCompletionInputsConfig(_StrictModel):
     dangerous_goods_run: CommittedArtifactDirectoryConfig
     dangerous_goods_plans: DatasetFileConfig
+    fit_partition_report: PinnedFileConfig
+    package_registry: PinnedFileConfig
+    package_registry_entries: Annotated[int, Field(gt=0)]
+    package_compatibility_resolutions: DatasetFileConfig
     equipment_registry_manifest: PinnedFileConfig
     mpci_container_registry: PinnedFileConfig
     hs_registry_manifest: PinnedFileConfig
@@ -890,6 +894,9 @@ class SemanticCompletionInputsConfig(_StrictModel):
 class SemanticCompletionThermalConfig(_StrictModel):
     document_prevalence_permyriad: Annotated[int, Field(ge=0, le=10_000)]
     prevalence_method: Literal["exact_hmac_ranked_quota_over_eligible_documents_v1"]
+    profile_compatibility_policy: Literal[
+        "renormalize_configured_weights_over_fit_supported_profiles_v1"
+    ]
     profile_weights_permyriad: dict[
         Literal["FROZEN", "CHILLED"],
         Annotated[int, Field(ge=0, le=10_000)],
@@ -1008,6 +1015,11 @@ class SemanticCompletionFlashpointConfig(_StrictModel):
 class SemanticCompletionGenerationConfig(_StrictModel):
     random_stream: Literal["hmac_sha256_counter_v1"]
     seed: Annotated[int, Field(ge=0, lt=2**64)]
+    package_goods_method: Literal[
+        "fit_hs_heading_or_thermal_joint_with_constrained_dg_catalog_v1"
+    ]
+    package_signature_distribution: Literal["source_group_occurrence_weighted_v1"]
+    registry_identity_distribution: Literal["uniform_within_selected_hs_heading_v1"]
     equipment: SemanticCompletionEquipmentConfig
     thermal: SemanticCompletionThermalConfig
     transport: SemanticCompletionTransportConfig
@@ -1093,6 +1105,7 @@ PartyIdentityRole = Literal[
     "carrier",
     "forwardingAgent",
     "deliveryAgent",
+    "consolidator",
 ]
 
 
@@ -1109,7 +1122,7 @@ class PartyIdentityProbeCaseConfig(_StrictModel):
     occurrence: Annotated[int, Field(ge=0)]
 
 
-class PartyIdentityProbePromptConfig(_StrictModel):
+class LinguisticProbePromptConfig(_StrictModel):
     path: NonEmptyString
     sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
@@ -1119,7 +1132,7 @@ class PartyIdentityProbePromptConfig(_StrictModel):
         return _safe_path(value)
 
 
-class PartyIdentityProbePricingConfig(_StrictModel):
+class LinguisticProbePricingConfig(_StrictModel):
     currency: Literal["USD"]
     effective_date: date
     source_url: NonEmptyString
@@ -1137,7 +1150,20 @@ class PartyIdentityProbePricingConfig(_StrictModel):
         return value
 
 
-class PartyIdentityProbeProviderConfig(_StrictModel):
+class LinguisticGenerationSettingsConfig(_StrictModel):
+    """Optional provider-native sampling controls.
+
+    Every field is optional by design.  When this section is absent, or when a
+    field is omitted, the caller must not send that setting to PydanticAI so
+    that the model/provider default remains authoritative.
+    """
+
+    temperature: Annotated[float, Field(ge=0, le=2)] | None = None
+    top_p: Annotated[float, Field(ge=0, le=1)] | None = None
+    text_verbosity: Literal["low", "medium", "high"] | None = None
+
+
+class LinguisticProbeProviderConfig(_StrictModel):
     kind: Literal["openai_responses"]
     model: Literal["gpt-5.6-luna"]
     api_key_env: Literal["OPENAI_API_KEY"]
@@ -1146,7 +1172,71 @@ class PartyIdentityProbeProviderConfig(_StrictModel):
     transport_max_retries: Annotated[int, Field(ge=0, le=5)]
     max_output_tokens: Annotated[int, Field(gt=0)]
     store_responses: Literal[True]
-    pricing: PartyIdentityProbePricingConfig
+    service_tier: Literal["auto", "default", "flex", "priority"] | None = None
+    generation_settings: LinguisticGenerationSettingsConfig | None = None
+    pricing: LinguisticProbePricingConfig
+
+
+class PackageCompatibilityCatalogInputsConfig(_StrictModel):
+    dangerous_goods_run: CommittedArtifactDirectoryConfig
+    dangerous_goods_plans: DatasetFileConfig
+    source_task_constraints: PinnedFileConfig
+    fit_partition_report: PinnedFileConfig
+    package_registry: PinnedFileConfig
+    package_registry_entries: Annotated[int, Field(gt=0)]
+
+
+class PackageCompatibilityCatalogWorkflowConfig(_StrictModel):
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=8)]
+    requests_per_context: Literal[1]
+    structured_output_retries: Literal[0]
+    provider_native_strict_json_schema: Literal[True]
+    persist_model_visible_messages: Literal[True]
+
+
+class PackageCompatibilityFitTemperatureConfig(_StrictModel):
+    frozen_minimum_celsius: float
+    frozen_maximum_celsius: float
+    chilled_minimum_celsius: float
+    chilled_maximum_celsius: float
+
+    @model_validator(mode="after")
+    def ranges_are_ordered_and_disjoint(self) -> PackageCompatibilityFitTemperatureConfig:
+        if self.frozen_minimum_celsius > self.frozen_maximum_celsius:
+            raise ValueError("frozen fit temperature range is reversed")
+        if self.chilled_minimum_celsius > self.chilled_maximum_celsius:
+            raise ValueError("chilled fit temperature range is reversed")
+        if self.frozen_maximum_celsius >= self.chilled_minimum_celsius:
+            raise ValueError("frozen and chilled fit temperature ranges must be disjoint")
+        return self
+
+
+class SynthesisPackageCompatibilityCatalogConfig(_StrictModel):
+    """Compile reusable constrained decisions only for empirically unsupported DG contexts."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_package_goods_compatibility_catalog_v1"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    source: SynthesisSourceConfig
+    inputs: PackageCompatibilityCatalogInputsConfig
+    fit_temperature: PackageCompatibilityFitTemperatureConfig
+    prompt: LinguisticProbePromptConfig
+    provider: LinguisticProbeProviderConfig
+    workflow: PackageCompatibilityCatalogWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @model_validator(mode="after")
+    def source_and_plan_counts_are_valid(self) -> SynthesisPackageCompatibilityCatalogConfig:
+        if self.source.fields.input_sha256 is None:
+            raise ValueError("package compatibility requires source input SHA-256 values")
+        if self.inputs.dangerous_goods_plans.records <= 0:
+            raise ValueError("package compatibility requires at least one DG plan")
+        return self
 
 
 class PartyIdentityProbeWorkflowConfig(_StrictModel):
@@ -1160,16 +1250,16 @@ class PartyIdentityProbeWorkflowConfig(_StrictModel):
 
 
 class SynthesisPartyIdentityProbeConfig(_StrictModel):
-    """Five or fewer first-pass, independently attributable party generations."""
+    """Up to fifty first-pass, independently attributable party generations."""
 
     schema_version: Literal[1]
     task: Literal["bill_of_lading_relation_explicit_v5_party_identity_probe"]
     environment_file: NonEmptyString
     run: SynthesisRunConfig
     inputs: PartyIdentityProbeInputsConfig
-    cases: tuple[PartyIdentityProbeCaseConfig, ...] = Field(min_length=3, max_length=5)
-    prompt: PartyIdentityProbePromptConfig
-    provider: PartyIdentityProbeProviderConfig
+    cases: tuple[PartyIdentityProbeCaseConfig, ...] = Field(min_length=3, max_length=50)
+    prompt: LinguisticProbePromptConfig
+    provider: LinguisticProbeProviderConfig
     workflow: PartyIdentityProbeWorkflowConfig
 
     @field_validator("environment_file")
@@ -1191,6 +1281,150 @@ class SynthesisPartyIdentityProbeConfig(_StrictModel):
             raise ValueError("party identity probe cases must be unique")
         if self.workflow.max_concurrent_requests > len(self.cases):
             raise ValueError("party identity concurrency cannot exceed the case count")
+        return self
+
+
+class CargoLanguageProbeInputsConfig(_StrictModel):
+    semantic_completion_run: CommittedArtifactDirectoryConfig
+    completion_plans: DatasetFileConfig
+
+
+class CargoLanguageProbeCaseConfig(_StrictModel):
+    document_id: Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")]
+
+
+class CargoLanguageProbeWorkflowConfig(_StrictModel):
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=5)]
+    requests_per_case: Literal[1]
+    structured_output_retries: Literal[0]
+    provider_native_strict_json_schema: Literal[True]
+    preserve_source_field_presence: Literal[True]
+    preserve_generic_marks_literals: Literal[True]
+    exclude_categorical_printed_surfaces: Literal[True]
+    persist_model_visible_messages: Literal[True]
+
+
+class SynthesisCargoLanguageProbeConfig(_StrictModel):
+    """Between one and fifty independent cargo-language generations."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v5_cargo_language_probe"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: CargoLanguageProbeInputsConfig
+    cases: tuple[CargoLanguageProbeCaseConfig, ...] = Field(min_length=1, max_length=50)
+    prompt: LinguisticProbePromptConfig
+    provider: LinguisticProbeProviderConfig
+    workflow: CargoLanguageProbeWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def cases_are_unique_and_fit_concurrency(self) -> SynthesisCargoLanguageProbeConfig:
+        document_ids = tuple(row.document_id for row in self.cases)
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("cargo-language probe cases must be unique")
+        if self.workflow.max_concurrent_requests > len(self.cases):
+            raise ValueError("cargo-language concurrency cannot exceed the case count")
+        return self
+
+
+class LinguisticCompletionInputsConfig(_StrictModel):
+    semantic_completion_run: CommittedArtifactDirectoryConfig
+    completion_plans: DatasetFileConfig
+    source_corpus: DatasetFileConfig
+    source_target_field: Literal["target"]
+    source_target_schema: Literal["bill_of_lading_relation_explicit_v3"]
+
+
+class LinguisticCompletionPromptsConfig(_StrictModel):
+    party_identity: LinguisticProbePromptConfig
+    cargo_language: LinguisticProbePromptConfig
+
+
+class LinguisticCompletionStageLimitsConfig(_StrictModel):
+    party_max_output_tokens: Annotated[int, Field(gt=0)]
+    cargo_max_output_tokens: Annotated[int, Field(gt=0)]
+
+
+class LinguisticCompletionWorkflowConfig(_StrictModel):
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=64)]
+    max_concurrent_documents: Annotated[int, Field(ge=1, le=64)]
+    requests_per_attempt: Literal[1]
+    semantic_validation_attempts: Annotated[int, Field(ge=1, le=3)]
+    structured_output_retries: Literal[0]
+    provider_native_strict_json_schema: Literal[True]
+    static_schema_first_attempt: Literal[True]
+    topology_constrained_schema_on_retry: Literal[True]
+    preserve_source_field_presence: Literal[True]
+    preserve_same_as_without_generation: Literal[True]
+    reuse_explicit_duplicate_notify_identity: Literal[True]
+    preserve_generic_marks_literals: Literal[True]
+    exclude_categorical_printed_surfaces: Literal[True]
+    persist_model_visible_messages: Literal[True]
+    process_all_completion_plans: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisLinguisticCompletionConfig(_StrictModel):
+    """Complete party and cargo language over one committed semantic-plan set."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_relation_explicit_v5_linguistic_completion"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: LinguisticCompletionInputsConfig
+    prompts: LinguisticCompletionPromptsConfig
+    provider: LinguisticProbeProviderConfig
+    stage_limits: LinguisticCompletionStageLimitsConfig
+    workflow: LinguisticCompletionWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @model_validator(mode="after")
+    def completion_contract_is_bounded(self) -> SynthesisLinguisticCompletionConfig:
+        if self.inputs.completion_plans.records <= 0:
+            raise ValueError("linguistic completion requires at least one semantic plan")
+        if self.stage_limits.party_max_output_tokens > self.provider.max_output_tokens:
+            raise ValueError("party output limit exceeds the provider output limit")
+        if self.stage_limits.cargo_max_output_tokens > self.provider.max_output_tokens:
+            raise ValueError("cargo output limit exceeds the provider output limit")
+        return self
+
+
+class LinguisticProbeAnalysisInputConfig(_StrictModel):
+    run: CommittedArtifactDirectoryConfig
+    results: DatasetFileConfig
+    summary: PinnedFileConfig
+
+
+class SynthesisLinguisticProbeAnalysisConfig(_StrictModel):
+    """Pinned comparison and EDA over party and cargo linguistic probes."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_linguistic_probe_eda_v1"]
+    run: SynthesisRunConfig
+    party: LinguisticProbeAnalysisInputConfig
+    cargo: LinguisticProbeAnalysisInputConfig
+    cargo_contract_probe: LinguisticProbeAnalysisInputConfig
+
+    @model_validator(mode="after")
+    def expected_probe_sizes_are_pinned(self) -> SynthesisLinguisticProbeAnalysisConfig:
+        if self.party.results.records != 50 or self.cargo.results.records != 50:
+            raise ValueError("linguistic EDA requires exactly fifty party and fifty cargo cases")
+        if self.cargo_contract_probe.results.records != 1:
+            raise ValueError("linguistic EDA requires exactly one targeted contract probe")
         return self
 
 
@@ -1340,3 +1574,51 @@ def load_synthesis_party_identity_probe_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisPartyIdentityProbeConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_cargo_language_probe_config(
+    path: Path,
+) -> SynthesisCargoLanguageProbeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisCargoLanguageProbeConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_linguistic_completion_config(
+    path: Path,
+) -> SynthesisLinguisticCompletionConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisLinguisticCompletionConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_package_compatibility_catalog_config(
+    path: Path,
+) -> SynthesisPackageCompatibilityCatalogConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisPackageCompatibilityCatalogConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_linguistic_probe_analysis_config(
+    path: Path,
+) -> SynthesisLinguisticProbeAnalysisConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisLinguisticProbeAnalysisConfig.model_validate(value, strict=True)

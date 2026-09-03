@@ -126,6 +126,44 @@ def test_goods_fields_reject_carrier_boilerplate(field: str, value: object) -> N
         BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
 
 
+@pytest.mark.parametrize(
+    "containment",
+    [
+        "1 CRT SAID TO CONTAIN: 72 PCS",
+        "9 PALLET(S) STC 220 CARTONS",
+    ],
+)
+def test_additional_information_accepts_explicit_package_containment_fact(
+    containment: str,
+) -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["goodsItems"] = [
+        {"additionalInformation": [containment]}
+    ]
+
+    label = BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+    assert label.documentPatch.goodsItems[0].additionalInformation == (
+        containment,
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "SAID TO CONTAIN 72 PCS",
+        "1 CRT SAID TO CONTAIN",
+        "1 CRT SAID TO CONTAIN: PCS",
+    ],
+)
+def test_package_containment_requires_both_quantified_package_levels(value: str) -> None:
+    payload = _minimal_label()
+    payload["documentPatch"]["goodsItems"] = [{"additionalInformation": [value]}]
+
+    with pytest.raises(ValidationError, match="carrier boilerplate"):
+        BillOfLadingLabel.model_validate_json(json.dumps(payload), strict=True)
+
+
 def test_same_as_relation_replaces_repeated_party_payload() -> None:
     payload = _minimal_label()
     payload["documentPatch"]["parties"] = {

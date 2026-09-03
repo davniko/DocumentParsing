@@ -1,9 +1,9 @@
 schema_version: 1
-task: bill_of_lading_relation_explicit_v5_party_identity_probe
+task: bill_of_lading_relation_explicit_v5_cargo_language_probe
 environment_file: .env
 
 run:
-  run_id: mpci-bl-party-identity-luna-high-probe5-v3-package-goods-joint
+  run_id: mpci-bl-cargo-language-luna-high-probe1-marks40-v1
   output_dir: artifacts/kie-synthesis
 
 inputs:
@@ -15,32 +15,13 @@ inputs:
     path: artifacts/kie-synthesis/mpci-bl-combined1157-semantic-completion-audit100-v5-package-goods-joint/generation/completion-plans.jsonl
     sha256: a740372d9a55038dd8fd44f13e88a4a837f654d8e5e97ee9493231c82ed17c6d
     records: 100
-  source_corpus:
-    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
-    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
-    records: 1157
-  source_target_field: target
 
 cases:
-  - document_id: doc_c563456890978e179e41a08073b9e603405a443e4842d0bc6579ae094bb50ac1
-    party_role: shipper
-    occurrence: 0
-  - document_id: doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50
-    party_role: consignee
-    occurrence: 0
-  - document_id: doc_41f8ac545d39a0e443f637b352a5e3cf0558b856f68a5bc863a66c82cff49df6
-    party_role: forwardingAgent
-    occurrence: 0
-  - document_id: doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d
-    party_role: deliveryAgent
-    occurrence: 0
-  - document_id: doc_d58036706fc083be8d4687830ced6ff7fd6cbe2536e490dbf004288bfd9ed49c
-    party_role: notifyParties
-    occurrence: 0
+  - document_id: doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee
 
 prompt:
-  path: prompts/synthesis/mpci_bl_party_identity_v1.md
-  sha256: 0708c37e0472d1005704e281a3551f8ef6194cb4e9cb182f3d8d89378b8e5ba7
+  path: prompts/synthesis/mpci_bl_cargo_language_v1.md
+  sha256: ea78d9f37a1dc62a18a503c617d8ddb630de5aa1f39751d85bc17b74d2904080
 
 provider:
   kind: openai_responses
@@ -49,7 +30,7 @@ provider:
   reasoning_effort: high
   request_timeout_seconds: 900.0
   transport_max_retries: 2
-  max_output_tokens: 4096
+  max_output_tokens: 8192
   store_responses: true
   pricing:
     currency: USD
@@ -61,10 +42,11 @@ provider:
     output_usd_per_million: 1.20
 
 workflow:
-  max_concurrent_requests: 5
+  max_concurrent_requests: 1
   requests_per_case: 1
   structured_output_retries: 0
   provider_native_strict_json_schema: true
   preserve_source_field_presence: true
-  provide_source_name_style_reference: true
+  preserve_generic_marks_literals: true
+  exclude_categorical_printed_surfaces: true
   persist_model_visible_messages: true

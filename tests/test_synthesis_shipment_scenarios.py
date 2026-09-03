@@ -459,6 +459,54 @@ def test_route_first_scenario_is_deterministic_registry_backed_and_topology_pres
     assert patch["parties"]["notifyParties"][0] == {"sameAs": "consignee"}
 
 
+def test_concrete_notify_copy_remains_concrete_and_reuses_consignee_identity_geography() -> None:
+    registry, targets, support = _support_with_registry_only_origin(origin_prior=_origin_prior())
+    source_target = deepcopy(targets["d1"])
+    consignee = source_target["documentPatch"]["parties"]["consignee"]
+    consignee["address"] = "SOURCE CONSIGNEE ADDRESS"
+    consignee["contactDetails"] = [{"type": "phone", "value": "+20 2 555 0100"}]
+    notify = deepcopy(consignee)
+    notify["contactDetails"] = [{"type": "email", "value": "notify@example.test"}]
+    source_target["documentPatch"]["parties"]["notifyParties"] = [notify]
+
+    scenario = sample_shipment_scenario(
+        base_document_id="d1",
+        source_target=source_target,
+        support=support,
+        country_registry=registry,
+        stream=DeterministicStream(37, "concrete-notify-copy", "synthetic-1"),
+        registry_exploration_permyriad=10_000,
+    )
+    assignments = {(row.role, row.occurrence): row for row in scenario.party_localities}
+    consignee_assignment = assignments[("consignee", 0)]
+    notify_assignment = assignments[("notifyParties", 0)]
+
+    assert notify_assignment.same_as is None
+    assert notify_assignment.concrete_identity_source is not None
+    assert notify_assignment.concrete_identity_source.to_dict() == {
+        "role": "consignee",
+        "occurrence": 0,
+    }
+    assert notify_assignment.relation == consignee_assignment.relation
+    assert notify_assignment.conditioning_country_code == (
+        consignee_assignment.conditioning_country_code
+    )
+    assert notify_assignment.locality == consignee_assignment.locality
+
+    projected = project_scenario_target(source_target=source_target, scenario=scenario)
+    projected_consignee = projected["documentPatch"]["parties"]["consignee"]
+    projected_notify = projected["documentPatch"]["parties"]["notifyParties"][0]
+    assert "sameAs" not in projected_notify
+    for field in ("name", "address", "city", "country"):
+        assert projected_notify[field] == projected_consignee[field]
+    assert projected_notify["contactDetails"] == [
+        {"type": "email", "value": "notify@example.test"}
+    ]
+    assert projected_consignee["contactDetails"] == [
+        {"type": "phone", "value": "+20 2 555 0100"}
+    ]
+
+
 def test_transshipment_templates_are_fail_closed_and_audited() -> None:
     registry = _country_registry()
     locations = (

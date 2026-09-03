@@ -52,6 +52,7 @@ _ROUTE_ROLES = (
     "finalDestination",
 )
 _NON_ALPHANUMERIC = re.compile(r"[^A-Z0-9]+")
+_PARTY_IDENTITY_FIELDS = ("name", "address", "city", "country")
 
 
 def normalize_location_name(value: str) -> str:
@@ -115,6 +116,27 @@ class SampledScenarioLocation:
 
 
 @dataclass(frozen=True, slots=True)
+class ConcretePartyIdentitySource:
+    """Source party whose explicitly printed identity is repeated verbatim.
+
+    This is deliberately distinct from the task-schema ``sameAs`` relation.
+    A concrete repeated notify block remains a concrete party in the target;
+    this reference only prevents synthesis from assigning the two printed
+    copies to different entities or geographies.
+    """
+
+    role: str
+    occurrence: int
+
+    def __post_init__(self) -> None:
+        if self.role not in _PARTY_ROLES or self.occurrence < 0:
+            raise ValueError("concrete party identity sources require a valid party reference")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"role": self.role, "occurrence": self.occurrence}
+
+
+@dataclass(frozen=True, slots=True)
 class PartyLocalityScenario:
     role: str
     occurrence: int
@@ -128,6 +150,7 @@ class PartyLocalityScenario:
     conditioning_country_name: str
     locality_mode: LocalityMode
     locality: SampledScenarioLocation | None
+    concrete_identity_source: ConcretePartyIdentitySource | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -143,6 +166,11 @@ class PartyLocalityScenario:
             "conditioningCountryName": self.conditioning_country_name,
             "localityMode": self.locality_mode,
             "locality": self.locality.to_dict() if self.locality is not None else None,
+            "concreteIdentitySource": (
+                self.concrete_identity_source.to_dict()
+                if self.concrete_identity_source is not None
+                else None
+            ),
         }
 
 
@@ -568,6 +596,30 @@ def _party_rows(patch: Mapping[str, Any]) -> tuple[tuple[str, int, Mapping[str, 
             if isinstance(party, Mapping):
                 rows.append((role, index, cast(Mapping[str, Any], party)))
     return tuple(rows)
+
+
+def _concrete_party_identity_signature(
+    party: Mapping[str, Any],
+) -> tuple[str | None, ...] | None:
+    """Return a conservative exact signature for a concrete printed identity.
+
+    A name plus at least one corroborating identity field is required.  Exact
+    surfaces are used intentionally: fuzzy matching could collapse unrelated
+    parties and silently corrupt a synthetic label.
+    """
+
+    if party.get("sameAs") is not None:
+        return None
+    values: list[str | None] = []
+    for field in _PARTY_IDENTITY_FIELDS:
+        value = party.get(field)
+        if value is not None and not isinstance(value, str):
+            raise TypeError(f"party identity field must be text or null: {field}")
+        values.append(value)
+    name = values[0]
+    if name is None or not name.strip() or not any(value and value.strip() for value in values[1:]):
+        return None
+    return tuple(values)
 
 
 def _resolved_country(value: Any, registry: CountryRegistry) -> str | None:
@@ -1411,19 +1463,31 @@ def sample_shipment_scenario(
             )
 
     party_scenarios: list[PartyLocalityScenario] = []
+    party_scenarios_by_reference: dict[tuple[str, int], PartyLocalityScenario] = {}
+    concrete_party_identity_owners: dict[tuple[str | None, ...], tuple[str, int]] = {}
     for role, occurrence, party in _party_rows(patch):
         same_as = party.get("sameAs") if isinstance(party.get("sameAs"), str) else None
         country_present = isinstance(party.get("country"), str)
         city_present = isinstance(party.get("city"), str)
+        signature = _concrete_party_identity_signature(party)
+        concrete_identity_source: ConcretePartyIdentitySource | None = None
+        identity_owner: PartyLocalityScenario | None = None
         if same_as is not None:
-            same_as_relations: Mapping[str, RouteSide] = {
-                "shipper": "commercial_origin",
-                "consignee": "commercial_destination",
-            }
-            try:
-                relation = same_as_relations[same_as]
-            except KeyError as error:
-                raise ValueError(f"unsupported sameAs party reference: {same_as}") from error
+            if country_present or city_present:
+                raise ValueError("sameAs parties cannot carry concrete country or city fields")
+            identity_owner = party_scenarios_by_reference.get((same_as, 0))
+            if identity_owner is None:
+                raise ValueError(f"unsupported or unresolved sameAs party reference: {same_as}")
+        elif role == "notifyParties" and signature is not None:
+            owner_reference = concrete_party_identity_owners.get(signature)
+            if owner_reference is not None:
+                identity_owner = party_scenarios_by_reference[owner_reference]
+                concrete_identity_source = ConcretePartyIdentitySource(
+                    role=owner_reference[0], occurrence=owner_reference[1]
+                )
+
+        if identity_owner is not None:
+            relation = identity_owner.relation
         elif role == "shipper":
             relation = "commercial_origin"
         elif role == "consignee":
@@ -1465,18 +1529,27 @@ def sample_shipment_scenario(
                     stream=stream.derive(f"party-{role}-{occurrence}-relation"),
                 ),
             )
-        party_country = _country_for_side(
-            relation,
-            commercial_origin=commercial_origin,
-            commercial_destination=commercial_destination,
-            third_countries=support.party_third_countries.get(role),
-            stream=stream.derive(f"party-{role}-{occurrence}-country"),
+        party_country = (
+            identity_owner.conditioning_country_code
+            if identity_owner is not None
+            else _country_for_side(
+                relation,
+                commercial_origin=commercial_origin,
+                commercial_destination=commercial_destination,
+                third_countries=support.party_third_countries.get(role),
+                stream=stream.derive(f"party-{role}-{occurrence}-country"),
+            )
         )
         if party_country is None:
             raise ValueError("concrete party resolved to no conditioning country")
         if not city_present:
             locality_mode: LocalityMode = "missing"
             locality = None
+        elif identity_owner is not None:
+            if identity_owner.locality is None:
+                raise RuntimeError("repeated concrete identity has no source locality")
+            locality_mode = identity_owner.locality_mode
+            locality = identity_owner.locality
         else:
             modes = support.party_locality_modes.get((role, relation))
             if modes is None:
@@ -1519,24 +1592,27 @@ def sample_shipment_scenario(
                     stream=stream.derive(f"party-{role}-{occurrence}-locality"),
                     endpoint=party_endpoint,
                 )
-        party_scenarios.append(
-            PartyLocalityScenario(
-                role=role,
-                occurrence=occurrence,
-                same_as=same_as,
-                relation=relation,
-                country_present=country_present,
-                city_present=city_present,
-                country_code=party_country if country_present else None,
-                country_name=(
-                    country_registry.printable_name(party_country) if country_present else None
-                ),
-                conditioning_country_code=party_country,
-                conditioning_country_name=country_registry.printable_name(party_country),
-                locality_mode=locality_mode,
-                locality=locality,
-            )
+        scenario = PartyLocalityScenario(
+            role=role,
+            occurrence=occurrence,
+            same_as=same_as,
+            relation=relation,
+            country_present=country_present,
+            city_present=city_present,
+            country_code=party_country if country_present else None,
+            country_name=(
+                country_registry.printable_name(party_country) if country_present else None
+            ),
+            conditioning_country_code=party_country,
+            conditioning_country_name=country_registry.printable_name(party_country),
+            locality_mode=locality_mode,
+            locality=locality,
+            concrete_identity_source=concrete_identity_source,
         )
+        party_scenarios.append(scenario)
+        party_scenarios_by_reference[(role, occurrence)] = scenario
+        if role in {"shipper", "consignee"} and signature is not None:
+            concrete_party_identity_owners.setdefault(signature, (role, occurrence))
 
     place_of_issue = None
     source_issue = _location_dict(patch.get("placeOfIssue"))

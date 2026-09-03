@@ -97,6 +97,20 @@ class LabelingSourceConfig(_ConfigModel):
         return self
 
 
+class SelectionDocumentIdsFileConfig(_ConfigModel):
+    path: NonEmptyString
+    sha256: Sha256
+    records: PositiveInteger
+
+    @field_validator("path")
+    @classmethod
+    def path_is_absolute_jsonl(cls, value: str) -> str:
+        path = Path(value)
+        if not path.is_absolute() or path.suffix != ".jsonl":
+            raise ValueError("selection document_ids_file must be an absolute .jsonl path")
+        return value
+
+
 class SelectionConfig(_ConfigModel):
     count: PositiveInteger
     seed: Annotated[int, Field(ge=0)]
@@ -104,15 +118,22 @@ class SelectionConfig(_ConfigModel):
     document_ids: list[
         Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")]
     ] | None = None
+    document_ids_file: SelectionDocumentIdsFileConfig | None = None
 
     @model_validator(mode="after")
     def explicit_ids_match_count(self) -> SelectionConfig:
-        if self.document_ids is None:
-            return self
-        if len(self.document_ids) != self.count:
-            raise ValueError("explicit document_ids length must equal selection count")
-        if len(set(self.document_ids)) != len(self.document_ids):
-            raise ValueError("explicit document_ids must be unique")
+        if self.document_ids is not None and self.document_ids_file is not None:
+            raise ValueError("configure document_ids or document_ids_file, not both")
+        if self.document_ids is not None:
+            if len(self.document_ids) != self.count:
+                raise ValueError("explicit document_ids length must equal selection count")
+            if len(set(self.document_ids)) != len(self.document_ids):
+                raise ValueError("explicit document_ids must be unique")
+        if (
+            self.document_ids_file is not None
+            and self.document_ids_file.records != self.count
+        ):
+            raise ValueError("document_ids_file records must equal selection count")
         return self
 
 

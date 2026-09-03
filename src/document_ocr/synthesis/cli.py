@@ -7,12 +7,16 @@ import json
 from pathlib import Path
 
 from document_ocr.synthesis.config import (
+    load_synthesis_cargo_language_probe_config,
     load_synthesis_controlled_pilot_config,
     load_synthesis_dangerous_goods_analysis_config,
     load_synthesis_dangerous_goods_plan_config,
     load_synthesis_dangerous_goods_registry_config,
     load_synthesis_deterministic_smoke_config,
     load_synthesis_foundation_config,
+    load_synthesis_linguistic_completion_config,
+    load_synthesis_linguistic_probe_analysis_config,
+    load_synthesis_package_compatibility_catalog_config,
     load_synthesis_party_identity_probe_config,
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
@@ -53,8 +57,16 @@ def main() -> None:
         "run-dangerous-goods-plan",
         "validate-semantic-completion-config",
         "run-semantic-completion",
+        "validate-package-compatibility-catalog-config",
+        "run-package-compatibility-catalog",
         "validate-party-identity-probe-config",
         "run-party-identity-probe",
+        "validate-cargo-language-probe-config",
+        "run-cargo-language-probe",
+        "validate-linguistic-probe-analysis-config",
+        "run-linguistic-probe-analysis",
+        "validate-linguistic-completion-config",
+        "run-linguistic-completion",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -68,6 +80,32 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-linguistic-completion-config",
+            "run-linguistic-completion",
+        }:
+            linguistic_completion_config = load_synthesis_linguistic_completion_config(
+                config_path
+            )
+        elif arguments.command in {
+            "validate-linguistic-probe-analysis-config",
+            "run-linguistic-probe-analysis",
+        }:
+            linguistic_probe_analysis_config = (
+                load_synthesis_linguistic_probe_analysis_config(config_path)
+            )
+        elif arguments.command in {
+            "validate-package-compatibility-catalog-config",
+            "run-package-compatibility-catalog",
+        }:
+            package_compatibility_config = (
+                load_synthesis_package_compatibility_catalog_config(config_path)
+            )
+        elif arguments.command in {
+            "validate-cargo-language-probe-config",
+            "run-cargo-language-probe",
+        }:
+            cargo_language_config = load_synthesis_cargo_language_probe_config(config_path)
+        elif arguments.command in {
             "validate-party-identity-probe-config",
             "run-party-identity-probe",
         }:
@@ -130,7 +168,58 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-party-identity-probe-config":
+        if arguments.command == "validate-linguistic-completion-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": linguistic_completion_config.run.run_id,
+                "records": linguistic_completion_config.inputs.completion_plans.records,
+                "model": linguistic_completion_config.provider.model,
+                "reasoning_effort": linguistic_completion_config.provider.reasoning_effort,
+                "max_concurrent_requests": (
+                    linguistic_completion_config.workflow.max_concurrent_requests
+                ),
+                "max_concurrent_documents": (
+                    linguistic_completion_config.workflow.max_concurrent_documents
+                ),
+                "generation_settings": (
+                    linguistic_completion_config.provider.generation_settings.model_dump(
+                        mode="json", exclude_none=True
+                    )
+                    if linguistic_completion_config.provider.generation_settings is not None
+                    else None
+                ),
+            }
+        elif arguments.command == "validate-linguistic-probe-analysis-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": linguistic_probe_analysis_config.run.run_id,
+                "party_cases": linguistic_probe_analysis_config.party.results.records,
+                "cargo_cases": linguistic_probe_analysis_config.cargo.results.records,
+            }
+        elif arguments.command == "validate-package-compatibility-catalog-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": package_compatibility_config.run.run_id,
+                "records": package_compatibility_config.inputs.dangerous_goods_plans.records,
+                "model": package_compatibility_config.provider.model,
+                "reasoning_effort": package_compatibility_config.provider.reasoning_effort,
+            }
+        elif arguments.command == "validate-cargo-language-probe-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": cargo_language_config.run.run_id,
+                "cases": len(cargo_language_config.cases),
+                "model": cargo_language_config.provider.model,
+                "reasoning_effort": cargo_language_config.provider.reasoning_effort,
+                "structured_output_retries": (
+                    cargo_language_config.workflow.structured_output_retries
+                ),
+            }
+        elif arguments.command == "validate-party-identity-probe-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -246,6 +335,48 @@ def main() -> None:
                     config=dangerous_goods_registry_config,
                 ),
             }
+        elif arguments.command == "run-linguistic-completion":
+            from document_ocr.synthesis.linguistic_completion_pipeline import (
+                run_linguistic_completion,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_linguistic_completion(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=linguistic_completion_config,
+                ),
+            }
+        elif arguments.command == "run-package-compatibility-catalog":
+            from document_ocr.synthesis.package_compatibility_catalog import (
+                run_package_compatibility_catalog,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_package_compatibility_catalog(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=package_compatibility_config,
+                ),
+            }
+        elif arguments.command == "run-linguistic-probe-analysis":
+            from document_ocr.synthesis.linguistic_probe_analysis import (
+                run_linguistic_probe_analysis,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_linguistic_probe_analysis(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=linguistic_probe_analysis_config,
+                ),
+            }
         elif arguments.command == "run-party-identity-probe":
             from document_ocr.synthesis.party_identity_probe import run_party_identity_probe
 
@@ -270,6 +401,18 @@ def main() -> None:
                     project_root=project_root,
                     config_path=config_path,
                     config=dangerous_goods_analysis_config,
+                ),
+            }
+        elif arguments.command == "run-cargo-language-probe":
+            from document_ocr.synthesis.cargo_language_probe import run_cargo_language_probe
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_cargo_language_probe(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=cargo_language_config,
                 ),
             }
         elif arguments.command == "run-semantic-completion":

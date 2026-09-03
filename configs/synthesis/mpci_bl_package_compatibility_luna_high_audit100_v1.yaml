@@ -1,0 +1,74 @@
+schema_version: 1
+task: bill_of_lading_package_goods_compatibility_catalog_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-package-compatibility-luna-high-audit100-v1
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+    sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+    records: 1157
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+inputs:
+  dangerous_goods_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-dangerous-goods-audit100-v1
+    commit_sha256: 87b7ab5c6d55defe21dcca4f639aa4aab9734e31222023bf9b6daf02ecd2c9e4
+    transaction_sha256: ad3d87f1c12de159a69474649338a72801dfc03cdcca7547acb10bcd403e0a5b
+  dangerous_goods_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined1157-dangerous-goods-audit100-v1/generation/dg-plans.jsonl
+    sha256: 966603a419f39eee94758083ef4aaf7efa3703a798252ba7823e21505a4c0131
+    records: 100
+  source_task_constraints:
+    path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/task-constraints.json
+    sha256: f55ca917c95f75ddad494067aaaa2ac40d6c58a79688056c27de9dc17241911e
+  fit_partition_report:
+    path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+    sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  package_registry_entries: 405
+
+fit_temperature:
+  frozen_minimum_celsius: -24.0
+  frozen_maximum_celsius: -18.0
+  chilled_minimum_celsius: -3.0
+  chilled_maximum_celsius: 5.5
+
+prompt:
+  path: prompts/synthesis/mpci_bl_package_compatibility_v1.md
+  sha256: f904ee6c8b1ed0681313da79a3e70db2af95c6483bad47ebb61e393504b0de3d
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 2048
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-01
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+workflow:
+  max_concurrent_requests: 2
+  requests_per_context: 1
+  structured_output_retries: 0
+  provider_native_strict_json_schema: true
+  persist_model_visible_messages: true

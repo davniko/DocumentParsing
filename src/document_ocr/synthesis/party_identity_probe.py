@@ -11,37 +11,41 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import resource
 import time
 import unicodedata
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from difflib import SequenceMatcher
 from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
 
-from dotenv import dotenv_values
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_validator
 from pydantic_ai import Agent, NativeOutput, capture_run_messages
 from pydantic_ai.concurrency import ConcurrencyLimiter
-from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, ModelResponse
-from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+from pydantic_ai.messages import ModelResponse
+from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.usage import RequestUsage, UsageLimits
+from pydantic_ai.usage import UsageLimits
 
 from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import (
     PartyIdentityProbeCaseConfig,
-    PartyIdentityProbePricingConfig,
     PartyIdentityRole,
     SynthesisPartyIdentityProbeConfig,
+)
+from document_ocr.synthesis.linguistic_probe_runtime import (
+    LinguisticUsageReceipt,
+    load_openai_key,
+    model_messages,
+    openai_responses_settings,
+    usage_receipt,
 )
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.semantic_completion_pipeline import SemanticCompletionPlanRow
@@ -51,7 +55,6 @@ NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_lengt
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-_USD_QUANTUM = Decimal("0.000000000001")
 _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 
 
@@ -251,33 +254,6 @@ class PartyIdentityValidation(BaseModel):
         return self
 
 
-class PartyIdentityUsageReceipt(BaseModel):
-    model_config = _STRICT
-
-    requests: Annotated[int, Field(ge=0)]
-    providerResponseIds: tuple[NonEmptyText, ...]
-    finishReasons: tuple[NonEmptyText, ...]
-    inputTokens: Annotated[int, Field(ge=0)]
-    cacheReadTokens: Annotated[int, Field(ge=0)]
-    cacheWriteTokens: Annotated[int, Field(ge=0)]
-    outputTokens: Annotated[int, Field(ge=0)]
-    reasoningTokens: Annotated[int, Field(ge=0)]
-    visibleOutputTokens: Annotated[int, Field(ge=0)]
-    estimatedCostUsd: Annotated[Decimal, Field(ge=0, decimal_places=12)]
-
-    @model_validator(mode="after")
-    def token_buckets_are_consistent(self) -> PartyIdentityUsageReceipt:
-        if self.cacheReadTokens + self.cacheWriteTokens > self.inputTokens:
-            raise ValueError("cache buckets exceed input token total")
-        if self.reasoningTokens > self.outputTokens:
-            raise ValueError("reasoning tokens exceed output token total")
-        if self.visibleOutputTokens != self.outputTokens - self.reasoningTokens:
-            raise ValueError("visible output tokens differ from output minus reasoning")
-        if self.requests != len(self.finishReasons):
-            raise ValueError("request count differs from response finish-reason count")
-        return self
-
-
 class PartyIdentityCaseRecord(BaseModel):
     model_config = _STRICT
 
@@ -294,7 +270,7 @@ class PartyIdentityCaseRecord(BaseModel):
     status: Literal["success", "validation_failed", "call_failed"]
     output: PartyIdentityGenerationOutput | None
     validation: PartyIdentityValidation | None
-    usage: PartyIdentityUsageReceipt
+    usage: LinguisticUsageReceipt
     errorType: NonEmptyText | None
     errorMessage: NonEmptyText | None
 
@@ -379,7 +355,7 @@ def _party_at(target: Mapping[str, Any], case: PartyIdentityProbeCaseConfig) -> 
     return cast(Mapping[str, Any], value)
 
 
-def _goods_seeds(plan: SemanticCompletionPlanRow) -> tuple[PartyIdentityGoodsSeed, ...]:
+def party_goods_seeds(plan: SemanticCompletionPlanRow) -> tuple[PartyIdentityGoodsSeed, ...]:
     rows: list[PartyIdentityGoodsSeed] = []
     for cargo in plan.cargo_realizations:
         rows.append(
@@ -446,7 +422,7 @@ def build_party_generation_seed(
         partyRole=case.party_role,
         partyOccurrence=case.occurrence,
         targetLocality={"city": city, "country": country},
-        goods=_goods_seeds(plan),
+        goods=party_goods_seeds(plan),
         sourcePartyNameStyleReference=name,
         fieldPresence=PartyIdentityFieldPresence(
             addressPresent=isinstance(party.get("address"), str),
@@ -559,65 +535,6 @@ def validate_generated_party(
     )
 
 
-def _load_openai_key(project_root: Path, environment_file: str) -> str:
-    path = resolve_config_path(project_root, environment_file)
-    if path.is_symlink() or not path.is_file():
-        raise ValueError(f"environment file is not a regular file: {path}")
-    key = os.environ.get("OPENAI_API_KEY") or dotenv_values(path).get("OPENAI_API_KEY")
-    if not isinstance(key, str) or not key.strip():
-        raise ValueError("OPENAI_API_KEY is absent or empty")
-    return key
-
-
-def _price_usage(usage: RequestUsage, pricing: PartyIdentityProbePricingConfig) -> Decimal:
-    uncached = usage.input_tokens - usage.cache_read_tokens - usage.cache_write_tokens
-    if uncached < 0:
-        raise ValueError("provider reports cache tokens above total input tokens")
-    cost = (
-        Decimal(uncached) * Decimal(str(pricing.input_usd_per_million))
-        + Decimal(usage.cache_read_tokens)
-        * Decimal(str(pricing.cached_input_usd_per_million))
-        + Decimal(usage.cache_write_tokens)
-        * Decimal(str(pricing.input_usd_per_million))
-        * Decimal(str(pricing.cache_write_multiplier))
-        + Decimal(usage.output_tokens) * Decimal(str(pricing.output_usd_per_million))
-    ) / Decimal(1_000_000)
-    return cost.quantize(_USD_QUANTUM, rounding=ROUND_HALF_UP)
-
-
-def _usage_receipt(
-    responses: Sequence[ModelResponse], pricing: PartyIdentityProbePricingConfig
-) -> PartyIdentityUsageReceipt:
-    usage = RequestUsage()
-    for response in responses:
-        usage.incr(response.usage)
-    reasoning_tokens = usage.details.get("reasoning_tokens", 0)
-    if not isinstance(reasoning_tokens, int) or reasoning_tokens < 0:
-        raise ValueError("provider reports invalid reasoning token usage")
-    response_ids = tuple(
-        response.provider_response_id
-        for response in responses
-        if response.provider_response_id is not None
-    )
-    finish_reasons = tuple(response.finish_reason or "unknown" for response in responses)
-    return PartyIdentityUsageReceipt(
-        requests=len(responses),
-        providerResponseIds=response_ids,
-        finishReasons=finish_reasons,
-        inputTokens=usage.input_tokens,
-        cacheReadTokens=usage.cache_read_tokens,
-        cacheWriteTokens=usage.cache_write_tokens,
-        outputTokens=usage.output_tokens,
-        reasoningTokens=reasoning_tokens,
-        visibleOutputTokens=usage.output_tokens - reasoning_tokens,
-        estimatedCostUsd=_price_usage(usage, pricing),
-    )
-
-
-def _model_messages(messages: Sequence[ModelRequest | ModelResponse]) -> JsonValue:
-    return cast(JsonValue, ModelMessagesTypeAdapter.dump_python(list(messages), mode="json"))
-
-
 async def _run_case(
     *,
     index: int,
@@ -669,11 +586,11 @@ async def _run_case(
                     status="success" if validation.passed else "validation_failed",
                     output=output,
                     validation=validation,
-                    usage=_usage_receipt(responses, config.provider.pricing),
+                    usage=usage_receipt(responses, config.provider.pricing),
                     errorType=None,
                     errorMessage=None,
                 ),
-                _model_messages(captured),
+                model_messages(captured),
             )
         except Exception as error:
             responses = tuple(
@@ -695,11 +612,11 @@ async def _run_case(
                     status="call_failed",
                     output=None,
                     validation=None,
-                    usage=_usage_receipt(responses, config.provider.pricing),
+                    usage=usage_receipt(responses, config.provider.pricing),
                     errorType=type(error).__name__,
                     errorMessage=str(error),
                 ),
-                _model_messages(captured),
+                model_messages(captured),
             )
 
 
@@ -720,9 +637,9 @@ def _report(records: Sequence[PartyIdentityCaseRecord], summary: Mapping[str, An
         "# Synthetic party identity probe",
         "",
         (
-            "Five independent first-pass GPT-5.6 Luna calls using provider-native strict JSON "
-            "Schema. No conversation history, semantic repair request, reviewer, PDF, or raw OCR "
-            "was used."
+            f"{len(records)} independent first-pass GPT-5.6 Luna calls using "
+            "provider-native strict JSON Schema. No conversation history, semantic repair request, "
+            "reviewer, PDF, or raw OCR was used."
         ),
         "",
         "## Aggregate",
@@ -940,21 +857,13 @@ async def _run_probe_async(
             )
 
     client = AsyncOpenAI(
-        api_key=_load_openai_key(project_root, config.environment_file),
+        api_key=load_openai_key(project_root, config.environment_file),
         max_retries=config.provider.transport_max_retries,
         timeout=config.provider.request_timeout_seconds,
     )
     provider = OpenAIProvider(openai_client=client)
     model = OpenAIResponsesModel(config.provider.model, provider=provider)
-    settings = OpenAIResponsesModelSettings(
-        max_tokens=config.provider.max_output_tokens,
-        timeout=config.provider.request_timeout_seconds,
-        openai_reasoning_effort=config.provider.reasoning_effort,
-        openai_reasoning_mode="standard",
-        openai_reasoning_context="current_turn",
-        openai_store=config.provider.store_responses,
-        openai_text_verbosity="low",
-    )
+    settings = openai_responses_settings(config.provider)
     agent = Agent[object, PartyIdentityGenerationOutput](
         model,
         output_type=NativeOutput(

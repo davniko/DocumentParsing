@@ -93,6 +93,15 @@ _CARGO_BOILERPLATE = re.compile(
     r"particulars\s+furnished\s+by\s+shipper"
     r")\b"
 )
+_EXPLICIT_PACKAGE_CONTAINMENT = re.compile(
+    r"(?ix)^"
+    r"(?:[1-9]\d*\s+)?"
+    r"[\w./'()&+\-]+(?:\s+[\w./'()&+\-]+){0,3}\s+"
+    r"\(?\s*(?:said\s+to\s+contain|s\.?t\.?c\.?)\s*:?\s*"
+    r"[1-9]\d*\s+"
+    r"[\w./'()&+\-]+(?:\s+[\w./'()&+\-]+){0,3}"
+    r"\s*\)?$"
+)
 
 
 def _pure_address(value: str) -> str:
@@ -102,7 +111,9 @@ def _pure_address(value: str) -> str:
 
 
 def _pure_cargo_text(value: str) -> str:
-    if _CARGO_BOILERPLATE.search(value):
+    if _CARGO_BOILERPLATE.search(value) and not _EXPLICIT_PACKAGE_CONTAINMENT.fullmatch(
+        value
+    ):
         raise ValueError("cargo value contains carrier boilerplate rather than a cargo fact")
     return value
 

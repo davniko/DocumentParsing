@@ -1,0 +1,1020 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-031-060-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_fd8aef8dbf5542b94502acdd0b1bd55131cbe8bfb1885baf0cfa9434e4be0aee",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_fd8aef8dbf5542b94502acdd0b1bd55131cbe8bfb1885baf0cfa9434e4be0aee.json",
+      "work_item_sha256": "fc204031d1b9e54bd039bdb3049ed9054c1e10f0b04d0f8f91a26fb35c9dcba6",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_fd8aef8dbf5542b94502acdd0b1bd55131cbe8bfb1885baf0cfa9434e4be0aee/attempt-4/6b54734e7776927c7d95566c78471bcb9d4e9c0b7d35f6e82c8577a78a758e5e.json",
+      "candidate_sha256": "6b54734e7776927c7d95566c78471bcb9d4e9c0b7d35f6e82c8577a78a758e5e",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 31 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 4,
+              "typeDescription": "PKG"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p2",
+              "quantity": 1,
+              "typeDescription": "IBC, Composite"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g2",
+              "packageId": "p1",
+              "quantity": 1,
+              "typeDescription": "PKG"
+            },
+            {
+              "groupId": "g2",
+              "packageId": "p2",
+              "quantity": 1,
+              "typeDescription": "IBC, Composite"
+            }
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "TCNU2604469",
+                  "packageQuantity": 1
+                }
+              ],
+              "coverage": "unlinked_package_quantities",
+              "groupId": "g1"
+            },
+            {
+              "allocations": [
+                {
+                  "containerNumber": "TCNU2604469",
+                  "packageQuantity": 1
+                }
+              ],
+              "coverage": "unlinked_package_quantities",
+              "groupId": "g2"
+            }
+          ],
+          "corrected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "TCNU2604469"
+                }
+              ],
+              "coverage": "container_membership_only",
+              "groupId": "g1"
+            },
+            {
+              "allocations": [
+                {
+                  "containerNumber": "TCNU2604469",
+                  "packageQuantity": 1
+                }
+              ],
+              "coverage": "single_package_level",
+              "groupId": "g2",
+              "packageId": "p1"
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_f2e16541476e8300849453e7e1e2782346a8578be83ed8c0a6a4d72428554461",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_f2e16541476e8300849453e7e1e2782346a8578be83ed8c0a6a4d72428554461.json",
+      "work_item_sha256": "07c9e0678db6051e766f350c97cb57d57f8be5a2775cb92fffb48dc76a177a78",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_f2e16541476e8300849453e7e1e2782346a8578be83ed8c0a6a4d72428554461/attempt-4/a4cd6e25f385067343006067f9a24f15460aa8d7dcf30b01b7eed88e07814723.json",
+      "candidate_sha256": "a4cd6e25f385067343006067f9a24f15460aa8d7dcf30b01b7eed88e07814723",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 32 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/parties/carrier",
+          "expected_value": {
+            "address": null,
+            "city": null,
+            "contactDetails": null,
+            "country": null,
+            "name": "PT. LAUTAN KARMA MAJU",
+            "sameAs": null
+          },
+          "corrected_value": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_2ad8023d1f8066e656724b25a7907fee332a766db9c8e1fd825ea49c1f918b8f",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_2ad8023d1f8066e656724b25a7907fee332a766db9c8e1fd825ea49c1f918b8f.json",
+      "work_item_sha256": "2b867ae1856c4abb8f47feaaac72a3a86f097e376f2271bf24f27e5f86b656ce",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_2ad8023d1f8066e656724b25a7907fee332a766db9c8e1fd825ea49c1f918b8f/attempt-4/636c062ea86821fdc91d21c720ac3518d7b7561db84636b65bb4257d40f9d659.json",
+      "candidate_sha256": "636c062ea86821fdc91d21c720ac3518d7b7561db84636b65bb4257d40f9d659",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 33 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_915a43b0b7f333404d9702fd2d9e050481d3c3c80500b1fdc835125ce4c93273",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_915a43b0b7f333404d9702fd2d9e050481d3c3c80500b1fdc835125ce4c93273.json",
+      "work_item_sha256": "b8664579c67416c7e28f3ea5f4690a7041617c7d3e9992667be5569aa913494f",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_915a43b0b7f333404d9702fd2d9e050481d3c3c80500b1fdc835125ce4c93273/attempt-4/176651ae1caf566cec973b6fb1113618cd6aa18cc1ae083e3912765d3261a7b0.json",
+      "candidate_sha256": "176651ae1caf566cec973b6fb1113618cd6aa18cc1ae083e3912765d3261a7b0",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 34 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_2646b3757069323fcbedb640a01c393c7370ce744ddc8ed81168511315b96a7e",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_2646b3757069323fcbedb640a01c393c7370ce744ddc8ed81168511315b96a7e.json",
+      "work_item_sha256": "8494e077a74c3c0b8e1d259f21f54828d133605a48eb7c9f683383d8b2be2610",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_2646b3757069323fcbedb640a01c393c7370ce744ddc8ed81168511315b96a7e/attempt-4/acbec50a12431b0bf6d8b072261790321cee05dbd067679de21d813053a838ad.json",
+      "candidate_sha256": "acbec50a12431b0bf6d8b072261790321cee05dbd067679de21d813053a838ad",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 35 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true
+    },
+    {
+      "document_id": "doc_ff642da8c5fbf2831de39c696326a03e2fc30d56571eec35e6ec9c12bef04981",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_ff642da8c5fbf2831de39c696326a03e2fc30d56571eec35e6ec9c12bef04981.json",
+      "work_item_sha256": "39f18df3b8c3ce6608c42b46b0ec62148f520f64b3aa97b1f0d1db8299929b02",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_ff642da8c5fbf2831de39c696326a03e2fc30d56571eec35e6ec9c12bef04981/attempt-4/9932c22a0334056cc0c80dd4e5f8109eff710bf98881a57f9fdb69685b43959e.json",
+      "candidate_sha256": "9932c22a0334056cc0c80dd4e5f8109eff710bf98881a57f9fdb69685b43959e",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 36 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/parties/consignee/city",
+          "expected_value": "QULYOBIA",
+          "corrected_value": "BAHNHA"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_914d7b544a640ded480323c8522a7c82c2615cca00c679cac28e4b7637c69c92",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_914d7b544a640ded480323c8522a7c82c2615cca00c679cac28e4b7637c69c92.json",
+      "work_item_sha256": "fe4c4c4c0538db83f409dfce9fdc9d963d622485b4ba84fc4c5573e181b1c679",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_914d7b544a640ded480323c8522a7c82c2615cca00c679cac28e4b7637c69c92/attempt-3/fcb7a81389c6ef347e2b4dae0a13e5a33c0ec78a579a310fa689713a47a72a21.json",
+      "candidate_sha256": "fcb7a81389c6ef347e2b4dae0a13e5a33c0ec78a579a310fa689713a47a72a21",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 37 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_3ebba50e88582394d97a700581a69883d35502e44bc5ecdc777640a4f26cba6c",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_3ebba50e88582394d97a700581a69883d35502e44bc5ecdc777640a4f26cba6c.json",
+      "work_item_sha256": "9e57df3bab3d541a22d24687e9acf48c40e0f14034539df3f8a049954195b047",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_3ebba50e88582394d97a700581a69883d35502e44bc5ecdc777640a4f26cba6c/attempt-3/998fa5c10bb3ccd39b09dc9302c2159ab140ed6c9324705947fb8655743c5c85.json",
+      "candidate_sha256": "998fa5c10bb3ccd39b09dc9302c2159ab140ed6c9324705947fb8655743c5c85",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 38 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": "negotiable",
+          "corrected_value": "non_negotiable"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_d070184daa1f962ffb5eae240f1deb64368ee1abac903bd45a954b5ffac55e8b",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_d070184daa1f962ffb5eae240f1deb64368ee1abac903bd45a954b5ffac55e8b.json",
+      "work_item_sha256": "909ed4010be6d2abc369502b7ebdd84fbdd9746a14bc4b39d4bce8bbca046c2e",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_d070184daa1f962ffb5eae240f1deb64368ee1abac903bd45a954b5ffac55e8b/attempt-4/c793edcf5b50b04269dc5c380bce324a1dde922c2e4d4f69ee7aa1d4b6ffcdf5.json",
+      "candidate_sha256": "c793edcf5b50b04269dc5c380bce324a1dde922c2e4d4f69ee7aa1d4b6ffcdf5",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 39 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": null,
+          "corrected_value": "non_negotiable"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_242b1e1bcb8dfc6fe20806dcd3d1a46e63e7580c277f6faf0125177401e1b6e1",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_242b1e1bcb8dfc6fe20806dcd3d1a46e63e7580c277f6faf0125177401e1b6e1.json",
+      "work_item_sha256": "7429fc69986b178ae21306012f67b11bcabd7f3ee437cc8a5eba3ab7ded99b18",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_242b1e1bcb8dfc6fe20806dcd3d1a46e63e7580c277f6faf0125177401e1b6e1/attempt-2/8015a10f34c80954186432bb22735345228b27153b5db421e603359144a40606.json",
+      "candidate_sha256": "8015a10f34c80954186432bb22735345228b27153b5db421e603359144a40606",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 40 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/parties/carrier",
+          "expected_value": {
+            "address": "205212",
+            "city": null,
+            "contactDetails": null,
+            "country": null,
+            "name": null,
+            "sameAs": null
+          },
+          "corrected_value": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_7ef9e7732dfd39239574f4f61f19e4daea3d8334063ec7bda6363dbc905b6ddb",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_7ef9e7732dfd39239574f4f61f19e4daea3d8334063ec7bda6363dbc905b6ddb.json",
+      "work_item_sha256": "0c5769386519b6cd1b0a573cdb731be5299618c5cf589549efbf3fd10d158cbc",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_7ef9e7732dfd39239574f4f61f19e4daea3d8334063ec7bda6363dbc905b6ddb/attempt-4/d63a36c2260a8f22d6edc73a782d8d404b607e8da4bae1a75de0da90ee4acfc8.json",
+      "candidate_sha256": "d63a36c2260a8f22d6edc73a782d8d404b607e8da4bae1a75de0da90ee4acfc8",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 41 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_7270a6788489aa663b9165e2fd19a1e2d927e505995bc929e06b63a8c3c8f49c",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_7270a6788489aa663b9165e2fd19a1e2d927e505995bc929e06b63a8c3c8f49c.json",
+      "work_item_sha256": "0a33886b76b6d0875ed75768e9045b73b9e69105422582cb5dadecbea951ab5b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_7270a6788489aa663b9165e2fd19a1e2d927e505995bc929e06b63a8c3c8f49c/attempt-4/88c80600baa12eacf0de500eaf7b60650043be17e74197b0fd87e8c9623dc375.json",
+      "candidate_sha256": "88c80600baa12eacf0de500eaf7b60650043be17e74197b0fd87e8c9623dc375",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 42 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_fef1948e124a83ace4330417db3ee004ff2a16676ed99947503467ce7487f22b",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_fef1948e124a83ace4330417db3ee004ff2a16676ed99947503467ce7487f22b.json",
+      "work_item_sha256": "b6e9112453805502470eebde044b7ecb3b343f666d88c7da32e06fb0d288895b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_fef1948e124a83ace4330417db3ee004ff2a16676ed99947503467ce7487f22b/attempt-4/1b83cafebba796c403999c36bd26a9f62e4030a313d331972bace3db2d2bd03f.json",
+      "candidate_sha256": "1b83cafebba796c403999c36bd26a9f62e4030a313d331972bace3db2d2bd03f",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 43 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_d6555fd1e28f54e3a06de24c41e58aef66b9f88d1f6b8cd5e0bb57d58d1f671c",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_d6555fd1e28f54e3a06de24c41e58aef66b9f88d1f6b8cd5e0bb57d58d1f671c.json",
+      "work_item_sha256": "5ddef507a07990064644bd55c33cb81f9699eef90791a2f8ff895078ba3090ee",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/reports/remaining1049-manual-review/manual-candidates/doc_d6555fd1e28f54e3a06de24c41e58aef66b9f88d1f6b8cd5e0bb57d58d1f671c-5ffa5615b70863c1241721d208f616a9766f8bf7ba95aa7f36e72c49267e538e.json",
+      "candidate_sha256": "5ffa5615b70863c1241721d208f616a9766f8bf7ba95aa7f36e72c49267e538e",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 44 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/call-receipts/doc_d6555fd1e28f54e3a06de24c41e58aef66b9f88d1f6b8cd5e0bb57d58d1f671c/extract-call_ebfe33ed1bf8416b8c866262853043cf-2c63edb436e9e183.json",
+          "sha256": "2c63edb436e9e18334f4d9fee362966418101b86f8b1b593f6bd2c1dde9a5f66"
+        },
+        {
+          "path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/reports/remaining1049-manual-review/manual-candidates/doc_d6555fd1e28f54e3a06de24c41e58aef66b9f88d1f6b8cd5e0bb57d58d1f671c-recovery-613323c635dfc71aa0edde12b6ac7a507f158abbdd88a1c515c1639e01490a0d.json",
+          "sha256": "613323c635dfc71aa0edde12b6ac7a507f158abbdd88a1c515c1639e01490a0d"
+        }
+      ]
+    },
+    {
+      "document_id": "doc_dfbf63de6d29234bc8e7e2c113b4341658f3ba3fd897b61565f35a97e49407fd",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_dfbf63de6d29234bc8e7e2c113b4341658f3ba3fd897b61565f35a97e49407fd.json",
+      "work_item_sha256": "d774cf100043e70f49e474236cfbf57b90e9fcac1da4bf7899d2a2814448e0f6",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_dfbf63de6d29234bc8e7e2c113b4341658f3ba3fd897b61565f35a97e49407fd/attempt-4/131e2a26e2d6e514c00f049b266b8ce8e347ec51e5fb54871ff5d75d377070b5.json",
+      "candidate_sha256": "131e2a26e2d6e514c00f049b266b8ce8e347ec51e5fb54871ff5d75d377070b5",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 45 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_103c6bbaf575012f88eb4240a6f7f7013ea4d370d6f6e946604418177bacd91d",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_103c6bbaf575012f88eb4240a6f7f7013ea4d370d6f6e946604418177bacd91d.json",
+      "work_item_sha256": "502b024d9f818c20be6c5f7d2f3cb6c9d03cc087ec4e4dfe7ea64470e8420a6a",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_103c6bbaf575012f88eb4240a6f7f7013ea4d370d6f6e946604418177bacd91d/attempt-4/f9f015f9f8c64d90bd53ed1e23f33355732efdaa046994e8660804866a5dffca.json",
+      "candidate_sha256": "f9f015f9f8c64d90bd53ed1e23f33355732efdaa046994e8660804866a5dffca",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 46 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": [
+            "HLC-I-24-039",
+            "23-333"
+          ],
+          "corrected_value": [
+            "HLC-I-24-039"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_b35d2cdc30b2b3a0ad31b9732367021e3c20461ae530006dfcbc2af7cfebb3e7",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_b35d2cdc30b2b3a0ad31b9732367021e3c20461ae530006dfcbc2af7cfebb3e7.json",
+      "work_item_sha256": "23a05d5c0b5a00a5bc80ebee2e8b8969045bd3a10a91af1683edb9e3df6ac25f",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_b35d2cdc30b2b3a0ad31b9732367021e3c20461ae530006dfcbc2af7cfebb3e7/attempt-4/2dd0e187f2bec00d0fb402b21921d579e97d1622172cc5555d0b80859c2197cf.json",
+      "candidate_sha256": "2dd0e187f2bec00d0fb402b21921d579e97d1622172cc5555d0b80859c2197cf",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 47 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "MSBU1220701",
+                  "packageQuantity": 250
+                },
+                {
+                  "containerNumber": "MSCU6753590",
+                  "packageQuantity": 250
+                },
+                {
+                  "containerNumber": "MSBU2714036",
+                  "packageQuantity": 250
+                },
+                {
+                  "containerNumber": "MSNU1300764",
+                  "packageQuantity": 250
+                }
+              ],
+              "coverage": "single_package_level",
+              "groupId": "g1",
+              "packageId": "p2"
+            }
+          ],
+          "corrected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "MSBU1220701",
+                  "packageQuantity": 8
+                },
+                {
+                  "containerNumber": "MSCU6753590",
+                  "packageQuantity": 8
+                },
+                {
+                  "containerNumber": "MSBU2714036",
+                  "packageQuantity": 8
+                },
+                {
+                  "containerNumber": "MSNU1300764",
+                  "packageQuantity": 8
+                }
+              ],
+              "coverage": "single_package_level",
+              "groupId": "g1",
+              "packageId": "p1"
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_2b03f3ceb86ef23f4d87d32e59d178405ff32d9c30f93b8b9f3479ecf52d5089",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_2b03f3ceb86ef23f4d87d32e59d178405ff32d9c30f93b8b9f3479ecf52d5089.json",
+      "work_item_sha256": "f352662d376d2419b0e229ca2ed4966e4ae8b64976823f677a67200392952c17",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_2b03f3ceb86ef23f4d87d32e59d178405ff32d9c30f93b8b9f3479ecf52d5089/attempt-4/525f60e2bda70b9a85a14582e39d7ef7a323a8a5d2b6a1c19f76d286917e179a.json",
+      "candidate_sha256": "525f60e2bda70b9a85a14582e39d7ef7a323a8a5d2b6a1c19f76d286917e179a",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 48 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/containers",
+          "expected_value": [
+            {
+              "containerNumber": "SIMU2529232",
+              "sealNumbers": [
+                "SIMU2529232"
+              ],
+              "temperatureSetpoint": null,
+              "typeDescription": "20 FT ISO TANK CONTAINER(S)",
+              "verifiedGrossMass": null
+            }
+          ],
+          "corrected_value": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_8df33385d120c5605b4198c58d7e66b308494404f6a6002b8b626ea5e2b9fd7f",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_8df33385d120c5605b4198c58d7e66b308494404f6a6002b8b626ea5e2b9fd7f.json",
+      "work_item_sha256": "0b865b80051434bbb42fc052a90782fe92465b52efdffd6e89a405255b66cbdd",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_8df33385d120c5605b4198c58d7e66b308494404f6a6002b8b626ea5e2b9fd7f/attempt-1/67e9fac2fa2399c283f60b2779777e8cf8147edfa0a78ed26ad9363e5913cd50.json",
+      "candidate_sha256": "67e9fac2fa2399c283f60b2779777e8cf8147edfa0a78ed26ad9363e5913cd50",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 49 from immutable raw OCR evidence."
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Voyage text has conflicting OCR candidates across repeated face copies; the emitted value is one verbatim raw-OCR candidate.",
+          "pageNumbers": [
+            1,
+            3,
+            5,
+            7,
+            9,
+            11
+          ],
+          "targetPath": "documentPatch.transport.voyageNumber"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_833411f7a40bbf9e47d1811e877c3af6353f0bda08c56e022d1e43d71a968dbc",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_833411f7a40bbf9e47d1811e877c3af6353f0bda08c56e022d1e43d71a968dbc.json",
+      "work_item_sha256": "d3667cd5525f5a63916a8c2ae1b96cf2cce1229a6ca328f6baad7a80cf77c20f",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_833411f7a40bbf9e47d1811e877c3af6353f0bda08c56e022d1e43d71a968dbc/attempt-4/1d9923e4c83d4e8e950049a893bc6861a07018635c22d1e11be4084f681f7d32.json",
+      "candidate_sha256": "1d9923e4c83d4e8e950049a893bc6861a07018635c22d1e11be4084f681f7d32",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 50 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true
+    },
+    {
+      "document_id": "doc_c62d9fc865e4d5ab90d17d727a1496306950ef6c7ceac40af79759f0f19d8c13",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_c62d9fc865e4d5ab90d17d727a1496306950ef6c7ceac40af79759f0f19d8c13.json",
+      "work_item_sha256": "025eac847407a6cf3642af6e4bee4267c80641bba1481efbed430b8f71b4f0ee",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_c62d9fc865e4d5ab90d17d727a1496306950ef6c7ceac40af79759f0f19d8c13/attempt-4/2e4d5ebd49ba38e70d75ba2022b3be13a64c96296d3ca0266908bd3e6f2d6962.json",
+      "candidate_sha256": "2e4d5ebd49ba38e70d75ba2022b3be13a64c96296d3ca0266908bd3e6f2d6962",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 51 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_568816e0ffd6f30ef75b65df4da533798cdc47d9d7a0b5d756f37c75b6011e72",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_568816e0ffd6f30ef75b65df4da533798cdc47d9d7a0b5d756f37c75b6011e72.json",
+      "work_item_sha256": "904098093ecace534fce7e04e628fe3aded61c9a0e0b450befef4953ac6ba39d",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_568816e0ffd6f30ef75b65df4da533798cdc47d9d7a0b5d756f37c75b6011e72/attempt-2/c318249f816c8f1ec8ee929b61b26ca23e6d999ba0f4dde8bd53f773c6062d01.json",
+      "candidate_sha256": "c318249f816c8f1ec8ee929b61b26ca23e6d999ba0f4dde8bd53f773c6062d01",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 52 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_bc7044908d216aebba23270b2ce48a63b9d5c495db1cd3e8fd101d1ab7623631",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_bc7044908d216aebba23270b2ce48a63b9d5c495db1cd3e8fd101d1ab7623631.json",
+      "work_item_sha256": "cec11cf1b3301bfd200c9fd5c743b7e1f16be89d55a26d8e833817a111230382",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_bc7044908d216aebba23270b2ce48a63b9d5c495db1cd3e8fd101d1ab7623631/attempt-4/a9df9f92bf9d2b2e92acd128ab45305b2e813f6d6c8fd530af793f4019ed8871.json",
+      "candidate_sha256": "a9df9f92bf9d2b2e92acd128ab45305b2e813f6d6c8fd530af793f4019ed8871",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 53 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "CBHU8542925",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CBHU8583333",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU6912609",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU6914495",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7093603",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7101611",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7165431",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7234743",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7246003",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CMAU5186989",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CMAU5187732",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4205885",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4206156",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4206958",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4207260",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4207403",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4208020",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4208204",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4208708",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "TCNU9796907",
+                  "packageQuantity": 800
+                }
+              ],
+              "coverage": "unlinked_package_quantities",
+              "groupId": "g1"
+            }
+          ],
+          "corrected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "CBHU8542925",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CBHU8583333",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU6912609",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU6914495",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7093603",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7101611",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7165431",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7234743",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CCLU7246003",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CMAU5186989",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "CMAU5187732",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4205885",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4206156",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4206958",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4207260",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4207403",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4208020",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4208204",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "NLLU4208708",
+                  "packageQuantity": 800
+                },
+                {
+                  "containerNumber": "TCNU9796907",
+                  "packageQuantity": 800
+                }
+              ],
+              "coverage": "single_package_level",
+              "groupId": "g1",
+              "packageId": "p1"
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_d3a5e325c8a2da35294c766c5982d70279b22dedb959eef9cf4d2dc7c63a0204",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_d3a5e325c8a2da35294c766c5982d70279b22dedb959eef9cf4d2dc7c63a0204.json",
+      "work_item_sha256": "9a60f59a80a984138537be1c65859919a8939a3228f17cf7c2072f271ee99be0",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_d3a5e325c8a2da35294c766c5982d70279b22dedb959eef9cf4d2dc7c63a0204/attempt-4/02fb8c3e366c79e1ccabfd32334c00be37d132e395f0cd7921034bd1de722cd4.json",
+      "candidate_sha256": "02fb8c3e366c79e1ccabfd32334c00be37d132e395f0cd7921034bd1de722cd4",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 54 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/marksAndNumbers",
+          "expected_value": [
+            "SAMSUNG ELECTRONICS EGYPT SAE (SEEG)"
+          ],
+          "corrected_value": [
+            "SAMSUNG ELECTRONICS EGYPT SAE (SEEG)",
+            "P/O NO. 3103142070",
+            "CUSTOMER P/O NO. 3103142376",
+            "P/L NO. 1-26"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_234b17e9a3dd90604a5d83fd265cee1fcef25a0e73e07f4e7ab3caaa32738421",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_234b17e9a3dd90604a5d83fd265cee1fcef25a0e73e07f4e7ab3caaa32738421.json",
+      "work_item_sha256": "5a9b322d698fc249539ee7e8812431383259f970f8da306ee97ec1d060f9b269",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_234b17e9a3dd90604a5d83fd265cee1fcef25a0e73e07f4e7ab3caaa32738421/attempt-4/dab214e7aa091a0a10558bd4c998a1f802c4af0659fad194c1ba1ca8fc7a4615.json",
+      "candidate_sha256": "dab214e7aa091a0a10558bd4c998a1f802c4af0659fad194c1ba1ca8fc7a4615",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 55 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_cee6359e16d93f84f6eec847c849c295800c6bd585ab36ef5e79b94ce3bb787e",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_cee6359e16d93f84f6eec847c849c295800c6bd585ab36ef5e79b94ce3bb787e.json",
+      "work_item_sha256": "90377358dd5c4723b1ee30c37395e12efdb0f3a4e4ce98ab41523fbb5ed7efef",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_cee6359e16d93f84f6eec847c849c295800c6bd585ab36ef5e79b94ce3bb787e/attempt-4/e80130d6ce964399f787d0cbb149680d26392072476936ba183f7a77fb59b759.json",
+      "candidate_sha256": "e80130d6ce964399f787d0cbb149680d26392072476936ba183f7a77fb59b759",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 56 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_b312ee012815f646eb430289204cc9daf7bc9815c9fc3121acf433e3016df137",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_b312ee012815f646eb430289204cc9daf7bc9815c9fc3121acf433e3016df137.json",
+      "work_item_sha256": "66cfd259aa654777309bf9a6e222461ac54f696f369a7965ca33e31b3a15465b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_b312ee012815f646eb430289204cc9daf7bc9815c9fc3121acf433e3016df137/attempt-4/d4b97a23281d41018549470632a5eb3f0d674e51e3c8cb93528cd11b892c7b51.json",
+      "candidate_sha256": "d4b97a23281d41018549470632a5eb3f0d674e51e3c8cb93528cd11b892c7b51",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 57 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_e349b0d3ec2a2b2984182fc3be022e5df996255c5de5a1daa9bccfb5a680744f",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_e349b0d3ec2a2b2984182fc3be022e5df996255c5de5a1daa9bccfb5a680744f.json",
+      "work_item_sha256": "c045ed14a7e55e2df704a70a9f186d6758faca09d9299f4bb78f37752fd59a0b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_e349b0d3ec2a2b2984182fc3be022e5df996255c5de5a1daa9bccfb5a680744f/attempt-4/58fb72baa0ef40073742754f94e5d9a301f6827f0752da32fd999a5711289c97.json",
+      "candidate_sha256": "58fb72baa0ef40073742754f94e5d9a301f6827f0752da32fd999a5711289c97",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 58 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 9,
+              "typeDescription": "PALLETS"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p2",
+              "quantity": 375,
+              "typeDescription": "ROLLS"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p3",
+              "quantity": 114,
+              "typeDescription": "PACKAGES"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 4,
+              "typeDescription": "PALLETS"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p2",
+              "quantity": 375,
+              "typeDescription": "ROLLS"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p3",
+              "quantity": 5,
+              "typeDescription": "PALLETS"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p4",
+              "quantity": 114,
+              "typeDescription": "PACKAGES"
+            }
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "SEGU6953987",
+                  "packageQuantity": 9
+                }
+              ],
+              "coverage": "single_package_level",
+              "groupId": "g1",
+              "packageId": "p1"
+            }
+          ],
+          "corrected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "SEGU6953987",
+                  "packageId": "p1",
+                  "packageQuantity": 4
+                },
+                {
+                  "containerNumber": "SEGU6953987",
+                  "packageId": "p3",
+                  "packageQuantity": 5
+                }
+              ],
+              "coverage": "one_to_one_package_allocations",
+              "groupId": "g1"
+            }
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": null,
+          "corrected_value": [
+            "375 ROLLS 2165 KG",
+            "114 PACKAGES 1163 KG",
+            "CARGO IN TRANSIT TO UGL BONDED WAREHOUSE"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_febb162c84a5aa30255f7fcdf7007cd6b74fd4a719a0acf7f5caa63ff919a73b",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_febb162c84a5aa30255f7fcdf7007cd6b74fd4a719a0acf7f5caa63ff919a73b.json",
+      "work_item_sha256": "908ad84643bbe56188e0c8835d7f2d56392be3125857bf315abceec3c190c337",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_febb162c84a5aa30255f7fcdf7007cd6b74fd4a719a0acf7f5caa63ff919a73b/attempt-2/3212d29e27fbbad512df7e1135181541cc5deb00d0e18e3e54753c78f9904436.json",
+      "candidate_sha256": "3212d29e27fbbad512df7e1135181541cc5deb00d0e18e3e54753c78f9904436",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 59 from immutable raw OCR evidence."
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/parties/shipper/address",
+          "expected_value": "52, SANDAN-RO 163BEON-GIL, DANWON-GU",
+          "corrected_value": "52, SANDAN-RO 163BEON-GIL, DANWON-GU, GYEONGGI-DO"
+        },
+        {
+          "target_path": "/documentPatch/parties/consignee/city",
+          "expected_value": "BENI SUEF",
+          "corrected_value": "INDUSTRIAL ZONE, BENI SUEF"
+        },
+        {
+          "target_path": "/documentPatch/parties/deliveryAgent/address",
+          "expected_value": "TEDA EGYPT FOR INVESTMENT NORTH-WEST GULF OF SUEZ ECONOMIC",
+          "corrected_value": "TEDA EGYPT FOR INVESTMENT NORTH-WEST GULF OF SUEZ ECONOMIC SECTOR, AIN SOKHNA, 3RD FLOOR UNIT 310"
+        },
+        {
+          "target_path": "/documentPatch/parties/deliveryAgent/city",
+          "expected_value": null,
+          "corrected_value": "SUEZ"
+        },
+        {
+          "target_path": "/documentPatch/parties/deliveryAgent/country",
+          "expected_value": null,
+          "corrected_value": "EGYPT"
+        },
+        {
+          "target_path": "/documentPatch/parties/deliveryAgent/contactDetails",
+          "expected_value": null,
+          "corrected_value": {
+            "contactName": null,
+            "emailAddresses": null,
+            "phoneNumbers": [
+              "+2 01211116151",
+              "+2 01211116153"
+            ],
+            "websiteUrls": null
+          }
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/description",
+          "expected_value": "ANTISTA R-630 UW-100",
+          "corrected_value": "FINISHING AGENT ANTISTA R-630 UW-100"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_684dffda5b396012f7d3cf5e88edadad26d4d96d026def8b980993018b3994c2",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_684dffda5b396012f7d3cf5e88edadad26d4d96d026def8b980993018b3994c2.json",
+      "work_item_sha256": "239162500dce73f4c3af53f340be3a44364d9c7acd0669e0af2e785888c84972",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_684dffda5b396012f7d3cf5e88edadad26d4d96d026def8b980993018b3994c2/attempt-4/159f570120cd7ba4e2d42fab098dc58168bba722fd6e8d5166d3b50706db8eef.json",
+      "candidate_sha256": "159f570120cd7ba4e2d42fab098dc58168bba722fd6e8d5166d3b50706db8eef",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual overseer adjudication resolved held case 60 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": "negotiable",
+          "corrected_value": "non_negotiable"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Manual adjudication from immutable raw OCR and retained source evidence."
+        ]
+      }
+    }
+  ]
+}

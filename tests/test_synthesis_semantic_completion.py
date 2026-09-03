@@ -170,7 +170,7 @@ def test_sparse_document_quota_uses_full_selected_population() -> None:
 
 
 def _thermal_completion_plan(*, second_setpoint: float) -> dict[str, object]:
-    target: dict[str, object] = {}
+    target: dict[str, object] = {"documentPatch": {}}
     return {
         "schema_version": 1,
         "scenario_id": "syn_1",
@@ -195,6 +195,7 @@ def _thermal_completion_plan(*, second_setpoint: float) -> dict[str, object]:
                 "associated_container_numbers": ("C1", "C2"),
             },
         ),
+        "package_goods_realizations": (),
         "equipment_realizations": (
             {
                 "container_number": "C1",

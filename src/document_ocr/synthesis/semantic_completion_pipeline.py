@@ -37,6 +37,9 @@ from document_ocr.label_schemas.bill_of_lading_v5 import (
 )
 from document_ocr.synthesis import container_semantics as container_semantics_module
 from document_ocr.synthesis import flashpoint_scenarios as flashpoint_scenarios_module
+from document_ocr.synthesis import (
+    package_goods_compatibility as package_goods_compatibility_module,
+)
 from document_ocr.synthesis import task_adapter as task_adapter_module
 from document_ocr.synthesis import thermal_goods as thermal_goods_module
 from document_ocr.synthesis import transport_auxiliary as transport_auxiliary_module
@@ -63,6 +66,20 @@ from document_ocr.synthesis.hs_registry import (
     compile_uk_global_tariff_registry,
     load_ukgt_source_pin,
 )
+from document_ocr.synthesis.package_goods_compatibility import (
+    PackageCompatibilityContext,
+    PackageCompatibilityResolution,
+    PackageDangerousGoodsFact,
+    PackageGoodsFitSupport,
+    apply_package_signature,
+    build_package_goods_fit_support,
+    load_fit_partition_document_ids,
+    sample_compatible_cargo,
+    sample_dangerous_goods_package,
+    sample_supported_thermal_profile,
+    supported_thermal_profiles,
+)
+from document_ocr.synthesis.package_registry import load_package_registry
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.scenario_state import ScenarioChange
 from document_ocr.synthesis.task_adapter import (
@@ -78,7 +95,6 @@ from document_ocr.synthesis.thermal_goods import (
     sample_ambient_goods,
     sample_temperature_setpoint,
     sample_thermal_goods,
-    sample_thermal_profile,
 )
 from document_ocr.synthesis.transport_auxiliary import (
     SyntheticImoNumber,
@@ -176,6 +192,38 @@ class FlashpointRealization(BaseModel):
         return self
 
 
+class PackageGoodsCompatibilityRealization(BaseModel):
+    model_config = _STRICT
+
+    cargo_group_id: NonEmptyText
+    package_signature: tuple[NonEmptyText, ...] = Field(min_length=1, max_length=32)
+    basis: Literal[
+        "fit_hs_heading_joint",
+        "fit_thermal_profile_joint",
+        "fit_dangerous_goods_hazard_joint",
+        "provider_native_constrained_package_compatibility_v1",
+    ]
+    support_key: NonEmptyText
+    support_occurrences: Annotated[int, Field(gt=0)] | None
+    support_document_count: Annotated[int, Field(gt=0)] | None
+    catalog_context_sha256: Sha256 | None
+    catalog_rationale: NonEmptyText | None
+
+    @model_validator(mode="after")
+    def empirical_and_catalog_provenance_are_exclusive(
+        self,
+    ) -> PackageGoodsCompatibilityRealization:
+        catalog = self.basis == "provider_native_constrained_package_compatibility_v1"
+        if catalog != (self.catalog_context_sha256 is not None):
+            raise ValueError("catalog package basis and context digest must be paired")
+        if catalog != (self.catalog_rationale is not None):
+            raise ValueError("catalog package basis and rationale must be paired")
+        empirical = self.support_occurrences is not None and self.support_document_count is not None
+        if catalog == empirical:
+            raise ValueError("package compatibility requires exactly one provenance branch")
+        return self
+
+
 class SemanticCompletionPlanRow(BaseModel):
     model_config = _STRICT
 
@@ -189,6 +237,7 @@ class SemanticCompletionPlanRow(BaseModel):
     target_sha256: Sha256
     changes: tuple[ScenarioChange, ...]
     cargo_realizations: tuple[CargoSemanticRealization, ...]
+    package_goods_realizations: tuple[PackageGoodsCompatibilityRealization, ...]
     equipment_realizations: tuple[EquipmentSemanticRealization, ...]
     transport_auxiliary: TransportAuxiliaryRealization
     flashpoint_realizations: tuple[FlashpointRealization, ...]
@@ -227,6 +276,24 @@ class SemanticCompletionPlanRow(BaseModel):
             raise ValueError("thermal cargo and equipment relations differ")
         if any(len(values) != 1 for values in observed_setpoints.values()):
             raise ValueError("one thermal cargo group must use one shared setpoint")
+        patch = cast(Mapping[str, Any], self.target["documentPatch"])
+        target_signatures: dict[str, list[str]] = defaultdict(list)
+        for package in patch.get("cargoPackages") or ():
+            target_signatures[cast(str, package["groupId"])].append(
+                cast(str, package["typeCategory"])
+            )
+        realized = {
+            row.cargo_group_id: row.package_signature for row in self.package_goods_realizations
+        }
+        if len(realized) != len(self.package_goods_realizations):
+            raise ValueError("package/goods realizations repeat a cargo group")
+        expected = {
+            group_id: tuple(signature)
+            for group_id, signature in target_signatures.items()
+            if signature
+        }
+        if realized != expected:
+            raise ValueError("package/goods realization signatures differ from target packages")
         return self
 
 
@@ -268,8 +335,45 @@ def _load_dg_plans(path: Path, *, expected_records: int) -> tuple[DangerousGoods
     return tuple(rows)
 
 
+def _load_package_compatibility_resolutions(
+    path: Path,
+    *,
+    expected_records: int,
+    allowed_category_tokens: Sequence[str],
+) -> dict[str, PackageCompatibilityResolution]:
+    allowed = tuple(allowed_category_tokens)
+    expected_vocabulary_sha256 = sha256_bytes(canonical_json_bytes(allowed))
+    rows: dict[str, PackageCompatibilityResolution] = {}
+    with path.open("rb") as stream:
+        for line_number, raw in enumerate(stream, start=1):
+            if not raw.strip() or not raw.endswith(b"\n"):
+                raise ValueError(
+                    f"package compatibility row {line_number} is blank or unterminated"
+                )
+            try:
+                row = PackageCompatibilityResolution.model_validate_json(raw, strict=True)
+            except ValueError as error:
+                raise ValueError(
+                    f"package compatibility row {line_number} is invalid"
+                ) from error
+            if row.allowedCategoryTokensSha256 != expected_vocabulary_sha256:
+                raise ValueError("package compatibility catalog uses another task vocabulary")
+            if any(
+                category not in allowed
+                for candidate in row.candidates
+                for category in candidate.categories
+            ):
+                raise ValueError("package compatibility catalog contains an unknown category")
+            if row.contextSha256 in rows:
+                raise ValueError("package compatibility catalog repeats a context")
+            rows[row.contextSha256] = row
+    if len(rows) != expected_records:
+        raise ValueError("package compatibility record count differs from configuration")
+    return rows
+
+
 def _load_source_targets(
-    *, project_root: Path, config: SynthesisSemanticCompletionConfig
+    *, project_root: Path, config: Any
 ) -> dict[str, dict[str, Any]]:
     source_path = _resolve_file(
         project_root,
@@ -419,7 +523,7 @@ def _group_allocations(patch: Mapping[str, Any]) -> dict[str, tuple[str, ...]]:
     return output
 
 
-def _eligible_thermal_groups(target: Mapping[str, Any]) -> tuple[str, ...]:
+def _structurally_eligible_thermal_groups(target: Mapping[str, Any]) -> tuple[str, ...]:
     patch = cast(Mapping[str, Any], target["documentPatch"])
     containers = {row["containerNumber"] for row in patch.get("containers") or []}
     allocations = _group_allocations(patch)
@@ -439,6 +543,36 @@ def _eligible_thermal_groups(target: Mapping[str, Any]) -> tuple[str, ...]:
         and set(allocations[group["groupId"]]) <= containers
         and not set(allocations[group["groupId"]]) & dangerous_containers
     )
+
+
+def _eligible_thermal_profiles_by_group(
+    *,
+    target: Mapping[str, Any],
+    package_support: PackageGoodsFitSupport,
+    goods_support: ThermalGoodsSupport,
+) -> dict[str, tuple[Literal["FROZEN", "CHILLED"], ...]]:
+    """Resolve every profile that the target topology and fit support can realize."""
+
+    patch = cast(Mapping[str, Any], target["documentPatch"])
+    structurally_eligible = frozenset(_structurally_eligible_thermal_groups(target))
+    packages_by_group: dict[str, int] = Counter(
+        cast(str, package["groupId"]) for package in patch.get("cargoPackages") or ()
+    )
+    output: dict[str, tuple[Literal["FROZEN", "CHILLED"], ...]] = {}
+    for group in patch.get("cargoGroups") or ():
+        group_id = cast(str, group["groupId"])
+        if group_id not in structurally_eligible:
+            continue
+        existing_hs_codes = tuple(cast(Sequence[str], group.get("hsCodes") or ()))
+        profiles = supported_thermal_profiles(
+            support=package_support,
+            goods_support=goods_support,
+            package_count=packages_by_group.get(group_id, 0),
+            identity_count=len(existing_hs_codes) or 1,
+        )
+        if profiles:
+            output[group_id] = profiles
+    return output
 
 
 def _ranked_quota(
@@ -495,46 +629,173 @@ def _sample_distinct_identity(
 def _apply_cargo_semantics(
     *,
     target: dict[str, Any],
-    thermal_group_id: str | None,
-    support: ThermalGoodsSupport,
+    plan: DangerousGoodsPlanRow,
+    thermal_group_profile: tuple[str, Literal["FROZEN", "CHILLED"]] | None,
+    goods_support: ThermalGoodsSupport,
+    package_support: PackageGoodsFitSupport,
+    package_catalog: Mapping[str, PackageCompatibilityResolution],
     stream: DeterministicStream,
     config: SynthesisSemanticCompletionConfig,
 ) -> tuple[
     tuple[CargoSemanticRealization, ...],
+    tuple[PackageGoodsCompatibilityRealization, ...],
     dict[str, Literal["FROZEN", "CHILLED"]],
     dict[str, tuple[str, ...]],
+    frozenset[str],
 ]:
     patch = cast(dict[str, Any], target["documentPatch"])
     allocations = _group_allocations(patch)
     profile_by_group: dict[str, Literal["FROZEN", "CHILLED"]] = {}
-    if thermal_group_id is not None:
-        profile_by_group[thermal_group_id] = sample_thermal_profile(
-            weights_permyriad=config.generation.thermal.profile_weights_permyriad,
-            stream=stream.derive("selected-thermal-group"),
-        )
+    if thermal_group_profile is not None:
+        group_id, thermal_profile = thermal_group_profile
+        profile_by_group[group_id] = thermal_profile
     output: list[CargoSemanticRealization] = []
+    package_output: list[PackageGoodsCompatibilityRealization] = []
+    used_catalog_contexts: set[str] = set()
     used_hs6: set[str] = set()
+    packages_by_group: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for package in patch.get("cargoPackages") or ():
+        packages_by_group[cast(str, package["groupId"])].append(package)
+    dg_by_group: dict[str, list[Any]] = defaultdict(list)
+    for realization in plan.realizations:
+        dg_by_group[realization.cargo_group_id].append(realization)
     for group_order, group in enumerate(patch.get("cargoGroups") or []):
-        if group.get("dangerousGoods"):
-            continue
         group_id = cast(str, group["groupId"])
+        package_count = len(packages_by_group.get(group_id, ()))
+        group_stream = stream.derive(f"group-{group_order}")
+        if group.get("dangerousGoods"):
+            realizations = tuple(
+                sorted(dg_by_group.get(group_id, ()), key=lambda row: row.dangerous_goods_order)
+            )
+            if not realizations:
+                raise ValueError("dangerous-goods target group lacks semantic realization")
+            if package_count == 0:
+                continue
+            empirical = sample_dangerous_goods_package(
+                support=package_support,
+                hazard_categories=tuple(
+                    value.semantic_hazard_category for value in realizations
+                ),
+                package_count=package_count,
+                stream=group_stream.derive("dangerous-goods-package"),
+            )
+            if empirical is not None:
+                signature = empirical.package_signature
+                package_output.append(
+                    PackageGoodsCompatibilityRealization(
+                        cargo_group_id=group_id,
+                        package_signature=signature,
+                        basis=empirical.basis,
+                        support_key=empirical.support_key,
+                        support_occurrences=empirical.support_occurrences,
+                        support_document_count=empirical.support_document_count,
+                        catalog_context_sha256=None,
+                        catalog_rationale=None,
+                    )
+                )
+            else:
+                if any(not value.generated_hs_codes for value in realizations):
+                    raise ValueError("dangerous-goods realization lacks generated HS identity")
+                context = PackageCompatibilityContext(
+                    dangerousGoods=tuple(
+                        PackageDangerousGoodsFact(
+                            properShippingName=value.proper_shipping_name,
+                            hs6=value.generated_hs_codes[0][:6],
+                            hazardCategory=value.semantic_hazard_category,
+                            exactHazardClass=value.exact_hazard_class,
+                            subsidiaryHazardCategories=(
+                                value.semantic_subsidiary_hazard_categories
+                            ),
+                            packingGroupCategory=value.packing_group_category,
+                        )
+                        for value in realizations
+                    ),
+                    packageCount=package_count,
+                )
+                try:
+                    resolution = package_catalog[context.sha256]
+                except KeyError as error:
+                    raise ValueError(
+                        "DG package context is absent from the constrained compatibility catalog"
+                    ) from error
+                candidate = resolution.candidates[
+                    group_stream.derive("catalog-candidate").randbelow(
+                        len(resolution.candidates)
+                    )
+                ]
+                signature = candidate.categories
+                used_catalog_contexts.add(context.sha256)
+                package_output.append(
+                    PackageGoodsCompatibilityRealization(
+                        cargo_group_id=group_id,
+                        package_signature=signature,
+                        basis=resolution.method,
+                        support_key=context.sha256,
+                        support_occurrences=None,
+                        support_document_count=None,
+                        catalog_context_sha256=context.sha256,
+                        catalog_rationale=candidate.rationale,
+                    )
+                )
+            apply_package_signature(target=target, group_id=group_id, signature=signature)
+            continue
         profile = profile_by_group.get(group_id)
         existing = tuple(cast(Sequence[str], group.get("hsCodes") or ()))
         identity_count = len(existing) or 1
-        generated_codes: list[str] = []
-        for identity_order in range(identity_count):
-            identity = _sample_distinct_identity(
-                support=support,
-                profile=profile,
-                stream=stream.derive(f"group-{group_order}-identity-{identity_order}"),
-                used_hs6=used_hs6,
+        selected_identities: Sequence[ThermalGoodsIdentity | AmbientGoodsIdentity]
+        if package_count:
+            try:
+                compatible = sample_compatible_cargo(
+                    support=package_support,
+                    goods_support=goods_support,
+                    profile=profile,
+                    package_count=package_count,
+                    identity_count=identity_count,
+                    stream=group_stream.derive("package-goods"),
+                    excluded_hs6=used_hs6,
+                )
+            except ValueError as error:
+                raise ValueError(
+                    "package/goods support cannot resolve cargo group "
+                    f"{group_id!r}: profile={profile!r}, packages={package_count}, "
+                    f"identities={identity_count}"
+                ) from error
+            selected_identities = compatible.identities
+            apply_package_signature(
+                target=target,
+                group_id=group_id,
+                signature=compatible.package_signature,
             )
+            package_output.append(
+                PackageGoodsCompatibilityRealization(
+                    cargo_group_id=group_id,
+                    package_signature=compatible.package_signature,
+                    basis=compatible.basis,
+                    support_key=compatible.support_key,
+                    support_occurrences=compatible.support_occurrences,
+                    support_document_count=compatible.support_document_count,
+                    catalog_context_sha256=None,
+                    catalog_rationale=None,
+                )
+            )
+        else:
+            selected_identities = tuple(
+                _sample_distinct_identity(
+                    support=goods_support,
+                    profile=profile,
+                    stream=group_stream.derive(f"identity-{identity_order}"),
+                    used_hs6=used_hs6,
+                )
+                for identity_order in range(identity_count)
+            )
+        generated_codes: list[str] = []
+        for identity_order, identity in enumerate(selected_identities):
             output_code = None
             if existing:
                 output_code = render_synthetic_hs_code(
                     hs6=identity.hs6,
                     output_digits=len(existing[identity_order]),
-                    stream=stream.derive(f"group-{group_order}-hs-{identity_order}"),
+                    stream=group_stream.derive(f"hs-{identity_order}"),
                 )
                 generated_codes.append(output_code)
             output.append(
@@ -555,7 +816,13 @@ def _apply_cargo_semantics(
             )
         if existing:
             group["hsCodes"] = generated_codes
-    return tuple(output), profile_by_group, allocations
+    return (
+        tuple(output),
+        tuple(package_output),
+        profile_by_group,
+        allocations,
+        frozenset(used_catalog_contexts),
+    )
 
 
 def _apply_equipment_semantics(
@@ -834,6 +1101,13 @@ def _change_ledger(
                 "goods_identity_conditioned_hs_v1",
                 "cargo_semantics",
             )
+        elif role.endswith(".typeCategory") and ".cargoPackages[]" in role:
+            kind, rendering, method, coupling = (
+                "categorical",
+                "exact_scalar",
+                "fit_joint_goods_package_or_constrained_catalog_v1",
+                "cargo_package_semantics",
+            )
         elif role.endswith(".vesselImoNumber"):
             kind, rendering, method, coupling = (
                 "identifier",
@@ -952,16 +1226,6 @@ def run_semantic_completion(
     )
     flag_codes = maritime_flag_country_codes(world_ports)
 
-    eligible_groups = {row.base_document_id: _eligible_thermal_groups(row.target) for row in plans}
-    thermal_documents = _ranked_quota(
-        document_ids=tuple(
-            document_id for document_id, groups in eligible_groups.items() if groups
-        ),
-        permyriad=config.generation.thermal.document_prevalence_permyriad,
-        seed=config.generation.seed,
-        namespace=f"{config.run.run_id}-thermal",
-        population_size=len(plans),
-    )
     imo_by_document, flag_requested = _transport_allocations(
         plans=plans,
         source_imo=source_imo,
@@ -974,6 +1238,67 @@ def run_semantic_completion(
     )
     source_constraints = RelationExplicitTaskConstraints.model_validate_json(
         read_regular_file_bytes(source_constraints_path), strict=True
+    )
+    fit_partition_path = _resolve_file(
+        project_root,
+        config.inputs.fit_partition_report.path,
+        config.inputs.fit_partition_report.sha256,
+        label="fit partition report",
+    )
+    fit_document_ids = load_fit_partition_document_ids(fit_partition_path)
+    package_registry_path = _resolve_file(
+        project_root,
+        config.inputs.package_registry.path,
+        config.inputs.package_registry.sha256,
+        label="package registry",
+    )
+    package_registry = load_package_registry(
+        package_registry_path,
+        expected_sha256=config.inputs.package_registry.sha256,
+        expected_entries=config.inputs.package_registry_entries,
+    )
+    if source_constraints.packageRegistrySha256 != config.inputs.package_registry.sha256:
+        raise ValueError("source task constraints and package registry pins differ")
+    if not set(source_constraints.packageCategoryTokens) <= package_registry.category_tokens:
+        raise ValueError("source task package vocabulary is absent from its pinned registry")
+    package_support = build_package_goods_fit_support(
+        source_targets=source_targets,
+        fit_document_ids=fit_document_ids,
+        allowed_category_tokens=source_constraints.packageCategoryTokens,
+        frozen_minimum_celsius=config.generation.thermal.frozen_minimum_celsius,
+        frozen_maximum_celsius=config.generation.thermal.frozen_maximum_celsius,
+        chilled_minimum_celsius=config.generation.thermal.chilled_minimum_celsius,
+        chilled_maximum_celsius=config.generation.thermal.chilled_maximum_celsius,
+    )
+    package_catalog_path = _resolve_file(
+        project_root,
+        config.inputs.package_compatibility_resolutions.path,
+        config.inputs.package_compatibility_resolutions.sha256,
+        label="package compatibility resolutions",
+    )
+    package_catalog = _load_package_compatibility_resolutions(
+        package_catalog_path,
+        expected_records=config.inputs.package_compatibility_resolutions.records,
+        allowed_category_tokens=source_constraints.packageCategoryTokens,
+    )
+    eligible_profiles = {
+        row.base_document_id: _eligible_thermal_profiles_by_group(
+            target=row.target,
+            package_support=package_support,
+            goods_support=thermal_support,
+        )
+        for row in plans
+    }
+    thermal_documents = _ranked_quota(
+        document_ids=tuple(
+            document_id
+            for document_id, profiles_by_group in eligible_profiles.items()
+            if profiles_by_group
+        ),
+        permyriad=config.generation.thermal.document_prevalence_permyriad,
+        seed=config.generation.seed,
+        namespace=f"{config.run.run_id}-thermal",
+        population_size=len(plans),
     )
     target_task = get_training_task(config.target_task)
     target_schema = target_task.target_model.model_json_schema(mode="serialization")
@@ -994,6 +1319,8 @@ def run_semantic_completion(
     size_counts: Counter[str] = Counter()
     thermal_profile_counts: Counter[str] = Counter()
     flashpoint_counts: Counter[str] = Counter()
+    package_basis_counts: Counter[str] = Counter()
+    used_package_catalog_contexts: set[str] = set()
     for plan in plans:
         document_id = plan.base_document_id
         stream = DeterministicStream(
@@ -1002,17 +1329,34 @@ def run_semantic_completion(
             identity=document_id,
         )
         target = migrate_relation_v4_target_to_v5(plan.target)
-        thermal_group = None
+        thermal_group_profile = None
         if document_id in thermal_documents:
-            groups = eligible_groups[document_id]
+            profiles_by_group = eligible_profiles[document_id]
+            groups = tuple(profiles_by_group)
             thermal_group = groups[stream.derive("thermal-group").randbelow(len(groups))]
-        cargo_rows, profiles, allocations = _apply_cargo_semantics(
+            thermal_profile = sample_supported_thermal_profile(
+                profiles=profiles_by_group[thermal_group],
+                weights_permyriad=config.generation.thermal.profile_weights_permyriad,
+                stream=stream.derive("thermal-profile"),
+            )
+            thermal_group_profile = (thermal_group, thermal_profile)
+        (
+            cargo_rows,
+            package_rows,
+            profiles,
+            allocations,
+            used_catalog_contexts,
+        ) = _apply_cargo_semantics(
             target=target,
-            thermal_group_id=thermal_group,
-            support=thermal_support,
+            plan=plan,
+            thermal_group_profile=thermal_group_profile,
+            goods_support=thermal_support,
+            package_support=package_support,
+            package_catalog=package_catalog,
             stream=stream.derive("cargo"),
             config=config,
         )
+        used_package_catalog_contexts.update(used_catalog_contexts)
         equipment_rows = _apply_equipment_semantics(
             target=target,
             profile_by_group=profiles,
@@ -1059,6 +1403,7 @@ def run_semantic_completion(
             target_sha256=sha256_bytes(canonical_json_bytes(canonical)),
             changes=_change_ledger(plan.target, canonical),
             cargo_realizations=cargo_rows,
+            package_goods_realizations=package_rows,
             equipment_realizations=equipment_rows,
             transport_auxiliary=transport,
             flashpoint_realizations=flashpoints,
@@ -1075,9 +1420,18 @@ def run_semantic_completion(
             equipment_counts[equipment_value.type_category] += 1
             size_counts[equipment_value.size_category] += 1
         thermal_profile_counts.update(profiles.values())
+        package_basis_counts.update(value.basis for value in package_rows)
         for flashpoint_value in flashpoints:
             outcome = "generated" if flashpoint_value.generated else "omitted"
             flashpoint_counts[f"{flashpoint_value.eligibility}:{outcome}"] += 1
+
+    if used_package_catalog_contexts != set(package_catalog):
+        missing = sorted(set(package_catalog) - used_package_catalog_contexts)
+        extra = sorted(used_package_catalog_contexts - set(package_catalog))
+        raise ValueError(
+            "package compatibility catalog coverage differs from selected plans: "
+            f"unused={missing}, unpinned={extra}"
+        )
 
     plan_payload = b"".join(
         canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in output_rows
@@ -1142,9 +1496,18 @@ def run_semantic_completion(
             "chilledHs6": len(thermal_support.chilled),
             "ambientHs6": len(thermal_support.ambient),
         },
-        "thermalEligibleDocuments": sum(bool(value) for value in eligible_groups.values()),
+        "thermalEligibleDocuments": sum(bool(value) for value in eligible_profiles.values()),
         "thermalDocuments": len(thermal_documents),
         "thermalProfileCounts": dict(sorted(thermal_profile_counts.items())),
+        "packageGoodsCompatibility": {
+            "fitDocuments": package_support.audit.fit_document_count,
+            "typedPackageGroups": package_support.audit.typed_package_group_count,
+            "hsHeadingSupportRows": len(package_support.hs_heading_rows),
+            "thermalProfileSupportRows": len(package_support.thermal_profile_rows),
+            "dangerousGoodsSupportRows": len(package_support.dangerous_goods_rows),
+            "catalogResolutionRecords": len(package_catalog),
+            "generatedBasisCounts": dict(sorted(package_basis_counts.items())),
+        },
         "generatedContainerTypeCounts": dict(sorted(equipment_counts.items())),
         "generatedContainerSizeCounts": dict(sorted(size_counts.items())),
         "generatedImoNumbers": len(imo_by_document),
@@ -1169,10 +1532,14 @@ def run_semantic_completion(
 - Source equipment rows resolved: **{resolved_equipment:,} / {input_equipment:,}**
 - Source temperature rows resolved: **{resolved_temperature:,} / {input_temperature:,}**
 - Thermal documents generated: **{len(thermal_documents):,}**
+- Package/goods groups jointly resolved: **{sum(package_basis_counts.values()):,}**
+- Constrained package-catalog contexts consumed: **{len(used_package_catalog_contexts):,}**
 - IMO values / vessel flags generated: **{len(imo_by_document):,} / {len(flag_requested):,}**
 - Strict schema and relational inverse passes: **{len(output_rows):,} / {len(output_rows):,}**
 
-The stage samples cargo semantics before refrigeration and equipment.  Generated equipment
+The stage co-samples goods identities and complete task-facing package signatures from fit-only
+HS-heading or temperature-profile relationships. Dangerous-goods hazards use the same empirical
+path when supported and a reusable provider-constrained catalog otherwise. Generated equipment
 uses readable size/type labels in the model target and projects deterministically to an MPCI/BIC
 four-character code retained in provenance.  Sparse IMO values are random checksum-valid
 identifiers; vessel flags are sampled independently from countries represented in the pinned
@@ -1193,6 +1560,11 @@ raw-OCR patching remain explicit blockers for the linguistic realization stage.
                 "equipmentRegistrySha256": config.inputs.equipment_registry_manifest.sha256,
                 "mpciContainerRegistrySha256": config.inputs.mpci_container_registry.sha256,
                 "hsRegistrySha256": config.inputs.hs_registry_manifest.sha256,
+                "fitPartitionSha256": config.inputs.fit_partition_report.sha256,
+                "packageRegistrySha256": config.inputs.package_registry.sha256,
+                "packageCompatibilityResolutionsSha256": (
+                    config.inputs.package_compatibility_resolutions.sha256
+                ),
                 "worldPortsSha256": config.inputs.world_ports.sha256,
                 "plansSha256": sha256_bytes(plan_payload),
                 "targetsSha256": sha256_bytes(target_payload),
@@ -1204,6 +1576,9 @@ raw-OCR patching remain explicit blockers for the linguistic realization stage.
                     Path(container_semantics_module.__file__)
                 ),
                 "thermalImplementationSha256": sha256_file(Path(thermal_goods_module.__file__)),
+                "packageGoodsImplementationSha256": sha256_file(
+                    Path(package_goods_compatibility_module.__file__)
+                ),
                 "transportImplementationSha256": sha256_file(
                     Path(transport_auxiliary_module.__file__)
                 ),

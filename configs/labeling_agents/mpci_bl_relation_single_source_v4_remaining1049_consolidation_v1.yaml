@@ -1,0 +1,9 @@
+schema_version: 1
+dataset_id: mpci-bl-relation-single-source-v4-remaining1049-consolidated-v1
+output_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai
+selection_run_root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1
+selection_sha256: f6d7d1fd4c46d8e6d8aa930a1f4a548c6e85d3420eb3a602acd609ad9e3faaec
+expected_documents: 1049
+source_runs:
+  - run_id: mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1
+    root: /mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1
