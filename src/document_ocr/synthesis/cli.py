@@ -20,6 +20,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_party_identity_probe_config,
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
+    load_synthesis_raw_text_rewrite_probe_config,
     load_synthesis_route_scenario_pilot_config,
     load_synthesis_semantic_completion_config,
     load_synthesis_semantic_plan_config,
@@ -67,6 +68,8 @@ def main() -> None:
         "run-linguistic-probe-analysis",
         "validate-linguistic-completion-config",
         "run-linguistic-completion",
+        "validate-raw-text-rewrite-probe-config",
+        "run-raw-text-rewrite-probe",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -80,25 +83,28 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-raw-text-rewrite-probe-config",
+            "run-raw-text-rewrite-probe",
+        }:
+            raw_text_rewrite_config = load_synthesis_raw_text_rewrite_probe_config(config_path)
+        elif arguments.command in {
             "validate-linguistic-completion-config",
             "run-linguistic-completion",
         }:
-            linguistic_completion_config = load_synthesis_linguistic_completion_config(
-                config_path
-            )
+            linguistic_completion_config = load_synthesis_linguistic_completion_config(config_path)
         elif arguments.command in {
             "validate-linguistic-probe-analysis-config",
             "run-linguistic-probe-analysis",
         }:
-            linguistic_probe_analysis_config = (
-                load_synthesis_linguistic_probe_analysis_config(config_path)
+            linguistic_probe_analysis_config = load_synthesis_linguistic_probe_analysis_config(
+                config_path
             )
         elif arguments.command in {
             "validate-package-compatibility-catalog-config",
             "run-package-compatibility-catalog",
         }:
-            package_compatibility_config = (
-                load_synthesis_package_compatibility_catalog_config(config_path)
+            package_compatibility_config = load_synthesis_package_compatibility_catalog_config(
+                config_path
             )
         elif arguments.command in {
             "validate-cargo-language-probe-config",
@@ -168,7 +174,20 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-linguistic-completion-config":
+        if arguments.command == "validate-raw-text-rewrite-probe-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_rewrite_config.run.run_id,
+                "cases": len(raw_text_rewrite_config.cases),
+                "model": raw_text_rewrite_config.provider.model,
+                "reasoning_effort": raw_text_rewrite_config.provider.reasoning_effort,
+                "max_concurrent_requests": (
+                    raw_text_rewrite_config.workflow.max_concurrent_requests
+                ),
+                "max_concurrent_cases": (raw_text_rewrite_config.workflow.max_concurrent_cases),
+            }
+        elif arguments.command == "validate-linguistic-completion-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -333,6 +352,20 @@ def main() -> None:
                     project_root=project_root,
                     config_path=config_path,
                     config=dangerous_goods_registry_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-rewrite-probe":
+            from document_ocr.synthesis.raw_text_rewrite_probe import (
+                run_raw_text_rewrite_probe,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_rewrite_probe(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_rewrite_config,
                 ),
             }
         elif arguments.command == "run-linguistic-completion":

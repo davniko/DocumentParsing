@@ -22,6 +22,7 @@ def test_structured_baseline_config_pins_complete_pass_one_and_two_contract() ->
     config = load_synthesis_structured_baseline_config(CONFIG)
 
     assert config.selection.requested_documents == 50
+    assert config.selection.expected_isolated_fit_documents == 778
     assert config.selection.require_template_wholly_in_split is True
     assert config.selection.require_route_synthesis_support is True
     assert config.selection.maximum_per_carrier == 7

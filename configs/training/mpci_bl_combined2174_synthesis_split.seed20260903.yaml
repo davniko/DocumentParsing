@@ -1,0 +1,17 @@
+schema_version: 1
+
+source:
+  path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+  sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+  records: 2174
+
+fields:
+  document_id: documentId
+  input_sha256: joinedRawTextSha256
+  target: target
+
+algorithm: seeded_sha256_rank_v1
+seed: 20260903
+validation_records: 217
+coverage_policy: retain_each_target_leaf_in_train
+output_dir: artifacts/kie-training/datasets/mpci-bl-combined2174-synthesis-seed20260903-v1

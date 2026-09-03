@@ -1,0 +1,91 @@
+schema_version: 3
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined2174-route-scenario-pilot50-v1
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/task-constraints.json
+  sha256: 9b9fd725589b41c7202e22954e7d21cea3398c588b1cb72bab4a5cb18b81970a
+
+inputs:
+  upstream_selection:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-structured-baseline50-v1/selection/selected-sources.jsonl
+    sha256: 715c1ccca903b034d4746f3d19356e8b272fb15b228923b55406f985f3ce391b
+    records: 50
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: 108393f677590ec6ab9417cac7a92d6e7f6429d9b54fdcbabdb93ac5ca76837e
+    records: 1093
+  partition_report:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-synthesis-seed20260903-v1/manifest.json
+    sha256: c8a0bfa2d8508dc599270ab8489e2fcc21a61c5bcbbd118a4efde960807ad883
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+  route_locations:
+    path: artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  route_registry_manifest:
+    path: artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/registry-receipt.json
+    sha256: 210b6675e38a150cf44d3710af3ceffa688836ece14cef1dd47775286c755dce
+  world_ports:
+    path: artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  world_port_registry_manifest:
+    path: artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/registry-receipt.json
+    sha256: 4bfe37499b6bae3fee2125fc718f81aa9fff2d929a224f17fc310883bd805453
+  locality_registry:
+    path: artifacts/kie-synthesis/registries/geonames-cities15000-current-v1
+    manifest_sha256: bfac2357b10b5170e4461452f2c749db226f713feb6a781fd68de82f14f4dfe9
+  trade_flows:
+    path: artifacts/kie-synthesis/registries/wits-latest-bilateral-numeric-v2/trade-flows.jsonl
+    sha256: 6323aa30c3ede23c1c97716de4a9e6f8eeab775439c4351899718d3ae90fecfc
+    records: 11645
+  trade_flow_registry_manifest:
+    path: artifacts/kie-synthesis/registries/wits-latest-bilateral-numeric-v2/registry-receipt.json
+    sha256: 2c7fde63c54c356d3a6e2c53152ae197041f67448df9dc4bd787d9f5e3f5e0ec
+
+selection:
+  split: train
+  requested_documents: 50
+  require_template_wholly_in_split: true
+  maximum_per_template: 1
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  seed: 20260903
+  commercial_origin_prior:
+    method: observed_exporter_plus_maritime_registry_mixture_v1
+    observed_exporter:
+      mixture_permyriad: 7500
+      weighting: train_isolated_shipper_country_document_count_v1
+    maritime_registry:
+      mixture_permyriad: 2500
+      weighting: uniform_route_feasible_iso_country_v1
+  commercial_destination_prior: wits_latest_bilateral_numeric_iso_identity_conditioned_on_origin_v2
+  physical_endpoint_relation_method: train_empirical_loading_by_origin_discharge_by_destination_else_commercial_destination_v1
+  party_locality_relation_method: train_empirical_role_relation_and_locality_mode_v1
+  freight_method: train_empirical_arrangement_and_payment_side_v1
+  port_method: observed_empirical_plus_nga_wpi_whitelist_mixture_v1
+  locality_method: geonames_cities15000_population_weighted_v1
+  registry_exploration_permyriad: 2500
+  preserve_source_leaf_presence: true
+  preserve_source_party_cardinality: true
+  direct_routes_only: true
+  publish_training_records: false

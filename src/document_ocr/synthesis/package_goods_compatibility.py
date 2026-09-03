@@ -25,6 +25,7 @@ from typing import Annotated, Any, Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
+from document_ocr.synthesis.fit_partition import fit_document_ids
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.thermal_goods import (
     AmbientGoodsIdentity,
@@ -251,26 +252,11 @@ def load_fit_partition_document_ids(
         raise ValueError(f"fit partition report is not a regular file: {path}")
     try:
         value = json.loads(path.read_bytes())
-        partition = value["inspection"]["partition"]
-        rows = partition["outputs"][expected_split]["document_ids"]
-    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("fit partition report has an unsupported structure") from error
-    if partition.get("algorithm") != "seeded_sha256_rank_v1":
-        raise ValueError("fit partition report uses an unsupported partition algorithm")
-    if not isinstance(rows, list) or not all(isinstance(row, str) and row for row in rows):
-        raise ValueError("fit partition report has invalid document IDs")
-    output = tuple(rows)
-    if not output or len(output) != len(set(output)):
-        raise ValueError("fit partition document IDs must be non-empty and unique")
-    other_ids = {
-        document_id
-        for split, split_value in partition["outputs"].items()
-        if split != expected_split
-        for document_id in split_value.get("document_ids", ())
-    }
-    if set(output) & other_ids:
-        raise ValueError("fit partition overlaps another dataset split")
-    return output
+    if not isinstance(value, Mapping):
+        raise ValueError("fit partition report root must be an object")
+    return fit_document_ids(value, expected_split=expected_split)
 
 
 def _package_groups(patch: Mapping[str, Any]) -> dict[str, list[Mapping[str, Any]]]:

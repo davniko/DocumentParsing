@@ -1,0 +1,60 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined2174-semantic-plan50-v1
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+
+inputs:
+  structured_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-structured-baseline50-v1
+    manifest_sha256: 365bff09197cb5588a7b330bc25748bab2705e6c35aaab787decef6acd24d52d
+    commit_sha256: 947dc40988a0b87baf124cebaef4649fbd6f793e3afc021b704671c89eeb0c3a
+    transaction_sha256: dd78c5d2ebdf6aefdd0cde78e9aeea1413a72e2d74f70a91259ac48149a78294
+  structured_selection:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-structured-baseline50-v1/selection/selected-sources.jsonl
+    sha256: 715c1ccca903b034d4746f3d19356e8b272fb15b228923b55406f985f3ce391b
+    records: 50
+  structured_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-structured-baseline50-v1/generation/proposed-targets.jsonl
+    sha256: 9460f5ed99ae2f66a25fdfb302e0a93f58d91a067b550ed4a894188868ce9ca0
+    records: 50
+  structured_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-structured-baseline50-v1/generation/structured-plans.jsonl
+    sha256: dd37721d49073d27751cc1cdd1b3c7d150126098e644f3c09cb5f177160930a8
+    records: 50
+  controlled_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-controlled-semantic-pilot50-v1
+    manifest_sha256: 778b13241aa4fd062742de5dd310f39dd81354eb53b912c3aa25efaa7041d14e
+    commit_sha256: 68821f44ac3df456dcedcc4d01e335a21ec2084ecb5936e119cacaea7ee1afeb
+    transaction_sha256: c0e64db39dd0a1dd07cb95923df8f77481945c5ed96404d25b091e4d022f5d5d
+  controlled_scenarios:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-controlled-semantic-pilot50-v1/generation/controlled-scenarios.jsonl
+    sha256: bdda7a37825f93ae7fa307f1290689788e1132cf3efd1f917ffdbcca753d9897
+    records: 50
+  controlled_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-controlled-semantic-pilot50-v1/generation/draft-targets.jsonl
+    sha256: 6c3d6eec01f495bcbcb4e969d686452148c03e30381ec4ae4d1c2abbb5dd58ec
+    records: 50
+
+generation:
+  scenario_namespace: mpci-bl-same-template-semantic-v1
+  seed: 20260903
+  variant_index_method: selected_position_zero_based_v1
+  structured_stage_contract: structured_numeric_identifier_temporal_v1
+  controlled_stage_contract: route_and_controlled_semantics_v1
+  require_disjoint_change_ownership: true
+  dangerous_goods_policy: defer_goods_first_coherent_realization_v1
+  publish_training_records: false

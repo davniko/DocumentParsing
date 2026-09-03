@@ -118,6 +118,12 @@ class PinnedDirectoryConfig(_StrictModel):
         return _safe_path(value)
 
 
+class PossiblyEmptyDatasetFileConfig(DatasetFileConfig):
+    """Pinned JSONL artifact whose valid result may contain no rows."""
+
+    records: Annotated[int, Field(ge=0)]
+
+
 class CommittedDirectoryConfig(PinnedDirectoryConfig):
     """Pinned immutable run directory with its transaction receipt."""
 
@@ -358,6 +364,7 @@ class StructuredSelectionConfig(_StrictModel):
     split: NonEmptyString
     requested_documents: Annotated[int, Field(gt=0)]
     seed: int
+    expected_isolated_fit_documents: Annotated[int, Field(gt=0)]
     minimum_template_documents: Annotated[int, Field(gt=0)]
     require_template_wholly_in_split: Literal[True]
     require_route_synthesis_support: Literal[True]
@@ -880,7 +887,7 @@ class SemanticCompletionInputsConfig(_StrictModel):
     fit_partition_report: PinnedFileConfig
     package_registry: PinnedFileConfig
     package_registry_entries: Annotated[int, Field(gt=0)]
-    package_compatibility_resolutions: DatasetFileConfig
+    package_compatibility_resolutions: PossiblyEmptyDatasetFileConfig
     equipment_registry_manifest: PinnedFileConfig
     mpci_container_registry: PinnedFileConfig
     hs_registry_manifest: PinnedFileConfig
@@ -1015,9 +1022,7 @@ class SemanticCompletionFlashpointConfig(_StrictModel):
 class SemanticCompletionGenerationConfig(_StrictModel):
     random_stream: Literal["hmac_sha256_counter_v1"]
     seed: Annotated[int, Field(ge=0, lt=2**64)]
-    package_goods_method: Literal[
-        "fit_hs_heading_or_thermal_joint_with_constrained_dg_catalog_v1"
-    ]
+    package_goods_method: Literal["fit_hs_heading_or_thermal_joint_with_constrained_dg_catalog_v1"]
     package_signature_distribution: Literal["source_group_occurrence_weighted_v1"]
     registry_identity_distribution: Literal["uniform_within_selected_hs_heading_v1"]
     equipment: SemanticCompletionEquipmentConfig
@@ -1274,9 +1279,7 @@ class SynthesisPartyIdentityProbeConfig(_StrictModel):
 
     @model_validator(mode="after")
     def cases_are_unique_and_fit_concurrency(self) -> SynthesisPartyIdentityProbeConfig:
-        identities = tuple(
-            (row.document_id, row.party_role, row.occurrence) for row in self.cases
-        )
+        identities = tuple((row.document_id, row.party_role, row.occurrence) for row in self.cases)
         if len(identities) != len(set(identities)):
             raise ValueError("party identity probe cases must be unique")
         if self.workflow.max_concurrent_requests > len(self.cases):
@@ -1400,6 +1403,76 @@ class SynthesisLinguisticCompletionConfig(_StrictModel):
             raise ValueError("party output limit exceeds the provider output limit")
         if self.stage_limits.cargo_max_output_tokens > self.provider.max_output_tokens:
             raise ValueError("cargo output limit exceeds the provider output limit")
+        return self
+
+
+class RawTextRewriteInputsConfig(_StrictModel):
+    linguistic_completion_run: CommittedArtifactDirectoryConfig
+    linguistic_results: DatasetFileConfig
+    synthetic_targets: DatasetFileConfig
+    linguistic_summary: PinnedFileConfig
+    source_corpus: DatasetFileConfig
+    source_target_field: Literal["target"]
+    source_target_schema: Literal["bill_of_lading_relation_explicit_v3"]
+    synthetic_target_schema: Literal["bill_of_lading_relation_explicit_v5"]
+    document_features: DatasetFileConfig
+
+
+class RawTextRewriteCaseConfig(_StrictModel):
+    document_id: Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")]
+
+
+class RawTextRewriteWorkflowConfig(_StrictModel):
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=16)]
+    max_concurrent_cases: Annotated[int, Field(ge=1, le=10)]
+    max_model_requests_per_case: Annotated[int, Field(ge=2, le=32)]
+    tool_retries: Annotated[int, Field(ge=1, le=8)]
+    provider_native_strict_json_schema: Literal[True]
+    require_edit_tool: Literal[True]
+    require_diff_inspection: Literal[True]
+    preserve_page_markers: Literal[True]
+    preserve_newline_sequence: Literal[True]
+    preserve_untouched_bytes: Literal[True]
+    anonymize_auxiliary_personal_data: Literal[True]
+    persist_model_visible_messages: Literal[True]
+    publish_training_records: Literal[False]
+    include_full_text_in_report: Literal[True]
+
+
+class SynthesisRawTextRewriteProbeConfig(_StrictModel):
+    """Ten independent tool-mediated synthetic raw-OCR rewrite probes."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_synthetic_raw_text_rewrite_probe_v1"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: RawTextRewriteInputsConfig
+    cases: tuple[RawTextRewriteCaseConfig, ...] = Field(min_length=10, max_length=10)
+    prompt: LinguisticProbePromptConfig
+    provider: LinguisticProbeProviderConfig
+    workflow: RawTextRewriteWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def cases_are_unique_and_fit_concurrency(self) -> SynthesisRawTextRewriteProbeConfig:
+        document_ids = tuple(row.document_id for row in self.cases)
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("raw-text rewrite probe cases must be unique")
+        if self.workflow.max_concurrent_cases > len(self.cases):
+            raise ValueError("raw-text rewrite concurrency exceeds the case count")
+        if self.workflow.max_concurrent_requests < self.workflow.max_concurrent_cases:
+            raise ValueError("request concurrency must cover concurrent rewrite cases")
+        if self.provider.max_output_tokens < 2048:
+            raise ValueError("raw-text rewrite output limit is too small for audit receipts")
         return self
 
 
@@ -1598,6 +1671,18 @@ def load_synthesis_linguistic_completion_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisLinguisticCompletionConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_rewrite_probe_config(
+    path: Path,
+) -> SynthesisRawTextRewriteProbeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextRewriteProbeConfig.model_validate(value, strict=True)
 
 
 def load_synthesis_package_compatibility_catalog_config(

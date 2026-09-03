@@ -66,6 +66,7 @@ selection:
   split: train
   requested_documents: 50
   seed: 20260830
+  expected_isolated_fit_documents: 778
   minimum_template_documents: 2
   require_template_wholly_in_split: true
   require_route_synthesis_support: true

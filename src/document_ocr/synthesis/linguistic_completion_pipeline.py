@@ -1145,6 +1145,14 @@ def _selected_output(unit: LinguisticUnitArtifact) -> dict[str, JsonValue]:
     raise RuntimeError("linguistic unit selected attempt is absent")
 
 
+def _validate_persisted_output[OutputModel: BaseModel](
+    model_type: type[OutputModel], payload: Mapping[str, JsonValue]
+) -> OutputModel:
+    """Strictly rehydrate a persisted JSON payload at the JSON boundary."""
+
+    return model_type.model_validate_json(canonical_json_bytes(payload), strict=True)
+
+
 def _project_party(output: PartyCompletionOutput, *, same_as: str | None) -> dict[str, Any]:
     party = output.party
     projected: dict[str, Any] = {}
@@ -1181,7 +1189,7 @@ def _apply_linguistic_outputs(
         if projection.unitId is None:
             continue
         unit = party_units[projection.unitId]
-        output = PartyCompletionOutput.model_validate(_selected_output(unit), strict=True)
+        output = _validate_persisted_output(PartyCompletionOutput, _selected_output(unit))
         replacement = _project_party(output, same_as=projection.sameAsReference)
         if projection.role == "notifyParties":
             cast(list[dict[str, Any]], current)[projection.occurrence] = replacement
@@ -1190,8 +1198,8 @@ def _apply_linguistic_outputs(
     if parties:
         patch["parties"] = parties
 
-    cargo_output = CargoLanguageGenerationOutput.model_validate(
-        _selected_output(cargo_unit), strict=True
+    cargo_output = _validate_persisted_output(
+        CargoLanguageGenerationOutput, _selected_output(cargo_unit)
     )
     groups = {row["groupId"]: row for row in cast(list[dict[str, Any]], patch["cargoGroups"])}
     for generated in cargo_output.cargoGroups:
@@ -1706,8 +1714,8 @@ def run_linguistic_completion(
         for unit in units
         if unit.stage == "party_identity" and unit.status == "success"
         if (
-            party := PartyCompletionOutput.model_validate(
-                _selected_output(unit), strict=True
+            party := _validate_persisted_output(
+                PartyCompletionOutput, _selected_output(unit)
             ).party
         ).name
     )

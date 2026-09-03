@@ -19,6 +19,7 @@ from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.bill_of_lading_domain import ADAPTER
 from document_ocr.synthesis.config import SynthesisStructuredBaselineConfig
 from document_ocr.synthesis.domain import rows_for_document
+from document_ocr.synthesis.fit_partition import fit_document_ids
 from document_ocr.synthesis.generators import DeterministicStream, validate_container_number
 from document_ocr.synthesis.modeling_views import build_modeling_views, modeling_views_sha256
 from document_ocr.synthesis.package_registry import load_package_registry
@@ -201,15 +202,7 @@ def _template_maps(
 
 
 def _split_ids(partition: Mapping[str, Any], split: str) -> frozenset[str]:
-    try:
-        values = partition["inspection"]["partition"]["outputs"][split]["document_ids"]
-    except (KeyError, TypeError) as error:
-        raise ValueError("partition report lacks configured split document IDs") from error
-    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
-        raise ValueError("partition report split IDs are malformed")
-    if len(values) != len(set(values)):
-        raise ValueError("partition report split contains duplicate document IDs")
-    return frozenset(values)
+    return frozenset(fit_document_ids(partition, expected_split=split))
 
 
 def _page_bucket(page_count: int) -> str:
@@ -1016,10 +1009,11 @@ def run_structured_baseline(
         fit_split=config.selection.split,
     )
     isolated_ids = scope.isolated_fit_document_ids
-    if len(isolated_ids) != 778:
+    if len(isolated_ids) != config.selection.expected_isolated_fit_documents:
         raise ValueError(
             "pinned partition/template isolation changed: "
-            f"expected 778 documents, found {len(isolated_ids)}"
+            f"expected {config.selection.expected_isolated_fit_documents} documents, "
+            f"found {len(isolated_ids)}"
         )
     transport_limits = capacity_limits(config.generation.transport_capacity)
     source_capacity = {

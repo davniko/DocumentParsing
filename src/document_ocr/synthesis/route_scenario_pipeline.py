@@ -17,6 +17,7 @@ from document_ocr.label_schemas.bill_of_lading_v3 import BillOfLadingRelationExp
 from document_ocr.synthesis.bill_of_lading_domain import ADAPTER
 from document_ocr.synthesis.config import SynthesisRouteScenarioPilotConfig
 from document_ocr.synthesis.country_registry import load_iso_country_registry
+from document_ocr.synthesis.fit_partition import fit_document_ids
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.locality_registry import (
     GeoNamesLocalityReceipt,
@@ -206,17 +207,7 @@ def _template_maps(
 
 
 def _partition_ids(report: Mapping[str, Any], split: str) -> tuple[str, ...]:
-    try:
-        output = report["inspection"]["partition"]["outputs"][split]
-        values = output["document_ids"]
-        expected = output["records"]
-    except (KeyError, TypeError) as error:
-        raise ValueError(f"partition report does not contain split {split!r}") from error
-    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
-        raise ValueError("partition document IDs are invalid")
-    if expected != len(values) or len(values) != len(set(values)):
-        raise ValueError("partition split count or uniqueness differs")
-    return tuple(values)
+    return fit_document_ids(report, expected_split=split)
 
 
 def _jsonl(rows: Sequence[Mapping[str, Any]]) -> bytes:

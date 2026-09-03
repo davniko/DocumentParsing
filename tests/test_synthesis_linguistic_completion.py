@@ -24,14 +24,39 @@ from document_ocr.synthesis.linguistic_completion_pipeline import (
     GeneratedPartyIdentityV2,
     PartyCompletionOutput,
     SourceSensitiveInventory,
-    _run_unit,
     _dynamic_cargo_output_model,
     _dynamic_party_output_model,
+    _run_unit,
+    _validate_persisted_output,
     build_document_linguistic_plan,
     validate_party_completion,
 )
 from document_ocr.synthesis.linguistic_probe_runtime import openai_responses_settings
 from document_ocr.synthesis.semantic_completion_pipeline import SemanticCompletionPlanRow
+
+
+def test_persisted_json_arrays_rehydrate_as_strict_tuple_fields() -> None:
+    payload = {
+        "party": {
+            "partyRole": "shipper",
+            "name": "FICTIONAL EXPORTS LTD",
+            "address": "12 HARBOUR ROAD",
+            "city": "CEBU CITY",
+            "country": "PHILIPPINES",
+            "contactDetails": {
+                "contactName": None,
+                "phoneNumbers": ["+63 32 555 0194"],
+                "emailAddresses": [],
+                "websiteUrls": [],
+            },
+        }
+    }
+
+    with pytest.raises(ValidationError, match="valid tuple"):
+        PartyCompletionOutput.model_validate(payload, strict=True)
+    hydrated = _validate_persisted_output(PartyCompletionOutput, payload)
+
+    assert hydrated.party.contactDetails.phoneNumbers == ("+63 32 555 0194",)
 
 
 def _plan() -> SemanticCompletionPlanRow:

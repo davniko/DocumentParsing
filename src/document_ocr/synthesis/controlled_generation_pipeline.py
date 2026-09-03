@@ -43,6 +43,7 @@ from document_ocr.synthesis.equipment_scenarios import (
     build_equipment_scenario_support,
     sample_equipment_type,
 )
+from document_ocr.synthesis.fit_partition import partition_document_ids
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.hs_registry import (
     compile_uk_global_tariff_registry,
@@ -214,29 +215,14 @@ def _template_map(rows: Sequence[Mapping[str, Any]], corpus_ids: frozenset[str])
 
 
 def _partition_map(report: Mapping[str, Any]) -> tuple[dict[str, str], tuple[str, ...]]:
-    try:
-        outputs = report["inspection"]["partition"]["outputs"]
-    except (KeyError, TypeError) as error:
-        raise ValueError("partition report has no inspection partition outputs") from error
-    if not isinstance(outputs, Mapping):
-        raise ValueError("partition outputs must be an object")
+    outputs = partition_document_ids(report)
     partition: dict[str, str] = {}
     train: tuple[str, ...] = ()
-    for split, raw in sorted(outputs.items()):
-        if not isinstance(split, str) or not isinstance(raw, Mapping):
-            raise ValueError("partition split contract is invalid")
-        ids = raw.get("document_ids")
-        records = raw.get("records")
-        if not isinstance(ids, list) or any(not isinstance(value, str) for value in ids):
-            raise ValueError(f"partition {split!r} document IDs are invalid")
-        if records != len(ids) or len(ids) != len(set(ids)):
-            raise ValueError(f"partition {split!r} count or uniqueness differs")
+    for split, ids in sorted(outputs.items()):
         for document_id in ids:
-            if document_id in partition:
-                raise ValueError(f"document occurs in multiple partitions: {document_id}")
             partition[document_id] = split
         if split == "train":
-            train = tuple(ids)
+            train = ids
     if not train:
         raise ValueError("partition report has no non-empty train split")
     return partition, train
