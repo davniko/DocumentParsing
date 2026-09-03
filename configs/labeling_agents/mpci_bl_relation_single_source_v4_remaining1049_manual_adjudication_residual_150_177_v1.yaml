@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-residual-150-177-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_eda247b36ebb784249bd9eb6a6cd7ca94ce49b3f5bda904d14ee0672259cc664",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_eda247b36ebb784249bd9eb6a6cd7ca94ce49b3f5bda904d14ee0672259cc664.json",
+      "work_item_sha256": "8ed63c18c95202a12bcccde2b7080a029fc7a99b24807b5503f28e01b454b394",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_eda247b36ebb784249bd9eb6a6cd7ca94ce49b3f5bda904d14ee0672259cc664/attempt-4/19d338a85063aa89730f84e6ce0ea2e258d36b4f8ef5362a509f72b272cea295.json",
+      "candidate_sha256": "19d338a85063aa89730f84e6ce0ea2e258d36b4f8ef5362a509f72b272cea295",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "PDF grouping confirms the raw-OCR period is the decimal separator for the repeated one-pallet gross weight."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": {"unit": "kilogram", "value": 703075.0},
+          "corrected_value": {"unit": "kilogram", "value": 703.075}
+        }
+      ],
+      "adjudication_notes": [
+        "Manual grouped-cause adjudication resolved case 150 from repeated raw OCR and the source table layout; no image-only value was introduced."
+      ]
+    },
+    {
+      "document_id": "doc_012a42b185466f339071bc608c1243635795db45edb00e254743d6c31b1f0725",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_012a42b185466f339071bc608c1243635795db45edb00e254743d6c31b1f0725.json",
+      "work_item_sha256": "7700038e8bbcc616be78ae9a55b2e778cec1ec2d139dbe715a53f701461372bd",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_012a42b185466f339071bc608c1243635795db45edb00e254743d6c31b1f0725/attempt-4/3c2d63fed354ceceb15b5acf74456e6f786c7766a16b15b002a7fd5931235a76.json",
+      "candidate_sha256": "3c2d63fed354ceceb15b5acf74456e6f786c7766a16b15b002a7fd5931235a76",
+      "candidate_kind": "compact_draft",
+      "pdf_grouping_used": true,
+      "rebuild": {
+        "decision_notes": [
+          "The named issue date and the separately headed gross-weight and measurement values are unambiguous in the source table."
+        ]
+      },
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/issueDate",
+          "expected_value": null,
+          "corrected_value": "2023-06-18"
+        }
+      ],
+      "adjudication_notes": [
+        "Manual grouped-cause adjudication resolved case 177 from immutable raw OCR and source layout; no image-only value was introduced."
+      ]
+    }
+  ]
+}

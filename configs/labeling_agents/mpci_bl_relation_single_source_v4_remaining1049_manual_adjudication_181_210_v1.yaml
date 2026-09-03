@@ -1,0 +1,1335 @@
+{
+  "schema_version": 1,
+  "run_id": "mpci-bl-relation-single-source-v4-remaining1049-manual-adjudication-181-210-v1",
+  "output_root": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai",
+  "items": [
+    {
+      "document_id": "doc_cc402069d850b41e3776593d59d6c1df6168d229badb1d26fcfccb83559d8dc4",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_cc402069d850b41e3776593d59d6c1df6168d229badb1d26fcfccb83559d8dc4.json",
+      "work_item_sha256": "4318d17e2811c4aaa0c378599612987e941d2914f244946471491e9774c92cf6",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_cc402069d850b41e3776593d59d6c1df6168d229badb1d26fcfccb83559d8dc4/attempt-4/30d15e7a63229028eaa89cd43a262647643f87ff13bb17bfda45da50be18135c.json",
+      "candidate_sha256": "30d15e7a63229028eaa89cd43a262647643f87ff13bb17bfda45da50be18135c",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 181 from immutable raw OCR evidence."
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": null,
+          "corrected_value": {
+            "value": 816.466,
+            "unit": "kilogram"
+          }
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/volume",
+          "expected_value": null,
+          "corrected_value": {
+            "value": 2.62,
+            "unit": "cubic_metre"
+          }
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578.json",
+      "work_item_sha256": "c8727c024977e36d3f3922f9154294ccf827fc4eaaa696cdba3844c1a066b33b",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578/attempt-4/78c8081dcaaf677b6d05bbf8e453de1f2b1c408214626e7471e083bafbde9fc9.json",
+      "candidate_sha256": "78c8081dcaaf677b6d05bbf8e453de1f2b1c408214626e7471e083bafbde9fc9",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 182 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2023/2023-09-22_9cebab71-726b-4617-aa7e-31cbbb15bd8c.pdf",
+          "sha256": "ad1439006906013fa25bfee49b563b6609e6a8fd58e766a96a8e6e7d35e9887e"
+        }
+      ]
+    },
+    {
+      "document_id": "doc_38c81d9ca5d1215833131ed2d6a7ee47126675dd3218f1dce34a74caaa2a6b93",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_38c81d9ca5d1215833131ed2d6a7ee47126675dd3218f1dce34a74caaa2a6b93.json",
+      "work_item_sha256": "d7b9c6de79f00c2f5223ebac81d816cc7920258785c9e9e7e7c538e22cea78f9",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_38c81d9ca5d1215833131ed2d6a7ee47126675dd3218f1dce34a74caaa2a6b93/attempt-1/6419d219de2321b19398ecb0d97294c8438cb0ab8357cfe586df8dbe6eab2a5e.json",
+      "candidate_sha256": "6419d219de2321b19398ecb0d97294c8438cb0ab8357cfe586df8dbe6eab2a5e",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 183 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2025/2025-10-14_0b0273f5-9889-4ca3-81c4-2544406ae65d.pdf",
+          "sha256": "7020367de9fa43797ad11b175df14fa25153c0048252667d6e3867995cdf3084"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": [
+            "80001668-01",
+            "80001668-02",
+            "80001668-03",
+            "80001669-01",
+            "80001669-02",
+            "80001669-03",
+            "800016670",
+            "80001667",
+            "800016668-01",
+            "800016668-02",
+            "800016668-03",
+            "800016669-01",
+            "800016669-02",
+            "800016669-03",
+            "800016667"
+          ],
+          "corrected_value": [
+            "800016668-01",
+            "800016668-02",
+            "800016668-03",
+            "800016669-01",
+            "800016669-02",
+            "800016669-03",
+            "800016670",
+            "800016667"
+          ]
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated waybill blocks contain conflicting OCR variants for several invoice references; the first source occurrence was retained.",
+          "pageNumbers": [
+            1,
+            5
+          ],
+          "targetPath": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_62eacc9de9661a2fa2dd890f3015fe4b309ebbb972e2e7b58bbceaaaf36c9565",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_62eacc9de9661a2fa2dd890f3015fe4b309ebbb972e2e7b58bbceaaaf36c9565.json",
+      "work_item_sha256": "815759df03ce2e2b8ed77e42a840480c4fc94b39ba062f9a0273ada0c5340c25",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_62eacc9de9661a2fa2dd890f3015fe4b309ebbb972e2e7b58bbceaaaf36c9565/attempt-4/d3698d9395425259b3897a588859bb0f4801f738ffa917a92a75fa41a86841c1.json",
+      "candidate_sha256": "d3698d9395425259b3897a588859bb0f4801f738ffa917a92a75fa41a86841c1",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 184 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": [
+            "INV317033",
+            "317033",
+            "ORD262083DATED",
+            "X20230623878093"
+          ],
+          "corrected_value": [
+            "INV317033",
+            "ORD262083DATED",
+            "X20230623878093"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_8d0b06799c6be4d078e5831638e866654247247ad9aa519df952d8fd2007ef27",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_8d0b06799c6be4d078e5831638e866654247247ad9aa519df952d8fd2007ef27.json",
+      "work_item_sha256": "617ce23a4c1df339e77e9d05d1f45d59efe1e734623f36a9798b0f85d369d5f9",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_8d0b06799c6be4d078e5831638e866654247247ad9aa519df952d8fd2007ef27/attempt-4/47572cbf7813eee115c27d48eb436e6ec13eba64f893a443fdb15e593f0403a5.json",
+      "candidate_sha256": "47572cbf7813eee115c27d48eb436e6ec13eba64f893a443fdb15e593f0403a5",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 185 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/5/additionalInformation",
+          "expected_value": null,
+          "corrected_value": [
+            "LENOL 6 S 30 (12 IBC)",
+            "LENOL 20 TP 30 (12 IBC)"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_604ba44e85f758295a68a22dd2c73d7090e2e1e48d1ae905ae13c5c6b71e4847",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_604ba44e85f758295a68a22dd2c73d7090e2e1e48d1ae905ae13c5c6b71e4847.json",
+      "work_item_sha256": "31877a946f277f9e757a899adf86618e8b550af40f70f341193a26f97a3285b5",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_604ba44e85f758295a68a22dd2c73d7090e2e1e48d1ae905ae13c5c6b71e4847/attempt-4/0a641304f144e70114bf822fecea8e6a51cefae80500d99bbf6e0335d4f6b263.json",
+      "candidate_sha256": "0a641304f144e70114bf822fecea8e6a51cefae80500d99bbf6e0335d4f6b263",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 186 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": [
+            "20 X BULK BAGS ON PALLETS - 1200KGS EACH; 120 X 10 KG BAGS - THERMOFILL 02"
+          ],
+          "corrected_value": [
+            "20 X BULK BAGS ON PALLETS - 1200KGS EACH; 120 X 10 KG BAGS"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "BSIU2565338",
+                  "packageId": "p2",
+                  "packageQuantity": 20
+                },
+                {
+                  "containerNumber": "FCIU4580951",
+                  "packageId": "p4",
+                  "packageQuantity": 20
+                },
+                {
+                  "containerNumber": "TCLU3825106",
+                  "packageId": "p6",
+                  "packageQuantity": 20
+                },
+                {
+                  "containerNumber": "CMAU0746843",
+                  "packageId": "p8",
+                  "packageQuantity": 20
+                }
+              ],
+              "coverage": "one_to_one_package_allocations",
+              "groupId": "g1"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "one_to_one_package_allocations",
+              "allocations": [
+                {
+                  "containerNumber": "BSIU2565338",
+                  "packageQuantity": 20,
+                  "packageId": "p2"
+                },
+                {
+                  "containerNumber": "BSIU2565338",
+                  "packageQuantity": 120,
+                  "packageId": "p3"
+                },
+                {
+                  "containerNumber": "FCIU4580951",
+                  "packageQuantity": 20,
+                  "packageId": "p4"
+                },
+                {
+                  "containerNumber": "FCIU4580951",
+                  "packageQuantity": 120,
+                  "packageId": "p5"
+                },
+                {
+                  "containerNumber": "TCLU3825106",
+                  "packageQuantity": 20,
+                  "packageId": "p6"
+                },
+                {
+                  "containerNumber": "TCLU3825106",
+                  "packageQuantity": 120,
+                  "packageId": "p7"
+                },
+                {
+                  "containerNumber": "CMAU0746843",
+                  "packageQuantity": 20,
+                  "packageId": "p8"
+                },
+                {
+                  "containerNumber": "CMAU0746843",
+                  "packageQuantity": 120,
+                  "packageId": "p9"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_6a2863f0a90dec12bfed90528c1fd67ce84302091ac1a3102bafaa043b7beb66",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_6a2863f0a90dec12bfed90528c1fd67ce84302091ac1a3102bafaa043b7beb66.json",
+      "work_item_sha256": "7ca936ac9a2c91c5a30d9766423b9dc44774822bc67221ef31f7d8acc723a41a",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_6a2863f0a90dec12bfed90528c1fd67ce84302091ac1a3102bafaa043b7beb66/attempt-1/ac58ea191118ccc29aae2eaa3147c353babda8525422000611bdff95d619f31e.json",
+      "candidate_sha256": "ac58ea191118ccc29aae2eaa3147c353babda8525422000611bdff95d619f31e",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 187 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2024/2024-02-24_4e9ea9fa-567b-48c3-80eb-d49a6724d5fc.pdf",
+          "sha256": "f28d2d13790f2063993e534a59ab64e2787d52692f194388fcd4cde86c9924bb"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/placeOfIssue/name",
+          "expected_value": "NHAVA SHEVA",
+          "corrected_value": "DELHI"
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated shipper contact OCR contains a conflicting phone candidate on page 4.",
+          "pageNumbers": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "targetPath": "documentPatch.parties.shipper.contactDetails.phoneNumbers"
+        },
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated footer OCR presents conflicting Place of Issue candidates.",
+          "pageNumbers": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "targetPath": "documentPatch.placeOfIssue"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_29bd71709d89bf64b8931902b9f8e5bb8d26836d3c4f79641f3b0328755c7b82",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_29bd71709d89bf64b8931902b9f8e5bb8d26836d3c4f79641f3b0328755c7b82.json",
+      "work_item_sha256": "206e0323a9f8d206d0ed0793fe13f71ab39e63e9e3332574a3a1d9c6805fb7d1",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_29bd71709d89bf64b8931902b9f8e5bb8d26836d3c4f79641f3b0328755c7b82/attempt-4/be58627e4dcd3444ed697bc507fa263ad2e61c869363c0ead54e78b871403c14.json",
+      "candidate_sha256": "be58627e4dcd3444ed697bc507fa263ad2e61c869363c0ead54e78b871403c14",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 188 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true,
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2025/2025-05-30_9809dd69-2a07-45b1-b4d2-3ae2525fabe7.pdf",
+          "sha256": "c4de3f3dd8965c1e9f0da585dd81cb7de3fd4c158c781e8b8ec49114171fc716"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/negotiability",
+          "expected_value": null,
+          "corrected_value": "non_negotiable"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_1a13bed28aff119e4afaecc0f635e20731387829d9773c38621a07fbb966ee25",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_1a13bed28aff119e4afaecc0f635e20731387829d9773c38621a07fbb966ee25.json",
+      "work_item_sha256": "082bc107268d7a05e20272a537e1a72d68d868ad8cb7335cf4901fa4fbc703c7",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_1a13bed28aff119e4afaecc0f635e20731387829d9773c38621a07fbb966ee25/attempt-2/772b4175bc2d904a043515de01a2f9195ae514bf6d103d7ba6d4fe8c2f1cea80.json",
+      "candidate_sha256": "772b4175bc2d904a043515de01a2f9195ae514bf6d103d7ba6d4fe8c2f1cea80",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 189 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": null,
+          "corrected_value": {
+            "value": 2491440,
+            "unit": "kilogram"
+          }
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_813e427102481e286073467284e7dd2ccecbd88863c71a1279a49331e3b523c0",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_813e427102481e286073467284e7dd2ccecbd88863c71a1279a49331e3b523c0.json",
+      "work_item_sha256": "702d83c411ea35e6053eb26a606061b73932ffda73a70b0a521a2f5ed47d439a",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_813e427102481e286073467284e7dd2ccecbd88863c71a1279a49331e3b523c0/attempt-4/73bcd886f0b79ded09e11c8e467af7201bb1ccfda8e03e096761b25c0bf9b748.json",
+      "candidate_sha256": "73bcd886f0b79ded09e11c8e467af7201bb1ccfda8e03e096761b25c0bf9b748",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 190 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 15,
+              "typeDescription": "PALLET"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 15,
+              "typeDescription": "PALLET"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p2",
+              "quantity": 15,
+              "typeDescription": "PALLET"
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_3d1d95de3c4623588514715fb8c7c7dfd08b99ada298c7f011bf25e322f179b3",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_3d1d95de3c4623588514715fb8c7c7dfd08b99ada298c7f011bf25e322f179b3.json",
+      "work_item_sha256": "2074ec8b7a53f1912c022a305961d79c43cf281f5cda293dae9088faefbec59a",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_3d1d95de3c4623588514715fb8c7c7dfd08b99ada298c7f011bf25e322f179b3/attempt-4/448b8b5ae05fd49615ac0b67d0259022f2ddfc9567eea0af85a9e51f38b89140.json",
+      "candidate_sha256": "448b8b5ae05fd49615ac0b67d0259022f2ddfc9567eea0af85a9e51f38b89140",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 191 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": null,
+          "corrected_value": [
+            "9 Pallet(s) STC 220 CARTONS"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_6c11556de79ef31cec5d759c49607a8b11cbae09e7ca70adeed275fedd4260c8",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_6c11556de79ef31cec5d759c49607a8b11cbae09e7ca70adeed275fedd4260c8.json",
+      "work_item_sha256": "31584cea5afcd1a9edd7752199fe0672caa802fd04ac6c4c8bbd835dde8abba9",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_6c11556de79ef31cec5d759c49607a8b11cbae09e7ca70adeed275fedd4260c8/attempt-3/449299766402b6eadaf849dd6e3104ca8b8daaff999245e272e9e48100a9c711.json",
+      "candidate_sha256": "449299766402b6eadaf849dd6e3104ca8b8daaff999245e272e9e48100a9c711",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 192 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/hsCodes",
+          "expected_value": null,
+          "corrected_value": [
+            "39199000"
+          ]
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "unsupported_or_unclear_code",
+          "message": "The printed HS8 value 39199000 is omitted because it lacks explicit supported HS or tariff context.",
+          "pageNumbers": [
+            1
+          ],
+          "targetPath": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_e14f1274d8ee31c597987a727fac8f28142cad139dc5233794c6d14be3c93ffc",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_e14f1274d8ee31c597987a727fac8f28142cad139dc5233794c6d14be3c93ffc.json",
+      "work_item_sha256": "6c10d40ae0f939310ab27da7dd9e730ad03f5efd6c98f635197786fee314f805",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_e14f1274d8ee31c597987a727fac8f28142cad139dc5233794c6d14be3c93ffc/attempt-3/625108312caff6c67154721a24911d2a5bb33493d8757d9a14d4d4acf3527459.json",
+      "candidate_sha256": "625108312caff6c67154721a24911d2a5bb33493d8757d9a14d4d4acf3527459",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 193 from immutable raw OCR evidence."
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/hsCodes",
+          "expected_value": null,
+          "corrected_value": [
+            "380290"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_11c8419d397facf5439d6cafa280177e3114a6e0c116b21ef732de88e5587baf",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_11c8419d397facf5439d6cafa280177e3114a6e0c116b21ef732de88e5587baf.json",
+      "work_item_sha256": "401b2f46a4dfc2d8f290a2340d1398aa73c03e4b7c0b3ceabf4a9239da9389fd",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/reports/remaining1049-manual-review/manual-candidates/doc_11c8419d397facf5439d6cafa280177e3114a6e0c116b21ef732de88e5587baf-287fcae046fdd4d4dcbf44e7ce1c89110625757ff0c848b50e31ae6fe6ebd169.json",
+      "candidate_sha256": "287fcae046fdd4d4dcbf44e7ce1c89110625757ff0c848b50e31ae6fe6ebd169",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 194 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_30aa4422f9ab24bc87c9c54d34e7eddd94f5eb4b6239d173fe69b27c2d96b773",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_30aa4422f9ab24bc87c9c54d34e7eddd94f5eb4b6239d173fe69b27c2d96b773.json",
+      "work_item_sha256": "2a0fd71ae6c4a0e819b088928910e7ac611e785e073943a9a3cae4cb11dce633",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_30aa4422f9ab24bc87c9c54d34e7eddd94f5eb4b6239d173fe69b27c2d96b773/attempt-3/4618f7ceed5c4d3d0cc809d869444f9d3b876ea48e992fb1ed97d2d9c916c168.json",
+      "candidate_sha256": "4618f7ceed5c4d3d0cc809d869444f9d3b876ea48e992fb1ed97d2d9c916c168",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 195 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true,
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2024/2024-08-30_d65b3f6e-a60c-47e8-8d3c-e79bb29bb486.pdf",
+          "sha256": "522c454f4ca327230862b93fe4b08e6fd9c9a66cfb4ef50416e5a136821a8f61"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/freight",
+          "expected_value": {
+            "paymentArrangement": null,
+            "paymentPlace": {
+              "country": "SAUDI ARABIA",
+              "name": "RABIGH"
+            }
+          },
+          "corrected_value": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_1cc6bcfdd593a58663bf754d0df0fbf5289d8146ef243bb9ef9fcc6ebe8c38a8",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_1cc6bcfdd593a58663bf754d0df0fbf5289d8146ef243bb9ef9fcc6ebe8c38a8.json",
+      "work_item_sha256": "0c43b983aa64ddc1ef42bcd768263f13924685006df420fac7b0f5b04b1a4455",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_1cc6bcfdd593a58663bf754d0df0fbf5289d8146ef243bb9ef9fcc6ebe8c38a8/attempt-1/be593a23916ccddf5bec79333c9d3bb34859392a934660d42831e6f6e36c0bc1.json",
+      "candidate_sha256": "be593a23916ccddf5bec79333c9d3bb34859392a934660d42831e6f6e36c0bc1",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 196 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2025/2025-12-05_94100a24-6f18-4453-be1d-48112c3025a6.pdf",
+          "sha256": "54e20e7effec886f4fb05b965c81dd66dcacc5c46bc80d8ff3c73ae1154b5fc3"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/transport/voyageNumber",
+          "expected_value": "100V",
+          "corrected_value": null
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "The vessel-voyage is printed as 100V on page 1 and 100W on page 2; the page-1 value was retained.",
+          "pageNumbers": [
+            1,
+            2
+          ],
+          "targetPath": "documentPatch.transport.voyageNumber"
+        }
+      ],
+      "warning_additions": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Voyages 100V and 100W are both explicitly printed; voyageNumber is omitted rather than selecting a page preference.",
+          "pageNumbers": [
+            1,
+            2
+          ],
+          "targetPath": "documentPatch.transport.voyageNumber"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_e38c509e24e43f24f0bc90329f97fc40032339707e61c5137a854e47c9d985fc",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_e38c509e24e43f24f0bc90329f97fc40032339707e61c5137a854e47c9d985fc.json",
+      "work_item_sha256": "1e109d6fba146edcb5f22d1ff0e4721bd32bef758a0e3adac18bd5252c0f0f33",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_e38c509e24e43f24f0bc90329f97fc40032339707e61c5137a854e47c9d985fc/attempt-4/beeb57b7e7cd65571a051a4f32a16d9dae4f206ae3babd724504415856e1eb76.json",
+      "candidate_sha256": "beeb57b7e7cd65571a051a4f32a16d9dae4f206ae3babd724504415856e1eb76",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 197 from immutable raw OCR evidence."
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/billOfLadingNumber",
+          "expected_value": null,
+          "corrected_value": "TPBME231440"
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "single_package_level",
+              "packageId": "p3",
+              "allocations": [
+                {
+                  "containerNumber": "CGMU9400926",
+                  "packageQuantity": 23
+                }
+              ]
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "one_to_one_package_allocations",
+              "allocations": [
+                {
+                  "containerNumber": "CGMU9400926",
+                  "packageQuantity": 10,
+                  "packageId": "p1"
+                },
+                {
+                  "containerNumber": "CGMU9400926",
+                  "packageQuantity": 13,
+                  "packageId": "p2"
+                },
+                {
+                  "containerNumber": "CGMU9400926",
+                  "packageQuantity": 23,
+                  "packageId": "p3"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_5d2921fcd61e741d1ac481bc813ae958f342e45e4000079bdec8661f3dad38d8",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_5d2921fcd61e741d1ac481bc813ae958f342e45e4000079bdec8661f3dad38d8.json",
+      "work_item_sha256": "3ee4e9f855a98b027acb53be5c9d927756625cef24c82daae50ad69cd4f74d74",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_5d2921fcd61e741d1ac481bc813ae958f342e45e4000079bdec8661f3dad38d8/attempt-4/b7bb1b7a606d6c7c7bda577170ef941cca48666f73ffe3d9848d5fffee31f160.json",
+      "candidate_sha256": "b7bb1b7a606d6c7c7bda577170ef941cca48666f73ffe3d9848d5fffee31f160",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 198 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": true,
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2023/2023-07-04_8879e80f-36c4-4a3a-91cc-5038dd069afe.pdf",
+          "sha256": "5af26126842df8cc175c5e016af3d8059cc67dc21c52eace68e3f2d8d524903b"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": {
+            "unit": "kilogram",
+            "value": 3610.0
+          },
+          "corrected_value": null
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/volume",
+          "expected_value": {
+            "unit": "cubic_metre",
+            "value": 9.8
+          },
+          "corrected_value": null
+        },
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 2,
+              "typeDescription": "PK"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 1,
+              "typeDescription": "BULK"
+            },
+            {
+              "groupId": "g2",
+              "packageId": "p2",
+              "quantity": 1,
+              "typeDescription": "BULK"
+            }
+          ]
+        }
+      ],
+      "warning_additions": [
+        {
+          "code": "schema_cannot_represent",
+          "message": "Shipment-level gross weight 3610 KGS and volume 9.80 CBM span two distinct numbered BULK cargo groups and are omitted rather than assigned arbitrarily.",
+          "pageNumbers": [
+            1
+          ],
+          "targetPath": "documentPatch.cargoGroups"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_2f152bcf2dfb151da214a6683b4719ebbd4c3681605308d99a929c6ed89f4edb",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_2f152bcf2dfb151da214a6683b4719ebbd4c3681605308d99a929c6ed89f4edb.json",
+      "work_item_sha256": "1205e513af52642d5a46535b28f38762da853a6bc4aeae39b1b041aa72aff54a",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/reports/remaining1049-manual-review/manual-candidates/doc_2f152bcf2dfb151da214a6683b4719ebbd4c3681605308d99a929c6ed89f4edb-8bdabffe8164bb3844e3c020d2c603e7660f4317cd1cba6878066923d1d1170e.json",
+      "candidate_sha256": "8bdabffe8164bb3844e3c020d2c603e7660f4317cd1cba6878066923d1d1170e",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 199 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": {
+            "unit": "kilogram",
+            "value": 989060.0
+          },
+          "corrected_value": {
+            "value": 989.06,
+            "unit": "kilogram"
+          }
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_7043674b2e2f27b44082a2e7404fa807c42fe478184ead07783b73e1065ee8c5",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_7043674b2e2f27b44082a2e7404fa807c42fe478184ead07783b73e1065ee8c5.json",
+      "work_item_sha256": "69a59d51469d9453cecb5355f1b8bab2d2022141b1d8aebcce6aca396c8c0126",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_7043674b2e2f27b44082a2e7404fa807c42fe478184ead07783b73e1065ee8c5/attempt-4/b710f672322945a37c4e83880615df4508cf5b705265ca445bd9cb4e3421f57f.json",
+      "candidate_sha256": "b710f672322945a37c4e83880615df4508cf5b705265ca445bd9cb4e3421f57f",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 200 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "CGMU3083280"
+                }
+              ],
+              "coverage": "container_membership_only",
+              "groupId": "g1"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "one_to_one_package_allocations",
+              "allocations": [
+                {
+                  "containerNumber": "CGMU3083280",
+                  "packageQuantity": 6,
+                  "packageId": "p2"
+                },
+                {
+                  "containerNumber": "CGMU3083280",
+                  "packageQuantity": 2,
+                  "packageId": "p4"
+                },
+                {
+                  "containerNumber": "CGMU3083280",
+                  "packageQuantity": 9,
+                  "packageId": "p6"
+                },
+                {
+                  "containerNumber": "CGMU3083280",
+                  "packageQuantity": 1,
+                  "packageId": "p8"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_fa745ae064613a6cdf43f8829512bb5ab9bdcbed6b6d0911e40fc882f2958825",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_fa745ae064613a6cdf43f8829512bb5ab9bdcbed6b6d0911e40fc882f2958825.json",
+      "work_item_sha256": "bf1ecac4cccb7f95dcd9f20811aa23a18bbce208a48d43944c8535174c96830f",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_fa745ae064613a6cdf43f8829512bb5ab9bdcbed6b6d0911e40fc882f2958825/attempt-2/3f8df0421d9eaf5e5e8fddf7db7d6e7e630d348cc115ecc9ff74f21fb6b8064b.json",
+      "candidate_sha256": "3f8df0421d9eaf5e5e8fddf7db7d6e7e630d348cc115ecc9ff74f21fb6b8064b",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 201 from immutable raw OCR evidence."
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/forwardingAndExportReferences",
+          "expected_value": null,
+          "corrected_value": [
+            "SHIN-FRESH-230410VCM"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_24f7e790f0b29e25278ac166ec25b6f0e994586947a02f2ba96122f87c8e5607",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_24f7e790f0b29e25278ac166ec25b6f0e994586947a02f2ba96122f87c8e5607.json",
+      "work_item_sha256": "9c576b5a8aeadec67aee24a0cc80d002fd8a885ecb1d9ce679c36020f145400d",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_24f7e790f0b29e25278ac166ec25b6f0e994586947a02f2ba96122f87c8e5607/attempt-3/c5b713be9f7662f6e39d5ecf526c5d68cd70026f8f71b4cde4c409a70a167ff0.json",
+      "candidate_sha256": "c5b713be9f7662f6e39d5ecf526c5d68cd70026f8f71b4cde4c409a70a167ff0",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 202 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false
+    },
+    {
+      "document_id": "doc_b0f555aa87426da90406e9dc57f4ef252c942c493e76e6f73225e80215eeebe3",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_b0f555aa87426da90406e9dc57f4ef252c942c493e76e6f73225e80215eeebe3.json",
+      "work_item_sha256": "10deaa6954d0476d2b242639b8a50a66e692009bb5e52a6cd6a8d9426be285f2",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_b0f555aa87426da90406e9dc57f4ef252c942c493e76e6f73225e80215eeebe3/attempt-1/8e3e61a3725f3df0da68b0c72a3eebc25fb0e0df82b11c992f92f37aa4122f9c.json",
+      "candidate_sha256": "8e3e61a3725f3df0da68b0c72a3eebc25fb0e0df82b11c992f92f37aa4122f9c",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 203 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2026/2026-01-31_5cee94b5-8e58-421b-bc42-aa329b681662.pdf",
+          "sha256": "2c81859be5836889d73876f6cb1c4beaafcc9ab84fef3ae104a195f7cab850af"
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated OCR pages contain conflicting voyage candidates; verify the selected repeated value.",
+          "pageNumbers": [
+            1,
+            3
+          ],
+          "targetPath": "documentPatch.transport.voyageNumber"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_b5bf1217ad6e59338c3710043073e307458008b5220b286adae16950be9597e8",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_b5bf1217ad6e59338c3710043073e307458008b5220b286adae16950be9597e8.json",
+      "work_item_sha256": "82a2532d3fe03526119ba6046e008b0d59fdcc6f0468c92efe5f48cb93607cb8",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_b5bf1217ad6e59338c3710043073e307458008b5220b286adae16950be9597e8/attempt-4/14d9f0b6390f275b7afdaf80620e01d39274a6925fcf15883ed01e953edbe295.json",
+      "candidate_sha256": "14d9f0b6390f275b7afdaf80620e01d39274a6925fcf15883ed01e953edbe295",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 204 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/additionalInformation",
+          "expected_value": [
+            "NOT IMO CARGO",
+            "CARGO IN TRANSIT TO UGL BONDED WAREHOUSE"
+          ],
+          "corrected_value": [
+            "7 PALLETS KOS S.T.C. 436 PACKAGES",
+            "NOT IMO CARGO",
+            "CARGO IN TRANSIT TO UGL BONDED WAREHOUSE"
+          ]
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_0acae5845cc7353188c4fec6c99adceaa6581695cc004fbdf47bb84d062b0fd8",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_0acae5845cc7353188c4fec6c99adceaa6581695cc004fbdf47bb84d062b0fd8.json",
+      "work_item_sha256": "2d990f0bc16e60b63295d91c85aade3d04739da2a32122d3c407e9857e6703d1",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_0acae5845cc7353188c4fec6c99adceaa6581695cc004fbdf47bb84d062b0fd8/attempt-1/e35ac20fab309470520d8d84d953863f1975ecb2a153a70e7eada6eafac43afd.json",
+      "candidate_sha256": "e35ac20fab309470520d8d84d953863f1975ecb2a153a70e7eada6eafac43afd",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 205 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/swb/2024/2024-05-31_2b89fea4-70cc-4197-b48d-50bc0ba30e62.pdf",
+          "sha256": "a5505030cade43c496c3a9c1d4a75628055a78c2e1aef2c9347d410de05c568d"
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Carrier name appears as both USC Mediterranean Shipping Company S.A. and MSC Mediterranean Shipping Company S.A. in the signature blocks.",
+          "pageNumbers": [
+            1,
+            2
+          ],
+          "targetPath": "documentPatch.parties.carrier.name"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8.json",
+      "work_item_sha256": "360729c85173242d0edc3f975e19d5ace961a34910d65ca8daee56b1c8777685",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8/attempt-4/5dec3a6439dfa74f3f78835f49ab04e1ceb93b10ddc55952b01f9b3c56c7287c.json",
+      "candidate_sha256": "5dec3a6439dfa74f3f78835f49ab04e1ceb93b10ddc55952b01f9b3c56c7287c",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 206 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 12,
+              "typeDescription": "PALLETS"
+            },
+            {
+              "groupId": "g1",
+              "packageId": "p2",
+              "quantity": 11,
+              "typeDescription": "PALLETS"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 23,
+              "typeDescription": "PALLETS"
+            }
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "BSIU9479123",
+                  "packageQuantity": 12
+                }
+              ],
+              "coverage": "single_package_level",
+              "groupId": "g1",
+              "packageId": "p1"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "unlinked_package_quantities",
+              "allocations": [
+                {
+                  "containerNumber": "BSIU9479123",
+                  "packageQuantity": 12
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "warning_additions": [
+        {
+          "code": "schema_cannot_represent",
+          "message": "The printed 11 PALLETS row has no valid printed container identifier, so its container allocation is omitted.",
+          "pageNumbers": [
+            1
+          ],
+          "targetPath": "documentPatch.cargoAllocationGroups"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_a16abc82d53c7d2a8748cf78df009711991ab5fd45bd1e7f950fe4c073c8a04b",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_a16abc82d53c7d2a8748cf78df009711991ab5fd45bd1e7f950fe4c073c8a04b.json",
+      "work_item_sha256": "5f6d005aa86bf44dfd57f4fe84dd5958aafa475f496d76ebeaf27ac53e7b4ed4",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_a16abc82d53c7d2a8748cf78df009711991ab5fd45bd1e7f950fe4c073c8a04b/attempt-1/3e6a44347808d60109fbe1d96630748eaa8737a00622855c3dae690c9525b76a.json",
+      "candidate_sha256": "3e6a44347808d60109fbe1d96630748eaa8737a00622855c3dae690c9525b76a",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 207 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2022/2022-09-12_01430856-f083-4344-b9c3-489941eb6d16.pdf",
+          "sha256": "e5aa63f5c63ed1d3e56d1828974336e17e34101e0a1d47659d9f1c4597d7a16e"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoGroups/0/marksAndNumbers",
+          "expected_value": [
+            "RUETZSCHLER",
+            "O.:167035/001-02",
+            "SPO- 60099164",
+            "ALROUBAIA",
+            "ALEXANDRIA PORT / EGYPT"
+          ],
+          "corrected_value": [
+            "TRUETZSCHLER",
+            "NO.:167035/001-002",
+            "SPO- 060099164",
+            "ALROUBAIA",
+            "ALEXANDRIA PORT / EGYPT"
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoGroups/0/grossWeight",
+          "expected_value": {
+            "unit": "kilogram",
+            "value": 512000.0
+          },
+          "corrected_value": {
+            "unit": "kilogram",
+            "value": 512.0
+          }
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated appendix OCR gives conflicting candidates for cargo marks; the first source occurrence was retained without correction.",
+          "pageNumbers": [
+            3,
+            6
+          ],
+          "targetPath": "documentPatch.cargoGroups[0].marksAndNumbers"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_9266be5cc0d9b0b8f3c8221767e5381f48ea5e5da2763d67071c4d68d3df8035",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_9266be5cc0d9b0b8f3c8221767e5381f48ea5e5da2763d67071c4d68d3df8035.json",
+      "work_item_sha256": "c380a080773e07e4fb5927e78b381514c3979e8bdc301a4da445cbeb306ff0d5",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/candidate-attempts/doc_9266be5cc0d9b0b8f3c8221767e5381f48ea5e5da2763d67071c4d68d3df8035/attempt-1/f8b8e34c370747d225b2623ffc1f92ee029a09ffa3feff1a057a6dd86b6787cc.json",
+      "candidate_sha256": "f8b8e34c370747d225b2623ffc1f92ee029a09ffa3feff1a057a6dd86b6787cc",
+      "candidate_kind": "annotation",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 208 from immutable raw OCR evidence."
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "/mnt/d/Projects/DocumentParsing/data/corpora/blc-swb-remaining-max15-23947b3edb6b/files/blc/2024/2024-03-28_9483444a-6f84-4a85-9f90-d32864792210.pdf",
+          "sha256": "91e50908ce8b08fb4ab26578aa55badac9217c3769ad271b3d39a452097ff4ea"
+        }
+      ],
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/transport/voyageNumber",
+          "expected_value": "ONVGRS1MA",
+          "corrected_value": null
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated-page OCR conflicts for vessel name: GSL CHATEAU D'IF on pages 1-2 versus GSL CHATEAU D1F on page 3; the first source occurrence was retained.",
+          "pageNumbers": [
+            1,
+            2,
+            3
+          ],
+          "targetPath": null
+        },
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Repeated-page OCR conflicts for voyage: ONVGRS1MA on page 1 versus CNVG9S1MA on page 3; the first source occurrence was retained.",
+          "pageNumbers": [
+            1,
+            3
+          ],
+          "targetPath": null
+        }
+      ],
+      "warning_additions": [
+        {
+          "code": "ambiguous_ocr_candidates",
+          "message": "Raw OCR prints conflicting voyages ONVGRS1MA and CNVG9S1MA; voyageNumber is omitted because the image-only corrected surface is outside the training truth boundary.",
+          "pageNumbers": [
+            1,
+            3
+          ],
+          "targetPath": "documentPatch.transport.voyageNumber"
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_b39941474ea8ce76ecc2df3c98cb30f0208799b8065dc8e67d9568a18b7a34ca",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_b39941474ea8ce76ecc2df3c98cb30f0208799b8065dc8e67d9568a18b7a34ca.json",
+      "work_item_sha256": "4eed7e24601c628efeb00ff7d64753354a85843d47b028b1074d4e192adbf471",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_b39941474ea8ce76ecc2df3c98cb30f0208799b8065dc8e67d9568a18b7a34ca/attempt-4/a7a626398e7ddfe8eef77a2f1f6b8ec2a27630517851c3371e33c26b6e26599e.json",
+      "candidate_sha256": "a7a626398e7ddfe8eef77a2f1f6b8ec2a27630517851c3371e33c26b6e26599e",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 209 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/cargoPackages",
+          "expected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 765,
+              "typeDescription": "ROLLS"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "packageId": "p1",
+              "quantity": 560,
+              "typeDescription": "ROLLS"
+            },
+            {
+              "groupId": "g2",
+              "packageId": "p2",
+              "quantity": 205,
+              "typeDescription": "ROLLS"
+            }
+          ]
+        },
+        {
+          "target_path": "/documentPatch/cargoAllocationGroups",
+          "expected_value": [
+            {
+              "allocations": [
+                {
+                  "containerNumber": "MCLU5091685",
+                  "packageQuantity": 560
+                }
+              ],
+              "coverage": "unlinked_package_quantities",
+              "groupId": "g1"
+            },
+            {
+              "allocations": [
+                {
+                  "containerNumber": "MCLU5091685",
+                  "packageQuantity": 205
+                }
+              ],
+              "coverage": "unlinked_package_quantities",
+              "groupId": "g2"
+            }
+          ],
+          "corrected_value": [
+            {
+              "groupId": "g1",
+              "coverage": "single_package_level",
+              "packageId": "p1",
+              "allocations": [
+                {
+                  "containerNumber": "MCLU5091685",
+                  "packageQuantity": 560
+                }
+              ]
+            },
+            {
+              "groupId": "g2",
+              "coverage": "single_package_level",
+              "packageId": "p2",
+              "allocations": [
+                {
+                  "containerNumber": "MCLU5091685",
+                  "packageQuantity": 205
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "warning_removals": [
+        {
+          "code": "schema_cannot_represent",
+          "message": "The two product-level NET WT values cannot be represented as one cargo-group aggregate netWeight.",
+          "pageNumbers": [
+            1
+          ],
+          "targetPath": null
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    },
+    {
+      "document_id": "doc_261fa6040c3e3eef400cbaf1cd18edaa35d6fa73cb790426ed64095652e84641",
+      "work_item_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/work-items/doc_261fa6040c3e3eef400cbaf1cd18edaa35d6fa73cb790426ed64095652e84641.json",
+      "work_item_sha256": "5a83a2183e7d979a6f9a02d637f75c66066000ab23a6e6c0361535afc6c5997e",
+      "candidate_path": "/mnt/d/projects/documentparsing/artifacts/kie-labels/pydantic-ai/runs/mpci-bl-relation-single-source-v4-luna-remaining1049-day-first-c16-v1/state/target-scoped-corrections/doc_261fa6040c3e3eef400cbaf1cd18edaa35d6fa73cb790426ed64095652e84641/attempt-4/4dd5e22cfc895e0b593905fb0714e2327e740595ab3198cef15004da9d30629f.json",
+      "candidate_sha256": "4dd5e22cfc895e0b593905fb0714e2327e740595ab3198cef15004da9d30629f",
+      "candidate_kind": "compact_draft",
+      "adjudication_notes": [
+        "Manual grouped-cause overseer adjudication resolved held case 210 from immutable raw OCR evidence."
+      ],
+      "pdf_grouping_used": false,
+      "target_corrections": [
+        {
+          "target_path": "/documentPatch/parties/consignee/contactDetails",
+          "expected_value": null,
+          "corrected_value": {
+            "contactName": null,
+            "emailAddresses": null,
+            "phoneNumbers": [
+              "00201554306390"
+            ],
+            "websiteUrls": null
+          }
+        }
+      ],
+      "rebuild": {
+        "decision_notes": [
+          "Applied the evidence-audited grouped manual adjudication recorded in batch-181-210.md."
+        ]
+      }
+    }
+  ]
+}
