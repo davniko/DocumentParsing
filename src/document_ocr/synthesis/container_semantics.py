@@ -251,7 +251,7 @@ def review_source_equipment_surface(
         size_category: ContainerSizeCategory = "FORTY_FIVE_FOOT_HIGH_CUBE"
         size_rule = "explicit_45_foot"
     elif length == 20:
-        high_cube = bool("HIGH" in tokens and "CUBE" in tokens) or bool(
+        high_cube = bool(({"HIGH", "CUBE"} <= tokens) or ({"HI", "CUBE"} <= tokens)) or bool(
             tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
         )
         size_category = "TWENTY_FOOT_HIGH_CUBE" if high_cube else "TWENTY_FOOT_STANDARD_HEIGHT"
@@ -275,7 +275,8 @@ def review_source_equipment_surface(
         explicit_nine_six = bool(re.search(r"(?:^|\s)9\s+6(?:\s|$)", semantic))
         carrier_high_reefer = carrier_thermal_code in {"HR", "RH"}
         high_cube = bool(
-            ("HIGH" in tokens and "CUBE" in tokens)
+            ({"HIGH", "CUBE"} <= tokens)
+            or ({"HI", "CUBE"} <= tokens)
             or tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
             or "HIGHCUBE" in tokens
             or re.search(r"(?:40|45)(?:H|HC|HQ|SD96)(?:\s|$)", semantic)

@@ -19,8 +19,13 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Any, Literal, Protocol, cast
+
+from document_ocr.label_schemas.bill_of_lading_v5 import (
+    CONTAINER_SIZE_CATEGORIES,
+    CONTAINER_TYPE_CATEGORIES,
+)
 
 EquipmentFamily = Literal[
     "twenty_standard",
@@ -173,6 +178,49 @@ class TransportCapacityReceipt:
 # accepting fewer codes only loosens this safety gate, whereas accepting an
 # invalid shorthand could apply the wrong equipment ceiling.
 _ISO_DETAILED_SIZE_TYPE_CODE = re.compile(r"^[A-Z0-9]{2}[GVBSRHUPKNA][0-9ABDGJMVWXY]$")
+_SEMANTIC_SIZE_FAMILY: dict[str, EquipmentFamily] = {
+    "TWENTY_FOOT_STANDARD_HEIGHT": "twenty_standard",
+    # The configured 20-foot standard envelope is deliberately conservative for
+    # the uncommon 20-foot high-cube category.
+    "TWENTY_FOOT_HIGH_CUBE": "twenty_standard",
+    "FORTY_FOOT_STANDARD_HEIGHT": "forty_standard",
+    "FORTY_FOOT_HIGH_CUBE": "forty_high_cube",
+    "FORTY_FIVE_FOOT_HIGH_CUBE": "forty_five_high_cube",
+}
+_OUT_OF_GAUGE_SEMANTIC_TYPES = frozenset(
+    {
+        "OPEN_TOP",
+        "PLATFORM",
+        "PLATFORM_FIXED",
+        "PLATFORM_COLLAPSIBLE",
+        "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+        "PLATFORM_NAMED_CARGO",
+    }
+)
+
+
+def _semantic_equipment_family(container: Mapping[str, Any]) -> EquipmentFamily | None:
+    """Classify a complete relation-v5 semantic equipment pair.
+
+    ``None`` means the row is not a semantic relation-v5 container and should be
+    considered by the older exact ISO-code path.  A partial or invalid semantic
+    pair is explicitly unclassified rather than silently interpreted.
+    """
+
+    size = container.get("sizeCategory")
+    type_category = container.get("typeCategory")
+    if size is None and type_category is None:
+        return None
+    if (
+        not isinstance(size, str)
+        or size not in CONTAINER_SIZE_CATEGORIES
+        or not isinstance(type_category, str)
+        or type_category not in CONTAINER_TYPE_CATEGORIES
+    ):
+        return "unclassified"
+    if type_category in _OUT_OF_GAUGE_SEMANTIC_TYPES:
+        return "out_of_gauge"
+    return _SEMANTIC_SIZE_FAMILY[size]
 
 
 def _exact_iso_size_type_code(container: Mapping[str, Any]) -> str | None:
@@ -190,7 +238,11 @@ def _exact_iso_size_type_code(container: Mapping[str, Any]) -> str | None:
 
 
 def classify_equipment(container: Mapping[str, Any]) -> EquipmentFamily:
-    """Classify only exact ISO 6346 size/type codes; free text stays unclassified."""
+    """Classify exact ISO codes or a complete relation-v5 semantic pair."""
+
+    semantic = _semantic_equipment_family(container)
+    if semantic is not None:
+        return semantic
 
     code = _exact_iso_size_type_code(container)
     if code is None:
@@ -207,6 +259,34 @@ def classify_equipment(container: Mapping[str, Any]) -> EquipmentFamily:
     if length_code == "4" and height_code in {"0", "2"}:
         return "forty_standard"
     return "unclassified"
+
+
+@dataclass(frozen=True, slots=True)
+class TransportCapacityReprojection:
+    """Auditable measure reprojection after semantic equipment is assigned."""
+
+    source_receipt: TransportCapacityReceipt
+    assigned_receipt: TransportCapacityReceipt
+    final_receipt: TransportCapacityReceipt
+    mass_scale: Decimal | None
+    volume_scale: Decimal | None
+    changed_paths: tuple[str, ...]
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.changed_paths)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "method": "preserve_sampled_capacity_utilization_v1",
+            "changed": self.changed,
+            "mass_scale": float(self.mass_scale) if self.mass_scale is not None else None,
+            "volume_scale": float(self.volume_scale) if self.volume_scale is not None else None,
+            "changed_paths": list(self.changed_paths),
+            "source_receipt": self.source_receipt.to_dict(),
+            "assigned_receipt": self.assigned_receipt.to_dict(),
+            "final_receipt": self.final_receipt.to_dict(),
+        }
 
 
 def equipment_capacity(
@@ -353,6 +433,124 @@ def document_capacity_receipt(
         net_payload_utilization=utilization(net, payload_capacity),
         volume_utilization=utilization(volume, volume_capacity),
         violations=tuple(violations),
+    )
+
+
+def _decimal_places(value: int | float) -> int:
+    exponent = Decimal(str(value)).as_tuple().exponent
+    if not isinstance(exponent, int):
+        raise ValueError("measure value is not finite")
+    return max(0, -exponent)
+
+
+def _scale_measure_values(
+    target: dict[str, Any],
+    *,
+    names: tuple[str, ...],
+    scale: Decimal,
+) -> tuple[str, ...]:
+    if not Decimal(0) < scale <= Decimal(1):
+        raise ValueError("capacity reprojection scale must be in (0, 1]")
+    patch = cast(dict[str, Any], target["documentPatch"])
+    changed: list[str] = []
+    for group_index, group in enumerate(cast(list[dict[str, Any]], patch.get("cargoGroups") or [])):
+        for name in names:
+            measure = group.get(name)
+            if not isinstance(measure, dict):
+                continue
+            value = measure.get("value")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} value is not numeric")
+            quantum = Decimal(1).scaleb(-_decimal_places(value))
+            projected = (Decimal(str(value)) * scale).quantize(quantum, rounding=ROUND_DOWN)
+            if projected <= 0:
+                raise ValueError(f"capacity reprojection made {name} non-positive")
+            output = float(projected)
+            if output != value:
+                measure["value"] = output
+                changed.append(f"documentPatch.cargoGroups[{group_index}].{name}.value")
+    return tuple(changed)
+
+
+def reproject_measures_for_semantic_equipment(
+    *,
+    source_target: Mapping[str, Any],
+    assigned_target: dict[str, Any],
+    limits: TransportCapacityLimits,
+) -> TransportCapacityReprojection:
+    """Preserve sampled capacity utilization after assigning semantic equipment.
+
+    Earlier synthesis stages may legitimately carry an unclassified container and
+    sample within its configured absolute envelope.  Once a later stage assigns a
+    narrower semantic equipment family, retaining the old mass or volume can make
+    the synthetic shipment physically impossible.  This function scales only the
+    affected measures by the exact old-to-new capacity ratio, preserving the
+    sampled utilization and gross/net relationship.  It never invents a magic
+    utilization target and never changes quantities, identities, or topology.
+    """
+
+    source_receipt = document_capacity_receipt(source_target, limits)
+    assigned_receipt = document_capacity_receipt(assigned_target, limits)
+    if assigned_receipt.valid:
+        return TransportCapacityReprojection(
+            source_receipt=source_receipt,
+            assigned_receipt=assigned_receipt,
+            final_receipt=assigned_receipt,
+            mass_scale=None,
+            volume_scale=None,
+            changed_paths=(),
+        )
+    if not source_receipt.valid:
+        raise ValueError(
+            "cannot reproject from an invalid source equipment envelope: "
+            f"{source_receipt.violations}"
+        )
+
+    changed: list[str] = []
+    mass_scale: Decimal | None = None
+    if any("weight_exceeds_container_payload" in row for row in assigned_receipt.violations):
+        if (
+            source_receipt.payload_capacity_kg is None
+            or assigned_receipt.payload_capacity_kg is None
+        ):
+            raise ValueError("payload violation has no source and assigned capacity")
+        mass_scale = (
+            assigned_receipt.payload_capacity_kg / source_receipt.payload_capacity_kg
+        )
+        changed.extend(
+            _scale_measure_values(
+                assigned_target,
+                names=("grossWeight", "netWeight"),
+                scale=mass_scale,
+            )
+        )
+
+    volume_scale: Decimal | None = None
+    if "document_volume_exceeds_container_capacity" in assigned_receipt.violations:
+        if source_receipt.volume_capacity_m3 is None or assigned_receipt.volume_capacity_m3 is None:
+            raise ValueError("volume violation has no source and assigned capacity")
+        volume_scale = assigned_receipt.volume_capacity_m3 / source_receipt.volume_capacity_m3
+        changed.extend(
+            _scale_measure_values(
+                assigned_target,
+                names=("volume",),
+                scale=volume_scale,
+            )
+        )
+
+    final_receipt = document_capacity_receipt(assigned_target, limits)
+    if not changed or not final_receipt.valid:
+        raise ValueError(
+            "capacity reprojection did not produce a valid semantic target: "
+            f"{final_receipt.violations}"
+        )
+    return TransportCapacityReprojection(
+        source_receipt=source_receipt,
+        assigned_receipt=assigned_receipt,
+        final_receipt=final_receipt,
+        mass_scale=mass_scale,
+        volume_scale=volume_scale,
+        changed_paths=tuple(changed),
     )
 
 

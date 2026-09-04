@@ -1170,7 +1170,7 @@ class LinguisticGenerationSettingsConfig(_StrictModel):
 
 class LinguisticProbeProviderConfig(_StrictModel):
     kind: Literal["openai_responses"]
-    model: Literal["gpt-5.6-luna"]
+    model: Literal["gpt-5.6-luna", "gpt-5.6-terra"]
     api_key_env: Literal["OPENAI_API_KEY"]
     reasoning_effort: Literal["none", "low", "medium", "high", "xhigh", "max"]
     request_timeout_seconds: Annotated[float, Field(gt=0)]
@@ -1476,6 +1476,122 @@ class SynthesisRawTextRewriteProbeConfig(_StrictModel):
         return self
 
 
+class RawTextRewriteCyclePromptsConfig(_StrictModel):
+    editor: LinguisticProbePromptConfig
+    reviewer: LinguisticProbePromptConfig
+
+
+class RawTextRewriteCycleProvidersConfig(_StrictModel):
+    editor: LinguisticProbeProviderConfig
+    reviewer: LinguisticProbeProviderConfig
+
+    @model_validator(mode="after")
+    def one_credential_contract(self) -> RawTextRewriteCycleProvidersConfig:
+        if self.editor.api_key_env != self.reviewer.api_key_env:
+            raise ValueError("rewrite editor and reviewer must use the same credential source")
+        return self
+
+
+class RawTextRewriteTargetIntegrityConfig(_StrictModel):
+    capacity_reprojection_method: Literal["preserve_sampled_capacity_utilization_v1"]
+    transport_capacity: TransportCapacityConfig
+    iso3166_snapshot: PinnedFileConfig
+    route_locations: PinnedFileConfig
+    route_location_records: Annotated[int, Field(gt=0)]
+    customs_program_registry: PinnedFileConfig
+    customs_program_registry_entries: Annotated[int, Field(gt=0)]
+    package_registry: PinnedFileConfig
+    package_registry_entries: Annotated[int, Field(gt=0)]
+
+
+class RawTextRewriteCycleWorkflowConfig(_StrictModel):
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=16)]
+    max_concurrent_cases: Annotated[int, Field(ge=1, le=10)]
+    max_editor_requests_per_pass: Annotated[int, Field(ge=1, le=3)]
+    max_reviewer_requests_per_cycle: Annotated[int, Field(ge=1, le=4)]
+    editor_output_retries: Annotated[int, Field(ge=0, le=2)]
+    reviewer_output_retries: Annotated[int, Field(ge=0, le=3)]
+    max_correction_cycles: Annotated[int, Field(ge=1, le=3)]
+    max_total_estimated_cost_usd_per_case: Annotated[float, Field(gt=0)]
+    provider_strict_output_function_schema: Literal[True]
+    require_terminal_atomic_edit_output: Literal[True]
+    require_line_addressed_atomic_patches: Literal[True]
+    require_independent_semantic_review: Literal[True]
+    require_review_evidence_substrings: Literal[True]
+    preserve_page_markers_and_order: Literal[True]
+    preserve_source_newline_convention: Literal[True]
+    preserve_source_line_count: Literal[True]
+    preserve_source_blank_line_topology: Literal[True]
+    preserve_inline_labeled_slot_population: Literal[True]
+    preserve_unchanged_source_status_surfaces: Literal[True]
+    enforce_target_value_occurrence_counts: Literal[True]
+    synthesize_raw_auxiliary_agent_identities: Literal[True]
+    enforce_carrier_receipt_equipment_breakdown: Literal[True]
+    preserve_untouched_bytes: Literal[True]
+    anonymize_auxiliary_sensitive_data: Literal[True]
+    synthesize_auxiliary_flavor: Literal[True]
+    preserve_auxiliary_slot_topology: Literal[True]
+    preserve_target_label_and_synthesize_compound_party_flavor: Literal[True]
+    provide_authoritative_label_change_contract: Literal[True]
+    remove_target_absent_extractable_assertions_naturally: Literal[True]
+    preserve_source_only_raw_slots_as_synthetic_flavor: Literal[True]
+    preserve_semantically_equivalent_status_surfaces: Literal[True]
+    forbid_new_unanchored_extractable_facts: Literal[True]
+    reject_placeholder_substitutions: Literal[True]
+    adapt_jurisdiction_bound_auxiliary_flavor: Literal[True]
+    require_source_target_topology_match: Literal[True]
+    enforce_deterministic_surface_requirements: Literal[True]
+    use_compact_model_change_contract: Literal[True]
+    persist_every_stage_and_model_message: Literal[True]
+    use_provider_explicit_prompt_cache: Literal[True]
+    publish_training_records: Literal[False]
+    include_full_text_in_report: Literal[True]
+
+
+class SynthesisRawTextRewriteCycleProbeConfig(_StrictModel):
+    """Atomic edit-review-correct probes over one to ten pinned documents."""
+
+    schema_version: Literal[12]
+    task: Literal["bill_of_lading_synthetic_raw_text_atomic_rewrite_probe_v12"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: RawTextRewriteInputsConfig
+    cases: tuple[RawTextRewriteCaseConfig, ...] = Field(min_length=1, max_length=10)
+    prompts: RawTextRewriteCyclePromptsConfig
+    providers: RawTextRewriteCycleProvidersConfig
+    target_integrity: RawTextRewriteTargetIntegrityConfig
+    workflow: RawTextRewriteCycleWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def cases_and_limits_are_consistent(self) -> SynthesisRawTextRewriteCycleProbeConfig:
+        document_ids = tuple(row.document_id for row in self.cases)
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("raw-text rewrite cycle cases must be unique")
+        if self.workflow.max_concurrent_cases > len(self.cases):
+            raise ValueError("raw-text rewrite cycle concurrency exceeds the case count")
+        if self.workflow.max_concurrent_requests < self.workflow.max_concurrent_cases:
+            raise ValueError("request concurrency must cover concurrent rewrite cycle cases")
+        if self.providers.editor.max_output_tokens < 4096:
+            raise ValueError("rewrite editor output limit is too small for atomic patch output")
+        if self.providers.reviewer.max_output_tokens < 1024:
+            raise ValueError("rewrite reviewer output limit is too small for semantic findings")
+        if self.workflow.max_editor_requests_per_pass <= self.workflow.editor_output_retries:
+            raise ValueError("editor request limit must exceed its output retry count")
+        if self.workflow.max_reviewer_requests_per_cycle <= self.workflow.reviewer_output_retries:
+            raise ValueError("reviewer request limit must exceed its output retry count")
+        return self
+
+
 class LinguisticProbeAnalysisInputConfig(_StrictModel):
     run: CommittedArtifactDirectoryConfig
     results: DatasetFileConfig
@@ -1683,6 +1799,18 @@ def load_synthesis_raw_text_rewrite_probe_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisRawTextRewriteProbeConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_rewrite_cycle_probe_config(
+    path: Path,
+) -> SynthesisRawTextRewriteCycleProbeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextRewriteCycleProbeConfig.model_validate(value, strict=True)
 
 
 def load_synthesis_package_compatibility_catalog_config(

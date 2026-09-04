@@ -11,6 +11,7 @@ from document_ocr.synthesis.transport_capacity import (
     document_capacity_receipt,
     group_capacity_budgets,
     numeric_fit_envelope_violations,
+    reproject_measures_for_semantic_equipment,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,67 @@ def test_only_exact_iso_size_type_codes_resolve_to_capacity_families() -> None:
     assert classify_equipment({"typeDescription": "MERCHANT HC LTD"}) == "unclassified"
     assert classify_equipment({"typeDescription": "PART 96"}) == "unclassified"
     assert classify_equipment({"typeDescription": "CTNR"}) == "unclassified"
+
+
+def test_relation_v5_semantic_equipment_resolves_to_capacity_families() -> None:
+    assert (
+        classify_equipment(
+            {
+                "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                "typeCategory": "GENERAL_PURPOSE",
+            }
+        )
+        == "forty_high_cube"
+    )
+    assert (
+        classify_equipment(
+            {
+                "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                "typeCategory": "PLATFORM_COLLAPSIBLE",
+            }
+        )
+        == "out_of_gauge"
+    )
+    assert classify_equipment({"sizeCategory": "FORTY_FOOT_HIGH_CUBE"}) == "unclassified"
+
+
+def test_semantic_capacity_reprojection_preserves_sampled_utilization() -> None:
+    source = _target(
+        containers=[{"containerNumber": "MSCU0000000"}],
+        groups=[
+            {
+                "groupId": "g1",
+                "grossWeight": {"value": 39434.1, "unit": "kilogram"},
+                "netWeight": {"value": 39418.2, "unit": "kilogram"},
+            }
+        ],
+    )
+    assigned = deepcopy(source)
+    assigned["documentPatch"]["containers"][0].update(
+        {
+            "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+            "typeCategory": "GENERAL_PURPOSE",
+        }
+    )
+
+    result = reproject_measures_for_semantic_equipment(
+        source_target=source,
+        assigned_target=assigned,
+        limits=_limits(),
+    )
+
+    assert result.changed
+    assert result.mass_scale == Decimal("30124.5") / Decimal("47300")
+    assert result.final_receipt.valid
+    assert result.final_receipt.gross_payload_utilization is not None
+    assert result.source_receipt.gross_payload_utilization is not None
+    assert (
+        abs(
+            result.final_receipt.gross_payload_utilization
+            - result.source_receipt.gross_payload_utilization
+        )
+        < Decimal("0.00001")
+    )
 
 
 def test_document_capacity_is_decimal_exact_at_boundary_and_rejects_excess() -> None:

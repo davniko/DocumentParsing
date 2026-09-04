@@ -191,8 +191,8 @@ _EXPRESS_RELEASE_NO_ORIGINALS = re.compile(
 )
 _HS_HEADING = re.compile(
     r"(?ix)(?:\b(?:H\s*[.-]?\s*S\s*\.?\s*N?\s*\.?(?:\s*[0-9]{1,2})?|"
-    r"HTS|TARIFF|NCM|GTIP)"
-    r"(?:\s*(?:CODE|NO|NUMBER))?\b|"
+    r"HTS|TARIFF|NCM|GTIP|COMMODITY)"
+    r"(?:\s*(?:CODES?|NO|NUMBER))?\b|"
     r"\bCUSTOMS\s+C(?:O)?DE\b|"
     r"\bCUSTOMS\s+TARIF(?:F)?(?:\s*(?:CODE|NO|NUMBER))?\b|"
     r"\bHARMONI[ZS]ED(?:\s+TARIFF)?\s+CODE\b|"
@@ -1014,10 +1014,10 @@ def _numeric_matches(
                     )
                 )
             for headed in _ARITHMETIC_GROSS_TARE_TOTAL_MASS.finditer(source):
-                gross = int(headed.group("gross").replace(",", ""))
+                gross_integer = int(headed.group("gross").replace(",", ""))
                 tare = int(headed.group("tare").replace(",", ""))
                 total = int(headed.group("total").replace(",", ""))
-                if gross + tare != total or Decimal(gross) != expected:
+                if gross_integer + tare != total or Decimal(gross_integer) != expected:
                     continue
                 matches.append(
                     _match(
@@ -2159,6 +2159,17 @@ def _explicit_hs_codes(pages: dict[int, str]) -> tuple[str, ...]:
                     seen.add(value)
                     values.append(value)
     return tuple(values)
+
+
+def explicit_hs_codes_from_text(value: str) -> tuple[str, ...]:
+    """Return source-ordered HS/commodity codes under explicit printed headings.
+
+    This is the same evidence parser used by deterministic label validation.  Exposing the
+    parser keeps downstream synthetic rendering aligned with the labeling truth boundary instead
+    of maintaining a second, weaker heading grammar.
+    """
+
+    return _explicit_hs_codes({1: value})
 
 
 def _explicit_container_volume_rows(

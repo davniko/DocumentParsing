@@ -51,7 +51,10 @@ from pydantic_ai.usage import UsageLimits
 from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.label_schemas import bill_of_lading_v3, bill_of_lading_v5
-from document_ocr.synthesis.config import SynthesisRawTextRewriteProbeConfig
+from document_ocr.synthesis.config import (
+    SynthesisRawTextRewriteCycleProbeConfig,
+    SynthesisRawTextRewriteProbeConfig,
+)
 from document_ocr.synthesis.linguistic_probe_runtime import (
     LinguisticUsageReceipt,
     load_openai_key,
@@ -609,7 +612,8 @@ def _resolve_pinned_file(
 
 
 def _validate_linguistic_run(
-    project_root: Path, config: SynthesisRawTextRewriteProbeConfig
+    project_root: Path,
+    config: SynthesisRawTextRewriteProbeConfig | SynthesisRawTextRewriteCycleProbeConfig,
 ) -> Path:
     configured = config.inputs.linguistic_completion_run
     root = resolve_config_path(project_root, configured.path)

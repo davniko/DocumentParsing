@@ -20,6 +20,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_party_identity_probe_config,
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
+    load_synthesis_raw_text_rewrite_cycle_probe_config,
     load_synthesis_raw_text_rewrite_probe_config,
     load_synthesis_route_scenario_pilot_config,
     load_synthesis_semantic_completion_config,
@@ -70,6 +71,8 @@ def main() -> None:
         "run-linguistic-completion",
         "validate-raw-text-rewrite-probe-config",
         "run-raw-text-rewrite-probe",
+        "validate-raw-text-rewrite-cycle-probe-config",
+        "run-raw-text-rewrite-cycle-probe",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -83,6 +86,13 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-raw-text-rewrite-cycle-probe-config",
+            "run-raw-text-rewrite-cycle-probe",
+        }:
+            raw_text_rewrite_cycle_config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+                config_path
+            )
+        elif arguments.command in {
             "validate-raw-text-rewrite-probe-config",
             "run-raw-text-rewrite-probe",
         }:
@@ -174,7 +184,25 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-raw-text-rewrite-probe-config":
+        if arguments.command == "validate-raw-text-rewrite-cycle-probe-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_rewrite_cycle_config.run.run_id,
+                "cases": len(raw_text_rewrite_cycle_config.cases),
+                "editor_model": raw_text_rewrite_cycle_config.providers.editor.model,
+                "editor_reasoning_effort": (
+                    raw_text_rewrite_cycle_config.providers.editor.reasoning_effort
+                ),
+                "reviewer_model": raw_text_rewrite_cycle_config.providers.reviewer.model,
+                "reviewer_reasoning_effort": (
+                    raw_text_rewrite_cycle_config.providers.reviewer.reasoning_effort
+                ),
+                "max_correction_cycles": (
+                    raw_text_rewrite_cycle_config.workflow.max_correction_cycles
+                ),
+            }
+        elif arguments.command == "validate-raw-text-rewrite-probe-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -352,6 +380,20 @@ def main() -> None:
                     project_root=project_root,
                     config_path=config_path,
                     config=dangerous_goods_registry_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-rewrite-cycle-probe":
+            from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
+                run_raw_text_rewrite_cycle_probe,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_rewrite_cycle_probe(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_rewrite_cycle_config,
                 ),
             }
         elif arguments.command == "run-raw-text-rewrite-probe":
