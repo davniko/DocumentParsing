@@ -1,0 +1,78 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certification19-glm53-v17-recertified-residuals
+  output_dir: artifacts/kie-synthesis
+
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certified-correction19-glm53-v17-recertified-residuals
+  commit_sha256: eb3ffaf8ff66f3cc573663455e6944a292a9e98d882e6379d72f1c58e1bdb14c
+  transaction_sha256: 93e5ff95f4a3b007ed36589111a616038153eaf4986769d2b354bc71eaafac4d
+input_case_contract_filename: source-contract.json
+
+case_ids:
+  - doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+  - doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff
+  - doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642
+  - doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c
+  - doc_24c81b104b2fe30e4152b1606e1a4c31bd89a5014a1faaec51fa9093b6cff000
+  - doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a
+  - doc_3e47ddcd77c022ff4c568e44b0779e4cb4dbb864efb707de62fc64d6787e2e57
+  - doc_4072d87614d209dbbf8c821deaf27052e67ee5575f921d883f208759c6517af8
+  - doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+  - doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0
+  - doc_71f0549e3f840bfaaa49d26d85cf93f004b57f41ca510ab464074ef05a5b3114
+  - doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31
+  - doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984
+  - doc_b362e747375b7102c2f64838492add721278375758e3c57ae2e57fc098d6ea1b
+  - doc_c471b8946e93d312af277c90f4e83012a423e809d9b667c8d45623398712161e
+  - doc_cf0df4c2d59947f4536e1442fedcb70cf39ab64fa4e28ee7bbbd60d4f31aa0b4
+  - doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe
+  - doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+  - doc_ea80221ff9b8594ff8891fadfce4ffe76b1b14745b9a8edf8e3115c685aa662e
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v1.md
+  sha256: 79b85b02741b00295cb575f9e8c8c52b03725fafee7c5449a06617e02704f9df
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 19
+  max_concurrent_documents: 16
+  semantic_audit_passes: 1
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

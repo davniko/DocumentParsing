@@ -1,0 +1,42 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certified_correction_v1
+environment_file: .env
+run: {run_id: mpci-bl-raw-text-certified-correction2-glm53-v40-contract-hardened, output_dir: artifacts/kie-synthesis}
+certification_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification2-glm53-v39-final-residuals
+  commit_sha256: 24bc611526fd8e886eabba677e3946d10ed31869fba78e3bf1aff17fc3f9dccb
+  transaction_sha256: cb3aeb93582e0a186e707afb5524c38bfc3044e9e362da7fa68e9d7468df9314
+case_ids:
+  - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+  - doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8
+prompt: {path: prompts/synthesis/mpci_bl_raw_text_certified_line_corrector_v2.md, sha256: f7d2381d7d062bad04bf3e9affa259c545b54a03de738f40fe0ebea432f3f016}
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing: {currency: USD, effective_date: 2026-09-06, source_url: https://openrouter.ai/z-ai/glm-5.3-flash, input_usd_per_million: 0.075, cached_input_usd_per_million: 0.03, cache_write_multiplier: 1.0, output_usd_per_million: 0.25}
+workflow:
+  documents: 2
+  max_concurrent_documents: 2
+  max_provider_route_rounds: 4
+  max_successful_model_responses_per_document: 2
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_only_cited_lines_mutable: true
+  require_exact_line_and_page_topology: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

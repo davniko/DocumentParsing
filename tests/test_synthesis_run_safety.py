@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import string
 from concurrent.futures import ThreadPoolExecutor
@@ -429,6 +430,42 @@ def test_staged_run_is_idempotent_after_commit_and_never_extends_final_tree(
     with pytest.raises(StagedRunError, match="committed run"):
         resumed.publish_bytes("late.bin", b"must not be added")
     assert not (resumed.final_root / "late.bin").exists()
+
+
+def test_staged_run_resumes_sealed_stage_after_final_rename_denial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transaction = _hash("transaction")
+    run = StagedArtifactRun(
+        output_parent=tmp_path,
+        run_name="rename-recovery",
+        transaction_sha256=transaction,
+    )
+    run.publish_bytes("artifact.bin", b"fixed")
+    real_rename = os.rename
+
+    def deny_final_rename(source: str | bytes | Path, target: str | bytes | Path) -> None:
+        if Path(source) == run.stage_root and Path(target) == run.final_root:
+            raise PermissionError("simulated external handle")
+        real_rename(source, target)
+
+    monkeypatch.setattr(os, "rename", deny_final_rename)
+    with pytest.raises(PermissionError, match="simulated external handle"):
+        run.commit(expected_artifacts=("artifact.bin",), metadata={"records": 1})
+    assert (run.stage_root / "_COMMIT.json").is_file()
+    assert not run.final_root.exists()
+
+    monkeypatch.setattr(os, "rename", real_rename)
+    resumed = StagedArtifactRun(
+        output_parent=tmp_path,
+        run_name="rename-recovery",
+        transaction_sha256=transaction,
+    )
+
+    assert resumed.completed is True
+    assert not resumed.stage_root.exists()
+    assert (resumed.final_root / "artifact.bin").read_bytes() == b"fixed"
+    assert resumed.validate_committed_run().metadata == {"records": 1}
 
 
 def test_concurrent_identical_stage_commits_publish_exactly_once(tmp_path: Path) -> None:

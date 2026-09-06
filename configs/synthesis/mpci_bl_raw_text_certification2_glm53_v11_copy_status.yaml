@@ -1,0 +1,61 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certification2-glm53-v11-copy-status
+  output_dir: artifacts/kie-synthesis
+
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certified-correction2-glm53-v9-route-failover
+  commit_sha256: fed6df87d753dfabae1341787c0567815f5817573ebe4fa1a5df35d11e80dca9
+  transaction_sha256: 803d82940695aba65e25ceaf7dc1566de4a3ef5d531c89c380fcd6c005401ef3
+input_case_contract_filename: source-contract.json
+
+case_ids:
+  - doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642
+  - doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v1.md
+  sha256: 79b85b02741b00295cb575f9e8c8c52b03725fafee7c5449a06617e02704f9df
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [gmicloud/fp8, novita/fp8, deepinfra/fp4, z-ai/fp8, coreweave/fp8]
+  provider_order: [gmicloud/fp8, novita/fp8, deepinfra/fp4, z-ai/fp8, coreweave/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 2
+  max_concurrent_documents: 2
+  semantic_audit_passes: 1
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

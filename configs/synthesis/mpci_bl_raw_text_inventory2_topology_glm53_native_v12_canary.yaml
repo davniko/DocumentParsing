@@ -1,0 +1,69 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_inventory_probe_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-inventory2-topology-glm53-native-v13-canary
+  output_dir: artifacts/kie-synthesis
+
+base_batch_config:
+  path: configs/synthesis/mpci_bl_raw_text_hybrid50_topology_glm53_flash_v5_natural_package_prose.yaml
+  sha256: e10017c8977a5b65461d081ac8eec5269c7140a79cc46905757de60a36330fdd
+regression_oracle:
+  path: data/evaluation/mpci-bl-raw-text-rewrite-regression-v1.json
+  sha256: 3fe3fcbd25112bd67e07d402adc4b8a5b8ef5a1066def8bb843b88ed2758516d
+reference_runs:
+  glm:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-hybrid50-glm53-flash-v7
+    commit_sha256: 11d58854d9b1d21c5b3feacf1712e323996dc90eacddea2b151077fed471b5ff
+    transaction_sha256: 0c8cdebb54fbe5c14102626fe8d6af1958653c5df6ddbe847b87677ecdb00b83
+  luna:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-hybrid50-luna-low-v6
+    commit_sha256: de6241c153f5aff4c96b7929ccb6b93b8de37b7553f61056ce42c5f75cdd2f23
+    transaction_sha256: cbbbe1ab47a0449d95a91721c5c70897a044aa16da51a88f23987e42f0a67d13
+
+cases:
+  - document_id: doc_11ac17a4963225bdb78247f8c29d8e1a47b79ac942682ce8f459170c37389489
+  - document_id: doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_inventory_editor_v2.md
+  sha256: facba5391f1286718d6a3b55c4b96bf51b8ff73b5eee716568c498ff81907cc2
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 600.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [gmicloud/fp8, novita/fp8, z-ai/fp8, deepinfra/fp4, coreweave/fp8]
+  provider_order: [gmicloud/fp8, novita/fp8, z-ai/fp8, deepinfra/fp4, coreweave/fp8]
+  max_price:
+    prompt: 0.15
+    completion: 0.50
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.015
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  regression_documents: 12
+  max_live_documents: 2
+  output_mode: native
+  max_model_requests_per_document: 3
+  deterministic_auxiliary_rendering: true
+  require_every_output_slot: true
+  require_full_document_regression_oracle: true
+  require_no_retained_changed_source_values: true
+  require_no_retained_source_auxiliary_values: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

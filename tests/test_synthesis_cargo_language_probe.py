@@ -11,7 +11,9 @@ from pydantic import ValidationError
 from document_ocr.synthesis.cargo_language_probe import (
     CargoLanguageGenerationOutput,
     GeneratedCargoLanguageGroup,
+    _cargo_auxiliary_role,
     build_cargo_language_seed,
+    normalize_cargo_language_output,
     validate_cargo_language,
 )
 from document_ocr.synthesis.config import (
@@ -146,6 +148,9 @@ def test_seed_preserves_text_topology_and_excludes_categorical_printed_surfaces(
     assert group.structuredFacts.packages[0].typeCategory == "PACKAGE_CARTON"
     assert group.structuredFacts.equipment[0].typeCategory == "REFRIGERATED"
     assert group.fieldContract.descriptionPresent is True
+    assert group.fieldContract.additionalInformationSlots[0].semanticRole == (
+        "product_attribute_or_condition"
+    )
     assert [row.action for row in group.fieldContract.marksAndNumbersSlots] == [
         "preserve_literal",
         "generate",
@@ -155,9 +160,24 @@ def test_seed_preserves_text_topology_and_excludes_categorical_printed_surfaces(
         "containerPrintedSurfaces",
         "hsCodePrintedSurfaces",
     )
-    assert set(CargoLanguageGenerationOutput.model_json_schema()["properties"]) == {
-        "cargoGroups"
-    }
+    assert set(CargoLanguageGenerationOutput.model_json_schema()["properties"]) == {"cargoGroups"}
+
+
+@pytest.mark.parametrize(
+    ("value", "role"),
+    (
+        ("88PLTS=1556CTNS=31064PCS", "package_hierarchy_or_quantity"),
+        ("PACKED IN PP BAGS WITH 25 KGS NET WEIGHT EACH", "package_hierarchy_or_quantity"),
+        ("ON WOODEN PALLETS X 250.0000 KGS", "packing_method_or_per_unit_measure"),
+        ("CONSOLIDATED CARGO", "consolidation_status"),
+        ("CARGO IN TRANSIT TO A BONDED WAREHOUSE", "transit_or_bonded_movement"),
+        ("NON-HAZARDOUS MATERIAL", "dangerous_goods_status"),
+        ("PURPOSE: TV SET", "purpose_or_end_use"),
+        ("0034001125A", "commercial_or_product_identifier"),
+    ),
+)
+def test_auxiliary_role_grammar_classifies_observed_semantics(value: str, role: str) -> None:
+    assert _cargo_auxiliary_role(value) == role
 
 
 def test_validation_enforces_semantics_topology_and_generic_marks() -> None:
@@ -167,7 +187,7 @@ def test_validation_enforces_semantics_topology_and_generic_marks() -> None:
             GeneratedCargoLanguageGroup(
                 groupId="g1",
                 description="FROZEN SKIPJACK TUNA LOINS",
-                additionalInformation=("FOOD GRADE, LOT K72",),
+                additionalInformation=("FOOD GRADE, SEALED FOR TRANSIT",),
                 marksAndNumbers=("N/M", "COLDSEA-742"),
                 handlingInstructions=("KEEP FROZEN AT -18°C",),
             ),
@@ -217,21 +237,23 @@ def test_short_goods_name_is_not_lost_behind_long_taxonomic_qualifiers() -> None
 
 def test_hierarchical_heading_nouns_validate_complete_fragment_realization() -> None:
     seed = build_cargo_language_seed(case_index=0, plan=_plan())
-    identity = seed.cargoGroups[0].goodsIdentities[0].model_copy(
-        update={
-            "description": "Of polyamides",
-            "headingDescription": (
-                "Other plates, sheets, film, foil and strip, of plastics, non-cellular"
-            ),
-            "thermalProfile": None,
-        }
+    identity = (
+        seed.cargoGroups[0]
+        .goodsIdentities[0]
+        .model_copy(
+            update={
+                "description": "Of polyamides",
+                "headingDescription": (
+                    "Other plates, sheets, film, foil and strip, of plastics, non-cellular"
+                ),
+                "thermalProfile": None,
+            }
+        )
     )
     seed = seed.model_copy(
         update={
             "cargoGroups": (
-                seed.cargoGroups[0].model_copy(
-                    update={"goodsIdentities": (identity,)}
-                ),
+                seed.cargoGroups[0].model_copy(update={"goodsIdentities": (identity,)}),
             )
         }
     )
@@ -252,15 +274,238 @@ def test_hierarchical_heading_nouns_validate_complete_fragment_realization() -> 
     assert validation.checks["group_1_description_semantic_coverage"] is True
 
 
-def test_ungrounded_auxiliary_slots_can_be_explicitly_removed_without_filler() -> None:
-    group = GeneratedCargoLanguageGroup(
-        groupId="g1",
-        description="POLYURETHANE SHEETS",
-        additionalInformation=(None, None),
-        marksAndNumbers=(),
-        handlingInstructions=(),
-    )
-    assert group.additionalInformation == (None, None)
+def test_occupied_auxiliary_slots_require_substantive_text() -> None:
     schema = GeneratedCargoLanguageGroup.model_json_schema(mode="validation")
     item_schema = schema["properties"]["additionalInformation"]["items"]
-    assert {row.get("type") for row in item_schema["anyOf"]} == {"string", "null"}
+    assert item_schema["type"] == "string"
+    assert item_schema["minLength"] == 1
+
+    with pytest.raises(ValueError):
+        GeneratedCargoLanguageGroup(
+            groupId="g1",
+            description="POLYURETHANE SHEETS",
+            additionalInformation=(None,),  # type: ignore[arg-type]
+            marksAndNumbers=(),
+            handlingInstructions=(),
+        )
+
+
+@pytest.mark.parametrize(
+    "placeholder",
+    ("null", ":null", "N/A", "(UNKNOWN)", "unavailable"),
+)
+def test_linguistic_cargo_fields_reject_textual_placeholders(placeholder: str) -> None:
+    with pytest.raises(ValueError, match="never a textual placeholder"):
+        GeneratedCargoLanguageGroup(
+            groupId="g1",
+            description="POLYURETHANE SHEETS",
+            additionalInformation=(placeholder,),
+            marksAndNumbers=(),
+            handlingInstructions=(),
+        )
+
+
+def test_validation_preserves_unambiguous_template_casing() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    title_case = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="Frozen skipjack tuna loins",
+                additionalInformation=("Food grade, lot K72",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("Keep frozen at -18°C",),
+            ),
+        )
+    )
+
+    validation = validate_cargo_language(seed=seed, output=title_case)
+
+    assert validation.passed is False
+    assert validation.checks["group_1_description_casing_style"] is False
+    assert validation.checks["group_1_additional_casing_style"] is False
+    assert validation.checks["group_1_handling_casing_style"] is False
+
+    normalized = normalize_cargo_language_output(seed=seed, output=title_case)
+    normalized_validation = validate_cargo_language(seed=seed, output=normalized)
+
+    assert normalized.cargoGroups[0].description == "FROZEN SKIPJACK TUNA LOINS"
+    assert normalized.cargoGroups[0].additionalInformation == ("FOOD GRADE, LOT K72",)
+    assert normalized_validation.checks["group_1_description_casing_style"] is True
+    assert normalized_validation.checks["group_1_additional_casing_style"] is True
+    assert normalized_validation.checks["group_1_handling_casing_style"] is True
+
+
+def test_normalization_removes_internal_package_namespace_from_printed_prose() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    output = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="FROZEN SKIPJACK TUNA LOINS",
+                additionalInformation=("480 PACKAGE CARTONS SECURED FOR EXPORT",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("KEEP FROZEN AT -18°C",),
+            ),
+        )
+    )
+
+    normalized = normalize_cargo_language_output(seed=seed, output=output)
+
+    assert normalized.cargoGroups[0].additionalInformation == (
+        "480 CARTONS SECURED FOR EXPORT",
+    )
+    assert validate_cargo_language(seed=seed, output=normalized).checks[
+        "group_1_no_internal_package_namespace_prose"
+    ] is True
+
+
+def test_validation_rejects_unrelated_structured_facts_added_to_auxiliary_slot() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    output = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="FROZEN SKIPJACK TUNA LOINS",
+                additionalInformation=("FOOD GRADE, LOT K72; GROSS WEIGHT 1,200.5 KILOGRAMS",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("KEEP FROZEN AT -18°C",),
+            ),
+        )
+    )
+
+    validation = validate_cargo_language(seed=seed, output=output)
+
+    assert validation.passed is False
+    assert validation.checks["group_1_additional_slot_scope"] is False
+
+
+def test_validation_allows_replacing_the_same_auxiliary_fact_class() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    group = seed.cargoGroups[0]
+    contract = group.fieldContract.model_copy(
+        update={
+            "additionalInformationSlots": (
+                group.fieldContract.additionalInformationSlots[0].model_copy(
+                    update={"sourceStyleReference": "GROSS WEIGHT 1,200.5 KG"}
+                ),
+            ),
+        }
+    )
+    seed = seed.model_copy(
+        update={"cargoGroups": (group.model_copy(update={"fieldContract": contract}),)}
+    )
+    output = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="FROZEN SKIPJACK TUNA LOINS",
+                additionalInformation=("GROSS WEIGHT 1,480.2 KG",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("KEEP FROZEN AT -18°C",),
+            ),
+        )
+    )
+
+    validation = validate_cargo_language(seed=seed, output=output)
+
+    assert validation.checks["group_1_additional_slot_scope"] is True
+
+
+def test_validation_rejects_collapsed_package_hierarchy_and_accepts_all_target_levels() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    group = seed.cargoGroups[0]
+    slot = group.fieldContract.additionalInformationSlots[0].model_copy(
+        update={
+            "sourceStyleReference": "12PLTS=480CTNS",
+            "semanticRole": "package_hierarchy_or_quantity",
+            "sourceFactKinds": (),
+        }
+    )
+    seed = seed.model_copy(
+        update={
+            "cargoGroups": (
+                group.model_copy(
+                    update={
+                        "structuredFacts": group.structuredFacts.model_copy(
+                            update={
+                                "packages": (
+                                    group.structuredFacts.packages[0].model_copy(
+                                        update={"quantity": 15, "typeCategory": "PACKAGE_PALLET"}
+                                    ),
+                                    group.structuredFacts.packages[0].model_copy(
+                                        update={"quantity": 612, "typeCategory": "PACKAGE_CARTON"}
+                                    ),
+                                )
+                            }
+                        ),
+                        "fieldContract": group.fieldContract.model_copy(
+                            update={"additionalInformationSlots": (slot,)}
+                        ),
+                    }
+                ),
+            )
+        }
+    )
+
+    def output(additional: str) -> CargoLanguageGenerationOutput:
+        return CargoLanguageGenerationOutput(
+            cargoGroups=(
+                GeneratedCargoLanguageGroup(
+                    groupId="g1",
+                    description="FROZEN SKIPJACK TUNA LOINS",
+                    additionalInformation=(additional,),
+                    marksAndNumbers=("N/M", "COLDSEA-742"),
+                    handlingInstructions=("KEEP FROZEN AT -18°C",),
+                ),
+            )
+        )
+
+    collapsed = validate_cargo_language(seed=seed, output=output("612 CARTONS"))
+    complete = validate_cargo_language(
+        seed=seed,
+        output=output("15 PALLETS CONTAINING 612 CARTONS"),
+    )
+
+    assert collapsed.checks["group_1_additional_semantic_role"] is False
+    assert complete.checks["group_1_additional_semantic_role"] is True
+
+
+def test_validation_does_not_overconstrain_mixed_case_style_references() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    group = seed.cargoGroups[0]
+    contract = group.fieldContract.model_copy(
+        update={
+            "sourceDescriptionStyleReference": "Source furniture parts",
+            "additionalInformationSlots": (
+                group.fieldContract.additionalInformationSlots[0].model_copy(
+                    update={"sourceStyleReference": "Source grade 22"}
+                ),
+            ),
+            "handlingInstructionSlots": (
+                group.fieldContract.handlingInstructionSlots[0].model_copy(
+                    update={"sourceStyleReference": "Keep cold"}
+                ),
+            ),
+        }
+    )
+    seed = seed.model_copy(
+        update={"cargoGroups": (group.model_copy(update={"fieldContract": contract}),)}
+    )
+    output = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="FROZEN SKIPJACK TUNA LOINS",
+                additionalInformation=("FOOD GRADE, LOT K72",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("KEEP FROZEN AT -18°C",),
+            ),
+        )
+    )
+
+    validation = validate_cargo_language(seed=seed, output=output)
+
+    assert validation.checks["group_1_description_casing_style"] is True
+    assert validation.checks["group_1_additional_casing_style"] is True
+    assert validation.checks["group_1_handling_casing_style"] is True

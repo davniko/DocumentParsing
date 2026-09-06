@@ -66,6 +66,7 @@ inputs:
 
 generation:
   random_stream: hmac_sha256_counter_v1
+  sampling_namespace: mpci-bl-combined1157-semantic-completion50-v5-v16-package-goods-final
   seed: 20260901
   package_goods_method: fit_hs_heading_or_thermal_joint_with_constrained_dg_catalog_v1
   package_signature_distribution: source_group_occurrence_weighted_v1
@@ -126,4 +127,5 @@ generation:
   preserve_container_cardinality: true
   preserve_cargo_cardinality: true
   preserve_relation_topology: true
+  printed_topology_policy: sample_optional_fields_v1
   publish_training_records: false

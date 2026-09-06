@@ -1,0 +1,60 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certified_correction_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certified-correction2-glm53-v8-inventory19-valid-routes
+  output_dir: artifacts/kie-synthesis
+
+certification_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification2-glm53-v6-inventory19
+  commit_sha256: bcbd23723891057b329391162f22eda83bd4aaab757a76dd90623395e64147ed
+  transaction_sha256: 015f2084188371585bbe50291cf7677519cf97ab8f65706d79401b62f7bb6d8b
+
+case_ids:
+  - doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642
+  - doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984
+
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_certified_line_corrector_v1.md
+  sha256: a7566352f6120776fda8a4b48b2a87c09308101135320771989d6028666be579
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 600.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [gmicloud/fp8, novita/fp8, deepinfra/fp4, z-ai/fp8, coreweave/fp8]
+  provider_order: [gmicloud/fp8, novita/fp8, deepinfra/fp4, z-ai/fp8, coreweave/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 2
+  max_concurrent_documents: 2
+  max_provider_route_rounds: 4
+  max_successful_model_responses_per_document: 1
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_only_cited_lines_mutable: true
+  require_exact_line_and_page_topology: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

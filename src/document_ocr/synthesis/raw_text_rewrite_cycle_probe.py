@@ -17,6 +17,7 @@ import re
 import resource
 import time
 import unicodedata
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -26,7 +27,7 @@ from importlib.metadata import version
 from itertools import pairwise
 from pathlib import Path
 from types import MappingProxyType
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal, Protocol, cast
 from urllib.parse import urlsplit, urlunsplit
 
 from openai import AsyncOpenAI
@@ -49,8 +50,12 @@ from pydantic_ai import (
 )
 from pydantic_ai.concurrency import ConcurrencyLimiter
 from pydantic_ai.messages import CachePoint, ModelResponse, UserContent
+from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
@@ -59,14 +64,22 @@ from document_ocr.label_schemas import bill_of_lading_v3, bill_of_lading_v5
 from document_ocr.labeling_agents.deterministic_annotation import (
     explicit_hs_codes_from_text,
 )
-from document_ocr.synthesis.config import SynthesisRawTextRewriteCycleProbeConfig
-from document_ocr.synthesis.container_semantics import review_source_equipment_surface
+from document_ocr.synthesis.config import (
+    RawTextRewriteInputsConfig,
+    RawTextRewriteTargetIntegrityConfig,
+    SynthesisRawTextRewriteCycleProbeConfig,
+)
+from document_ocr.synthesis.container_semantics import (
+    canonical_equipment_surface,
+    review_source_equipment_surface,
+)
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
+from document_ocr.synthesis.drafts import set_target_value, target_value
 from document_ocr.synthesis.generators import DeterministicStream, largest_remainder_allocation
 from document_ocr.synthesis.linguistic_completion_pipeline import DocumentLinguisticPlan
 from document_ocr.synthesis.linguistic_probe_runtime import (
     LinguisticUsageReceipt,
-    load_openai_key,
+    load_provider_key,
     model_messages,
     openai_responses_settings,
     usage_receipt,
@@ -105,12 +118,14 @@ EvidenceText = Annotated[str, StringConstraints(min_length=1, max_length=600)]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _PAGE_MARKER = re.compile(r"^--- PAGE [1-9][0-9]* ---[ \t]*$")
 _NEWLINE = re.compile(r"\r\n|\r|\n")
 _PLACEHOLDER = re.compile(
     r"(?<![A-Z0-9])(?:UNAVAILABLE|NOT[ \t]+AVAILABLE|UNKNOWN|TBD|TBA|N[./]A[.]?)(?![A-Z0-9])",
     re.IGNORECASE,
 )
+_HTML_ENTITY = re.compile(r"&(?:#[0-9]+|#x[0-9A-F]+|[A-Z][A-Z0-9]+);", re.IGNORECASE)
 _INLINE_SLOT_LABEL = re.compile(
     r"(?<![A-Z0-9])(?P<label>PHONE|FAX|MOBILE|TEL(?:EPHONE)?|PH|E-?MAIL|WEBSITE|WEB|T)"
     r"(?P<spacing>[ \t]*):",
@@ -134,9 +149,32 @@ _PRESERVABLE_LEGAL_BOILERPLATE_LINE = re.compile(
     r")[ \t]*$",
     re.IGNORECASE,
 )
-_STRUCTURAL_LINE_PREFIX = re.compile(
-    r"^(?P<prefix>[ \t]*(?:\([0-9]+\)|[0-9]+(?:\.[0-9]+)+\.)\s+)"
+_PARTY_HEADING_LINE = re.compile(
+    r"^[ \t]*(?:\([0-9]+\)[ \t]*)?"
+    r"(?:SHIPPER(?:/EXPORTER)?|EXPORTER|CONSIGNEE|NOTIFY(?:[ \t]+PARTY)?)"
+    r"(?:[ \t]*(?:\([^\r\n()]*\)|[0-9]+))*[ \t:.-]*$",
+    re.IGNORECASE,
 )
+_PARTY_COUNTRY_METADATA_LINE = re.compile(
+    r"(?ix)^"
+    r"(?P<prefix>[ \t]*(?P<label>"
+    r"(?:SHIPPER|(?:FOREIGN[ \t]+)?EXPORTER)(?:[ \t]+REGISTRATION)?[ \t]+COUNTRY"
+    r"(?:[ \t]+CODE)?|"
+    r"(?:CONSIGNEE|IMPORTER)(?:[ \t]+REGISTRATION)?[ \t]+COUNTRY(?:[ \t]+CODE)?"
+    r")[ \t]*(?::|=)?[ \t]*)"
+    r"(?P<value>[A-Z][A-Z0-9 .,'()/-]*?[A-Z0-9])"
+    r"(?P<suffix>[ \t]*[,;.]?[ \t]*)$"
+)
+
+
+class RewritePreparationConfig(Protocol):
+    """The source/target controls required before any rewrite model is constructed."""
+
+    inputs: RawTextRewriteInputsConfig
+    target_integrity: RawTextRewriteTargetIntegrityConfig
+
+
+_STRUCTURAL_LINE_PREFIX = re.compile(r"^(?P<prefix>[ \t]*(?:\([0-9]+\)|[0-9]+(?:\.[0-9]+)+\.)\s+)")
 _POSITIVE_REEFER_OPERATION = re.compile(
     r"\b(?:TEMPERATURE[ \t]+(?:IS[ \t]+)?(?:TO[ \t]+BE[ \t]+)?SET|"
     r"PLUGGING[ \t]+FOR[ \t]+(?:THE[ \t]+)?ACCOUNT)\b",
@@ -168,17 +206,22 @@ _CONTAINER_TYPE_DESCRIPTION_PATH = re.compile(
 )
 _CONTAINER_SIZE_CATEGORY_PATH = re.compile(r"^documentPatch\.containers\[([0-9]+)\]\.sizeCategory$")
 _CONTAINER_TYPE_CATEGORY_PATH = re.compile(r"^documentPatch\.containers\[([0-9]+)\]\.typeCategory$")
+_CONTAINER_NUMBER_TARGET_PATH = re.compile(
+    r"^documentPatch\.(?:containers\[[0-9]+\]|"
+    r"cargoAllocationGroups\[[0-9]+\]\.allocations\[[0-9]+\])\.containerNumber$"
+)
+_CANONICAL_CONTAINER_NUMBER = re.compile(r"^[A-Z]{4}[0-9]{7}$")
 _NUMERIC_DATE = re.compile(
     r"(?<![0-9])(?P<a>[0-9]{1,4})(?P<s>[./-])(?P<b>[0-9]{1,2})(?P=s)(?P<c>[0-9]{1,4})(?![0-9])"
 )
 _DAY_NAMED_MONTH_DATE = re.compile(
-    r"(?<![A-Z0-9])(?P<d>[0-9]{1,2})(?P<s>[- /])(?P<m>[A-Z]{3,9})"
+    r"(?<![A-Z0-9])(?P<d>[0-9]{1,2})(?P<s>[-./ ])(?P<m>[A-Z]{3,9})"
     r"(?P=s)(?P<y>[0-9]{2,4})(?![A-Z0-9])",
     re.IGNORECASE,
 )
 _NAMED_MONTH_DAY_DELIMITED_DATE = re.compile(
-    r"(?<![A-Z0-9])(?P<m>[A-Z]{3,9})(?P<s>[-/])(?P<d>[0-9]{1,2})"
-    r"(?P=s)(?P<y>[0-9]{2,4})(?![A-Z0-9])",
+    r"(?<![A-Z0-9])(?P<m>[A-Z]{3,9})(?P<s>[-/.])(?P<d>[0-9]{1,2})"
+    r"(?P<s2>(?P=s)|,)(?P<gap>[ ]*)(?P<y>[0-9]{2,4})(?![A-Z0-9])",
     re.IGNORECASE,
 )
 _NAMED_MONTH_DAY_DATE = re.compile(
@@ -188,17 +231,46 @@ _NAMED_MONTH_DAY_DATE = re.compile(
 )
 _NUMERIC_SURFACE = re.compile(r"(?<![0-9])[0-9](?:[0-9. /-]*[0-9])?(?![0-9])")
 _ISSUE_DATE_CONTEXT = re.compile(
-    r"(?:PLACE\s+(?:(?:AND|&)\s+DATE\s+OF\s+ISSUE|OF\s+ISSUE\s+DATE)|DATE\s+OF\s+ISSUE)",
+    r"(?:PLACE\s+(?:(?:AND|&)\s+DATE\s+OF\s+ISSUE|"
+    r"OF\s+(?:B(?:\(S\)|S)?/?L|BILL(?:\(S\)|S)?)\s+ISSUE(?:/DATE)?|"
+    r"OF\s+ISSUE(?:\s+DATE)?)|"
+    r"DATE\s+(?:OF\s+ISSUE|ISSUE\s+OF\s+(?:WAYBILL|BILL(?:\(S\)|S)?))|\bDATED\b)",
     re.I,
 )
 _SHIPPED_DATE_CONTEXT = re.compile(
-    r"(?:(?:SHIP|SHIPPED)\s+ON\s+BOARD(?:\s+DATE)?|ON\s+BOARD\s+DATE)", re.I
+    r"(?:(?:SHIP|SHIPPED)\s+ON\s+BOARD(?:\s+DATE)?|ON\s+BOARD\s+DATE|"
+    r"DATE\s+(?:LADEN|SHIPPED)\s+ON\s+BOARD|LADEN\s+ON\s+BOARD)",
+    re.I,
 )
 _ANONYMOUS_EQUIPMENT = re.compile(
     r"(?:/|X\s+)?(?:20|40|45)[\u2019'\"]?(?:\s*FT)?\s*"
     r"(?:HC|HQ|HIGH\s+CUBE|DRY|GP|DC|REEFER|RF)?"
     r"\s*CONTAINERS?\s+SAID\s+TO\s+CONTAIN",
     re.I,
+)
+_SPLIT_ANONYMOUS_EQUIPMENT_LINE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<count>[1-9][0-9,]*)(?P<x>[ \t]*X[ \t]*)"
+    r"(?P<size>20|40|45)(?P<quote>[\u2019'\"]?)(?:[ \t]*FT)?[ \t]*"
+    r"(?P<container>CONTAINERS?)(?P<suffix>[ \t]+SAID[ \t]+TO)(?P<trailing>[ \t]*)$",
+    re.IGNORECASE,
+)
+_DG_CLASS_BEFORE_UN = re.compile(
+    r"(?P<class_prefix>(?:IMDG[ \t]+)?CLASS[ \t]*:[ \t]*)"
+    r"(?P<class>[1-9](?:\.[1-9])?)(?P<middle>[^\r\n]{0,36}?)"
+    r"(?P<un_prefix>UN(?:DG)?(?:[ \t]+NUMBER|[ \t]+NO\.?)?[ \t]*:[ \t]*)"
+    r"(?P<un>[0-9]{4})"
+    r"(?P<pg_clause>[ \t]*(?:-[ \t]*)?(?:PG|PACKING[ \t]+GROUP)[ \t]*:[ \t]*"
+    r"(?P<pg>I{1,3}|NOT[ \t]+ASSIGNED))?",
+    re.IGNORECASE,
+)
+_DG_UN_BEFORE_CLASS = re.compile(
+    r"(?P<un_prefix>UN(?:DG)?(?:[ \t]+NUMBER|[ \t]+NO\.?)?[ \t]*:[ \t]*)"
+    r"(?P<un>[0-9]{4})(?P<middle>[^\r\n]{0,36}?)"
+    r"(?P<class_prefix>(?:IMDG[ \t]+)?CLASS[ \t]*:[ \t]*)"
+    r"(?P<class>[1-9](?:\.[1-9])?)"
+    r"(?P<pg_clause>[ \t]*(?:-[ \t]*)?(?:PG|PACKING[ \t]+GROUP)[ \t]*:[ \t]*"
+    r"(?P<pg>I{1,3}|NOT[ \t]+ASSIGNED))?",
+    re.IGNORECASE,
 )
 _CARRIER_RECEIPT_COUNT = re.compile(
     r"(?P<prefix>TOTAL\s+NUMBER\s+OF\s+(?:CONTAINERS?\s+OR\s+PACKAGES?|"
@@ -233,6 +305,11 @@ _RAW_SIGNED_ON_BEHALF_LINE = re.compile(
     r"(?:THE[ \t]+CARRIER[ \t]+)?(?P<principal>[^\r\n]{2,160})[ \t]*$",
     re.IGNORECASE,
 )
+_RAW_SIGNED_FOR_CARRIER_LINE = re.compile(
+    r"^[ \t]*SIGNED[ \t]+FOR[ \t]+THE[ \t]+CARRIER[ \t:]+"
+    r"(?P<principal>[^\r\n]{2,160})[ \t]*$",
+    re.IGNORECASE,
+)
 _RAW_BY_AGENT_LINE = re.compile(
     r"^[ \t]*BY[ \t]+(?P<identity>[^\r\n]{2,160}?)[ \t]+AS[ \t]+AGENT"
     r"(?:[ \t]+[^\r\n]{1,160})?[ \t]*$",
@@ -246,6 +323,23 @@ _RAW_GROSS_WEIGHT = re.compile(
 _RAW_VOLUME = re.compile(
     r"(?<![A-Z0-9])(?:CBM|CUBIC[ \t]+MET(?:ER|RE)S?|VOLUME)"
     r"[ \t]*[:#-]?[ \t]*(?P<value>[0-9]+(?:[.,][0-9]+)*)",
+    re.IGNORECASE,
+)
+_RAW_TRAILING_GROSS_WEIGHT = re.compile(
+    r"(?<![0-9.,])(?P<value>[0-9]+(?:[.,][0-9]+)*)[ \t]*"
+    r"(?:KGS?|KGM|KILOGRAMS?)(?![A-Z])",
+    re.IGNORECASE,
+)
+_RAW_TRAILING_VOLUME = re.compile(
+    r"(?<![0-9.,])(?P<value>[0-9]+(?:[.,][0-9]+)*)[ \t]*"
+    r"(?:CBM|M(?:3|³)|CU\.?[ \t]*M\.?)\b",
+    re.IGNORECASE,
+)
+_RAW_PACKAGE_QUANTITY = re.compile(
+    r"(?<![0-9.,])(?P<value>[0-9][0-9,]*(?:[.,]00)?)[ \t]*"
+    r"(?P<package>PACKAGES?|PKGS?|PCS?|PIECES?|PALLETS?|CARTONS?|DRUMS?|BAGS?|"
+    r"BOX(?:ES)?|BALES?|ROLLS?|CRATES?|CASES?|BUNDLES?|SETS?|LOTS?|UNITS?|"
+    r"SACKS?|JERRICANS?|TINS?|CANS?|BARRELS?)(?![A-Z])",
     re.IGNORECASE,
 )
 _RAW_INLINE_CONTAINER_MEASURES = re.compile(
@@ -269,6 +363,14 @@ _ANCHORABLE_IDENTIFIER_PATH = re.compile(
     r"cargoGroups\[[0-9]+\]\.marksAndNumbers\[[0-9]+\]|"
     r"cargoGroups\[[0-9]+\]\.dangerousGoods\[[0-9]+\]\.unNumber"
     r")$"
+)
+_MARKS_AND_NUMBERS_PATH = re.compile(
+    r"^documentPatch\.cargoGroups\[[0-9]+\]\.marksAndNumbers\[[0-9]+\]$"
+)
+_INLINE_MARKS_VALUE_PREFIX = re.compile(
+    r"(?:^|\b)(?:MKS|MARKS?)(?:\s*(?:&|AND|/)\s*(?:NOS?|NUMBERS?))?"
+    r"\s*[:#=-]?\s*$",
+    re.IGNORECASE,
 )
 _ANCHORABLE_CONTACT_PATH = re.compile(
     r"^documentPatch\.parties\.(?:shipper|consignee|carrier|deliveryAgent|"
@@ -467,9 +569,11 @@ class SurfaceRenderingRequirement(BaseModel):
         "date",
         "hs_code",
         "hs_code_block",
+        "dangerous_goods_tuple",
         "carrier_header_identity",
         "carrier_receipt_count",
         "carrier_receipt_equipment_breakdown",
+        "aggregate_equipment_breakdown",
     ]
     targetPath: NonEmptyText
     sourceSurface: NonEmptyText
@@ -483,7 +587,7 @@ class SourceSemanticRoleHint(BaseModel):
 
     model_config = _STRICT
 
-    role: Literal["anonymous_equipment_count"]
+    role: Literal["anonymous_equipment_count", "anonymous_equipment_surface"]
     sourceLineId: Annotated[str, StringConstraints(pattern=r"^L[0-9]{5}$")]
     sourceSurface: NonEmptyText
     requiredOutputSurface: NonEmptyText
@@ -518,6 +622,7 @@ class TargetLiteralRequirement(BaseModel):
 
     targetPath: NonEmptyText
     targetValue: NonEmptyText
+    matchPolicy: Literal["semantic_literal", "alphanumeric_identifier"] = "semantic_literal"
 
 
 class TargetValueOccurrenceRequirement(BaseModel):
@@ -579,6 +684,7 @@ class OperationalFlavorRequirement(BaseModel):
         "empirical_capacity_utilization_resample_v1",
         "target_measure_allocation_v1",
         "target_package_allocation_v1",
+        "target_membership_package_projection_v1",
     ]
     sourceEvidence: EvidenceText
 
@@ -627,6 +733,7 @@ class TargetIntegrityChange(BaseModel):
         "special_use_domain",
         "country_incoherent_cctld",
         "package_surface_category_mismatch",
+        "overlapping_source_scalar_topology",
     ]
     before: NonEmptyText
     after: NonEmptyText
@@ -662,7 +769,9 @@ class CustomsProgramEntry(BaseModel):
 
     @model_validator(mode="after")
     def surfaces_are_unique_and_longest_first(self) -> CustomsProgramEntry:
-        normalized = tuple(_semantic_normalize(value) for value in self.source_surfaces)
+        # Punctuation is part of a customs selector (``ACID:`` is not the cargo word
+        # ``acid``), so registry identity normalizes only case and whitespace.
+        normalized = tuple(" ".join(value.casefold().split()) for value in self.source_surfaces)
         if any(not value for value in normalized) or len(normalized) != len(set(normalized)):
             raise ValueError("customs-program source surfaces must be nonempty and unique")
         if tuple(sorted(self.source_surfaces, key=len, reverse=True)) != self.source_surfaces:
@@ -682,7 +791,7 @@ class CustomsProgramRegistry(BaseModel):
         if len(identities) != len(set(identities)):
             raise ValueError("customs-program registry IDs must be unique")
         surfaces = [
-            (row.trade_direction, _semantic_normalize(surface))
+            (row.trade_direction, " ".join(surface.casefold().split()))
             for row in self.entries
             for surface in row.source_surfaces
         ]
@@ -696,10 +805,12 @@ class JurisdictionalSurfaceRequirement(BaseModel):
 
     model_config = _STRICT
 
+    requirementId: NonEmptyText
     programId: NonEmptyText
     tradeDirection: Literal["import", "export"]
     programJurisdictionCountryCode: Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
     targetRouteCountryCode: Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
+    sourceLineIds: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
     sourceSurface: NonEmptyText
     targetSurface: NonEmptyText
     sourceOccurrences: Annotated[int, Field(ge=1)]
@@ -864,7 +975,7 @@ class SemanticReviewReceipt(BaseModel):
 class RewriteStageRecord(BaseModel):
     model_config = _STRICT
 
-    schemaVersion: Literal[15]
+    schemaVersion: Literal[16]
     sequence: Annotated[int, Field(ge=1)]
     stage: Literal["draft_editor", "correction_editor", "semantic_reviewer"]
     correctionCycle: Annotated[int, Field(ge=0, le=3)]
@@ -887,8 +998,8 @@ class RewriteStageRecord(BaseModel):
 class RewriteCycleResult(BaseModel):
     model_config = _STRICT
 
-    schemaVersion: Literal[15]
-    caseNumber: Annotated[int, Field(ge=1, le=10)]
+    schemaVersion: Literal[16]
+    caseNumber: Annotated[int, Field(ge=1)]
     documentId: NonEmptyText
     scenarioId: NonEmptyText
     status: Literal["quality_validated", "needs_review", "call_failed", "cost_limited"]
@@ -920,7 +1031,7 @@ class RewriteCycleResult(BaseModel):
 class RewriteCycleBundle(BaseModel):
     model_config = _STRICT
 
-    schemaVersion: Literal[15]
+    schemaVersion: Literal[16]
     result: RewriteCycleResult
     feature: dict[str, JsonValue]
     sourceLabel: dict[str, JsonValue]
@@ -1026,10 +1137,13 @@ def _all_occurrences(text: str, needle: str) -> tuple[int, ...]:
 
 
 def _evidence_occurs(evidence: str, text: str) -> bool:
-    if re.search(
-        rf"(?<![A-Za-z0-9]){re.escape(evidence)}(?![A-Za-z0-9])",
-        text,
-    ) is not None:
+    if (
+        re.search(
+            rf"(?<![A-Za-z0-9]){re.escape(evidence)}(?![A-Za-z0-9])",
+            text,
+        )
+        is not None
+    ):
         return True
     normalized_evidence = _semantic_normalize(evidence)
     if not normalized_evidence:
@@ -1089,29 +1203,47 @@ def inline_slot_topology_requirements(raw_text: str) -> tuple[InlineSlotTopology
 
 
 def _inline_slot_topology_preserved(source: str, output: str) -> bool:
+    return not _inline_slot_topology_mismatches(source, output)
+
+
+def _inline_slot_topology_mismatches(source: str, output: str) -> tuple[str, ...]:
     source_lines = source.splitlines()
     output_lines = output.splitlines()
-    return len(source_lines) == len(output_lines) and all(
-        _inline_slots(source_line) == _inline_slots(output_line)
-        for source_line, output_line in zip(source_lines, output_lines, strict=True)
+    if len(source_lines) != len(output_lines):
+        return ("line-count-mismatch",)
+    return tuple(
+        f"L{line_number:05d}"
+        for line_number, (source_line, output_line) in enumerate(
+            zip(source_lines, output_lines, strict=True), start=1
+        )
+        if _inline_slots(source_line) != _inline_slots(output_line)
     )
 
 
 def _structural_line_prefixes_preserved(source: str, output: str) -> bool:
     """Protect numbered clause/field prefixes while allowing their values to change."""
 
+    return not _structural_line_prefix_mismatches(source, output)
+
+
+def _structural_line_prefix_mismatches(source: str, output: str) -> tuple[str, ...]:
+    """Return exact line IDs whose numbered template prefix changed."""
+
     source_lines = source.splitlines()
     output_lines = output.splitlines()
     if len(source_lines) != len(output_lines):
-        return False
-    for source_line, output_line in zip(source_lines, output_lines, strict=True):
+        return ("line-count-mismatch",)
+    mismatches: list[str] = []
+    for line_number, (source_line, output_line) in enumerate(
+        zip(source_lines, output_lines, strict=True), start=1
+    ):
         source_match = _STRUCTURAL_LINE_PREFIX.match(source_line)
         if source_match is None:
             continue
         output_match = _STRUCTURAL_LINE_PREFIX.match(output_line)
         if output_match is None or output_match.group("prefix") != source_match.group("prefix"):
-            return False
-    return True
+            mismatches.append(f"L{line_number:05d}")
+    return tuple(mismatches)
 
 
 def _isolated_formatting_changes(
@@ -1139,9 +1271,7 @@ def _isolated_formatting_changes(
         source_comparison = source_line
         output_comparison = output_line
         controlled_value_line = False
-        for leaf in rewrite_changed_leaves(
-            workspace.source_label, workspace.current_target_label
-        ):
+        for leaf in rewrite_changed_leaves(workspace.source_label, workspace.current_target_label):
             if not isinstance(leaf.sourceValue, str) or not isinstance(leaf.targetValue, str):
                 continue
             if (
@@ -1193,12 +1323,8 @@ def _isolated_formatting_changes(
             associated = any(
                 not re.search(
                     r"[A-Za-z0-9]",
-                    source_comparison[
-                        min(source_end, row[2]) : max(source_start, row[1])
-                    ]
-                    + output_comparison[
-                        min(output_end, row[4]) : max(output_start, row[3])
-                    ],
+                    source_comparison[min(source_end, row[2]) : max(source_start, row[1])]
+                    + output_comparison[min(output_end, row[4]) : max(output_start, row[3])],
                 )
                 for row in lexical
             )
@@ -1219,9 +1345,11 @@ def _label_has_temperature_setpoint(label: Mapping[str, Any]) -> bool:
 def _deactivated_reefer_operation_coherent(workspace: RewriteWorkspace, output: str) -> bool:
     """Reject positive source operation claims after every target setpoint is removed."""
 
-    if _NON_OPERATING_REEFER.search(output) is not None and re.search(
-        r"\bPLUGGING[ \t]+FOR[ \t]+(?:THE[ \t]+)?ACCOUNT\b", output, re.IGNORECASE
-    ) is not None:
+    if (
+        _NON_OPERATING_REEFER.search(output) is not None
+        and re.search(r"\bPLUGGING[ \t]+FOR[ \t]+(?:THE[ \t]+)?ACCOUNT\b", output, re.IGNORECASE)
+        is not None
+    ):
         return False
     source_has_setpoint = _label_has_temperature_setpoint(workspace.source_label)
     target_has_setpoint = _label_has_temperature_setpoint(workspace.current_target_label)
@@ -1264,7 +1392,16 @@ def source_status_preservation_requirements(
             not legal_document_semantics_changed
             and _PRESERVABLE_LEGAL_BOILERPLATE_LINE.fullmatch(line) is not None
         )
-        if not status_line and not legal_line:
+        party_heading = (
+            not legal_document_semantics_changed and _PARTY_HEADING_LINE.fullmatch(line) is not None
+        )
+        if not status_line and not legal_line and not party_heading:
+            continue
+        if party_heading:
+            # A party value can occur inside heading metadata (for example ``TO ORDER`` in a
+            # consignee negotiability caption).  That is immutable template/legal wording, not
+            # the changed party value printed on the following line.
+            counts[line] = counts.get(line, 0) + 1
             continue
         normalized = _semantic_normalize(line)
         if any(surface and surface in normalized for surface in changed_source_surfaces):
@@ -1353,6 +1490,16 @@ def _semantic_normalize(value: str) -> str:
     return " ".join(re.findall(r"[A-Z0-9]+", ascii_value.upper()))
 
 
+def _introduced_html_entities(source: str, output: str) -> tuple[str, ...]:
+    """Return markup escapes introduced into a plain-text OCR transcript."""
+
+    remaining = Counter(match.group(0).casefold() for match in _HTML_ENTITY.finditer(output))
+    remaining.subtract(match.group(0).casefold() for match in _HTML_ENTITY.finditer(source))
+    return tuple(
+        sorted(entity for entity, count in remaining.items() for _ in range(max(0, count)))
+    )
+
+
 def _party_scalar_occurrence_count(text: str, surface: str) -> int:
     """Count printed party scalars without mistaking email/URL tokens for identities.
 
@@ -1363,14 +1510,49 @@ def _party_scalar_occurrence_count(text: str, surface: str) -> int:
     normalization also recognizes a name or address that the source OCR wraps over several lines.
     """
 
-    normalized_surface = _semantic_normalize(surface)
+    normalized_surface = _semantic_normalize(surface.replace("&", " AND "))
     if not normalized_surface:
         return 0
-    pattern = re.compile(
-        rf"(?<![A-Z0-9]){re.escape(normalized_surface)}(?![A-Z0-9])"
+    pattern = re.compile(rf"(?<![A-Z0-9]){re.escape(normalized_surface)}(?![A-Z0-9])")
+    # Structural field headings can contain a party value as legal guidance rather than data.
+    # ``CONSIGNEE (3) (NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER)`` must not count as a second
+    # occurrence of the actual value ``TO ORDER`` printed on the following line.  Drop only
+    # complete, grammar-recognized heading lines; party names that merely contain words such as
+    # ``Consignee`` remain countable.
+    data_text = "\n".join(
+        line for line in text.splitlines() if _PARTY_HEADING_LINE.fullmatch(line) is None
     )
-    normalized_text = _semantic_normalize(_ELECTRONIC_CONTACT_SURFACE.sub(" ", text))
+    normalized_text = _semantic_normalize(
+        _ELECTRONIC_CONTACT_SURFACE.sub(" ", data_text).replace("&", " AND ")
+    )
     return sum(1 for _ in pattern.finditer(normalized_text))
+
+
+def _party_scalar_occurrence_line_sets(text: str, surface: str) -> tuple[frozenset[int], ...]:
+    """Locate each party-scalar occurrence without losing cross-line provenance.
+
+    The cardinality guard intentionally normalizes OCR whitespace, so a party value split over
+    two physical lines counts as one occurrence.  Repair selection needs the inverse mapping back
+    to every physical line; searching one line at a time cannot find such a duplicate and can
+    repeatedly ask the model to rewrite the already-correct role block instead.  Tokenizing each
+    retained line with the exact same normalization/contact/heading policy preserves that mapping.
+    """
+
+    target_tokens = tuple(_semantic_normalize(surface.replace("&", " AND ")).split())
+    if not target_tokens:
+        return ()
+    tokens: list[tuple[str, int]] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        if _PARTY_HEADING_LINE.fullmatch(line) is not None:
+            continue
+        scrubbed = _ELECTRONIC_CONTACT_SURFACE.sub(" ", line).replace("&", " AND ")
+        tokens.extend((token, number) for token in _semantic_normalize(scrubbed).split())
+    width = len(target_tokens)
+    return tuple(
+        frozenset(line_number for _, line_number in tokens[start : start + width])
+        for start in range(0, len(tokens) - width + 1)
+        if tuple(token for token, _ in tokens[start : start + width]) == target_tokens
+    )
 
 
 _CARGO_MATCH_STOPWORDS = frozenset(
@@ -1420,9 +1602,15 @@ def _line_matches_cargo_description(line: str, source_description: str) -> bool:
     source_normalized = _semantic_normalize(source_description)
     if not line_normalized or not source_normalized:
         return False
-    if len(source_normalized) >= 4 and (
-        source_normalized in line_normalized or line_normalized in source_normalized
-    ):
+    source_in_line = re.search(
+        rf"(?<![A-Z0-9]){re.escape(source_normalized)}(?![A-Z0-9])",
+        line_normalized,
+    )
+    line_in_source = re.search(
+        rf"(?<![A-Z0-9]){re.escape(line_normalized)}(?![A-Z0-9])",
+        source_normalized,
+    )
+    if len(source_normalized) >= 4 and (source_in_line is not None or line_in_source is not None):
         return True
     line_tokens = _cargo_match_tokens(line)
     source_tokens = _cargo_match_tokens(source_description)
@@ -1621,20 +1809,53 @@ def cargo_flavor_rewrite_requirements(
 def _cargo_flavor_rewrite_requirements_rendered(
     value: str, requirements: Sequence[CargoFlavorRewriteRequirement]
 ) -> bool:
+    return not _cargo_flavor_rewrite_failures(value, requirements)
+
+
+def _cargo_flavor_rewrite_failures(
+    value: str, requirements: Sequence[CargoFlavorRewriteRequirement]
+) -> tuple[dict[str, JsonValue], ...]:
+    """Describe only the cargo lines that still violate the rewrite contract.
+
+    Corrective model calls are deliberately line-local. Returning an entire multi-line cargo
+    requirement here caused a single unchanged auxiliary product line to regenerate every already
+    accepted line in the group. The structured diagnostics retain enough information to select an
+    exact repair surface while still falling back to the complete target path when the target
+    description itself is absent and no source line remains unchanged.
+    """
+
     lines = value.splitlines()
     normalized_value = _semantic_normalize(value)
+    failures: list[dict[str, JsonValue]] = []
     for requirement in requirements:
-        if _semantic_normalize(requirement.targetDescription) not in normalized_value:
-            return False
+        target_missing = _semantic_normalize(requirement.targetDescription) not in normalized_value
+        missing_line_ids: list[str] = []
+        unchanged_source_lines: list[dict[str, JsonValue]] = []
         for line_id, source_surface in zip(
             requirement.sourceLineIds, requirement.sourceSurfaces, strict=True
         ):
             line_number = _line_number(line_id)
             if line_number > len(lines):
-                return False
+                missing_line_ids.append(line_id)
+                continue
             if _semantic_normalize(lines[line_number - 1]) == _semantic_normalize(source_surface):
-                return False
-    return True
+                unchanged_source_lines.append(
+                    {
+                        "lineId": line_id,
+                        "sourceSurface": source_surface,
+                    }
+                )
+        if target_missing or missing_line_ids or unchanged_source_lines:
+            failures.append(
+                {
+                    "requirementId": requirement.requirementId,
+                    "targetPath": requirement.targetPath,
+                    "targetDescriptionMissing": target_missing,
+                    "missingLineIds": missing_line_ids,
+                    "unchangedSourceLines": unchanged_source_lines,
+                }
+            )
+    return tuple(failures)
 
 
 def rewrite_changed_leaves(
@@ -1682,7 +1903,12 @@ def _route_country_index(
     return MappingProxyType({name: frozenset(values) for name, values in countries.items()})
 
 
-def _location_country_code(value: Any, resources: TargetIntegrityResources) -> str | None:
+def _location_country_code(
+    value: Any,
+    resources: TargetIntegrityResources,
+    *,
+    country_hints: frozenset[str] = frozenset(),
+) -> str | None:
     if not isinstance(value, Mapping):
         return None
     explicit: str | None = None
@@ -1699,6 +1925,13 @@ def _location_country_code(value: Any, resources: TargetIntegrityResources) -> s
         candidates = resources.route_countries_by_name.get(_semantic_normalize(name), frozenset())
         if len(candidates) == 1:
             inferred = next(iter(candidates))
+        elif len(candidates) > 1:
+            # Port/locality names are not globally unique. A unique intersection with countries
+            # already printed in the synthetic parties is still evidence-backed; an empty or
+            # multi-country intersection remains unresolved rather than guessed.
+            hinted_candidates = candidates & country_hints
+            if len(hinted_candidates) == 1:
+                inferred = next(iter(hinted_candidates))
     if explicit is not None and inferred is not None and explicit != inferred:
         raise ValueError(
             "target route location country conflicts with pinned UN/LOCODE: "
@@ -1713,6 +1946,32 @@ _ROUTE_FIELDS_BY_DIRECTION: Mapping[Literal["import", "export"], tuple[str, ...]
 }
 
 
+def _target_party_country_codes(
+    target_label: Mapping[str, Any], resources: TargetIntegrityResources
+) -> frozenset[str]:
+    patch = target_label.get("documentPatch")
+    parties = patch.get("parties") if isinstance(patch, Mapping) else None
+    if not isinstance(parties, Mapping):
+        return frozenset()
+    output: set[str] = set()
+    party_values = (
+        row
+        for value in parties.values()
+        for row in (value if isinstance(value, list) else (value,))
+    )
+    for party in party_values:
+        country = party.get("country") if isinstance(party, Mapping) else None
+        if not isinstance(country, str):
+            continue
+        code = resources.countries.resolve(country)
+        if code is None:
+            raise ValueError(
+                f"target party country is absent from the pinned ISO registry: {country!r}"
+            )
+        output.add(code)
+    return frozenset(output)
+
+
 def _target_route_country_code(
     target_label: Mapping[str, Any],
     *,
@@ -1723,8 +1982,11 @@ def _target_route_country_code(
     route = patch.get("route") if isinstance(patch, Mapping) else None
     if not isinstance(route, Mapping):
         return None
+    country_hints = _target_party_country_codes(target_label, resources)
     for field_name in _ROUTE_FIELDS_BY_DIRECTION[direction]:
-        country = _location_country_code(route.get(field_name), resources)
+        country = _location_country_code(
+            route.get(field_name), resources, country_hints=country_hints
+        )
         if country is not None:
             return country
     return None
@@ -1755,11 +2017,49 @@ def _target_route_jurisdictions(
 
 
 def _literal_phrase_pattern(surface: str) -> re.Pattern[str]:
-    tokens = re.findall(r"[A-Z0-9]+", _semantic_normalize(surface))
-    if not tokens:
-        raise ValueError(f"jurisdictional source surface has no tokens: {surface!r}")
-    body = r"[\s./_-]+".join(re.escape(token) for token in tokens)
-    return re.compile(rf"(?<![A-Z0-9]){body}(?![A-Z0-9])", re.IGNORECASE)
+    """Match a registry surface without discarding meaningful punctuation.
+
+    Customs acronyms can collide with ordinary cargo words (for example ``ACID`` in a chemical
+    description). Registry entries therefore describe exact printed selectors such as
+    ``ACID NO`` or ``ACID#``. Whitespace may vary, but punctuation is semantic and must not be
+    normalized away.
+    """
+
+    stripped = surface.strip()
+    if not stripped:
+        raise ValueError("registry surface is empty")
+    tokens = re.split(r"(\s+|[-:#])", stripped)
+    body_parts: list[str] = []
+    for index, token in enumerate(tokens):
+        if not token:
+            continue
+        if token.isspace():
+            previous = next((value for value in reversed(tokens[:index]) if value), "")
+            following = next((value for value in tokens[index + 1 :] if value), "")
+            if previous in "-:#" or following in "-:#":
+                continue
+            body_parts.append(r"\s+")
+        elif token in "-:#":
+            body_parts.append(r"\s*" + re.escape(token) + r"\s*")
+        else:
+            body_parts.append(re.escape(token))
+    prefix = r"(?<![A-Z0-9])" if stripped[0].isalnum() else ""
+    suffix = r"(?![A-Z0-9])" if stripped[-1].isalnum() else ""
+    return re.compile(prefix + "".join(body_parts) + suffix, re.IGNORECASE)
+
+
+def _customs_selector_match_is_safe(raw_text: str, match: re.Match[str], surface: str) -> bool:
+    """Disambiguate punctuation-only selectors from ordinary cargo prose.
+
+    ``ACID:`` is a customs field only when it begins the OCR line (allowing punctuation such as
+    ``**``). A mid-line phrase such as ``FATTY ACID:`` remains immutable cargo text. Longer
+    registered selectors such as ``ACID NO`` are already semantically self-identifying.
+    """
+
+    if not surface.endswith((":", "#")):
+        return True
+    line_start = raw_text.rfind("\n", 0, match.start()) + 1
+    return not any(character.isalnum() for character in raw_text[line_start : match.start()])
 
 
 def _anchored_scalar_pattern(surface: str) -> re.Pattern[str]:
@@ -1773,6 +2073,28 @@ def _anchored_scalar_pattern(surface: str) -> re.Pattern[str]:
     prefix = r"(?<![A-Z0-9])" if stripped[0].isalnum() else ""
     suffix = r"(?![A-Z0-9])" if stripped[-1].isalnum() else ""
     return re.compile(f"{prefix}{body}{suffix}", re.IGNORECASE)
+
+
+def _formatted_container_pattern(surface: str) -> re.Pattern[str]:
+    if _CANONICAL_CONTAINER_NUMBER.fullmatch(surface) is None:
+        raise ValueError(f"container number is not canonical: {surface!r}")
+    body = r"[ \t-]*".join(re.escape(character) for character in surface)
+    return re.compile(rf"(?<![A-Z0-9]){body}(?![A-Z0-9])", re.IGNORECASE)
+
+
+def _preserve_alphanumeric_surface_shape(source: str, target: str) -> str:
+    target_characters = tuple(character for character in target if character.isalnum())
+    if sum(character.isalnum() for character in source) != len(target_characters):
+        raise ValueError("source and target alphanumeric surfaces have different widths")
+    output: list[str] = []
+    cursor = 0
+    for character in source:
+        if character.isalnum():
+            output.append(target_characters[cursor])
+            cursor += 1
+        else:
+            output.append(character)
+    return "".join(output)
 
 
 def _anchored_requirement_pattern(
@@ -1798,18 +2120,27 @@ def jurisdictional_surface_requirements(
     """Require named customs programs to agree with the synthetic route jurisdiction."""
 
     output: list[JurisdictionalSurfaceRequirement] = []
+    raw_lines = raw_text.splitlines()
     for program in resources.customs_programs:
-        matched: list[tuple[str, int]] = []
+        matched: list[tuple[str, tuple[str, ...], int]] = []
         occupied: list[tuple[int, int]] = []
         for surface in program.source_surfaces:
             matches = tuple(
                 match
                 for match in _literal_phrase_pattern(surface).finditer(raw_text)
+                if _customs_selector_match_is_safe(raw_text, match, surface)
                 if not any(match.start() < end and match.end() > start for start, end in occupied)
             )
             count = len(matches)
             if count:
-                matched.append((surface, count))
+                line_ids = tuple(
+                    _line_id(
+                        raw_text.count("\n", 0, match.start()) + 1,
+                        raw_lines[raw_text.count("\n", 0, match.start())],
+                    )
+                    for match in matches
+                )
+                matched.append((surface, tuple(dict.fromkeys(line_ids)), count))
                 occupied.extend((match.start(), match.end()) for match in matches)
         if not matched:
             continue
@@ -1827,17 +2158,32 @@ def jurisdictional_surface_requirements(
             continue
         output.extend(
             JurisdictionalSurfaceRequirement(
+                requirementId=(
+                    "jurisdiction-"
+                    + program.program_id
+                    + "-"
+                    + sha256_bytes(
+                        canonical_json_bytes(
+                            {
+                                "surface": surface,
+                                "lineIds": list(line_ids),
+                                "target": program.generic_replacement_surface,
+                            }
+                        )
+                    )[:12]
+                ),
                 programId=program.program_id,
                 tradeDirection=program.trade_direction,
                 programJurisdictionCountryCode=program.jurisdiction_country_code,
                 targetRouteCountryCode=target_country,
+                sourceLineIds=line_ids,
                 sourceSurface=surface,
                 targetSurface=program.generic_replacement_surface,
                 sourceOccurrences=occurrences,
                 authority=program.authority,
                 officialSourceUrl=program.official_source_url,
             )
-            for surface, occurrences in matched
+            for surface, line_ids, occurrences in matched
         )
     return tuple(output)
 
@@ -1845,11 +2191,17 @@ def jurisdictional_surface_requirements(
 def _jurisdictional_surfaces_rendered(
     value: str, requirements: Sequence[JurisdictionalSurfaceRequirement]
 ) -> bool:
+    lines = value.splitlines()
     for requirement in requirements:
-        if _literal_phrase_pattern(requirement.sourceSurface).search(value) is not None:
-            return False
-        if _literal_phrase_pattern(requirement.targetSurface).search(value) is None:
-            return False
+        source_pattern = _literal_phrase_pattern(requirement.sourceSurface)
+        target_pattern = _literal_phrase_pattern(requirement.targetSurface)
+        for line_id in requirement.sourceLineIds:
+            line_index = _line_number(line_id) - 1
+            if not 0 <= line_index < len(lines):
+                return False
+            line = lines[line_index]
+            if source_pattern.search(line) is not None or target_pattern.search(line) is None:
+                return False
     return True
 
 
@@ -1859,15 +2211,23 @@ _NON_LITERAL_TARGET_FIELD = re.compile(
     r"packingGroupCategory|paymentArrangement|negotiability|unit|sameAsConsignee"
     r")(?:\[[0-9]+\])?$"
 )
+_FORMATTED_IDENTIFIER_TARGET_FIELD = re.compile(
+    r"^documentPatch\.(?:containers\[[0-9]+\]|cargoAllocationGroups\[[0-9]+\]\."
+    r"allocations\[[0-9]+\])\.containerNumber$"
+)
 
 
 def target_literal_requirements(
     leaves: Sequence[ChangedLeaf],
+    anchored_replacements: Sequence[AnchoredScalarReplacementRequirement] = (),
 ) -> tuple[TargetLiteralRequirement, ...]:
     """Require changed human-readable strings while excluding schema/category encodings."""
 
     rows: list[TargetLiteralRequirement] = []
     seen: set[tuple[str, str]] = set()
+    anchored_paths = {
+        path for requirement in anchored_replacements for path in requirement.targetPaths
+    }
     for leaf in leaves:
         value = leaf.targetValue
         if (
@@ -1878,12 +2238,23 @@ def target_literal_requirements(
             or leaf.path.endswith("Date")
             or ".hsCodes[" in leaf.path
             or _NON_LITERAL_TARGET_FIELD.search(leaf.path) is not None
+            or leaf.path in anchored_paths
         ):
             continue
         normalized = _semantic_normalize(value)
         if not normalized or (leaf.path, normalized) in seen:
             continue
-        rows.append(TargetLiteralRequirement(targetPath=leaf.path, targetValue=value))
+        rows.append(
+            TargetLiteralRequirement(
+                targetPath=leaf.path,
+                targetValue=value,
+                matchPolicy=(
+                    "alphanumeric_identifier"
+                    if _FORMATTED_IDENTIFIER_TARGET_FIELD.fullmatch(leaf.path) is not None
+                    else "semantic_literal"
+                ),
+            )
+        )
         seen.add((leaf.path, normalized))
     return tuple(rows)
 
@@ -1892,8 +2263,15 @@ def _missing_target_literals(
     value: str, requirements: Sequence[TargetLiteralRequirement]
 ) -> tuple[TargetLiteralRequirement, ...]:
     normalized = _semantic_normalize(value)
+    alphanumeric = re.sub(r"[^A-Z0-9]", "", value.upper())
     return tuple(
-        row for row in requirements if _semantic_normalize(row.targetValue) not in normalized
+        row
+        for row in requirements
+        if (
+            re.sub(r"[^A-Z0-9]", "", row.targetValue.upper()) not in alphanumeric
+            if row.matchPolicy == "alphanumeric_identifier"
+            else _semantic_normalize(row.targetValue) not in normalized
+        )
     )
 
 
@@ -1902,6 +2280,7 @@ def target_value_occurrence_requirements(
     leaves: Sequence[ChangedLeaf],
     raw_auxiliary_identities: Sequence[RawAuxiliaryIdentityRequirement] = (),
     surface_requirements: Sequence[SurfaceRenderingRequirement] = (),
+    anchored_replacements: Sequence[AnchoredScalarReplacementRequirement] = (),
 ) -> tuple[TargetValueOccurrenceRequirement, ...]:
     """Preserve role-bound party scalar cardinality without duplicating shared values.
 
@@ -1982,11 +2361,12 @@ def target_value_occurrence_requirements(
                 if requirement.kind == "carrier_header_identity"
                 and requirement.targetPath in source_paths
                 and _semantic_normalize(requirement.sourceSurface) != normalized_source
+                and _semantic_normalize(requirement.targetSurface)
+                == _semantic_normalize(cast(str, owners[0].targetValue))
             )
         if printed_occurrences < 0:
             raise ValueError(
-                "raw auxiliary identities exceed printed party-name occurrences: "
-                f"{source_value!r}"
+                f"raw auxiliary identities exceed printed party-name occurrences: {source_value!r}"
             )
         if printed_occurrences == 0:
             continue
@@ -2000,8 +2380,32 @@ def target_value_occurrence_requirements(
         for leaf in owners:
             contributions_by_path[leaf.path] = copies
 
+    # Some OCR values are printed across a physical line break and therefore have zero exact
+    # whole-text occurrences (for example a telephone extension split onto the next line). The
+    # anchored compiler has already proven the exact owned line and target rendering. Use that
+    # proof for occurrence cardinality instead of silently under-counting a target value shared
+    # by another party role.
+    for leaf in (*contact_leaves, *party_scalar_leaves):
+        if leaf.path in contributions_by_path:
+            continue
+        matching = tuple(
+            requirement
+            for requirement in anchored_replacements
+            if leaf.path in requirement.targetPaths
+            and requirement.targetSurface == leaf.targetValue
+        )
+        if matching:
+            contributions_by_path[leaf.path] = sum(
+                len(requirement.sourceLineIds) for requirement in matching
+            )
+
     grouped: dict[str, dict[str, Any]] = {}
     eligible = (*contact_leaves, *party_scalar_leaves)
+    incomplete_target_values = {
+        _semantic_normalize(cast(str, leaf.targetValue))
+        for leaf in eligible
+        if leaf.path not in contributions_by_path
+    }
     changed_source_values = frozenset(cast(str, leaf.sourceValue) for leaf in eligible)
     for leaf in eligible:
         contribution = contributions_by_path.get(leaf.path)
@@ -2026,6 +2430,11 @@ def target_value_occurrence_requirements(
 
     output: list[TargetValueOccurrenceRequirement] = []
     for normalized in sorted(grouped):
+        # An exact count derived from only some semantic owners is worse than no count: it can
+        # make two legitimate party fields with the same synthetic value mutually impossible.
+        # Other literal, anchored, and role-block checks still require every located target.
+        if normalized in incomplete_target_values:
+            continue
         row = grouped[normalized]
         target_value = cast(str, row["targetValue"])
         required = cast(int, row["requiredOccurrences"])
@@ -2056,8 +2465,7 @@ def _target_value_occurrence_count(
     if any(".contactDetails." in path for path in requirement.targetPaths):
         return value.count(requirement.targetValue)
     if any(
-        path.startswith("documentPatch.parties.")
-        and path.rsplit(".", 1)[-1] in {"name", "address"}
+        path.startswith("documentPatch.parties.") and path.rsplit(".", 1)[-1] in {"name", "address"}
         for path in requirement.targetPaths
     ):
         return _party_scalar_occurrence_count(value, requirement.targetValue)
@@ -2122,25 +2530,479 @@ def anchored_scalar_replacement_requirements(
         grouped.setdefault(leaf.sourceValue, []).append(leaf)
 
     source_lines = raw_text.splitlines()
+    source_patterns = {
+        source_surface: _anchored_scalar_pattern(source_surface) for source_surface in grouped
+    }
     requirements: list[AnchoredScalarReplacementRequirement] = []
-    for source_surface, source_leaves in sorted(grouped.items()):
+    for source_surface, source_leaves in sorted(
+        grouped.items(), key=lambda row: (-len(row[0]), row[0])
+    ):
         target_surfaces = {cast(str, leaf.targetValue) for leaf in source_leaves}
         if len(target_surfaces) != 1:
             continue
-        pattern = _anchored_scalar_pattern(source_surface)
-        source_line_ids = tuple(
+        target_surface = next(iter(target_surfaces))
+        if (
+            _CANONICAL_CONTAINER_NUMBER.fullmatch(source_surface) is not None
+            and _CANONICAL_CONTAINER_NUMBER.fullmatch(target_surface) is not None
+            and all(
+                _CONTAINER_NUMBER_TARGET_PATH.fullmatch(leaf.path) is not None
+                for leaf in source_leaves
+            )
+        ):
+            printed_pattern = _formatted_container_pattern(source_surface)
+            printed: dict[str, list[str]] = {}
+            for index, line in enumerate(source_lines, start=1):
+                for match in printed_pattern.finditer(line):
+                    printed.setdefault(match.group(0), []).append(_line_id(index, line))
+            for printed_source, printed_line_ids in sorted(printed.items()):
+                requirements.append(
+                    AnchoredScalarReplacementRequirement(
+                        targetPaths=tuple(sorted(leaf.path for leaf in source_leaves)),
+                        sourceLineIds=tuple(printed_line_ids),
+                        sourceSurface=printed_source,
+                        targetSurface=_preserve_alphanumeric_surface_shape(
+                            printed_source, target_surface
+                        ),
+                    )
+                )
+            if printed:
+                continue
+        pattern = source_patterns[source_surface]
+        source_line_ids: tuple[str, ...] = tuple(
             _line_id(index, line)
             for index, line in enumerate(source_lines, start=1)
-            if pattern.search(line) is not None
+            if any(
+                not any(
+                    len(other_surface) > len(source_surface)
+                    and other_match.start() <= match.start()
+                    and match.end() <= other_match.end()
+                    for other_surface, other_pattern in source_patterns.items()
+                    for other_match in other_pattern.finditer(line)
+                )
+                for match in pattern.finditer(line)
+            )
         )
+        if len(source_line_ids) > 1 and all(
+            _MARKS_AND_NUMBERS_PATH.fullmatch(leaf.path) is not None for leaf in source_leaves
+        ):
+            # A mark is often copied from a party identity.  Replacing every literal match can
+            # silently write the synthetic mark into the consignee/notify block.  Multiple
+            # occurrences are deterministic only when the field label on that same line proves
+            # which copy is the mark.  Unique and page-split high-information marks retain their
+            # existing exact paths below.
+            explicit_mark_lines: list[str] = []
+            for index, line in enumerate(source_lines, start=1):
+                for match in pattern.finditer(line):
+                    if _INLINE_MARKS_VALUE_PREFIX.search(line[: match.start()]) is not None:
+                        explicit_mark_lines.append(_line_id(index, line))
+                        break
+            source_line_ids = tuple(explicit_mark_lines)
         if not source_line_ids:
+            # A marks-and-numbers value can be interrupted by a physical page break while its
+            # semantic value remains one label scalar (for example ``Q40043311 -`` on page 1 and
+            # ``Q40043782`` after the repeated page-2 heading).  When every atom is a unique,
+            # high-information identifier and source/target arity agrees, each atom is a safe
+            # deterministic anchor.  Anything less remains unlocated and fail-closed.
+            if all(
+                _MARKS_AND_NUMBERS_PATH.fullmatch(leaf.path) is not None for leaf in source_leaves
+            ):
+                source_atoms = tuple(re.findall(r"[A-Za-z0-9]+", source_surface))
+                target_atoms = tuple(re.findall(r"[A-Za-z0-9]+", target_surface))
+                high_information = all(
+                    len(atom) >= 4 and any(character.isdigit() for character in atom)
+                    for atom in source_atoms
+                )
+                source_atom_patterns = tuple(
+                    _anchored_scalar_pattern(atom) for atom in source_atoms
+                )
+                if (
+                    source_atoms
+                    and len(source_atoms) == len(target_atoms)
+                    and len(set(source_atoms)) == len(source_atoms)
+                    and high_information
+                    and all(
+                        sum(1 for _ in pattern.finditer(raw_text)) == 1
+                        for pattern in source_atom_patterns
+                    )
+                ):
+                    target_paths = tuple(sorted(leaf.path for leaf in source_leaves))
+                    for source_atom, target_atom, atom_pattern in zip(
+                        source_atoms, target_atoms, source_atom_patterns, strict=True
+                    ):
+                        atom_line_ids = tuple(
+                            _line_id(index, line)
+                            for index, line in enumerate(source_lines, start=1)
+                            if atom_pattern.search(line) is not None
+                        )
+                        if len(atom_line_ids) != 1:
+                            raise AssertionError("unique mark atom did not resolve to one line")
+                        requirements.append(
+                            AnchoredScalarReplacementRequirement(
+                                targetPaths=target_paths,
+                                sourceLineIds=atom_line_ids,
+                                sourceSurface=source_atom,
+                                targetSurface=target_atom,
+                            )
+                        )
             continue
         requirements.append(
             AnchoredScalarReplacementRequirement(
                 targetPaths=tuple(sorted(leaf.path for leaf in source_leaves)),
                 sourceLineIds=source_line_ids,
                 sourceSurface=source_surface,
-                targetSurface=target_surfaces.pop(),
+                targetSurface=target_surface,
+            )
+        )
+    return tuple(requirements)
+
+
+def _equipment_surface_with_source_case(source: str, target: str) -> str:
+    """Render canonical equipment semantics without changing the source's letter-case style."""
+
+    letters = tuple(character for character in source if character.isalpha())
+    if letters and all(character.isupper() for character in letters):
+        return target.upper()
+    if letters and all(character.islower() for character in letters):
+        return target.lower()
+    words = re.findall(r"[A-Za-z]+", source)
+    if words and all(word[0].isupper() and word[1:].islower() for word in words):
+        return target.title()
+    return target
+
+
+def container_equipment_replacement_requirements(
+    raw_text: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+) -> tuple[AnchoredScalarReplacementRequirement, ...]:
+    """Bind changed equipment semantics to the exact source container row.
+
+    Container size/type is categorical and has no linguistic degrees of freedom.  A repeated
+    source description such as ``40' Dry Hi-Cube`` may map to different target categories for
+    different containers, so global replacement is unsafe.  This compiler instead requires the
+    exact source container identifier on the same line, or (for a one-container template) a
+    unique equipment surface elsewhere in the document.  Unbound summaries remain outside this
+    function and fail closed or use their dedicated aggregate renderer.
+    """
+
+    source_patch = source_label.get("documentPatch")
+    target_patch = target_label.get("documentPatch")
+    source_containers = (
+        source_patch.get("containers") if isinstance(source_patch, Mapping) else None
+    )
+    target_containers = (
+        target_patch.get("containers") if isinstance(target_patch, Mapping) else None
+    )
+    if not isinstance(source_containers, Sequence) or isinstance(source_containers, (str, bytes)):
+        return ()
+    if not isinstance(target_containers, Sequence) or isinstance(target_containers, (str, bytes)):
+        return ()
+    if len(source_containers) != len(target_containers):
+        raise ValueError("cannot bind equipment surfaces across different container counts")
+
+    source_lines = raw_text.splitlines()
+    requirements: list[AnchoredScalarReplacementRequirement] = []
+    for index, (source_container, target_container) in enumerate(
+        zip(source_containers, target_containers, strict=True)
+    ):
+        if not isinstance(source_container, Mapping) or not isinstance(target_container, Mapping):
+            raise ValueError("container equipment binding received a non-object container")
+        source_number = source_container.get("containerNumber")
+        source_surface = source_container.get("typeDescription")
+        target_size = target_container.get("sizeCategory")
+        target_type = target_container.get("typeCategory")
+        if not all(
+            isinstance(value, str)
+            for value in (source_number, source_surface, target_size, target_type)
+        ):
+            continue
+        reviewed = review_source_equipment_surface(
+            cast(str, source_surface),
+            temperature_present=target_container.get("temperatureSetpoint") is not None,
+        )
+        if reviewed.resolution != "reviewed_source_grammar":
+            continue
+        if (reviewed.size_category, reviewed.type_category) == (target_size, target_type):
+            continue
+
+        target_surface = canonical_equipment_surface(
+            cast(bill_of_lading_v5.ContainerSizeCategory, target_size),
+            cast(bill_of_lading_v5.ContainerTypeCategory, target_type),
+        )
+        surface_pattern = _anchored_scalar_pattern(cast(str, source_surface))
+        number_pattern = _formatted_container_pattern(cast(str, source_number))
+        matches: list[tuple[str, str]] = []
+        for line_number, line in enumerate(source_lines, start=1):
+            if number_pattern.search(line) is None:
+                continue
+            surface_matches = tuple(surface_pattern.finditer(line))
+            if len(surface_matches) != 1:
+                continue
+            printed_surface = surface_matches[0].group(0)
+            matches.append((_line_id(line_number, line), printed_surface))
+
+        if not matches and len(source_containers) == 1:
+            all_surface_matches = [
+                (line_number, line, tuple(surface_pattern.finditer(line)))
+                for line_number, line in enumerate(source_lines, start=1)
+                if surface_pattern.search(line) is not None
+            ]
+            if all(len(line_matches) == 1 for _, _, line_matches in all_surface_matches):
+                matches.extend(
+                    (_line_id(line_number, line), line_matches[0].group(0))
+                    for line_number, line, line_matches in all_surface_matches
+                )
+
+        for printed_surface in dict.fromkeys(surface for _, surface in matches):
+            line_ids = tuple(line_id for line_id, surface in matches if surface == printed_surface)
+            requirements.append(
+                AnchoredScalarReplacementRequirement(
+                    targetPaths=(f"documentPatch.containers[{index}].printedEquipmentSurface",),
+                    sourceLineIds=line_ids,
+                    sourceSurface=printed_surface,
+                    targetSurface=_equipment_surface_with_source_case(
+                        printed_surface, target_surface
+                    ),
+                )
+            )
+    return tuple(requirements)
+
+
+def _package_categories_by_container(
+    label: Mapping[str, Any],
+) -> dict[str, tuple[str, tuple[str, ...]]]:
+    """Resolve one unambiguous task-facing package category per container."""
+
+    patch = label.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return {}
+    packages: dict[str, tuple[str, str]] = {}
+    for package_index, package in enumerate(patch.get("cargoPackages") or ()):
+        if not isinstance(package, Mapping):
+            raise ValueError("cargo package is not an object")
+        package_id = package.get("packageId")
+        category = package.get("typeCategory")
+        if not isinstance(package_id, str) or not isinstance(category, str):
+            continue
+        if package_id in packages:
+            raise ValueError(f"duplicate cargo package identifier: {package_id}")
+        packages[package_id] = (
+            category,
+            f"documentPatch.cargoPackages[{package_index}].typeCategory",
+        )
+
+    resolved: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for allocation_group in patch.get("cargoAllocationGroups") or ():
+        if not isinstance(allocation_group, Mapping):
+            raise ValueError("cargo allocation group is not an object")
+        group_package_ids = allocation_group.get("packageIds") or ()
+        if not isinstance(group_package_ids, Sequence) or isinstance(
+            group_package_ids, (str, bytes)
+        ):
+            raise ValueError("cargo allocation packageIds is not an array")
+        for allocation in allocation_group.get("allocations") or ():
+            if not isinstance(allocation, Mapping):
+                raise ValueError("cargo allocation is not an object")
+            container_number = allocation.get("containerNumber")
+            if not isinstance(container_number, str):
+                continue
+            package_id = allocation.get("packageId")
+            if not isinstance(package_id, str):
+                package_id = group_package_ids[0] if len(group_package_ids) == 1 else None
+            if not isinstance(package_id, str):
+                continue
+            package = packages.get(package_id)
+            if package is None:
+                raise ValueError(f"cargo allocation names unknown package {package_id}")
+            resolved[container_number].append(package)
+
+    output: dict[str, tuple[str, tuple[str, ...]]] = {}
+    for container_number, values in resolved.items():
+        categories = {category for category, _path in values}
+        if len(categories) != 1:
+            continue
+        output[container_number] = (
+            next(iter(categories)),
+            tuple(sorted({path for _category, path in values})),
+        )
+    return output
+
+
+def container_package_type_replacement_requirements(
+    raw_text: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    package_registry: LoadedPackageRegistry,
+) -> tuple[AnchoredScalarReplacementRequirement, ...]:
+    """Render container-row package nouns from allocation-owned target categories.
+
+    Package categories are deterministic task semantics, not prose. This renderer changes only
+    the noun captured beside a container-local package quantity, retains its exact line and count,
+    and preserves its letter-case style. Alias spelling is retained when the semantic category
+    did not change. Ambiguous multi-level allocations receive no write authority here.
+    """
+
+    source_patch = source_label.get("documentPatch")
+    target_patch = target_label.get("documentPatch")
+    source_containers = (
+        source_patch.get("containers") if isinstance(source_patch, Mapping) else None
+    )
+    target_containers = (
+        target_patch.get("containers") if isinstance(target_patch, Mapping) else None
+    )
+    if not isinstance(source_containers, Sequence) or isinstance(source_containers, (str, bytes)):
+        return ()
+    if not isinstance(target_containers, Sequence) or isinstance(target_containers, (str, bytes)):
+        return ()
+    if len(source_containers) != len(target_containers):
+        raise ValueError("cannot bind package surfaces across different container counts")
+
+    source_categories = _package_categories_by_container(source_label)
+    target_categories = _package_categories_by_container(target_label)
+    target_quantities: dict[str, int] | None = None
+    occurrences = _container_measurement_occurrences(
+        raw_text, cast(Sequence[Mapping[str, Any]], source_containers)
+    )
+    lines = raw_text.splitlines()
+    requirements: list[AnchoredScalarReplacementRequirement] = []
+    for container_index, observed_rows in occurrences.items():
+        source_container = source_containers[container_index]
+        target_container = target_containers[container_index]
+        if not isinstance(source_container, Mapping) or not isinstance(target_container, Mapping):
+            raise ValueError("container package binding received a non-object container")
+        source_number = source_container.get("containerNumber")
+        target_number = target_container.get("containerNumber")
+        if not isinstance(source_number, str) or not isinstance(target_number, str):
+            continue
+        source_category = source_categories.get(source_number)
+        target_category = target_categories.get(target_number)
+        if source_category is None or target_category is None:
+            continue
+        if source_category[0] == target_category[0]:
+            continue
+        if target_quantities is None:
+            # Membership-only relations deliberately omit per-container quantities.  Do not
+            # demand that stronger relationship unless a container-owned printed package noun
+            # actually needs changing.
+            target_quantities = _target_package_allocations(target_label)
+        try:
+            quantity = target_quantities[target_number]
+        except KeyError as error:
+            raise ValueError(
+                f"target package allocations do not cover printed container {target_number}"
+            ) from error
+        display_name = package_registry.entry(target_category[0]).displayName.split(",", 1)[0]
+        target_word = _pluralize_package_surface(display_name) if quantity != 1 else display_name
+        for kind, line_number, source_quantity, _evidence, grammar in observed_rows:
+            if kind != "package_quantity" or grammar != "labeled_measurement":
+                continue
+            line = lines[line_number - 1]
+            match = _operational_measurement_match(
+                line, "package_quantity", expected_surface=source_quantity
+            )
+            if match is None:
+                raise ValueError("container package noun lost its source quantity grammar")
+            source_word = match.group("package")
+            rendered_word = _equipment_surface_with_source_case(source_word, target_word)
+            if source_word == rendered_word:
+                continue
+            requirements.append(
+                AnchoredScalarReplacementRequirement(
+                    targetPaths=target_category[1],
+                    sourceLineIds=(_line_id(line_number, line),),
+                    sourceSurface=source_word,
+                    targetSurface=rendered_word,
+                )
+            )
+    return tuple(requirements)
+
+
+def party_country_metadata_replacement_requirements(
+    raw_text: str,
+    target_label: Mapping[str, Any],
+    resources: TargetIntegrityResources,
+) -> tuple[AnchoredScalarReplacementRequirement, ...]:
+    """Bind explicit shipper/exporter and consignee/importer country metadata.
+
+    These fields are source-only presentation metadata rather than task-label fields of their
+    own. Their semantic owner is nevertheless explicit in the printed heading. The target party
+    country is resolved against the pinned ISO-3166 snapshot; when the task label omits that
+    optional party field, the corresponding export/import route jurisdiction is used. Both
+    country names and alpha-2 codes can therefore be rendered locally without asking a model to
+    infer a jurisdiction.
+    """
+
+    patch = target_label.get("documentPatch")
+    parties = patch.get("parties") if isinstance(patch, Mapping) else None
+    if not isinstance(parties, Mapping):
+        return ()
+
+    target_by_role: dict[str, tuple[str, str, str]] = {}
+    for role in ("shipper", "consignee"):
+        party = parties.get(role)
+        country = party.get("country") if isinstance(party, Mapping) else None
+        if isinstance(country, str) and country.strip():
+            code = resources.countries.require(
+                country, field=f"documentPatch.parties.{role}.country"
+            )
+            entry = resources.countries.entry(code)
+            canonical_surfaces = {
+                _semantic_normalize(value)
+                for value in (
+                    entry.alpha2,
+                    entry.alpha3,
+                    entry.name,
+                    entry.official_name,
+                    entry.common_name,
+                )
+                if value is not None
+            }
+            if _semantic_normalize(country) not in canonical_surfaces:
+                raise ValueError(
+                    "synthetic target party country is not a canonical ISO registry surface: "
+                    f"{role}={country!r}"
+                )
+            target_by_role[role] = (
+                entry.name,
+                code,
+                f"documentPatch.parties.{role}.country",
+            )
+            continue
+        direction: Literal["export", "import"] = "export" if role == "shipper" else "import"
+        code = _target_route_country_code(
+            target_label,
+            direction=direction,
+            resources=resources,
+        )
+        if code is not None:
+            entry = resources.countries.entry(code)
+            target_by_role[role] = (entry.name, code, "documentPatch.route")
+
+    requirements: list[AnchoredScalarReplacementRequirement] = []
+    for line_number, raw_line in enumerate(raw_text.splitlines(), start=1):
+        match = _PARTY_COUNTRY_METADATA_LINE.fullmatch(raw_line)
+        if match is None:
+            continue
+        label = _semantic_normalize(match.group("label"))
+        role = "consignee" if "CONSIGNEE" in label or "IMPORTER" in label else "shipper"
+        target = target_by_role.get(role)
+        if target is None:
+            raise ValueError(f"country metadata has no synthetic {role} country: {raw_line!r}")
+        source_surface = match.group("value")
+        target_surface = target[1] if label.endswith("COUNTRY CODE") else target[0]
+        letters = [character for character in source_surface if character.isalpha()]
+        if letters and all(character.isupper() for character in letters):
+            target_surface = target_surface.upper()
+        elif letters and all(character.islower() for character in letters):
+            target_surface = target_surface.lower()
+        if source_surface == target_surface:
+            continue
+        requirements.append(
+            AnchoredScalarReplacementRequirement(
+                targetPaths=(target[2],),
+                sourceLineIds=(_line_id(line_number, raw_line),),
+                sourceSurface=source_surface,
+                targetSurface=target_surface,
             )
         )
     return tuple(requirements)
@@ -2213,10 +3075,164 @@ def apply_deterministic_prefills(
 
     lines = workspace.current_text.splitlines(keepends=True)
     applied: list[AppliedDeterministicPrefill] = []
-    for requirement in workspace.anchored_scalar_replacement_requirements:
-        source_pattern = _anchored_requirement_pattern(requirement, requirement.sourceSurface)
-        target_pattern = _anchored_requirement_pattern(requirement, requirement.targetSurface)
-        for line_id in requirement.sourceLineIds:
+
+    # Container-local operational values are arithmetic projections, not language.  Leaving
+    # these slots to a model was both expensive and unsafe: a model could repeat the shipment
+    # total in every container row or retain a source-only utilization figure.  Requirements are
+    # already bound to one physical line and carry a fully rendered, source-grammar-preserving
+    # target surface, so apply them before any provider-visible work is compiled.
+    operational_by_line: dict[str, list[OperationalFlavorRequirement]] = defaultdict(list)
+    for requirement in workspace.operational_flavor_requirements:
+        operational_by_line[requirement.sourceLineId].append(requirement)
+    for line_id, requirements in sorted(
+        operational_by_line.items(), key=lambda row: _line_number(row[0])
+    ):
+        line_index = _line_number(line_id) - 1
+        if not 0 <= line_index < len(lines):
+            raise ValueError(f"operational prefill line is outside the OCR: {line_id}")
+        # Apply right-to-left so a shorter or longer value cannot shift the source column of a
+        # later requirement on the same physical row. Inline tuple requirements share one regex
+        # start and are safely re-resolved from their named groups after each substitution.
+        for requirement in sorted(
+            requirements,
+            key=lambda row: row.sourceMeasurementStartColumn,
+            reverse=True,
+        ):
+            before = _line_body(lines[line_index])
+            ending = _line_ending(lines[line_index])
+            if requirement.sourceGrammar == "inline_container_breakdown":
+                match = _RAW_INLINE_CONTAINER_MEASURES.search(before)
+                group_name = {
+                    "gross_weight_kg": "gross",
+                    "volume_m3": "volume",
+                    "package_quantity": "packages",
+                }[requirement.kind]
+            else:
+                match = _operational_measurement_match(
+                    before,
+                    requirement.kind,
+                    expected_surface=requirement.targetValueSurface,
+                )
+                if match is None:
+                    match = _operational_measurement_match(
+                        before,
+                        requirement.kind,
+                        expected_surface=requirement.sourceValueSurface,
+                    )
+                group_name = "value"
+            if match is None or match.start() != requirement.sourceMeasurementStartColumn:
+                raise ValueError(
+                    "operational prefill lost its exact source grammar on "
+                    f"{line_id}: {requirement.kind}"
+                )
+            observed = match.group(group_name)
+            if observed == requirement.targetValueSurface:
+                continue
+            if observed != requirement.sourceValueSurface:
+                raise ValueError(
+                    "operational prefill source surface differs from its contract on "
+                    f"{line_id}: expected={requirement.sourceValueSurface!r}, "
+                    f"observed={observed!r}"
+                )
+            start, end = match.span(group_name)
+            after = before[:start] + requirement.targetValueSurface + before[end:]
+            lines[line_index] = after + ending
+            applied.append(
+                AppliedDeterministicPrefill(
+                    lineId=line_id,
+                    targetPaths=(
+                        f"auxiliary.container[{requirement.targetContainerNumber}]."
+                        f"{requirement.kind}",
+                    ),
+                    sourceSurface=requirement.sourceValueSurface,
+                    targetSurface=requirement.targetValueSurface,
+                    beforeLine=before,
+                    afterLine=after,
+                )
+            )
+    for role_hint in workspace.source_role_hints:
+        if role_hint.sourceSurface == role_hint.requiredOutputSurface:
+            continue
+        line_index = _line_number(role_hint.sourceLineId) - 1
+        if not 0 <= line_index < len(lines):
+            raise ValueError(
+                f"source-role prefill line is outside the OCR: {role_hint.sourceLineId}"
+            )
+        before = _line_body(lines[line_index])
+        ending = _line_ending(lines[line_index])
+        if before.strip() != role_hint.sourceSurface:
+            raise ValueError(
+                "source-role prefill no longer matches its exact OCR line: "
+                f"{role_hint.sourceLineId}"
+            )
+        after = before.replace(role_hint.sourceSurface, role_hint.requiredOutputSurface, 1)
+        lines[line_index] = after + ending
+        applied.append(
+            AppliedDeterministicPrefill(
+                lineId=role_hint.sourceLineId,
+                targetPaths=("auxiliary.anonymousTransportUnitCount",),
+                sourceSurface=role_hint.sourceSurface,
+                targetSurface=role_hint.requiredOutputSurface,
+                beforeLine=before,
+                afterLine=after,
+            )
+        )
+
+    # Exact DG class surfaces are not represented directly by the task label: the label carries
+    # a readable category while the semantic plan carries the printed class (for example 2.2).
+    # Render the complete class/UN phrase before scalar UN-number prefills.  Reversing that order
+    # creates an intermediate phrase that matches neither the source nor target contract.
+    dangerous_groups: dict[str, list[SurfaceRenderingRequirement]] = defaultdict(list)
+    for dg_requirement in workspace.surface_requirements:
+        if dg_requirement.kind == "dangerous_goods_tuple":
+            dangerous_groups[dg_requirement.sourceSurface].append(dg_requirement)
+    for source_surface, requirements in dangerous_groups.items():
+        target_surfaces = {row.targetSurface for row in requirements}
+        expected_occurrences = {row.sourceOccurrences for row in requirements}
+        if len(target_surfaces) != 1 or len(expected_occurrences) != 1:
+            raise ValueError("one printed dangerous-goods tuple has conflicting target projections")
+        target_surface = next(iter(target_surfaces))
+        expected = next(iter(expected_occurrences))
+        found = sum(_line_body(line).count(source_surface) for line in lines)
+        if found == 0:
+            target_count = sum(_line_body(line).count(target_surface) for line in lines)
+            if target_count >= expected:
+                continue
+            raise ValueError(
+                "deterministic dangerous-goods prefill cannot locate its exact source phrase: "
+                f"{source_surface!r}"
+            )
+        if found != expected:
+            raise ValueError(
+                "dangerous-goods source phrase count differs from its contract: "
+                f"{source_surface!r}, expected={expected}, found={found}"
+            )
+        target_paths = tuple(sorted({row.targetPath for row in requirements}))
+        for line_index, line in enumerate(lines):
+            before = _line_body(line)
+            if source_surface not in before:
+                continue
+            ending = _line_ending(line)
+            after = before.replace(source_surface, target_surface)
+            lines[line_index] = after + ending
+            applied.append(
+                AppliedDeterministicPrefill(
+                    lineId=_line_id(line_index + 1, before),
+                    targetPaths=target_paths,
+                    sourceSurface=source_surface,
+                    targetSurface=target_surface,
+                    beforeLine=before,
+                    afterLine=after,
+                )
+            )
+    for scalar_requirement in workspace.anchored_scalar_replacement_requirements:
+        source_pattern = _anchored_requirement_pattern(
+            scalar_requirement, scalar_requirement.sourceSurface
+        )
+        target_pattern = _anchored_requirement_pattern(
+            scalar_requirement, scalar_requirement.targetSurface
+        )
+        for line_id in scalar_requirement.sourceLineIds:
             line_index = _line_number(line_id) - 1
             if not 0 <= line_index < len(lines):
                 raise ValueError(f"deterministic prefill line is outside the OCR: {line_id}")
@@ -2227,9 +3243,9 @@ def apply_deterministic_prefills(
                     continue
                 raise ValueError(
                     "deterministic prefill cannot locate its source scalar on "
-                    f"{line_id}: {requirement.sourceSurface!r}"
+                    f"{line_id}: {scalar_requirement.sourceSurface!r}"
                 )
-            literal_replacement = requirement.targetSurface.replace("\\", "\\\\")
+            literal_replacement = scalar_requirement.targetSurface.replace("\\", "\\\\")
             after = source_pattern.sub(literal_replacement, before)
             if source_pattern.search(after) is not None or target_pattern.search(after) is None:
                 raise ValueError(f"deterministic prefill did not replace its scalar on {line_id}")
@@ -2237,9 +3253,56 @@ def apply_deterministic_prefills(
             applied.append(
                 AppliedDeterministicPrefill(
                     lineId=line_id,
-                    targetPaths=requirement.targetPaths,
-                    sourceSurface=requirement.sourceSurface,
-                    targetSurface=requirement.targetSurface,
+                    targetPaths=scalar_requirement.targetPaths,
+                    sourceSurface=scalar_requirement.sourceSurface,
+                    targetSurface=scalar_requirement.targetSurface,
+                    beforeLine=before,
+                    afterLine=after,
+                )
+            )
+
+    # Carrier logo/header identities are exact whole-line surfaces with independently captured
+    # context. Render only those complete lines. A global substring replacement would corrupt
+    # longer legal or agency names that happen to contain the same short brand token.
+    for surface_requirement in workspace.surface_requirements:
+        if (
+            surface_requirement.kind != "carrier_header_identity"
+            or surface_requirement.sourceSurface == surface_requirement.targetSurface
+        ):
+            continue
+        source_line_indexes = tuple(
+            index
+            for index, line in enumerate(lines)
+            if _line_body(line) == surface_requirement.sourceSurface
+        )
+        target_line_count = sum(
+            _line_body(line) == surface_requirement.targetSurface for line in lines
+        )
+        if not source_line_indexes:
+            if target_line_count >= surface_requirement.sourceOccurrences:
+                continue
+            raise ValueError(
+                "deterministic carrier-header prefill cannot locate its exact source line: "
+                f"{surface_requirement.sourceSurface!r}"
+            )
+        if len(source_line_indexes) != surface_requirement.sourceOccurrences:
+            raise ValueError(
+                "deterministic carrier-header source line count differs from its contract: "
+                f"{surface_requirement.sourceSurface!r}, "
+                f"expected={surface_requirement.sourceOccurrences}, "
+                f"found={len(source_line_indexes)}"
+            )
+        for line_index in source_line_indexes:
+            before = _line_body(lines[line_index])
+            ending = _line_ending(lines[line_index])
+            after = surface_requirement.targetSurface
+            lines[line_index] = after + ending
+            applied.append(
+                AppliedDeterministicPrefill(
+                    lineId=_line_id(line_index + 1, before),
+                    targetPaths=(surface_requirement.targetPath,),
+                    sourceSurface=surface_requirement.sourceSurface,
+                    targetSurface=surface_requirement.targetSurface,
                     beforeLine=before,
                     afterLine=after,
                 )
@@ -2251,6 +3314,7 @@ def apply_deterministic_prefills(
         "hs_code_block",
         "carrier_receipt_count",
         "carrier_receipt_equipment_breakdown",
+        "aggregate_equipment_breakdown",
     }
     surface_groups: dict[str, list[SurfaceRenderingRequirement]] = {}
     for surface_requirement in workspace.surface_requirements:
@@ -2261,6 +3325,72 @@ def apply_deterministic_prefills(
     for source_surface, requirements in surface_groups.items():
         target_surfaces = {row.targetSurface for row in requirements}
         if len(target_surfaces) != 1:
+            if not all(row.kind == "date" for row in requirements):
+                continue
+
+            # The issue and on-board dates can legitimately have the same source literal and
+            # different synthetic targets.  Their nearest printed headings provide exact field
+            # ownership, so render them locally rather than asking a model to disambiguate two
+            # identical strings.  Failure to prove every occurrence is fatal; there is no global
+            # replace fallback for path-conflicting dates.
+            assigned_lines: dict[int, str] = {}
+            for surface_requirement in requirements:
+                matches = tuple(
+                    match
+                    for match in re.finditer(re.escape(source_surface), workspace.original_text)
+                    if _date_context_path(workspace.original_text, match.start())
+                    == surface_requirement.targetPath
+                )
+                if len(matches) != surface_requirement.sourceOccurrences:
+                    raise ValueError(
+                        "cannot bind every conflicting date occurrence to its semantic heading: "
+                        f"{surface_requirement.targetPath}, "
+                        f"expected={surface_requirement.sourceOccurrences}, "
+                        f"found={len(matches)}"
+                    )
+                line_numbers = tuple(
+                    sorted(
+                        {
+                            workspace.original_text.count("\n", 0, match.start()) + 1
+                            for match in matches
+                        }
+                    )
+                )
+                if len(line_numbers) != len(matches):
+                    raise ValueError("multiple conflicting date occurrences share one OCR line")
+                for line_number in line_numbers:
+                    existing = assigned_lines.setdefault(
+                        line_number, surface_requirement.targetSurface
+                    )
+                    if existing != surface_requirement.targetSurface:
+                        raise ValueError(
+                            "one OCR date line has conflicting semantic targets: "
+                            f"L{line_number:05d}"
+                        )
+                    line_index = line_number - 1
+                    before = _line_body(lines[line_index])
+                    ending = _line_ending(lines[line_index])
+                    source_pattern = _anchored_scalar_pattern(source_surface)
+                    if source_pattern.search(before) is None:
+                        raise ValueError(
+                            "path-bound date prefill cannot locate source surface on "
+                            f"L{line_number:05d}: {source_surface!r}"
+                        )
+                    literal_replacement = surface_requirement.targetSurface.replace("\\", "\\\\")
+                    after = source_pattern.sub(literal_replacement, before)
+                    if after == before or source_pattern.search(after) is not None:
+                        raise ValueError(f"path-bound date prefill failed on L{line_number:05d}")
+                    lines[line_index] = after + ending
+                    applied.append(
+                        AppliedDeterministicPrefill(
+                            lineId=_line_id(line_number, before),
+                            targetPaths=(surface_requirement.targetPath,),
+                            sourceSurface=source_surface,
+                            targetSurface=surface_requirement.targetSurface,
+                            beforeLine=before,
+                            afterLine=after,
+                        )
+                    )
             continue
         target_surface = next(iter(target_surfaces))
         if source_surface == target_surface:
@@ -2493,13 +3623,9 @@ def _rendered_date_candidates(
                     match.start(),
                     match.end(),
                     match.group(0),
-                    separator.join(
-                        (
-                            _month_surface(match.group("m"), target.month),
-                            str(target.day).zfill(len(match.group("d"))),
-                            year,
-                        )
-                    ),
+                    f"{_month_surface(match.group('m'), target.month)}{separator}"
+                    f"{str(target.day).zfill(len(match.group('d')))}"
+                    f"{match.group('s2')}{match.group('gap')}{year}",
                 )
             )
     for match in _NAMED_MONTH_DAY_DATE.finditer(raw_text):
@@ -2527,7 +3653,12 @@ def _rendered_date_candidates(
 
 
 def _date_context_path(raw_text: str, start: int) -> str | None:
-    prefix = raw_text[max(0, start - 180) : start]
+    window_start = max(0, start - 180)
+    window = raw_text[window_start:start]
+    markers = tuple(re.finditer(r"(?m)^--- PAGE [1-9][0-9]* ---[ \t]*(?:\r?\n|$)", window))
+    if markers:
+        window = window[markers[-1].end() :]
+    prefix = window
     issue = tuple(_ISSUE_DATE_CONTEXT.finditer(prefix))
     shipped = tuple(_SHIPPED_DATE_CONTEXT.finditer(prefix))
     if not issue and not shipped:
@@ -2627,6 +3758,279 @@ def _target_equipment_counts(target_label: Mapping[str, Any]) -> dict[str, int]:
     return counts
 
 
+def _target_equipment_semantic_counts(
+    target_label: Mapping[str, Any],
+) -> tuple[tuple[str, str, int], ...]:
+    """Count exact semantic equipment pairs while preserving target encounter order."""
+
+    patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
+    ordered: list[tuple[str, str]] = []
+    counts: Counter[tuple[str, str]] = Counter()
+    for container in patch.get("containers") or []:
+        if not isinstance(container, Mapping):
+            raise ValueError("target container is not an object")
+        size = container.get("sizeCategory")
+        category = container.get("typeCategory")
+        if not isinstance(size, str) or not isinstance(category, str):
+            raise ValueError("target container has no complete semantic equipment pair")
+        pair = (size, category)
+        if pair not in counts:
+            ordered.append(pair)
+        counts[pair] += 1
+    return tuple((size, category, counts[(size, category)]) for size, category in ordered)
+
+
+def _aggregate_equipment_breakdown_requirements(
+    raw_text: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+) -> tuple[SurfaceRenderingRequirement, ...]:
+    """Project a split ``4X 40' CONTAINER SAID TO`` summary without model inference.
+
+    The source line owns equipment rather than packages only when its count exactly equals the
+    source container topology and the next non-empty line completes ``SAID TO CONTAIN``.  The
+    replacement keeps the source count/X/suffix grammar and renders every target semantic pair;
+    a mixed target can therefore never be flattened into one incorrect equipment type.
+    """
+
+    source_patch = cast(Mapping[str, Any], source_label.get("documentPatch") or {})
+    source_containers = source_patch.get("containers") or ()
+    if not isinstance(source_containers, Sequence) or isinstance(source_containers, (str, bytes)):
+        return ()
+    if not source_containers:
+        return ()
+    lines = raw_text.splitlines()
+    candidate_rows: list[tuple[int, str, re.Match[str]]] = []
+    seen: set[str] = set()
+    for index, source_surface in enumerate(lines):
+        match = _SPLIT_ANONYMOUS_EQUIPMENT_LINE.fullmatch(source_surface)
+        if match is None or source_surface in seen:
+            continue
+        source_count = int(match.group("count").replace(",", ""))
+        if source_count != len(source_containers):
+            continue
+        next_nonempty = next(
+            (line for line in lines[index + 1 : min(len(lines), index + 4)] if line.strip()),
+            None,
+        )
+        if next_nonempty is None or re.match(r"^[ \t]*CONTAIN\b", next_nonempty, re.I) is None:
+            continue
+        candidate_rows.append((index, source_surface, match))
+        seen.add(source_surface)
+    if not candidate_rows:
+        return ()
+    target_pairs = _target_equipment_semantic_counts(target_label)
+    if not target_pairs:
+        return ()
+    target_count = sum(count for _size, _category, count in target_pairs)
+    requirements: list[SurfaceRenderingRequirement] = []
+    for index, source_surface, match in candidate_rows:
+        x_surface = match.group("x")
+        rendered_groups = []
+        for size, category, count in target_pairs:
+            semantic_surface = canonical_equipment_surface(
+                cast(bill_of_lading_v5.ContainerSizeCategory, size),
+                cast(bill_of_lading_v5.ContainerTypeCategory, category),
+            )
+            rendered_groups.append(f"{count}{x_surface}{semantic_surface}")
+        container_word = "CONTAINER" if target_count == 1 else "CONTAINERS"
+        target_surface = (
+            match.group("indent")
+            + " + ".join(rendered_groups)
+            + " "
+            + container_word
+            + match.group("suffix")
+            + match.group("trailing")
+        )
+        source_occurrences = lines.count(source_surface)
+        for container_index in range(target_count):
+            requirements.append(
+                SurfaceRenderingRequirement(
+                    kind="aggregate_equipment_breakdown",
+                    targetPath=(
+                        f"documentPatch.containers[{container_index}].printedEquipmentSurface"
+                    ),
+                    sourceSurface=source_surface,
+                    targetSurface=target_surface,
+                    sourceOccurrences=source_occurrences,
+                    contextEvidence=_bounded_line_context(
+                        lines,
+                        focus_index=index,
+                        before=1,
+                        after=2,
+                    ),
+                )
+            )
+    return tuple(requirements)
+
+
+def _replace_regex_groups(
+    value: str,
+    match: re.Match[str],
+    replacements: Mapping[str, str],
+) -> str:
+    """Replace named regex groups without disturbing any surrounding punctuation or spacing."""
+
+    rendered = value
+    offset = match.start()
+    for group_name, target in sorted(
+        replacements.items(), key=lambda row: match.start(row[0]), reverse=True
+    ):
+        start, end = match.span(group_name)
+        start -= offset
+        end -= offset
+        rendered = rendered[:start] + target + rendered[end:]
+    return rendered
+
+
+def _dangerous_goods_tuple_surfaces(
+    raw_text: str,
+    *,
+    source_un_number: str,
+    target_un_number: str,
+    target_exact_class: str,
+    target_packing_group: str | None,
+) -> tuple[tuple[str, str, bool], ...]:
+    """Render exact class/UN phrases from source grammar and a pinned semantic plan."""
+
+    if re.fullmatch(r"[1-9](?:\.[1-9])?", target_exact_class) is None:
+        raise ValueError(f"unsupported exact dangerous-goods class: {target_exact_class!r}")
+    packing_surface = {
+        "HIGH_DANGER": "I",
+        "MEDIUM_DANGER": "II",
+        "LOW_DANGER": "III",
+        "NOT_ASSIGNED": "NOT ASSIGNED",
+    }
+    if target_packing_group is not None and target_packing_group not in packing_surface:
+        raise ValueError(f"unsupported dangerous-goods packing group: {target_packing_group!r}")
+    output: list[tuple[str, str, bool]] = []
+    for pattern in (_DG_CLASS_BEFORE_UN, _DG_UN_BEFORE_CLASS):
+        for match in pattern.finditer(raw_text):
+            if match.group("un") != source_un_number:
+                continue
+            source_surface = match.group(0)
+            replacements = {"class": target_exact_class, "un": target_un_number}
+            source_has_packing_group = match.group("pg_clause") is not None
+            if source_has_packing_group:
+                if target_packing_group is None:
+                    replacements["pg_clause"] = ""
+                else:
+                    replacements["pg"] = packing_surface[target_packing_group]
+            target_surface = _replace_regex_groups(
+                source_surface,
+                match,
+                replacements,
+            )
+            output.append((source_surface, target_surface, source_has_packing_group))
+    return tuple(dict.fromkeys(output))
+
+
+def _dangerous_goods_rendering_requirements(
+    raw_text: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    linguistic_plan: DocumentLinguisticPlan,
+) -> tuple[SurfaceRenderingRequirement, ...]:
+    """Bind broad task categories to exact class surfaces supplied by the semantic plan."""
+
+    source_patch = cast(Mapping[str, Any], source_label.get("documentPatch") or {})
+    target_patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
+    source_groups = source_patch.get("cargoGroups") or ()
+    target_groups = target_patch.get("cargoGroups") or ()
+    plan_groups = {group.groupId: group for group in linguistic_plan.cargoSeed.cargoGroups}
+    if len(source_groups) != len(target_groups):
+        raise ValueError("source and target dangerous-goods cargo topology differs")
+    requirements: list[SurfaceRenderingRequirement] = []
+    raw_lines = raw_text.splitlines()
+    for group_index, (source_group, target_group) in enumerate(
+        zip(source_groups, target_groups, strict=True)
+    ):
+        if not isinstance(source_group, Mapping) or not isinstance(target_group, Mapping):
+            raise ValueError("dangerous-goods cargo group is not an object")
+        group_id = target_group.get("groupId")
+        if not isinstance(group_id, str) or group_id not in plan_groups:
+            raise ValueError(f"dangerous-goods cargo group has no semantic plan: {group_id!r}")
+        source_rows = source_group.get("dangerousGoods") or ()
+        target_rows = target_group.get("dangerousGoods") or ()
+        plan_rows = plan_groups[group_id].dangerousGoods
+        if len(source_rows) != len(target_rows) or len(target_rows) != len(plan_rows):
+            raise ValueError(f"dangerous-goods tuple topology differs for cargo group {group_id!r}")
+        for dangerous_index, (source_row, target_row, plan_row) in enumerate(
+            zip(source_rows, target_rows, plan_rows, strict=True)
+        ):
+            if not isinstance(source_row, Mapping) or not isinstance(target_row, Mapping):
+                raise ValueError("dangerous-goods tuple is not an object")
+            target_un = target_row.get("unNumber")
+            target_category = target_row.get("hazardCategory")
+            if target_un != plan_row.unNumber or target_category != plan_row.hazardCategory:
+                raise ValueError(
+                    "target dangerous-goods tuple differs from its pinned semantic plan: "
+                    f"{group_id!r}[{dangerous_index}]"
+                )
+            source_un = source_row.get("unNumber")
+            if not isinstance(source_un, str) or not isinstance(target_un, str):
+                continue
+            surfaces = _dangerous_goods_tuple_surfaces(
+                raw_text,
+                source_un_number=source_un,
+                target_un_number=target_un,
+                target_exact_class=plan_row.exactHazardClass,
+                target_packing_group=plan_row.packingGroupCategory,
+            )
+            if not surfaces:
+                # The template does not print an exact class/UN tuple.  Do not add a new field;
+                # the task-facing category can remain supported by whatever sparse DG evidence
+                # the source template actually contains.
+                continue
+            target_paths = []
+            if source_un != target_un:
+                target_paths.append(
+                    f"documentPatch.cargoGroups[{group_index}].dangerousGoods["
+                    f"{dangerous_index}].unNumber"
+                )
+            if source_row.get("hazardCategory") != target_category or any(
+                source != target for source, target, _has_pg in surfaces
+            ):
+                target_paths.append(
+                    f"documentPatch.cargoGroups[{group_index}].dangerousGoods["
+                    f"{dangerous_index}].hazardCategory"
+                )
+            for source_surface, target_surface, source_has_packing_group in surfaces:
+                source_occurrences = raw_text.count(source_surface)
+                first_line = next(line for line in raw_lines if source_surface in line)
+                for target_path in target_paths:
+                    requirements.append(
+                        SurfaceRenderingRequirement(
+                            kind="dangerous_goods_tuple",
+                            targetPath=target_path,
+                            sourceSurface=source_surface,
+                            targetSurface=target_surface,
+                            sourceOccurrences=source_occurrences,
+                            contextEvidence=first_line[:600],
+                        )
+                    )
+                if source_has_packing_group:
+                    requirements.append(
+                        SurfaceRenderingRequirement(
+                            kind="dangerous_goods_tuple",
+                            targetPath=(
+                                f"documentPatch.cargoGroups[{group_index}].dangerousGoods["
+                                f"{dangerous_index}].packingGroupCategory"
+                                if plan_row.packingGroupCategory is not None
+                                else (
+                                    f"auxiliary.cargoGroups[{group_index}].dangerousGoods["
+                                    f"{dangerous_index}].packingGroup"
+                                )
+                            ),
+                            sourceSurface=source_surface,
+                            targetSurface=target_surface,
+                            sourceOccurrences=source_occurrences,
+                            contextEvidence=first_line[:600],
+                        )
+                    )
+    return tuple(requirements)
+
+
 def _carrier_receipt_equipment_breakdown_requirements(
     raw_text: str, target_label: Mapping[str, Any]
 ) -> tuple[SurfaceRenderingRequirement, ...]:
@@ -2660,8 +4064,11 @@ def _carrier_receipt_equipment_breakdown_requirements(
                     sourceSurface=source_surface,
                     targetSurface=target_surface,
                     sourceOccurrences=lines.count(source_surface),
-                    contextEvidence="\n".join(
-                        lines[max(0, index - 1) : min(len(lines), candidate_index + 2)]
+                    contextEvidence=_bounded_line_context(
+                        lines,
+                        focus_index=candidate_index,
+                        before=candidate_index - max(0, index - 1),
+                        after=min(len(lines) - 1, candidate_index + 1) - candidate_index,
                     ),
                 )
             )
@@ -2669,12 +4076,114 @@ def _carrier_receipt_equipment_breakdown_requirements(
     return tuple(output)
 
 
+def _bounded_line_context(
+    lines: Sequence[str],
+    *,
+    focus_index: int,
+    before: int,
+    after: int,
+    max_characters: int = 600,
+) -> str:
+    """Build bounded audit context while always retaining the matched line.
+
+    OCR occasionally places an entire bill-of-lading clause on one adjacent line.  Joining a
+    fixed number of neighboring lines can therefore exceed the evidence schema even when the
+    matched surface itself is short.  The matched line is separately preserved as
+    ``sourceSurface``; this excerpt keeps that line in full when possible and admits nearest
+    neighbors only while they fit the explicit evidence bound.
+    """
+
+    if not 0 <= focus_index < len(lines):
+        raise ValueError("line-context focus is outside the document")
+    if before < 0 or after < 0 or max_characters <= 0:
+        raise ValueError("line-context bounds must be non-negative with a positive size")
+    focus = lines[focus_index]
+    if len(focus) > max_characters:
+        return focus[:max_characters]
+    selected: dict[int, str] = {focus_index: focus}
+    for distance in range(1, max(before, after) + 1):
+        for candidate in (focus_index - distance, focus_index + distance):
+            if candidate < focus_index - before or candidate > focus_index + after:
+                continue
+            if not 0 <= candidate < len(lines) or candidate in selected:
+                continue
+            proposed = {**selected, candidate: lines[candidate]}
+            rendered = "\n".join(proposed[index] for index in sorted(proposed))
+            if len(rendered) <= max_characters:
+                selected = proposed
+    return "\n".join(selected[index] for index in sorted(selected))
+
+
+def _carrier_header_target_surface(
+    source_surface: str,
+    *,
+    source_carrier: str,
+    target_carrier: str,
+) -> str | None:
+    """Project a one- or two-token carrier logo without a carrier-specific alias table.
+
+    A short logo in the page header is either the carrier's leading brand tokens or the initials
+    of its printed name. Preserve that representation class for the synthetic carrier; longer
+    identity lines continue to use the complete target name.
+    """
+
+    source_words = re.findall(r"[A-Z0-9]+", _semantic_normalize(source_carrier))
+    target_words = re.findall(r"[A-Z0-9]+", _semantic_normalize(target_carrier))
+    surface_words = re.findall(r"[A-Z0-9]+", _semantic_normalize(source_surface))
+    if not 1 <= len(surface_words) <= 2 or not source_words or not target_words:
+        return None
+    if surface_words == source_words[: len(surface_words)]:
+        target = " ".join(target_words[: len(surface_words)])
+    else:
+        if len(surface_words) != 1:
+            return None
+        surface = surface_words[0]
+        legal_suffixes = {
+            "A",
+            "AG",
+            "AS",
+            "CO",
+            "CORP",
+            "GMBH",
+            "INC",
+            "LTD",
+            "LLC",
+            "NV",
+            "PLC",
+            "SA",
+            "SAC",
+            "SPA",
+        }
+        source_initials = "".join(word[0] for word in source_words if word not in legal_suffixes)
+        if surface != source_initials or len(surface) < 2:
+            return None
+        target = "".join(word[0] for word in target_words if word not in legal_suffixes)
+        if len(target) < 2:
+            return None
+    rendered = target
+    return rendered if source_surface.isupper() else rendered.title()
+
+
+def _flexible_literal_line_numbers(raw_text: str, value: str) -> set[int]:
+    pieces = value.strip().split()
+    if not pieces:
+        return set()
+    pattern = re.compile(r"\s+".join(re.escape(piece) for piece in pieces), re.IGNORECASE)
+    output: set[int] = set()
+    for match in pattern.finditer(raw_text):
+        first = raw_text.count("\n", 0, match.start()) + 1
+        last = raw_text.count("\n", 0, max(match.start(), match.end() - 1)) + 1
+        output.update(range(first, last + 1))
+    return output
+
+
 def surface_rendering_requirements(
     raw_text: str,
     source_label: Mapping[str, Any],
     target_label: Mapping[str, Any],
+    linguistic_plan: DocumentLinguisticPlan | None = None,
 ) -> tuple[SurfaceRenderingRequirement, ...]:
-    """Derive exact date/HS surfaces from source formatting and canonical targets."""
+    """Derive exact host-owned surfaces from source formatting and canonical targets."""
 
     source_patch = cast(Mapping[str, Any], source_label.get("documentPatch") or {})
     target_patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
@@ -2683,16 +4192,46 @@ def surface_rendering_requirements(
     target_carrier = _party_name(target_label, "carrier")
     if source_carrier is not None and target_carrier is not None:
         source_tokens = set(re.findall(r"[A-Z0-9]+", _semantic_normalize(source_carrier)))
+        compound_carrier_lines = (
+            _flexible_literal_line_numbers(raw_text, source_carrier)
+            if _compound_relationships(source_carrier)
+            else set()
+        )
         seen_carrier_header_surfaces: set[str] = set()
-        for source_surface in raw_text.splitlines():
+        raw_lines = raw_text.splitlines()
+        first_party_heading = next(
+            (
+                index
+                for index, line in enumerate(raw_lines, start=1)
+                if _PARTY_HEADING_LINE.fullmatch(line)
+            ),
+            min(len(raw_lines) + 1, 16),
+        )
+        for line_number, source_surface in enumerate(raw_lines, start=1):
+            if line_number in compound_carrier_lines:
+                # A wrapped legal identity is owned by the compound-party requirement. Treating
+                # one fragment as an independent logo destroys the relationship before the
+                # residual compiler can realize its fictional secondary identity.
+                continue
             normalized_surface = _semantic_normalize(source_surface)
             surface_tokens = set(re.findall(r"[A-Z0-9]+", normalized_surface))
             overlap = source_tokens & surface_tokens
-            if (
-                normalized_surface == _semantic_normalize(source_carrier)
-                or len(surface_tokens) < 3
-                or len(overlap) / len(surface_tokens) < 0.8
-                or len(overlap) / len(source_tokens) < 0.6
+            short_header_target = (
+                _carrier_header_target_surface(
+                    source_surface,
+                    source_carrier=source_carrier,
+                    target_carrier=target_carrier,
+                )
+                if line_number < first_party_heading
+                else None
+            )
+            if normalized_surface == _semantic_normalize(source_carrier) or (
+                short_header_target is None
+                and (
+                    len(surface_tokens) < 3
+                    or len(overlap) / len(surface_tokens) < 0.8
+                    or len(overlap) / len(source_tokens) < 0.6
+                )
             ):
                 continue
             if normalized_surface in seen_carrier_header_surfaces:
@@ -2703,32 +4242,65 @@ def surface_rendering_requirements(
                     kind="carrier_header_identity",
                     targetPath="documentPatch.parties.carrier.name",
                     sourceSurface=source_surface,
-                    targetSurface=target_carrier,
+                    targetSurface=short_header_target or target_carrier,
                     sourceOccurrences=raw_text.splitlines().count(source_surface),
-                    contextEvidence=source_surface,
+                    contextEvidence=_bounded_line_context(
+                        raw_lines,
+                        focus_index=line_number - 1,
+                        before=2,
+                        after=2,
+                    ),
                 )
             )
+    date_changes: dict[str, tuple[date, date]] = {}
+    targets_by_source_date: dict[date, set[date]] = {}
     for date_field in ("issueDate", "shippedOnBoardDate"):
         source = _date_value(source_patch.get(date_field))
         target = _date_value(target_patch.get(date_field))
         if source is None or target is None or source == target:
             continue
+        date_changes[date_field] = (source, target)
+        targets_by_source_date.setdefault(source, set()).add(target)
+
+    for date_field, (source, target) in date_changes.items():
         path = f"documentPatch.{date_field}"
         candidates = _rendered_date_candidates(raw_text, source=source, target=target)
-        contextual = tuple(
-            row for row in candidates if _date_context_path(raw_text, row[0]) == path
-        )
-        selected = contextual[:1] or (candidates if len(candidates) == 1 else ())
-        if not selected:
+        if len(targets_by_source_date[source]) == 1:
+            # A repeated date is globally safe when every changed label field carrying that
+            # source date projects it to the same target date. Keep every distinct printed
+            # surface so repeated pages and mixed two/four-digit-year formats are all updated.
+            selected = tuple(dict.fromkeys((row[2], row[3]) for row in candidates))
+            selected_rows = tuple(
+                next(row for row in candidates if (row[2], row[3]) == pair) for pair in selected
+            )
+        else:
+            # When issue and on-board dates share the same source value but diverge in the
+            # synthetic target, every semantically headed occurrence is safe to rewrite.  Keep
+            # all repeated page copies for this path; truncating to the first occurrence leaves
+            # stale dates or makes the deterministic renderer's cardinality inconsistent.
+            contextual = tuple(
+                row for row in candidates if _date_context_path(raw_text, row[0]) == path
+            )
+            selected_rows = contextual
+        if not selected_rows:
             raise ValueError(f"cannot locate an unambiguous source date surface for {path}")
-        for start, end, source_surface, target_surface in selected:
+        rows_by_surface: dict[tuple[str, str], list[tuple[int, int, str, str]]] = {}
+        for row in selected_rows:
+            rows_by_surface.setdefault((row[2], row[3]), []).append(row)
+        for (source_surface, target_surface), surface_rows in rows_by_surface.items():
+            start, end, _, _ = surface_rows[0]
+            source_occurrences = (
+                sum(row[2] == source_surface for row in candidates)
+                if len(targets_by_source_date[source]) == 1
+                else len(surface_rows)
+            )
             requirements.append(
                 SurfaceRenderingRequirement(
                     kind="date",
                     targetPath=path,
                     sourceSurface=source_surface,
                     targetSurface=target_surface,
-                    sourceOccurrences=1,
+                    sourceOccurrences=source_occurrences,
                     contextEvidence=raw_text[max(0, start - 90) : min(len(raw_text), end + 40)],
                 )
             )
@@ -2797,10 +4369,42 @@ def surface_rendering_requirements(
             )
         )
     requirements.extend(_carrier_receipt_equipment_breakdown_requirements(raw_text, target_label))
+    requirements.extend(
+        _aggregate_equipment_breakdown_requirements(raw_text, source_label, target_label)
+    )
+    if linguistic_plan is not None:
+        requirements.extend(
+            _dangerous_goods_rendering_requirements(
+                raw_text,
+                source_label,
+                target_label,
+                linguistic_plan,
+            )
+        )
     return tuple(requirements)
 
 
-def source_semantic_role_hints(raw_text: str) -> tuple[SourceSemanticRoleHint, ...]:
+def _anonymous_transport_unit_target_count(
+    target_label: Mapping[str, Any], *, source_count: int
+) -> int:
+    """Resolve a flattened *equipment* count without confusing it with packages.
+
+    When the task label contains explicit containers, their cardinality owns the printed
+    anonymous-equipment count.  When it does not, the OCR assertion is source-only template
+    flavor: preserve its count rather than projecting an unrelated cargo-package quantity into
+    a container field.
+    """
+
+    patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
+    containers = patch.get("containers") or ()
+    if isinstance(containers, Sequence) and not isinstance(containers, (str, bytes)) and containers:
+        return len(containers)
+    return source_count
+
+
+def source_semantic_role_hints(
+    raw_text: str, target_label: Mapping[str, Any]
+) -> tuple[SourceSemanticRoleHint, ...]:
     """Recognize explicit flattened grammar without guessing from isolated numbers."""
 
     lines = raw_text.splitlines()
@@ -2812,16 +4416,48 @@ def source_semantic_role_hints(raw_text: str) -> tuple[SourceSemanticRoleHint, .
         block = "\n".join(lines[index:end])
         if _ANONYMOUS_EQUIPMENT.search(block) is None:
             continue
+        source_count = int(line.strip())
+        target_count = _anonymous_transport_unit_target_count(
+            target_label, source_count=source_count
+        )
+        stripped = line.strip()
+        target_digits = f"{target_count:,}" if "," in stripped else str(target_count)
+        target_surface = line.replace(stripped, target_digits, 1)
         output.append(
             SourceSemanticRoleHint(
                 role="anonymous_equipment_count",
                 sourceLineId=_line_id(index + 1, line),
                 sourceSurface=line,
-                requiredOutputSurface=line,
+                requiredOutputSurface=target_surface,
                 sourceEvidence=block,
                 forbiddenTargetPathPrefixes=("documentPatch.cargoGroups[].marksAndNumbers",),
             )
         )
+        target_patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
+        target_containers = target_patch.get("containers") or ()
+        if not (
+            isinstance(target_containers, Sequence)
+            and not isinstance(target_containers, (str, bytes))
+            and target_containers
+        ):
+            for equipment_index in range(index + 1, end):
+                equipment_line = lines[equipment_index]
+                if _ANONYMOUS_EQUIPMENT.search(equipment_line) is None:
+                    continue
+                output.append(
+                    SourceSemanticRoleHint(
+                        role="anonymous_equipment_surface",
+                        sourceLineId=_line_id(equipment_index + 1, equipment_line),
+                        sourceSurface=equipment_line,
+                        requiredOutputSurface=equipment_line,
+                        sourceEvidence=block,
+                        forbiddenTargetPathPrefixes=(
+                            "documentPatch.cargoPackages[].typeCategory",
+                            "documentPatch.cargoGroups[].marksAndNumbers",
+                        ),
+                    )
+                )
+                break
     return tuple(output)
 
 
@@ -2979,11 +4615,31 @@ def _finding_grounds_format_damage_only_in_unchanged_text(
     )
 
 
+def _required_surface_rendered(value: str, requirement: SurfaceRenderingRequirement) -> bool:
+    if requirement.kind == "carrier_header_identity":
+        lines = value.splitlines()
+        target_count = lines.count(requirement.targetSurface)
+        source_count = lines.count(requirement.sourceSurface)
+        return target_count >= requirement.sourceOccurrences and (
+            requirement.sourceSurface == requirement.targetSurface or source_count == 0
+        )
+    target_surfaces = {requirement.targetSurface}
+    return requirement.targetSurface in value and (
+        requirement.sourceSurface == requirement.targetSurface
+        or requirement.sourceSurface in target_surfaces
+        or requirement.sourceSurface not in value
+    )
+
+
 def _required_surfaces_rendered(
     value: str, requirements: Sequence[SurfaceRenderingRequirement]
 ) -> bool:
     target_surfaces = {row.targetSurface for row in requirements}
     for row in requirements:
+        if row.kind == "carrier_header_identity":
+            if not _required_surface_rendered(value, row):
+                return False
+            continue
         if row.targetSurface not in value:
             return False
         if (
@@ -3135,6 +4791,10 @@ def _raw_agent_blocks(value: str) -> tuple[tuple[int, str, int, str, str], ...]:
             and lines[cursor].strip()
             and _PAGE_MARKER.fullmatch(lines[cursor]) is None
         ):
+            # ``SIGNED FOR THE CARRIER <principal>`` is the principal relationship line,
+            # not another line of the auxiliary ``BY <agent>`` identity immediately below it.
+            if _RAW_SIGNED_FOR_CARRIER_LINE.fullmatch(lines[cursor]) is not None:
+                break
             cursor -= 1
         start = cursor + 1
         identity_lines = lines[start:end]
@@ -3182,6 +4842,13 @@ def _raw_agent_blocks(value: str) -> tuple[tuple[int, str, int, str, str], ...]:
         match = _RAW_INLINE_AGENT_FOR_CARRIER_LINE.fullmatch(relation_line)
         if match is None:
             continue
+        identity = match.group("identity").strip().rstrip(",").strip()
+        # ``BY <identity> AS AGENT ...`` is owned by the dedicated signed/on-behalf grammar
+        # below.  Letting the generic inline parser consume it creates a duplicate requirement
+        # and, when no inline principal is printed, can misclassify the next page marker or form
+        # heading as the carrier principal.
+        if re.match(r"(?i)^BY\b", identity) is not None:
+            continue
         principal = match.group("principal")
         gap = 0
         evidence_end = relation_index + 1
@@ -3190,11 +4857,15 @@ def _raw_agent_blocks(value: str) -> tuple[tuple[int, str, int, str, str], ...]:
             while cursor < len(lines) and not lines[cursor].strip() and gap < 2:
                 gap += 1
                 cursor += 1
-            if cursor >= len(lines) or not lines[cursor].strip():
+            if (
+                cursor >= len(lines)
+                or not lines[cursor].strip()
+                or _PAGE_MARKER.fullmatch(lines[cursor]) is not None
+                or _PARTY_HEADING_LINE.fullmatch(lines[cursor]) is not None
+            ):
                 continue
             principal = lines[cursor].strip()
             evidence_end = cursor + 1
-        identity = match.group("identity").strip().rstrip(",").strip()
         if not identity:
             continue
         output.append(
@@ -3230,6 +4901,89 @@ def _raw_agent_blocks(value: str) -> tuple[tuple[int, str, int, str, str], ...]:
             )
         )
     return tuple(sorted(output, key=lambda row: row[0]))
+
+
+def carrier_principal_occurrence_count(text: str, surface: str) -> int:
+    """Count carrier principals/brands while excluding separately synthesized agent aliases.
+
+    A short carrier name commonly occurs inside both the carrier principal and a local agent
+    identity (for example ``CMA CGM`` versus ``CMA CGM XIAMEN``).  Requiring the target carrier
+    name at both sites destroys the legal relationship.  This projection keeps the principal
+    side of explicit agency grammar and removes only the agent side before applying the same
+    punctuation-tolerant party-scalar counter used by the atomic audit.
+    """
+
+    raw_agent_lines: set[int] = set()
+    for line_number, source_identity, _gap, _principal, _evidence in _raw_agent_blocks(text):
+        raw_agent_lines.update(range(line_number, line_number + len(source_identity.splitlines())))
+
+    principal_lines: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        relation = _RAW_AGENT_FOR_CARRIER_LINE.fullmatch(line)
+        if relation is not None:
+            principal_lines.append(relation.group("principal"))
+            continue
+        inline = _RAW_INLINE_AGENT_FOR_CARRIER_LINE.fullmatch(line)
+        if inline is not None:
+            principal = inline.group("principal")
+            if principal is not None:
+                principal_lines.append(principal)
+            continue
+        if line_number in raw_agent_lines:
+            continue
+        principal_lines.append(line)
+    return _party_scalar_occurrence_count("\n".join(principal_lines), surface)
+
+
+def carrier_principal_template_slot_groups(
+    text: str, source_surface: str
+) -> tuple[frozenset[int], ...]:
+    """Count role-owned carrier-principal slots even when the template abbreviates the name.
+
+    A task label may contain a carrier's full legal name while signature blocks print an
+    abbreviation (for example ``Société Anonyme`` versus ``S.A.``).  Lexical equality therefore
+    undercounts the target cardinality and can cause a valid repeated principal to be rewritten
+    as unrelated fictional carriers.  Explicit legal grammar establishes the role independently
+    of spelling; all other lines still require the exact source scalar.
+    """
+
+    explicit_lines: set[int] = set()
+    for number, line in enumerate(text.splitlines(), start=1):
+        inline = _RAW_INLINE_AGENT_FOR_CARRIER_LINE.fullmatch(line)
+        if (
+            _RAW_AGENT_FOR_CARRIER_LINE.fullmatch(line) is not None
+            or _RAW_SIGNED_ON_BEHALF_LINE.fullmatch(line) is not None
+            or _RAW_SIGNED_FOR_CARRIER_LINE.fullmatch(line) is not None
+            or (inline is not None and inline.group("principal") is not None)
+        ):
+            explicit_lines.add(number)
+    raw_agent_lines: set[int] = set()
+    for line_number, identity, _gap, _principal, _evidence in _raw_agent_blocks(text):
+        raw_agent_lines.update(range(line_number, line_number + len(identity.splitlines())))
+    scalar_groups = tuple(
+        group
+        for group in _party_scalar_occurrence_line_sets(text, source_surface)
+        if not group & raw_agent_lines
+    )
+    scalar_lines = frozenset(number for group in scalar_groups for number in group)
+    abbreviated_groups = tuple(
+        frozenset((number,))
+        for number in sorted(explicit_lines)
+        if number not in scalar_lines
+        and _party_scalar_occurrence_count(text.splitlines()[number - 1], source_surface) == 0
+    )
+    return scalar_groups + abbreviated_groups
+
+
+def carrier_principal_template_slot_count(text: str, source_surface: str) -> int:
+    """Return the number of disjoint literal or legal-syntax carrier slots.
+
+    ``carrier_principal_template_slot_groups`` already combines complete scalar occurrences with
+    abbreviation-only legal slots.  Counting the multiline scalar occurrences a second time as
+    abbreviations would turn one wrapped legal name into two required target occurrences.
+    """
+
+    return len(carrier_principal_template_slot_groups(text, source_surface))
 
 
 def _auxiliary_identity_token_key(value: str) -> str:
@@ -3306,6 +5060,24 @@ def _cargo_measure_present(label: Mapping[str, Any], field_name: str) -> bool:
 
 def _measurement_pattern(kind: Literal["gross_weight_kg", "volume_m3"]) -> re.Pattern[str]:
     return _RAW_GROSS_WEIGHT if kind == "gross_weight_kg" else _RAW_VOLUME
+
+
+def _operational_measurement_match(
+    line: str,
+    kind: Literal["gross_weight_kg", "volume_m3", "package_quantity"],
+    *,
+    expected_surface: str | None = None,
+) -> re.Match[str] | None:
+    if kind == "gross_weight_kg":
+        patterns = (_RAW_GROSS_WEIGHT, _RAW_TRAILING_GROSS_WEIGHT)
+    elif kind == "volume_m3":
+        patterns = (_RAW_VOLUME, _RAW_TRAILING_VOLUME)
+    else:
+        patterns = (_RAW_PACKAGE_QUANTITY,)
+    matches = tuple(match for pattern in patterns if (match := pattern.search(line)) is not None)
+    if expected_surface is not None:
+        matches = tuple(match for match in matches if match.group("value") == expected_surface)
+    return min(matches, key=lambda match: match.start("value")) if matches else None
 
 
 def _parse_measurement_surface(
@@ -3568,6 +5340,24 @@ def _container_measurement_occurrences(
             ]
         ],
     ] = {}
+
+    def append_once(
+        container_index: int,
+        row: tuple[
+            Literal["gross_weight_kg", "volume_m3", "package_quantity"],
+            int,
+            str,
+            str,
+            Literal["labeled_measurement", "inline_container_breakdown"],
+        ],
+    ) -> None:
+        identity = (row[0], row[1])
+        if any(
+            (existing[0], existing[1]) == identity for existing in output.get(container_index, ())
+        ):
+            return
+        output.setdefault(container_index, []).append(row)
+
     for container_index, number in enumerate(numbers):
         header = re.compile(rf"^[ \t]*{re.escape(number)}(?:\b|(?=[ \t/,:#-]))", re.I)
         for line_index, line in enumerate(lines):
@@ -3599,18 +5389,63 @@ def _container_measurement_occurrences(
                         continue
                     match = _measurement_pattern(cast(Any, kind)).search(current)
                     if match is not None:
-                        output.setdefault(container_index, []).append(
+                        append_once(
+                            container_index,
                             (
                                 cast(Any, kind),
                                 cursor + 1,
                                 match.group("value"),
                                 "\n".join(evidence_lines)[-600:],
                                 "labeled_measurement",
-                            )
+                            ),
                         )
                         found.add(kind)
-                if len(found) == 2:
+                if "package_quantity" not in found:
+                    package_match = _RAW_PACKAGE_QUANTITY.search(current)
+                    if package_match is not None:
+                        append_once(
+                            container_index,
+                            (
+                                "package_quantity",
+                                cursor + 1,
+                                package_match.group("value"),
+                                "\n".join(evidence_lines)[-600:],
+                                "labeled_measurement",
+                            ),
+                        )
+                        found.add("package_quantity")
+                if len(found) == 3:
                     break
+
+    # The most common carrier grammar puts container, seal/equipment, package quantity, gross
+    # weight, and volume on one row.  Bind only values *after* the exact container identifier;
+    # this deliberately excludes the shifted ``(...)/NEXT_CONTAINER`` grammar handled below,
+    # where the measurements before the identifier belong to the preceding container.
+    for line_index, line in enumerate(lines):
+        for container_index, number in enumerate(numbers):
+            number_match = re.search(rf"(?<![A-Z0-9]){re.escape(number)}(?![A-Z0-9])", line, re.I)
+            if number_match is None:
+                continue
+            tail = line[number_match.end() :]
+            evidence = line[-600:]
+            for kind, pattern in (
+                ("gross_weight_kg", _RAW_TRAILING_GROSS_WEIGHT),
+                ("volume_m3", _RAW_TRAILING_VOLUME),
+                ("package_quantity", _RAW_PACKAGE_QUANTITY),
+            ):
+                match = pattern.search(tail)
+                if match is None:
+                    continue
+                append_once(
+                    container_index,
+                    (
+                        cast(Any, kind),
+                        line_index + 1,
+                        match.group("value"),
+                        evidence,
+                        "labeled_measurement",
+                    ),
+                )
     # Some carrier riders encode one container's measures at the start of the line that introduces
     # the next container. Preserve that topology by assigning the parenthesized tuple to the most
     # recently printed container before advancing the container cursor.
@@ -3619,31 +5454,30 @@ def _container_measurement_occurrences(
         inline = _RAW_INLINE_CONTAINER_MEASURES.search(line)
         if inline is not None and last_container_index is not None:
             evidence = "\n".join(lines[max(0, line_index - 1) : line_index + 1])[-600:]
-            output.setdefault(last_container_index, []).extend(
+            for row in (
                 (
-                    (
-                        "gross_weight_kg",
-                        line_index + 1,
-                        inline.group("gross"),
-                        evidence,
-                        "inline_container_breakdown",
-                    ),
-                    (
-                        "volume_m3",
-                        line_index + 1,
-                        inline.group("volume"),
-                        evidence,
-                        "inline_container_breakdown",
-                    ),
-                    (
-                        "package_quantity",
-                        line_index + 1,
-                        inline.group("packages"),
-                        evidence,
-                        "inline_container_breakdown",
-                    ),
-                )
-            )
+                    "gross_weight_kg",
+                    line_index + 1,
+                    inline.group("gross"),
+                    evidence,
+                    "inline_container_breakdown",
+                ),
+                (
+                    "volume_m3",
+                    line_index + 1,
+                    inline.group("volume"),
+                    evidence,
+                    "inline_container_breakdown",
+                ),
+                (
+                    "package_quantity",
+                    line_index + 1,
+                    inline.group("packages"),
+                    evidence,
+                    "inline_container_breakdown",
+                ),
+            ):
+                append_once(last_container_index, row)
         for container_index, number in enumerate(numbers):
             if re.search(rf"(?<![A-Z0-9]){re.escape(number)}(?![A-Z0-9])", line, re.I):
                 last_container_index = container_index
@@ -3763,6 +5597,53 @@ def _decimal_places(value: Decimal) -> int:
     return max(0, -cast(int, value.as_tuple().exponent))
 
 
+def _bounded_largest_remainder_allocation(
+    total: int,
+    weights: Sequence[int],
+    maxima: Sequence[int],
+) -> tuple[int, ...]:
+    """Allocate exact integer units by weights without exceeding per-recipient capacity.
+
+    Package counts are useful allocation weights, but they do not imply uniform cargo density.
+    When their direct proportional split would overload one equipment unit, cap that unit and
+    deterministically redistribute the remainder.  This retains exact aggregate arithmetic and
+    uses only target relationships and configured physical capacities.
+    """
+
+    if total < 0 or not weights or len(weights) != len(maxima):
+        raise ValueError("bounded allocation received an invalid shape")
+    if any(weight <= 0 for weight in weights) or any(maximum < 0 for maximum in maxima):
+        raise ValueError("bounded allocation weights must be positive and maxima non-negative")
+    if total > sum(maxima):
+        raise ValueError("bounded allocation total exceeds combined capacity")
+    allocated = [0] * len(weights)
+    active = list(range(len(weights)))
+    remaining = total
+    while active:
+        proposed = largest_remainder_allocation(
+            remaining,
+            tuple(weights[index] for index in active),
+        )
+        overflowing = [
+            index
+            for index, value in zip(active, proposed, strict=True)
+            if value > maxima[index]
+        ]
+        if not overflowing:
+            for index, value in zip(active, proposed, strict=True):
+                allocated[index] = value
+            remaining = 0
+            break
+        for index in overflowing:
+            allocated[index] = maxima[index]
+            remaining -= maxima[index]
+        saturated = set(overflowing)
+        active = [index for index in active if index not in saturated]
+    if remaining != 0 or sum(allocated) != total:
+        raise RuntimeError("bounded allocation failed exact conservation")
+    return tuple(allocated)
+
+
 def _target_measure_allocations(
     target_label: Mapping[str, Any],
     *,
@@ -3812,7 +5693,22 @@ def _target_measure_allocations(
         scale = 10**precision
         total_units = int((total * scale).to_integral_exact())
         numbers = tuple(weights)
-        units = largest_remainder_allocation(total_units, tuple(weights[row] for row in numbers))
+        maxima: list[int] = []
+        for number in numbers:
+            capacity = equipment_capacity(containers[number], limits)
+            maximum = capacity.payload_kg if kind == "gross_weight_kg" else capacity.volume_m3
+            if maximum is None:
+                maxima.append(total_units)
+                continue
+            available = maximum - output.get(number, Decimal(0))
+            maxima.append(
+                max(0, int((available * scale).to_integral_value(rounding=ROUND_DOWN)))
+            )
+        units = _bounded_largest_remainder_allocation(
+            total_units,
+            tuple(weights[row] for row in numbers),
+            tuple(maxima),
+        )
         for number, allocated_units in zip(numbers, units, strict=True):
             output[number] = output.get(number, Decimal(0)) + Decimal(allocated_units) / scale
     for number, value in output.items():
@@ -3838,11 +5734,18 @@ def _target_package_allocations(target_label: Mapping[str, Any]) -> dict[str, in
     for group in cast(Sequence[Any], patch.get("cargoAllocationGroups") or ()):
         if not isinstance(group, Mapping):
             continue
+        coverage = group.get("coverage")
         for allocation in cast(Sequence[Any], group.get("allocations") or ()):
             if not isinstance(allocation, Mapping):
                 continue
             number = allocation.get("containerNumber")
             quantity = allocation.get("packageQuantity")
+            if coverage == "container_membership_only":
+                if not isinstance(number, str) or quantity is not None:
+                    raise ValueError("target membership-only allocation has package facts")
+                if number not in containers:
+                    raise ValueError(f"target cargo allocation names unknown container {number}")
+                continue
             if not isinstance(number, str) or not isinstance(quantity, int) or quantity < 0:
                 raise ValueError("target cargo allocation has an invalid package quantity")
             if number not in containers:
@@ -3851,9 +5754,186 @@ def _target_package_allocations(target_label: Mapping[str, Any]) -> dict[str, in
     return output
 
 
+def _parse_package_integer_surface(surface: str) -> int:
+    """Parse the deliberately narrow integer grammar accepted by package-row discovery."""
+
+    value = surface.strip()
+    if re.fullmatch(r"[0-9][0-9,]*[.,]00", value) is not None:
+        value = value[:-3]
+    normalized = value.replace(",", "")
+    if not normalized.isdigit():
+        raise ValueError(f"cannot parse printed package quantity {surface!r}")
+    return int(normalized)
+
+
+def _membership_package_allocations(
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    source_containers: Sequence[Mapping[str, Any]],
+    target_containers: Sequence[Mapping[str, Any]],
+    occurrences: Mapping[
+        int,
+        Sequence[
+            tuple[
+                Literal["gross_weight_kg", "volume_m3", "package_quantity"],
+                int,
+                str,
+                str,
+                Literal["labeled_measurement", "inline_container_breakdown"],
+            ]
+        ],
+    ],
+) -> dict[str, int]:
+    """Project membership-only rows through the nearest evidenced package level.
+
+    ``container_membership_only`` deliberately omits quantities because the reviewed label could
+    not prove which package level each container row represents.  The raw template can still
+    provide that missing ownership: its per-container printed quantities form one exact total.
+    We bind that total to the unique source package level with the same quantity, or to the unique
+    immediately enclosing task-facing level (the smallest greater quantity).  Package IDs and
+    group topology are preserved by synthesis, so the corresponding target quantity can then be
+    distributed with the source row proportions.  Ambiguous ties and incomplete rows fail closed.
+    """
+
+    source_patch = cast(Mapping[str, Any], source_label.get("documentPatch") or {})
+    target_patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
+    source_groups = {
+        cast(str, row["groupId"]): cast(Mapping[str, Any], row)
+        for row in cast(Sequence[Any], source_patch.get("cargoAllocationGroups") or ())
+        if isinstance(row, Mapping) and isinstance(row.get("groupId"), str)
+    }
+    source_packages = {
+        (cast(str, row["groupId"]), cast(str, row["packageId"])): cast(Mapping[str, Any], row)
+        for row in cast(Sequence[Any], source_patch.get("cargoPackages") or ())
+        if isinstance(row, Mapping)
+        and isinstance(row.get("groupId"), str)
+        and isinstance(row.get("packageId"), str)
+    }
+    target_packages = {
+        (cast(str, row["groupId"]), cast(str, row["packageId"])): cast(Mapping[str, Any], row)
+        for row in cast(Sequence[Any], target_patch.get("cargoPackages") or ())
+        if isinstance(row, Mapping)
+        and isinstance(row.get("groupId"), str)
+        and isinstance(row.get("packageId"), str)
+    }
+    source_number_by_index = {
+        index: cast(str, row["containerNumber"])
+        for index, row in enumerate(source_containers)
+        if isinstance(row.get("containerNumber"), str)
+    }
+    target_number_by_source = {
+        cast(str, source["containerNumber"]): cast(str, target["containerNumber"])
+        for source, target in zip(source_containers, target_containers, strict=True)
+        if isinstance(source.get("containerNumber"), str)
+        and isinstance(target.get("containerNumber"), str)
+    }
+    printed_quantities_by_source: dict[str, tuple[int, ...]] = {}
+    for container_index, rows in occurrences.items():
+        quantities = tuple(
+            _parse_package_integer_surface(surface)
+            for kind, _, surface, _, _ in rows
+            if kind == "package_quantity"
+        )
+        if not quantities:
+            continue
+        source_number = source_number_by_index.get(container_index)
+        if source_number is None:
+            raise ValueError("printed package row has no source container identity")
+        printed_quantities_by_source[source_number] = quantities
+
+    output: dict[str, int] = {}
+    for target_group in cast(Sequence[Any], target_patch.get("cargoAllocationGroups") or ()):
+        if not isinstance(target_group, Mapping) or target_group.get("coverage") != (
+            "container_membership_only"
+        ):
+            continue
+        group_id = target_group.get("groupId")
+        if not isinstance(group_id, str):
+            raise ValueError("target membership-only allocation has no groupId")
+        source_group = source_groups.get(group_id)
+        if source_group is None or source_group.get("coverage") != "container_membership_only":
+            raise ValueError("membership-only allocation topology changed across synthesis")
+        source_members = [
+            row.get("containerNumber")
+            for row in cast(Sequence[Any], source_group.get("allocations") or ())
+            if isinstance(row, Mapping)
+        ]
+        target_members = [
+            row.get("containerNumber")
+            for row in cast(Sequence[Any], target_group.get("allocations") or ())
+            if isinstance(row, Mapping)
+        ]
+        if (
+            not source_members
+            or len(source_members) != len(target_members)
+            or any(not isinstance(number, str) for number in (*source_members, *target_members))
+        ):
+            raise ValueError("membership-only allocation changed its container topology")
+        expected_targets = [target_number_by_source[cast(str, number)] for number in source_members]
+        if expected_targets != target_members:
+            raise ValueError("membership-only allocation changed its source-to-target ordering")
+        try:
+            printed_rows = tuple(
+                printed_quantities_by_source[cast(str, number)] for number in source_members
+            )
+        except KeyError as error:
+            raise ValueError(
+                "membership-only allocation has an incomplete printed breakdown"
+            ) from error
+        if any(len(rows) != 1 for rows in printed_rows):
+            raise ValueError("membership-only container has multiple printed package quantities")
+        weights = tuple(rows[0] for rows in printed_rows)
+        if any(value <= 0 for value in weights):
+            raise ValueError("membership-only printed package quantities must be positive")
+        source_total = sum(weights)
+        package_candidates = [
+            row
+            for (candidate_group, _), row in source_packages.items()
+            if candidate_group == group_id
+            and isinstance(row.get("quantity"), int)
+            and cast(int, row["quantity"]) >= source_total
+        ]
+        exact = [row for row in package_candidates if row.get("quantity") == source_total]
+        if len(exact) == 1:
+            source_package = exact[0]
+        elif not exact and package_candidates:
+            nearest_quantity = min(cast(int, row["quantity"]) for row in package_candidates)
+            nearest = [
+                row for row in package_candidates if row.get("quantity") == nearest_quantity
+            ]
+            if len(nearest) != 1:
+                raise ValueError("membership-only printed package level has an ambiguous owner")
+            source_package = nearest[0]
+        else:
+            raise ValueError("membership-only printed package level has no task-facing owner")
+        package_id = cast(str, source_package["packageId"])
+        target_package = target_packages.get((group_id, package_id))
+        target_total = target_package.get("quantity") if target_package is not None else None
+        if not isinstance(target_total, int) or target_total <= 0:
+            raise ValueError("membership-only target package owner has no positive quantity")
+        distributed = largest_remainder_allocation(target_total, weights)
+        if any(
+            source > 0 and target <= 0
+            for source, target in zip(weights, distributed, strict=True)
+        ):
+            raise ValueError("membership-only projection erased a positive container row")
+        for number, quantity in zip(target_members, distributed, strict=True):
+            target_number = cast(str, number)
+            if target_number in output:
+                raise ValueError("multiple membership-only groups own one printed package row")
+            output[target_number] = quantity
+    return output
+
+
 def _render_integer_surface(value: int, *, source_surface: str) -> str:
     if value < 0:
         raise ValueError("cannot render a negative package quantity")
+    decimal_match = re.fullmatch(
+        r"(?P<whole>[0-9][0-9,]*)(?P<separator>[.,])(?P<zeroes>0+)", source_surface
+    )
+    if decimal_match is not None:
+        whole = f"{value:,}" if "," in decimal_match.group("whole") else str(value)
+        return whole + decimal_match.group("separator") + decimal_match.group("zeroes")
     return f"{value:,}" if "," in source_surface else str(value)
 
 
@@ -3950,6 +6030,20 @@ def operational_flavor_requirements(
         for measure_kind in kinds
     }
     package_allocations = _target_package_allocations(target_label)
+    membership_package_allocations = _membership_package_allocations(
+        source_label,
+        target_label,
+        source_containers,
+        target_containers,
+        occurrences,
+    )
+    overlap = set(package_allocations) & set(membership_package_allocations)
+    if overlap:
+        raise ValueError(
+            "printed package rows have both explicit and membership-only owners: "
+            + ", ".join(sorted(overlap))
+        )
+    package_allocations.update(membership_package_allocations)
     raw_lines = raw_text.splitlines()
     source_numbers = [
         cast(str, row["containerNumber"])
@@ -4070,7 +6164,12 @@ def operational_flavor_requirements(
                     "empirical_capacity_utilization_resample_v1",
                     "target_measure_allocation_v1",
                     "target_package_allocation_v1",
-                ] = "target_package_allocation_v1"
+                    "target_membership_package_projection_v1",
+                ] = (
+                    "target_membership_package_projection_v1"
+                    if target_number in membership_package_allocations
+                    else "target_package_allocation_v1"
+                )
             else:
                 maximum = (
                     capacity.payload_kg
@@ -4127,8 +6226,10 @@ def operational_flavor_requirements(
                 if following_number is not None and not isinstance(following_number, str):
                     raise ValueError("following synthetic container has no containerNumber")
             else:
-                measurement_match = _measurement_pattern(cast(Any, operational_kind)).search(
-                    source_line
+                measurement_match = _operational_measurement_match(
+                    source_line,
+                    operational_kind,
+                    expected_surface=source_surface,
                 )
                 if measurement_match is None:
                     raise ValueError("labeled operational measurement lost its source grammar")
@@ -4173,13 +6274,18 @@ def _operational_flavor_requirements_rendered(
                 "package_quantity": "packages",
             }[requirement.kind]
         else:
-            match = _measurement_pattern(cast(Any, requirement.kind)).search(line)
+            match = _operational_measurement_match(
+                line,
+                requirement.kind,
+                expected_surface=requirement.targetValueSurface,
+            )
             group = "value"
-        if (
-            match is None
-            or match.start() != requirement.sourceMeasurementStartColumn
-            or match.group(group) != requirement.targetValueSurface
-        ):
+        # ``sourceMeasurementStartColumn`` proves the source-side compiler anchor. It is not an
+        # output-format invariant: a legitimate equipment or seal replacement earlier on the
+        # same line can change its width and therefore shift every following column. Semantic
+        # ownership is instead preserved by the immutable physical line plus the named grammar
+        # group (and, for shifted inline rows, the following container identity).
+        if match is None or match.group(group) != requirement.targetValueSurface:
             return False
         following = requirement.sameLineFollowingContainerNumber
         if following is not None:
@@ -4374,6 +6480,16 @@ def apply_line_range_replacements(
                 f"edit[{index}] changes occupied/blank line topology; preserve every source "
                 "slot and synthesize coherent content in populated target-absent slots"
             )
+        for relative_line, (old_body, new_line) in enumerate(
+            zip(old_bodies, new_lines, strict=True)
+        ):
+            if any(character.isalnum() for character in old_body) and not any(
+                character.isalnum() for character in new_line
+            ):
+                raise ValueError(
+                    f"edit[{index}] line {start_line + relative_line} degenerates lexical "
+                    "content to punctuation-only filler"
+                )
         ending = _line_ending(old_lines[-1])
         replacement = normalized_new.replace("\n", default_newline)
         if replacement and ending:
@@ -4413,13 +6529,19 @@ def apply_line_range_replacements(
         raise ValueError("the line-range patch changes the source line count")
     if _blank_line_topology(updated) != _blank_line_topology(workspace.original_text):
         raise ValueError("the line-range patch changes the source blank-line topology")
-    if not _inline_slot_topology_preserved(workspace.original_text, updated):
+    inline_slot_mismatches = _inline_slot_topology_mismatches(workspace.original_text, updated)
+    if inline_slot_mismatches:
         raise ValueError(
-            "the line-range patch changes an inline labeled slot or its populated/empty state"
+            "the line-range patch changes an inline labeled slot or its populated/empty state: "
+            f"{list(inline_slot_mismatches)}"
         )
-    if not _structural_line_prefixes_preserved(workspace.original_text, updated):
+    structural_prefix_mismatches = _structural_line_prefix_mismatches(
+        workspace.original_text, updated
+    )
+    if structural_prefix_mismatches:
         raise ValueError(
-            "the line-range patch changes or removes a numbered structural line prefix"
+            "the line-range patch changes or removes a numbered structural line prefix: "
+            f"{list(structural_prefix_mismatches)}"
         )
     isolated_formatting = _isolated_formatting_changes(workspace, updated)
     if isolated_formatting:
@@ -4464,6 +6586,12 @@ def apply_line_range_replacements(
         )
     if _placeholder_count(updated) > _placeholder_count(snapshot):
         raise ValueError("the line-range patch introduces an unavailable/unknown placeholder")
+    introduced_entities = _introduced_html_entities(workspace.original_text, updated)
+    if introduced_entities:
+        raise ValueError(
+            "the line-range patch introduces HTML/XML entities into plain OCR text: "
+            f"{list(introduced_entities[:6])}"
+        )
     duplicated_lines = _introduced_source_line_duplicates(workspace.original_text, updated)
     if duplicated_lines:
         raise ValueError(
@@ -4473,13 +6601,7 @@ def apply_line_range_replacements(
         missing = [
             row.model_dump(mode="json")
             for row in workspace.surface_requirements
-            if row.targetSurface not in updated
-            or (
-                row.sourceSurface != row.targetSurface
-                and row.sourceSurface
-                not in {requirement.targetSurface for requirement in workspace.surface_requirements}
-                and row.sourceSurface in updated
-            )
+            if not _required_surfaces_rendered(updated, (row,))
         ]
         raise ValueError(
             f"the line-range patch violates deterministic date/HS rendering requirements: {missing}"
@@ -4567,17 +6689,13 @@ def apply_line_range_replacements(
             "the target deactivates every reefer setpoint; rewrite each occupied source slot "
             "as coherent non-operating/ventilation flavor"
         )
-    if not _cargo_flavor_rewrite_requirements_rendered(
+    cargo_failures = _cargo_flavor_rewrite_failures(
         updated, workspace.cargo_flavor_rewrite_requirements
-    ):
-        incorrect = [
-            row.model_dump(mode="json")
-            for row in workspace.cargo_flavor_rewrite_requirements
-            if not _cargo_flavor_rewrite_requirements_rendered(updated, (row,))
-        ]
+    )
+    if cargo_failures:
         raise ValueError(
             "the line-range patch leaves a source cargo-description line unchanged or omits the "
-            f"target description: {incorrect}"
+            f"target description: {json.dumps(cargo_failures, sort_keys=True)}"
         )
     commit = AtomicRewriteCommit(
         beforeTextSha256=workspace.current_sha256,
@@ -5041,6 +7159,13 @@ def _review_audit_payload(audit: DeterministicRewriteAudit) -> dict[str, JsonVal
 
 
 def _combine_usage(rows: Sequence[LinguisticUsageReceipt]) -> LinguisticUsageReceipt:
+    requestful_rows = tuple(row for row in rows if row.requests)
+    provider_costs = tuple(
+        row.providerReportedCostUsd
+        for row in requestful_rows
+        if row.providerReportedCostUsd is not None
+    )
+    complete_provider_cost_coverage = len(provider_costs) == len(requestful_rows)
     return LinguisticUsageReceipt(
         requests=sum(row.requests for row in rows),
         providerResponseIds=tuple(value for row in rows for value in row.providerResponseIds),
@@ -5051,7 +7176,17 @@ def _combine_usage(rows: Sequence[LinguisticUsageReceipt]) -> LinguisticUsageRec
         outputTokens=sum(row.outputTokens for row in rows),
         reasoningTokens=sum(row.reasoningTokens for row in rows),
         visibleOutputTokens=sum(row.visibleOutputTokens for row in rows),
+        providerTokenAccountingAnomaly=any(row.providerTokenAccountingAnomaly for row in rows),
         estimatedCostUsd=sum((row.estimatedCostUsd for row in rows), Decimal(0)),
+        # A partial sum would look authoritative while silently under-reporting billed cost.
+        # Publish no aggregate provider total unless every requestful receipt contains it; the
+        # pinned token-price estimate remains available independently.
+        providerReportedCostUsd=(
+            sum(provider_costs, Decimal(0))
+            if provider_costs and complete_provider_cost_coverage
+            else None
+        ),
+        downstreamProviders=tuple(value for row in rows for value in row.downstreamProviders),
     )
 
 
@@ -5076,8 +7211,47 @@ def _settings(
     *,
     stage: Literal["editor", "reviewer"],
     prompt_sha256: str,
-) -> OpenAIResponsesModelSettings:
-    settings = openai_responses_settings(provider)
+    route_provider: str | None = None,
+) -> ModelSettings:
+    if provider.kind == "openrouter":
+        routing: dict[str, Any] = {
+            "require_parameters": provider.require_parameters,
+            "data_collection": provider.data_collection,
+            "allow_fallbacks": provider.allow_fallbacks if route_provider is None else False,
+        }
+        if route_provider is not None:
+            # OpenRouter can surface an upstream endpoint's capacity error without trying the
+            # remaining provider order. The hybrid runner therefore pins one route at a time and
+            # performs observable application-level failover. A pinned attempt must never escape
+            # to an unrecorded provider inside the gateway.
+            routing["only"] = [route_provider]
+            routing["order"] = [route_provider]
+        elif provider.provider_only is not None:
+            routing["only"] = list(provider.provider_only)
+        if route_provider is None and provider.provider_order is not None:
+            routing["order"] = list(provider.provider_order)
+        if provider.provider_sort is not None:
+            routing["sort"] = provider.provider_sort
+        if provider.max_price is not None:
+            routing["max_price"] = {
+                "prompt": provider.max_price.prompt,
+                "completion": provider.max_price.completion,
+            }
+        openrouter_settings: OpenRouterModelSettings = {
+            "max_tokens": provider.max_output_tokens,
+            "timeout": provider.request_timeout_seconds,
+            "openrouter_reasoning": {"effort": provider.reasoning_effort},
+            "openrouter_provider": cast(Any, routing),
+        }
+        generation = provider.generation_settings
+        if generation is not None:
+            if generation.temperature is not None:
+                openrouter_settings["temperature"] = generation.temperature
+            if generation.top_p is not None:
+                openrouter_settings["top_p"] = generation.top_p
+        return cast(ModelSettings, openrouter_settings)
+
+    settings: OpenAIResponsesModelSettings = openai_responses_settings(provider)
     settings["parallel_tool_calls"] = False
     # Retries need the validation feedback, not a replay of earlier hidden reasoning. Keeping
     # reasoning scoped to the current turn avoids paying input tokens for stale thought traces.
@@ -5085,7 +7259,7 @@ def _settings(
     # Only the stable system prompt, strict schema, and marker preceding CachePoint are cached.
     # The document-specific suffix is deliberately outside the explicit breakpoint.
     settings["openai_prompt_cache_key"] = (
-        f"dococr:rewrite15:{provider.model}:{stage[0]}:{prompt_sha256[:12]}"
+        f"dococr:rewrite16:{provider.model}:{stage[0]}:{prompt_sha256[:12]}"
     )
     settings["openai_prompt_cache_options"] = {"mode": "explicit", "ttl": "30m"}
     # Provider responses are retained for audit, so let PydanticAI continue validation-repair
@@ -5093,7 +7267,7 @@ def _settings(
     # applies only inside one Agent.run; independent editor/reviewer passes remain isolated.
     if provider.store_responses:
         settings["openai_previous_response_id"] = "auto"
-    return settings
+    return cast(ModelSettings, settings)
 
 
 def _prompt_content(
@@ -5101,6 +7275,7 @@ def _prompt_content(
     stage: Literal["editor", "reviewer"],
     immutable: Mapping[str, JsonValue],
     active: Mapping[str, JsonValue],
+    use_cache_point: bool,
 ) -> tuple[UserContent, ...]:
     """Place every case-specific byte after the explicit provider cache boundary."""
 
@@ -5110,11 +7285,10 @@ def _prompt_content(
         + "\nACTIVE PASS\n"
         + json.dumps(active, ensure_ascii=False, separators=(",", ":"))
     )
-    return (
-        f"Stable synthetic B/L atomic {stage} contract version 15.",
-        CachePoint(),
-        dynamic,
-    )
+    stable = f"Stable synthetic B/L atomic {stage} contract version 16."
+    if use_cache_point:
+        return stable, CachePoint(), dynamic
+    return stable, dynamic
 
 
 def _prompt_payload_sha256(content: Sequence[UserContent]) -> str:
@@ -5136,8 +7310,8 @@ class RewriteRuntime:
         config: SynthesisRawTextRewriteCycleProbeConfig,
         editor_prompt: str,
         reviewer_prompt: str,
-        editor_model: OpenAIResponsesModel,
-        reviewer_model: OpenAIResponsesModel,
+        editor_model: Model,
+        reviewer_model: Model,
         target_integrity_resources: TargetIntegrityResources,
         limiter: ConcurrencyLimiter,
         staged: StagedArtifactRun,
@@ -5291,7 +7465,12 @@ class RewriteRuntime:
                 JsonValue, feedback.model_dump(mode="json") if feedback is not None else None
             ),
         }
-        payload = _prompt_content(stage="editor", immutable=immutable, active=active)
+        payload = _prompt_content(
+            stage="editor",
+            immutable=immutable,
+            active=active,
+            use_cache_point=self.config.workflow.use_provider_explicit_prompt_cache,
+        )
         settings = _settings(
             provider,
             stage="editor",
@@ -5337,7 +7516,7 @@ class RewriteRuntime:
                 messages = model_messages(captured)
         responses = tuple(row for row in captured if isinstance(row, ModelResponse))
         record = RewriteStageRecord(
-            schemaVersion=15,
+            schemaVersion=16,
             sequence=len(state.stages) + 1,
             stage="draft_editor" if phase == "draft" else "correction_editor",
             correctionCycle=sum(row.stage == "correction_editor" for row in state.stages),
@@ -5351,7 +7530,11 @@ class RewriteRuntime:
             editorCommit=commit,
             semanticReview=None,
             deterministicAudit=None,
-            usage=usage_receipt(responses, provider.pricing),
+            usage=usage_receipt(
+                responses,
+                provider.pricing,
+                require_provider_cost=provider.kind == "openrouter",
+            ),
             modelMessages=messages,
             errorType=error_type,
             errorMessage=error_message,
@@ -5454,20 +7637,36 @@ class RewriteRuntime:
             "rewrittenRawOcr": state.workspace.current_text,
             "deterministicAudit": cast(JsonValue, _review_audit_payload(audit)),
         }
-        payload = _prompt_content(stage="reviewer", immutable=immutable, active=active)
+        payload = _prompt_content(
+            stage="reviewer",
+            immutable=immutable,
+            active=active,
+            use_cache_point=self.config.workflow.use_provider_explicit_prompt_cache,
+        )
         settings = _settings(
             provider,
             stage="reviewer",
             prompt_sha256=self.config.prompts.reviewer.sha256,
         )
-        agent = Agent[None, SemanticReviewReceipt](
-            self.reviewer_model,
-            output_type=NativeOutput(
+        reviewer_output = (
+            NativeOutput(
                 SemanticReviewReceipt,
                 name="synthetic_bl_atomic_rewrite_review",
                 description="Compact evidence-grounded semantic acceptance or correction list.",
                 strict=True,
-            ),
+            )
+            if provider.kind == "openai_responses"
+            else ToolOutput(
+                SemanticReviewReceipt,
+                name="synthetic_bl_atomic_rewrite_review",
+                description="Compact evidence-grounded semantic acceptance or correction list.",
+                strict=True,
+                max_retries=self.config.workflow.reviewer_output_retries,
+            )
+        )
+        agent = Agent[None, SemanticReviewReceipt](
+            self.reviewer_model,
+            output_type=reviewer_output,
             system_prompt=self.reviewer_prompt,
             model_settings=settings,
             retries={"output": self.config.workflow.reviewer_output_retries},
@@ -5536,7 +7735,7 @@ class RewriteRuntime:
                 messages = model_messages(captured)
         responses = tuple(row for row in captured if isinstance(row, ModelResponse))
         record = RewriteStageRecord(
-            schemaVersion=15,
+            schemaVersion=16,
             sequence=len(state.stages) + 1,
             stage="semantic_reviewer",
             correctionCycle=sum(row.stage == "correction_editor" for row in state.stages),
@@ -5550,7 +7749,11 @@ class RewriteRuntime:
             editorCommit=None,
             semanticReview=review,
             deterministicAudit=audit,
-            usage=usage_receipt(responses, provider.pricing),
+            usage=usage_receipt(
+                responses,
+                provider.pricing,
+                require_provider_cost=provider.kind == "openrouter",
+            ),
             modelMessages=messages,
             errorType=error_type,
             errorMessage=error_message,
@@ -5810,6 +8013,111 @@ def _repair_package_information(
     return tuple(changes)
 
 
+def _surface_chunks(value: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"[A-Za-z0-9]+|[^A-Za-z0-9]+", value))
+
+
+def _embedded_chunk_range(short: str, long: str) -> tuple[int, int] | None:
+    short_chunks = _surface_chunks(short)
+    long_chunks = _surface_chunks(long)
+    normalized_short = tuple(chunk.casefold() for chunk in short_chunks)
+    normalized_long = tuple(chunk.casefold() for chunk in long_chunks)
+    matches = tuple(
+        (start, start + len(short_chunks))
+        for start in range(len(long_chunks) - len(short_chunks) + 1)
+        if normalized_long[start : start + len(short_chunks)] == normalized_short
+    )
+    return matches[0] if len(matches) == 1 else None
+
+
+def _same_chunk_topology(source: str, target: str) -> bool:
+    source_chunks = _surface_chunks(source)
+    target_chunks = _surface_chunks(target)
+    if len(source_chunks) != len(target_chunks):
+        return False
+    return all(
+        source_chunk == target_chunk
+        for source_chunk, target_chunk in zip(source_chunks, target_chunks, strict=True)
+        if not source_chunk.isalnum()
+    )
+
+
+def repair_overlapping_source_scalar_targets(
+    raw_text: str,
+    source_label: Mapping[str, JsonValue],
+    target: dict[str, JsonValue],
+) -> tuple[TargetIntegrityChange, ...]:
+    """Preserve one-to-many label semantics represented by an overlapping OCR scalar.
+
+    Some reviewed labels intentionally expose both a complete printed mark and an identifier
+    embedded inside that mark. Independent synthesis can otherwise assign mutually inconsistent
+    target strings even though the template has only one physical occurrence. This repair is
+    permitted only when every short-surface occurrence is contained by the same longer source
+    surface and both generated long surfaces preserve the source punctuation/run topology.
+    """
+
+    leaves = tuple(
+        leaf
+        for leaf in rewrite_changed_leaves(source_label, target)
+        if leaf.requiresTextEdit
+        and leaf.sourcePresent
+        and leaf.targetPresent
+        and isinstance(leaf.sourceValue, str)
+        and isinstance(leaf.targetValue, str)
+        and _ANCHORABLE_IDENTIFIER_PATH.fullmatch(leaf.path) is not None
+    )
+    changes: list[TargetIntegrityChange] = []
+    candidates = sorted(leaves, key=lambda row: (-len(cast(str, row.sourceValue)), row.path))
+    for long_leaf in candidates:
+        source_long = cast(str, long_leaf.sourceValue)
+        long_matches = tuple(_anchored_scalar_pattern(source_long).finditer(raw_text))
+        if not long_matches:
+            continue
+        for short_leaf in candidates:
+            source_short = cast(str, short_leaf.sourceValue)
+            if short_leaf.path == long_leaf.path or len(source_short) >= len(source_long):
+                continue
+            chunk_range = _embedded_chunk_range(source_short, source_long)
+            if chunk_range is None:
+                continue
+            short_matches = tuple(_anchored_scalar_pattern(source_short).finditer(raw_text))
+            if not short_matches or any(
+                not any(
+                    long_match.start() <= short_match.start()
+                    and short_match.end() <= long_match.end()
+                    for long_match in long_matches
+                )
+                for short_match in short_matches
+            ):
+                continue
+            current_long = target_value(target, long_leaf.path)
+            current_short = target_value(target, short_leaf.path)
+            if not isinstance(current_long, str) or not isinstance(current_short, str):
+                continue
+            if _anchored_scalar_pattern(current_short).search(current_long) is not None:
+                continue
+            if not _same_chunk_topology(source_long, current_long):
+                raise ValueError(
+                    "cannot align overlapping source scalars because the synthetic long value "
+                    f"changed punctuation topology: {long_leaf.path}"
+                )
+            start, end = chunk_range
+            target_chunks = _surface_chunks(current_long)
+            repaired = "".join((*target_chunks[:start], current_short, *target_chunks[end:]))
+            if not repaired.strip() or repaired == current_long:
+                raise ValueError(f"overlapping scalar repair made no change: {long_leaf.path}")
+            set_target_value(cast(dict[str, Any], target), long_leaf.path, repaired)
+            changes.append(
+                TargetIntegrityChange(
+                    path=long_leaf.path,
+                    reason="overlapping_source_scalar_topology",
+                    before=current_long,
+                    after=repaired,
+                )
+            )
+    return tuple(changes)
+
+
 def _label_hs_codes(label: Mapping[str, Any]) -> tuple[str, ...]:
     patch = label.get("documentPatch")
     if not isinstance(patch, Mapping):
@@ -5997,7 +8305,7 @@ def recover_explicit_hs_target_facts(
 def prepare_target_integrity(
     source_label: Mapping[str, Any],
     target: Mapping[str, Any],
-    config: SynthesisRawTextRewriteCycleProbeConfig,
+    config: RewritePreparationConfig,
     resources: TargetIntegrityResources,
 ) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
     """Validate and, if necessary, reproject a synthetic target before any API call."""
@@ -6036,22 +8344,25 @@ def prepare_target_integrity(
     return canonical, payload
 
 
-async def _run_case(
+def prepare_rewrite_state(
     *,
     case_number: int,
     source_row: Mapping[str, Any],
     target_row: Mapping[str, Any],
     linguistic_plan: DocumentLinguisticPlan,
     feature: Mapping[str, JsonValue],
-    runtime: RewriteRuntime,
-) -> RewriteCycleBundle:
+    config: RewritePreparationConfig,
+    target_integrity_resources: TargetIntegrityResources,
+) -> RewriteState:
+    """Build the complete host-owned rewrite contract without constructing or calling a model."""
+
     document_id = cast(str, source_row["documentId"])
     source_text = cast(str, source_row["joinedRawText"])
     source_label = cast(
         dict[str, JsonValue],
         BILL_OF_LADING_TASK_ADAPTER.validate_target(
             document_id=document_id,
-            target=cast(Mapping[str, Any], source_row[runtime.config.inputs.source_target_field]),
+            target=cast(Mapping[str, Any], source_row[config.inputs.source_target_field]),
         ),
     )
     scenario_id = cast(str, target_row["scenarioId"])
@@ -6073,25 +8384,46 @@ async def _run_case(
     effective_target_label, target_integrity = prepare_target_integrity(
         source_label,
         recovered_target_label,
-        runtime.config,
-        runtime.target_integrity_resources,
+        config,
+        target_integrity_resources,
     )
+    overlap_changes = repair_overlapping_source_scalar_targets(
+        source_text, source_label, effective_target_label
+    )
+    if overlap_changes:
+        effective_target_label = BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
+            document_id=scenario_id,
+            target=effective_target_label,
+        )
+        existing_changes = cast(list[JsonValue], target_integrity["semantic_changes"])
+        target_integrity["semantic_changes"] = cast(
+            JsonValue,
+            [
+                *existing_changes,
+                *(row.model_dump(mode="json") for row in overlap_changes),
+            ],
+        )
+        target_integrity["changed"] = True
     target_integrity["recovered_task_facts"] = cast(
         JsonValue, [row.model_dump(mode="json") for row in recovered_hs_facts]
     )
     target_integrity["recovered_task_fact_count"] = len(recovered_hs_facts)
     rendering_requirements = (
-        *surface_rendering_requirements(source_text, source_label, effective_target_label),
+        *surface_rendering_requirements(
+            source_text,
+            source_label,
+            effective_target_label,
+            linguistic_plan,
+        ),
         *recovered_hs_surfaces,
     )
     jurisdiction_requirements = jurisdictional_surface_requirements(
-        source_text, effective_target_label, runtime.target_integrity_resources
+        source_text, effective_target_label, target_integrity_resources
     )
-    role_hints = source_semantic_role_hints(source_text)
+    role_hints = source_semantic_role_hints(source_text, effective_target_label)
     leaves = rewrite_changed_leaves(source_label, effective_target_label)
     inline_slot_requirements = inline_slot_topology_requirements(source_text)
     status_requirements = source_status_preservation_requirements(source_text, leaves)
-    literal_requirements = target_literal_requirements(leaves)
     auxiliary_identity_requirements = raw_auxiliary_identity_requirements(
         source_text, source_label, effective_target_label
     )
@@ -6101,23 +8433,37 @@ async def _run_case(
         effective_target_label,
         source_document_id=document_id,
         scenario_id=scenario_id,
-        profiles=runtime.target_integrity_resources.operational_profiles,
-        limits=capacity_limits(runtime.config.target_integrity.transport_capacity),
+        profiles=target_integrity_resources.operational_profiles,
+        limits=capacity_limits(config.target_integrity.transport_capacity),
     )
     cargo_rewrite_requirements = cargo_flavor_rewrite_requirements(
         source_text, source_label, effective_target_label
     )
+    anchored_replacement_requirements = merge_anchored_scalar_replacement_requirements(
+        anchored_scalar_replacement_requirements(source_text, leaves),
+        container_equipment_replacement_requirements(
+            source_text, source_label, effective_target_label
+        ),
+        container_package_type_replacement_requirements(
+            source_text,
+            source_label,
+            effective_target_label,
+            target_integrity_resources.packages,
+        ),
+        anchored_measurement_replacement_requirements(
+            source_text, source_label, effective_target_label
+        ),
+        party_country_metadata_replacement_requirements(
+            source_text, effective_target_label, target_integrity_resources
+        ),
+    )
+    literal_requirements = target_literal_requirements(leaves, anchored_replacement_requirements)
     occurrence_requirements = target_value_occurrence_requirements(
         source_text,
         leaves,
         auxiliary_identity_requirements,
         rendering_requirements,
-    )
-    anchored_replacement_requirements = merge_anchored_scalar_replacement_requirements(
-        anchored_scalar_replacement_requirements(source_text, leaves),
-        anchored_measurement_replacement_requirements(
-            source_text, source_label, effective_target_label
-        ),
+        anchored_replacement_requirements,
     )
     if not any(row.requiresTextEdit for row in leaves):
         raise ValueError(f"rewrite case has no printable target changes: {document_id}")
@@ -6141,7 +8487,7 @@ async def _run_case(
         current_text=source_text,
     )
     apply_deterministic_prefills(workspace)
-    state = RewriteState(
+    return RewriteState(
         case_number=case_number,
         document_id=document_id,
         scenario_id=scenario_id,
@@ -6151,6 +8497,120 @@ async def _run_case(
         workspace=workspace,
         started_at=datetime.now(UTC),
     )
+
+
+def build_rewrite_contract_bundle(state: RewriteState) -> RewriteCycleBundle:
+    """Freeze a prepared rewrite contract without pretending that a model pass occurred."""
+
+    source_text = state.workspace.original_text
+    output_text = state.workspace.current_text
+    source_label = state.source_label
+    upstream_target_label = state.workspace.upstream_target_label
+    target_label = state.target_label
+    changed = state.changed_leaves
+    change_contract = label_change_contract(state.workspace)
+    compact_contract = compact_label_change_contract(change_contract)
+    result = RewriteCycleResult(
+        schemaVersion=16,
+        caseNumber=state.case_number,
+        documentId=state.document_id,
+        scenarioId=state.scenario_id,
+        status="needs_review",
+        reason="Host rewrite contract prepared; no editor or reviewer model has run.",
+        sourceTextSha256=sha256_bytes(source_text.encode("utf-8")),
+        outputTextSha256=sha256_bytes(output_text.encode("utf-8")),
+        sourceLabelSha256=sha256_bytes(canonical_json_bytes(source_label)),
+        upstreamTargetLabelSha256=sha256_bytes(canonical_json_bytes(upstream_target_label)),
+        targetLabelSha256=sha256_bytes(canonical_json_bytes(target_label)),
+        targetIntegritySha256=sha256_bytes(canonical_json_bytes(state.target_integrity)),
+        targetCapacityReprojected=bool(state.target_integrity["capacity_changed"]),
+        changedLeavesSha256=sha256_bytes(
+            canonical_json_bytes([row.model_dump(mode="json") for row in changed])
+        ),
+        labelChangeContractSha256=sha256_bytes(
+            canonical_json_bytes([row.model_dump(mode="json") for row in change_contract])
+        ),
+        editorOutputSchemaSha256=sha256_bytes(
+            canonical_json_bytes(AtomicRewriteArguments.model_json_schema(mode="validation"))
+        ),
+        reviewerOutputSchemaSha256=sha256_bytes(
+            canonical_json_bytes(SemanticReviewReceipt.model_json_schema(mode="validation"))
+        ),
+        correctionCycles=0,
+        editorPasses=0,
+        reviewPasses=0,
+        compoundPartyFlavorRealizations=0,
+        rawAuxiliaryIdentityRealizations=0,
+        deterministicPrefills=len(state.workspace.deterministic_prefills),
+        replacements=0,
+        sourceLinesReplaced=0,
+        outputLinesInserted=0,
+        # A prepared contract is an immutable declaration, not an executed stage.  Persisting
+        # wall-clock preparation time here made the contract hash change on every exact resume.
+        durationMs=0.0,
+        totalUsage=_empty_usage(),
+    )
+    return RewriteCycleBundle(
+        schemaVersion=16,
+        result=result,
+        feature=state.feature,
+        sourceLabel=source_label,
+        upstreamTargetLabel=upstream_target_label,
+        targetLabel=target_label,
+        targetIntegrity=state.target_integrity,
+        changedLeaves=changed,
+        labelChangeContract=change_contract,
+        compactLabelChangeContract=compact_contract,
+        surfaceRenderingRequirements=state.workspace.surface_requirements,
+        targetLiteralRequirements=state.workspace.target_literal_requirements,
+        targetValueOccurrenceRequirements=state.workspace.target_value_occurrence_requirements,
+        anchoredScalarReplacementRequirements=(
+            state.workspace.anchored_scalar_replacement_requirements
+        ),
+        sourceSemanticRoleHints=state.workspace.source_role_hints,
+        inlineSlotTopologyRequirements=state.workspace.inline_slot_requirements,
+        sourceStatusPreservationRequirements=state.workspace.source_status_requirements,
+        compoundPartyFlavorRequirements=compound_party_flavor_requirements(
+            source_label, target_label
+        ),
+        rawAuxiliaryIdentityRequirements=state.workspace.raw_auxiliary_identity_requirements,
+        operationalFlavorRequirements=state.workspace.operational_flavor_requirements,
+        cargoFlavorRewriteRequirements=state.workspace.cargo_flavor_rewrite_requirements,
+        jurisdictionalSurfaceRequirements=state.workspace.jurisdictional_requirements,
+        sourceText=source_text,
+        outputText=output_text,
+        deterministicPrefills=tuple(state.workspace.deterministic_prefills),
+        appliedReplacements=(),
+        deterministicAudits=(),
+        semanticReviews=(),
+        stageRecords=(),
+        diff=unified_text_diff(source_text, output_text),
+    )
+
+
+async def _run_case(
+    *,
+    case_number: int,
+    source_row: Mapping[str, Any],
+    target_row: Mapping[str, Any],
+    linguistic_plan: DocumentLinguisticPlan,
+    feature: Mapping[str, JsonValue],
+    runtime: RewriteRuntime,
+) -> RewriteCycleBundle:
+    state = prepare_rewrite_state(
+        case_number=case_number,
+        source_row=source_row,
+        target_row=target_row,
+        linguistic_plan=linguistic_plan,
+        feature=feature,
+        config=runtime.config,
+        target_integrity_resources=runtime.target_integrity_resources,
+    )
+    document_id = state.document_id
+    scenario_id = state.scenario_id
+    source_label = state.source_label
+    source_text = state.workspace.original_text
+    upstream_target_label = state.workspace.upstream_target_label
     status, reason = await _run_state(state, runtime)
     usage = _combine_usage([row.usage for row in state.stages]) if state.stages else _empty_usage()
     commits = [row.editorCommit for row in state.stages if row.editorCommit is not None]
@@ -6162,7 +8622,7 @@ async def _run_case(
     compact_change_contract = compact_label_change_contract(effective_change_contract)
     flavor_requirements = compound_party_flavor_requirements(source_label, state.target_label)
     result = RewriteCycleResult(
-        schemaVersion=15,
+        schemaVersion=16,
         caseNumber=case_number,
         documentId=document_id,
         scenarioId=scenario_id,
@@ -6204,7 +8664,7 @@ async def _run_case(
         totalUsage=usage,
     )
     bundle = RewriteCycleBundle(
-        schemaVersion=15,
+        schemaVersion=16,
         result=result,
         feature=state.feature,
         sourceLabel=source_label,
@@ -6251,23 +8711,15 @@ def _load_bundle(path: Path) -> RewriteCycleBundle | None:
     return RewriteCycleBundle.model_validate_json(read_regular_file_bytes(path), strict=True)
 
 
-async def _run_cases(
+def build_target_integrity_resources(
     *,
-    selected: Sequence[
-        tuple[
-            Mapping[str, Any],
-            Mapping[str, Any],
-            DocumentLinguisticPlan,
-            Mapping[str, JsonValue],
-        ]
-    ],
-    source_rows: Sequence[Mapping[str, Any]],
-    editor_prompt: str,
-    reviewer_prompt: str,
-    staged: StagedArtifactRun,
-    config: SynthesisRawTextRewriteCycleProbeConfig,
     project_root: Path,
-) -> tuple[RewriteCycleBundle, ...]:
+    config: RewritePreparationConfig,
+    source_rows: Sequence[Mapping[str, Any]],
+    staged: StagedArtifactRun | None = None,
+) -> TargetIntegrityResources:
+    """Load pinned registries and corpus profiles shared by all rewrite execution strategies."""
+
     iso_path = _resolve_pinned_file(
         project_root,
         config.target_integrity.iso3166_snapshot.path,
@@ -6309,27 +8761,28 @@ async def _run_cases(
     )
     if not operational_profiles:
         raise ValueError("pinned source corpus produced no empirical operational profiles")
-    staged.publish_json(
-        "generation/operational-profile-support.json",
-        {
-            "schemaVersion": 1,
-            "method": "empirical_capacity_utilization_resample_v1",
-            "profiles": len(operational_profiles),
-            "documents": len({row.document_id for row in operational_profiles}),
-            "grossWeightProfiles": sum(
-                row.gross_utilization is not None for row in operational_profiles
-            ),
-            "volumeProfiles": sum(
-                row.volume_utilization is not None or row.volume_m3 is not None
-                for row in operational_profiles
-            ),
-            "equipmentFamilies": {
-                family: sum(row.equipment_family == family for row in operational_profiles)
-                for family in sorted({row.equipment_family for row in operational_profiles})
+    if staged is not None:
+        staged.publish_json(
+            "generation/operational-profile-support.json",
+            {
+                "schemaVersion": 1,
+                "method": "empirical_capacity_utilization_resample_v1",
+                "profiles": len(operational_profiles),
+                "documents": len({row.document_id for row in operational_profiles}),
+                "grossWeightProfiles": sum(
+                    row.gross_utilization is not None for row in operational_profiles
+                ),
+                "volumeProfiles": sum(
+                    row.volume_utilization is not None or row.volume_m3 is not None
+                    for row in operational_profiles
+                ),
+                "equipmentFamilies": {
+                    family: sum(row.equipment_family == family for row in operational_profiles)
+                    for family in sorted({row.equipment_family for row in operational_profiles})
+                },
             },
-        },
-    )
-    target_integrity_resources = TargetIntegrityResources(
+        )
+    return TargetIntegrityResources(
         countries=load_iso_country_registry(
             iso_path=iso_path,
             iso_sha256=config.target_integrity.iso3166_snapshot.sha256,
@@ -6343,19 +8796,79 @@ async def _run_cases(
         customs_programs=customs_programs.entries,
         operational_profiles=operational_profiles,
     )
-    key = load_openai_key(project_root, config.environment_file)
+
+
+async def _run_cases(
+    *,
+    selected: Sequence[
+        tuple[
+            Mapping[str, Any],
+            Mapping[str, Any],
+            DocumentLinguisticPlan,
+            Mapping[str, JsonValue],
+        ]
+    ],
+    source_rows: Sequence[Mapping[str, Any]],
+    editor_prompt: str,
+    reviewer_prompt: str,
+    staged: StagedArtifactRun,
+    config: SynthesisRawTextRewriteCycleProbeConfig,
+    project_root: Path,
+) -> tuple[RewriteCycleBundle, ...]:
+    target_integrity_resources = build_target_integrity_resources(
+        project_root=project_root,
+        config=config,
+        source_rows=source_rows,
+        staged=staged,
+    )
+    editor_provider = config.providers.editor
+    reviewer_provider = config.providers.reviewer
+    key = load_provider_key(
+        project_root,
+        config.environment_file,
+        editor_provider.api_key_env,
+    )
     client = AsyncOpenAI(
         api_key=key,
+        base_url=(_OPENROUTER_BASE_URL if editor_provider.kind == "openrouter" else None),
         max_retries=max(
-            config.providers.editor.transport_max_retries,
-            config.providers.reviewer.transport_max_retries,
+            editor_provider.transport_max_retries,
+            reviewer_provider.transport_max_retries,
         ),
         timeout=max(
-            config.providers.editor.request_timeout_seconds,
-            config.providers.reviewer.request_timeout_seconds,
+            editor_provider.request_timeout_seconds,
+            reviewer_provider.request_timeout_seconds,
+        ),
+        default_headers=(
+            {"X-Title": "DocumentParsing"} if editor_provider.kind == "openrouter" else None
         ),
     )
-    provider = OpenAIProvider(openai_client=client)
+    if editor_provider.kind == "openrouter":
+        openrouter_provider = OpenRouterProvider(openai_client=client)
+        editor_model: Model = OpenRouterModel(
+            editor_provider.model,
+            provider=openrouter_provider,
+        )
+        reviewer_model: Model = OpenRouterModel(
+            reviewer_provider.model,
+            provider=openrouter_provider,
+        )
+    else:
+        openai_provider = OpenAIProvider(openai_client=client)
+        editor_model = OpenAIResponsesModel(
+            editor_provider.model,
+            provider=openai_provider,
+        )
+        reviewer_model = OpenAIResponsesModel(
+            reviewer_provider.model,
+            provider=openai_provider,
+        )
+    if not editor_model.profile.get("supports_tools", False):
+        raise ValueError(f"rewrite editor model does not support tools: {editor_provider.model}")
+    if not reviewer_model.profile.get("supports_tools", False):
+        raise ValueError(
+            f"rewrite reviewer model does not support tools: {reviewer_provider.model}"
+        )
     limiter = ConcurrencyLimiter(
         config.workflow.max_concurrent_requests,
         name="synthetic-raw-text-atomic-rewrite-provider-requests",
@@ -6364,8 +8877,8 @@ async def _run_cases(
         config=config,
         editor_prompt=editor_prompt,
         reviewer_prompt=reviewer_prompt,
-        editor_model=OpenAIResponsesModel(config.providers.editor.model, provider=provider),
-        reviewer_model=OpenAIResponsesModel(config.providers.reviewer.model, provider=provider),
+        editor_model=editor_model,
+        reviewer_model=reviewer_model,
         target_integrity_resources=target_integrity_resources,
         limiter=limiter,
         staged=staged,
@@ -6515,7 +9028,13 @@ def _fence(value: str, language: str) -> str:
     return f"{fence}{language}\n{value}\n{fence}"
 
 
+def _format_provider_cost(value: Decimal | str | None) -> str:
+    return "unavailable" if value is None else f"${value}"
+
+
 def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -> str:
+    provider_cost = summary["providerReportedCostUsd"]
+    provider_cost_per_thousand = summary["providerReportedCostUsdPerThousand"]
     lines = [
         "# Atomic synthetic B/L raw-text rewrite probe",
         "",
@@ -6526,8 +9045,13 @@ def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -
         f"{summary['callFailedCases']}**",
         f"- Requests: **{summary['requests']}**",
         f"- Estimated list-price cost: **${summary['estimatedCostUsd']}**",
-        f"- Estimated list-price cost per 1,000 at this pass rate: "
+        f"- Provider-reported billed cost: **{_format_provider_cost(provider_cost)}**",
+        f"- Estimated list-price cost per 1,000 attempts: "
         f"**${summary['estimatedCostUsdPerThousand']}**",
+        f"- Provider-reported cost per 1,000 attempts: "
+        f"**{_format_provider_cost(provider_cost_per_thousand)}**",
+        f"- Provider-reported cost per 1,000 validated outputs: "
+        f"**{_format_provider_cost(summary['providerReportedCostUsdPerThousandValidated'])}**",
         f"- Input / cache-read / cache-write tokens: **{summary['inputTokens']} / "
         f"{summary['cacheReadTokens']} / {summary['cacheWriteTokens']}**",
         f"- Visible / reasoning output tokens: **{summary['visibleOutputTokens']} / "
@@ -6535,9 +9059,9 @@ def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -
         f"- Wall time / throughput: **{summary['wallSeconds']:.3f}s / "
         f"{summary['throughputCasesPerHour']:.3f} cases/hour**",
         "",
-        "Cost is a rate-card estimate from provider-reported token receipts, not a confirmed "
-        "billing-account debit. The OpenAI billing dashboard remains authoritative and may post "
-        "usage asynchronously.",
+        "Estimated cost applies the pinned rate card to provider token receipts. When available, "
+        "provider-reported billed cost is the gateway's per-response charge; the account billing "
+        "dashboard remains authoritative and may post asynchronously.",
         "",
         "The editor uses one strict terminal output function per pass. Its compact line-range ",
         "patch is applied atomically in-process and is never replayed to the model. A separate ",
@@ -6547,15 +9071,16 @@ def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -
         "## Usage by stage",
         "",
         "| Stage | Requests | Input | Cache read | Cache write | Reasoning | Visible | "
-        "Estimated list cost |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "Estimated list cost | Provider cost |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for stage, usage in summary["usageByStage"].items():
         lines.append(
             f"| `{stage}` | {usage['requests']} | {usage['inputTokens']} | "
             f"{usage['cacheReadTokens']} | {usage['cacheWriteTokens']} | "
             f"{usage['reasoningTokens']} | {usage['visibleOutputTokens']} | "
-            f"${usage['estimatedCostUsd']} |"
+            f"${usage['estimatedCostUsd']} | "
+            f"{_format_provider_cost(usage['providerReportedCostUsd'])} |"
         )
     lines.extend(
         [
@@ -6564,8 +9089,8 @@ def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -
             "",
             "| Case | Document | Status | Editor/review/correction | Requests | Input | "
             "Reasoning | "
-            "Visible | Cost |",
-            "|---:|---|---|---:|---:|---:|---:|---:|---:|",
+            "Visible | Estimated cost | Provider cost |",
+            "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for bundle in bundles:
@@ -6575,7 +9100,8 @@ def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -
             f"{row.editorPasses}/{row.reviewPasses}/{row.correctionCycles} | "
             f"{row.totalUsage.requests} | {row.totalUsage.inputTokens} | "
             f"{row.totalUsage.reasoningTokens} | {row.totalUsage.visibleOutputTokens} | "
-            f"${row.totalUsage.estimatedCostUsd} |"
+            f"${row.totalUsage.estimatedCostUsd} | "
+            f"{_format_provider_cost(row.totalUsage.providerReportedCostUsd)} |"
         )
     for bundle in bundles:
         row = bundle.result
@@ -6590,17 +9116,21 @@ def _report(summary: Mapping[str, Any], bundles: Sequence[RewriteCycleBundle]) -
                 f"- Deterministic scalar prefills: **{row.deterministicPrefills}**",
                 f"- Requests / estimated cost: **{row.totalUsage.requests} / "
                 f"${row.totalUsage.estimatedCostUsd}**",
+                f"- Provider-reported cost: "
+                f"**{_format_provider_cost(row.totalUsage.providerReportedCostUsd)}**",
                 f"- Retained provider call trace: "
                 f"`cases/{row.caseNumber:02d}-{row.documentId}/stages.json`",
                 "",
                 "### Stage usage",
                 "",
-                "| Sequence | Stage | Requests | Input | Reasoning | Visible | Cost |",
-                "|---:|---|---:|---:|---:|---:|---:|",
+                "| Sequence | Stage | Requests | Input | Reasoning | Visible | "
+                "Estimated | Provider |",
+                "|---:|---|---:|---:|---:|---:|---:|---:|",
                 *[
                     f"| {stage.sequence} | `{stage.stage}` | {stage.usage.requests} | "
                     f"{stage.usage.inputTokens} | {stage.usage.reasoningTokens} | "
                     f"{stage.usage.visibleOutputTokens} | ${stage.usage.estimatedCostUsd} |"
+                    f" {_format_provider_cost(stage.usage.providerReportedCostUsd)} |"
                     for stage in bundle.stageRecords
                 ],
                 "",
@@ -6761,7 +9291,11 @@ def _plot_bytes(bundles: Sequence[RewriteCycleBundle]) -> dict[str, bytes]:
         {
             "case": row.result.caseNumber,
             "status": row.result.status,
-            "cost_usd": float(row.result.totalUsage.estimatedCostUsd),
+            "cost_usd": float(
+                row.result.totalUsage.providerReportedCostUsd
+                if row.result.totalUsage.providerReportedCostUsd is not None
+                else row.result.totalUsage.estimatedCostUsd
+            ),
             "requests": row.result.totalUsage.requests,
             "visible_output": row.result.totalUsage.visibleOutputTokens,
             "reasoning": row.result.totalUsage.reasoningTokens,
@@ -6804,7 +9338,11 @@ def _plot_bytes(bundles: Sequence[RewriteCycleBundle]) -> dict[str, bytes]:
             "stage": record.stage,
             "reasoning": record.usage.reasoningTokens,
             "visible_output": record.usage.visibleOutputTokens,
-            "cost_usd": float(record.usage.estimatedCostUsd),
+            "cost_usd": float(
+                record.usage.providerReportedCostUsd
+                if record.usage.providerReportedCostUsd is not None
+                else record.usage.estimatedCostUsd
+            ),
         }
         for bundle in bundles
         for record in bundle.stageRecords
@@ -6986,7 +9524,7 @@ def run_raw_text_rewrite_cycle_probe(
     editor_schema = AtomicRewriteArguments.model_json_schema(mode="validation")
     reviewer_schema = SemanticReviewReceipt.model_json_schema(mode="validation")
     transaction = {
-        "schemaVersion": 15,
+        "schemaVersion": 16,
         "runId": config.run.run_id,
         "configSha256": sha256_file(config_path),
         "linguisticRunTransactionSha256": (
@@ -7014,8 +9552,10 @@ def run_raw_text_rewrite_cycle_probe(
             Path(bill_of_lading_v5.__file__).resolve(strict=True)
         ),
         "runtime": {
+            "editorProviderKind": config.providers.editor.kind,
             "editorModel": config.providers.editor.model,
             "editorReasoningEffort": config.providers.editor.reasoning_effort,
+            "reviewerProviderKind": config.providers.reviewer.kind,
             "reviewerModel": config.providers.reviewer.model,
             "reviewerReasoningEffort": config.providers.reviewer.reasoning_effort,
             "pydanticAiVersion": version("pydantic-ai-slim"),
@@ -7058,12 +9598,24 @@ def run_raw_text_rewrite_cycle_probe(
     total_usage = _combine_usage([row.result.totalUsage for row in bundles])
     usage_by_stage = _usage_by_stage(bundles)
     estimated_cost_per_thousand = total_usage.estimatedCostUsd / Decimal(len(bundles)) * 1000
+    provider_cost_per_thousand = (
+        total_usage.providerReportedCostUsd / Decimal(len(bundles)) * 1000
+        if total_usage.providerReportedCostUsd is not None
+        else None
+    )
+    quality_validated_cases = sum(row.result.status == "quality_validated" for row in bundles)
+    provider_cost_per_thousand_validated = (
+        total_usage.providerReportedCostUsd / Decimal(quality_validated_cases) * 1000
+        if total_usage.providerReportedCostUsd is not None and quality_validated_cases
+        else None
+    )
+    downstream_provider_counts = Counter(total_usage.downstreamProviders)
     summary: dict[str, JsonValue] = {
-        "schemaVersion": 15,
+        "schemaVersion": 16,
         "runId": config.run.run_id,
         "status": "complete",
         "cases": len(bundles),
-        "qualityValidatedCases": sum(row.result.status == "quality_validated" for row in bundles),
+        "qualityValidatedCases": quality_validated_cases,
         "needsReviewCases": sum(row.result.status == "needs_review" for row in bundles),
         "callFailedCases": sum(row.result.status == "call_failed" for row in bundles),
         "costLimitedCases": sum(row.result.status == "cost_limited" for row in bundles),
@@ -7079,6 +9631,23 @@ def run_raw_text_rewrite_cycle_probe(
         "visibleOutputTokens": total_usage.visibleOutputTokens,
         "estimatedCostUsd": str(total_usage.estimatedCostUsd),
         "estimatedCostUsdPerThousand": str(estimated_cost_per_thousand),
+        "providerReportedCostUsd": (
+            str(total_usage.providerReportedCostUsd)
+            if total_usage.providerReportedCostUsd is not None
+            else None
+        ),
+        "providerReportedCostUsdPerThousand": (
+            str(provider_cost_per_thousand) if provider_cost_per_thousand is not None else None
+        ),
+        "providerReportedCostUsdPerThousandValidated": (
+            str(provider_cost_per_thousand_validated)
+            if provider_cost_per_thousand_validated is not None
+            else None
+        ),
+        "downstreamProviderRequestCounts": cast(
+            JsonValue,
+            dict(sorted(downstream_provider_counts.items())),
+        ),
         "usageByStage": cast(
             JsonValue,
             {stage: usage.model_dump(mode="json") for stage, usage in usage_by_stage.items()},

@@ -1,0 +1,28 @@
+schema_version: 1
+task: bill_of_lading_raw_text_template_proof
+
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  synthetic_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion50-luna-high-v2/generation/targets.jsonl
+    sha256: 7b9203505e782339343b1bbfc820dd2f7e96ee3d73024c0edfec42ccb8ca6e4d
+    records: 50
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+
+proof:
+  documents: 50
+  require_source_hash: true
+  require_source_round_trip: true
+  require_disjoint_utf8_spans: true
+  require_exact_literal_regions: true
+  require_page_markers_unchanged: true
+  require_line_endings_unchanged: true
+  run_all_slot_sentinel_mutation: true
+  publish_training_records: false
+
+output_dir: artifacts/kie-synthesis-analysis/mpci-bl-raw-text-template-proof50-v3

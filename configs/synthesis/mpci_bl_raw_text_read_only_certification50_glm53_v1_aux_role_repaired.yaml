@@ -1,0 +1,111 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-read-only-certification50-glm53-v1-aux-role-repaired
+  output_dir: artifacts/kie-synthesis
+
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-inventory50-topology-glm53-native-v10-aux-role-repaired
+  commit_sha256: d457731a69158ed31148bd09f99f2e6d6b8ce60c8cc5564c6fbb4d9a047afee4
+  transaction_sha256: b9bec1bdc6b49a133abaf74a872af15268b3d00c335a822bc53359e3264ad2cd
+
+case_ids:
+  - doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373
+  - doc_09585226e5552adad580b1d71b70fdf80b3aee7a85263a49dd3b8c82909c13b1
+  - doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+  - doc_0dcc89acef2074d1ed2ca7dee64f52771d5f59337b3d7ef426e9bb6c2fe53b86
+  - doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff
+  - doc_11ac17a4963225bdb78247f8c29d8e1a47b79ac942682ce8f459170c37389489
+  - doc_1249175a6240081bbc038acab925f1b703431a9c359fdfbcad5249d8ea96cc61
+  - doc_197b795c2c7d912abca426b546ecdbd9724f828eeb493202abc397cce1d6e6b0
+  - doc_199bc5ec47e2764977d00a9c8220df9ed05d8959ffcef1e2411623751eaf575b
+  - doc_1c3797a521af25c4dd20bc95238d6605c4ef404b343374bee3833c7be71541fd
+  - doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642
+  - doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c
+  - doc_24c81b104b2fe30e4152b1606e1a4c31bd89a5014a1faaec51fa9093b6cff000
+  - doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a
+  - doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559
+  - doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8
+  - doc_372c779c9aaeed273fda78438a576603853d91a582536f977f72a8d1325899e5
+  - doc_38da8dbfe44b5b0131fb881088b3fa68695a088da25d0e23a90d9f33f64b5a6e
+  - doc_3e47ddcd77c022ff4c568e44b0779e4cb4dbb864efb707de62fc64d6787e2e57
+  - doc_3faa338209378d0115ff34d6aab716d18821b7e619ad95d41ec304789b315b18
+  - doc_4072d87614d209dbbf8c821deaf27052e67ee5575f921d883f208759c6517af8
+  - doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+  - doc_4c4e07528c1272f84a110bd90e867fb4597b07e08f64a71a4259e2e1a66bb2ff
+  - doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0
+  - doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815
+  - doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0
+  - doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26
+  - doc_71f0549e3f840bfaaa49d26d85cf93f004b57f41ca510ab464074ef05a5b3114
+  - doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31
+  - doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984
+  - doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e
+  - doc_88ec16af95fce3eaea2950bc205a2820b5b289c64c12a4d32835b1a8d3340375
+  - doc_8c58655a0a0ed73202ccd3096f47740ce2a274d0a802f5fdf073855c14bcc5fe
+  - doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+  - doc_9493b545d35de7acaf8b6cfe2a82f1707f2a6eaa7f64196777e55d26b7918922
+  - doc_a95a03d37ebe8eb03b6927cd4771b18b006e7df9880d3ed099c167962dac13ee
+  - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+  - doc_b362e747375b7102c2f64838492add721278375758e3c57ae2e57fc098d6ea1b
+  - doc_c471b8946e93d312af277c90f4e83012a423e809d9b667c8d45623398712161e
+  - doc_cf0df4c2d59947f4536e1442fedcb70cf39ab64fa4e28ee7bbbd60d4f31aa0b4
+  - doc_cf208c27db869a9280df68f63e685adf582d889df83d12ceb66db6babeb6f07c
+  - doc_d5498799bb1a50c8e5b9fe9cc82a59bf217c1ad6ee7225d922f90109946c20ec
+  - doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe
+  - doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+  - doc_ea80221ff9b8594ff8891fadfce4ffe76b1b14745b9a8edf8e3115c685aa662e
+  - doc_ed35ae43ff1921cf77b119a98957af4953ef71ff9510d0d571d4e0bd7a14c975
+  - doc_f0f120de2654d5d6b09ff02003a3f53de38919d80d7707fcdb146d7b4d9dd948
+  - doc_f3e4072968c7d4137c63a3b583373777d6d9418b402c44851961935295d76454
+  - doc_fb241e5dc87e28957c2ca8b3e72703dadcec45a9f7ebef6e605cb1023bc1ab3a
+  - doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v1.md
+  sha256: f462eb02f7393cd3087f26f5d79db90b6ba987fa9c1b5f51c3035d159b178e29
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 600.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, fireworks, nextbit/fp8]
+  max_price:
+    prompt: 0.15
+    completion: 0.50
+  pricing:
+    currency: USD
+    effective_date: 2026-09-05
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 50
+  max_concurrent_documents: 6
+  semantic_audit_passes: 1
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false
+

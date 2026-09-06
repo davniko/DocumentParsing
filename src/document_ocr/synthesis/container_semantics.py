@@ -37,6 +37,34 @@ _PUNCTUATION_TRANSLATION: dict[int, str | int | None] = {
     0x2019: "'",
     0x0060: "'",
 }
+_SIZE_PRINTED_SURFACE: dict[ContainerSizeCategory, str] = {
+    "TWENTY_FOOT_STANDARD_HEIGHT": "20' STANDARD HEIGHT",
+    "TWENTY_FOOT_HIGH_CUBE": "20' HIGH CUBE",
+    "FORTY_FOOT_STANDARD_HEIGHT": "40' STANDARD HEIGHT",
+    "FORTY_FOOT_HIGH_CUBE": "40' HIGH CUBE",
+    "FORTY_FIVE_FOOT_HIGH_CUBE": "45' HIGH CUBE",
+}
+_TYPE_PRINTED_SURFACE: dict[ContainerTypeCategory, str] = {
+    "GENERAL_PURPOSE": "GENERAL PURPOSE",
+    "VENTILATED_GENERAL_PURPOSE": "VENTILATED GENERAL PURPOSE",
+    "DRY_BULK": "DRY BULK",
+    "NAMED_CARGO": "NAMED CARGO",
+    "REFRIGERATED": "REFRIGERATED",
+    "REFRIGERATED_AND_HEATED": "REFRIGERATED AND HEATED",
+    "SELF_POWERED_REFRIGERATED": "SELF POWERED REFRIGERATED",
+    "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT": ("REFRIGERATED HEATED REMOVABLE EQUIPMENT"),
+    "INSULATED": "INSULATED",
+    "OPEN_TOP": "OPEN TOP",
+    "PLATFORM": "PLATFORM",
+    "PLATFORM_FIXED": "FIXED PLATFORM",
+    "PLATFORM_COLLAPSIBLE": "COLLAPSIBLE PLATFORM",
+    "PLATFORM_COMPLETE_SUPERSTRUCTURE": "PLATFORM COMPLETE SUPERSTRUCTURE",
+    "PLATFORM_NAMED_CARGO": "NAMED CARGO PLATFORM",
+    "PRESSURIZED_TANK": "PRESSURIZED TANK",
+    "DRY_HOPPER_TANK": "DRY HOPPER TANK",
+    "DRY_REAR_DISCHARGE_TANK": "DRY REAR DISCHARGE TANK",
+    "AIR_SURFACE": "AIR SURFACE",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +144,15 @@ def _normalize(value: str) -> str:
     return " ".join(normalized.split())
 
 
+def canonical_equipment_surface(
+    size_category: ContainerSizeCategory,
+    type_category: ContainerTypeCategory,
+) -> str:
+    """Return one unambiguous human-readable realization of an equipment semantic pair."""
+
+    return f"{_SIZE_PRINTED_SURFACE[size_category]} {_TYPE_PRINTED_SURFACE[type_category]}"
+
+
 def review_source_equipment_surface(
     printed_surface: str | None,
     *,
@@ -134,8 +171,44 @@ def review_source_equipment_surface(
             review_rule="missing_surface",
         )
     normalized = _normalize(printed_surface)
-    semantic = re.sub(r"^[1-9][0-9]*X(?=(?:20|40|45))", "", normalized)
+    # Equipment summaries commonly include a semantic heading before the count, for example
+    # ``CONTAINER: 1 X 20FT GENERAL PURPOSE``. The count is structural, not part of the ISO/BIC
+    # equipment meaning, and may occur either at the start or after that heading.
+    semantic = re.sub(r"(?:^| )[1-9][0-9]*X(?=(?:20|40|45))", " ", normalized).strip()
     tokens = frozenset(semantic.split())
+
+    # The synthesis renderer exposes this complete semantic phrase when a carrier-specific source
+    # abbreviation cannot be projected safely. Recognize it before the corpus shorthand grammar
+    # so every model-facing category has an exact, round-trippable printed representation.
+    canonical_pairs = sorted(
+        (
+            (
+                _normalize(canonical_equipment_surface(size_category, type_category)),
+                size_category,
+                type_category,
+            )
+            for size_category in _SIZE_PRINTED_SURFACE
+            for type_category in _TYPE_PRINTED_SURFACE
+        ),
+        key=lambda row: len(row[0]),
+        reverse=True,
+    )
+    for canonical, canonical_size_category, canonical_type_category in canonical_pairs:
+        if re.search(rf"(?<![A-Z0-9]){re.escape(canonical)}(?![A-Z0-9])", semantic):
+            return ReviewedEquipmentSurface(
+                printed_surface=printed_surface,
+                normalized_surface=normalized,
+                resolution="reviewed_source_grammar",
+                size_category=canonical_size_category,
+                type_category=canonical_type_category,
+                thermal_operation=(
+                    "active"
+                    if canonical_type_category in TEMPERATURE_CAPABLE_CONTAINER_TYPES
+                    and temperature_present
+                    else "not_indicated"
+                ),
+                review_rule="canonical_semantic_equipment_surface",
+            )
 
     length: Literal[20, 40, 45] | None = None
     if re.search(r"(?:^| )45", semantic):

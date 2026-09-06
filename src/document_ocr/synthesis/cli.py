@@ -20,6 +20,13 @@ from document_ocr.synthesis.config import (
     load_synthesis_party_identity_probe_config,
     load_synthesis_party_structure_benchmark_config,
     load_synthesis_preparation_config,
+    load_synthesis_raw_text_certification_config,
+    load_synthesis_raw_text_certified_correction_config,
+    load_synthesis_raw_text_certified_publication_config,
+    load_synthesis_raw_text_hybrid_batch_config,
+    load_synthesis_raw_text_hybrid_probe_config,
+    load_synthesis_raw_text_inventory_batch_config,
+    load_synthesis_raw_text_inventory_probe_config,
     load_synthesis_raw_text_rewrite_cycle_probe_config,
     load_synthesis_raw_text_rewrite_probe_config,
     load_synthesis_route_scenario_pilot_config,
@@ -73,6 +80,20 @@ def main() -> None:
         "run-raw-text-rewrite-probe",
         "validate-raw-text-rewrite-cycle-probe-config",
         "run-raw-text-rewrite-cycle-probe",
+        "validate-raw-text-hybrid-probe-config",
+        "run-raw-text-hybrid-probe",
+        "validate-raw-text-hybrid-batch-config",
+        "run-raw-text-hybrid-batch",
+        "validate-raw-text-inventory-probe-config",
+        "run-raw-text-inventory-probe",
+        "validate-raw-text-inventory-batch-config",
+        "run-raw-text-inventory-batch",
+        "validate-raw-text-certification-config",
+        "run-raw-text-certification",
+        "validate-raw-text-certified-correction-config",
+        "run-raw-text-certified-correction",
+        "validate-raw-text-certified-publication-config",
+        "run-raw-text-certified-publication",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -86,6 +107,49 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-raw-text-certified-publication-config",
+            "run-raw-text-certified-publication",
+        }:
+            raw_text_certified_publication_config = (
+                load_synthesis_raw_text_certified_publication_config(config_path)
+            )
+        elif arguments.command in {
+            "validate-raw-text-certified-correction-config",
+            "run-raw-text-certified-correction",
+        }:
+            raw_text_certified_correction_config = (
+                load_synthesis_raw_text_certified_correction_config(config_path)
+            )
+        elif arguments.command in {
+            "validate-raw-text-certification-config",
+            "run-raw-text-certification",
+        }:
+            raw_text_certification_config = load_synthesis_raw_text_certification_config(
+                config_path
+            )
+        elif arguments.command in {
+            "validate-raw-text-inventory-batch-config",
+            "run-raw-text-inventory-batch",
+        }:
+            raw_text_inventory_batch_config = load_synthesis_raw_text_inventory_batch_config(
+                config_path
+            )
+        elif arguments.command in {
+            "validate-raw-text-inventory-probe-config",
+            "run-raw-text-inventory-probe",
+        }:
+            raw_text_inventory_config = load_synthesis_raw_text_inventory_probe_config(config_path)
+        elif arguments.command in {
+            "validate-raw-text-hybrid-batch-config",
+            "run-raw-text-hybrid-batch",
+        }:
+            raw_text_hybrid_batch_config = load_synthesis_raw_text_hybrid_batch_config(config_path)
+        elif arguments.command in {
+            "validate-raw-text-hybrid-probe-config",
+            "run-raw-text-hybrid-probe",
+        }:
+            raw_text_hybrid_config = load_synthesis_raw_text_hybrid_probe_config(config_path)
+        elif arguments.command in {
             "validate-raw-text-rewrite-cycle-probe-config",
             "run-raw-text-rewrite-cycle-probe",
         }:
@@ -184,7 +248,81 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-raw-text-rewrite-cycle-probe-config":
+        if arguments.command == "validate-raw-text-certified-publication-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_certified_publication_config.run.run_id,
+                "documents": raw_text_certified_publication_config.workflow.documents,
+                "certification_sources": len(
+                    raw_text_certified_publication_config.certification_sources
+                ),
+            }
+        elif arguments.command == "validate-raw-text-certified-correction-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_certified_correction_config.run.run_id,
+                "documents": raw_text_certified_correction_config.workflow.documents,
+                "model": raw_text_certified_correction_config.provider.model,
+                "provider_routes": (
+                    list(raw_text_certified_correction_config.provider.provider_order or ())
+                    if raw_text_certified_correction_config.provider.kind == "openrouter"
+                    else []
+                ),
+            }
+        elif arguments.command == "validate-raw-text-certification-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_certification_config.run.run_id,
+                "documents": raw_text_certification_config.workflow.documents,
+                "semantic_audit_passes": (
+                    raw_text_certification_config.workflow.semantic_audit_passes
+                ),
+                "model": raw_text_certification_config.provider.model,
+                "provider_routes": (
+                    list(raw_text_certification_config.provider.provider_order or ())
+                    if raw_text_certification_config.provider.kind == "openrouter"
+                    else []
+                ),
+            }
+        elif arguments.command == "validate-raw-text-inventory-probe-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_inventory_config.run.run_id,
+                "regression_documents": (raw_text_inventory_config.workflow.regression_documents),
+                "live_documents": len(raw_text_inventory_config.cases),
+                "model": raw_text_inventory_config.provider.model,
+                "output_mode": raw_text_inventory_config.workflow.output_mode,
+                "max_model_requests_per_document": (
+                    raw_text_inventory_config.workflow.max_model_requests_per_document
+                ),
+            }
+        elif arguments.command == "validate-raw-text-hybrid-batch-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_hybrid_batch_config.run.run_id,
+                "cases": raw_text_hybrid_batch_config.inputs.synthetic_targets.records,
+                "max_concurrent_cases": (
+                    raw_text_hybrid_batch_config.workflow.max_concurrent_cases
+                ),
+                "editor_model": raw_text_hybrid_batch_config.providers.editor.model,
+                "reviewer_model": raw_text_hybrid_batch_config.providers.reviewer.model,
+            }
+        elif arguments.command == "validate-raw-text-hybrid-probe-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_hybrid_config.run.run_id,
+                "audit_documents": raw_text_hybrid_config.workflow.audit_documents,
+                "model_probe_documents": len(raw_text_hybrid_config.cases),
+                "editor_model": raw_text_hybrid_config.providers.editor.model,
+                "reviewer_model": raw_text_hybrid_config.providers.reviewer.model,
+            }
+        elif arguments.command == "validate-raw-text-rewrite-cycle-probe-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -380,6 +518,111 @@ def main() -> None:
                     project_root=project_root,
                     config_path=config_path,
                     config=dangerous_goods_registry_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-certified-publication":
+            from document_ocr.synthesis.raw_text_certified_publication import (
+                run_raw_text_certified_publication,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_certified_publication(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_certified_publication_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-certified-correction":
+            from document_ocr.synthesis.raw_text_certified_correction import (
+                run_raw_text_certified_correction,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_certified_correction(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_certified_correction_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-certification":
+            from document_ocr.synthesis.raw_text_certification import (
+                run_raw_text_certification,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_certification(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_certification_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-inventory-batch":
+            from document_ocr.synthesis.raw_text_inventory_probe import (
+                run_raw_text_inventory_batch,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_inventory_batch(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_inventory_batch_config,
+                ),
+            }
+        elif arguments.command == "validate-raw-text-inventory-batch-config":
+            provider = raw_text_inventory_batch_config.provider
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_inventory_batch_config.run.run_id,
+                "documents": raw_text_inventory_batch_config.workflow.documents,
+                "provider_routes": list(
+                    (provider.provider_order or ()) if provider.kind == "openrouter" else ()
+                ),
+            }
+        elif arguments.command == "run-raw-text-inventory-probe":
+            from document_ocr.synthesis.raw_text_inventory_probe import (
+                run_raw_text_inventory_probe,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_inventory_probe(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_inventory_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-hybrid-batch":
+            from document_ocr.synthesis.raw_text_hybrid_batch import run_raw_text_hybrid_batch
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_hybrid_batch(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_hybrid_batch_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-hybrid-probe":
+            from document_ocr.synthesis.raw_text_hybrid_probe import run_raw_text_hybrid_probe
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_hybrid_probe(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_hybrid_config,
                 ),
             }
         elif arguments.command == "run-raw-text-rewrite-cycle-probe":

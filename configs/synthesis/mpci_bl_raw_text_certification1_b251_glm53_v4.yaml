@@ -1,0 +1,61 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certification_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certification1-b251-glm53-v4
+  output_dir: artifacts/kie-synthesis
+
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification50-glm53-v2-cargo-repaired
+  commit_sha256: ac79eedb70b5da46340e92ad9940380f9b88b22962bb6a852c95a2639b992306
+  transaction_sha256: 320e3c62eeb6736f098b06de8f3992286d51183b215708db175bf103c0c35765
+input_case_contract_filename: source-contract.json
+
+case_ids:
+  - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_sweep_v3.md
+  sha256: c6ddf8aa33f84af0924db891ea444f4362dcf186c531547924593c09c8c9e850
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 600.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, fireworks, nextbit/fp8]
+  max_price:
+    prompt: 0.15
+    completion: 0.50
+  pricing:
+    currency: USD
+    effective_date: 2026-09-05
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 1
+  max_concurrent_documents: 1
+  max_semantic_passes: 3
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_terminal_clean_pass: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract_after_every_pass: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

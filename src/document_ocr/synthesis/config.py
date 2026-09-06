@@ -845,6 +845,7 @@ class DangerousGoodsPlanInputsConfig(_StrictModel):
 
 class DangerousGoodsPlanGenerationConfig(_StrictModel):
     random_stream: Literal["hmac_sha256_counter_v1"]
+    sampling_namespace: NonEmptyString
     seed: Annotated[int, Field(ge=0, lt=2**64)]
     branch_method: Literal["source_hs_presence_exact_identity_chemical_else_general_v2"]
     category_weights_permyriad: dict[HazardCategory, Annotated[int, Field(gt=0)]]
@@ -855,6 +856,10 @@ class DangerousGoodsPlanGenerationConfig(_StrictModel):
     maximum_category_deviation_permyriad: Annotated[int, Field(gt=0, le=1000)]
     flashpoint_policy: Literal["omit_without_formulation_property_source_v1"]
     preserve_dangerous_goods_cardinality: Literal[True]
+    printed_topology_policy: Literal[
+        "sample_optional_fields_v1",
+        "preserve_selected_template_v1",
+    ]
     publish_training_records: Literal[False]
 
     @model_validator(mode="after")
@@ -1021,6 +1026,7 @@ class SemanticCompletionFlashpointConfig(_StrictModel):
 
 class SemanticCompletionGenerationConfig(_StrictModel):
     random_stream: Literal["hmac_sha256_counter_v1"]
+    sampling_namespace: NonEmptyString
     seed: Annotated[int, Field(ge=0, lt=2**64)]
     package_goods_method: Literal["fit_hs_heading_or_thermal_joint_with_constrained_dg_catalog_v1"]
     package_signature_distribution: Literal["source_group_occurrence_weighted_v1"]
@@ -1032,6 +1038,10 @@ class SemanticCompletionGenerationConfig(_StrictModel):
     preserve_container_cardinality: Literal[True]
     preserve_cargo_cardinality: Literal[True]
     preserve_relation_topology: Literal[True]
+    printed_topology_policy: Literal[
+        "sample_optional_fields_v1",
+        "preserve_selected_template_v1",
+    ]
     publish_training_records: Literal[False]
 
 
@@ -1180,6 +1190,83 @@ class LinguisticProbeProviderConfig(_StrictModel):
     service_tier: Literal["auto", "default", "flex", "priority"] | None = None
     generation_settings: LinguisticGenerationSettingsConfig | None = None
     pricing: LinguisticProbePricingConfig
+
+
+class OpenRouterMaxPriceConfig(_StrictModel):
+    """Hard OpenRouter endpoint-price ceiling, expressed in USD per million tokens."""
+
+    prompt: Annotated[float, Field(gt=0)]
+    completion: Annotated[float, Field(gt=0)]
+
+
+class OpenRouterRewriteProviderConfig(_StrictModel):
+    """OpenRouter configuration supported by the atomic raw-text rewrite flow."""
+
+    kind: Literal["openrouter"]
+    model: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True,
+            pattern=r"^[A-Za-z0-9][A-Za-z0-9._~-]*/[A-Za-z0-9][A-Za-z0-9._~:/-]*$",
+        ),
+    ]
+    api_key_env: Literal["OPENROUTER_API_KEY"]
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+    request_timeout_seconds: Annotated[float, Field(gt=0)]
+    transport_max_retries: Annotated[int, Field(ge=0, le=5)]
+    max_output_tokens: Annotated[int, Field(gt=0)]
+    require_parameters: Literal[True]
+    data_collection: Literal["deny"]
+    allow_fallbacks: bool = True
+    provider_only: tuple[NonEmptyString, ...] | None = None
+    provider_order: tuple[NonEmptyString, ...] | None = None
+    provider_sort: Literal["price", "throughput", "latency"] | None = None
+    max_price: OpenRouterMaxPriceConfig | None = None
+    generation_settings: LinguisticGenerationSettingsConfig | None = None
+    pricing: LinguisticProbePricingConfig
+
+    @field_validator("provider_only", "provider_order", mode="before")
+    @classmethod
+    def freeze_provider_lists(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def settings_are_openrouter_compatible(self) -> OpenRouterRewriteProviderConfig:
+        if (
+            self.generation_settings is not None
+            and self.generation_settings.text_verbosity is not None
+        ):
+            raise ValueError("OpenRouter rewrite models do not support text_verbosity")
+        if self.provider_only is not None:
+            if not self.provider_only:
+                raise ValueError("provider_only cannot be empty")
+            if len(self.provider_only) != len(set(self.provider_only)):
+                raise ValueError("provider_only entries must be unique")
+        if self.provider_order is not None:
+            if not self.provider_order:
+                raise ValueError("provider_order cannot be empty")
+            if len(self.provider_order) != len(set(self.provider_order)):
+                raise ValueError("provider_order entries must be unique")
+            if self.provider_sort is not None:
+                raise ValueError("provider_order and provider_sort are mutually exclusive")
+            if self.provider_only is not None and not set(self.provider_order).issubset(
+                self.provider_only
+            ):
+                raise ValueError("provider_order entries must be allowed by provider_only")
+        if self.max_price is not None:
+            if self.pricing.input_usd_per_million > self.max_price.prompt:
+                raise ValueError("pinned input price exceeds the OpenRouter prompt-price ceiling")
+            if self.pricing.output_usd_per_million > self.max_price.completion:
+                raise ValueError(
+                    "pinned output price exceeds the OpenRouter completion-price ceiling"
+                )
+        return self
+
+
+RawTextRewriteProviderConfig = Annotated[
+    LinguisticProbeProviderConfig | OpenRouterRewriteProviderConfig,
+    Field(discriminator="kind"),
+]
 
 
 class PackageCompatibilityCatalogInputsConfig(_StrictModel):
@@ -1482,11 +1569,13 @@ class RawTextRewriteCyclePromptsConfig(_StrictModel):
 
 
 class RawTextRewriteCycleProvidersConfig(_StrictModel):
-    editor: LinguisticProbeProviderConfig
-    reviewer: LinguisticProbeProviderConfig
+    editor: RawTextRewriteProviderConfig
+    reviewer: RawTextRewriteProviderConfig
 
     @model_validator(mode="after")
     def one_credential_contract(self) -> RawTextRewriteCycleProvidersConfig:
+        if self.editor.kind != self.reviewer.kind:
+            raise ValueError("rewrite editor and reviewer must use the same provider kind")
         if self.editor.api_key_env != self.reviewer.api_key_env:
             raise ValueError("rewrite editor and reviewer must use the same credential source")
         return self
@@ -1543,7 +1632,7 @@ class RawTextRewriteCycleWorkflowConfig(_StrictModel):
     enforce_deterministic_surface_requirements: Literal[True]
     use_compact_model_change_contract: Literal[True]
     persist_every_stage_and_model_message: Literal[True]
-    use_provider_explicit_prompt_cache: Literal[True]
+    use_provider_explicit_prompt_cache: bool
     publish_training_records: Literal[False]
     include_full_text_in_report: Literal[True]
 
@@ -1551,8 +1640,11 @@ class RawTextRewriteCycleWorkflowConfig(_StrictModel):
 class SynthesisRawTextRewriteCycleProbeConfig(_StrictModel):
     """Atomic edit-review-correct probes over one to ten pinned documents."""
 
-    schema_version: Literal[12]
-    task: Literal["bill_of_lading_synthetic_raw_text_atomic_rewrite_probe_v12"]
+    schema_version: Literal[12, 13]
+    task: Literal[
+        "bill_of_lading_synthetic_raw_text_atomic_rewrite_probe_v12",
+        "bill_of_lading_synthetic_raw_text_atomic_rewrite_probe_v13",
+    ]
     environment_file: NonEmptyString
     run: SynthesisRunConfig
     inputs: RawTextRewriteInputsConfig
@@ -1574,6 +1666,22 @@ class SynthesisRawTextRewriteCycleProbeConfig(_StrictModel):
 
     @model_validator(mode="after")
     def cases_and_limits_are_consistent(self) -> SynthesisRawTextRewriteCycleProbeConfig:
+        expected_task = (
+            "bill_of_lading_synthetic_raw_text_atomic_rewrite_probe_v12"
+            if self.schema_version == 12
+            else "bill_of_lading_synthetic_raw_text_atomic_rewrite_probe_v13"
+        )
+        if self.task != expected_task:
+            raise ValueError("raw-text rewrite task version differs from schema_version")
+        uses_openrouter = self.providers.editor.kind == "openrouter"
+        if uses_openrouter and self.schema_version != 13:
+            raise ValueError("OpenRouter raw-text rewrite runs require schema_version 13")
+        if uses_openrouter and self.workflow.use_provider_explicit_prompt_cache:
+            raise ValueError(
+                "OpenRouter GLM rewrite runs cannot enable unsupported explicit cache points"
+            )
+        if not uses_openrouter and not self.workflow.use_provider_explicit_prompt_cache:
+            raise ValueError("OpenAI rewrite runs require their configured explicit prompt cache")
         document_ids = tuple(row.document_id for row in self.cases)
         if len(document_ids) != len(set(document_ids)):
             raise ValueError("raw-text rewrite cycle cases must be unique")
@@ -1589,6 +1697,446 @@ class SynthesisRawTextRewriteCycleProbeConfig(_StrictModel):
             raise ValueError("editor request limit must exceed its output retry count")
         if self.workflow.max_reviewer_requests_per_cycle <= self.workflow.reviewer_output_retries:
             raise ValueError("reviewer request limit must exceed its output retry count")
+        return self
+
+
+class RawTextHybridProbeInputsConfig(_StrictModel):
+    """Pinned corpus plus the audited atomic-run contracts used by the hybrid probe."""
+
+    baseline_atomic_run: CommittedArtifactDirectoryConfig
+    source_corpus: DatasetFileConfig
+    synthetic_targets: DatasetFileConfig
+
+
+class RawTextHybridProbeWorkflowConfig(_StrictModel):
+    """Fail-closed bounds for compiler coverage and the deliberately tiny API probe."""
+
+    audit_documents: Annotated[int, Field(ge=1, le=50)]
+    max_model_documents: Literal[1, 2]
+    max_model_requests_per_stage: Literal[1]
+    context_lines_per_residual: Annotated[int, Field(ge=0, le=3)]
+    merge_residual_gap_lines: Annotated[int, Field(ge=0, le=3)]
+    provider_native_json_schema: Literal[True]
+    require_host_owned_spans: Literal[True]
+    require_transactional_validation: Literal[True]
+    require_compact_independent_review: Literal[True]
+    persist_every_prompt_response_and_receipt: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisRawTextHybridProbeConfig(_StrictModel):
+    """Compiler-first raw-OCR rewrite experiment with at most two model documents."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_synthetic_raw_text_hybrid_compiler_probe_v1"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: RawTextHybridProbeInputsConfig
+    cases: tuple[RawTextRewriteCaseConfig, ...] = Field(min_length=1, max_length=2)
+    prompts: RawTextRewriteCyclePromptsConfig
+    providers: RawTextRewriteCycleProvidersConfig
+    workflow: RawTextHybridProbeWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def cases_and_provider_are_bounded(self) -> SynthesisRawTextHybridProbeConfig:
+        document_ids = tuple(row.document_id for row in self.cases)
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("hybrid raw-text probe cases must be unique")
+        if len(self.cases) > self.workflow.max_model_documents:
+            raise ValueError("hybrid case count exceeds max_model_documents")
+        if self.workflow.audit_documents > self.inputs.synthetic_targets.records:
+            raise ValueError("audit_documents exceeds the pinned synthetic target count")
+        if self.providers.editor.kind == "openrouter":
+            if self.providers.editor.max_output_tokens > 4096:
+                raise ValueError("hybrid OpenRouter editor output must remain compact")
+            if self.providers.reviewer.max_output_tokens > 2048:
+                raise ValueError("hybrid OpenRouter reviewer output must remain compact")
+        return self
+
+
+class RawTextHybridBatchWorkflowConfig(_StrictModel):
+    """Bounded paired-model experiment over the complete 50-document pilot cohort."""
+
+    audit_documents: Literal[50]
+    max_concurrent_cases: Annotated[int, Field(ge=1, le=16)]
+    max_concurrent_requests: Annotated[int, Field(ge=1, le=16)]
+    max_model_requests_per_stage: Literal[1]
+    context_lines_per_residual: Annotated[int, Field(ge=0, le=3)]
+    merge_residual_gap_lines: Annotated[int, Field(ge=0, le=3)]
+    provider_native_json_schema: Literal[True]
+    require_host_owned_spans: Literal[True]
+    require_transactional_validation: Literal[True]
+    require_compact_independent_review: Literal[True]
+    require_manual_full_text_audit_before_training: Literal[True]
+    persist_every_prompt_response_and_receipt: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisRawTextHybridBatchConfig(_StrictModel):
+    """Fifty-case compiler-first model comparison; never publishes training records."""
+
+    schema_version: Literal[2]
+    task: Literal["bill_of_lading_synthetic_raw_text_hybrid_batch_v2"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    inputs: RawTextRewriteInputsConfig
+    selection: Literal["all_pinned_targets_in_order"]
+    prompts: RawTextRewriteCyclePromptsConfig
+    providers: RawTextRewriteCycleProvidersConfig
+    target_integrity: RawTextRewriteTargetIntegrityConfig
+    workflow: RawTextHybridBatchWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @model_validator(mode="after")
+    def batch_contract_is_bounded(self) -> SynthesisRawTextHybridBatchConfig:
+        if self.inputs.synthetic_targets.records != 50:
+            raise ValueError("hybrid batch requires exactly 50 pinned synthetic targets")
+        if self.workflow.max_concurrent_cases > self.inputs.synthetic_targets.records:
+            raise ValueError("hybrid batch concurrency exceeds the case count")
+        if self.workflow.max_concurrent_requests < self.workflow.max_concurrent_cases:
+            raise ValueError("request concurrency must cover concurrent hybrid cases")
+        if self.providers.editor.max_output_tokens > 8192:
+            raise ValueError("hybrid batch editor output exceeds the measured compact bound")
+        if self.providers.reviewer.max_output_tokens > 2048:
+            raise ValueError("hybrid batch reviewer output must remain compact")
+        return self
+
+
+class RawTextInventoryReferenceRunsConfig(_StrictModel):
+    """Immutable negative fixtures produced by the earlier restricted-span flow."""
+
+    glm: CommittedArtifactDirectoryConfig
+    luna: CommittedArtifactDirectoryConfig
+
+
+class RawTextInventoryProbeWorkflowConfig(_StrictModel):
+    """Bounds for the full-document inventory and one-request rendering experiment."""
+
+    regression_documents: Literal[12]
+    max_live_documents: Literal[1, 2]
+    output_mode: Literal["native", "tool"]
+    max_model_requests_per_document: Annotated[int, Field(ge=1, le=3)]
+    deterministic_auxiliary_rendering: Literal[True]
+    require_every_output_slot: Literal[True]
+    require_full_document_regression_oracle: Literal[True]
+    require_no_retained_changed_source_values: Literal[True]
+    require_no_retained_source_auxiliary_values: Literal[True]
+    persist_every_prompt_response_and_receipt: Literal[True]
+    publish_training_records: Literal[False]
+
+
+class SynthesisRawTextInventoryProbeConfig(_StrictModel):
+    """Two-case maximum experiment for inventory-complete bounded OCR rendering."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_synthetic_raw_text_inventory_probe_v1"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    base_batch_config: PinnedFileConfig
+    regression_oracle: PinnedFileConfig
+    reference_runs: RawTextInventoryReferenceRunsConfig
+    cases: tuple[RawTextRewriteCaseConfig, ...] = Field(min_length=1, max_length=2)
+    prompt: PinnedFileConfig
+    provider: RawTextRewriteProviderConfig
+    workflow: RawTextInventoryProbeWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def probe_is_bounded_and_consistent(self) -> SynthesisRawTextInventoryProbeConfig:
+        document_ids = tuple(row.document_id for row in self.cases)
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("inventory probe cases must be unique")
+        if len(self.cases) > self.workflow.max_live_documents:
+            raise ValueError("inventory probe case count exceeds max_live_documents")
+        if self.provider.max_output_tokens > 8192:
+            raise ValueError("inventory probe output allowance exceeds its bounded contract")
+        return self
+
+
+class RawTextInventoryBatchWorkflowConfig(_StrictModel):
+    """Bounds for the inventory-complete 50-document evaluation run."""
+
+    regression_documents: Literal[12]
+    documents: Literal[50]
+    max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
+    output_mode: Literal["native"]
+    max_successful_model_responses_per_document: Annotated[int, Field(ge=1, le=3)]
+    max_provider_route_rounds: Annotated[int, Field(ge=1, le=4)]
+    retry_initial_delay_seconds: Annotated[float, Field(ge=0, le=60)]
+    retry_delay_multiplier: Annotated[float, Field(ge=1, le=4)]
+    retry_max_delay_seconds: Annotated[float, Field(ge=0, le=300)]
+    retry_jitter_seconds: Annotated[float, Field(ge=0, le=10)]
+    deterministic_auxiliary_rendering: Literal[True]
+    require_every_output_slot: Literal[True]
+    require_full_document_regression_oracle: Literal[True]
+    require_no_retained_changed_source_values: Literal[True]
+    require_no_retained_source_auxiliary_values: Literal[True]
+    persist_every_prompt_response_and_receipt: Literal[True]
+    enable_case_checkpoints: Literal[True]
+    publish_training_records: Literal[False]
+
+    @model_validator(mode="after")
+    def retry_schedule_is_consistent(self) -> RawTextInventoryBatchWorkflowConfig:
+        if self.retry_max_delay_seconds < self.retry_initial_delay_seconds:
+            raise ValueError("inventory batch retry maximum is below its initial delay")
+        return self
+
+
+class SynthesisRawTextInventoryBatchConfig(_StrictModel):
+    """Inventory-complete bounded-response evaluation over all fifty pinned targets."""
+
+    schema_version: Literal[2]
+    task: Literal["bill_of_lading_synthetic_raw_text_inventory_batch_v2"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    base_batch_config: PinnedFileConfig
+    regression_oracle: PinnedFileConfig
+    reference_runs: RawTextInventoryReferenceRunsConfig
+    selection: Literal["all_pinned_targets_in_order"]
+    prompt: PinnedFileConfig
+    provider: RawTextRewriteProviderConfig
+    workflow: RawTextInventoryBatchWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @model_validator(mode="after")
+    def batch_is_bounded_and_consistent(self) -> SynthesisRawTextInventoryBatchConfig:
+        if self.provider.max_output_tokens > 8192:
+            raise ValueError("inventory batch output allowance exceeds its bounded contract")
+        if self.provider.kind != "openrouter":
+            raise ValueError("inventory batch currently requires receipted OpenRouter routing")
+        if self.provider.transport_max_retries != 0:
+            raise ValueError(
+                "inventory batch transport retries must be application-visible (set provider "
+                "transport_max_retries to zero)"
+            )
+        if not self.provider.allow_fallbacks or not self.provider.provider_order:
+            raise ValueError("inventory batch requires an explicit observable fallback order")
+        if len(self.provider.provider_order) < 2:
+            raise ValueError("inventory batch requires at least two provider routes")
+        return self
+
+
+class RawTextCertificationWorkflowConfig(_StrictModel):
+    """One-pass, read-only semantic audit over an immutable rendered candidate."""
+
+    documents: Annotated[int, Field(ge=1, le=50)]
+    max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
+    semantic_audit_passes: Literal[1]
+    max_provider_route_rounds: Annotated[int, Field(ge=1, le=4)]
+    retry_initial_delay_seconds: Annotated[float, Field(ge=0, le=60)]
+    retry_delay_multiplier: Annotated[float, Field(ge=1, le=4)]
+    retry_max_delay_seconds: Annotated[float, Field(ge=0, le=300)]
+    retry_jitter_seconds: Annotated[float, Field(ge=0, le=10)]
+    provider_native_json_schema: Literal[True]
+    require_exact_finding_evidence: Literal[True]
+    require_input_candidate_immutable: Literal[True]
+    require_exact_line_and_page_topology: Literal[True]
+    require_prior_host_contract: Literal[True]
+    persist_every_prompt_response_and_receipt: Literal[True]
+    publish_training_records: Literal[False]
+
+    @model_validator(mode="after")
+    def bounds_are_consistent(self) -> RawTextCertificationWorkflowConfig:
+        if self.max_concurrent_documents > self.documents:
+            raise ValueError("certification concurrency exceeds the document count")
+        if self.retry_max_delay_seconds < self.retry_initial_delay_seconds:
+            raise ValueError("certification retry maximum is below its initial delay")
+        return self
+
+
+class SynthesisRawTextCertificationConfig(_StrictModel):
+    """Fail-closed read-only semantic audit over a committed raw-text candidate run."""
+
+    schema_version: Literal[2]
+    task: Literal["bill_of_lading_synthetic_raw_text_certification_v2"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    input_run: CommittedArtifactDirectoryConfig
+    input_case_contract_filename: Literal["contract.json", "source-contract.json"] = "contract.json"
+    case_ids: tuple[Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")], ...] = Field(
+        min_length=1, max_length=50
+    )
+    prompt: PinnedFileConfig
+    provider: RawTextRewriteProviderConfig
+    workflow: RawTextCertificationWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("case_ids", mode="before")
+    @classmethod
+    def freeze_case_ids(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def certification_contract_is_consistent(self) -> SynthesisRawTextCertificationConfig:
+        if len(self.case_ids) != len(set(self.case_ids)):
+            raise ValueError("certification case IDs must be unique")
+        if len(self.case_ids) != self.workflow.documents:
+            raise ValueError("certification case count differs from workflow.documents")
+        if self.provider.transport_max_retries != 0:
+            raise ValueError(
+                "certification transport retries must be application-visible (set provider "
+                "transport_max_retries to zero)"
+            )
+        if self.provider.kind == "openrouter":
+            if not self.provider.allow_fallbacks or not self.provider.provider_order:
+                raise ValueError("OpenRouter certification requires an explicit fallback order")
+            if len(self.provider.provider_order) < 2:
+                raise ValueError("OpenRouter certification requires at least two provider routes")
+        if self.provider.max_output_tokens > 8192:
+            raise ValueError("certification output allowance exceeds its bounded contract")
+        return self
+
+
+class RawTextCertifiedCorrectionWorkflowConfig(_StrictModel):
+    """Bounds for one exact-evidence correction pass over certified candidates."""
+
+    documents: Annotated[int, Field(ge=1, le=50)]
+    max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
+    max_provider_route_rounds: Annotated[int, Field(ge=1, le=4)]
+    max_successful_model_responses_per_document: Annotated[int, Field(ge=1, le=3)]
+    retry_initial_delay_seconds: Annotated[float, Field(ge=0, le=60)]
+    retry_delay_multiplier: Annotated[float, Field(ge=1, le=4)]
+    retry_max_delay_seconds: Annotated[float, Field(ge=0, le=300)]
+    retry_jitter_seconds: Annotated[float, Field(ge=0, le=10)]
+    provider_native_json_schema: Literal[True]
+    require_exact_finding_evidence: Literal[True]
+    require_only_cited_lines_mutable: Literal[True]
+    require_exact_line_and_page_topology: Literal[True]
+    persist_every_prompt_response_and_receipt: Literal[True]
+    publish_training_records: Literal[False]
+
+    @model_validator(mode="after")
+    def bounds_are_consistent(self) -> RawTextCertifiedCorrectionWorkflowConfig:
+        if self.max_concurrent_documents > self.documents:
+            raise ValueError("correction concurrency exceeds the document count")
+        if self.retry_max_delay_seconds < self.retry_initial_delay_seconds:
+            raise ValueError("correction retry maximum is below its initial delay")
+        return self
+
+
+class SynthesisRawTextCertifiedCorrectionConfig(_StrictModel):
+    """Exact-line correction driven by a committed, read-only certification run."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_synthetic_raw_text_certified_correction_v1"]
+    environment_file: NonEmptyString
+    run: SynthesisRunConfig
+    certification_run: CommittedArtifactDirectoryConfig
+    case_ids: tuple[Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")], ...] = Field(
+        min_length=1, max_length=50
+    )
+    prompt: PinnedFileConfig
+    provider: RawTextRewriteProviderConfig
+    workflow: RawTextCertifiedCorrectionWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @field_validator("case_ids", mode="before")
+    @classmethod
+    def freeze_case_ids(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def correction_contract_is_consistent(self) -> SynthesisRawTextCertifiedCorrectionConfig:
+        if len(self.case_ids) != len(set(self.case_ids)):
+            raise ValueError("correction case IDs must be unique")
+        if len(self.case_ids) != self.workflow.documents:
+            raise ValueError("correction case count differs from workflow.documents")
+        if self.provider.transport_max_retries != 0:
+            raise ValueError(
+                "correction transport retries must be application-visible (set provider "
+                "transport_max_retries to zero)"
+            )
+        if self.provider.kind == "openrouter":
+            if not self.provider.allow_fallbacks or not self.provider.provider_order:
+                raise ValueError("OpenRouter correction requires an explicit fallback order")
+            if len(self.provider.provider_order) < 2:
+                raise ValueError("OpenRouter correction requires at least two provider routes")
+        if self.provider.max_output_tokens > 8192:
+            raise ValueError("correction output allowance exceeds its bounded contract")
+        return self
+
+
+class RawTextCertifiedPublicationSourceConfig(_StrictModel):
+    """One immutable certification run and the exact certified subset selected from it."""
+
+    run: CommittedArtifactDirectoryConfig
+    certified_documents: Annotated[int, Field(ge=1, le=100_000)]
+    certified_document_ids_sha256: Annotated[
+        str, StringConstraints(pattern=r"^[0-9a-f]{64}$")
+    ]
+
+
+class RawTextCertifiedPublicationWorkflowConfig(_StrictModel):
+    documents: Annotated[int, Field(ge=1, le=100_000)]
+    require_every_case_certified: Literal[True]
+    require_unique_source_documents: Literal[True]
+    require_unique_scenarios: Literal[True]
+    replay_current_host_audit: Literal[True]
+    require_v5_canonical_target: Literal[True]
+    publish_training_records: Literal[True]
+
+
+class SynthesisRawTextCertifiedPublicationConfig(_StrictModel):
+    """Publish only an explicitly pinned union of independently certified OCR pairs."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_synthetic_raw_text_certified_publication_v1"]
+    run: SynthesisRunConfig
+    certification_sources: tuple[RawTextCertifiedPublicationSourceConfig, ...] = Field(
+        min_length=1
+    )
+    workflow: RawTextCertifiedPublicationWorkflowConfig
+
+    @field_validator("certification_sources", mode="before")
+    @classmethod
+    def freeze_sources(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def publication_scope_is_exact(self) -> SynthesisRawTextCertifiedPublicationConfig:
+        paths = tuple(row.run.path for row in self.certification_sources)
+        if len(paths) != len(set(paths)):
+            raise ValueError("certified publication sources must be unique")
+        selected = sum(row.certified_documents for row in self.certification_sources)
+        if selected != self.workflow.documents:
+            raise ValueError(
+                "certified source counts differ from the publication document count"
+            )
         return self
 
 
@@ -1811,6 +2359,90 @@ def load_synthesis_raw_text_rewrite_cycle_probe_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisRawTextRewriteCycleProbeConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_hybrid_probe_config(
+    path: Path,
+) -> SynthesisRawTextHybridProbeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextHybridProbeConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_hybrid_batch_config(
+    path: Path,
+) -> SynthesisRawTextHybridBatchConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextHybridBatchConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_inventory_probe_config(
+    path: Path,
+) -> SynthesisRawTextInventoryProbeConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextInventoryProbeConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_inventory_batch_config(
+    path: Path,
+) -> SynthesisRawTextInventoryBatchConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextInventoryBatchConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_certification_config(
+    path: Path,
+) -> SynthesisRawTextCertificationConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextCertificationConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_certified_correction_config(
+    path: Path,
+) -> SynthesisRawTextCertifiedCorrectionConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextCertifiedCorrectionConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_certified_publication_config(
+    path: Path,
+) -> SynthesisRawTextCertifiedPublicationConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextCertifiedPublicationConfig.model_validate(value, strict=True)
 
 
 def load_synthesis_package_compatibility_catalog_config(

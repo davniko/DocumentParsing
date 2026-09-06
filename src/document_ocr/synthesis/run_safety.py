@@ -925,6 +925,8 @@ class StagedArtifactRun:
             atomic_publish_json(self.stage_root / self._TRANSACTION, marker)
         except AtomicConflictError as error:
             raise StagedRunError("staging directory belongs to a different transaction") from error
+        if (self.stage_root / self._COMMIT).exists():
+            self._resume_sealed_stage()
 
     @property
     def completed(self) -> bool:
@@ -1017,6 +1019,48 @@ class StagedArtifactRun:
         if sha256_bytes(canonical_json_bytes(body)) != receipt.content_sha256:
             raise StagedRunError("commit receipt content SHA-256 is invalid")
         return receipt
+
+    def _resume_sealed_stage(self) -> None:
+        """Finish an interrupted rename without regenerating immutable artifacts.
+
+        ``commit`` writes and validates the receipt before its final same-filesystem rename.  On
+        WSL DrvFS, a transient external file handle can deny that rename even though the staged
+        run is already complete.  A later process must promote those exact sealed bytes rather
+        than rebuilding time-dependent summaries or repeating paid model calls.
+        """
+
+        flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW
+        try:
+            lock_descriptor = os.open(self.lock_path, flags, 0o600)
+        except OSError as error:
+            raise StagedRunError("cannot acquire staged-run commit lock") from error
+        try:
+            if not stat.S_ISREG(os.fstat(lock_descriptor).st_mode):
+                raise StagedRunError("staged-run commit lock is not a regular file")
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+            if self.final_root.exists() or self.final_root.is_symlink():
+                self._validate_final(expected_transaction=self.transaction_sha256)
+                self._completed = True
+                return
+            _assert_plain_directory(self.stage_root, label="sealed staging root")
+            receipt = self._read_commit(self.stage_root)
+            if (
+                receipt.run_name != self.run_name
+                or receipt.transaction_sha256 != self.transaction_sha256
+            ):
+                raise StagedRunError("sealed staging run belongs to a different transaction")
+            marker_payload = read_regular_file_bytes(self.stage_root / self._TRANSACTION)
+            if sha256_bytes(marker_payload) != receipt.transaction_marker_sha256:
+                raise StagedRunError("sealed staging transaction marker fails its receipt")
+            if self._scan_root_artifacts(self.stage_root) != receipt.artifacts:
+                raise StagedRunError("sealed staging artifact inventory differs from its receipt")
+            _fsync_directory(self.stage_root)
+            os.rename(self.stage_root, self.final_root)
+            _fsync_directory(self.output_parent)
+            self._completed = True
+        finally:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+            os.close(lock_descriptor)
 
     def _validate_final(self, *, expected_transaction: str) -> StagedCommitReceipt:
         _assert_plain_directory(self.final_root, label="committed run root")

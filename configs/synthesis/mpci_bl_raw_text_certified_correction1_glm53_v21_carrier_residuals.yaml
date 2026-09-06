@@ -1,0 +1,58 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certified_correction_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certified-correction1-glm53-v21-carrier-residuals
+  output_dir: artifacts/kie-synthesis
+
+certification_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification1-glm53-v16-carrier-contract-published
+  commit_sha256: 0ba1eb81071856363861aedd5c3d41d80b964432bbe66ae24548cecf899ff478
+  transaction_sha256: 65717efdd88c645ebc40bafd4aa64ca5fa28ef0424f3f96e4faf9d69787ee9c2
+
+case_ids:
+  - doc_3faa338209378d0115ff34d6aab716d18821b7e619ad95d41ec304789b315b18
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_certified_line_corrector_v2.md
+  sha256: f7d2381d7d062bad04bf3e9affa259c545b54a03de738f40fe0ebea432f3f016
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 1
+  max_concurrent_documents: 1
+  max_provider_route_rounds: 4
+  max_successful_model_responses_per_document: 2
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_only_cited_lines_mutable: true
+  require_exact_line_and_page_topology: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

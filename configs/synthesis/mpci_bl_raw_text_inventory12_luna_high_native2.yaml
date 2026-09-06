@@ -1,0 +1,62 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_inventory_probe_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-inventory12-luna-high-native2-v1
+  output_dir: artifacts/kie-synthesis
+
+base_batch_config:
+  path: configs/synthesis/mpci_bl_raw_text_hybrid50_glm53_flash.yaml
+  sha256: 00652dbd86ada53cb6d9f916abbf15c6e27c79617bf166e10881a1a1221f09d5
+regression_oracle:
+  path: data/evaluation/mpci-bl-raw-text-rewrite-regression-v1.json
+  sha256: 3fe3fcbd25112bd67e07d402adc4b8a5b8ef5a1066def8bb843b88ed2758516d
+reference_runs:
+  glm:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-hybrid50-glm53-flash-v7
+    commit_sha256: 11d58854d9b1d21c5b3feacf1712e323996dc90eacddea2b151077fed471b5ff
+    transaction_sha256: 0c8cdebb54fbe5c14102626fe8d6af1958653c5df6ddbe847b87677ecdb00b83
+  luna:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-hybrid50-luna-low-v6
+    commit_sha256: de6241c153f5aff4c96b7929ccb6b93b8de37b7553f61056ce42c5f75cdd2f23
+    transaction_sha256: cbbbe1ab47a0449d95a91721c5c70897a044aa16da51a88f23987e42f0a67d13
+
+cases:
+  - document_id: doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373
+  - document_id: doc_1249175a6240081bbc038acab925f1b703431a9c359fdfbcad5249d8ea96cc61
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_inventory_editor_v1.md
+  sha256: 9c1d81af87169a1898a41e0beb5c1558d9450bf8cb35b08b037cf7c2a7f231bb
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 1
+  max_output_tokens: 8192
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-05
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+workflow:
+  regression_documents: 12
+  max_live_documents: 2
+  output_mode: native
+  max_model_requests_per_document: 1
+  deterministic_auxiliary_rendering: true
+  require_every_output_slot: true
+  require_full_document_regression_oracle: true
+  require_no_retained_changed_source_values: true
+  require_no_retained_source_auxiliary_values: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

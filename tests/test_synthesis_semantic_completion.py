@@ -9,9 +9,14 @@ import pytest
 from pydantic import ValidationError
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
+from document_ocr.label_schemas.bill_of_lading_v5 import (
+    CONTAINER_SIZE_CATEGORIES,
+    CONTAINER_TYPE_CATEGORIES,
+)
 from document_ocr.synthesis.container_semantics import (
     SourceEquipmentObservation,
     build_equipment_semantic_support,
+    canonical_equipment_surface,
     review_source_equipment_surface,
     sample_equipment_semantic,
 )
@@ -49,6 +54,13 @@ def _stream(identity: str) -> DeterministicStream:
         ("40NOR", False, "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED", "non_operating"),
         ("20' REEFER", True, "TWENTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED", "active"),
         ("40HQ", False, "FORTY_FOOT_HIGH_CUBE", "GENERAL_PURPOSE", "not_indicated"),
+        (
+            "CONTAINER: 1 X 20FT GENERAL PURPOSE",
+            False,
+            "TWENTY_FOOT_STANDARD_HEIGHT",
+            "GENERAL_PURPOSE",
+            "not_indicated",
+        ),
     ],
 )
 def test_reviewed_equipment_grammar_resolves_proven_source_families(
@@ -63,6 +75,19 @@ def test_reviewed_equipment_grammar_resolves_proven_source_families(
     assert row.size_category == size
     assert row.type_category == type_category
     assert row.thermal_operation == operation
+
+
+def test_every_canonical_equipment_surface_round_trips_to_its_semantic_categories() -> None:
+    for size in CONTAINER_SIZE_CATEGORIES:
+        for type_category in CONTAINER_TYPE_CATEGORIES:
+            surface = canonical_equipment_surface(size, type_category)
+            reviewed = review_source_equipment_surface(
+                surface,
+                temperature_present=type_category == "REFRIGERATED",
+            )
+            assert reviewed.resolution == "reviewed_source_grammar"
+            assert reviewed.size_category == size
+            assert reviewed.type_category == type_category
 
 
 @pytest.mark.parametrize("surface", ["40RA", "40RK", "40RQ", "40RO"])

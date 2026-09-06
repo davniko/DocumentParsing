@@ -51,7 +51,28 @@ _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 _GENERIC_MARKS_NORMALIZED = frozenset(
     {"NM", "NIL", "NONE", "NOMARKS", "NOMARKSANDNUMBERS", "UNMARKED"}
 )
+_TEXTUAL_PLACEHOLDERS = frozenset(
+    {
+        "n/a",
+        "na",
+        "none",
+        "not available",
+        "null",
+        "tba",
+        "tbd",
+        "unavailable",
+        "unknown",
+    }
+)
 _TOKEN = re.compile(r"[A-Z0-9]+")
+
+
+def _is_textual_placeholder(value: str) -> bool:
+    """Recognize a placeholder even when a model retains source punctuation around it."""
+
+    return value.strip().strip(":;,.()[]{}<>").strip().casefold() in _TEXTUAL_PLACEHOLDERS
+
+
 _SEMANTIC_STOPWORDS = frozenset(
     {
         "AND",
@@ -65,6 +86,129 @@ _SEMANTIC_STOPWORDS = frozenset(
         "WITHOUT",
     }
 )
+_AUXILIARY_FACT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("gross_weight", re.compile(r"\bGROSS\s+WEIGHT\b", re.I)),
+    ("net_weight", re.compile(r"\bNET\s+WEIGHT\b", re.I)),
+    ("volume", re.compile(r"\b(?:VOLUME|CUBIC\s+MET(?:ER|RE)S?)\b", re.I)),
+    (
+        "temperature",
+        re.compile(
+            r"\b(?:TEMPERATURE|SET\s*POINT|DEGREES?\s+C(?:ELSIUS)?)\b"
+            r"|[+-]?\d+(?:\.\d+)?\s*°\s*C\b",
+            re.I,
+        ),
+    ),
+    (
+        "hs_code",
+        re.compile(r"\b(?:H\.?S\.?|HARMONI[ZS]ED)\s*(?:CODE|NO\.?|NUMBER)?\b", re.I),
+    ),
+    (
+        "container",
+        re.compile(
+            r"\b(?:CONTAINER(?:\s+(?:NO\.?|NUMBER|TYPE))?|"
+            r"EQUIPMENT\s+(?:NO\.?|NUMBER|TYPE))\b",
+            re.I,
+        ),
+    ),
+    ("free_days", re.compile(r"\bFREE\s+DAYS?\b", re.I)),
+    ("invoice", re.compile(r"\bINVOICE\s*(?:NO\.?|NUMBER)?\b", re.I)),
+    (
+        "booking",
+        re.compile(r"\bBOOKING\s*(?:NO\.?|NUMBER|REF(?:ERENCE)?)?\b", re.I),
+    ),
+    (
+        "order",
+        re.compile(
+            r"\b(?:PURCHASE\s+)?ORDER\s*(?:NO\.?|NUMBER|REF(?:ERENCE)?)?\b",
+            re.I,
+        ),
+    ),
+    ("lot", re.compile(r"\b(?:LOT|BATCH)\s*(?:NO\.?|NUMBER)?\b", re.I)),
+    ("origin", re.compile(r"\b(?:COUNTRY\s+OF\s+)?ORIGIN\b", re.I)),
+)
+_PACKAGE_WORD = re.compile(
+    r"\b(?:BAGS?|BALES?|BARRELS?|BASKETS?|BINS?|BOTTLES?|BOX(?:ES)?|BUNDLES?|"
+    r"CANS?|CARTONS?|CASES?|COILS?|CRATES?|CYLINDERS?|DRUMS?|IBCS?|PACKAGES?|"
+    r"PALLETS?|PIECES?|PLTS?|CTNS?|PCS?|ROLLS?|SACKS?|UNITS?)\b",
+    re.I,
+)
+_PACKAGE_ABBREVIATION = re.compile(r"(?<![A-Z])(?:PLTS?|CTNS?|PCS?)(?![A-Z])", re.I)
+_INTERNAL_PACKAGE_NAMESPACE_PROSE = re.compile(
+    r"\bPACKAGE[ \t]+(?=(?:BAGS?|BALES?|BARRELS?|BASKETS?|BINS?|BOTTLES?|"
+    r"BOX(?:ES)?|BUNDLES?|CANS?|CARTONS?|CASES?|COILS?|CRATES?|CYLINDERS?|"
+    r"DRUMS?|IBCS?|PACKAGES?|PALLETS?|PIECES?|ROLLS?|SACKS?|SKIDS?|TANKS?|"
+    r"UNITS?|VEHICLES?)\b)",
+    re.I,
+)
+_PACKAGE_QUANTITY = re.compile(
+    rf"(?<![A-Z0-9])(?:[0-9][0-9,.' ]*|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|"
+    rf"EIGHT|NINE|TEN|HUNDRED|THOUSAND)(?:\s+|(?=[A-Z])){_PACKAGE_WORD.pattern}",
+    re.I,
+)
+_PACKING_METHOD = re.compile(
+    r"\b(?:PACK(?:ED|ING)?|PALLETI[ZS]ED|WRAPP?ED|STRAPPED|BANDING|HEAT\s+TREATED|"
+    r"SECURED|WOOD(?:EN)?\s+PACKAG(?:E|ING)|SHRINK\s+WRAP)\b",
+    re.I,
+)
+_TRANSIT_OR_WAREHOUSE = re.compile(r"\b(?:IN\s+TRANSIT|TRANSIT\s+TO|BONDED\s+WAREHOUSE)\b", re.I)
+_CONSOLIDATION = re.compile(r"\bCONSOLIDAT(?:ED|ION)\b", re.I)
+_DANGEROUS_STATUS = re.compile(
+    r"\b(?:NON[ -]?HAZARDOUS|HAZARDOUS|DANGEROUS\s+GOODS?|IMDG|UNDG|UN\s*[0-9]{4})\b",
+    re.I,
+)
+_PURPOSE_OR_END_USE = re.compile(r"\b(?:PURPOSE|END\s+USE|PROJECT)\s*:", re.I)
+_COMMERCIAL_IDENTIFIER = re.compile(
+    r"^(?:[A-Z0-9._/#-]{5,}|(?:MATERIAL|BATCH|LOT|RMS|GRADE|TYPE)\s*"
+    r"(?:NO\.?|NUMBER)?\s*[:#-]?\s*[A-Z0-9._/#-]{2,})$",
+    re.I,
+)
+_WRITTEN_PACKAGE_HIERARCHY = re.compile(r"\b(?:CONTAIN(?:ING|S)?|EACH|PER)\b|=|/", re.I)
+
+type CargoAuxiliaryRole = Literal[
+    "package_hierarchy_or_quantity",
+    "packing_method_or_per_unit_measure",
+    "measurement_statement",
+    "consolidation_status",
+    "transit_or_bonded_movement",
+    "dangerous_goods_status",
+    "purpose_or_end_use",
+    "commercial_or_product_identifier",
+    "product_attribute_or_condition",
+]
+
+
+def _cargo_auxiliary_role(value: str) -> CargoAuxiliaryRole:
+    """Classify an occupied source slot by explicit printed syntax.
+
+    This is deliberately a role grammar rather than a surface-to-value mapping.  It never
+    selects a synthetic fact.  The classification only tells the generator and validator which
+    *kind* of source slot must be preserved.  The broad final category keeps genuinely lexical
+    product attributes inside the model-owned stage without pretending they are structured data.
+    """
+
+    if _TRANSIT_OR_WAREHOUSE.search(value):
+        return "transit_or_bonded_movement"
+    if _CONSOLIDATION.search(value):
+        return "consolidation_status"
+    if _DANGEROUS_STATUS.search(value):
+        return "dangerous_goods_status"
+    if _PURPOSE_OR_END_USE.search(value):
+        return "purpose_or_end_use"
+    package_terms = len(_PACKAGE_WORD.findall(value)) + len(_PACKAGE_ABBREVIATION.findall(value))
+    if package_terms and (
+        package_terms > 1
+        or _WRITTEN_PACKAGE_HIERARCHY.search(value)
+        or len(_PACKAGE_QUANTITY.findall(value)) > 1
+    ):
+        return "package_hierarchy_or_quantity"
+    if package_terms or _PACKING_METHOD.search(value):
+        return "packing_method_or_per_unit_measure"
+    fact_kinds = _auxiliary_fact_kinds(value)
+    if fact_kinds & {"gross_weight", "net_weight", "volume", "temperature"}:
+        return "measurement_statement"
+    if _COMMERCIAL_IDENTIFIER.fullmatch(value.strip()):
+        return "commercial_or_product_identifier"
+    return "product_attribute_or_condition"
 
 
 class CargoGoodsIdentitySeed(BaseModel):
@@ -126,6 +270,24 @@ class CargoTextSlot(BaseModel):
     model_config = _STRICT
 
     sourceStyleReference: NonEmptyText
+    semanticRole: CargoAuxiliaryRole
+    sourceFactKinds: tuple[NonEmptyText, ...]
+
+    @model_validator(mode="after")
+    def role_matches_source_syntax(self) -> CargoTextSlot:
+        expected_role = _cargo_auxiliary_role(self.sourceStyleReference)
+        if self.semanticRole != expected_role:
+            raise ValueError("cargo auxiliary semantic role differs from source syntax")
+        expected_kinds = tuple(sorted(_auxiliary_fact_kinds(self.sourceStyleReference)))
+        if self.sourceFactKinds != expected_kinds:
+            raise ValueError("cargo auxiliary fact kinds differ from source syntax")
+        return self
+
+
+class CargoStyleSlot(BaseModel):
+    model_config = _STRICT
+
+    sourceStyleReference: NonEmptyText
 
 
 class CargoMarksSlot(BaseModel):
@@ -142,7 +304,7 @@ class CargoLanguageFieldContract(BaseModel):
     sourceDescriptionStyleReference: NonEmptyText | None
     additionalInformationSlots: tuple[CargoTextSlot, ...]
     marksAndNumbersSlots: tuple[CargoMarksSlot, ...]
-    handlingInstructionSlots: tuple[CargoTextSlot, ...]
+    handlingInstructionSlots: tuple[CargoStyleSlot, ...]
 
     @model_validator(mode="after")
     def description_presence_matches_reference(self) -> CargoLanguageFieldContract:
@@ -207,13 +369,13 @@ class GeneratedCargoLanguageGroup(BaseModel):
         ),
     ]
     additionalInformation: Annotated[
-        tuple[NonEmptyText | None, ...],
+        tuple[NonEmptyText, ...],
         Field(
             max_length=32,
             description=(
-                "One result per auxiliary source slot, in order. Return grounded replacement "
-                "text only when supplied target facts support it; return null to remove a source "
-                "slot that has no target-grounded semantic replacement."
+                "One non-placeholder result per occupied auxiliary source slot, in order. Use "
+                "supplied target facts when the slot states a task fact; otherwise generate "
+                "compatible fictional auxiliary flavor with the same semantic role."
             ),
         ),
     ]
@@ -242,19 +404,28 @@ class GeneratedCargoLanguageGroup(BaseModel):
     def values_are_single_line_and_unique(self) -> GeneratedCargoLanguageGroup:
         values = (
             *((self.description,) if self.description is not None else ()),
-            *(value for value in self.additionalInformation if value is not None),
+            *self.additionalInformation,
             *self.marksAndNumbers,
             *self.handlingInstructions,
         )
         if any("\n" in value or "\r" in value for value in values):
             raise ValueError("cargo-language values must be single-line semantic values")
+        linguistic_values = (
+            *((self.description,) if self.description is not None else ()),
+            *self.additionalInformation,
+            *self.handlingInstructions,
+        )
+        if any(_is_textual_placeholder(value) for value in linguistic_values):
+            raise ValueError(
+                "cargo-language fields must use grounded text or schema null, never a textual "
+                "placeholder"
+            )
         for label, rows in (
             ("additionalInformation", self.additionalInformation),
             ("marksAndNumbers", self.marksAndNumbers),
             ("handlingInstructions", self.handlingInstructions),
         ):
-            substantive = tuple(value for value in rows if value is not None)
-            if len(substantive) != len(set(substantive)):
+            if len(rows) != len(set(rows)):
                 raise ValueError(f"{label} values must be distinct")
         return self
 
@@ -307,9 +478,10 @@ class CargoLanguageCaseRecord(BaseModel):
             raise ValueError("cargo-language output/validation do not match call status")
         if self.status == "success" and not cast(CargoLanguageValidation, self.validation).passed:
             raise ValueError("successful cargo-language case did not pass validation")
-        if self.status == "validation_failed" and cast(
-            CargoLanguageValidation, self.validation
-        ).passed:
+        if (
+            self.status == "validation_failed"
+            and cast(CargoLanguageValidation, self.validation).passed
+        ):
             raise ValueError("validation-failed cargo-language case has passing checks")
         if (self.status == "call_failed") != (self.errorType is not None):
             raise ValueError("cargo-language error fields do not match call status")
@@ -325,9 +497,7 @@ def _resolve_pinned_file(
     return path.resolve(strict=True)
 
 
-def _validate_completion_run(
-    project_root: Path, config: SynthesisCargoLanguageProbeConfig
-) -> Path:
+def _validate_completion_run(project_root: Path, config: SynthesisCargoLanguageProbeConfig) -> Path:
     configured = config.inputs.semantic_completion_run
     root = resolve_config_path(project_root, configured.path)
     commit = root / "_COMMIT.json"
@@ -469,9 +639,7 @@ def build_cargo_language_seed(
             raw_group.get("additionalInformation"), label="additionalInformation"
         )
         marks = _text_values(raw_group.get("marksAndNumbers"), label="marksAndNumbers")
-        handling = _text_values(
-            raw_group.get("handlingInstructions"), label="handlingInstructions"
-        )
+        handling = _text_values(raw_group.get("handlingInstructions"), label="handlingInstructions")
         packages = tuple(
             CargoPackageFact(
                 quantity=cast(int, row["quantity"]),
@@ -512,7 +680,12 @@ def build_cargo_language_seed(
                     descriptionPresent=source_description is not None,
                     sourceDescriptionStyleReference=source_description,
                     additionalInformationSlots=tuple(
-                        CargoTextSlot(sourceStyleReference=value) for value in additional
+                        CargoTextSlot(
+                            sourceStyleReference=value,
+                            semanticRole=_cargo_auxiliary_role(value),
+                            sourceFactKinds=tuple(sorted(_auxiliary_fact_kinds(value))),
+                        )
+                        for value in additional
                     ),
                     marksAndNumbersSlots=tuple(
                         CargoMarksSlot(
@@ -522,7 +695,7 @@ def build_cargo_language_seed(
                         for value in marks
                     ),
                     handlingInstructionSlots=tuple(
-                        CargoTextSlot(sourceStyleReference=value) for value in handling
+                        CargoStyleSlot(sourceStyleReference=value) for value in handling
                     ),
                 ),
             )
@@ -553,6 +726,290 @@ def _semantic_tokens(value: str) -> frozenset[str]:
     )
 
 
+def _casing_style(value: str) -> Literal["upper", "lower", "mixed", "uncased"]:
+    letters = "".join(character for character in value if character.isalpha())
+    if not letters:
+        return "uncased"
+    if letters.isupper():
+        return "upper"
+    if letters.islower():
+        return "lower"
+    return "mixed"
+
+
+def _casing_style_compatible(*, source: str, generated: str) -> bool:
+    """Preserve unambiguous all-upper/all-lower template casing.
+
+    Mixed-case source text is semantic style evidence rather than a mechanically
+    enforceable casing pattern: proper nouns and sentence starts can legitimately
+    move uppercase characters when the synthetic goods identity changes.
+    """
+
+    source_style = _casing_style(source)
+    return (
+        source_style == "mixed"
+        or source_style == "uncased"
+        or (_casing_style(generated) == source_style)
+    )
+
+
+def _casing_from_source(*, source: str, generated: str) -> str:
+    style = _casing_style(source)
+    if style == "upper":
+        return generated.upper()
+    if style == "lower":
+        return generated.lower()
+    return generated
+
+
+def normalize_cargo_language_output(
+    *, seed: CargoLanguageGenerationSeed, output: CargoLanguageGenerationOutput
+) -> CargoLanguageGenerationOutput:
+    """Apply mechanical source casing before semantic validation.
+
+    Casing is template formatting, not a linguistic decision. Normalizing it locally avoids a
+    paid retry for a transformation the host can perform exactly; the captured provider messages
+    still retain the original response for audit.
+    """
+
+    if len(seed.cargoGroups) != len(output.cargoGroups):
+        return output
+    groups: list[GeneratedCargoLanguageGroup] = []
+    for expected, generated in zip(seed.cargoGroups, output.cargoGroups, strict=True):
+        contract = expected.fieldContract
+        description = generated.description
+        if description is not None and contract.sourceDescriptionStyleReference is not None:
+            description = _casing_from_source(
+                source=contract.sourceDescriptionStyleReference,
+                generated=description,
+            )
+
+        def normalized_rows(
+            values: Sequence[str],
+            slots: Sequence[CargoTextSlot | CargoStyleSlot | CargoMarksSlot],
+        ) -> tuple[str, ...]:
+            if len(values) != len(slots):
+                return tuple(values)
+            return tuple(
+                _INTERNAL_PACKAGE_NAMESPACE_PROSE.sub(
+                    "",
+                    _casing_from_source(source=slot.sourceStyleReference, generated=value),
+                )
+                for slot, value in zip(slots, values, strict=True)
+            )
+
+        groups.append(
+            generated.model_copy(
+                update={
+                    "description": description,
+                    "additionalInformation": normalized_rows(
+                        generated.additionalInformation,
+                        contract.additionalInformationSlots,
+                    ),
+                    "marksAndNumbers": normalized_rows(
+                        generated.marksAndNumbers,
+                        contract.marksAndNumbersSlots,
+                    ),
+                    "handlingInstructions": normalized_rows(
+                        generated.handlingInstructions,
+                        contract.handlingInstructionSlots,
+                    ),
+                }
+            )
+        )
+    return output.model_copy(update={"cargoGroups": tuple(groups)})
+
+
+def _slot_casing_styles_compatible(
+    *,
+    generated: Sequence[str],
+    source: Sequence[CargoTextSlot | CargoStyleSlot | CargoMarksSlot],
+) -> bool:
+    return len(generated) == len(source) and all(
+        _casing_style_compatible(
+            source=slot.sourceStyleReference,
+            generated=value,
+        )
+        for slot, value in zip(source, generated, strict=True)
+    )
+
+
+def _auxiliary_fact_kinds(value: str) -> frozenset[str]:
+    return frozenset(name for name, pattern in _AUXILIARY_FACT_MARKERS if pattern.search(value))
+
+
+def _auxiliary_slot_scope_compatible(*, source: str, generated: str) -> bool:
+    """Reject newly introduced, unrelated structured-fact classes in one slot."""
+
+    return _auxiliary_fact_kinds(generated) <= _auxiliary_fact_kinds(source)
+
+
+def _contains_integer_surface(value: str, expected: int) -> bool:
+    compact = value.replace(",", "").replace(" ", "")
+    return re.search(rf"(?<![0-9]){expected}(?![0-9])", compact) is not None
+
+
+def _package_category_surface_present(value: str, category: str) -> bool:
+    if not category.startswith("PACKAGE_"):
+        raise ValueError(f"unsupported package category token: {category!r}")
+    root = category.removeprefix("PACKAGE_").replace("_", " ")
+    variants = {root, f"{root}S"}
+    if root.endswith("Y"):
+        variants.add(root[:-1] + "IES")
+    if root == "BOX":
+        variants.add("BOXES")
+    return any(re.search(rf"\b{re.escape(candidate)}\b", value, re.I) for candidate in variants)
+
+
+def _package_fact_present(value: str, fact: CargoPackageFact) -> bool:
+    return _contains_integer_surface(value, fact.quantity) and _package_category_surface_present(
+        value, fact.typeCategory
+    )
+
+
+def _semantic_identity_covered(
+    value: str,
+    *,
+    goods: Sequence[CargoGoodsIdentitySeed],
+    dangerous: Sequence[CargoDangerousGoodsSeed],
+) -> bool:
+    generated = _semantic_tokens(value)
+    return all(
+        bool(
+            generated
+            & (_semantic_tokens(row.description) | _semantic_tokens(row.headingDescription or ""))
+        )
+        for row in goods
+    ) and all(bool(generated & _semantic_tokens(row.properShippingName)) for row in dangerous)
+
+
+def _semantic_stems(value: str) -> frozenset[str]:
+    return frozenset(token[:5] for token in _semantic_tokens(value) if len(token) >= 5)
+
+
+def _semantic_identity_has_stem_overlap(
+    value: str,
+    *,
+    goods: Sequence[CargoGoodsIdentitySeed],
+    dangerous: Sequence[CargoDangerousGoodsSeed],
+) -> bool:
+    generated = _semantic_stems(value)
+    return all(
+        bool(
+            generated
+            & (_semantic_stems(row.description) | _semantic_stems(row.headingDescription or ""))
+        )
+        for row in goods
+    ) and all(bool(generated & _semantic_stems(row.properShippingName)) for row in dangerous)
+
+
+def _route_context_present(value: str, route: CargoLanguageRouteContext) -> bool:
+    candidates = tuple(
+        candidate
+        for candidate in (route.portOfLoading, route.portOfDischarge, route.placeOfDelivery)
+        if candidate is not None
+    )
+    return bool(candidates) and any(
+        re.search(rf"(?<![A-Z0-9]){re.escape(candidate)}(?![A-Z0-9])", value, re.I) is not None
+        for candidate in candidates
+    )
+
+
+def _measurement_value_present(value: str, measurement: CargoMeasurementFact | None) -> bool:
+    if measurement is None:
+        return False
+    expected = Decimal(str(measurement.value))
+    for surface in re.findall(r"(?<![0-9])[0-9]+(?:[.,][0-9]+)*(?![0-9])", value):
+        try:
+            normalized = Decimal(surface.replace(",", ""))
+        except ArithmeticError:
+            continue
+        if normalized == expected:
+            return True
+    return False
+
+
+def _additional_role_compatible(
+    *,
+    slot: CargoTextSlot,
+    generated: str,
+    expected: CargoLanguageGroupSeed,
+    route: CargoLanguageRouteContext,
+) -> bool:
+    role = slot.semanticRole
+    facts = expected.structuredFacts
+    if role == "package_hierarchy_or_quantity":
+        return bool(facts.packages) and all(
+            _package_fact_present(generated, fact) for fact in facts.packages
+        )
+    if role == "packing_method_or_per_unit_measure":
+        source_has_package = bool(
+            _PACKAGE_WORD.search(slot.sourceStyleReference)
+            or _PACKAGE_ABBREVIATION.search(slot.sourceStyleReference)
+        )
+        if not source_has_package:
+            return _PACKING_METHOD.search(generated) is not None
+        return bool(facts.packages) and any(
+            _package_fact_present(generated, fact) for fact in facts.packages
+        )
+    if role == "measurement_statement":
+        checks: list[bool] = []
+        for fact_kind, measurement in (
+            ("gross_weight", facts.grossWeight),
+            ("net_weight", facts.netWeight),
+            ("volume", facts.volume),
+        ):
+            if fact_kind in slot.sourceFactKinds:
+                checks.append(_measurement_value_present(generated, measurement))
+        if "temperature" in slot.sourceFactKinds:
+            setpoints = tuple(
+                row.temperatureSetpointCelsius
+                for row in facts.equipment
+                if row.temperatureSetpointCelsius is not None
+            )
+            checks.append(
+                bool(setpoints)
+                and any(
+                    _measurement_value_present(
+                        generated, CargoMeasurementFact(value=v, unit="celsius")
+                    )
+                    for v in setpoints
+                )
+            )
+        return bool(checks) and all(checks)
+    if role == "consolidation_status":
+        return _CONSOLIDATION.search(generated) is not None
+    if role == "transit_or_bonded_movement":
+        return _TRANSIT_OR_WAREHOUSE.search(generated) is not None and _route_context_present(
+            generated, route
+        )
+    if role == "dangerous_goods_status":
+        if expected.dangerousGoods:
+            return all(row.unNumber in generated for row in expected.dangerousGoods) and (
+                _DANGEROUS_STATUS.search(generated) is not None
+            )
+        return re.search(r"\bNON[ -]?HAZARDOUS\b", generated, re.I) is not None
+    if role == "purpose_or_end_use":
+        return _PURPOSE_OR_END_USE.search(
+            generated
+        ) is not None and _semantic_identity_has_stem_overlap(
+            generated, goods=expected.goodsIdentities, dangerous=expected.dangerousGoods
+        )
+    if role == "commercial_or_product_identifier":
+        return (
+            generated.casefold() != slot.sourceStyleReference.casefold()
+            and re.search(
+                r"\b(?=[A-Z0-9._/#-]{5,}\b)(?=[A-Z0-9._/#-]*[0-9])"
+                r"[A-Z0-9._/#-]+\b",
+                generated,
+                re.I,
+            )
+            is not None
+            and not _auxiliary_fact_kinds(generated)
+        )
+    return not _auxiliary_fact_kinds(generated)
+
+
 def validate_cargo_language(
     *, seed: CargoLanguageGenerationSeed, output: CargoLanguageGenerationOutput
 ) -> CargoLanguageValidation:
@@ -574,12 +1031,78 @@ def validate_cargo_language(
         checks[f"{prefix}_additional_count"] = len(generated.additionalInformation) == len(
             contract.additionalInformationSlots
         )
+        checks[f"{prefix}_additional_values_present"] = all(
+            not _is_textual_placeholder(value) for value in generated.additionalInformation
+        )
+        checks[f"{prefix}_additional_slot_scope"] = len(generated.additionalInformation) == len(
+            contract.additionalInformationSlots
+        ) and all(
+            _auxiliary_slot_scope_compatible(
+                source=slot.sourceStyleReference,
+                generated=value,
+            )
+            for slot, value in zip(
+                contract.additionalInformationSlots,
+                generated.additionalInformation,
+                strict=True,
+            )
+        )
+        checks[f"{prefix}_additional_semantic_role"] = len(generated.additionalInformation) == len(
+            contract.additionalInformationSlots
+        ) and all(
+            _additional_role_compatible(
+                slot=slot,
+                generated=value,
+                expected=expected,
+                route=seed.routeContext,
+            )
+            for slot, value in zip(
+                contract.additionalInformationSlots,
+                generated.additionalInformation,
+                strict=True,
+            )
+        )
+        checks[f"{prefix}_additional_source_values_anonymized"] = len(
+            generated.additionalInformation
+        ) == len(contract.additionalInformationSlots) and all(
+            value.casefold() != slot.sourceStyleReference.casefold()
+            for slot, value in zip(
+                contract.additionalInformationSlots,
+                generated.additionalInformation,
+                strict=True,
+            )
+        )
         checks[f"{prefix}_marks_count"] = len(generated.marksAndNumbers) == len(
             contract.marksAndNumbersSlots
         )
         checks[f"{prefix}_handling_count"] = len(generated.handlingInstructions) == len(
             contract.handlingInstructionSlots
         )
+        checks[f"{prefix}_description_casing_style"] = (
+            generated.description is None
+            or contract.sourceDescriptionStyleReference is None
+            or _casing_style_compatible(
+                source=contract.sourceDescriptionStyleReference,
+                generated=generated.description,
+            )
+        )
+        for field_name, generated_rows, source_rows in (
+            (
+                "additional",
+                generated.additionalInformation,
+                contract.additionalInformationSlots,
+            ),
+            ("marks", generated.marksAndNumbers, contract.marksAndNumbersSlots),
+            (
+                "handling",
+                generated.handlingInstructions,
+                contract.handlingInstructionSlots,
+            ),
+        ):
+            checks[f"{prefix}_{field_name}_casing_style"] = _slot_casing_styles_compatible(
+                generated=generated_rows,
+                source=source_rows,
+            )
         if len(generated.marksAndNumbers) == len(contract.marksAndNumbersSlots):
             checks[f"{prefix}_literal_marks_preserved"] = all(
                 generated.marksAndNumbers[index] == slot.sourceStyleReference
@@ -587,8 +1110,7 @@ def validate_cargo_language(
                 if slot.action == "preserve_literal"
             )
             checks[f"{prefix}_substantive_marks_anonymized"] = all(
-                generated.marksAndNumbers[index].casefold()
-                != slot.sourceStyleReference.casefold()
+                generated.marksAndNumbers[index].casefold() != slot.sourceStyleReference.casefold()
                 for index, slot in enumerate(contract.marksAndNumbersSlots)
                 if slot.action == "generate"
             )
@@ -597,13 +1119,14 @@ def validate_cargo_language(
             checks[f"{prefix}_substantive_marks_anonymized"] = False
         generated_values = (
             *((generated.description,) if generated.description else ()),
-            *(value for value in generated.additionalInformation if value is not None),
+            *generated.additionalInformation,
             *generated.marksAndNumbers,
             *generated.handlingInstructions,
         )
-        hs_codes = tuple(
-            row.hsCode for row in expected.goodsIdentities if row.hsCode is not None
+        checks[f"{prefix}_no_internal_package_namespace_prose"] = not any(
+            _INTERNAL_PACKAGE_NAMESPACE_PROSE.search(value) for value in generated_values
         )
+        hs_codes = tuple(row.hsCode for row in expected.goodsIdentities if row.hsCode is not None)
         checks[f"{prefix}_hs_printed_surface_deferred"] = not any(
             code in value for code in hs_codes for value in generated_values
         )
@@ -673,6 +1196,7 @@ async def _run_case(
             output = CargoLanguageGenerationOutput.model_validate(
                 result.output.model_dump(mode="python"), strict=True
             )
+            output = normalize_cargo_language_output(seed=seed, output=output)
             validation = validate_cargo_language(seed=seed, output=output)
             responses = tuple(
                 message for message in result.new_messages() if isinstance(message, ModelResponse)
@@ -828,9 +1352,7 @@ async def _run_probe_async(
     prompt_path = _resolve_pinned_file(
         project_root, config.prompt.path, config.prompt.sha256, label="cargo-language prompt"
     )
-    plans = _load_completion_plans(
-        plans_path, records=config.inputs.completion_plans.records
-    )
+    plans = _load_completion_plans(plans_path, records=config.inputs.completion_plans.records)
     seeds = tuple(
         build_cargo_language_seed(case_index=index, plan=plans[case.document_id])
         for index, case in enumerate(config.cases)
@@ -992,9 +1514,7 @@ async def _run_probe_async(
     }
     staged.publish_bytes(
         "generation/results.jsonl",
-        b"".join(
-            canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in records
-        ),
+        b"".join(canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in records),
     )
     staged.publish_json("generation/summary.json", summary)
     staged.publish_bytes("REPORT.md", _report(records, summary).encode("utf-8"))

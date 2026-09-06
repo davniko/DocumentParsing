@@ -1,0 +1,63 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certified_correction_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certified-correction4-glm53-v1
+  output_dir: artifacts/kie-synthesis
+
+certification_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification50-glm53-v3-inventory16
+  commit_sha256: b86b4740f106d76a2b5ad62d110d9b235864a16f8f9c70f3c68883b121422373
+  transaction_sha256: b80f5d6288a46aa3bd0600121ff0df874a9ea6b5761f3d2b2447ab1982885568
+
+case_ids:
+  - doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+  - doc_0dcc89acef2074d1ed2ca7dee64f52771d5f59337b3d7ef426e9bb6c2fe53b86
+  - doc_11ac17a4963225bdb78247f8c29d8e1a47b79ac942682ce8f459170c37389489
+  - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_certified_line_corrector_v1.md
+  sha256: 9d0d90e510303a2801ddc0f8d3790111c805a313ebbc0b2dec6e90f0b05ba750
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  max_price:
+    prompt: 0.15
+    completion: 0.50
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.15
+    cached_input_usd_per_million: 0.05
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.50
+
+workflow:
+  documents: 4
+  max_concurrent_documents: 4
+  max_provider_route_rounds: 4
+  max_successful_model_responses_per_document: 1
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_only_cited_lines_mutable: true
+  require_exact_line_and_page_topology: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

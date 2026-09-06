@@ -1,0 +1,82 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_hybrid_compiler_probe_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-hybrid-compiler50-luna-reviewer-medium-failures2-v1
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  baseline_atomic_run:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-atomic10-glm53-flash-openrouter-deepinfra-v1-r1
+    commit_sha256: da30992f27f32a23ce20ca9d1e20f5905b3e694fdfb049fc8590a9204fb248d7
+    transaction_sha256: 8bac1aa3e0f6c5df2b5cc949eb4089b05b4fc0765e6d063a65b5ea48a7c0ec19
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  synthetic_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion50-luna-high-v2/generation/targets.jsonl
+    sha256: 7b9203505e782339343b1bbfc820dd2f7e96ee3d73024c0edfec42ccb8ca6e4d
+    records: 50
+
+cases:
+  - document_id: doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815
+  - document_id: doc_88ec16af95fce3eaea2950bc205a2820b5b289c64c12a4d32835b1a8d3340375
+
+prompts:
+  editor:
+    path: prompts/synthesis/mpci_bl_raw_text_hybrid_residual_editor_v2.md
+    sha256: 5e42ae9537cf8585b97bf939f0b40dfd8c803c5637334d43b8998f88ca247975
+  reviewer:
+    path: prompts/synthesis/mpci_bl_raw_text_hybrid_residual_reviewer_v1.md
+    sha256: 6c7608e5cda1943253a2fe73978149183398e8c55d67966c6139aa559b3229aa
+
+providers:
+  editor:
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: low
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 8192
+    store_responses: true
+    pricing:
+      currency: USD
+      effective_date: 2026-09-03
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+  reviewer:
+    kind: openai_responses
+    model: gpt-5.6-luna
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: medium
+    request_timeout_seconds: 900.0
+    transport_max_retries: 2
+    max_output_tokens: 4096
+    store_responses: true
+    pricing:
+      currency: USD
+      effective_date: 2026-09-03
+      source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+      input_usd_per_million: 0.20
+      cached_input_usd_per_million: 0.02
+      cache_write_multiplier: 1.25
+      output_usd_per_million: 1.20
+
+workflow:
+  audit_documents: 50
+  max_model_documents: 2
+  max_model_requests_per_stage: 1
+  context_lines_per_residual: 1
+  merge_residual_gap_lines: 1
+  provider_native_json_schema: true
+  require_host_owned_spans: true
+  require_transactional_validation: true
+  require_compact_independent_review: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

@@ -1,0 +1,67 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certified_correction_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certified-correction10-glm53-v20-prior-local-holds
+  output_dir: artifacts/kie-synthesis
+
+certification_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification10-glm53-v18-prior-local-holds
+  commit_sha256: 7d512724b9ceacd1127a7c43c3a552a1886c9a842153e4aa983c4d5371b7b95e
+  transaction_sha256: 8383816519c32e835263064fb04b13413f8b7e052e8c1eb965432c2c1b2b54f8
+
+case_ids:
+  - doc_372c779c9aaeed273fda78438a576603853d91a582536f977f72a8d1325899e5
+  - doc_fb241e5dc87e28957c2ca8b3e72703dadcec45a9f7ebef6e605cb1023bc1ab3a
+  - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+  - doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f
+  - doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+  - doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8
+  - doc_3faa338209378d0115ff34d6aab716d18821b7e619ad95d41ec304789b315b18
+  - doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0
+  - doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e
+  - doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_certified_line_corrector_v2.md
+  sha256: f7d2381d7d062bad04bf3e9affa259c545b54a03de738f40fe0ebea432f3f016
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 10
+  max_concurrent_documents: 10
+  max_provider_route_rounds: 4
+  max_successful_model_responses_per_document: 2
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_only_cited_lines_mutable: true
+  require_exact_line_and_page_topology: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

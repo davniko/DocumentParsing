@@ -37,15 +37,21 @@ class LinguisticUsageReceipt(BaseModel):
     outputTokens: Annotated[int, Field(ge=0)]
     reasoningTokens: Annotated[int, Field(ge=0)]
     visibleOutputTokens: Annotated[int, Field(ge=0)]
+    providerTokenAccountingAnomaly: bool = False
     estimatedCostUsd: Annotated[Decimal, Field(ge=0, decimal_places=12)]
+    providerReportedCostUsd: Annotated[Decimal, Field(ge=0, decimal_places=12)] | None = None
+    downstreamProviders: tuple[NonEmptyText, ...] = ()
 
     @model_validator(mode="after")
     def token_buckets_are_consistent(self) -> LinguisticUsageReceipt:
         if self.cacheReadTokens + self.cacheWriteTokens > self.inputTokens:
             raise ValueError("cache buckets exceed input token total")
-        if self.reasoningTokens > self.outputTokens:
+        if self.reasoningTokens > self.outputTokens and not self.providerTokenAccountingAnomaly:
             raise ValueError("reasoning tokens exceed output token total")
-        if self.visibleOutputTokens != self.outputTokens - self.reasoningTokens:
+        if self.providerTokenAccountingAnomaly:
+            if self.visibleOutputTokens > self.outputTokens:
+                raise ValueError("anomalous visible output tokens exceed output total")
+        elif self.visibleOutputTokens != self.outputTokens - self.reasoningTokens:
             raise ValueError("visible output tokens differ from output minus reasoning")
         if self.requests != len(self.finishReasons):
             raise ValueError("request count differs from response finish-reason count")
@@ -53,12 +59,16 @@ class LinguisticUsageReceipt(BaseModel):
 
 
 def load_openai_key(project_root: Path, environment_file: str) -> str:
+    return load_provider_key(project_root, environment_file, "OPENAI_API_KEY")
+
+
+def load_provider_key(project_root: Path, environment_file: str, key_name: str) -> str:
     path = resolve_config_path(project_root, environment_file)
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"environment file is not a regular file: {path}")
-    key = os.environ.get("OPENAI_API_KEY") or dotenv_values(path).get("OPENAI_API_KEY")
+    key = os.environ.get(key_name) or dotenv_values(path).get(key_name)
     if not isinstance(key, str) or not key.strip():
-        raise ValueError("OPENAI_API_KEY is absent or empty")
+        raise ValueError(f"{key_name} is absent or empty")
     return key
 
 
@@ -104,8 +114,7 @@ def price_usage(usage: RequestUsage, pricing: LinguisticProbePricingConfig) -> D
         raise ValueError("provider reports cache tokens above total input tokens")
     cost = (
         Decimal(uncached) * Decimal(str(pricing.input_usd_per_million))
-        + Decimal(usage.cache_read_tokens)
-        * Decimal(str(pricing.cached_input_usd_per_million))
+        + Decimal(usage.cache_read_tokens) * Decimal(str(pricing.cached_input_usd_per_million))
         + Decimal(usage.cache_write_tokens)
         * Decimal(str(pricing.input_usd_per_million))
         * Decimal(str(pricing.cache_write_multiplier))
@@ -115,7 +124,10 @@ def price_usage(usage: RequestUsage, pricing: LinguisticProbePricingConfig) -> D
 
 
 def usage_receipt(
-    responses: Sequence[ModelResponse], pricing: LinguisticProbePricingConfig
+    responses: Sequence[ModelResponse],
+    pricing: LinguisticProbePricingConfig,
+    *,
+    require_provider_cost: bool = False,
 ) -> LinguisticUsageReceipt:
     usage = RequestUsage()
     for response in responses:
@@ -129,6 +141,33 @@ def usage_receipt(
         if response.provider_response_id is not None
     )
     finish_reasons = tuple(response.finish_reason or "unknown" for response in responses)
+    provider_costs: list[Decimal] = []
+    downstream_providers: list[str] = []
+    for response in responses:
+        details = response.provider_details or {}
+        raw_cost = details.get("cost")
+        if raw_cost is not None:
+            if isinstance(raw_cost, bool) or not isinstance(raw_cost, (int, float, str, Decimal)):
+                raise ValueError("provider reports invalid monetary cost")
+            cost = Decimal(str(raw_cost))
+            if not cost.is_finite() or cost < 0:
+                raise ValueError("provider reports invalid monetary cost")
+            provider_costs.append(cost)
+        downstream = details.get("downstream_provider")
+        if downstream is not None:
+            if not isinstance(downstream, str) or not downstream.strip():
+                raise ValueError("provider reports invalid downstream provider")
+            downstream_providers.append(downstream)
+    if provider_costs and len(provider_costs) != len(responses):
+        raise ValueError("provider cost coverage is incomplete")
+    if require_provider_cost and len(provider_costs) != len(responses):
+        raise ValueError("provider cost receipt is required for every response")
+    provider_cost = (
+        sum(provider_costs, Decimal(0)).quantize(_USD_QUANTUM, rounding=ROUND_HALF_UP)
+        if provider_costs
+        else None
+    )
+    accounting_anomaly = reasoning_tokens > usage.output_tokens
     return LinguisticUsageReceipt(
         requests=len(responses),
         providerResponseIds=response_ids,
@@ -138,8 +177,11 @@ def usage_receipt(
         cacheWriteTokens=usage.cache_write_tokens,
         outputTokens=usage.output_tokens,
         reasoningTokens=reasoning_tokens,
-        visibleOutputTokens=usage.output_tokens - reasoning_tokens,
+        visibleOutputTokens=max(0, usage.output_tokens - reasoning_tokens),
+        providerTokenAccountingAnomaly=accounting_anomaly,
         estimatedCostUsd=price_usage(usage, pricing),
+        providerReportedCostUsd=provider_cost,
+        downstreamProviders=tuple(downstream_providers),
     )
 
 

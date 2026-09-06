@@ -1,0 +1,52 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v5_cargo_language_probe
+environment_file: .env
+
+run:
+  run_id: mpci-bl-cargo-language-luna-high-null-repair1-v4
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  semantic_completion_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-semantic-completion50-topology-v2
+    commit_sha256: 460a43ddf546b6274b387571be45933888c1d2853a27307dc96b873559b576d0
+    transaction_sha256: 050dd4e193f139be0e2cead1313a3270b5fcd5cafe295d0ccb1bf60e84d6878a
+  completion_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-semantic-completion50-topology-v2/generation/completion-plans.jsonl
+    sha256: a34afe2f6b38aebd7d250cb0304e43da7dc0b66de6c78fd4e6ff4c20b7c98f9a
+    records: 50
+
+cases:
+  - document_id: doc_11ac17a4963225bdb78247f8c29d8e1a47b79ac942682ce8f459170c37389489
+
+prompt:
+  path: prompts/synthesis/mpci_bl_cargo_language_v1.md
+  sha256: 6c22533d109d1ac51e20263280b14b8cfcb784ab010615644e6673e752106864
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 4096
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-01
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+workflow:
+  max_concurrent_requests: 1
+  requests_per_case: 1
+  structured_output_retries: 0
+  provider_native_strict_json_schema: true
+  preserve_source_field_presence: true
+  preserve_generic_marks_literals: true
+  exclude_categorical_printed_surfaces: true
+  persist_model_visible_messages: true

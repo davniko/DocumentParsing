@@ -31,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints,
 from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.label_schemas import bill_of_lading_v5 as bill_of_lading_v5_module
+from document_ocr.label_schemas.bill_of_lading_v4 import migrate_relation_v3_target_to_v4
 from document_ocr.label_schemas.bill_of_lading_v5 import (
     CONTAINER_TYPE_CATEGORIES,
     migrate_relation_v4_target_to_v5,
@@ -80,6 +81,7 @@ from document_ocr.synthesis.package_goods_compatibility import (
     supported_thermal_profiles,
 )
 from document_ocr.synthesis.package_registry import load_package_registry
+from document_ocr.synthesis.raw_text_template import printed_topology_mismatches
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.scenario_state import ScenarioChange
 from document_ocr.synthesis.task_adapter import (
@@ -148,13 +150,20 @@ class EquipmentSemanticRealization(BaseModel):
     temperature_value_celsius: float | None
     sampling_method: NonEmptyText
     linked_thermal_cargo_groups: tuple[NonEmptyText, ...]
+    unallocated_temperature_profile: Literal["FROZEN", "CHILLED"] | None = None
 
     @model_validator(mode="after")
     def setpoint_and_operation_match(self) -> EquipmentSemanticRealization:
         if self.active_temperature != (self.temperature_value_celsius is not None):
             raise ValueError("active thermal equipment and setpoint must be paired")
-        if self.active_temperature != bool(self.linked_thermal_cargo_groups):
-            raise ValueError("active thermal equipment must name linked thermal cargo")
+        linked = bool(self.linked_thermal_cargo_groups)
+        unallocated = self.unallocated_temperature_profile is not None
+        if linked and unallocated:
+            raise ValueError("thermal equipment cannot be both linked and unallocated")
+        if self.active_temperature != (linked or unallocated):
+            raise ValueError(
+                "active thermal equipment must be linked to cargo or explicitly unallocated"
+            )
         return self
 
 
@@ -630,7 +639,7 @@ def _apply_cargo_semantics(
     *,
     target: dict[str, Any],
     plan: DangerousGoodsPlanRow,
-    thermal_group_profile: tuple[str, Literal["FROZEN", "CHILLED"]] | None,
+    thermal_group_profiles: Mapping[str, Literal["FROZEN", "CHILLED"]],
     goods_support: ThermalGoodsSupport,
     package_support: PackageGoodsFitSupport,
     package_catalog: Mapping[str, PackageCompatibilityResolution],
@@ -645,10 +654,7 @@ def _apply_cargo_semantics(
 ]:
     patch = cast(dict[str, Any], target["documentPatch"])
     allocations = _group_allocations(patch)
-    profile_by_group: dict[str, Literal["FROZEN", "CHILLED"]] = {}
-    if thermal_group_profile is not None:
-        group_id, thermal_profile = thermal_group_profile
-        profile_by_group[group_id] = thermal_profile
+    profile_by_group = dict(thermal_group_profiles)
     output: list[CargoSemanticRealization] = []
     package_output: list[PackageGoodsCompatibilityRealization] = []
     used_catalog_contexts: set[str] = set()
@@ -834,6 +840,10 @@ def _apply_equipment_semantics(
     equipment_registry: Any,
     stream: DeterministicStream,
     config: SynthesisSemanticCompletionConfig,
+    active_container_numbers: frozenset[str] | None = None,
+    unallocated_profile_by_container: Mapping[
+        str, Literal["FROZEN", "CHILLED"]
+    ] | None = None,
 ) -> tuple[EquipmentSemanticRealization, ...]:
     thermal_groups_by_container: dict[str, list[str]] = defaultdict(list)
     for group_id in profile_by_group:
@@ -856,7 +866,21 @@ def _apply_equipment_semantics(
     for order, container in enumerate(patch.get("containers") or []):
         number = cast(str, container["containerNumber"])
         groups = tuple(sorted(thermal_groups_by_container.get(number, ())))
-        active = bool(groups)
+        active = (
+            number in active_container_numbers
+            if active_container_numbers is not None
+            else bool(groups)
+        )
+        unallocated_profile = (
+            unallocated_profile_by_container.get(number)
+            if unallocated_profile_by_container is not None
+            else None
+        )
+        if active != (bool(groups) or unallocated_profile is not None):
+            raise ValueError(
+                "temperature-preserving equipment requires every active container to be "
+                "linked to thermal cargo or explicitly represented as unallocated"
+            )
         generated = sample_equipment_semantic(
             support=support,
             active_temperature=active,
@@ -875,13 +899,36 @@ def _apply_equipment_semantics(
         container["typeCategory"] = generated.type_category
         temperature = None
         if active:
-            profiles = {profile_by_group[group_id] for group_id in groups}
+            profiles = (
+                {profile_by_group[group_id] for group_id in groups}
+                if groups
+                else {cast(Literal["FROZEN", "CHILLED"], unallocated_profile)}
+            )
             if len(profiles) != 1:
                 raise ValueError("one container cannot receive incompatible thermal profiles")
-            group_temperatures = {temperature_by_group[group_id] for group_id in groups}
-            if len(group_temperatures) != 1:
-                raise ValueError("one container cannot receive conflicting group setpoints")
-            temperature = next(iter(group_temperatures))
+            if groups:
+                group_temperatures = {temperature_by_group[group_id] for group_id in groups}
+                if len(group_temperatures) != 1:
+                    raise ValueError("one container cannot receive conflicting group setpoints")
+                temperature = next(iter(group_temperatures))
+            else:
+                temperature = sample_temperature_setpoint(
+                    profile=cast(Literal["FROZEN", "CHILLED"], unallocated_profile),
+                    stream=stream.derive(f"container-{order}-temperature"),
+                    frozen_minimum_celsius=(
+                        config.generation.thermal.frozen_minimum_celsius
+                    ),
+                    frozen_maximum_celsius=(
+                        config.generation.thermal.frozen_maximum_celsius
+                    ),
+                    chilled_minimum_celsius=(
+                        config.generation.thermal.chilled_minimum_celsius
+                    ),
+                    chilled_maximum_celsius=(
+                        config.generation.thermal.chilled_maximum_celsius
+                    ),
+                    step_celsius=config.generation.thermal.step_celsius,
+                )
             container["temperatureSetpoint"] = {
                 "value": temperature.value,
                 "unit": temperature.unit,
@@ -898,9 +945,127 @@ def _apply_equipment_semantics(
                 temperature_value_celsius=(temperature.value if temperature else None),
                 sampling_method=generated.sampling_method,
                 linked_thermal_cargo_groups=groups,
+                unallocated_temperature_profile=unallocated_profile,
             )
         )
     return tuple(output)
+
+
+def _preserved_thermal_group_profiles(
+    *,
+    source_target: Mapping[str, Any],
+    target: Mapping[str, Any],
+    eligible_profiles: Mapping[str, tuple[Literal["FROZEN", "CHILLED"], ...]],
+    weights_permyriad: Mapping[Literal["FROZEN", "CHILLED"], int],
+    stream: DeterministicStream,
+    frozen_range: tuple[float, float],
+    chilled_range: tuple[float, float],
+) -> tuple[
+    dict[str, Literal["FROZEN", "CHILLED"]],
+    frozenset[str],
+    dict[str, Literal["FROZEN", "CHILLED"]],
+]:
+    """Preserve each printed setpoint slot and derive coherent thermal cargo.
+
+    Connected cargo groups sharing an active container receive one common
+    profile.  Partial active/inactive allocations cannot be represented by the
+    current group-level thermal ontology and therefore fail explicitly.
+    """
+
+    source_containers = tuple(
+        cast(Mapping[str, Any], row)
+        for row in cast(Mapping[str, Any], source_target["documentPatch"]).get(
+            "containers"
+        )
+        or ()
+    )
+    target_containers = tuple(
+        cast(Mapping[str, Any], row)
+        for row in cast(Mapping[str, Any], target["documentPatch"]).get("containers")
+        or ()
+    )
+    if len(source_containers) != len(target_containers):
+        raise ValueError("source and target container cardinality differ")
+    active = frozenset(
+        cast(str, target_containers[index]["containerNumber"])
+        for index, row in enumerate(source_containers)
+        if row.get("temperatureSetpoint") is not None
+    )
+    source_container_by_target_number = {
+        cast(str, target_containers[index]["containerNumber"]): source
+        for index, source in enumerate(source_containers)
+    }
+    if not active:
+        return {}, active, {}
+    patch = cast(Mapping[str, Any], target["documentPatch"])
+    allocations = _group_allocations(patch)
+    selected_groups: dict[str, set[str]] = {}
+    covered: set[str] = set()
+    for group_id, numbers in allocations.items():
+        allocated = set(numbers)
+        overlap = allocated & active
+        if not overlap:
+            continue
+        if overlap != allocated:
+            raise ValueError(
+                f"thermal template group {group_id!r} mixes active and inactive equipment"
+            )
+        if group_id not in eligible_profiles:
+            raise ValueError(
+                f"thermal template group {group_id!r} has no compatible goods/package profile"
+            )
+        selected_groups[group_id] = allocated
+        covered.update(allocated)
+    unallocated: dict[str, Literal["FROZEN", "CHILLED"]] = {}
+    if covered != set(active):
+        for number in sorted(set(active) - covered):
+            temperature = cast(
+                Mapping[str, Any],
+                source_container_by_target_number[number]["temperatureSetpoint"],
+            )
+            value = float(temperature["value"])
+            if frozen_range[0] <= value <= frozen_range[1]:
+                unallocated[number] = "FROZEN"
+            elif chilled_range[0] <= value <= chilled_range[1]:
+                unallocated[number] = "CHILLED"
+            else:
+                raise ValueError(
+                    f"unallocated temperature {value} C for {number} is outside configured "
+                    "thermal profiles"
+                )
+
+    remaining = set(selected_groups)
+    output: dict[str, Literal["FROZEN", "CHILLED"]] = {}
+    component_index = 0
+    while remaining:
+        component_index += 1
+        frontier = {min(remaining)}
+        component: set[str] = set()
+        component_containers: set[str] = set()
+        while frontier:
+            group_id = frontier.pop()
+            if group_id in component:
+                continue
+            component.add(group_id)
+            component_containers.update(selected_groups[group_id])
+            frontier.update(
+                other
+                for other in remaining
+                if selected_groups[other] & component_containers
+            )
+        remaining.difference_update(component)
+        supported = set.intersection(
+            *(set(eligible_profiles[group_id]) for group_id in sorted(component))
+        )
+        if not supported:
+            raise ValueError("connected thermal cargo groups have no common supported profile")
+        profile = sample_supported_thermal_profile(
+            profiles=tuple(sorted(supported)),
+            weights_permyriad=weights_permyriad,
+            stream=stream.derive(f"component-{component_index}"),
+        )
+        output.update(dict.fromkeys(component, profile))
+    return output, active, unallocated
 
 
 def _transport_allocations(
@@ -908,6 +1073,7 @@ def _transport_allocations(
     plans: Sequence[DangerousGoodsPlanRow],
     source_imo: set[str],
     config: SynthesisSemanticCompletionConfig,
+    source_targets: Mapping[str, Mapping[str, Any]],
 ) -> tuple[dict[str, SyntheticImoNumber], frozenset[str]]:
     eligible_rows: list[str] = []
     for row in plans:
@@ -915,27 +1081,61 @@ def _transport_allocations(
         if isinstance(patch, dict) and isinstance(patch.get("transport"), dict):
             eligible_rows.append(row.base_document_id)
     eligible = tuple(eligible_rows)
-    imo_requested = _ranked_quota(
-        document_ids=eligible,
-        permyriad=config.generation.transport.imo_presence_permyriad,
-        seed=config.generation.seed,
-        namespace=f"{config.run.run_id}-imo-presence",
-        population_size=len(plans),
-    )
-    flags_requested = _ranked_quota(
-        document_ids=eligible,
-        permyriad=config.generation.transport.flag_presence_permyriad,
-        seed=config.generation.seed,
-        namespace=f"{config.run.run_id}-flag-presence",
-        population_size=len(plans),
-    )
+    if config.generation.printed_topology_policy == "preserve_selected_template_v1":
+        imo_requested = frozenset(
+            document_id
+            for document_id in eligible
+            if isinstance(
+                cast(Mapping[str, Any], source_targets[document_id]["documentPatch"])
+                .get("transport"),
+                Mapping,
+            )
+            and cast(
+                Mapping[str, Any],
+                cast(Mapping[str, Any], source_targets[document_id]["documentPatch"])[
+                    "transport"
+                ],
+            ).get("vesselImoNumber")
+            is not None
+        )
+        flags_requested = frozenset(
+            document_id
+            for document_id in eligible
+            if isinstance(
+                cast(Mapping[str, Any], source_targets[document_id]["documentPatch"])
+                .get("transport"),
+                Mapping,
+            )
+            and cast(
+                Mapping[str, Any],
+                cast(Mapping[str, Any], source_targets[document_id]["documentPatch"])[
+                    "transport"
+                ],
+            ).get("vesselFlagCountry")
+            is not None
+        )
+    else:
+        imo_requested = _ranked_quota(
+            document_ids=eligible,
+            permyriad=config.generation.transport.imo_presence_permyriad,
+            seed=config.generation.seed,
+            namespace=f"{config.generation.sampling_namespace}-imo-presence",
+            population_size=len(plans),
+        )
+        flags_requested = _ranked_quota(
+            document_ids=eligible,
+            permyriad=config.generation.transport.flag_presence_permyriad,
+            seed=config.generation.seed,
+            namespace=f"{config.generation.sampling_namespace}-flag-presence",
+            population_size=len(plans),
+        )
     used: set[str] = set()
     allocated: dict[str, SyntheticImoNumber] = {}
     for document_id in sorted(imo_requested):
         sampled = sample_imo_number(
             stream=DeterministicStream(
                 seed=config.generation.seed,
-                namespace=config.run.run_id,
+                namespace=config.generation.sampling_namespace,
                 identity=document_id,
             ).derive("imo"),
             excluded_values=tuple(sorted(source_imo)),
@@ -993,12 +1193,20 @@ def _apply_flashpoints(
     plan: DangerousGoodsPlanRow,
     stream: DeterministicStream,
     config: SynthesisSemanticCompletionConfig,
+    source_target: Mapping[str, Any],
 ) -> tuple[FlashpointRealization, ...]:
     realization_by_key = {
         (row.cargo_group_id, row.dangerous_goods_order): row for row in plan.realizations
     }
     output: list[FlashpointRealization] = []
     groups = target["documentPatch"].get("cargoGroups") or []
+    source_groups = {
+        cast(str, row["groupId"]): row
+        for row in cast(Mapping[str, Any], source_target["documentPatch"]).get(
+            "cargoGroups"
+        )
+        or ()
+    }
     for group in groups:
         group_id = cast(str, group["groupId"])
         for order, dangerous in enumerate(group.get("dangerousGoods") or []):
@@ -1012,13 +1220,33 @@ def _apply_flashpoints(
                 hazard_category=dangerous.get("hazardCategory"),
                 subsidiary_hazard_categories=subsidiaries,
             )
+            preserve_shape = (
+                config.generation.printed_topology_policy
+                == "preserve_selected_template_v1"
+            )
+            source_dangerous = (
+                source_groups[group_id].get("dangerousGoods") or ()
+            )
+            source_has_flashpoint = (
+                order < len(source_dangerous)
+                and source_dangerous[order].get("flashPoint") is not None
+            )
+            presence = (
+                dict.fromkeys(config.generation.flashpoint.presence_permyriad, 10_000)
+                if preserve_shape and source_has_flashpoint
+                else (
+                    dict.fromkeys(config.generation.flashpoint.presence_permyriad, 0)
+                    if preserve_shape
+                    else config.generation.flashpoint.presence_permyriad
+                )
+            )
             sampled = sample_flashpoint(
                 proper_shipping_name=upstream.proper_shipping_name,
                 hazard_category=dangerous.get("hazardCategory"),
                 subsidiary_hazard_categories=subsidiaries,
                 packing_group_category=dangerous.get("packingGroupCategory"),
                 stream=stream.derive(f"flashpoint-{group_id}-{order}"),
-                presence_permyriad=config.generation.flashpoint.presence_permyriad,
+                presence_permyriad=presence,
                 class3_minimum_celsius=config.generation.flashpoint.class3_minimum_celsius,
                 class3_maximum_celsius=config.generation.flashpoint.class3_maximum_celsius,
                 non_class3_liquid_minimum_celsius=(
@@ -1040,6 +1268,10 @@ def _apply_flashpoints(
                 dangerous["flashPoint"] = {
                     "temperature": {"value": sampled.value, "unit": sampled.unit}
                 }
+            if preserve_shape and source_has_flashpoint != (sampled is not None):
+                raise ValueError(
+                    "generated dangerous-goods tuple cannot preserve the template flashpoint slot"
+                )
             if eligibility is not None:
                 output.append(
                     FlashpointRealization(
@@ -1230,6 +1462,7 @@ def run_semantic_completion(
         plans=plans,
         source_imo=source_imo,
         config=config,
+        source_targets=source_targets,
     )
 
     source_constraints_path = (
@@ -1289,16 +1522,21 @@ def run_semantic_completion(
         )
         for row in plans
     }
-    thermal_documents = _ranked_quota(
-        document_ids=tuple(
-            document_id
-            for document_id, profiles_by_group in eligible_profiles.items()
-            if profiles_by_group
-        ),
-        permyriad=config.generation.thermal.document_prevalence_permyriad,
-        seed=config.generation.seed,
-        namespace=f"{config.run.run_id}-thermal",
-        population_size=len(plans),
+    thermal_documents = (
+        frozenset()
+        if config.generation.printed_topology_policy
+        == "preserve_selected_template_v1"
+        else _ranked_quota(
+            document_ids=tuple(
+                document_id
+                for document_id, profiles_by_group in eligible_profiles.items()
+                if profiles_by_group
+            ),
+            permyriad=config.generation.thermal.document_prevalence_permyriad,
+            seed=config.generation.seed,
+            namespace=f"{config.generation.sampling_namespace}-thermal",
+            population_size=len(plans),
+        )
     )
     target_task = get_training_task(config.target_task)
     target_schema = target_task.target_model.model_json_schema(mode="serialization")
@@ -1325,12 +1563,41 @@ def run_semantic_completion(
         document_id = plan.base_document_id
         stream = DeterministicStream(
             seed=config.generation.seed,
-            namespace=config.run.run_id,
+            namespace=config.generation.sampling_namespace,
             identity=document_id,
         )
         target = migrate_relation_v4_target_to_v5(plan.target)
-        thermal_group_profile = None
-        if document_id in thermal_documents:
+        source_v4 = migrate_relation_v3_target_to_v4(source_targets[document_id])
+        active_container_numbers: frozenset[str] | None = None
+        unallocated_profile_by_container: dict[
+            str, Literal["FROZEN", "CHILLED"]
+        ] = {}
+        thermal_group_profiles: dict[str, Literal["FROZEN", "CHILLED"]] = {}
+        if config.generation.printed_topology_policy == "preserve_selected_template_v1":
+            (
+                thermal_group_profiles,
+                active_container_numbers,
+                unallocated_profile_by_container,
+            ) = (
+                _preserved_thermal_group_profiles(
+                    source_target=source_v4,
+                    target=target,
+                    eligible_profiles=eligible_profiles[document_id],
+                    weights_permyriad=(
+                        config.generation.thermal.profile_weights_permyriad
+                    ),
+                    stream=stream.derive("thermal-profile"),
+                    frozen_range=(
+                        config.generation.thermal.frozen_minimum_celsius,
+                        config.generation.thermal.frozen_maximum_celsius,
+                    ),
+                    chilled_range=(
+                        config.generation.thermal.chilled_minimum_celsius,
+                        config.generation.thermal.chilled_maximum_celsius,
+                    ),
+                )
+            )
+        elif document_id in thermal_documents:
             profiles_by_group = eligible_profiles[document_id]
             groups = tuple(profiles_by_group)
             thermal_group = groups[stream.derive("thermal-group").randbelow(len(groups))]
@@ -1339,7 +1606,7 @@ def run_semantic_completion(
                 weights_permyriad=config.generation.thermal.profile_weights_permyriad,
                 stream=stream.derive("thermal-profile"),
             )
-            thermal_group_profile = (thermal_group, thermal_profile)
+            thermal_group_profiles[thermal_group] = thermal_profile
         (
             cargo_rows,
             package_rows,
@@ -1349,7 +1616,7 @@ def run_semantic_completion(
         ) = _apply_cargo_semantics(
             target=target,
             plan=plan,
-            thermal_group_profile=thermal_group_profile,
+            thermal_group_profiles=thermal_group_profiles,
             goods_support=thermal_support,
             package_support=package_support,
             package_catalog=package_catalog,
@@ -1365,6 +1632,8 @@ def run_semantic_completion(
             equipment_registry=equipment_registry,
             stream=stream.derive("equipment"),
             config=config,
+            active_container_numbers=active_container_numbers,
+            unallocated_profile_by_container=unallocated_profile_by_container,
         )
         transport = _apply_transport_auxiliary(
             target=target,
@@ -1380,6 +1649,7 @@ def run_semantic_completion(
             plan=plan,
             stream=stream.derive("dangerous-goods"),
             config=config,
+            source_target=source_v4,
         )
         canonical = BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
             document_id=plan.scenario_id,
@@ -1387,6 +1657,14 @@ def run_semantic_completion(
         )
         if bound_target_task.canonicalize(canonical) != canonical:
             raise RuntimeError("bound relation-v5 task changed a canonical completion target")
+        if config.generation.printed_topology_policy == "preserve_selected_template_v1":
+            mismatches = printed_topology_mismatches(source_v4, canonical)
+            if mismatches:
+                detail = ", ".join(row.path for row in mismatches[:8])
+                raise RuntimeError(
+                    f"semantic completion changed printed template topology for "
+                    f"{document_id}: {detail}"
+                )
         blockers = set(plan.remaining_blockers)
         blockers.discard("container_type_task_schema_projection")
         blockers.discard("vessel_imo_requires_authoritative_assigned_number_registry")

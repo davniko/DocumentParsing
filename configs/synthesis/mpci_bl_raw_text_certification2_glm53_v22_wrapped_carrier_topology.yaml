@@ -1,0 +1,44 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+environment_file: .env
+run: {run_id: mpci-bl-raw-text-certification2-glm53-v22-wrapped-carrier-topology, output_dir: artifacts/kie-synthesis}
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certified-correction2-glm53-v22-wrapped-carrier-topology
+  commit_sha256: 4dd0a387e7ca3e85ed391ab581da95c9d52866f197d0a739e88dfbad565c35b4
+  transaction_sha256: bc28bc9f45a104d971a6b45173710ba647aef71c4647d3aa7d8e941796f11cb4
+input_case_contract_filename: source-contract.json
+case_ids:
+  - doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+  - doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e
+prompt: {path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v1.md, sha256: 79b85b02741b00295cb575f9e8c8c52b03725fafee7c5449a06617e02704f9df}
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, fireworks, nextbit/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing: {currency: USD, effective_date: 2026-09-06, source_url: https://openrouter.ai/z-ai/glm-5.3-flash, input_usd_per_million: 0.075, cached_input_usd_per_million: 0.03, cache_write_multiplier: 1.0, output_usd_per_million: 0.25}
+workflow:
+  documents: 2
+  max_concurrent_documents: 2
+  semantic_audit_passes: 1
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

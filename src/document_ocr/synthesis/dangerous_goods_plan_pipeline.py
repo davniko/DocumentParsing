@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
@@ -25,7 +25,9 @@ from document_ocr.synthesis.dangerous_goods_registry import (
     SampledDangerousGoods,
     load_dangerous_goods_registry,
 )
+from document_ocr.synthesis.flashpoint_scenarios import classify_flashpoint_eligibility
 from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.raw_text_template import printed_topology_mismatches
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.scenario_state import ScenarioChange, ScenarioState
 from document_ocr.synthesis.task_adapter import BILL_OF_LADING_V4_TASK_ADAPTER
@@ -213,6 +215,7 @@ def _sample_unique(
     maximum_subsidiary_hazards: int,
     maximum_attempts: int,
     used_signatures: set[tuple[str, tuple[str, ...]]],
+    accepts: Callable[[SampledDangerousGoods], bool] | None = None,
 ) -> SampledDangerousGoods:
     for attempt in range(maximum_attempts):
         sampled = registry.sample(
@@ -222,10 +225,76 @@ def _sample_unique(
             maximum_subsidiary_hazards=maximum_subsidiary_hazards,
         )
         signature = (sampled.hmt_record.record_id, sampled.hs_codes)
-        if signature not in used_signatures:
+        if signature not in used_signatures and (accepts is None or accepts(sampled)):
             used_signatures.add(signature)
             return sampled
     raise RuntimeError("DG tuple collision budget exhausted")
+
+
+def _source_dg_shape(value: Mapping[str, Any]) -> tuple[int, bool, bool]:
+    """Return the printed optional shape that a sampled DG tuple must fit.
+
+    The UN number and primary hazard are independently projected because a
+    task label may omit either even though the regulatory tuple retains both
+    internally.  Subsidiary hazards and packing group affect which facts must
+    be printed and therefore constrain tuple selection.
+    """
+
+    subsidiaries = value.get("subsidiaryHazardCategories") or ()
+    return (
+        len(cast(list[Any], subsidiaries)),
+        "packingGroupCategory" in value,
+        "flashPoint" in value,
+    )
+
+
+def _sample_matches_source_dg_shape(
+    sampled: SampledDangerousGoods,
+    *,
+    source: Mapping[str, Any],
+) -> bool:
+    subsidiary_count, packing_present, flashpoint_present = _source_dg_shape(source)
+    candidate = sampled.target.model_dump(mode="json", exclude_none=True)
+    if len(candidate.get("subsidiaryHazardCategories") or ()) != subsidiary_count:
+        return False
+    if ("packingGroupCategory" in candidate) != packing_present:
+        return False
+    if flashpoint_present:
+        return (
+            classify_flashpoint_eligibility(
+                proper_shipping_name=sampled.hmt_record.proper_shipping_name,
+                hazard_category=sampled.hmt_record.hazard_category,
+                subsidiary_hazard_categories=(
+                    sampled.hmt_record.subsidiary_hazard_categories
+                ),
+            )
+            is not None
+        )
+    return True
+
+
+def _project_sampled_dg_to_source_shape(
+    sampled: SampledDangerousGoods,
+    *,
+    source: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project a complete sampled tuple onto exactly the template's fields."""
+
+    projected = sampled.target.model_dump(mode="json", exclude_none=True)
+    for field in (
+        "unNumber",
+        "hazardCategory",
+        "subsidiaryHazardCategories",
+        "packingGroupCategory",
+    ):
+        if field not in source:
+            projected.pop(field, None)
+    if "flashPoint" in source:
+        # Flashpoint values are sampled in the following semantic-completion
+        # stage.  Retaining the source-shaped placeholder here prevents an
+        # intermediate structural delete/re-add cycle.
+        projected["flashPoint"] = source["flashPoint"]
+    return projected
 
 
 def _branch_category_weights(
@@ -285,7 +354,19 @@ def _apply_dg(
         generated_hs: list[str] = []
         generated_dangerous: list[dict[str, Any]] = []
         group_id = cast(str, group["groupId"])
-        for dangerous_order, _ in enumerate(source_dangerous):
+        for dangerous_order, source_dangerous_row in enumerate(source_dangerous):
+            preserve_shape = (
+                config.generation.printed_topology_policy
+                == "preserve_selected_template_v1"
+            )
+            source_shape = cast(Mapping[str, Any], source_dangerous_row)
+
+            def accepts_shape(
+                candidate: SampledDangerousGoods,
+                source: Mapping[str, Any] = source_shape,
+            ) -> bool:
+                return _sample_matches_source_dg_shape(candidate, source=source)
+
             sampled = _sample_unique(
                 registry,
                 stream=stream.derive(f"group-{group_order}-dg-{dangerous_order}"),
@@ -294,8 +375,16 @@ def _apply_dg(
                 maximum_subsidiary_hazards=config.generation.maximum_subsidiary_hazards,
                 maximum_attempts=config.generation.maximum_collision_attempts,
                 used_signatures=used_signatures,
+                accepts=accepts_shape if preserve_shape else None,
             )
-            generated_dangerous.append(sampled.target.model_dump(mode="json", exclude_none=True))
+            generated_dangerous.append(
+                _project_sampled_dg_to_source_shape(
+                    sampled,
+                    source=source_shape,
+                )
+                if preserve_shape
+                else sampled.target.model_dump(mode="json", exclude_none=True)
+            )
             generated_hs.extend(sampled.hs_codes)
             realizations.append(
                 _realization(
@@ -315,6 +404,12 @@ def _apply_dg(
         document_id=stream.identity,
         target=target,
     )
+    if config.generation.printed_topology_policy == "preserve_selected_template_v1":
+        source_v4 = migrate_relation_v3_target_to_v4(source_v3)
+        mismatches = printed_topology_mismatches(source_v4, canonical)
+        if mismatches:
+            detail = ", ".join(row.path for row in mismatches[:8])
+            raise RuntimeError(f"DG generation changed printed template topology: {detail}")
     return canonical, tuple(realizations)
 
 
@@ -375,7 +470,7 @@ def _sampling_validation(
             sampled = registry.sample(
                 stream=DeterministicStream(
                     seed=config.generation.seed,
-                    namespace=f"{config.run.run_id}-distribution-validation",
+                    namespace=f"{config.generation.sampling_namespace}-distribution-validation",
                     identity=f"{branch}-{index}",
                 ),
                 method=branch,
@@ -510,7 +605,7 @@ def run_dangerous_goods_plan(
         document_id = cast(str, plan["base_document_id"])
         stream = DeterministicStream(
             seed=config.generation.seed,
-            namespace=config.run.run_id,
+            namespace=config.generation.sampling_namespace,
             identity=document_id,
         )
         target, realizations = _apply_dg(

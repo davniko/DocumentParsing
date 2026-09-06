@@ -50,6 +50,7 @@ from document_ocr.synthesis.cargo_language_probe import (
     CargoLanguageGenerationOutput,
     CargoLanguageGenerationSeed,
     build_cargo_language_seed,
+    normalize_cargo_language_output,
     validate_cargo_language,
 )
 from document_ocr.synthesis.config import (
@@ -69,6 +70,7 @@ from document_ocr.synthesis.party_identity_probe import (
     PartyIdentityGoodsSeed,
     party_goods_seeds,
 )
+from document_ocr.synthesis.raw_text_template import printed_topology_mismatches
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.semantic_completion_pipeline import SemanticCompletionPlanRow
 from document_ocr.synthesis.task_adapter import (
@@ -179,9 +181,7 @@ class PartyCompletionSeed(BaseModel):
 
     @model_validator(mode="after")
     def target_values_match_presence(self) -> PartyCompletionSeed:
-        if self.fieldPresence.namePresent != (
-            self.sourcePartyNameStyleReference is not None
-        ):
+        if self.fieldPresence.namePresent != (self.sourcePartyNameStyleReference is not None):
             raise ValueError("party name presence differs from its style reference")
         if self.fieldPresence.cityPresent != (self.targetLocality.city is not None):
             raise ValueError("party city presence differs from target locality")
@@ -660,9 +660,10 @@ def build_document_linguistic_plan(
                 )
             )
             continue
-        has_sensitive_surface = any(
-            isinstance(party.get(field), str) for field in _SENSITIVE_PARTY_FIELDS
-        ) or contact_present
+        has_sensitive_surface = (
+            any(isinstance(party.get(field), str) for field in _SENSITIVE_PARTY_FIELDS)
+            or contact_present
+        )
         if not has_sensitive_surface:
             projections.append(
                 PartyProjection(
@@ -729,9 +730,7 @@ def _location_component_present(address: str, locality: str | None) -> bool:
         return False
     expected = _normalize_text(locality)
     components = tuple(
-        _normalize_text(value)
-        for value in re.split(r"[,;|/]", address)
-        if _normalize_text(value)
+        _normalize_text(value) for value in re.split(r"[,;|/]", address) if _normalize_text(value)
     )
     return expected in components
 
@@ -766,19 +765,15 @@ def validate_party_completion(
         "country_exact": party.country == seed.targetLocality.country,
         "contact_name_presence_exact": (party.contactDetails.contactName is not None)
         == contacts.contactNamePresent,
-        "phone_count_exact": len(party.contactDetails.phoneNumbers)
-        == contacts.phoneNumberCount,
-        "email_count_exact": len(party.contactDetails.emailAddresses)
-        == contacts.emailAddressCount,
-        "website_count_exact": len(party.contactDetails.websiteUrls)
-        == contacts.websiteUrlCount,
+        "phone_count_exact": len(party.contactDetails.phoneNumbers) == contacts.phoneNumberCount,
+        "email_count_exact": len(party.contactDetails.emailAddresses) == contacts.emailAddressCount,
+        "website_count_exact": len(party.contactDetails.websiteUrls) == contacts.websiteUrlCount,
         "address_excludes_standalone_city": party.address is None
         or not _location_component_present(party.address, seed.targetLocality.city),
         "address_excludes_standalone_country": party.address is None
         or not _location_component_present(party.address, seed.targetLocality.country),
         "phone_syntax": all(
-            7 <= len(re.findall(r"[0-9]", value)) <= 16
-            and re.search(r"[*Xx]{2,}", value) is None
+            7 <= len(re.findall(r"[0-9]", value)) <= 16 and re.search(r"[*Xx]{2,}", value) is None
             for value in party.contactDetails.phoneNumbers
         ),
         "email_syntax": all(
@@ -919,7 +914,7 @@ def _dynamic_cargo_output_model(seed: CargoLanguageGenerationSeed) -> type[BaseM
                 description=(description_type, ...),
                 additionalInformation=(
                     Annotated[
-                        tuple[NonEmptyText | None, ...],
+                        tuple[NonEmptyText, ...],
                         Field(
                             min_length=len(contract.additionalInformationSlots),
                             max_length=len(contract.additionalInformationSlots),
@@ -950,9 +945,7 @@ def _dynamic_cargo_output_model(seed: CargoLanguageGenerationSeed) -> type[BaseM
             )
         )
     item_type = (
-        group_models[0]
-        if len(group_models) == 1
-        else Union.__getitem__(tuple(group_models))
+        group_models[0] if len(group_models) == 1 else Union.__getitem__(tuple(group_models))
     )
     cargo_groups_type = cast(Any, Annotated)[
         tuple.__class_getitem__((item_type, Ellipsis)),
@@ -1022,9 +1015,15 @@ async def _call_attempt(
                 canonical = canonical_output_type.model_validate(
                     result.output.model_dump(mode="python"), strict=True
                 )
-                canonical_output = cast(
-                    dict[str, JsonValue], canonical.model_dump(mode="json")
-                )
+                if stage == "cargo_language":
+                    cargo_seed = CargoLanguageGenerationSeed.model_validate_json(
+                        canonical_json_bytes(seed_payload), strict=True
+                    )
+                    canonical = normalize_cargo_language_output(
+                        seed=cargo_seed,
+                        output=cast(CargoLanguageGenerationOutput, canonical),
+                    )
+                canonical_output = cast(dict[str, JsonValue], canonical.model_dump(mode="json"))
                 checks = validator(canonical)
                 validation_error: Exception | None = None
             except Exception as error:
@@ -1047,9 +1046,7 @@ async def _call_attempt(
                     checks=checks,
                     usage=usage_receipt(responses, pricing),
                     errorType=(
-                        type(validation_error).__name__
-                        if validation_error is not None
-                        else None
+                        type(validation_error).__name__ if validation_error is not None else None
                     ),
                     errorMessage=(str(validation_error) if validation_error is not None else None),
                 ),
@@ -1211,7 +1208,7 @@ def _apply_linguistic_outputs(
         for field, values in (
             (
                 "additionalInformation",
-                tuple(value for value in generated.additionalInformation if value is not None),
+                generated.additionalInformation,
             ),
             ("marksAndNumbers", generated.marksAndNumbers),
             ("handlingInstructions", generated.handlingInstructions),
@@ -1220,10 +1217,15 @@ def _apply_linguistic_outputs(
                 group[field] = list(values)
             else:
                 group.pop(field, None)
-    return BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
+    canonical = BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
         document_id=upstream.scenario_id,
         target=target,
     )
+    mismatches = printed_topology_mismatches(upstream.target, canonical)
+    if mismatches:
+        detail = ", ".join(row.path for row in mismatches[:8])
+        raise RuntimeError(f"linguistic completion changed printed topology: {detail}")
+    return canonical
 
 
 def _resolve_pinned_file(
@@ -1385,9 +1387,7 @@ async def _run_completion_async(
                 )
             for unit_id, task in party_tasks.items():
                 artifact = await task
-                staged.publish_json(
-                    _unit_path(index, unit_id), artifact.model_dump(mode="json")
-                )
+                staged.publish_json(_unit_path(index, unit_id), artifact.model_dump(mode="json"))
                 party_artifacts[unit_id] = artifact
             if cargo_task is not None:
                 cargo_artifact = await cargo_task
@@ -1403,9 +1403,7 @@ async def _run_completion_async(
                     party_units=party_artifacts,
                     cargo_unit=cargo_artifact,
                 )
-                blockers = tuple(
-                    sorted(set(plan.remaining_blockers) - _GENERIC_BLOCKERS_RESOLVED)
-                )
+                blockers = tuple(sorted(set(plan.remaining_blockers) - _GENERIC_BLOCKERS_RESOLVED))
                 record = LinguisticCompletionDocumentRecord(
                     schemaVersion=1,
                     baseDocumentId=plan.base_document_id,
@@ -1452,9 +1450,7 @@ async def _run_completion_async(
                             "processed_documents": processed_documents,
                             "remaining_documents": remaining,
                             "successful_documents": successful_documents,
-                            "failed_documents": (
-                                processed_documents - successful_documents
-                            ),
+                            "failed_documents": (processed_documents - successful_documents),
                             "elapsed_seconds": round(elapsed, 3),
                             "throughput_documents_per_hour": round(rate * 3600.0, 3),
                             "eta_seconds": round(remaining / rate, 3) if rate else None,
@@ -1483,12 +1479,7 @@ async def _run_completion_async(
 
     try:
         await asyncio.gather(
-            *(
-                worker()
-                for _ in range(
-                    min(config.workflow.max_concurrent_documents, len(plans))
-                )
-            )
+            *(worker() for _ in range(min(config.workflow.max_concurrent_documents, len(plans))))
         )
     finally:
         await client.close()
@@ -1521,26 +1512,25 @@ def _all_units(
 def _report(summary: Mapping[str, Any]) -> str:
     locality_only = summary["localityOnlyPartyProjections"]
     token_totals = (
-        f"{summary['inputTokens']:,} / {summary['outputTokens']:,} / "
-        f"{summary['reasoningTokens']:,}"
+        f"{summary['inputTokens']:,} / {summary['outputTokens']:,} / {summary['reasoningTokens']:,}"
     )
     return f"""# Integrated B/L linguistic completion
 
-- Documents: **{summary['documents']:,}**
-- Successfully completed: **{summary['successfulDocuments']:,}**
-- Failed after configured fresh attempts: **{summary['failedDocuments']:,}**
-- Party generation units: **{summary['partyUnits']:,}**
-- Deterministic sameAs references: **{summary['sameAsReferences']:,}**
+- Documents: **{summary["documents"]:,}**
+- Successfully completed: **{summary["successfulDocuments"]:,}**
+- Failed after configured fresh attempts: **{summary["failedDocuments"]:,}**
+- Party generation units: **{summary["partyUnits"]:,}**
+- Deterministic sameAs references: **{summary["sameAsReferences"]:,}**
 - Locality-only party projections requiring no model call: **{locality_only:,}**
-- Reused explicit notify identities: **{summary['reusedNotifyIdentities']:,}**
-- Cargo generation units: **{summary['cargoUnits']:,}**
-- Provider requests: **{summary['requests']:,}**
-- First-attempt unit acceptance: **{summary['firstAttemptAcceptedUnits']:,} / {summary['units']:,}**
-- Retried units: **{summary['retriedUnits']:,}**
+- Reused explicit notify identities: **{summary["reusedNotifyIdentities"]:,}**
+- Cargo generation units: **{summary["cargoUnits"]:,}**
+- Provider requests: **{summary["requests"]:,}**
+- First-attempt unit acceptance: **{summary["firstAttemptAcceptedUnits"]:,} / {summary["units"]:,}**
+- Retried units: **{summary["retriedUnits"]:,}**
 - Input / output / reasoning tokens: **{token_totals}**
-- Estimated provider cost: **${summary['estimatedCostUsd']}**
-- Concurrent wall time: **{summary['wallSeconds']:.3f} seconds**
-- Throughput: **{summary['throughputDocumentsPerHour']:.2f} documents/hour**
+- Estimated provider cost: **${summary["estimatedCostUsd"]}**
+- Concurrent wall time: **{summary["wallSeconds"]:.3f} seconds**
+- Throughput: **{summary["throughputDocumentsPerHour"]:.2f} documents/hour**
 
 Every successful target passed the relation-v5 schema and relational inverse after party and cargo
 projection.  Provider-native strict JSON Schema was used for every call; a failed first semantic
@@ -1585,12 +1575,9 @@ def run_linguistic_completion(
         config.prompts.cargo_language.sha256,
         label="cargo prompt",
     )
-    plans = _load_completion_plans(
-        plans_path, records=config.inputs.completion_plans.records
-    )
+    plans = _load_completion_plans(plans_path, records=config.inputs.completion_plans.records)
     document_plans = tuple(
-        build_document_linguistic_plan(index=index, plan=plan)
-        for index, plan in enumerate(plans)
+        build_document_linguistic_plan(index=index, plan=plan) for index, plan in enumerate(plans)
     )
     source_inventory = _load_source_sensitive_inventory(
         source_path,
@@ -1610,8 +1597,7 @@ def run_linguistic_completion(
         "cargo": CargoLanguageGenerationOutput.model_json_schema(mode="validation"),
     }
     plan_payload = b"".join(
-        canonical_json_bytes(row.model_dump(mode="json")) + b"\n"
-        for row in document_plans
+        canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in document_plans
     )
     transaction = {
         "schemaVersion": 1,
@@ -1675,8 +1661,7 @@ def run_linguistic_completion(
         )
         if completed_summary["failedDocuments"]:
             raise IncompleteLinguisticCompletionError(
-                "linguistic completion has "
-                f"{completed_summary['failedDocuments']} failed documents"
+                f"linguistic completion has {completed_summary['failedDocuments']} failed documents"
             )
         return completed_summary
     staged.recover_interrupted_temporary_files()
@@ -1691,9 +1676,7 @@ def run_linguistic_completion(
     )
     staged.publish_bytes("planning/document-plans.jsonl", plan_payload)
     for index, document_plan in enumerate(document_plans):
-        staged.publish_json(
-            _document_plan_path(index), document_plan.model_dump(mode="json")
-        )
+        staged.publish_json(_document_plan_path(index), document_plan.model_dump(mode="json"))
     wall_started = time.perf_counter()
     records = asyncio.run(
         _run_completion_async(
@@ -1714,25 +1697,17 @@ def run_linguistic_completion(
         for unit in units
         if unit.stage == "party_identity" and unit.status == "success"
         if (
-            party := _validate_persisted_output(
-                PartyCompletionOutput, _selected_output(unit)
-            ).party
+            party := _validate_persisted_output(PartyCompletionOutput, _selected_output(unit)).party
         ).name
     )
     generated_name_counts = Counter(generated_names)
     total_cost = sum(
-        (
-            attempt.usage.estimatedCostUsd
-            for unit in units
-            for attempt in unit.attempts
-        ),
+        (attempt.usage.estimatedCostUsd for unit in units for attempt in unit.attempts),
         Decimal(0),
     )
     party_units = sum(len(row.partyUnits) for row in document_plans)
     same_as = sum(
-        row.sameAsReference is not None
-        for plan in document_plans
-        for row in plan.partyProjections
+        row.sameAsReference is not None for plan in document_plans for row in plan.partyProjections
     )
     locality_only = sum(
         row.unitId is None and row.sameAsReference is None
@@ -1762,12 +1737,8 @@ def run_linguistic_completion(
         "reusedNotifyIdentities": reused_notify,
         "cargoUnits": len(document_plans),
         "units": len(units),
-        "requests": sum(
-            attempt.usage.requests for unit in units for attempt in unit.attempts
-        ),
-        "firstAttemptAcceptedUnits": sum(
-            unit.attempts[0].status == "success" for unit in units
-        ),
+        "requests": sum(attempt.usage.requests for unit in units for attempt in unit.attempts),
+        "firstAttemptAcceptedUnits": sum(unit.attempts[0].status == "success" for unit in units),
         "retriedUnits": sum(len(unit.attempts) > 1 for unit in units),
         "inputTokens": sum(
             attempt.usage.inputTokens for unit in units for attempt in unit.attempts
@@ -1808,9 +1779,7 @@ def run_linguistic_completion(
     }
     staged.publish_bytes(
         "generation/results.jsonl",
-        b"".join(
-            canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in records
-        ),
+        b"".join(canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in records),
     )
     staged.publish_bytes(
         "generation/targets.jsonl",

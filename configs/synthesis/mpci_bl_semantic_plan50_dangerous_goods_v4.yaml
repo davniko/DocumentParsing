@@ -38,6 +38,7 @@ inputs:
 
 generation:
   random_stream: hmac_sha256_counter_v1
+  sampling_namespace: mpci-bl-combined1157-semantic-plan50-dangerous-goods-v4-v6
   seed: 20260901
   branch_method: source_hs_presence_exact_identity_chemical_else_general_v2
   category_weights_permyriad:
@@ -57,4 +58,5 @@ generation:
   maximum_category_deviation_permyriad: 300
   flashpoint_policy: omit_without_formulation_property_source_v1
   preserve_dangerous_goods_cardinality: true
+  printed_topology_policy: sample_optional_fields_v1
   publish_training_records: false

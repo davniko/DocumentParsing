@@ -1,0 +1,71 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_certification_v1
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-certification11-glm53-v2
+  output_dir: artifacts/kie-synthesis
+
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification50-glm53-v1
+  commit_sha256: 17c441786ba34e781de5f9a7a7beb6a4526a82a7405fb2fb99061e3c0db71c19
+  transaction_sha256: feaff267d2f351e769e397ca28d6807732edc3a37a5ced946cc12736224d1be5
+input_case_contract_filename: source-contract.json
+
+case_ids:
+  - doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+  - doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559
+  - doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8
+  - doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+  - doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815
+  - doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0
+  - doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31
+  - doc_88ec16af95fce3eaea2950bc205a2820b5b289c64c12a4d32835b1a8d3340375
+  - doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+  - doc_b251177c964f1b6bf9d3c475b7087992763f1da84521382c5b6728734dcabfc6
+  - doc_fb241e5dc87e28957c2ca8b3e72703dadcec45a9f7ebef6e605cb1023bc1ab3a
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_sweep_v3.md
+  sha256: c6ddf8aa33f84af0924db891ea444f4362dcf186c531547924593c09c8c9e850
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 600.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, fireworks, nextbit/fp8]
+  provider_order: [deepinfra/fp4, fireworks, nextbit/fp8]
+  max_price:
+    prompt: 0.15
+    completion: 0.50
+  pricing:
+    currency: USD
+    effective_date: 2026-09-05
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  documents: 11
+  max_concurrent_documents: 4
+  max_semantic_passes: 5
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 30.0
+  retry_jitter_seconds: 2.0
+  provider_native_json_schema: true
+  require_terminal_clean_pass: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract_after_every_pass: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false
