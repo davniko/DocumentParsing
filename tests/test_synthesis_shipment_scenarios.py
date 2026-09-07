@@ -301,6 +301,11 @@ def test_registry_origin_support_is_uniform_route_feasible_and_audited() -> None
     assert support.audit.maritime_registry_export_countries == 5
     assert support.audit.observed_registry_overlap_countries == 4
     assert support.audit.maritime_registry_only_export_countries == 1
+    assert support.audit.world_port_rows_input == 6
+    assert support.audit.world_port_rows_excluded_non_maritime == 1
+    assert support.audit.world_port_rows_eligible == 5
+    assert support.audit.eligible_world_port_locodes == 5
+    assert [row.locode for row in support.maritime_by_country["BE"]] == ["BEANR"]
 
 
 def test_origin_component_is_sampled_first_and_provenance_is_serialized() -> None:

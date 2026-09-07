@@ -177,7 +177,9 @@ class InventoryProbeCaseResult(BaseModel):
     deterministicInventoryEdits: int
     hostRewriteAuditPassed: bool
     legacyResidualCandidates: Annotated[int, Field(ge=0)]
-    fullDocumentAudit: FullDocumentAudit
+    fullDocumentAudit: FullDocumentAudit | None = None
+    compilerErrorType: str | None = None
+    compilerErrorMessage: str | None = None
     outputTextSha256: str
     usage: LinguisticUsageReceipt
 
@@ -208,6 +210,16 @@ class _InventoryCaseMaterial:
     slots: tuple[_Slot, ...]
     compound_slots: tuple[_CompoundSlot, ...]
     deterministic_text_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class _CompilerBlock:
+    document_id: str
+    source_text: str
+    source_label: Mapping[str, Any]
+    target_label: Mapping[str, Any]
+    error_type: str
+    error_message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -2323,6 +2335,10 @@ def _report(
             f"**{sum(row.status == 'training_ready' for row in results)}/{len(results)}**."
         ),
         (
+            "- Zero-cost compiler blocks: "
+            f"**{sum(row.status == 'compiler_blocked' for row in results)}**."
+        ),
+        (
             "- Model reviewer calls: **0**. A document permits at most "
             f"**{maximum_responses}** "
             "complete patch responses, and any response after the first requires a deterministic "
@@ -2344,8 +2360,17 @@ def _report(
             f"{row.usage.inputTokens:,} | {row.usage.reasoningTokens:,} | "
             f"{row.usage.visibleOutputTokens:,} | ${row.usage.estimatedCostUsd} | "
             f"{durations.get(row.documentId, 0.0):.2f}s | "
-            f"{len(row.fullDocumentAudit.findings)} | {row.legacyResidualCandidates} |"
+            f"{len(row.fullDocumentAudit.findings) if row.fullDocumentAudit else 0} | "
+            f"{row.legacyResidualCandidates} |"
         )
+    compiler_blocks = tuple(row for row in results if row.status == "compiler_blocked")
+    if compiler_blocks:
+        lines.extend(("", "## Compiler blocks", ""))
+        for row in compiler_blocks:
+            lines.append(
+                f"- `{row.documentId}` — `{row.compilerErrorType}`: "
+                f"{row.compilerErrorMessage}"
+            )
     per_thousand = total_usage.estimatedCostUsd * Decimal(1000) / max(1, len(results))
     provider_per_thousand = (
         total_usage.providerReportedCostUsd * Decimal(1000) / max(1, len(results))
@@ -2449,6 +2474,31 @@ def _inventory_case_result(
         fullDocumentAudit=full_audit,
         outputTextSha256=sha256_bytes(compiled.workspace.current_text.encode("utf-8")),
         usage=_combined_usage(stages),
+    )
+
+
+def _compiler_blocked_result(block: _CompilerBlock) -> InventoryProbeCaseResult:
+    """Represent an expected fail-closed host preflight without spending provider tokens."""
+
+    return InventoryProbeCaseResult(
+        documentId=block.document_id,
+        status="compiler_blocked",
+        reason=(
+            "The zero-API compiler preflight rejected this template/target pair before any "
+            "provider request."
+        ),
+        sourceLines=len(block.source_text.splitlines()),
+        modelLines=0,
+        compilerWorkItems=0,
+        inventoryCandidates=0,
+        deterministicInventoryEdits=0,
+        hostRewriteAuditPassed=False,
+        legacyResidualCandidates=0,
+        fullDocumentAudit=None,
+        compilerErrorType=block.error_type,
+        compilerErrorMessage=block.error_message,
+        outputTextSha256=sha256_bytes(block.source_text.encode("utf-8")),
+        usage=_empty_usage(),
     )
 
 
@@ -2724,52 +2774,89 @@ def _run_raw_text_inventory(
         staged=staged,
     )
     compiled_cases: list[tuple[_CompiledCase, RegressionCase | None]] = []
+    compiler_blocks: dict[str, _CompilerBlock] = {}
     for case_number, document_id in enumerate(live_ids, start=1):
         selected_case = selected_by_id[document_id]
-        state = prepare_rewrite_state(
-            case_number=case_number,
-            source_row=selected_case.source,
-            target_row=selected_case.target,
-            linguistic_plan=selected_case.plan,
-            feature=selected_case.feature,
-            config=base_config,
-            target_integrity_resources=resources,
-        )
-        bundle = build_rewrite_contract_bundle(state)
-        compiled = compile_case(
-            bundle,
-            context_lines=0,
-            merge_gap_lines=0,
-        )
-        compiled = replace(
-            compiled,
-            work_items=_refine_party_evidence(
-                compiled.workspace.original_text,
-                compiled.workspace.source_label,
-                _refine_sibling_evidence(
-                    _refine_numeric_evidence(
-                        compiled.workspace.current_text,
-                        compiled.work_items,
-                        compiled.bundle,
+        try:
+            state = prepare_rewrite_state(
+                case_number=case_number,
+                source_row=selected_case.source,
+                target_row=selected_case.target,
+                linguistic_plan=selected_case.plan,
+                feature=selected_case.feature,
+                config=base_config,
+                target_integrity_resources=resources,
+            )
+            bundle = build_rewrite_contract_bundle(state)
+            compiled = compile_case(
+                bundle,
+                context_lines=0,
+                merge_gap_lines=0,
+            )
+            compiled = replace(
+                compiled,
+                work_items=_refine_party_evidence(
+                    compiled.workspace.original_text,
+                    compiled.workspace.source_label,
+                    _refine_sibling_evidence(
+                        _refine_numeric_evidence(
+                            compiled.workspace.current_text,
+                            compiled.work_items,
+                            compiled.bundle,
+                        )
+                    ),
+                    compiled.bundle.surfaceRenderingRequirements,
+                ),
+            )
+            occurrence_requirements = _refine_party_occurrence_requirements(
+                compiled.workspace.current_text,
+                compiled.work_items,
+                compiled.workspace.target_value_occurrence_requirements,
+            )
+            compiled.workspace.target_value_occurrence_requirements = occurrence_requirements
+            compiled = replace(
+                compiled,
+                bundle=compiled.bundle.model_copy(
+                    update={"targetValueOccurrenceRequirements": occurrence_requirements}
+                ),
+            )
+        except ValueError as error:
+            source_text = selected_case.source.get("joinedRawText")
+            source_label = selected_case.source.get(base_config.inputs.source_target_field)
+            target_label = selected_case.target.get("target")
+            if (
+                not isinstance(source_text, str)
+                or not isinstance(source_label, Mapping)
+                or not isinstance(target_label, Mapping)
+            ):
+                raise RuntimeError(
+                    f"compiler-blocked case has invalid pinned inputs: {document_id}"
+                ) from error
+            compiler_blocks[document_id] = _CompilerBlock(
+                document_id=document_id,
+                source_text=source_text,
+                source_label=source_label,
+                target_label=target_label,
+                error_type=type(error).__name__,
+                error_message=str(error),
+            )
+            continue
+        blocked = tuple(row for row in compiled.work_items if row.state == "blocked_unlocated")
+        if blocked:
+            compiler_blocks[document_id] = _CompilerBlock(
+                document_id=document_id,
+                source_text=compiled.workspace.original_text,
+                source_label=compiled.workspace.source_label,
+                target_label=compiled.workspace.current_target_label,
+                error_type="UnlocatedCompilerWorkError",
+                error_message=(
+                    "semantic deltas lack exact host-owned evidence: "
+                    + ", ".join(
+                        path for row in blocked for path in row.targetPaths
                     )
                 ),
-                compiled.bundle.surfaceRenderingRequirements,
-            ),
-        )
-        occurrence_requirements = _refine_party_occurrence_requirements(
-            compiled.workspace.current_text,
-            compiled.work_items,
-            compiled.workspace.target_value_occurrence_requirements,
-        )
-        compiled.workspace.target_value_occurrence_requirements = occurrence_requirements
-        compiled = replace(
-            compiled,
-            bundle=compiled.bundle.model_copy(
-                update={"targetValueOccurrenceRequirements": occurrence_requirements}
-            ),
-        )
-        if any(row.state == "blocked_unlocated" for row in compiled.work_items):
-            raise RuntimeError(f"live inventory case has unlocated compiler work: {document_id}")
+            )
+            continue
         compiled_cases.append((compiled, oracle_by_id.get(document_id)))
 
     materials: list[_InventoryCaseMaterial] = []
@@ -3006,7 +3093,9 @@ def _run_raw_text_inventory(
                 results[index] = result
                 stages_by_id[document_id] = stages
                 processed_this_invocation += 1
-                completed = initially_completed + processed_this_invocation
+                completed = (
+                    len(compiler_blocks) + initially_completed + processed_this_invocation
+                )
                 elapsed = time.perf_counter() - started
                 rate = processed_this_invocation / elapsed if elapsed else 0.0
                 print(
@@ -3015,7 +3104,7 @@ def _run_raw_text_inventory(
                             "command": "run-raw-text-inventory-batch",
                             "phase": "render_and_audit",
                             "processed_documents": completed,
-                            "remaining_documents": len(materials) - completed,
+                            "remaining_documents": len(live_ids) - completed,
                             "training_ready_documents": sum(
                                 row is not None and row.status == "training_ready"
                                 for row in results
@@ -3026,10 +3115,11 @@ def _run_raw_text_inventory(
                             "call_failed_documents": sum(
                                 row is not None and row.status == "call_failed" for row in results
                             ),
+                            "compiler_blocked_documents": len(compiler_blocks),
                             "elapsed_seconds": round(elapsed, 3),
                             "throughput_documents_per_hour": round(rate * 3600.0, 3),
                             "eta_seconds": (
-                                round((len(materials) - completed) / rate, 3) if rate else None
+                                round((len(live_ids) - completed) / rate, 3) if rate else None
                             ),
                             "status": "progress",
                         },
@@ -3049,15 +3139,43 @@ def _run_raw_text_inventory(
         return tuple(cast(InventoryProbeCaseResult, row) for row in results), initially_completed
 
     execution_started = time.perf_counter()
-    results, initially_completed = asyncio.run(execute())
+    model_results, initially_completed = asyncio.run(execute())
     wall_seconds = time.perf_counter() - execution_started
-    processed_this_invocation = len(results) - initially_completed
+    processed_this_invocation = len(model_results) - initially_completed
+    model_result_by_id = {row.documentId: row for row in model_results}
+    blocked_results = {
+        document_id: _compiler_blocked_result(block)
+        for document_id, block in compiler_blocks.items()
+    }
+    results = tuple(
+        blocked_results.get(document_id) or model_result_by_id[document_id]
+        for document_id in live_ids
+    )
     material_by_id = {
         material.compiled.bundle.result.documentId: material for material in materials
     }
-    for material, result in zip(materials, results, strict=True):
+    for result in results:
         document_id = result.documentId
-        material = material_by_id[document_id]
+        material = material_by_id.get(document_id)
+        if material is None:
+            block = compiler_blocks[document_id]
+            prefix = f"cases/{document_id}"
+            staged.publish_bytes(f"{prefix}/source.txt", block.source_text.encode())
+            staged.publish_json(f"{prefix}/source-label.json", block.source_label)
+            staged.publish_json(f"{prefix}/target-label.json", block.target_label)
+            staged.publish_json(
+                f"{prefix}/compiler-block.json",
+                {
+                    "errorType": block.error_type,
+                    "errorMessage": block.error_message,
+                    "providerRequests": 0,
+                },
+            )
+            staged.publish_bytes(f"{prefix}/final.txt", block.source_text.encode())
+            staged.publish_bytes(f"{prefix}/diff.patch", b"")
+            staged.publish_json(f"{prefix}/stages.json", [])
+            staged.publish_json(f"{prefix}/result.json", result.model_dump(mode="json"))
+            continue
         compiled = material.compiled
         prefix = f"cases/{document_id}"
         staged.publish_bytes(f"{prefix}/source.txt", compiled.workspace.original_text.encode())
@@ -3129,6 +3247,7 @@ def _run_raw_text_inventory(
         "trainingReadyDocuments": sum(row.status == "training_ready" for row in results),
         "needsReviewDocuments": sum(row.status == "needs_review" for row in results),
         "callFailedDocuments": sum(row.status == "call_failed" for row in results),
+        "compilerBlockedDocuments": sum(row.status == "compiler_blocked" for row in results),
         "requests": total_usage.requests,
         "providerAttempts": sum(len(stages) for stages in stages_by_id.values()),
         "failedProviderAttempts": sum(
@@ -3176,6 +3295,7 @@ def _run_raw_text_inventory(
         ),
         "checkpointedDocumentsAtStart": initially_completed,
         "processedDocumentsThisInvocation": processed_this_invocation,
+        "compilerBlockedBeforeProvider": len(compiler_blocks),
         "wallSeconds": round(wall_seconds, 6),
         "throughputDocumentsPerHour": round(
             processed_this_invocation / wall_seconds * 3600.0 if wall_seconds else 0.0,
@@ -3208,6 +3328,7 @@ def _run_raw_text_inventory(
             "regressionDocuments": len(oracle.cases),
             "liveDocuments": len(results),
             "trainingReadyDocuments": cast(int, summary["trainingReadyDocuments"]),
+            "compilerBlockedDocuments": cast(int, summary["compilerBlockedDocuments"]),
             "trainingRecordsPublished": False,
         },
     )

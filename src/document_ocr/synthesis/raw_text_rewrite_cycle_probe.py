@@ -225,11 +225,23 @@ _NAMED_MONTH_DAY_DELIMITED_DATE = re.compile(
     re.IGNORECASE,
 )
 _NAMED_MONTH_DAY_DATE = re.compile(
-    r"(?<![A-Z0-9])(?P<m>[A-Z]{3,9})[ ]+(?P<d>[0-9]{1,2})"
+    r"(?<![A-Z0-9])(?P<m>[A-Z]{3,9})(?P<month_punct>\.?)[ ]+"
+    r"(?P<d>[0-9]{1,2})"
     r"(?P<comma>,?)[ ]+(?P<y>[0-9]{2,4})(?![A-Z0-9])",
     re.IGNORECASE,
 )
-_NUMERIC_SURFACE = re.compile(r"(?<![0-9])[0-9](?:[0-9. /-]*[0-9])?(?![0-9])")
+_YEAR_NAMED_MONTH_DAY_DATE = re.compile(
+    r"(?<![A-Z0-9])(?P<y>[0-9]{4})(?P<s1>[-./ ])(?P<m>[A-Z]{3,9})"
+    r"(?P<s2>[-./ ])(?P<d>[0-9]{1,2})(?![A-Z0-9])",
+    re.IGNORECASE,
+)
+# HS surfaces may contain internal punctuation (``3403 19 10`` or ``2401.100.010``),
+# but a spaced hyphen separates two codes (``52094200 - 52114200``).  The former generic
+# numeric scanner consumed the complete two-code list as one number and made both codes
+# unlocatable.  Keep this grammar deliberately HS-specific.
+_HS_NUMERIC_SURFACE = re.compile(
+    r"(?<![0-9])[0-9]+(?:(?:[./]|-(?![ \t]))[0-9]+|[ \t]+[0-9]+)*(?![0-9])"
+)
 _ISSUE_DATE_CONTEXT = re.compile(
     r"(?:PLACE\s+(?:(?:AND|&)\s+DATE\s+OF\s+ISSUE|"
     r"OF\s+(?:B(?:\(S\)|S)?/?L|BILL(?:\(S\)|S)?)\s+ISSUE(?:/DATE)?|"
@@ -254,9 +266,10 @@ _SPLIT_ANONYMOUS_EQUIPMENT_LINE = re.compile(
     r"(?P<container>CONTAINERS?)(?P<suffix>[ \t]+SAID[ \t]+TO)(?P<trailing>[ \t]*)$",
     re.IGNORECASE,
 )
+_EXACT_DG_CLASS_PATTERN = r"(?:1(?:\.[1-6](?:[A-HJ-LN-S])?)?|[2-9](?:\.[1-9])?)"
 _DG_CLASS_BEFORE_UN = re.compile(
     r"(?P<class_prefix>(?:IMDG[ \t]+)?CLASS[ \t]*:[ \t]*)"
-    r"(?P<class>[1-9](?:\.[1-9])?)(?P<middle>[^\r\n]{0,36}?)"
+    rf"(?P<class>{_EXACT_DG_CLASS_PATTERN})(?P<middle>[^\r\n]{{0,36}}?)"
     r"(?P<un_prefix>UN(?:DG)?(?:[ \t]+NUMBER|[ \t]+NO\.?)?[ \t]*:[ \t]*)"
     r"(?P<un>[0-9]{4})"
     r"(?P<pg_clause>[ \t]*(?:-[ \t]*)?(?:PG|PACKING[ \t]+GROUP)[ \t]*:[ \t]*"
@@ -267,7 +280,7 @@ _DG_UN_BEFORE_CLASS = re.compile(
     r"(?P<un_prefix>UN(?:DG)?(?:[ \t]+NUMBER|[ \t]+NO\.?)?[ \t]*:[ \t]*)"
     r"(?P<un>[0-9]{4})(?P<middle>[^\r\n]{0,36}?)"
     r"(?P<class_prefix>(?:IMDG[ \t]+)?CLASS[ \t]*:[ \t]*)"
-    r"(?P<class>[1-9](?:\.[1-9])?)"
+    rf"(?P<class>{_EXACT_DG_CLASS_PATTERN})"
     r"(?P<pg_clause>[ \t]*(?:-[ \t]*)?(?:PG|PACKING[ \t]+GROUP)[ \t]*:[ \t]*"
     r"(?P<pg>I{1,3}|NOT[ \t]+ASSIGNED))?",
     re.IGNORECASE,
@@ -685,6 +698,7 @@ class OperationalFlavorRequirement(BaseModel):
         "target_measure_allocation_v1",
         "target_package_allocation_v1",
         "target_membership_package_projection_v1",
+        "target_single_container_aggregate_projection_v1",
     ]
     sourceEvidence: EvidenceText
 
@@ -823,6 +837,7 @@ class TargetIntegrityResources:
     countries: CountryRegistry
     packages: LoadedPackageRegistry
     route_countries_by_name: Mapping[str, frozenset[str]]
+    route_port_countries_by_name: Mapping[str, frozenset[str]]
     customs_programs: tuple[CustomsProgramEntry, ...]
     operational_profiles: tuple[EmpiricalOperationalProfile, ...] = ()
 
@@ -1893,9 +1908,13 @@ def _load_customs_program_registry(path: Path, *, expected_entries: int) -> Cust
 
 def _route_country_index(
     locations: Sequence[UnlocodeLocation],
+    *,
+    required_function: str | None = None,
 ) -> Mapping[str, frozenset[str]]:
     countries: dict[str, set[str]] = {}
     for location in locations:
+        if required_function is not None and required_function not in location.function_codes:
+            continue
         for name in (location.name, location.name_without_diacritics):
             normalized = _semantic_normalize(name)
             if normalized:
@@ -1908,6 +1927,7 @@ def _location_country_code(
     resources: TargetIntegrityResources,
     *,
     country_hints: frozenset[str] = frozenset(),
+    maritime_port: bool = False,
 ) -> str | None:
     if not isinstance(value, Mapping):
         return None
@@ -1922,7 +1942,12 @@ def _location_country_code(
     inferred: str | None = None
     name = value.get("name")
     if isinstance(name, str):
-        candidates = resources.route_countries_by_name.get(_semantic_normalize(name), frozenset())
+        index = (
+            resources.route_port_countries_by_name
+            if maritime_port
+            else resources.route_countries_by_name
+        )
+        candidates = index.get(_semantic_normalize(name), frozenset())
         if len(candidates) == 1:
             inferred = next(iter(candidates))
         elif len(candidates) > 1:
@@ -1985,7 +2010,10 @@ def _target_route_country_code(
     country_hints = _target_party_country_codes(target_label, resources)
     for field_name in _ROUTE_FIELDS_BY_DIRECTION[direction]:
         country = _location_country_code(
-            route.get(field_name), resources, country_hints=country_hints
+            route.get(field_name),
+            resources,
+            country_hints=country_hints,
+            maritime_port=field_name in {"portOfLoading", "portOfDischarge"},
         )
         if country is not None:
             return country
@@ -2370,15 +2398,23 @@ def target_value_occurrence_requirements(
             )
         if printed_occurrences == 0:
             continue
-        if printed_occurrences % len(owners):
+        quotient, remainder = divmod(printed_occurrences, len(owners))
+        target_values = {
+            _semantic_normalize(cast(str, leaf.targetValue)) for leaf in owners
+        }
+        if remainder and len(target_values) != 1:
             raise ValueError(
                 "printed party scalar occurrences cannot be assigned exactly across semantic "
                 f"owners: {source_value!r} occurs {printed_occurrences} time(s) for "
                 f"{len(owners)} owner(s): {', '.join(sorted(source_paths))}"
             )
-        copies = printed_occurrences // len(owners)
-        for leaf in owners:
-            contributions_by_path[leaf.path] = copies
+        # Several semantic roles may intentionally project to one target identity (for example,
+        # consignee plus notify party), while an auxiliary ``IMPORTER:`` line prints a third copy
+        # of the same source identity.  Only the aggregate target occurrence count matters in
+        # that case.  Distribute the indivisible copies deterministically across the equivalent
+        # owners; the grouped requirement below sums them back to the exact printed total.
+        for index, leaf in enumerate(sorted(owners, key=lambda row: row.path)):
+            contributions_by_path[leaf.path] = quotient + (1 if index < remainder else 0)
 
     # Some OCR values are printed across a physical line break and therefore have zero exact
     # whole-text occurrences (for example a telephone extension split onto the next line). The
@@ -2989,7 +3025,27 @@ def party_country_metadata_replacement_requirements(
         if target is None:
             raise ValueError(f"country metadata has no synthetic {role} country: {raw_line!r}")
         source_surface = match.group("value")
-        target_surface = target[1] if label.endswith("COUNTRY CODE") else target[0]
+        source_code = resources.countries.resolve(source_surface)
+        source_entry = resources.countries.entry(source_code) if source_code is not None else None
+        source_normalized = _semantic_normalize(source_surface)
+        source_is_alpha2 = (
+            source_entry is not None
+            and source_normalized == _semantic_normalize(source_entry.alpha2)
+        )
+        source_is_alpha3 = (
+            source_entry is not None
+            and source_entry.alpha3 is not None
+            and source_normalized == _semantic_normalize(source_entry.alpha3)
+        )
+        target_entry = resources.countries.entry(target[1])
+        if label.endswith("COUNTRY CODE") or source_is_alpha2:
+            target_surface = target_entry.alpha2
+        elif source_is_alpha3:
+            if target_entry.alpha3 is None:
+                raise ValueError(f"target country has no alpha-3 code: {target_entry.alpha2}")
+            target_surface = target_entry.alpha3
+        else:
+            target_surface = target[0]
         letters = [character for character in source_surface if character.isalpha()]
         if letters and all(character.isupper() for character in letters):
             target_surface = target_surface.upper()
@@ -3137,12 +3193,73 @@ def apply_deterministic_prefills(
             start, end = match.span(group_name)
             after = before[:start] + requirement.targetValueSurface + before[end:]
             lines[line_index] = after + ending
+            task_paths: tuple[str, ...] = ()
+            if requirement.kind == "package_quantity":
+                patch = cast(
+                    Mapping[str, Any], workspace.current_target_label.get("documentPatch") or {}
+                )
+                packages = tuple(
+                    row
+                    for row in cast(Sequence[Any], patch.get("cargoPackages") or ())
+                    if isinstance(row, Mapping)
+                )
+                package_index = {
+                    (row.get("groupId"), row.get("packageId")): index
+                    for index, row in enumerate(packages)
+                }
+                paths: set[str] = set()
+                for group in cast(Sequence[Any], patch.get("cargoAllocationGroups") or ()):
+                    if not isinstance(group, Mapping):
+                        continue
+                    group_id = group.get("groupId")
+                    group_package_ids = tuple(
+                        value
+                        for value in cast(Sequence[Any], group.get("packageIds") or ())
+                        if isinstance(value, str)
+                    )
+                    for allocation in cast(Sequence[Any], group.get("allocations") or ()):
+                        if (
+                            not isinstance(allocation, Mapping)
+                            or allocation.get("containerNumber")
+                            != requirement.targetContainerNumber
+                        ):
+                            continue
+                        package_id = allocation.get("packageId")
+                        owned_ids = (
+                            (package_id,)
+                            if isinstance(package_id, str)
+                            else group_package_ids
+                        )
+                        for owned_id in owned_ids:
+                            index = package_index.get((group_id, owned_id))
+                            if index is not None:
+                                paths.add(f"documentPatch.cargoPackages[{index}].quantity")
+                # A one-container aggregate row can own several package leaves without an
+                # explicit relation object.  The operational projection already proved that its
+                # target value is the exact sum; bind all leaves so the compiler does not ask a
+                # model to rewrite an already-correct deterministic surface.
+                if not paths:
+                    containers = cast(Sequence[Any], patch.get("containers") or ())
+                    quantities = tuple(row.get("quantity") for row in packages)
+                    if (
+                        len(containers) == 1
+                        and quantities
+                        and all(isinstance(value, int) and value > 0 for value in quantities)
+                        and sum(cast(tuple[int, ...], quantities))
+                        == _parse_package_integer_surface(requirement.targetValueSurface)
+                    ):
+                        paths.update(
+                            f"documentPatch.cargoPackages[{index}].quantity"
+                            for index in range(len(packages))
+                        )
+                task_paths = tuple(sorted(paths))
             applied.append(
                 AppliedDeterministicPrefill(
                     lineId=line_id,
                     targetPaths=(
                         f"auxiliary.container[{requirement.targetContainerNumber}]."
                         f"{requirement.kind}",
+                        *task_paths,
                     ),
                     sourceSurface=requirement.sourceValueSurface,
                     targetSurface=requirement.targetValueSurface,
@@ -3645,8 +3762,28 @@ def _rendered_date_candidates(
                     match.start(),
                     match.end(),
                     match.group(0),
-                    f"{_month_surface(match.group('m'), target.month)} "
+                    f"{_month_surface(match.group('m'), target.month)}"
+                    f"{match.group('month_punct')} "
                     f"{str(target.day).zfill(len(match.group('d')))}{match.group('comma')} {year}",
+                )
+            )
+    for match in _YEAR_NAMED_MONTH_DAY_DATE.finditer(raw_text):
+        month = _named_month_number(match.group("m"))
+        if month is None:
+            continue
+        try:
+            observed = date(int(match.group("y")), month, int(match.group("d")))
+        except ValueError:
+            continue
+        if observed == source:
+            output.append(
+                (
+                    match.start(),
+                    match.end(),
+                    match.group(0),
+                    f"{target.year}{match.group('s1')}"
+                    f"{_month_surface(match.group('m'), target.month)}{match.group('s2')}"
+                    f"{str(target.day).zfill(len(match.group('d')))}",
                 )
             )
     return tuple(output)
@@ -3893,7 +4030,7 @@ def _dangerous_goods_tuple_surfaces(
 ) -> tuple[tuple[str, str, bool], ...]:
     """Render exact class/UN phrases from source grammar and a pinned semantic plan."""
 
-    if re.fullmatch(r"[1-9](?:\.[1-9])?", target_exact_class) is None:
+    if re.fullmatch(_EXACT_DG_CLASS_PATTERN, target_exact_class) is None:
         raise ValueError(f"unsupported exact dangerous-goods class: {target_exact_class!r}")
     packing_surface = {
         "HIGH_DANGER": "I",
@@ -3962,7 +4099,9 @@ def _dangerous_goods_rendering_requirements(
                 raise ValueError("dangerous-goods tuple is not an object")
             target_un = target_row.get("unNumber")
             target_category = target_row.get("hazardCategory")
-            if target_un != plan_row.unNumber or target_category != plan_row.hazardCategory:
+            if target_un != plan_row.unNumber or (
+                target_category is not None and target_category != plan_row.hazardCategory
+            ):
                 raise ValueError(
                     "target dangerous-goods tuple differs from its pinned semantic plan: "
                     f"{group_id!r}[{dangerous_index}]"
@@ -3988,8 +4127,9 @@ def _dangerous_goods_rendering_requirements(
                     f"documentPatch.cargoGroups[{group_index}].dangerousGoods["
                     f"{dangerous_index}].unNumber"
                 )
-            if source_row.get("hazardCategory") != target_category or any(
-                source != target for source, target, _has_pg in surfaces
+            if target_category is not None and (
+                source_row.get("hazardCategory") != target_category
+                or any(source != target for source, target, _has_pg in surfaces)
             ):
                 target_paths.append(
                     f"documentPatch.cargoGroups[{group_index}].dangerousGoods["
@@ -4329,9 +4469,27 @@ def surface_rendering_requirements(
     for source_digits, pairs in hs_pairs.items():
         matches = tuple(
             match
-            for match in _NUMERIC_SURFACE.finditer(raw_text)
+            for match in _HS_NUMERIC_SURFACE.finditer(raw_text)
             if "".join(re.findall(r"[0-9]", match.group(0))) == source_digits
         )
+        if len(matches) == 1 and len(pairs) > 1:
+            match = matches[0]
+            requirements.append(
+                SurfaceRenderingRequirement(
+                    kind="hs_code_block",
+                    targetPath=";".join(path for path, _ in pairs),
+                    sourceSurface=match.group(0),
+                    targetSurface=", ".join(
+                        _format_numeric_surface(match.group(0), target_digits)
+                        for _, target_digits in pairs
+                    ),
+                    sourceOccurrences=1,
+                    contextEvidence=raw_text[
+                        max(0, match.start() - 90) : min(len(raw_text), match.end() + 40)
+                    ],
+                )
+            )
+            continue
         if len(matches) < len(pairs):
             raise ValueError(
                 f"cannot locate every source HS surface for paths {[path for path, _ in pairs]}"
@@ -5754,6 +5912,74 @@ def _target_package_allocations(target_label: Mapping[str, Any]) -> dict[str, in
     return output
 
 
+def _single_container_unallocated_package_projection(
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    source_containers: Sequence[Mapping[str, Any]],
+    target_containers: Sequence[Mapping[str, Any]],
+    occurrences: Mapping[
+        int,
+        Sequence[
+            tuple[
+                Literal["gross_weight_kg", "volume_m3", "package_quantity"],
+                int,
+                str,
+                str,
+                Literal["labeled_measurement", "inline_container_breakdown"],
+            ]
+        ],
+    ],
+) -> dict[str, int]:
+    """Project an aggregate package row when exactly one container owns the shipment.
+
+    Some reviewed labels omit an allocation object because a one-container document has no
+    relationship ambiguity.  The printed container row still owns the aggregate package count.
+    We may project it only when that count equals the sum of *all* source package leaves and the
+    source/target package identities are unchanged.  This excludes hierarchical package labels,
+    partial rows, and every multi-container case instead of guessing an allocation.
+    """
+
+    if len(source_containers) != 1 or len(target_containers) != 1:
+        return {}
+    source_patch = cast(Mapping[str, Any], source_label.get("documentPatch") or {})
+    target_patch = cast(Mapping[str, Any], target_label.get("documentPatch") or {})
+    if source_patch.get("cargoAllocationGroups") or target_patch.get("cargoAllocationGroups"):
+        return {}
+    printed = tuple(
+        _parse_package_integer_surface(surface)
+        for kind, _, surface, _, _ in occurrences.get(0, ())
+        if kind == "package_quantity"
+    )
+    if len(printed) != 1:
+        return {}
+    source_packages = tuple(
+        row
+        for row in cast(Sequence[Any], source_patch.get("cargoPackages") or ())
+        if isinstance(row, Mapping)
+    )
+    target_packages = tuple(
+        row
+        for row in cast(Sequence[Any], target_patch.get("cargoPackages") or ())
+        if isinstance(row, Mapping)
+    )
+    source_keys = tuple((row.get("groupId"), row.get("packageId")) for row in source_packages)
+    target_keys = tuple((row.get("groupId"), row.get("packageId")) for row in target_packages)
+    source_quantities = tuple(row.get("quantity") for row in source_packages)
+    target_quantities = tuple(row.get("quantity") for row in target_packages)
+    if (
+        not source_packages
+        or source_keys != target_keys
+        or any(not isinstance(value, int) or value <= 0 for value in source_quantities)
+        or any(not isinstance(value, int) or value <= 0 for value in target_quantities)
+        or sum(cast(tuple[int, ...], source_quantities)) != printed[0]
+    ):
+        return {}
+    target_number = target_containers[0].get("containerNumber")
+    if not isinstance(target_number, str):
+        raise ValueError("single-container target has no container number")
+    return {target_number: sum(cast(tuple[int, ...], target_quantities))}
+
+
 def _parse_package_integer_surface(surface: str) -> int:
     """Parse the deliberately narrow integer grammar accepted by package-row discovery."""
 
@@ -6037,6 +6263,13 @@ def operational_flavor_requirements(
         target_containers,
         occurrences,
     )
+    unallocated_single_container = _single_container_unallocated_package_projection(
+        source_label,
+        target_label,
+        source_containers,
+        target_containers,
+        occurrences,
+    )
     overlap = set(package_allocations) & set(membership_package_allocations)
     if overlap:
         raise ValueError(
@@ -6044,6 +6277,13 @@ def operational_flavor_requirements(
             + ", ".join(sorted(overlap))
         )
     package_allocations.update(membership_package_allocations)
+    overlap = set(package_allocations) & set(unallocated_single_container)
+    if overlap:
+        raise ValueError(
+            "single-container package projection overlaps an explicit allocation: "
+            + ", ".join(sorted(overlap))
+        )
+    package_allocations.update(unallocated_single_container)
     raw_lines = raw_text.splitlines()
     source_numbers = [
         cast(str, row["containerNumber"])
@@ -6165,10 +6405,15 @@ def operational_flavor_requirements(
                     "target_measure_allocation_v1",
                     "target_package_allocation_v1",
                     "target_membership_package_projection_v1",
+                    "target_single_container_aggregate_projection_v1",
                 ] = (
                     "target_membership_package_projection_v1"
                     if target_number in membership_package_allocations
-                    else "target_package_allocation_v1"
+                    else (
+                        "target_single_container_aggregate_projection_v1"
+                        if target_number in unallocated_single_container
+                        else "target_package_allocation_v1"
+                    )
                 )
             else:
                 maximum = (
@@ -7883,7 +8128,6 @@ def _repair_party_domains(
             if not isinstance(contacts, dict):
                 continue
             country = party.get("country") if isinstance(party.get("country"), str) else None
-            domain = f"{_party_slug(party)}.com"
             prefix = f"documentPatch.parties.{role}"
             if role == "notifyParties":
                 prefix += f"[{occurrence}]"
@@ -7899,10 +8143,15 @@ def _repair_party_domains(
                             continue
                         local, old_domain = before.rsplit("@", 1)
                         reason = _domain_reason(old_domain, country, resources.countries)
-                        after = f"{local}@{domain}"
                     else:
                         parsed = urlsplit(before if "://" in before else f"https://{before}")
                         reason = _domain_reason(parsed.hostname or "", country, resources.countries)
+                    if reason is None:
+                        continue
+                    domain = f"{_party_slug(party)}.com"
+                    if contact_field == "emailAddresses":
+                        after = f"{local}@{domain}"
+                    else:
                         after = urlunsplit(
                             (
                                 parsed.scheme or "https",
@@ -7912,8 +8161,6 @@ def _repair_party_domains(
                                 parsed.fragment,
                             )
                         )
-                    if reason is None:
-                        continue
                     values[index] = after
                     changes.append(
                         TargetIntegrityChange(
@@ -8135,7 +8382,7 @@ def _label_hs_codes(label: Mapping[str, Any]) -> tuple[str, ...]:
 def _explicit_hs_surfaces(raw_text: str, code: str) -> tuple[tuple[str, int, int], ...]:
     matches = tuple(
         (match.group(0), match.start(), match.end())
-        for match in _NUMERIC_SURFACE.finditer(raw_text)
+        for match in _HS_NUMERIC_SURFACE.finditer(raw_text)
         if "".join(re.findall(r"[0-9]", match.group(0))) == code
     )
     if not matches:
@@ -8793,6 +9040,9 @@ def build_target_integrity_resources(
             expected_entries=config.target_integrity.package_registry_entries,
         ),
         route_countries_by_name=_route_country_index(route_locations),
+        route_port_countries_by_name=_route_country_index(
+            route_locations, required_function="1"
+        ),
         customs_programs=customs_programs.entries,
         operational_profiles=operational_profiles,
     )

@@ -1433,6 +1433,7 @@ class LinguisticCompletionInputsConfig(_StrictModel):
     source_corpus: DatasetFileConfig
     source_target_field: Literal["target"]
     source_target_schema: Literal["bill_of_lading_relation_explicit_v3"]
+    resume_run: CommittedArtifactDirectoryConfig | None = None
 
 
 class LinguisticCompletionPromptsConfig(_StrictModel):
@@ -1765,9 +1766,9 @@ class SynthesisRawTextHybridProbeConfig(_StrictModel):
 
 
 class RawTextHybridBatchWorkflowConfig(_StrictModel):
-    """Bounded paired-model experiment over the complete 50-document pilot cohort."""
+    """Bounded compiler contract over one complete, explicitly pinned target cohort."""
 
-    audit_documents: Literal[50]
+    audit_documents: Annotated[int, Field(ge=1, le=100_000)]
     max_concurrent_cases: Annotated[int, Field(ge=1, le=16)]
     max_concurrent_requests: Annotated[int, Field(ge=1, le=16)]
     max_model_requests_per_stage: Literal[1]
@@ -1783,7 +1784,7 @@ class RawTextHybridBatchWorkflowConfig(_StrictModel):
 
 
 class SynthesisRawTextHybridBatchConfig(_StrictModel):
-    """Fifty-case compiler-first model comparison; never publishes training records."""
+    """Compiler-first model comparison; never publishes training records."""
 
     schema_version: Literal[2]
     task: Literal["bill_of_lading_synthetic_raw_text_hybrid_batch_v2"]
@@ -1803,8 +1804,8 @@ class SynthesisRawTextHybridBatchConfig(_StrictModel):
 
     @model_validator(mode="after")
     def batch_contract_is_bounded(self) -> SynthesisRawTextHybridBatchConfig:
-        if self.inputs.synthetic_targets.records != 50:
-            raise ValueError("hybrid batch requires exactly 50 pinned synthetic targets")
+        if self.inputs.synthetic_targets.records != self.workflow.audit_documents:
+            raise ValueError("hybrid batch audit count differs from pinned synthetic targets")
         if self.workflow.max_concurrent_cases > self.inputs.synthetic_targets.records:
             raise ValueError("hybrid batch concurrency exceeds the case count")
         if self.workflow.max_concurrent_requests < self.workflow.max_concurrent_cases:
@@ -1877,10 +1878,10 @@ class SynthesisRawTextInventoryProbeConfig(_StrictModel):
 
 
 class RawTextInventoryBatchWorkflowConfig(_StrictModel):
-    """Bounds for the inventory-complete 50-document evaluation run."""
+    """Bounds for an inventory-complete evaluation run."""
 
     regression_documents: Literal[12]
-    documents: Literal[50]
+    documents: Annotated[int, Field(ge=1, le=100_000)]
     max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
     output_mode: Literal["native"]
     max_successful_model_responses_per_document: Annotated[int, Field(ge=1, le=3)]
@@ -1900,13 +1901,15 @@ class RawTextInventoryBatchWorkflowConfig(_StrictModel):
 
     @model_validator(mode="after")
     def retry_schedule_is_consistent(self) -> RawTextInventoryBatchWorkflowConfig:
+        if self.max_concurrent_documents > self.documents:
+            raise ValueError("inventory batch concurrency exceeds the document count")
         if self.retry_max_delay_seconds < self.retry_initial_delay_seconds:
             raise ValueError("inventory batch retry maximum is below its initial delay")
         return self
 
 
 class SynthesisRawTextInventoryBatchConfig(_StrictModel):
-    """Inventory-complete bounded-response evaluation over all fifty pinned targets."""
+    """Inventory-complete bounded-response evaluation over all pinned targets."""
 
     schema_version: Literal[2]
     task: Literal["bill_of_lading_synthetic_raw_text_inventory_batch_v2"]

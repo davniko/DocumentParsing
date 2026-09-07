@@ -142,6 +142,7 @@ class HybridWorkItem(BaseModel):
         "freight_arrangement_surface",
         "party_role_block",
         "rendered_surface_and_party_role_block",
+        "wrapped_carrier_signature_literal",
         "location_role_surface",
         "relation_scoped_surface",
         "sibling_object_evidence",
@@ -1347,11 +1348,42 @@ def _line_set_for_directive(text: str, path: str, source_value: JsonValue) -> tu
             return lines, "freight_arrangement_surface"
     if isinstance(source_value, str) and source_value:
         lines, locator = _literal_line_numbers(text, source_value)
+        if (
+            not lines
+            and path == "documentPatch.parties.carrier.name"
+            and (wrapped := _wrapped_carrier_signature_lines(text, source_value))
+        ):
+            return wrapped, "wrapped_carrier_signature_literal"
         return lines, locator
     if isinstance(source_value, (int, float)) and not isinstance(source_value, bool):
         lines = _numeric_line_numbers(text, source_value)
         return lines, "numeric_surface" if lines else "unlocated"
     return set(), "unlocated"
+
+
+def _wrapped_carrier_signature_lines(text: str, source_value: str) -> set[int]:
+    """Locate a carrier name split by a form's ``SIGNED ... / BY: ...`` line break.
+
+    ``BY:`` is structural form text, not part of the carrier identity.  This remains an exact
+    locator: after removing only those two recognized labels, the joined semantic surface must
+    equal the reviewed source carrier.  No fuzzy or partial-name matching is permitted.
+    """
+
+    lines = text.splitlines()
+    expected = _semantic_surface(source_value)
+    for index, line in enumerate(lines[:-1]):
+        signed = re.fullmatch(r"[ \t]*SIGNED[ \t]+(?P<value>.+?)[ \t]*", line, re.I)
+        following = re.fullmatch(
+            r"[ \t]*BY[ \t]*:[ \t]*(?P<value>.+?)[ \t]*", lines[index + 1], re.I
+        )
+        if signed is None or following is None:
+            continue
+        observed = _semantic_surface(
+            f"{signed.group('value')} {following.group('value')}"
+        )
+        if observed == expected:
+            return {index + 1, index + 2}
+    return set()
 
 
 def _temperature_deactivation_line_numbers(text: str, source_value: JsonValue) -> set[int]:

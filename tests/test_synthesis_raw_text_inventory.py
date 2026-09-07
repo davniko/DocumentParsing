@@ -130,6 +130,72 @@ def test_locate_auxiliary_values_requires_explicit_value_syntax() -> None:
     assert all("Merchant" not in row.value for row in values)
 
 
+def test_deterministic_auxiliary_uses_observed_phone_punctuation_after_task_edit() -> None:
+    source_text = (
+        "TEL:+202-37609091\n"
+        "Emergency Phone: 202-37609091\n"
+    )
+    current_text = (
+        "TEL:+65 6128 4739\n"
+        "Emergency Phone: 202-37609091\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "consignee": {
+                    "contactDetails": {"phoneNumbers": ["+202-37609091"]}
+                }
+            }
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "parties": {
+                "consignee": {
+                    "contactDetails": {"phoneNumbers": ["+65 6128 4739"]}
+                }
+            }
+        }
+    }
+    work_item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.consignee.contactDetails.phoneNumbers[0]",),
+        action="replace",
+        sourceValue="+202-37609091",
+        targetValue="+65 6128 4739",
+        state="deterministic_applied",
+        evidenceLineIds=("L00001",),
+        spanIds=(),
+        locator="deterministic_requirement",
+        rationale="test",
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=source_text,
+        current_text=current_text,
+        source_label=source_label,
+        target_label=target_label,
+        work_items=(work_item,),
+        oracle_case=None,
+    )
+    deterministic_sources = {
+        row.sourceSurface
+        for row in inventory
+        if row.disposition == "deterministic_shape_replacement"
+    }
+    output, edits = apply_deterministic_auxiliary_edits(
+        text=current_text,
+        document_id="doc_" + "a" * 64,
+        scenario_id="syn-test",
+        candidates=inventory,
+    )
+
+    assert "+202-37609091" not in deterministic_sources
+    assert "202-37609091" in deterministic_sources
+    assert "Emergency Phone: 202-37609091" not in output
+    assert len(edits) == 1
+
+
 def test_locate_auxiliary_values_owns_value_after_trailing_cross_line_heading() -> None:
     text = (
         "(19,228.000KG/20.000M3/11PK)/ACID NUMBER:\n"

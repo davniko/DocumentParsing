@@ -1,0 +1,138 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_hybrid_batch_v2
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-hybrid100-additional-glm53-v1
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  linguistic_completion_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-luna-high-v2-resume
+    commit_sha256: 597f0b71e3e479d115835d0b0493d3f7db83526f6f1dde17f5b75ddcd33604b8
+    transaction_sha256: 7156d94b4f7eb068f58ebd0217876412372a6dd8bb168a43375300f0b1831f14
+  linguistic_results:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-luna-high-v2-resume/generation/results.jsonl
+    sha256: a8782506158433b044dd0f9f285c0606669cc107ecbf29cb6a4ec6a0bdda5eb0
+    records: 100
+  synthetic_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-luna-high-v2-resume/generation/targets.jsonl
+    sha256: ee530129112d71a50b0632dc37b21a1f3360a4482f3d8be51272a28bf9a763b8
+    records: 100
+  linguistic_summary:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-luna-high-v2-resume/generation/summary.json
+    sha256: 1efb93a81b9c8e05dde789e8b1a72fac10b17cffc7d64a7f02eb5bd227cb0919
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  source_target_field: target
+  source_target_schema: bill_of_lading_relation_explicit_v3
+  synthetic_target_schema: bill_of_lading_relation_explicit_v5
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+
+selection: all_pinned_targets_in_order
+
+prompts:
+  editor:
+    path: prompts/synthesis/mpci_bl_raw_text_hybrid_residual_editor_v2.md
+    sha256: 5e42ae9537cf8585b97bf939f0b40dfd8c803c5637334d43b8998f88ca247975
+  reviewer:
+    path: prompts/synthesis/mpci_bl_raw_text_hybrid_residual_reviewer_v1.md
+    sha256: 6c7608e5cda1943253a2fe73978149183398e8c55d67966c6139aa559b3229aa
+
+providers:
+  editor: &glm
+    kind: openrouter
+    model: z-ai/glm-5.3-flash
+    api_key_env: OPENROUTER_API_KEY
+    reasoning_effort: minimal
+    request_timeout_seconds: 180.0
+    transport_max_retries: 0
+    max_output_tokens: 8192
+    require_parameters: true
+    data_collection: deny
+    allow_fallbacks: true
+    provider_only: [deepinfra/fp4, coreweave/fp8]
+    provider_order: [deepinfra/fp4, coreweave/fp8]
+    max_price: {prompt: 0.15, completion: 0.50}
+    pricing:
+      currency: USD
+      effective_date: 2026-09-06
+      source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+      input_usd_per_million: 0.075
+      cached_input_usd_per_million: 0.015
+      cache_write_multiplier: 1.0
+      output_usd_per_million: 0.25
+  reviewer:
+    kind: openrouter
+    model: z-ai/glm-5.3-flash
+    api_key_env: OPENROUTER_API_KEY
+    reasoning_effort: minimal
+    request_timeout_seconds: 180.0
+    transport_max_retries: 0
+    max_output_tokens: 2048
+    require_parameters: true
+    data_collection: deny
+    allow_fallbacks: true
+    provider_only: [deepinfra/fp4, coreweave/fp8]
+    provider_order: [deepinfra/fp4, coreweave/fp8]
+    max_price: {prompt: 0.15, completion: 0.50}
+    pricing:
+      currency: USD
+      effective_date: 2026-09-06
+      source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+      input_usd_per_million: 0.075
+      cached_input_usd_per_million: 0.015
+      cache_write_multiplier: 1.0
+      output_usd_per_million: 0.25
+
+target_integrity:
+  capacity_reprojection_method: preserve_sampled_capacity_utilization_v1
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+  route_locations:
+    path: artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+  route_location_records: 111561
+  customs_program_registry:
+    path: data/registries/customs-programs/document-customs-surfaces-v2.json
+    sha256: 0c2b9a8a66d1aab3c1cbbc2e448590cbcfe521ae455d4ea5abebba86c20197b1
+  customs_program_registry_entries: 3
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  package_registry_entries: 405
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.05
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+
+workflow:
+  audit_documents: 100
+  max_concurrent_cases: 8
+  max_concurrent_requests: 8
+  max_model_requests_per_stage: 1
+  context_lines_per_residual: 1
+  merge_residual_gap_lines: 1
+  provider_native_json_schema: true
+  require_host_owned_spans: true
+  require_transactional_validation: true
+  require_compact_independent_review: true
+  require_manual_full_text_audit_before_training: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

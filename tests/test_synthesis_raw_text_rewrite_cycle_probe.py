@@ -39,6 +39,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _bounded_line_context,
     _cargo_flavor_rewrite_failures,
     _combine_usage,
+    _dangerous_goods_tuple_surfaces,
     _evidence_occurs,
     _finding_conflicts_with_anchored_scalar_authority,
     _finding_conflicts_with_equipment_authority,
@@ -50,6 +51,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _prompt_content,
     _review_audit_payload,
     _settings,
+    _single_container_unallocated_package_projection,
     _target_route_jurisdictions,
     _terminal_editor_output,
     anchored_measurement_replacement_requirements,
@@ -129,6 +131,48 @@ def test_measure_allocation_redistributes_a_capacity_limited_weighted_share() ->
     ) == (348, 662)
 
 
+def test_single_container_aggregate_package_projection_requires_exact_source_total() -> None:
+    source = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 56},
+                {"groupId": "g2", "packageId": "p2", "quantity": 55},
+            ],
+            "containers": [{"containerNumber": "MRSU3525663"}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 361},
+                {"groupId": "g2", "packageId": "p2", "quantity": 602},
+            ],
+            "containers": [{"containerNumber": "MRSU0452645"}],
+        }
+    }
+    occurrences = {
+        0: (("package_quantity", 1, "111", "111 CARTONS", "labeled_measurement"),)
+    }
+
+    assert _single_container_unallocated_package_projection(
+        source,
+        target,
+        (source["documentPatch"]["containers"][0],),
+        (target["documentPatch"]["containers"][0],),
+        occurrences,
+    ) == {"MRSU0452645": 963}
+    occurrences[0] = (
+        ("package_quantity", 1, "110", "110 CARTONS", "labeled_measurement"),
+    )
+    assert _single_container_unallocated_package_projection(
+        source,
+        target,
+        (source["documentPatch"]["containers"][0],),
+        (target["documentPatch"]["containers"][0],),
+        occurrences,
+    ) == {}
+
+
 def test_operational_output_allows_column_shift_before_owned_measurement() -> None:
     requirement = OperationalFlavorRequirement(
         requirementId="operational-L00001-package_quantity",
@@ -151,6 +195,56 @@ def test_operational_output_allows_column_shift_before_owned_measurement() -> No
     assert _operational_flavor_requirements_rendered(
         "EITU6784428/40' HIGH CUBE GENERAL PURPOSE/SEAL/1637 PACKAGES\n",
         (requirement,),
+    )
+
+
+def test_operational_package_prefill_owns_its_task_quantity_path() -> None:
+    requirement = OperationalFlavorRequirement(
+        requirementId="operational-L00001-package_quantity",
+        kind="package_quantity",
+        sourceGrammar="labeled_measurement",
+        sourceLineId="L00001",
+        sourceMeasurementStartColumn=23,
+        sourceValueSurface="12",
+        targetValueSurface="7",
+        consistencyGroupId="TEMU7054494-package_quantity",
+        targetContainerNumber="TEMU7054494",
+        targetEquipmentFamily="forty_high_cube",
+        maximumValue=None,
+        sameLineFollowingContainerNumber=None,
+        empiricalProfileDocumentId=None,
+        samplingMethod="target_package_allocation_v1",
+        sourceEvidence="TEMU0157274 /218 295 / 12 PALLETS",
+    )
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 7}
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "allocations": [
+                        {"containerNumber": "TEMU7054494", "packageQuantity": 7}
+                    ],
+                }
+            ],
+            "containers": [{"containerNumber": "TEMU7054494"}],
+        }
+    }
+    workspace = RewriteWorkspace(
+        original_text="TEMU0157274 /218 295 / 12 PALLETS\n",
+        current_text="TEMU0157274 /218 295 / 12 PALLETS\n",
+        current_target_label=target,
+        operational_flavor_requirements=(requirement,),
+    )
+
+    prefills = apply_deterministic_prefills(workspace)
+
+    assert prefills[0].targetPaths == (
+        "auxiliary.container[TEMU7054494].package_quantity",
+        "documentPatch.cargoPackages[0].quantity",
     )
 
 
@@ -198,6 +292,11 @@ def _target_integrity_resources() -> TargetIntegrityResources:
             expected_entries=405,
         ),
         route_countries_by_name={
+            "IZUHARA": frozenset({"JP"}),
+            "KOTZEBUE": frozenset({"US"}),
+            "EL ISKANDARIYA ALEXANDRIA": frozenset({"EG"}),
+        },
+        route_port_countries_by_name={
             "IZUHARA": frozenset({"JP"}),
             "KOTZEBUE": frozenset({"US"}),
             "EL ISKANDARIYA ALEXANDRIA": frozenset({"EG"}),
@@ -402,6 +501,10 @@ def test_ambiguous_route_name_uses_only_unique_printed_party_country_intersectio
             **baseline.route_countries_by_name,
             "ROTTERDAM": frozenset({"NL", "US"}),
         },
+        route_port_countries_by_name={
+            **baseline.route_port_countries_by_name,
+            "ROTTERDAM": frozenset({"NL", "US"}),
+        },
         customs_programs=baseline.customs_programs,
     )
     target = {
@@ -418,6 +521,86 @@ def test_ambiguous_route_name_uses_only_unique_printed_party_country_intersectio
         "isoAlpha2": "NL",
         "name": "Netherlands",
     }
+
+
+def test_maritime_route_country_ignores_same_named_non_port_location() -> None:
+    baseline = _target_integrity_resources()
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name={
+            **baseline.route_countries_by_name,
+            "BASCO": frozenset({"PH", "US"}),
+        },
+        route_port_countries_by_name={
+            **baseline.route_port_countries_by_name,
+            "BASCO": frozenset({"PH"}),
+        },
+        customs_programs=baseline.customs_programs,
+    )
+    target = {
+        "documentPatch": {
+            "parties": {"shipper": {"name": "TARGET EXPORTER", "city": "Basco"}},
+            "route": {"portOfLoading": {"name": "Basco"}},
+        }
+    }
+
+    requirements = party_country_metadata_replacement_requirements(
+        "EXPORTER REGISTRATION COUNTRY: CN\n", target, resources
+    )
+    workspace = RewriteWorkspace(
+        original_text="EXPORTER REGISTRATION COUNTRY: CN\n",
+        current_text="EXPORTER REGISTRATION COUNTRY: CN\n",
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "EXPORTER REGISTRATION COUNTRY: PH\n"
+
+
+def test_same_target_party_roles_own_an_extra_auxiliary_printed_occurrence() -> None:
+    raw = (
+        "Consignee\nOLD FACTORY\nNotify Party\nOLD FACTORY\n"
+        "IMPORTER: OLD FACTORY\n"
+    )
+    leaves = rewrite_changed_leaves(
+        {
+            "documentPatch": {
+                "parties": {
+                    "consignee": {"name": "OLD FACTORY"},
+                    "notifyParties": [{"name": "OLD FACTORY"}],
+                }
+            }
+        },
+        {
+            "documentPatch": {
+                "parties": {
+                    "consignee": {"name": "NEW INDUSTRIES"},
+                    "notifyParties": [{"name": "NEW INDUSTRIES"}],
+                }
+            }
+        },
+    )
+
+    requirements = target_value_occurrence_requirements(raw, leaves)
+
+    assert len(requirements) == 1
+    assert requirements[0].targetValue == "NEW INDUSTRIES"
+    assert requirements[0].requiredOccurrences == 3
+
+
+def test_dangerous_goods_tuple_supports_explosive_compatibility_group() -> None:
+    surfaces = _dangerous_goods_tuple_surfaces(
+        "IMDG CLASS: 3 / UN NO.: 1993\n",
+        source_un_number="1993",
+        target_un_number="0402",
+        target_exact_class="1.1D",
+        target_packing_group=None,
+    )
+
+    assert surfaces == (
+        ("IMDG CLASS: 3 / UN NO.: 1993", "IMDG CLASS: 1.1D / UN NO.: 0402", False),
+    )
 
 
 def test_editor_workspace_omits_immutable_blank_lines_and_page_markers() -> None:
@@ -2493,6 +2676,82 @@ def test_repeated_shared_dates_preserve_every_named_month_punctuation_style() ->
     assert "02.MAY.2024" in workspace.current_text
 
 
+def test_date_rendering_supports_year_named_month_and_month_punctuation() -> None:
+    source = {
+        "documentPatch": {
+            "issueDate": "2025-11-16",
+            "shippedOnBoardDate": "2022-08-06",
+        }
+    }
+    target = {
+        "documentPatch": {
+            "issueDate": "2024-12-16",
+            "shippedOnBoardDate": "2024-04-08",
+        }
+    }
+    raw = (
+        "Place and date of issue\nAntwerp / 2025-NOV-16\n"
+        "On Board Date\nAUG. 06, 2022\n"
+    )
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert {(row.sourceSurface, row.targetSurface) for row in requirements} == {
+        ("2025-NOV-16", "2024-DEC-16"),
+        ("AUG. 06, 2022", "APR. 08, 2024"),
+    }
+
+
+def test_hs_rendering_splits_delimiter_list_and_expands_one_aggregate_slot() -> None:
+    two_source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["52094200"]},
+                {"groupId": "g2", "hsCodes": ["52114200"]},
+            ]
+        }
+    }
+    two_target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["48055080"]},
+                {"groupId": "g2", "hsCodes": ["55121990"]},
+            ]
+        }
+    }
+    requirements = surface_rendering_requirements(
+        "DENIM FABRIC HS CODE: 52094200 - 52114200\n", two_source, two_target
+    )
+    assert [(row.sourceSurface, row.targetSurface) for row in requirements] == [
+        ("52094200", "48055080"),
+        ("52114200", "55121990"),
+    ]
+
+    aggregate_source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["2401100010"]},
+                {"groupId": "g2", "hsCodes": ["2401100010"]},
+            ]
+        }
+    }
+    aggregate_target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["0902400010"]},
+                {"groupId": "g2", "hsCodes": ["1209910010"]},
+            ]
+        }
+    }
+    requirements = surface_rendering_requirements(
+        "HS CODE: 2401.100.010\n", aggregate_source, aggregate_target
+    )
+    assert len(requirements) == 1
+    assert requirements[0].kind == "hs_code_block"
+    assert requirements[0].sourceSurface == "2401.100.010"
+    assert requirements[0].targetSurface == "0902.400.010, 1209.910.010"
+
+
 def test_carrier_receipt_count_is_projected_from_the_corresponding_package_quantity() -> None:
     source = {
         "documentPatch": {"cargoPackages": [{"packageId": "p1", "groupId": "g1", "quantity": 5}]}
@@ -2693,6 +2952,41 @@ def test_dangerous_goods_exact_class_and_un_preserve_printed_grammar() -> None:
     )
     apply_deterministic_prefills(workspace)
     assert workspace.current_text == ("CLASS:2.2 UNDG NO:1013\nUN Number: 1013 - IMDG Class: 2.2\n")
+
+
+def test_sparse_dangerous_goods_target_may_omit_unprinted_category() -> None:
+    raw = "UN 3077 ENVIRONMENTALLY HAZARDOUS SUBSTANCE, SOLID, N.O.S.\n"
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "dangerousGoods": [{"unNumber": "3077"}]}
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "dangerousGoods": [{"unNumber": "0213"}]}
+            ]
+        }
+    }
+    payload = _linguistic_plan_with_hs_codes("290930").model_dump(mode="json")
+    payload["cargoSeed"]["cargoGroups"][0]["dangerousGoods"] = [
+        {
+            "properShippingName": "TRINITROANISOLE",
+            "unNumber": "0213",
+            "hazardCategory": "EXPLOSIVES",
+            "exactHazardClass": "1.1D",
+            "subsidiaryHazardCategories": [],
+            "packingGroupCategory": None,
+            "flashpointCelsius": None,
+        }
+    ]
+    plan = DocumentLinguisticPlan.model_validate_json(json.dumps(payload))
+
+    requirements = surface_rendering_requirements(raw, source, target, plan)
+
+    assert requirements == ()
 
 
 def test_reviewer_cannot_contradict_a_derived_carrier_receipt_surface() -> None:
@@ -3082,6 +3376,35 @@ def test_target_integrity_repairs_reserved_domains_cctld_and_package_surface() -
         "country_incoherent_cctld",
         "package_surface_category_mismatch",
     }
+
+
+def test_target_integrity_preserves_valid_contact_domain_when_party_name_is_absent() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    target = {
+        "schemaVersion": "5.0.0-experimental",
+        "documentPatch": {
+            "parties": {
+                "notifyParties": [
+                    {
+                        "country": "Egypt",
+                        "contactDetails": {
+                            "emailAddresses": ["operations@terminal-services.com"],
+                            "websiteUrls": ["https://terminal-services.com/contact"],
+                        },
+                    }
+                ]
+            }
+        },
+    }
+
+    effective, receipt = prepare_target_integrity(
+        target, target, config, _target_integrity_resources()
+    )
+
+    assert effective == target
+    assert receipt["semantic_changes"] == []
 
 
 def test_rewrite_preflight_reprojects_an_overweight_semantic_target() -> None:

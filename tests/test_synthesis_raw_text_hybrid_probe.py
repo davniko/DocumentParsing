@@ -622,6 +622,24 @@ def test_numeric_locator_never_treats_page_marker_as_business_evidence() -> None
     ) == ({2}, "numeric_surface")
 
 
+def test_carrier_locator_accepts_exact_name_wrapped_by_signed_by_form_labels() -> None:
+    text = (
+        "SIGNED ORIENT OVERSEAS CONTAINER LINE\n"
+        "BY: (CHINA) CO., LTD\n"
+    )
+
+    assert _line_set_for_directive(
+        text,
+        "documentPatch.parties.carrier.name",
+        "ORIENT OVERSEAS CONTAINER LINE (CHINA) CO., LTD",
+    ) == ({1, 2}, "wrapped_carrier_signature_literal")
+    assert _line_set_for_directive(
+        "SIGNED OTHER LINE\nBY: (CHINA) CO., LTD\n",
+        "documentPatch.parties.carrier.name",
+        "ORIENT OVERSEAS CONTAINER LINE (CHINA) CO., LTD",
+    ) == (set(), "unlocated")
+
+
 def test_surface_requirement_context_disambiguates_repeated_date_lines() -> None:
     text = "Ship on Board Date\n05/05/2025\nPlace of Issue Date\n05/05/2025\n"
     requirement = SurfaceRenderingRequirement(

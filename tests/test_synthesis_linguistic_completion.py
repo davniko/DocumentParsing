@@ -26,6 +26,7 @@ from document_ocr.synthesis.linguistic_completion_pipeline import (
     SourceSensitiveInventory,
     _dynamic_cargo_output_model,
     _dynamic_party_output_model,
+    _resume_unit_passes_current_contract,
     _run_unit,
     _validate_persisted_output,
     build_document_linguistic_plan,
@@ -180,6 +181,23 @@ def test_provider_generation_settings_are_optional_strict_and_forwarded_verbatim
     value["provider"]["generation_settings"]["temperature"] = 2.01
     with pytest.raises(ValidationError, match="less than or equal to 2"):
         SynthesisLinguisticCompletionConfig.model_validate(value, strict=True)
+
+
+def test_linguistic_resume_source_is_an_explicit_immutable_pin() -> None:
+    path = Path(
+        "configs/synthesis/mpci_bl_linguistic_completion_audit100_luna_high_v1.yaml"
+    )
+    value = yaml.safe_load(path.read_text(encoding="utf-8"))
+    value["inputs"]["resume_run"] = {
+        "path": "artifacts/kie-synthesis/prior-incomplete-run",
+        "commit_sha256": "a" * 64,
+        "transaction_sha256": "b" * 64,
+    }
+
+    config = SynthesisLinguisticCompletionConfig.model_validate(value, strict=True)
+
+    assert config.inputs.resume_run is not None
+    assert config.inputs.resume_run.commit_sha256 == "a" * 64
 
 
 def test_party_plan_reuses_same_as_and_duplicate_notify_without_wasted_calls() -> None:
@@ -376,4 +394,18 @@ async def test_unit_runner_retains_failed_attempt_and_uses_fresh_constrained_ret
     assert all(
         row.usage.providerResponseIds == ("resp_test_linguistic",)
         for row in artifact.attempts
+    )
+    assert _resume_unit_passes_current_contract(
+        artifact,
+        stage="party_identity",
+        unit_id="party-carrier-1",
+        output_type=PartyCompletionOutput,
+        validator=lambda _: {"accepted": True},
+    )
+    assert not _resume_unit_passes_current_contract(
+        artifact,
+        stage="cargo_language",
+        unit_id="party-carrier-1",
+        output_type=PartyCompletionOutput,
+        validator=lambda _: {"accepted": True},
     )

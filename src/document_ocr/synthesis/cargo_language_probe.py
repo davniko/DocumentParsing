@@ -158,8 +158,9 @@ _DANGEROUS_STATUS = re.compile(
 )
 _PURPOSE_OR_END_USE = re.compile(r"\b(?:PURPOSE|END\s+USE|PROJECT)\s*:", re.I)
 _COMMERCIAL_IDENTIFIER = re.compile(
-    r"^(?:[A-Z0-9._/#-]{5,}|(?:MATERIAL|BATCH|LOT|RMS|GRADE|TYPE)\s*"
-    r"(?:NO\.?|NUMBER)?\s*[:#-]?\s*[A-Z0-9._/#-]{2,})$",
+    r"^(?:(?=[A-Z0-9._/#-]{5,}$)(?=[A-Z0-9._/#-]*[0-9])[A-Z0-9._/#-]+|"
+    r"(?:MATERIAL|BATCH|LOT|RMS|GRADE|TYPE)\s*(?:NO\.?|NUMBER)?\s*[:#-]?\s*"
+    r"[A-Z0-9._/#-]{2,})$",
     re.I,
 )
 _WRITTEN_PACKAGE_HIERARCHY = re.compile(r"\b(?:CONTAIN(?:ING|S)?|EACH|PER)\b|=|/", re.I)
@@ -852,13 +853,25 @@ def _contains_integer_surface(value: str, expected: int) -> bool:
 def _package_category_surface_present(value: str, category: str) -> bool:
     if not category.startswith("PACKAGE_"):
         raise ValueError(f"unsupported package category token: {category!r}")
-    root = category.removeprefix("PACKAGE_").replace("_", " ")
-    variants = {root, f"{root}S"}
-    if root.endswith("Y"):
-        variants.add(root[:-1] + "IES")
-    if root == "BOX":
-        variants.add("BOXES")
-    return any(re.search(rf"\b{re.escape(candidate)}\b", value, re.I) for candidate in variants)
+    # MPCI category tokens follow the registry's noun-plus-qualifier order (for example,
+    # ``PACKAGE_BOX_FIBREBOARD``), while natural printed English commonly reverses it
+    # (``FIBREBOARD BOXES``).  Match every semantic token independently so word order is not
+    # mistaken for category identity, while still requiring the full category rather than a
+    # generic package noun.
+    words = category.removeprefix("PACKAGE_").split("_")
+
+    def variants(word: str) -> tuple[str, ...]:
+        values = {word, f"{word}S"}
+        if word.endswith("Y") and len(word) > 1:
+            values.add(f"{word[:-1]}IES")
+        if word.endswith(("S", "X", "Z", "CH", "SH")):
+            values.add(f"{word}ES")
+        return tuple(sorted(values))
+
+    return all(
+        any(re.search(rf"\b{re.escape(candidate)}\b", value, re.I) for candidate in variants(word))
+        for word in words
+    )
 
 
 def _package_fact_present(value: str, fact: CargoPackageFact) -> bool:
@@ -998,14 +1011,8 @@ def _additional_role_compatible(
     if role == "commercial_or_product_identifier":
         return (
             generated.casefold() != slot.sourceStyleReference.casefold()
-            and re.search(
-                r"\b(?=[A-Z0-9._/#-]{5,}\b)(?=[A-Z0-9._/#-]*[0-9])"
-                r"[A-Z0-9._/#-]+\b",
-                generated,
-                re.I,
-            )
-            is not None
-            and not _auxiliary_fact_kinds(generated)
+            and _COMMERCIAL_IDENTIFIER.fullmatch(generated.strip()) is not None
+            and _auxiliary_fact_kinds(generated) <= set(slot.sourceFactKinds)
         )
     return not _auxiliary_fact_kinds(generated)
 

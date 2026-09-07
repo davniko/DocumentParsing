@@ -1293,6 +1293,152 @@ def _load_existing_unit(path: Path) -> LinguisticUnitArtifact | None:
     return LinguisticUnitArtifact.model_validate_json(read_regular_file_bytes(path), strict=True)
 
 
+def _resume_unit_passes_current_contract(
+    unit: LinguisticUnitArtifact,
+    *,
+    stage: Literal["party_identity", "cargo_language"],
+    unit_id: str,
+    output_type: type[BaseModel],
+    validator: Callable[[BaseModel], dict[str, bool]],
+) -> bool:
+    """Return whether one immutable prior success is reusable under today's validator.
+
+    A prior provider response is reused only when its identity and stage match and its selected
+    payload passes the current strict Pydantic model and semantic contract.  Failed or stale
+    successes are regenerated; they are never silently carried into the new run.
+    """
+
+    if unit.status != "success" or unit.stage != stage or unit.unitId != unit_id:
+        return False
+    try:
+        output = _validate_persisted_output(output_type, _selected_output(unit))
+        checks = validator(output)
+    except (RuntimeError, ValueError):
+        return False
+    return bool(checks) and all(checks.values())
+
+
+def _validate_resume_run(
+    *,
+    project_root: Path,
+    config: SynthesisLinguisticCompletionConfig,
+    document_plans: Sequence[DocumentLinguisticPlan],
+    party_prompt_bytes: bytes,
+    cargo_prompt_bytes: bytes,
+    base_schemas: Mapping[str, Any],
+    source_inventory: SourceSensitiveInventory,
+    document_count: int,
+) -> Path | None:
+    configured = config.inputs.resume_run
+    if configured is None:
+        return None
+    root = resolve_config_path(project_root, configured.path)
+    commit = root / "_COMMIT.json"
+    if root.is_symlink() or not root.is_dir() or sha256_file(commit) != configured.commit_sha256:
+        raise ValueError(f"linguistic resume run differs from its configured pin: {root}")
+    StagedArtifactRun(
+        output_parent=root.parent,
+        run_name=root.name,
+        transaction_sha256=configured.transaction_sha256,
+    ).validate_committed_run()
+    expected_payloads = {
+        "prompts/party.md": party_prompt_bytes,
+        "prompts/cargo.md": cargo_prompt_bytes,
+        "schema/party-output.schema.json": json_artifact_bytes(base_schemas["party"]),
+        "schema/cargo-output.schema.json": json_artifact_bytes(base_schemas["cargo"]),
+    }
+    for relative, expected in expected_payloads.items():
+        if read_regular_file_bytes(root / relative) != expected:
+            raise ValueError(
+                f"linguistic resume run has a different immutable contract: {relative}"
+            )
+    summary = cast(
+        dict[str, JsonValue],
+        json.loads(read_regular_file_bytes(root / "generation/summary.json")),
+    )
+    if summary.get("status") != "incomplete" or summary.get("documents") != document_count:
+        raise ValueError("linguistic resume source is not the matching incomplete run")
+    if summary.get("sourceSensitiveInventorySha256") != source_inventory.digest:
+        raise ValueError("linguistic resume source used a different sensitive-value inventory")
+    prior_plans = tuple(
+        cast(dict[str, JsonValue], json.loads(raw))
+        for raw in read_regular_file_bytes(root / "planning/document-plans.jsonl").splitlines()
+        if raw
+    )
+    prior_identities = tuple(
+        (
+            row.get("documentIndex"),
+            row.get("baseDocumentId"),
+            row.get("scenarioId"),
+            row.get("upstreamTargetSha256"),
+        )
+        for row in prior_plans
+    )
+    current_identities = tuple(
+        (row.documentIndex, row.baseDocumentId, row.scenarioId, row.upstreamTargetSha256)
+        for row in document_plans
+    )
+    if prior_identities != current_identities:
+        raise ValueError("linguistic resume source has a different document lineage or order")
+    return root.resolve(strict=True)
+
+
+def _seed_reusable_units(
+    *,
+    resume_root: Path | None,
+    staged: StagedArtifactRun,
+    document_plans: Sequence[DocumentLinguisticPlan],
+    source_inventory: SourceSensitiveInventory,
+) -> tuple[LinguisticUnitArtifact, ...]:
+    if resume_root is None:
+        return ()
+    reused: list[LinguisticUnitArtifact] = []
+    for index, plan in enumerate(document_plans):
+        prior_plan = cast(
+            dict[str, JsonValue],
+            json.loads(read_regular_file_bytes(resume_root / _document_plan_path(index))),
+        )
+        raw_party_units = prior_plan.get("partyUnits")
+        if not isinstance(raw_party_units, list) or any(
+            not isinstance(row, dict) for row in raw_party_units
+        ):
+            raise ValueError("linguistic resume source has invalid party-unit plans")
+        prior_party_units = {cast(str, row.get("unitId")): row for row in raw_party_units}
+        for unit_plan in plan.partyUnits:
+            prior_unit_plan = prior_party_units.get(unit_plan.unitId)
+            if prior_unit_plan is None or prior_unit_plan.get("seed") != unit_plan.seed.model_dump(
+                mode="json"
+            ):
+                continue
+            relative = _unit_path(index, unit_plan.unitId)
+            payload = read_regular_file_bytes(resume_root / relative)
+            unit = LinguisticUnitArtifact.model_validate_json(payload, strict=True)
+            if _resume_unit_passes_current_contract(
+                unit,
+                stage="party_identity",
+                unit_id=unit_plan.unitId,
+                output_type=PartyCompletionOutput,
+                validator=_party_validator(unit_plan.seed, source_inventory),
+            ):
+                staged.publish_bytes(relative, payload)
+                reused.append(unit)
+        relative = _unit_path(index, "cargo")
+        payload = read_regular_file_bytes(resume_root / relative)
+        unit = LinguisticUnitArtifact.model_validate_json(payload, strict=True)
+        if prior_plan.get("cargoSeed") == plan.cargoSeed.model_dump(
+            mode="json"
+        ) and _resume_unit_passes_current_contract(
+            unit,
+            stage="cargo_language",
+            unit_id="cargo",
+            output_type=CargoLanguageGenerationOutput,
+            validator=_cargo_validator(plan.cargoSeed),
+        ):
+            staged.publish_bytes(relative, payload)
+            reused.append(unit)
+    return tuple(reused)
+
+
 async def _run_completion_async(
     *,
     config: SynthesisLinguisticCompletionConfig,
@@ -1524,11 +1670,14 @@ def _report(summary: Mapping[str, Any]) -> str:
 - Locality-only party projections requiring no model call: **{locality_only:,}**
 - Reused explicit notify identities: **{summary["reusedNotifyIdentities"]:,}**
 - Cargo generation units: **{summary["cargoUnits"]:,}**
+- Reused prior successful units: **{summary["reusedUnits"]:,}**
 - Provider requests: **{summary["requests"]:,}**
+- New provider requests in this run: **{summary["incrementalRequests"]:,}**
 - First-attempt unit acceptance: **{summary["firstAttemptAcceptedUnits"]:,} / {summary["units"]:,}**
 - Retried units: **{summary["retriedUnits"]:,}**
 - Input / output / reasoning tokens: **{token_totals}**
 - Estimated provider cost: **${summary["estimatedCostUsd"]}**
+- Incremental provider cost in this run: **${summary["incrementalEstimatedCostUsd"]}**
 - Concurrent wall time: **{summary["wallSeconds"]:.3f} seconds**
 - Throughput: **{summary["throughputDocumentsPerHour"]:.2f} documents/hour**
 
@@ -1599,6 +1748,16 @@ def run_linguistic_completion(
     plan_payload = b"".join(
         canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in document_plans
     )
+    resume_root = _validate_resume_run(
+        project_root=project_root,
+        config=config,
+        document_plans=document_plans,
+        party_prompt_bytes=party_prompt_bytes,
+        cargo_prompt_bytes=cargo_prompt_bytes,
+        base_schemas=base_schemas,
+        source_inventory=source_inventory,
+        document_count=len(plans),
+    )
     transaction = {
         "schemaVersion": 1,
         "runId": config.run.run_id,
@@ -1626,6 +1785,15 @@ def run_linguistic_completion(
             "pydanticAiVersion": version("pydantic-ai-slim"),
             "openaiVersion": version("openai"),
         },
+        "resumeRun": (
+            {
+                "path": config.inputs.resume_run.path,
+                "commitSha256": config.inputs.resume_run.commit_sha256,
+                "transactionSha256": config.inputs.resume_run.transaction_sha256,
+            }
+            if config.inputs.resume_run is not None
+            else None
+        ),
     }
     transaction_sha256 = sha256_bytes(canonical_json_bytes(transaction))
     staged = StagedArtifactRun(
@@ -1677,6 +1845,12 @@ def run_linguistic_completion(
     staged.publish_bytes("planning/document-plans.jsonl", plan_payload)
     for index, document_plan in enumerate(document_plans):
         staged.publish_json(_document_plan_path(index), document_plan.model_dump(mode="json"))
+    reused_units = _seed_reusable_units(
+        resume_root=resume_root,
+        staged=staged,
+        document_plans=document_plans,
+        source_inventory=source_inventory,
+    )
     wall_started = time.perf_counter()
     records = asyncio.run(
         _run_completion_async(
@@ -1704,6 +1878,13 @@ def run_linguistic_completion(
     total_cost = sum(
         (attempt.usage.estimatedCostUsd for unit in units for attempt in unit.attempts),
         Decimal(0),
+    )
+    reused_cost = sum(
+        (attempt.usage.estimatedCostUsd for unit in reused_units for attempt in unit.attempts),
+        Decimal(0),
+    )
+    reused_requests = sum(
+        attempt.usage.requests for unit in reused_units for attempt in unit.attempts
     )
     party_units = sum(len(row.partyUnits) for row in document_plans)
     same_as = sum(
@@ -1737,7 +1918,13 @@ def run_linguistic_completion(
         "reusedNotifyIdentities": reused_notify,
         "cargoUnits": len(document_plans),
         "units": len(units),
+        "reusedUnits": len(reused_units),
+        "newUnits": len(units) - len(reused_units),
         "requests": sum(attempt.usage.requests for unit in units for attempt in unit.attempts),
+        "incrementalRequests": (
+            sum(attempt.usage.requests for unit in units for attempt in unit.attempts)
+            - reused_requests
+        ),
         "firstAttemptAcceptedUnits": sum(unit.attempts[0].status == "success" for unit in units),
         "retriedUnits": sum(len(unit.attempts) > 1 for unit in units),
         "inputTokens": sum(
@@ -1756,6 +1943,8 @@ def run_linguistic_completion(
             attempt.usage.visibleOutputTokens for unit in units for attempt in unit.attempts
         ),
         "estimatedCostUsd": str(total_cost),
+        "incrementalEstimatedCostUsd": str(total_cost - reused_cost),
+        "resumedFromRun": resume_root.name if resume_root is not None else None,
         "wallSeconds": wall_seconds,
         "throughputDocumentsPerHour": (
             len(records) * 3600.0 / wall_seconds if wall_seconds else 0.0

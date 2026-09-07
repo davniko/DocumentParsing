@@ -1175,8 +1175,19 @@ def build_mutable_inventory(
                 ),
             )
 
+    current_lines = current_text.splitlines()
     for auxiliary in locate_auxiliary_values(source_text):
-        auxiliary_lines = _surface_lines(current_text, auxiliary.value)
+        # Deterministic shape replacement requires the exact punctuation-bearing source bytes.
+        # A task-owned phone may have already been replaced while a punctuation-equivalent
+        # source-only phone remains elsewhere (``+202-...`` versus ``202-...``).  The canonical
+        # fallback used by semantic inventory discovery must not authorize an exact local write
+        # with bytes that are absent from that line; the separately parsed observed auxiliary
+        # surface owns the remaining value.
+        auxiliary_lines = {
+            number
+            for number in _surface_lines(current_text, auxiliary.value)
+            if _contains_surface(current_lines[number - 1], auxiliary.value)
+        }
         if not auxiliary_lines:
             continue
         add(

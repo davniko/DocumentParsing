@@ -25,6 +25,8 @@ from document_ocr.synthesis.locality_registry import LocalityRecord
 from document_ocr.synthesis.routes import RouteLocation, TradeFlowRecord, weighted_index
 from document_ocr.synthesis.world_port_registry import WorldPortRecord
 
+_MARITIME_FUNCTION = "1"
+
 RouteSide = Literal["commercial_origin", "commercial_destination", "third_country", "missing"]
 EndpointRelation = Literal["same_country", "other_country"]
 LocalityMode = Literal["endpoint", "other_same_country", "missing"]
@@ -302,6 +304,10 @@ class ScenarioSupportAudit:
     export_country_without_loading_country_support_documents: int
     export_country_without_trade_flow_documents: int
     ambiguous_maritime_name_keys: int
+    world_port_rows_input: int
+    world_port_rows_excluded_non_maritime: int
+    world_port_rows_eligible: int
+    eligible_world_port_locodes: int
     observed_loading_ports_matched: int
     observed_loading_ports_unmatched: int
     observed_discharge_ports_matched: int
@@ -343,6 +349,12 @@ class ScenarioSupportAudit:
             != 10_000
         ):
             raise ValueError("scenario-support commercial-origin mixture audit does not balance")
+        if (
+            self.world_port_rows_excluded_non_maritime + self.world_port_rows_eligible
+            != self.world_port_rows_input
+            or self.eligible_world_port_locodes > self.world_port_rows_eligible
+        ):
+            raise ValueError("scenario-support world-port audit does not balance")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -373,6 +385,12 @@ class ScenarioSupportAudit:
             "observedDischargePortsUnmatched": self.observed_discharge_ports_unmatched,
             "excludedTransshipmentDocuments": self.excluded_transshipment_documents,
             "ambiguousMaritimeNameKeys": self.ambiguous_maritime_name_keys,
+            "worldPortRowsInput": self.world_port_rows_input,
+            "worldPortRowsExcludedNonMaritime": (
+                self.world_port_rows_excluded_non_maritime
+            ),
+            "worldPortRowsEligible": self.world_port_rows_eligible,
+            "eligibleWorldPortLocodes": self.eligible_world_port_locodes,
             "observedExportCountries": self.observed_export_countries,
             "maritimeRegistryExportCountries": self.maritime_registry_export_countries,
             "observedRegistryOverlapCountries": self.observed_registry_overlap_countries,
@@ -723,12 +741,23 @@ def build_scenario_support(
         route_by_locode[location.locode] = location
 
     wpi_locodes: set[str] = set()
+    eligible_world_port_rows = 0
+    excluded_non_maritime_world_port_rows = 0
     for port in world_ports:
         country_registry.entry(port.country_code)
         if port.locode not in route_by_locode:
             raise ValueError(f"world-port LOCODE is absent from route registry: {port.locode}")
-        if route_by_locode[port.locode].country_code != port.country_code:
+        route_location = route_by_locode[port.locode]
+        if route_location.country_code != port.country_code:
             raise ValueError(f"world-port and route country differ: {port.locode}")
+        # WPI and UN/LOCODE are independently versioned.  A LOCODE that WPI still
+        # assigns to a port can be reassigned to a non-maritime function in the
+        # pinned UN/LOCODE release.  Since scenario labels use the current
+        # UN/LOCODE name, such stale intersections must never enter port fields.
+        if _MARITIME_FUNCTION not in route_location.function_codes:
+            excluded_non_maritime_world_port_rows += 1
+            continue
+        eligible_world_port_rows += 1
         wpi_locodes.add(port.locode)
     if not wpi_locodes:
         raise ValueError("world-port whitelist cannot be empty")
@@ -1038,6 +1067,10 @@ def build_scenario_support(
         ),
         export_country_without_trade_flow_documents=no_trade_export,
         ambiguous_maritime_name_keys=len(ambiguous_names),
+        world_port_rows_input=len(world_ports),
+        world_port_rows_excluded_non_maritime=excluded_non_maritime_world_port_rows,
+        world_port_rows_eligible=eligible_world_port_rows,
+        eligible_world_port_locodes=len(wpi_locodes),
         observed_loading_ports_matched=loading_matched,
         observed_loading_ports_unmatched=loading_unmatched,
         observed_discharge_ports_matched=discharge_matched,
