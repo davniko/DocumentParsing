@@ -15,8 +15,10 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
     _apply_compiler_requirements,
     _apply_native_residual_output,
     _apply_party_role_country_prefills,
+    _apply_relation_scoped_additional_information_prefills,
     _baseline_reference_gap_lines,
     _cargo_requirement_line_numbers,
+    _container_identifier_line_numbers,
     _context_bound_surface_lines,
     _contextual_location_line_numbers,
     _empty_usage,
@@ -28,9 +30,11 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
     _native_residual_output_type,
     _numeric_line_numbers,
     _numeric_surface_values,
+    _object_scope,
     _party_block_line_numbers,
     _party_heading_roles,
     _provider_attempt_routes,
+    _relation_scopes,
     _ResidualCommitContext,
     _retryable_route_error,
     _trim_context_blank_edges,
@@ -38,6 +42,7 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
 from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     CargoFlavorRewriteRequirement,
     JurisdictionalSurfaceRequirement,
+    OperationalFlavorRequirement,
     RewriteWorkspace,
     SurfaceRenderingRequirement,
     apply_deterministic_prefills,
@@ -58,6 +63,36 @@ def _leaf(source: str, target: str) -> ChangedLeaf:
     )
 
 
+def test_root_fields_and_list_elements_do_not_share_document_patch_scope() -> None:
+    assert _object_scope("documentPatch.billOfLadingNumber") == (
+        "documentPatch.billOfLadingNumber"
+    )
+    assert _object_scope("documentPatch.forwardingAndExportReferences[1]") == (
+        "documentPatch.forwardingAndExportReferences[1]"
+    )
+    assert _object_scope("documentPatch.freight.paymentArrangement") == "documentPatch.freight"
+
+
+def test_forwarding_reference_locator_requires_reference_context_and_all_ordered_atoms() -> None:
+    text = (
+        "B/L No. 1123200938\n"
+        "INVOICE NO. 1123200938 DATED: 27.11.2023\n"
+        "SHIPPING BILL NO.5621541\n"
+        "DATED. 28.11.2023\n"
+    )
+
+    assert _line_set_for_directive(
+        text,
+        "documentPatch.forwardingAndExportReferences[0]",
+        "1123200938 27.11.2023",
+    ) == ({2}, "forwarding_reference_context")
+    assert _line_set_for_directive(
+        text,
+        "documentPatch.forwardingAndExportReferences[1]",
+        "5621541 28.11.2023",
+    ) == ({3, 4}, "forwarding_reference_context")
+
+
 def test_hybrid_work_item_accepts_combined_rendered_party_evidence_locator() -> None:
     item = HybridWorkItem(
         workItemId="W0001",
@@ -73,6 +108,202 @@ def test_hybrid_work_item_accepts_combined_rendered_party_evidence_locator() -> 
     )
 
     assert item.locator == "rendered_surface_and_party_role_block"
+
+
+def test_container_identifier_locator_accepts_only_separator_noise() -> None:
+    text = "MCLU 510204.9 / 40 HC\nOTHER MCLU5102048\n"
+
+    assert _container_identifier_line_numbers(text, "MCLU5102049") == {1}
+    assert _container_identifier_line_numbers(text, "MCLU5102048") == {2}
+
+
+def test_contextual_location_accepts_blank_separated_structural_heading() -> None:
+    text = (
+        "FREIGHT AND CHARGES (indicate whether prepaid or where payable)\n"
+        "\n"
+        "MERSIN\n"
+        "\n"
+        "PLACE AND DATE OF ISSUE\n"
+        "MERSIN 30.05.2025\n"
+        "\n"
+        "For the Carrier:\n"
+        "MERSIN - TURKEY\n"
+    )
+
+    assert _contextual_location_line_numbers(
+        text, "documentPatch.freight.paymentPlace.name", "MERSIN"
+    ) == {3}
+    assert _contextual_location_line_numbers(
+        text, "documentPatch.placeOfIssue.name", "MERSIN"
+    ) == {6}
+
+
+def test_surface_requirement_exact_line_ids_override_repeated_context_surface() -> None:
+    text = "HS CODE: 2401108590\nHS CODE: 2401108590\n"
+    requirement = SurfaceRenderingRequirement(
+        kind="hs_code",
+        targetPath="documentPatch.cargoGroups[1].hsCodes[0]",
+        sourceSurface="2401108590",
+        targetSurface="8524119097",
+        sourceOccurrences=1,
+        contextEvidence="HS CODE: 2401108590",
+        sourceLineIds=("L00002",),
+    )
+
+    assert _context_bound_surface_lines(text, requirement) == {2}
+
+
+def test_contextual_route_location_excludes_same_literal_inside_party_blocks() -> None:
+    text = (
+        "CONSIGNEE\n"
+        "OLD TRADING CO\n"
+        "ALEXANDRIA EGYPT\n\n"
+        "PORT OF DISCHARGE\n"
+        "ALEXANDRIA\n"
+    )
+
+    assert _contextual_location_line_numbers(
+        text,
+        "documentPatch.route.portOfDischarge.name",
+        "ALEXANDRIA",
+    ) == {6}
+
+
+def test_delivery_agent_qualifier_inside_notify_block_owns_only_that_party_paragraph() -> None:
+    text = (
+        "NOTIFY PARTY (COMPLETE NAME AND ADDRESS)\n"
+        "GLOBELINK EGYPT\n"
+        "(AS FRT FWDRS DELIVERY AGENT ONLY)\n"
+        "55 SULTAN HUSSEIN STREET\n"
+        "ALEXANDRIA, EGYPT\n\n"
+        "PORT OF DISCHARGE\n"
+        "ALEXANDRIA\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "GLOBELINK EGYPT",
+                    "address": "55 SULTAN HUSSEIN STREET",
+                    "city": "ALEXANDRIA",
+                    "country": "EGYPT",
+                }
+            }
+        }
+    }
+
+    assert _party_heading_roles("(AS FRT FWDRS DELIVERY AGENT ONLY)") == frozenset(
+        {"deliveryAgent"}
+    )
+    assert _party_block_line_numbers(
+        text,
+        path="documentPatch.parties.deliveryAgent.name",
+        source_label=source_label,
+    ) == {1, 2, 3, 4, 5}
+
+
+def test_relation_scopes_prefer_container_allocations_over_repeated_goods_text() -> None:
+    text = (
+        "AAAA900001\n"
+        "SAME GOODS\n"
+        "MATERIAL 111\n"
+        "\n"
+        "BBBB900002\n"
+        "SAME GOODS\n"
+        "MATERIAL 222\n"
+    )
+    source = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1"}, {"groupId": "g2"}],
+            "cargoPackages": [{"groupId": "g1"}, {"groupId": "g2"}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [{"containerNumber": "AAAA000001"}],
+                },
+                {
+                    "groupId": "g2",
+                    "allocations": [{"containerNumber": "BBBB000002"}],
+                },
+            ],
+        }
+    }
+    target = {
+        "documentPatch": {
+            **source["documentPatch"],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [{"containerNumber": "AAAA900001"}],
+                },
+                {
+                    "groupId": "g2",
+                    "allocations": [{"containerNumber": "BBBB900002"}],
+                },
+            ],
+        }
+    }
+
+    scopes = _relation_scopes(
+        text,
+        source_label=source,
+        target_label=target,
+        cargo_lines_by_group={"g1": {2, 6}, "g2": {2, 6}},
+    )
+
+    assert scopes["documentPatch.cargoGroups[0]"] == {1, 2, 3}
+    assert scopes["documentPatch.cargoGroups[1]"] == {5, 6, 7}
+
+
+def test_additional_information_prefill_is_group_scoped_and_supports_columns() -> None:
+    text = (
+        "AAAA900001\n"
+        "MATERIAL\n"
+        "111\n"
+        "111\n"
+        "\n"
+        "BBBB900002\n"
+        "MATERIAL 111\n"
+    )
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "additionalInformation": ["MATERIAL 111"]},
+                {"groupId": "g2", "additionalInformation": ["MATERIAL 111"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "additionalInformation": ["MATERIAL 999"]},
+                {"groupId": "g2", "additionalInformation": ["MATERIAL 777"]},
+            ]
+        }
+    }
+    workspace = RewriteWorkspace(
+        original_text=text,
+        current_text=text,
+        source_label=source,
+        current_target_label=target,
+    )
+
+    applied = _apply_relation_scoped_additional_information_prefills(
+        workspace,
+        {
+            "documentPatch.cargoGroups[0]": {1, 2, 3, 4},
+            "documentPatch.cargoGroups[1]": {6, 7},
+        },
+    )
+
+    assert workspace.current_text == (
+        "AAAA900001\nMATERIAL\n999\n999\n\nBBBB900002\nMATERIAL 777\n"
+    )
+    assert [row.targetPaths for row in applied] == [
+        ("documentPatch.cargoGroups[0].additionalInformation[0]",),
+        ("documentPatch.cargoGroups[0].additionalInformation[0]",),
+        ("documentPatch.cargoGroups[1].additionalInformation[0]",),
+    ]
 
 
 def test_party_role_country_prefill_owns_the_party_block_not_detached_metadata() -> None:
@@ -124,6 +355,112 @@ def test_party_role_country_prefill_owns_the_party_block_not_detached_metadata()
         ("documentPatch.parties.shipper.country",)
     }
     assert {row.targetSurface for row in applied} == {"ALGERIA"}
+
+
+def test_party_country_prefill_does_not_rewrite_country_inside_street_name() -> None:
+    text = (
+        "--- PAGE 1 ---\n"
+        "Shipper\n"
+        "SOURCE EXPORTS LTD\n"
+        "11 ORT ISRAEL STR.\n"
+        "BAT - YAM 5954, ISRAEL\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "shipper": {
+                    "name": "SOURCE EXPORTS LTD",
+                    "address": "11 ORT ISRAEL STR. 5954",
+                    "city": "BAT - YAM",
+                    "country": "ISRAEL",
+                }
+            }
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "parties": {
+                "shipper": {
+                    "name": "NORDHANDEL GMBH",
+                    "address": "Kantstraße 118, 10623",
+                    "city": "Berlin",
+                    "country": "GERMANY",
+                }
+            }
+        }
+    }
+    workspace = RewriteWorkspace(
+        original_text=text,
+        current_text=text,
+        source_label=source_label,
+        current_target_label=target_label,
+    )
+
+    applied = _apply_party_role_country_prefills(workspace)
+
+    assert workspace.current_text == text.replace(
+        "BAT - YAM 5954, ISRAEL", "BAT - YAM 5954, GERMANY"
+    )
+    assert [row.lineId for row in applied] == ["L00005"]
+
+
+def test_party_country_prefill_owns_leading_article_variant_in_same_role_block() -> None:
+    text = (
+        "--- PAGE 1 ---\n"
+        "DESTINATION AGENT\n"
+        "SOURCE DELIVERY BV\n"
+        "ROTTERDAM, THE NETHERLANDS\n"
+        "ROTTERDAM NETHERLANDS\n"
+        "\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "SOURCE DELIVERY BV",
+                    "city": "ROTTERDAM",
+                    "country": "THE NETHERLANDS",
+                }
+            }
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "TARGET DELIVERY BV",
+                    "city": "KENOSHA",
+                    "country": "UNITED STATES",
+                }
+            }
+        }
+    }
+    workspace = RewriteWorkspace(
+        original_text=text,
+        current_text=text,
+        source_label=source_label,
+        current_target_label=target_label,
+    )
+
+    applied = _apply_party_role_country_prefills(workspace)
+
+    assert workspace.current_text == (
+        "--- PAGE 1 ---\n"
+        "DESTINATION AGENT\n"
+        "SOURCE DELIVERY BV\n"
+        "ROTTERDAM, UNITED STATES\n"
+        "ROTTERDAM UNITED STATES\n"
+        "\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    assert [row.lineId for row in applied] == ["L00004", "L00005"]
+    assert {row.targetPaths for row in applied} == {
+        ("documentPatch.parties.deliveryAgent.country",)
+    }
+    assert {row.targetSurface for row in applied} == {"UNITED STATES"}
 
 
 def test_compiler_keeps_multi_selector_customs_clause_for_one_residual_rewrite() -> None:
@@ -195,6 +532,41 @@ def test_compiler_preserves_customs_heading_delimiter_and_value_spacing() -> Non
     assert workspace.current_text == "--- PAGE 1 ---\nCUSTOMS REFERENCE : 1002845232025040024\n"
     assert len(edits) == 1
     assert edits[0].targetSurface == "CUSTOMS REFERENCE :"
+
+
+def test_compiler_does_not_reapply_prefilled_operational_value_inside_new_seal() -> None:
+    source = "--- PAGE 1 ---\nBOXU1234567 / ML-OLD0001 / 1 PACKAGE\n"
+    requirement = OperationalFlavorRequirement(
+        requirementId="operational-L00002-package_quantity",
+        kind="package_quantity",
+        sourceGrammar="labeled_measurement",
+        sourceLineId="L00002",
+        sourceMeasurementStartColumn=27,
+        sourceValueSurface="1",
+        targetValueSurface="77",
+        sourceCanonicalValue="1",
+        targetCanonicalValue="77",
+        consistencyGroupId="BOXU1234567-package_quantity",
+        targetContainerNumber="BOXU1234567",
+        targetEquipmentFamily="forty_high_cube",
+        maximumValue=None,
+        sameLineFollowingContainerNumber=None,
+        empiricalProfileDocumentId=None,
+        samplingMethod="target_package_allocation_v1",
+        sourceEvidence="BOXU1234567 / ML-OLD0001 / 1 PACKAGE",
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        operational_flavor_requirements=(requirement,),
+    )
+
+    apply_deterministic_prefills(workspace)
+    workspace.current_text = workspace.current_text.replace("ML-OLD0001", "WT-FE4893471")
+    edits = _apply_compiler_requirements(workspace)
+
+    assert workspace.current_text == "--- PAGE 1 ---\nBOXU1234567 / WT-FE4893471 / 77 PACKAGE\n"
+    assert edits == ()
 
 
 def test_hybrid_probe_config_is_strict_and_bounded() -> None:
@@ -381,6 +753,17 @@ def test_numeric_locator_preserves_signed_temperature_and_does_not_break_ranges(
 
 def test_numeric_locator_does_not_authorize_page_markers() -> None:
     assert _numeric_line_numbers("--- PAGE 3 ---\nQUANTITY 3\n", 3) == {2}
+
+
+def test_numeric_locator_ignores_identifier_digits_but_keeps_attached_units() -> None:
+    text = (
+        "VOYAGE 1UAMMH2EL\nTOTAL 2 PACKAGES\nGROSS WEIGHT 20931.200KGS\n"
+        "15-Sep-2023\n"
+    )
+
+    assert _numeric_line_numbers(text, 2) == {2}
+    assert _numeric_line_numbers(text, 20931.2) == {3}
+    assert _numeric_line_numbers(text, 15.0) == set()
 
 
 def test_party_block_locator_owns_split_address_and_separates_repeated_identity_roles() -> None:

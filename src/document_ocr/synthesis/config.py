@@ -1883,8 +1883,10 @@ class RawTextInventoryBatchWorkflowConfig(_StrictModel):
     regression_documents: Literal[12]
     documents: Annotated[int, Field(ge=1, le=100_000)]
     max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
+    template_profile_context_lines: Annotated[int, Field(ge=0, le=4)] = 0
+    max_initial_slots_per_request: Annotated[int, Field(ge=16, le=256)] | None = None
     output_mode: Literal["native"]
-    max_successful_model_responses_per_document: Annotated[int, Field(ge=1, le=3)]
+    max_successful_model_responses_per_document: Annotated[int, Field(ge=1, le=4)]
     max_provider_route_rounds: Annotated[int, Field(ge=1, le=4)]
     retry_initial_delay_seconds: Annotated[float, Field(ge=0, le=60)]
     retry_delay_multiplier: Annotated[float, Field(ge=1, le=4)]
@@ -1917,8 +1919,13 @@ class SynthesisRawTextInventoryBatchConfig(_StrictModel):
     run: SynthesisRunConfig
     base_batch_config: PinnedFileConfig
     regression_oracle: PinnedFileConfig
+    template_mutation_profile: PinnedFileConfig | None = None
     reference_runs: RawTextInventoryReferenceRunsConfig
-    selection: Literal["all_pinned_targets_in_order"]
+    selection: Literal[
+        "all_pinned_targets_in_order",
+        "explicit_pinned_document_ids",
+    ]
+    cases: tuple[RawTextRewriteCaseConfig, ...] = ()
     prompt: PinnedFileConfig
     provider: RawTextRewriteProviderConfig
     workflow: RawTextInventoryBatchWorkflowConfig
@@ -1928,8 +1935,25 @@ class SynthesisRawTextInventoryBatchConfig(_StrictModel):
     def safe_environment_file(cls, value: str) -> str:
         return _safe_path(value)
 
+    @field_validator("cases", mode="before")
+    @classmethod
+    def freeze_cases(cls, value: Any) -> Any:
+        return tuple(value) if isinstance(value, list) else value
+
     @model_validator(mode="after")
     def batch_is_bounded_and_consistent(self) -> SynthesisRawTextInventoryBatchConfig:
+        if self.selection == "all_pinned_targets_in_order" and self.cases:
+            raise ValueError("all-target inventory selection cannot also define explicit cases")
+        if self.selection == "explicit_pinned_document_ids":
+            if not self.cases:
+                raise ValueError("explicit inventory selection requires pinned document cases")
+            document_ids = tuple(row.document_id for row in self.cases)
+            if len(document_ids) != len(set(document_ids)):
+                raise ValueError("explicit inventory selection document IDs must be unique")
+            if len(document_ids) != self.workflow.documents:
+                raise ValueError(
+                    "explicit inventory selection count differs from workflow.documents"
+                )
         if self.provider.max_output_tokens > 8192:
             raise ValueError("inventory batch output allowance exceeds its bounded contract")
         if self.provider.kind != "openrouter":
@@ -1943,6 +1967,15 @@ class SynthesisRawTextInventoryBatchConfig(_StrictModel):
             raise ValueError("inventory batch requires an explicit observable fallback order")
         if len(self.provider.provider_order) < 2:
             raise ValueError("inventory batch requires at least two provider routes")
+        if self.template_mutation_profile is None:
+            if self.workflow.template_profile_context_lines != 0:
+                raise ValueError(
+                    "inventory batch cannot configure template context without a mutation profile"
+                )
+        elif self.workflow.template_profile_context_lines == 0:
+            raise ValueError(
+                "inventory batch mutation profiles require read-only neighboring context"
+            )
         return self
 
 

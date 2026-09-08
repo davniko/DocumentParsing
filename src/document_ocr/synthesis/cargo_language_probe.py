@@ -910,7 +910,11 @@ def _semantic_identity_has_stem_overlap(
     return all(
         bool(
             generated
-            & (_semantic_stems(row.description) | _semantic_stems(row.headingDescription or ""))
+            & (
+                _semantic_stems(row.description)
+                | _semantic_stems(row.headingDescription or "")
+                | _semantic_stems(row.chapterDescription or "")
+            )
         )
         for row in goods
     ) and all(bool(generated & _semantic_stems(row.properShippingName)) for row in dangerous)
@@ -1171,7 +1175,15 @@ def validate_cargo_language(
             handling_text = " ".join(generated.handlingInstructions).upper()
             checks[f"{prefix}_thermal_handling_coherent"] = any(
                 token in handling_text
-                for token in ("FROZEN", "CHILLED", "COLD", "REEFER", "TEMPERATURE", "°C")
+                for token in (
+                    "FROZEN",
+                    "CHILLED",
+                    "COLD",
+                    "REEFER",
+                    "REFRIGERATED",
+                    "TEMPERATURE",
+                    "°C",
+                )
             )
         else:
             checks[f"{prefix}_thermal_handling_coherent"] = True

@@ -103,7 +103,40 @@ def test_ambient_goods_and_package_are_sampled_from_one_observed_heading_joint()
     )
     assert selected.identities[0].hs6[:4] == "3921"
     assert selected.package_signature == ("PACKAGE_ROLL",)
-    assert selected.basis == "fit_hs_heading_joint"
+    assert selected.basis == "fit_hs_signature_conditioned_heading_pool"
+
+
+def test_multi_identity_cargo_uses_a_fit_conditioned_signature_heading_pool() -> None:
+    source = _target(hs_code="392113", package="PACKAGE_ROLL")
+    patch = source["documentPatch"]
+    assert isinstance(patch, dict)
+    group = patch["cargoGroups"][0]
+    assert isinstance(group, dict)
+    group["hsCodes"] = ["392113", "481910", "392190"]
+    support = build_package_goods_fit_support(
+        source_targets={"doc_fit": source},
+        fit_document_ids=("doc_fit",),
+        allowed_category_tokens=("PACKAGE_ROLL",),
+        frozen_minimum_celsius=-24,
+        frozen_maximum_celsius=-18,
+        chilled_minimum_celsius=-3,
+        chilled_maximum_celsius=5.5,
+    )
+
+    selected = sample_compatible_cargo(
+        support=support,
+        goods_support=_goods(),
+        profile=None,
+        package_count=1,
+        identity_count=3,
+        stream=_stream("multi-heading-profile"),
+        excluded_hs6=set(),
+    )
+
+    assert {value.hs6[:4] for value in selected.identities} <= {"3921", "4819"}
+    assert len({value.hs6 for value in selected.identities}) == 3
+    assert selected.package_signature == ("PACKAGE_ROLL",)
+    assert selected.basis == "fit_hs_signature_conditioned_heading_pool"
 
 
 def test_ambient_heading_index_excludes_exhausted_identity_pools() -> None:

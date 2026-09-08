@@ -1,0 +1,123 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v3
+
+run:
+  run_id: mpci-bl-combined2174-controlled-semantic100-additional-maritime-v3
+  output_dir: artifacts/kie-synthesis
+
+source:
+  format: jsonl
+  file:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  fields: {document_id: documentId, input_text: joinedRawText, target: target, input_sha256: joinedRawTextSha256}
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/task-constraints.json
+  sha256: 9b9fd725589b41c7202e22954e7d21cea3398c588b1cb72bab4a5cb18b81970a
+
+inputs:
+  route_scenario_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-route-scenario100-additional-maritime-v4
+    manifest_sha256: 75cde8b3d0b2423b72ad834c9daabc0e79061fe02095bd267d8150fcf91840e7
+    commit_sha256: 0dbebce1421acb9ca84594483166238597262ed359955f45a2287de70d905b9a
+    transaction_sha256: e01f2871dd5f6f397527b693d209197811bc1d682eae01c5e67fa065b32c5dd1
+  route_scenarios:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-route-scenario100-additional-maritime-v4/generation/shipment-scenarios.jsonl
+    sha256: a2ddb4caa782705ed5e121fb062386e04694eb7105486a149f4ea563c1a08bb4
+    records: 100
+  route_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-route-scenario100-additional-maritime-v4/generation/projected-targets.jsonl
+    sha256: 705bfca4187adee77ca68d2f87935cfb5c4e7c8327eff63186fde31f05edacb2
+    records: 100
+  preparation:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1
+    manifest_sha256: 519a1a7989647831729d267dbd954baeb16cda6af72335c82a837ae728a02024
+  template_groups:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/template-groups.jsonl
+    sha256: 108393f677590ec6ab9417cac7a92d6e7f6429d9b54fdcbabdb93ac5ca76837e
+    records: 1093
+  partition_report:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-synthesis-seed20260903-v1/manifest.json
+    sha256: c8a0bfa2d8508dc599270ab8489e2fcc21a61c5bcbbd118a4efde960807ad883
+  category_metadata:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/category-metadata.jsonl
+    sha256: bddb944d6529baa7912852ca46cbb131bf3e51c5a84dc81d092d6a8d05944e3f
+    records: 2174
+  package_hierarchy_metadata:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-packages-v2/package-metadata.jsonl
+    sha256: c6f56435f3adce6d4a1b86572d0238ccf374a5bf607d947f8726bd66ddb7a2b1
+    records: 2174
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+  package_registry_entries: 405
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+  equipment_registry_manifest:
+    path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+    sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+  hs_registry_manifest:
+    path: data/registries/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+  hs_metadata:
+    path: data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+  hs_commodities_report:
+    path: data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+  party_identity_benchmark_summary:
+    path: artifacts/kie-synthesis/mpci-bl-party-identity-sdv-capability-audit-v1/summary.json
+    sha256: 484cd0477438396e187a69668dde5dc50eaa2c309a91194b43afe4ef6eac6305
+  vessel_name_registry:
+    path: data/registries/vessels/public-cargo-vessel-names-20260901-v1/vessel-names.jsonl
+    sha256: 6bbfda40b9337e86c650f043ef7d68974e3213c4fcabd2d9412cb34adb9fb0a6
+    records: 16356
+  vessel_name_registry_receipt:
+    path: data/registries/vessels/public-cargo-vessel-names-20260901-v1/registry-receipt.json
+    sha256: 0f7cc80c2c80fcad65d547e19223db3115bd825378402ec1cddee83169753faa
+
+selection:
+  split: train
+  requested_documents: 100
+  require_template_wholly_in_split: true
+  maximum_per_template: 1
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  seed: 20260906
+  package_method: fit_role_conditioned_registry_category_v2
+  package_registry_exploration_permyriad: 2500
+  package_registry_exploration_scope: same_authoritative_display_family_within_task_vocabulary_v1
+  equipment_method: fit_exact_bic_identity_plus_registry_exploration_v1
+  equipment_registry_exploration_permyriad: 2500
+  hs:
+    schema_version: 1
+    observed_chapter_mixture_permyriad: 7500
+    registry_wide_mixture_permyriad: 2500
+    gb_tariff_extension_permyriad: 2500
+    observed_chapter_weighting: fit_document_count_v1
+    observed_chapter_hs6_weighting: uniform_registry_hs6_within_selected_chapter_v1
+    registry_hs6_weighting: uniform_registry_hs6_v1
+    gb_tariff_leaf_weighting: uniform_registry_leaves_v1
+    output_length_method: preserve_source_length_exact_registry_else_random_suffix_v1
+    minimum_output_digits: 6
+    maximum_output_digits: 18
+    maximum_extension_attempts: 512
+  cargo_origin_method: fit_country_relation_reproject_name_only_origin_v2
+  cargo_origin_name_only_policy: replace_without_resolving_or_copying_source_name_v2
+  dangerous_goods_method: deferred_goods_first_coherent_semantic_realization_v1
+  handling_instructions_method: pending_linguistic_realization_v1
+  transport:
+    vessel_name_method: public_cargo_vessel_registry_uniform_v1
+    voyage_number_method: preserve_for_upstream_structured_identifier_v1
+    minimum_normalized_edit_distance: 0.2
+    maximum_realization_attempts: 512
+    imo_policy: absent_without_authoritative_assigned_number_registry_v1
+  preserve_source_field_presence: true
+  preserve_source_cardinality: true
+  preserve_relation_topology: true
+  publish_training_records: false
+

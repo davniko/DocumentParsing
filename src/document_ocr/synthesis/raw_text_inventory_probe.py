@@ -23,6 +23,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from importlib.metadata import version
+from itertools import pairwise
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
@@ -52,6 +53,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_raw_text_hybrid_batch_config,
 )
 from document_ocr.synthesis.container_semantics import canonical_equipment_surface
+from document_ocr.synthesis.drafts import target_value
 from document_ocr.synthesis.linguistic_probe_runtime import (
     LinguisticUsageReceipt,
     load_provider_key,
@@ -63,11 +65,14 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
     HybridWorkItem,
     _artifact_inventory,
     _CompiledCase,
+    _container_identifier_line_numbers,
     _context_bound_surface_lines,
+    _contextual_location_line_numbers,
     _literal_line_numbers,
     _literal_occurrence_line_sets,
     _model_pair,
     _numeric_surface_values,
+    _object_scope,
     _party_block_line_groups,
     _provider_attempt_routes,
     _retryable_route_error,
@@ -81,12 +86,16 @@ from document_ocr.synthesis.raw_text_inventory import (
     InventoryCandidate,
     RegressionCase,
     RegressionOracle,
+    TemplateMutationCase,
+    TemplateMutationProfile,
     _is_shipment_aggregate_value_line,
     apply_deterministic_auxiliary_edits,
     audit_full_document,
+    auxiliary_label_surfaces,
     build_mutable_inventory,
     line_number,
     parse_regression_oracle,
+    parse_template_mutation_profile,
 )
 from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _PARTY_HEADING_LINE,
@@ -97,11 +106,13 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     LineRangeReplacement,
     RewriteCycleBundle,
     RewriteWorkspace,
+    SourceStatusPreservationRequirement,
     SurfaceRenderingRequirement,
     TargetValueOccurrenceRequirement,
     _auxiliary_identity_token_key,
     _cargo_flavor_rewrite_failures,
     _line_ending,
+    _missing_target_literals,
     _party_scalar_occurrence_count,
     _party_scalar_occurrence_line_sets,
     _semantic_normalize,
@@ -114,6 +125,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     carrier_principal_template_slot_count,
     deterministic_rewrite_audit,
     prepare_rewrite_state,
+    unexpected_cargo_package_surfaces,
 )
 from document_ocr.synthesis.raw_text_rewrite_probe import (
     _resolve_pinned_file,
@@ -146,7 +158,10 @@ class InventoryModelStage(BaseModel):
     model_config = _STRICT
 
     providerModel: str
-    semanticAttempt: Annotated[int, Field(ge=1, le=3)]
+    semanticAttempt: Annotated[int, Field(ge=1, le=4)]
+    requestKind: Literal["initial_partition", "repair"]
+    initialPartitionOrdinal: Annotated[int, Field(ge=1)] | None
+    initialPartitionCount: Annotated[int, Field(ge=1)]
     routeProvider: str | None
     routeRound: Annotated[int, Field(ge=1)]
     routeAttempt: Annotated[int, Field(ge=1)]
@@ -196,6 +211,12 @@ class _Slot:
 class _CompoundSlot:
     alias: str
     requirement: CompoundPartyFlavorRequirement
+
+
+@dataclass(frozen=True, slots=True)
+class _InitialRequestBatch:
+    slots: tuple[_Slot, ...]
+    compound_slots: tuple[_CompoundSlot, ...]
 
 
 InventoryRunConfig = SynthesisRawTextInventoryProbeConfig | SynthesisRawTextInventoryBatchConfig
@@ -269,6 +290,26 @@ def _load_oracle(project_root: Path, config: InventoryRunConfig) -> RegressionOr
     if len(oracle.cases) != config.workflow.regression_documents:
         raise ValueError("regression oracle document count differs from configured count")
     return oracle
+
+
+def _load_template_mutation_profile(
+    project_root: Path, config: InventoryRunConfig
+) -> tuple[TemplateMutationProfile | None, Path | None]:
+    if not isinstance(config, SynthesisRawTextInventoryBatchConfig):
+        return None, None
+    pinned = config.template_mutation_profile
+    if pinned is None:
+        return None, None
+    path = _resolve_pinned_file(
+        project_root,
+        pinned.path,
+        pinned.sha256,
+        label="source-template mutation profile",
+    )
+    value = json.loads(read_regular_file_bytes(path))
+    if not isinstance(value, Mapping):
+        raise ValueError("source-template mutation profile root must be an object")
+    return parse_template_mutation_profile(cast(Mapping[str, Any], value)), path
 
 
 def _validate_reference_run(
@@ -380,11 +421,128 @@ def _work_item_requirement(item: HybridWorkItem) -> dict[str, JsonValue]:
 
 
 def _work_item_object_scopes(item: HybridWorkItem) -> frozenset[str]:
-    return frozenset(path.rsplit(".", 1)[0] for path in item.targetPaths if "." in path)
+    return frozenset(_object_scope(path) for path in item.targetPaths)
+
+
+_CARGO_PACKAGE_TYPE_PATH = re.compile(
+    r"^documentPatch\.cargoPackages\[([0-9]+)\]\.typeCategory$"
+)
+_CARGO_GROUP_FIELD_PATH = re.compile(r"^documentPatch\.cargoGroups\[([0-9]+)\]\.")
+_CARGO_MARKS_PATH = re.compile(
+    r"^documentPatch\.cargoGroups\[([0-9]+)\]\.marksAndNumbers\[([0-9]+)\]$"
+)
+_PAGE_MARKER = re.compile(r"^--- PAGE [1-9][0-9]* ---[ \t]*$")
+
+
+def _cargo_marks_values(label: Mapping[str, Any], group_index: int) -> tuple[str, ...] | None:
+    groups = _sequence_objects(label, "cargoGroups")
+    if group_index >= len(groups) or not isinstance(groups[group_index], Mapping):
+        return None
+    values = groups[group_index].get("marksAndNumbers")
+    if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
+        return None
+    if not values or not all(isinstance(value, str) and value for value in values):
+        return None
+    return tuple(cast(str, value) for value in values)
+
+
+def _cargo_marks_sequence_evidence(
+    current_text: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+) -> dict[str, frozenset[int]]:
+    """Map complete ordered marks blocks to indexed cargo groups.
+
+    Shared marks such as a plant code or country surface cannot identify one cargo group by
+    themselves.  A complete multi-row sequence can: every row must contain the source or already
+    rendered target value at the same schema position, and consecutive values must occupy
+    consecutive non-blank lines without crossing a page marker.  Repeated copies of one complete
+    group are retained.  A physical sequence matching more than one group is deliberately left
+    unclaimed so the existing compiler remains fail-closed.
+    """
+
+    bodies = current_text.splitlines()
+    occupied = tuple(
+        number
+        for number, body in enumerate(bodies, start=1)
+        if body.strip()
+    )
+    occupied_position = {number: index for index, number in enumerate(occupied)}
+    source_groups = _sequence_objects(source_label, "cargoGroups")
+    target_groups = _sequence_objects(target_label, "cargoGroups")
+    group_count = min(len(source_groups), len(target_groups))
+    matches_by_group: dict[int, set[tuple[frozenset[int], ...]]] = defaultdict(set)
+
+    for group_index in range(group_count):
+        source_values = _cargo_marks_values(source_label, group_index)
+        target_values = _cargo_marks_values(target_label, group_index)
+        if (
+            source_values is None
+            or target_values is None
+            or len(source_values) != len(target_values)
+            or len(source_values) < 2
+        ):
+            continue
+        alternatives = tuple(
+            tuple(
+                sorted(
+                    set(_literal_occurrence_line_sets(current_text, source_value))
+                    | set(_literal_occurrence_line_sets(current_text, target_value)),
+                    key=lambda value: (min(value), len(value)),
+                )
+            )
+            for source_value, target_value in zip(source_values, target_values, strict=True)
+        )
+        if any(not rows for rows in alternatives):
+            continue
+
+        def extend(
+            position: int,
+            selected: tuple[frozenset[int], ...],
+            *,
+            _alternatives: tuple[tuple[frozenset[int], ...], ...] = alternatives,
+            _group_index: int = group_index,
+        ) -> None:
+            if position == len(_alternatives):
+                matches_by_group[_group_index].add(selected)
+                return
+            for occurrence in _alternatives[position]:
+                if not occurrence:
+                    continue
+                numbers = tuple(sorted(occurrence))
+                if any(_PAGE_MARKER.fullmatch(bodies[number - 1]) for number in numbers):
+                    continue
+                if selected:
+                    previous_end = max(selected[-1])
+                    previous_position = occupied_position.get(previous_end)
+                    if previous_position is None or previous_position + 1 >= len(occupied):
+                        continue
+                    if min(numbers) != occupied[previous_position + 1]:
+                        continue
+                extend(position + 1, (*selected, occurrence))
+
+        extend(0, ())
+
+    owners_by_sequence: dict[tuple[frozenset[int], ...], set[int]] = defaultdict(set)
+    for group_index, sequences in matches_by_group.items():
+        for sequence in sequences:
+            owners_by_sequence[sequence].add(group_index)
+
+    evidence: dict[str, set[int]] = defaultdict(set)
+    for group_index, sequences in matches_by_group.items():
+        for sequence in sequences:
+            if owners_by_sequence[sequence] != {group_index}:
+                continue
+            for marks_index, occurrence in enumerate(sequence):
+                evidence[
+                    f"documentPatch.cargoGroups[{group_index}].marksAndNumbers[{marks_index}]"
+                ].update(occurrence)
+    return {path: frozenset(numbers) for path, numbers in evidence.items()}
 
 
 def _refine_sibling_evidence(
     work_items: Sequence[HybridWorkItem],
+    bundle: RewriteCycleBundle | None = None,
 ) -> tuple[HybridWorkItem, ...]:
     """Replace broad sibling-object fallback lines with proven same-object evidence.
 
@@ -401,6 +559,37 @@ def _refine_sibling_evidence(
         if item.locator != "sibling_object_evidence":
             refined.append(item)
             continue
+        related_allocation_lines: set[str] = set()
+        if bundle is not None:
+            package_paths = tuple(
+                path for path in item.targetPaths if _CARGO_PACKAGE_TYPE_PATH.fullmatch(path)
+            )
+            package_group_ids = frozenset().union(
+                *(
+                    _quantity_group_ids(
+                        label,
+                        path.removesuffix("typeCategory") + "quantity",
+                    )
+                    for label in (bundle.sourceLabel, bundle.targetLabel)
+                    for path in package_paths
+                )
+            )
+            if package_group_ids:
+                related_allocation_lines.update(
+                    line_id
+                    for sibling in work_items
+                    if sibling.workItemId != item.workItemId
+                    and any(
+                        _ALLOCATION_PACKAGE_QUANTITY_PATH.fullmatch(path) is not None
+                        and (
+                            _quantity_group_ids(bundle.sourceLabel, path)
+                            | _quantity_group_ids(bundle.targetLabel, path)
+                        )
+                        & package_group_ids
+                        for path in sibling.targetPaths
+                    )
+                    for line_id in sibling.evidenceLineIds
+                )
         scopes = _work_item_object_scopes(item)
         direct_lines = {
             line_id
@@ -410,6 +599,12 @@ def _refine_sibling_evidence(
             and scopes & _work_item_object_scopes(sibling)
             for line_id in sibling.evidenceLineIds
         }
+        # A package category is printed on the per-container package rows when allocations are
+        # explicit. Those relation-owned rows are stronger evidence than a shipment-total line,
+        # which often contains only a number and previously caused category text to be inserted
+        # into the wrong field.
+        if related_allocation_lines:
+            direct_lines = related_allocation_lines
         refined.append(
             item.model_copy(
                 update={
@@ -422,18 +617,383 @@ def _refine_sibling_evidence(
     return tuple(refined)
 
 
+def _refine_cargo_group_evidence(
+    current_text: str,
+    work_items: Sequence[HybridWorkItem],
+    bundle: RewriteCycleBundle,
+) -> tuple[HybridWorkItem, ...]:
+    """Bind repeated cargo scalars to their indexed, ordered OCR cargo block.
+
+    Flattened carrier riders often repeat identical material, batch, grade, HS, or description
+    values across many containers. Literal matching alone therefore gives one indexed target
+    every physical occurrence, while sibling fallback can incorrectly place an additional-info
+    value onto the description line. The linguistic cargo plan already proves each indexed
+    description block and preserves source order. Its next description anchor is a deterministic
+    upper boundary for the current group; exact source-scalar occurrences inside that interval
+    are the only values owned by that indexed group.
+
+    If an exact occurrence cannot be established inside the proven interval, this refinement does
+    nothing. The existing compiler state remains fail-closed rather than guessing from proximity.
+    """
+
+    marks_evidence = _cargo_marks_sequence_evidence(
+        current_text,
+        bundle.sourceLabel,
+        bundle.targetLabel,
+    )
+    sequence_refined: list[HybridWorkItem] = []
+    for item in work_items:
+        marks_paths = tuple(path for path in item.targetPaths if _CARGO_MARKS_PATH.fullmatch(path))
+        if marks_paths and len(marks_paths) == len(item.targetPaths) and all(
+            path in marks_evidence for path in marks_paths
+        ):
+            owned = set().union(*(marks_evidence[path] for path in marks_paths))
+            sequence_refined.append(
+                item.model_copy(
+                    update={
+                        "evidenceLineIds": tuple(
+                            f"L{number:05d}" for number in sorted(owned)
+                        ),
+                        "locator": "cargo_group_relation_scope",
+                        "rationale": (
+                            "Exact position inside a complete, ordered, indexed marks-and-numbers "
+                            "sequence."
+                        ),
+                    }
+                )
+            )
+        else:
+            sequence_refined.append(item)
+
+    work_items = tuple(sequence_refined)
+    anchors: dict[int, tuple[int, ...]] = {}
+    for requirement in bundle.cargoFlavorRewriteRequirements:
+        if requirement.lineRole != "label_grounded":
+            continue
+        match = re.fullmatch(
+            r"documentPatch\.cargoGroups\[([0-9]+)\]\.description",
+            requirement.targetPath,
+        )
+        if match is None or not requirement.sourceLineIds:
+            continue
+        index = int(match.group(1))
+        numbers = tuple(sorted(line_number(value) for value in requirement.sourceLineIds))
+        if index in anchors and anchors[index] != numbers:
+            raise ValueError(f"cargo group {index} has conflicting description anchors")
+        anchors[index] = numbers
+    if not anchors:
+        return tuple(work_items)
+
+    ordered = sorted(anchors)
+    if any(
+        min(anchors[left]) >= min(anchors[right])
+        for left, right in pairwise(ordered)
+    ):
+        # Ordered source-label groups are the required relation key. A non-monotonic plan cannot
+        # safely partition repeated scalars, so preserve the original fail-closed compiler output.
+        return tuple(work_items)
+    line_count = len(current_text.splitlines())
+    regions = {
+        index: (
+            min(anchors[index]),
+            (min(anchors[ordered[position + 1]]) - 1)
+            if position + 1 < len(ordered)
+            else line_count,
+        )
+        for position, index in enumerate(ordered)
+    }
+
+    refined: list[HybridWorkItem] = []
+    for item in work_items:
+        if item.state != "agent_residual" or not isinstance(item.sourceValue, str):
+            refined.append(item)
+            continue
+        group_indices = {
+            int(match.group(1))
+            for path in item.targetPaths
+            if (match := _CARGO_GROUP_FIELD_PATH.match(path)) is not None
+        }
+        if not group_indices or any(index not in regions for index in group_indices):
+            refined.append(item)
+            continue
+        exact_groups = _literal_occurrence_line_sets(current_text, item.sourceValue)
+        owned = {
+            number
+            for index in group_indices
+            for start, end in (regions[index],)
+            for occurrence in exact_groups
+            if occurrence and min(occurrence) >= start and max(occurrence) <= end
+            for number in occurrence
+        }
+        if not owned:
+            refined.append(item)
+            continue
+        refined.append(
+            item.model_copy(
+                update={
+                    "evidenceLineIds": tuple(
+                        f"L{number:05d}" for number in sorted(owned)
+                    ),
+                    "locator": "cargo_group_relation_scope",
+                    "rationale": (
+                        "Exact source scalar occurrence inside the indexed cargo block bounded "
+                        "by the ordered description plan."
+                    ),
+                }
+            )
+        )
+    return tuple(refined)
+
+
+_PRINTED_EQUIPMENT_PATH = re.compile(
+    r"^documentPatch\.containers\[([0-9]+)\]\.printedEquipmentSurface$"
+)
+
+
+def _refine_equipment_evidence(
+    current_text: str,
+    work_items: Sequence[HybridWorkItem],
+    bundle: RewriteCycleBundle,
+) -> tuple[HybridWorkItem, ...]:
+    """Bind equipment-category edits only to a proven printed-equipment source line.
+
+    A container identifier proves which container a row belongs to, but it does not prove that the
+    row contains an equipment-type slot.  Adding a type phrase to an identifier-only line changes
+    the template topology.  Exact anchored requirements are built from a same-line or uniquely
+    adjacent source equipment surface; anything else remains fail-closed.
+    """
+
+    del current_text
+    anchored_by_path: dict[str, set[str]] = defaultdict(set)
+    for requirement in bundle.anchoredScalarReplacementRequirements:
+        for path in requirement.targetPaths:
+            if _PRINTED_EQUIPMENT_PATH.fullmatch(path) is not None:
+                anchored_by_path[path].update(requirement.sourceLineIds)
+    refined: list[HybridWorkItem] = []
+    for item in work_items:
+        if item.state != "agent_residual" or item.action not in {
+            "add_equipment_surface",
+            "replace_equipment_surface",
+        }:
+            refined.append(item)
+            continue
+        equipment_paths = tuple(
+            path for path in item.targetPaths if _PRINTED_EQUIPMENT_PATH.fullmatch(path) is not None
+        )
+        owned_line_ids = {
+            line_id for path in equipment_paths for line_id in anchored_by_path.get(path, ())
+        }
+        if not owned_line_ids:
+            refined.append(
+                item.model_copy(
+                    update={
+                        "state": "blocked_unlocated",
+                        "evidenceLineIds": (),
+                        "spanIds": (),
+                        "locator": "unlocated",
+                        "rationale": (
+                            "No exact same-line or uniquely adjacent printed equipment surface "
+                            "can own this categorical projection."
+                        ),
+                    }
+                )
+            )
+            continue
+        refined.append(
+            item.model_copy(
+                update={
+                    "evidenceLineIds": tuple(sorted(owned_line_ids, key=line_number)),
+                    "locator": "relation_scoped_surface",
+                    "rationale": (
+                        "The projected equipment surface is owned only by its exact printed "
+                        "source-equipment line."
+                    ),
+                }
+            )
+        )
+    return tuple(refined)
+
+
+def _party_owned_surface_lines(
+    current_text: str,
+    source_label: Mapping[str, JsonValue],
+    surface: str,
+) -> set[int]:
+    """Locate occurrences owned by a labeled source-party field.
+
+    A route and a party frequently share the same locality. Literal matching therefore cannot
+    give a route edit authority over occurrences inside a delivery-agent or other party block,
+    regardless of whether that party itself changes in the synthetic target. The party's source
+    label plus its bounded role block are sufficient ownership evidence; the target is irrelevant
+    to that source-side question.
+    """
+
+    source_patch = source_label.get("documentPatch")
+    source_parties = source_patch.get("parties") if isinstance(source_patch, Mapping) else None
+    if not isinstance(source_parties, Mapping):
+        return set()
+    normalized_surface = _semantic_normalize(surface)
+    protected: set[int] = set()
+    for role, source_value in source_parties.items():
+        source_rows = (
+            source_value
+            if role == "notifyParties"
+            and isinstance(source_value, Sequence)
+            and not isinstance(source_value, (str, bytes))
+            else (source_value,)
+        )
+        for index, source_party in enumerate(source_rows):
+            if not isinstance(source_party, Mapping):
+                continue
+            for field, source_scalar in source_party.items():
+                if (
+                    not isinstance(source_scalar, str)
+                    or not normalized_surface
+                    or re.search(
+                        rf"(?:^| ){re.escape(normalized_surface)}(?: |$)",
+                        _semantic_normalize(source_scalar),
+                    )
+                    is None
+                ):
+                    continue
+                role_path = (
+                    f"documentPatch.parties.notifyParties[{index}]"
+                    if role == "notifyParties"
+                    else f"documentPatch.parties.{role}"
+                )
+                if (
+                    _semantic_normalize(source_scalar) == normalized_surface
+                    or field in {"city", "country"}
+                ):
+                    for group in _party_block_line_groups(
+                        current_text,
+                        path=f"{role_path}.{field}",
+                        source_label=source_label,
+                    ):
+                        protected.update(group)
+                else:
+                    # A token embedded in a larger name/address owns only that complete scalar's
+                    # occurrence, not the entire party block. Broad name/address protection can
+                    # otherwise swallow unrelated freight/place fields before the next heading.
+                    for group in _literal_occurrence_line_sets(current_text, source_scalar):
+                        protected.update(group)
+    occurrence_lines = {
+        number
+        for group in _literal_occurrence_line_sets(current_text, surface)
+        for number in group
+    }
+    return protected & occurrence_lines
+
+
+def _refine_foreign_party_evidence(
+    current_text: str,
+    source_label: Mapping[str, JsonValue],
+    target_label: Mapping[str, JsonValue],
+    work_items: Sequence[HybridWorkItem],
+) -> tuple[HybridWorkItem, ...]:
+    """Prevent a non-party delta from overwriting an unchanged party-role scalar.
+
+    Flattened OCR often repeats a country or city in both a route field and a delivery-agent
+    block.  Literal/sibling expansion may attach both lines to the route work item.  An exact
+    source-and-target party scalar is stronger role evidence: remove only that scalar's party
+    occurrence, retaining every actual route occurrence.  A work item with no remaining evidence
+    fails closed.
+    """
+
+    refined: list[HybridWorkItem] = []
+    for item in work_items:
+        if (
+            item.state != "agent_residual"
+            or any(_party_role_path(path) is not None for path in item.targetPaths)
+            or not isinstance(item.sourceValue, str)
+        ):
+            refined.append(item)
+            continue
+        protected = _party_owned_surface_lines(
+            current_text,
+            source_label,
+            item.sourceValue,
+        )
+        contextual = set().union(
+            *(
+                _contextual_location_line_numbers(current_text, path, item.sourceValue)
+                for path in item.targetPaths
+            )
+        )
+        contextual.intersection_update(line_number(value) for value in item.evidenceLineIds)
+        # An explicit structural heading is stronger ownership evidence than a shared locality
+        # token in another party field. In particular, freight payment and issue locations often
+        # repeat the carrier's city. Preserve only their caption-bound occurrences instead of
+        # allowing broad party-block discovery to consume those lines.
+        if contextual:
+            refined.append(
+                item.model_copy(
+                    update={
+                        "evidenceLineIds": tuple(
+                            f"L{number:05d}" for number in sorted(contextual)
+                        ),
+                        "locator": "location_role_surface",
+                    }
+                )
+            )
+            continue
+        if not protected:
+            refined.append(item)
+            continue
+        evidence = tuple(
+            line_id for line_id in item.evidenceLineIds if line_number(line_id) not in protected
+        )
+        if evidence:
+            refined.append(
+                item.model_copy(
+                    update={
+                        "evidenceLineIds": evidence,
+                        "rationale": (
+                            item.rationale
+                            + " Unchanged party-role copies of the same surface are excluded."
+                        ),
+                    }
+                )
+            )
+        else:
+            refined.append(
+                item.model_copy(
+                    update={
+                        "state": "blocked_unlocated",
+                        "evidenceLineIds": (),
+                        "spanIds": (),
+                        "locator": "unlocated",
+                        "rationale": (
+                            "Every candidate occurrence belongs to an unchanged party-role scalar; "
+                            "no path-owned non-party evidence remains."
+                        ),
+                    }
+                )
+            )
+    return tuple(refined)
+
+
 _PACKAGE_QUANTITY_PATH = re.compile(
     r"^documentPatch\.(?:cargoPackages\[[0-9]+\]\.quantity|"
     r"cargoAllocationGroups\[[0-9]+\]\.allocations\[[0-9]+\]\.packageQuantity)$"
+)
+_CARGO_PACKAGE_QUANTITY_PATH = re.compile(
+    r"^documentPatch\.cargoPackages\[([0-9]+)\]\.quantity$"
+)
+_ALLOCATION_PACKAGE_QUANTITY_PATH = re.compile(
+    r"^documentPatch\.cargoAllocationGroups\[([0-9]+)\]\.allocations\[([0-9]+)\]"
+    r"\.packageQuantity$"
 )
 _TEMPERATURE_VALUE_PATH = re.compile(
     r"^documentPatch\.containers\[[0-9]+\]\.temperatureSetpoint\.value$"
 )
 _PACKAGE_NOUN_AFTER_COUNT = re.compile(
-    r"(?ix)^[ \t]*(?:X[ \t]+)?(?:"
-    r"BAGS?|BALES?|BARRELS?|BOX(?:ES)?|BUNDLES?|CANS?|CARTONS?|CASES?|"
+    r"(?ix)^[ \t]*(?:X[ \t]+)?"
+    r"(?:(?:WOODEN|WOOD|PLYWOOD|CARDBOARD|FIBREBOARD|FIBERBOARD|CORRUGATED|"
+    r"PLASTIC|STEEL|METAL)[ \t]+)?(?:"
+    r"BAGS?|BALES?|BARRELS?|BOX(?:ES)?|BUNDLES?|CANS?|CARTONS?|CTNS?|CASES?|"
     r"COILS?|CRATES?|CYLINDERS?|DRUMS?|PACKAGES?|PALLETS?|PIECES?|"
-    r"PKGS?|PCS?|ROLLS?|SACKS?|SKIDS?|TANKS?|TINS?|UNITS?"
+    r"PKGS?|PK|PCS?|PLTS?|PL|ROLLS?|SACKS?|SKIDS?|TANKS?|TINS?|UNITS?"
     r")\b"
 )
 
@@ -515,6 +1075,286 @@ def _allocation_container_numbers(
     return frozenset(output)
 
 
+def _allocation_container_for_path(label: Mapping[str, Any], path: str) -> str | None:
+    match = _ALLOCATION_PACKAGE_QUANTITY_PATH.fullmatch(path)
+    if match is None:
+        return None
+    groups = _sequence_objects(label, "cargoAllocationGroups")
+    group_index, allocation_index = (int(value) for value in match.groups())
+    if group_index >= len(groups) or not isinstance(groups[group_index], Mapping):
+        return None
+    allocations = groups[group_index].get("allocations")
+    if (
+        not isinstance(allocations, Sequence)
+        or isinstance(allocations, (str, bytes))
+        or allocation_index >= len(allocations)
+        or not isinstance(allocations[allocation_index], Mapping)
+    ):
+        return None
+    value = allocations[allocation_index].get("containerNumber")
+    return value if isinstance(value, str) and value else None
+
+
+def _container_numbers(label: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        value
+        for row in _sequence_objects(label, "containers")
+        if isinstance(row, Mapping)
+        and isinstance((value := row.get("containerNumber")), str)
+        and value
+    )
+
+
+def _allocation_quantity_evidence_lines(
+    current_text: str,
+    *,
+    path: str,
+    source_value: int | float,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    candidate_line_numbers: set[int] | None = None,
+) -> set[int]:
+    """Bind one allocation quantity to the package rows following its own container.
+
+    Container-size numerals and allocation counts often share values such as 20 or 40.  The
+    container relation is the disambiguator: locate the source/target container identifier, bound
+    its section by the next known container or page marker, then admit only explicit package-count
+    grammar inside that section.  This derives authority from the label graph and printed syntax,
+    not from proximity alone.
+    """
+
+    bodies = current_text.splitlines()
+
+    def explicit_at(number: int, value: int | float) -> bool:
+        if not 1 <= number <= len(bodies):
+            return False
+        if _is_explicit_package_quantity_line(bodies[number - 1], value):
+            return True
+        # Columnar OCR can split ``990 BAGS`` into two physical cells. The numeric cell is valid
+        # only when it is already relation-owned and the immediately following occupied cell is a
+        # package noun. This never promotes arbitrary naked numerals globally.
+        tokens = re.findall(r"(?<![0-9.,])[-+]?\d+(?:[.,]\d+)*(?![0-9.,])", bodies[number - 1])
+        if (
+            len(tokens) != 1
+            or Decimal(str(value)) not in _numeric_surface_values(tokens[0])
+            or re.sub(r"[-+0-9.,\s]", "", bodies[number - 1])
+        ):
+            return False
+        following = number + 1
+        while following <= len(bodies) and not bodies[following - 1].strip():
+            following += 1
+        return following <= len(bodies) and _PACKAGE_NOUN_AFTER_COUNT.fullmatch(
+            bodies[following - 1]
+        ) is not None
+
+    if candidate_line_numbers:
+        direct = {
+            number for number in candidate_line_numbers if explicit_at(number, source_value)
+        }
+        if len(direct) == 1:
+            return direct
+
+    owned_containers = {
+        value
+        for label in (source_label, target_label)
+        if (value := _allocation_container_for_path(label, path)) is not None
+    }
+    if not owned_containers:
+        return set()
+    all_containers = set(_container_numbers(source_label)) | set(_container_numbers(target_label))
+    all_anchor_lines = sorted(
+        {
+            number
+            for container in all_containers
+            for number in _container_identifier_line_numbers(current_text, container)
+        }
+    )
+    owned_anchor_lines = sorted(
+        {
+            number
+            for container in owned_containers
+            for number in _container_identifier_line_numbers(current_text, container)
+        }
+    )
+    evidence: set[int] = set()
+    for anchor in owned_anchor_lines:
+        later_anchors = (number for number in all_anchor_lines if number > anchor)
+        boundary = next(later_anchors, len(bodies) + 1)
+        for number in range(anchor, boundary):
+            if number > anchor and re.fullmatch(r"--- PAGE [1-9][0-9]* ---", bodies[number - 1]):
+                break
+            if explicit_at(number, source_value):
+                evidence.add(number)
+    return evidence
+
+
+def _allocation_quantity_path_rows(
+    label: Mapping[str, Any],
+) -> tuple[tuple[str, int | float, str], ...]:
+    """Return allocation quantities and their containers in stable schema order."""
+
+    output: list[tuple[str, int | float, str]] = []
+    for group_index, group in enumerate(_sequence_objects(label, "cargoAllocationGroups")):
+        if not isinstance(group, Mapping):
+            continue
+        allocations = group.get("allocations")
+        if not isinstance(allocations, Sequence) or isinstance(allocations, (str, bytes)):
+            continue
+        for allocation_index, allocation in enumerate(allocations):
+            if not isinstance(allocation, Mapping):
+                continue
+            quantity = allocation.get("packageQuantity")
+            container = allocation.get("containerNumber")
+            if (
+                not isinstance(quantity, (int, float))
+                or isinstance(quantity, bool)
+                or not isinstance(container, str)
+                or not container
+            ):
+                continue
+            output.append(
+                (
+                    "documentPatch.cargoAllocationGroups"
+                    f"[{group_index}].allocations[{allocation_index}].packageQuantity",
+                    quantity,
+                    container,
+                )
+            )
+    return tuple(output)
+
+
+def _ordered_allocation_quantity_evidence(
+    current_text: str,
+    *,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    active_paths: frozenset[str],
+) -> dict[str, set[int]]:
+    """Prove allocation quantity ownership across row-wise and column-wise OCR tables.
+
+    Bills of lading render container allocations in two recurring topologies. Row-wise forms put
+    each package count after its container; column-wise forms print every container first and the
+    package-count column afterwards. A repeated continuation block can then repeat the counts in
+    the same allocation order without repeating the container column. Literal proximity cannot
+    represent all three cases.
+
+    This resolver uses only schema relations and explicit package-count grammar. Every active
+    allocation must have one current source-or-target container anchor. Equal source quantities
+    are assigned either by non-overlapping container sections, when every section has the same
+    number of copies, or by complete order-preserving table cycles. Anything incomplete or
+    non-monotonic remains unresolved.
+    """
+
+    bodies = current_text.splitlines()
+    source_rows = tuple(
+        row for row in _allocation_quantity_path_rows(source_label) if row[0] in active_paths
+    )
+    if not source_rows:
+        return {}
+
+    target_containers = {
+        path: _allocation_container_for_path(target_label, path)
+        for path, _quantity, _ in source_rows
+    }
+    anchor_by_path: dict[str, int] = {}
+    previous_anchor = 0
+    for path, _quantity, source_container in source_rows:
+        containers = {source_container}
+        target_container = target_containers[path]
+        if target_container is not None:
+            containers.add(target_container)
+        anchors = {
+            number
+            for container in containers
+            for number in _container_identifier_line_numbers(current_text, container)
+        }
+        following_anchors = sorted(number for number in anchors if number > previous_anchor)
+        if not following_anchors:
+            return {}
+        anchor_by_path[path] = following_anchors[0]
+        previous_anchor = following_anchors[0]
+
+    def explicit_at(number: int, value: int | float) -> bool:
+        if not 1 <= number <= len(bodies):
+            return False
+        if _is_explicit_package_quantity_line(bodies[number - 1], value):
+            return True
+        tokens = re.findall(
+            r"(?<![0-9.,])[-+]?\d+(?:[.,]\d+)*(?![0-9.,])", bodies[number - 1]
+        )
+        if (
+            len(tokens) != 1
+            or Decimal(str(value)) not in _numeric_surface_values(tokens[0])
+            or re.sub(r"[-+0-9.,\s]", "", bodies[number - 1])
+        ):
+            return False
+        following = number + 1
+        while following <= len(bodies) and not bodies[following - 1].strip():
+            following += 1
+        return following <= len(bodies) and _PACKAGE_NOUN_AFTER_COUNT.fullmatch(
+            bodies[following - 1]
+        ) is not None
+
+    output: dict[str, set[int]] = defaultdict(set)
+    quantities = {quantity for _path, quantity, _container in source_rows}
+    for quantity in quantities:
+        matching_paths = [path for path, value, _container in source_rows if value == quantity]
+        candidates = [
+            number
+            for number in range(1, len(bodies) + 1)
+            if explicit_at(number, quantity)
+            and (
+                len(matching_paths) == 1
+                or not _is_shipment_aggregate_value_line(bodies[number - 1])
+            )
+        ]
+        if not candidates:
+            return {}
+        if len(matching_paths) == 1:
+            output[matching_paths[0]].update(candidates)
+            continue
+
+        anchors = [anchor_by_path[path] for path in matching_paths]
+        boundaries = [*anchors[1:], len(bodies) + 1]
+        row_groups = [
+            [number for number in candidates if anchor <= number < boundary]
+            for anchor, boundary in zip(anchors, boundaries, strict=True)
+        ]
+        group_sizes = {len(group) for group in row_groups}
+        if group_sizes and 0 not in group_sizes and len(group_sizes) == 1:
+            for path, group in zip(matching_paths, row_groups, strict=True):
+                output[path].update(group)
+            continue
+
+        width = len(matching_paths)
+        if len(candidates) < width:
+            return {}
+        first_cycle = candidates[:width]
+        if any(candidate < anchor for candidate, anchor in zip(first_cycle, anchors, strict=True)):
+            return {}
+        # A later continuation page can repeat only a subset of allocation rows. Map every
+        # complete cycle here; path-specific relation evidence below owns any proven remainder.
+        for offset in range(0, len(candidates) - width + 1, width):
+            cycle = candidates[offset : offset + width]
+            for path, number in zip(matching_paths, cycle, strict=True):
+                output[path].add(number)
+    return dict(output)
+
+
+def _shipment_package_total_lines(current_text: str, value: int | float) -> set[int]:
+    """Locate explicit shipment-level package totals with the requested numeric value."""
+
+    expected = Decimal(str(value))
+    output: set[int] = set()
+    for number, body in enumerate(current_text.splitlines(), start=1):
+        if not _is_shipment_aggregate_value_line(body):
+            continue
+        tokens = re.findall(r"(?<![0-9.,])[-+]?\d+(?:[.,]\d+)*(?![0-9])", body)
+        if any(expected in _numeric_surface_values(token) for token in tokens):
+            output.add(number)
+    return output
+
+
 def _refine_numeric_evidence(
     current_text: str,
     work_items: Sequence[HybridWorkItem],
@@ -531,6 +1371,19 @@ def _refine_numeric_evidence(
     """
 
     bodies = current_text.splitlines()
+    active_allocation_paths = frozenset(
+        path
+        for item in work_items
+        if item.state == "agent_residual"
+        for path in item.targetPaths
+        if _ALLOCATION_PACKAGE_QUANTITY_PATH.fullmatch(path) is not None
+    )
+    ordered_allocation_evidence = _ordered_allocation_quantity_evidence(
+        current_text,
+        source_label=bundle.sourceLabel,
+        target_label=bundle.targetLabel,
+        active_paths=active_allocation_paths,
+    )
     refined: list[HybridWorkItem] = []
     for item in work_items:
         quantity_paths = tuple(
@@ -540,7 +1393,8 @@ def _refine_numeric_evidence(
             path for path in item.targetPaths if _TEMPERATURE_VALUE_PATH.match(path)
         )
         if (
-            (not quantity_paths and not temperature_paths)
+            item.state != "agent_residual"
+            or (not quantity_paths and not temperature_paths)
             or not isinstance(item.sourceValue, (int, float))
             or isinstance(item.sourceValue, bool)
         ):
@@ -562,6 +1416,78 @@ def _refine_numeric_evidence(
                             f"L{number:05d}" for number in sorted(narrowed_temperature)
                         ),
                         "locator": "thermal_context_numeric_surface",
+                    }
+                )
+            )
+            continue
+        allocation_paths = tuple(
+            path for path in quantity_paths if _ALLOCATION_PACKAGE_QUANTITY_PATH.fullmatch(path)
+        )
+        if allocation_paths:
+            narrowed_allocations: set[int] = set()
+            for path in allocation_paths:
+                ordered = ordered_allocation_evidence.get(path, set())
+                relation_scoped = _allocation_quantity_evidence_lines(
+                    current_text,
+                    path=path,
+                    source_value=item.sourceValue,
+                    source_label=bundle.sourceLabel,
+                    target_label=bundle.targetLabel,
+                    candidate_line_numbers=owned,
+                )
+                if ordered:
+                    claimed_by_other_paths = set().union(
+                        *(
+                            lines
+                            for candidate_path, lines in ordered_allocation_evidence.items()
+                            if candidate_path != path
+                        )
+                    )
+                    relation_scoped.difference_update(claimed_by_other_paths)
+                narrowed_allocations.update(ordered | relation_scoped)
+            if narrowed_allocations:
+                refined.append(
+                    item.model_copy(
+                        update={
+                            "evidenceLineIds": tuple(
+                                f"L{number:05d}" for number in sorted(narrowed_allocations)
+                            ),
+                            "locator": "relation_scoped_numeric_surface",
+                        }
+                    )
+                )
+            else:
+                refined.append(
+                    item.model_copy(
+                        update={
+                            "state": "blocked_unlocated",
+                            "evidenceLineIds": (),
+                            "spanIds": (),
+                            "locator": "unlocated",
+                            "rationale": (
+                                "No explicit package quantity is printed inside the allocation's "
+                                "container-owned section."
+                            ),
+                        }
+                    )
+                )
+            continue
+        package_paths = tuple(
+            path for path in quantity_paths if _CARGO_PACKAGE_QUANTITY_PATH.fullmatch(path)
+        )
+        shipment_totals = (
+            _shipment_package_total_lines(current_text, item.sourceValue)
+            if package_paths
+            else set()
+        )
+        if shipment_totals:
+            refined.append(
+                item.model_copy(
+                    update={
+                        "evidenceLineIds": tuple(
+                            f"L{number:05d}" for number in sorted(shipment_totals)
+                        ),
+                        "locator": "relation_scoped_numeric_surface",
                     }
                 )
             )
@@ -806,10 +1732,61 @@ def _refine_party_evidence(
     return tuple(refined)
 
 
+def _iter_string_label_leaves(
+    value: Any,
+    *,
+    path: str = "",
+) -> Sequence[tuple[str, str]]:
+    """Return string leaves with stable schema paths for source-side ownership checks."""
+
+    rows: list[tuple[str, str]] = []
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            rows.extend(_iter_string_label_leaves(child, path=child_path))
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        for index, child in enumerate(value):
+            rows.extend(_iter_string_label_leaves(child, path=f"{path}[{index}]"))
+    elif isinstance(value, str):
+        rows.append((path, value))
+    return tuple(rows)
+
+
+def _carrier_embedded_foreign_owner_groups(
+    original_text: str,
+    source_label: Mapping[str, Any] | None,
+    carrier_surface: str,
+) -> tuple[frozenset[int], ...]:
+    """Locate a carrier token embedded in a different complete labeled source scalar.
+
+    A vessel such as ``CMA CGM MOLIERE`` contains the carrier ``CMA CGM`` but is not another
+    carrier-principal slot. The complete source scalar and its distinct schema path prove that
+    ownership without relying on vessel-name regexes. Exact-equal values remain unresolved here
+    because their individual occurrences require a stronger role locator.
+    """
+
+    if source_label is None:
+        return ()
+    normalized_carrier = _semantic_normalize(carrier_surface)
+    if not normalized_carrier:
+        return ()
+    groups: set[frozenset[int]] = set()
+    for path, value in _iter_string_label_leaves(source_label):
+        if path.startswith("documentPatch.parties.carrier."):
+            continue
+        normalized_value = _semantic_normalize(value)
+        if normalized_value == normalized_carrier or normalized_carrier not in normalized_value:
+            continue
+        groups.update(_party_scalar_occurrence_line_sets(original_text, value))
+    return tuple(sorted(groups, key=lambda group: (min(group), len(group))))
+
+
 def _refine_party_occurrence_requirements(
+    original_text: str,
     current_text: str,
     work_items: Sequence[HybridWorkItem],
     requirements: Sequence[TargetValueOccurrenceRequirement],
+    source_label: Mapping[str, Any] | None = None,
 ) -> tuple[TargetValueOccurrenceRequirement, ...]:
     """Count party identity copies only inside their proven semantic role blocks.
 
@@ -854,18 +1831,31 @@ def _refine_party_occurrence_requirements(
                     # principals and source principals still awaiting a residual rewrite. This
                     # matters when a short carrier masthead is deterministically expanded to the
                     # full target name before a separate signature line is delegated.
+                    excluded_groups = _carrier_embedded_foreign_owner_groups(
+                        original_text,
+                        source_label,
+                        item.sourceValue,
+                    )
                     target_count = carrier_principal_occurrence_count(
-                        current_text, requirement.targetValue
+                        current_text,
+                        requirement.targetValue,
+                        excluded_line_groups=excluded_groups,
                     )
                     source_count = carrier_principal_occurrence_count(
-                        current_text, item.sourceValue
+                        current_text,
+                        item.sourceValue,
+                        excluded_line_groups=excluded_groups,
                     )
                     source_inside_target = carrier_principal_occurrence_count(
                         requirement.targetValue, item.sourceValue
                     )
                     count = max(
                         count,
-                        carrier_principal_template_slot_count(current_text, item.sourceValue),
+                        carrier_principal_template_slot_count(
+                            original_text,
+                            item.sourceValue,
+                            excluded_line_groups=excluded_groups,
+                        ),
                         target_count
                         + max(0, source_count - target_count * source_inside_target),
                     )
@@ -892,6 +1882,140 @@ def _refine_party_occurrence_requirements(
             continue
         refined.append(requirement.model_copy(update={"requiredOccurrences": sum(contributions)}))
     return tuple(refined)
+
+
+def _include_unique_linked_party_copies(
+    current_text: str,
+    work_items: Sequence[HybridWorkItem],
+    inventory: Sequence[InventoryCandidate],
+    requirements: Sequence[TargetValueOccurrenceRequirement],
+    source_status_requirements: Sequence[SourceStatusPreservationRequirement],
+) -> tuple[TargetValueOccurrenceRequirement, ...]:
+    """Count exact party copies outside their primary form blocks when their target is unique.
+
+    The role-block refinement deliberately excludes unowned lines. That is correct for explicit
+    signing agents, which are parsed separately, but not for an exact shipper/consignee identity
+    repeated in a customs or tax statement. The inventory has already removed explicit legal-agent
+    lines and proven that a remaining copy has one semantic target. Add only those proven copies to
+    the global target cardinality so the renderer cannot replace them with an unrelated company.
+    """
+
+    bodies = current_text.splitlines()
+    protected_status_lines = {
+        f"L{number:05d}"
+        for number, body in enumerate(bodies, start=1)
+        if any(body == requirement.sourceSurface for requirement in source_status_requirements)
+    }
+    work_items_by_line: dict[str, list[HybridWorkItem]] = defaultdict(list)
+    for item in work_items:
+        for line_id in item.evidenceLineIds:
+            work_items_by_line[line_id].append(item)
+    output: list[TargetValueOccurrenceRequirement] = []
+    for requirement in requirements:
+        party_paths = {
+            path
+            for path in requirement.targetPaths
+            if _party_role_path(path) is not None
+            and path.rsplit(".", 1)[-1] in {"name", "address"}
+        }
+        # Carrier principal cardinality already includes legal-syntax and unowned branding slots.
+        if not party_paths or "documentPatch.parties.carrier.name" in party_paths:
+            output.append(requirement)
+            continue
+        extra_occurrences = 0
+        for candidate in inventory:
+            if candidate.category != "changed_source_occurrence":
+                continue
+            target_rows = candidate.targetSemantics
+            if not isinstance(target_rows, Sequence) or isinstance(target_rows, (str, bytes)):
+                continue
+            linked_paths = {
+                row.get("path")
+                for row in target_rows
+                if isinstance(row, Mapping)
+                and row.get("target") == requirement.targetValue
+                and row.get("path") in party_paths
+            }
+            if not linked_paths:
+                continue
+            # A punctuation-equivalent party name can itself be the value of another labeled
+            # field, such as marks and numbers.  The explicit path owner wins on that line; it is
+            # not an extra party occurrence.  The inventory compiler normally suppresses this
+            # collision, while this check keeps cardinality safe for externally supplied or
+            # persisted inventories as well.
+            candidate_key = _semantic_normalize(candidate.sourceSurface)
+            foreign_owned_lines = {
+                line_id
+                for line_id in candidate.lineIds
+                if any(
+                    not linked_paths.intersection(item.targetPaths)
+                    and isinstance(item.sourceValue, str)
+                    and _semantic_normalize(item.sourceValue) == candidate_key
+                    for item in work_items_by_line.get(line_id, ())
+                )
+            }
+            owned_lines = {
+                line_id
+                for item in work_items
+                if item.sourceValue == candidate.sourceSurface
+                and linked_paths.intersection(item.targetPaths)
+                for line_id in item.evidenceLineIds
+            }
+            unowned_lines = tuple(
+                line_id
+                for line_id in candidate.lineIds
+                if line_id not in owned_lines
+                and line_id not in foreign_owned_lines
+                and line_id not in protected_status_lines
+            )
+            if not unowned_lines:
+                continue
+            selected = "\n".join(
+                bodies[line_number(line_id) - 1] for line_id in unowned_lines
+            )
+            count = _party_scalar_occurrence_count(selected, candidate.sourceSurface)
+            if count < 1:
+                raise ValueError(
+                    "linked party inventory candidate has no countable source occurrence: "
+                    f"{candidate.candidateId}"
+                )
+            extra_occurrences += count
+        output.append(
+            requirement.model_copy(
+                update={
+                    "requiredOccurrences": requirement.requiredOccurrences + extra_occurrences
+                }
+            )
+        )
+    # A short carrier principal can be a proper substring of another labeled party identity,
+    # such as ``TRANSGLORY`` inside forwarding agent ``TRANSGLORY S.A.``.  The carrier role
+    # refinement correctly excludes those foreign-owner lines when counting principal slots, but
+    # the global target counter necessarily sees the substring in the rendered forwarding name.
+    # Add those structurally required nested occurrences to the carrier cardinality.
+    nested_adjusted: list[TargetValueOccurrenceRequirement] = []
+    for requirement in output:
+        if "documentPatch.parties.carrier.name" not in requirement.targetPaths:
+            nested_adjusted.append(requirement)
+            continue
+        nested_occurrences = sum(
+            other.requiredOccurrences
+            * _party_scalar_occurrence_count(other.targetValue, requirement.targetValue)
+            for other in output
+            if other is not requirement
+            and any(
+                path.startswith("documentPatch.parties.")
+                and path.rsplit(".", 1)[-1] in {"name", "address"}
+                for path in other.targetPaths
+            )
+        )
+        nested_adjusted.append(
+            requirement.model_copy(
+                update={
+                    "requiredOccurrences": requirement.requiredOccurrences + nested_occurrences
+                }
+            )
+        )
+    return tuple(nested_adjusted)
 
 
 def _inventory_requirement(item: InventoryCandidate) -> dict[str, JsonValue]:
@@ -935,6 +2059,71 @@ def _locked_literal_requirements_by_line(
                 "policy": "preserve_exact_flattened_ocr_semantic_role_on_this_line",
             }
         )
+    current_lines = workspace.current_text.splitlines()
+    for requirement in workspace.raw_auxiliary_identity_requirements:
+        match = re.search(r"L[0-9]{5}", requirement.requirementId)
+        if match is None:
+            raise ValueError(
+                "raw auxiliary identity requirement lacks its source line ID: "
+                f"{requirement.requirementId}"
+            )
+        start = line_number(match.group(0))
+        source_fragments = requirement.sourceIdentity.splitlines()
+        if len(source_fragments) != requirement.sourceIdentityLineCount:
+            raise ValueError(
+                "raw auxiliary identity source fragments differ from line-count contract: "
+                f"{requirement.requirementId}"
+            )
+        for offset, source_fragment in enumerate(source_fragments):
+            number = start + offset
+            if not 1 <= number <= len(current_lines):
+                raise ValueError(
+                    "raw auxiliary identity line is outside OCR: "
+                    f"{requirement.requirementId}"
+                )
+            current_line = current_lines[number - 1]
+            if current_line.count(source_fragment) != 1:
+                raise ValueError(
+                    "raw auxiliary identity fragment is not unique on its exact line: "
+                    f"{requirement.requirementId}, L{number:05d}"
+                )
+            column = current_line.index(source_fragment)
+            prefix = current_line[:column]
+            suffix = current_line[column + len(source_fragment) :]
+            prefix_lock = prefix
+            shipped_prefix = re.match(
+                r"(?i)^[ \t]*SHIPPED[ \t]+ON[ \t]+BOARD(?:ED)?"
+                r"(?:[ \t]*[:.-][ \t]*|[ \t]+)",
+                prefix,
+            )
+            if shipped_prefix is not None:
+                # Vessel and date values between this static heading and the raw agent are
+                # independently mutable. Lock only the template heading, not those source facts.
+                prefix_lock = shipped_prefix.group(0)
+            if prefix_lock:
+                locked[f"L{number:05d}"].append(
+                    {
+                        "kind": "host_locked_source_prefix",
+                        "paths": cast(
+                            JsonValue,
+                            [f"rawAuxiliaryIdentity.{requirement.requirementId}"],
+                        ),
+                        "target": prefix_lock,
+                        "policy": "preserve_verbatim_at_line_start",
+                    }
+                )
+            if suffix:
+                locked[f"L{number:05d}"].append(
+                    {
+                        "kind": "host_locked_source_suffix",
+                        "paths": cast(
+                            JsonValue,
+                            [f"rawAuxiliaryIdentity.{requirement.requirementId}"],
+                        ),
+                        "target": suffix,
+                        "policy": "preserve_verbatim_at_line_end",
+                    }
+                )
     return locked
 
 
@@ -959,11 +2148,13 @@ def _party_scalar_source_slot_groups(
         alias: line_number(line_id) for line_id, alias in alias_by_line.items()
     }
     for candidate_numbers in candidate_groups:
-        aliases = tuple(
-            alias_by_line[f"L{number:05d}"]
-            for number in sorted(candidate_numbers)
-            if f"L{number:05d}" in alias_by_line
-        )
+        line_ids = tuple(f"L{number:05d}" for number in sorted(candidate_numbers))
+        # A repair request may intentionally expose only one surplus occurrence. Publishing a
+        # partial multiline address as a complete source group tells the model to collapse the
+        # full target address into that single line. Only complete groups are authoritative.
+        if not all(line_id in alias_by_line for line_id in line_ids):
+            continue
+        aliases = tuple(alias_by_line[line_id] for line_id in line_ids)
         if aliases:
             groups.add(aliases)
     return tuple(
@@ -1040,8 +2231,10 @@ def _handling_affix_requirements_by_line(
 def _model_slots(
     compiled: _CompiledCase,
     inventory: Sequence[InventoryCandidate],
+    deterministic_edits: Sequence[DeterministicInventoryEdit] = (),
 ) -> tuple[_Slot, ...]:
     requirements_by_line: dict[str, list[dict[str, JsonValue]]] = defaultdict(list)
+    current_lines = compiled.workspace.current_text.splitlines()
     for work_item in compiled.work_items:
         if work_item.state != "agent_residual":
             continue
@@ -1095,19 +2288,67 @@ def _model_slots(
                 }
             )
     for cargo_requirement in compiled.bundle.cargoFlavorRewriteRequirements:
-        if len(cargo_requirement.sourceLineIds) != 1:
+        for line_id in cargo_requirement.sourceLineIds:
+            number = line_number(line_id)
+            if not 1 <= number <= len(current_lines):
+                continue
+            had_owned_slot = line_id in requirements_by_line
+            unexpected_packages = unexpected_cargo_package_surfaces(
+                current_lines[number - 1], cargo_requirement
+            )
+            if unexpected_packages:
+                requirements_by_line[line_id].append(
+                    {
+                        "kind": "source_only_cargo_packaging",
+                        "paths": cast(JsonValue, [cargo_requirement.targetPath]),
+                        "source": cast(JsonValue, list(unexpected_packages)),
+                        "target": {
+                            "description": cargo_requirement.targetDescription,
+                            "allowedPackageSurfaces": cast(
+                                JsonValue,
+                                list(cargo_requirement.allowedPackageSurfaces),
+                            ),
+                        },
+                        "policy": (
+                            "rewrite_as_a_realistic_target_cargo_detail_using_only_allowed_"
+                            "package_surfaces_while_preserving_host_locked_literals"
+                        ),
+                    }
+                )
+            if had_owned_slot and len(cargo_requirement.sourceLineIds) == 1:
+                requirements_by_line[line_id].append(
+                    {
+                        "kind": "required_semantic_surface",
+                        "paths": cast(JsonValue, [cargo_requirement.targetPath]),
+                        "target": cargo_requirement.targetDescription,
+                        "policy": "render_complete_target_modulo_casing_on_this_line",
+                    }
+                )
+    for edit in deterministic_edits:
+        for line_id in edit.lineIds:
+            if line_id not in requirements_by_line:
+                continue
+            requirements_by_line[line_id].append(
+                {
+                    "kind": "host_locked_target_literal",
+                    "paths": cast(JsonValue, ["rawAuxiliary.deterministicEdit"]),
+                    "target": edit.targetSurface,
+                    "policy": "preserve_verbatim_on_this_line",
+                }
+            )
+    for line_id in tuple(requirements_by_line):
+        number = line_number(line_id)
+        if not 1 <= number <= len(current_lines):
             continue
-        line_id = cargo_requirement.sourceLineIds[0]
-        if line_id not in requirements_by_line:
-            continue
-        requirements_by_line[line_id].append(
-            {
-                "kind": "required_semantic_surface",
-                "paths": cast(JsonValue, [cargo_requirement.targetPath]),
-                "target": cargo_requirement.targetDescription,
-                "policy": "render_complete_target_modulo_casing_on_this_line",
-            }
-        )
+        for label_surface in auxiliary_label_surfaces(current_lines[number - 1]):
+            requirements_by_line[line_id].append(
+                {
+                    "kind": "host_locked_source_literal",
+                    "paths": cast(JsonValue, ["rawTemplate.fieldLabel"]),
+                    "target": label_surface,
+                    "policy": "preserve_verbatim_on_this_line",
+                }
+            )
     locked_by_line = _locked_literal_requirements_by_line(compiled.workspace)
     handling_locks_by_line = _handling_affix_requirements_by_line(
         compiled.workspace, compiled.work_items
@@ -1115,7 +2356,6 @@ def _model_slots(
     for value in tuple(requirements_by_line):
         requirements_by_line[value].extend(locked_by_line.get(value, ()))
         requirements_by_line[value].extend(handling_locks_by_line.get(value, ()))
-    current_lines = compiled.workspace.current_text.splitlines()
     slots: list[_Slot] = []
     for ordinal, (line_id, requirements) in enumerate(
         sorted(requirements_by_line.items(), key=lambda row: line_number(row[0]))
@@ -1152,6 +2392,153 @@ def _compound_slots(compiled: _CompiledCase) -> tuple[_CompoundSlot, ...]:
         _CompoundSlot(alias=f"c{ordinal}", requirement=requirement)
         for ordinal, requirement in enumerate(compiled.bundle.compoundPartyFlavorRequirements)
     )
+
+
+def _initial_request_batches(
+    material: _InventoryCaseMaterial,
+    *,
+    maximum_slots: int | None,
+) -> tuple[_InitialRequestBatch, ...]:
+    """Partition a large initial edit without splitting semantic dependencies.
+
+    Every line that jointly realizes one changed field, party role, cargo phrase, or repeated
+    auxiliary identity is connected before packing.  The returned batches are only transport
+    partitions: their responses are assembled and then applied/audited once, atomically.
+    """
+
+    slots = material.slots
+    compounds = material.compound_slots
+    if maximum_slots is None or len(slots) <= maximum_slots:
+        return (_InitialRequestBatch(slots=slots, compound_slots=compounds),)
+
+    line_to_index = {slot.line_id: index for index, slot in enumerate(slots)}
+    parent = list(range(len(slots)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(indices: Sequence[int]) -> None:
+        if not indices:
+            return
+        root = find(indices[0])
+        for index in indices[1:]:
+            other = find(index)
+            if root != other:
+                parent[other] = root
+
+    dependency_indices: dict[tuple[str, str], set[int]] = defaultdict(set)
+    for index, slot in enumerate(slots):
+        for requirement in slot.requirements:
+            work_item_id = requirement.get("workItemId")
+            if isinstance(work_item_id, str):
+                dependency_indices[("work_item", work_item_id)].add(index)
+            candidate_id = requirement.get("candidateId")
+            if isinstance(candidate_id, str):
+                dependency_indices[("inventory_candidate", candidate_id)].add(index)
+            paths = requirement.get("paths")
+            if isinstance(paths, list):
+                for path in paths:
+                    if not isinstance(path, str):
+                        continue
+                    if (role := _party_role_path(path)) is not None:
+                        dependency_indices[("party_role", role)].add(index)
+    for item in material.compiled.work_items:
+        indices = [
+            line_to_index[line_id]
+            for line_id in item.evidenceLineIds
+            if line_id in line_to_index
+        ]
+        union(indices)
+    for requirement in material.compiled.workspace.cargo_flavor_rewrite_requirements:
+        union(
+            [
+                line_to_index[line_id]
+                for line_id in requirement.sourceLineIds
+                if line_id in line_to_index
+            ]
+        )
+    auxiliary_groups: dict[str, set[int]] = defaultdict(set)
+    for requirement in material.compiled.workspace.raw_auxiliary_identity_requirements:
+        match = re.search(r"L[0-9]{5}", requirement.requirementId)
+        if match is None:
+            raise ValueError(
+                "raw auxiliary identity requirement lacks its source line ID: "
+                f"{requirement.requirementId}"
+            )
+        start = line_number(match.group(0))
+        for number in range(start, start + requirement.sourceIdentityLineCount):
+            if (index := line_to_index.get(f"L{number:05d}")) is not None:
+                auxiliary_groups[requirement.consistencyGroupId].add(index)
+    for indices in (*dependency_indices.values(), *auxiliary_groups.values()):
+        union(sorted(indices))
+
+    compound_indices: dict[str, tuple[int, ...]] = {}
+    for compound in compounds:
+        target_path = compound.requirement.targetPath
+        target_role = _party_role_path(target_path)
+        indices = tuple(
+            index
+            for index, slot in enumerate(slots)
+            if target_path in _slot_requirement_paths(slot)
+            or (
+                target_role is not None
+                and any(
+                    _party_role_path(path) == target_role
+                    for path in _slot_requirement_paths(slot)
+                )
+            )
+        )
+        if not indices:
+            raise ValueError(
+                "compound-party realization has no model line in its target party role: "
+                f"{target_path}"
+            )
+        union(indices)
+        compound_indices[compound.alias] = indices
+
+    components: dict[int, list[int]] = defaultdict(list)
+    for index in range(len(slots)):
+        components[find(index)].append(index)
+    ordered_components = sorted(
+        (tuple(indices) for indices in components.values()),
+        key=lambda indices: min(line_number(slots[index].line_id) for index in indices),
+    )
+    oversized = [indices for indices in ordered_components if len(indices) > maximum_slots]
+    if oversized:
+        largest = max(len(indices) for indices in oversized)
+        raise ValueError(
+            "one semantic line component exceeds max_initial_slots_per_request: "
+            f"component_slots={largest}, configured_maximum={maximum_slots}"
+        )
+
+    packed: list[list[int]] = []
+    current: list[int] = []
+    for component in ordered_components:
+        if current and len(current) + len(component) > maximum_slots:
+            packed.append(current)
+            current = []
+        current.extend(component)
+    if current:
+        packed.append(current)
+
+    batches: list[_InitialRequestBatch] = []
+    for indices in packed:
+        selected = set(indices)
+        selected_compounds = tuple(
+            compound
+            for compound in compounds
+            if any(index in selected for index in compound_indices[compound.alias])
+        )
+        batches.append(
+            _InitialRequestBatch(
+                slots=tuple(slots[index] for index in sorted(indices)),
+                compound_slots=selected_compounds,
+            )
+        )
+    return tuple(batches)
 
 
 def _output_schema(
@@ -1198,10 +2585,53 @@ def _output_schema(
     )
 
 
+def _preflight_initial_model_contracts(
+    materials: Sequence[_InventoryCaseMaterial],
+    *,
+    maximum_slots: int | None,
+    maximum_successful_responses: int,
+    profile_context_lines: int,
+) -> None:
+    """Materialize every initial provider contract before the first paid request.
+
+    Dynamic work-item payloads and schemas are deterministic.  Validating them lazily inside
+    concurrent provider tasks can otherwise spend on earlier documents before a later optional
+    field exposes a host-side contract defect.  Repair payloads remain derived from an already
+    validated initial contract plus host diagnostics.
+    """
+
+    for material in materials:
+        document_id = material.compiled.bundle.result.documentId
+        try:
+            batches = _initial_request_batches(material, maximum_slots=maximum_slots)
+            if len(batches) > maximum_successful_responses:
+                raise ValueError(
+                    "initial request partitions exceed the successful-response budget: "
+                    f"batches={len(batches)}, budget={maximum_successful_responses}"
+                )
+            for batch in batches:
+                payload = _editor_payload(
+                    material.compiled,
+                    batch.slots,
+                    batch.compound_slots,
+                    profile_context_lines=profile_context_lines,
+                )
+                _output_type, schema = _output_schema(batch.slots, batch.compound_slots)
+                canonical_json_bytes(payload)
+                canonical_json_bytes(schema)
+        except Exception as error:
+            raise ValueError(
+                f"initial model contract preflight failed for {document_id}: "
+                f"{type(error).__name__}: {error}"
+            ) from error
+
+
 def _editor_payload(
     compiled: _CompiledCase,
     slots: Sequence[_Slot],
     compound_slots: Sequence[_CompoundSlot] = (),
+    *,
+    profile_context_lines: int = 0,
 ) -> dict[str, JsonValue]:
     requirement_by_digest: dict[str, dict[str, JsonValue]] = {}
     for slot in slots:
@@ -1235,21 +2665,18 @@ def _editor_payload(
                 "consistencyGroupId": requirement.consistencyGroupId,
                 "sourceIdentityKey": _auxiliary_identity_token_key(requirement.sourceIdentity),
                 "sourceIdentities": {requirement.sourceIdentity},
-                "targetPrincipalName": requirement.targetPrincipalName,
-                "slots": set(),
+                "sourceOccurrenceSlotGroups": set(),
             },
         )
-        if (
-            row["sourceIdentityKey"]
-            != _auxiliary_identity_token_key(requirement.sourceIdentity)
-            or row["targetPrincipalName"] != requirement.targetPrincipalName
+        if row["sourceIdentityKey"] != _auxiliary_identity_token_key(
+            requirement.sourceIdentity
         ):
             raise ValueError(
                 "raw auxiliary identity consistency group has conflicting semantics: "
                 f"{requirement.consistencyGroupId}"
             )
         cast(set[str], row["sourceIdentities"]).add(requirement.sourceIdentity)
-        cast(set[str], row["slots"]).update(aliases)
+        cast(set[tuple[str, ...]], row["sourceOccurrenceSlotGroups"]).add(aliases)
     for work_item in compiled.work_items:
         if work_item.state != "agent_residual":
             continue
@@ -1294,7 +2721,8 @@ def _editor_payload(
                 )
             )
 
-    return {
+    cargo_blocks = _cargo_block_payload(compiled, slots)
+    payload: dict[str, JsonValue] = {
         "task": (
             "Rewrite every host-owned OCR line so the full document represents the synthetic "
             "target and contains no source shipment identity or stale dependent fact."
@@ -1348,6 +2776,11 @@ def _editor_payload(
                 (
                     "Every host_locked_target_literal must remain verbatim on its assigned line; "
                     "it was already rendered deterministically and is not creative flavor."
+                ),
+                (
+                    "Every host_locked_source_prefix and host_locked_source_suffix must remain "
+                    "verbatim at the start or end of its assigned line; only the identity "
+                    "between those affixes is editable."
                 ),
             ],
         ),
@@ -1430,21 +2863,28 @@ def _editor_payload(
                 for _, row in sorted(party_blocks.items())
             ],
         ),
+        "cargoBlocks": cast(JsonValue, cargo_blocks),
         "auxiliaryIdentityConsistencyGroups": cast(
             JsonValue,
             [
                 {
                     "consistencyGroupId": group_id,
                     "sourceIdentities": sorted(cast(set[str], row["sourceIdentities"])),
-                    "targetPrincipalName": row["targetPrincipalName"],
-                    "slots": sorted(
-                        cast(set[str], row["slots"]),
-                        key=lambda value: int(value.removeprefix("s")),
-                    ),
+                    "sourceOccurrenceSlotGroups": [
+                        list(group)
+                        for group in sorted(
+                            cast(set[tuple[str, ...]], row["sourceOccurrenceSlotGroups"]),
+                            key=lambda values: tuple(
+                                int(value.removeprefix("s")) for value in values
+                            ),
+                        )
+                    ],
                     "instruction": (
-                        "Render one distinct fictional auxiliary identity and reuse that exact "
-                        "identity in every listed slot while preserving each line's surrounding "
-                        "legal relationship wording."
+                        "Render one distinct fictional auxiliary identity exactly once across each "
+                        "sourceOccurrenceSlotGroups entry, reflowing it across that occurrence's "
+                        "physical lines. Reuse the same identity across all occurrence groups "
+                        "while preserving surrounding legal wording and each referenced target "
+                        "principal."
                     ),
                 }
                 for group_id, row in sorted(auxiliary_consistency_groups.items())
@@ -1468,6 +2908,44 @@ def _editor_payload(
             ],
         ),
     }
+    if any(
+        requirement.get("kind") == "template_profile_residual"
+        for slot in slots
+        for requirement in slot.requirements
+    ):
+        payload["syntheticTargetLabel"] = cast(
+            JsonValue, compiled.workspace.current_target_label
+        )
+        profile_line_numbers = {
+            line_number(slot.line_id)
+            for slot in slots
+            if any(
+                requirement.get("kind") == "template_profile_residual"
+                for requirement in slot.requirements
+            )
+        }
+        owned_line_numbers = {line_number(slot.line_id) for slot in slots}
+        current_lines = compiled.workspace.current_text.splitlines()
+        context_line_numbers = {
+            candidate
+            for number in profile_line_numbers
+            for candidate in range(
+                max(1, number - profile_context_lines),
+                min(len(current_lines), number + profile_context_lines) + 1,
+            )
+            if candidate not in owned_line_numbers and current_lines[candidate - 1].strip()
+        }
+        payload["templateProfileReadOnlyContext"] = cast(
+            JsonValue,
+            [
+                {
+                    "lineId": f"L{number:05d}",
+                    "sourceLine": current_lines[number - 1],
+                }
+                for number in sorted(context_line_numbers)
+            ],
+        )
+    return payload
 
 
 def _validated_output_replacements(
@@ -1493,17 +2971,39 @@ def _validated_output_replacements(
             f"provider output slots are not populated strings: {', '.join(unpopulated)}"
         )
     replacements: list[LineRangeReplacement] = []
+    validation_errors: list[str] = []
+    repeated_auxiliary_outputs: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(
+        list
+    )
     for slot in slots:
         replacement = output.get(slot.alias)
         assert isinstance(replacement, str)
         if "\n" in replacement or "\r" in replacement:
-            raise ValueError(f"provider output slot contains a newline: {slot.alias}")
+            validation_errors.append(f"slot contains a newline: {slot.alias}")
+            continue
         if any(character.isalnum() for character in slot.source_line) and not any(
             character.isalnum() for character in replacement
         ):
-            raise ValueError(
-                f"provider output slot degenerates a lexical line to punctuation: {slot.alias}"
+            validation_errors.append(
+                f"slot degenerates a lexical line to punctuation: {slot.alias}"
             )
+            continue
+        # A model occasionally changes only the case of a host-prefilled literal while editing
+        # neighboring flavor.  When there is exactly one punctuation-identical match, restore
+        # the byte-exact lock deterministically instead of paying for a semantic repair call.
+        for requirement in slot.requirements:
+            target = requirement.get("target")
+            if (
+                requirement.get("kind")
+                not in {"host_locked_target_literal", "host_locked_source_literal"}
+                or not isinstance(target, str)
+                or target in replacement
+            ):
+                continue
+            matches = tuple(re.finditer(re.escape(target), replacement, re.IGNORECASE))
+            if len(matches) == 1:
+                match = matches[0]
+                replacement = replacement[: match.start()] + target + replacement[match.end() :]
         missing_locks = [
             requirement["target"]
             for requirement in slot.requirements
@@ -1513,8 +3013,27 @@ def _validated_output_replacements(
             and cast(str, requirement["target"]) not in replacement
         ]
         if missing_locks:
-            raise ValueError(
-                f"provider output slot omits host-locked literals: {slot.alias}: {missing_locks}"
+            validation_errors.append(
+                f"slot omits host-locked literals: {slot.alias}: {missing_locks}"
+            )
+        missing_prefixes = [
+            requirement["target"]
+            for requirement in slot.requirements
+            if requirement.get("kind") == "host_locked_source_prefix"
+            and isinstance(requirement.get("target"), str)
+            and not replacement.startswith(cast(str, requirement["target"]))
+        ]
+        missing_suffixes = [
+            requirement["target"]
+            for requirement in slot.requirements
+            if requirement.get("kind") == "host_locked_source_suffix"
+            and isinstance(requirement.get("target"), str)
+            and not replacement.endswith(cast(str, requirement["target"]))
+        ]
+        if missing_prefixes or missing_suffixes:
+            validation_errors.append(
+                "slot changes host-locked legal affixes: "
+                f"{slot.alias}: prefixes={missing_prefixes}, suffixes={missing_suffixes}"
             )
         missing_required = [
             requirement["target"]
@@ -1524,8 +3043,8 @@ def _validated_output_replacements(
             and cast(str, requirement["target"]) not in replacement
         ]
         if missing_required:
-            raise ValueError(
-                f"provider output slot omits path-owned rendered surfaces: {slot.alias}: "
+            validation_errors.append(
+                f"slot omits path-owned rendered surfaces: {slot.alias}: "
                 f"{missing_required}"
             )
         normalized_replacement = " ".join(replacement.casefold().split())
@@ -1538,10 +3057,19 @@ def _validated_output_replacements(
             not in normalized_replacement
         ]
         if missing_semantic:
-            raise ValueError(
-                f"provider output slot truncates a required semantic surface: {slot.alias}: "
+            validation_errors.append(
+                f"slot truncates a required semantic surface: {slot.alias}: "
                 f"{missing_semantic}"
             )
+        for requirement in slot.requirements:
+            candidate_id = requirement.get("candidateId")
+            if (
+                requirement.get("kind") == "changed_source_auxiliary_copy"
+                and isinstance(candidate_id, str)
+            ):
+                repeated_auxiliary_outputs[(candidate_id, slot.source_line)].append(
+                    (slot.alias, replacement)
+                )
         if replacement == slot.source_line:
             continue
         replacements.append(
@@ -1550,6 +3078,20 @@ def _validated_output_replacements(
                 endLineId=slot.line_id,
                 newText=replacement,
             )
+        )
+    for (candidate_id, _source_line), realizations in repeated_auxiliary_outputs.items():
+        if len(realizations) < 2:
+            continue
+        distinct = {replacement for _alias, replacement in realizations}
+        if len(distinct) > 1:
+            aliases = ", ".join(alias for alias, _replacement in realizations)
+            validation_errors.append(
+                "repeated identical auxiliary source line has inconsistent fictional "
+                f"realizations: candidate={candidate_id}, slots={aliases}"
+            )
+    if validation_errors:
+        raise ValueError(
+            "provider output violates host slot contract: " + "; ".join(validation_errors)
         )
     if not replacements:
         raise ValueError("provider returned no changed OCR line")
@@ -1621,6 +3163,83 @@ def _party_role_path(path: str) -> str | None:
     return match.group(1) if match is not None else None
 
 
+def _cargo_group_path(path: str) -> str | None:
+    match = re.match(r"^(documentPatch\.cargoGroups\[[0-9]+\])(?:\.|$)", path)
+    return match.group(1) if match is not None else None
+
+
+def _cargo_block_payload(
+    compiled: _CompiledCase,
+    slots: Sequence[_Slot],
+) -> list[dict[str, JsonValue]]:
+    """Expose all changed free-text scalars that must coexist in one cargo block.
+
+    Corrections are line-scoped, but two ``additionalInformation`` values commonly share the
+    same two OCR lines.  Supplying only the value named by the latest rejection makes a model
+    alternate between otherwise valid values.  This payload groups only changed, provider-owned
+    target strings from the same cargo group; it neither grants new line authority nor exposes
+    unrelated label fields.
+    """
+
+    paths_by_alias = {slot.alias: _slot_requirement_paths(slot) for slot in slots}
+    package_guard_by_group = {
+        requirement.targetPath.removesuffix(".description"): requirement
+        for requirement in compiled.workspace.cargo_flavor_rewrite_requirements
+        if requirement.enforcePackageSurfaceGuard
+    }
+    aliases_by_group: dict[str, set[str]] = defaultdict(set)
+    paths_by_group: dict[str, set[str]] = defaultdict(set)
+    for alias, paths in paths_by_alias.items():
+        for path in paths:
+            group_path = _cargo_group_path(path)
+            if group_path is None:
+                continue
+            aliases_by_group[group_path].add(alias)
+            paths_by_group[group_path].add(path)
+
+    output: list[dict[str, JsonValue]] = []
+    for group_path, aliases in sorted(aliases_by_group.items()):
+        package_guard = package_guard_by_group.get(group_path)
+        scalars: list[dict[str, JsonValue]] = []
+        for path in sorted(paths_by_group[group_path]):
+            try:
+                value = target_value(compiled.workspace.current_target_label, path)
+            except KeyError:
+                # A changed optional source field can legitimately be absent from the synthetic
+                # target (for example, a removed dangerous-goods packing group).  The line-level
+                # requirement still tells the editor to remove it, but there is no target scalar
+                # to co-render in ``cargoBlocks``.  Malformed paths and list topology errors keep
+                # surfacing through their distinct exception types.
+                continue
+            if not isinstance(value, str) or not value.strip():
+                continue
+            scalars.append({"path": path, "value": value})
+        if not scalars:
+            continue
+        block: dict[str, JsonValue] = {
+                "groupPath": group_path,
+                "slots": sorted(
+                    aliases,
+                    key=lambda value: int(value.removeprefix("s")),
+                ),
+                "requiredTargetScalars": cast(JsonValue, scalars),
+                "instruction": (
+                    "Render every required target scalar exactly once across these slots. All "
+                    "values must coexist; never replace one required value with another during "
+                    "a correction. Preserve the block's physical line count and OCR style. "
+                    "For repeated source product rows, repeat and reflow the authoritative target "
+                    "description instead of inventing a product variant or packaging fact."
+                ),
+            }
+        if package_guard is not None:
+            block["allowedPackageSurfaces"] = cast(
+                JsonValue,
+                list(package_guard.allowedPackageSurfaces),
+            )
+        output.append(block)
+    return output
+
+
 def _repair_selection(
     slots: Sequence[_Slot],
     compound_slots: Sequence[_CompoundSlot],
@@ -1646,6 +3265,7 @@ def _repair_selection(
     affected_paths: set[str] = set()
     line_localized_paths: set[str] = set()
     affected_party_roles: set[str] = set()
+    affected_cargo_groups: set[str] = set()
 
     if error_message:
         slot_aliases = re.findall(r"(?<![A-Za-z0-9])(s[0-9]+)(?![A-Za-z0-9])", error_message)
@@ -1661,6 +3281,18 @@ def _repair_selection(
             if alias is not None:
                 selected_aliases.add(alias)
         direct_aliases = set(selected_aliases)
+        affected_party_roles.update(
+            role
+            for alias in direct_aliases
+            for role in (_party_role_path(path) for path in paths_by_alias.get(alias, ()))
+            if role is not None
+        )
+        affected_cargo_groups.update(
+            group
+            for alias in direct_aliases
+            for group in (_cargo_group_path(path) for path in paths_by_alias.get(alias, ()))
+            if group is not None
+        )
         for paths in paths_by_alias.values():
             if any(path in error_message for path in paths):
                 affected_paths.update(path for path in paths if path in error_message)
@@ -1688,6 +3320,11 @@ def _repair_selection(
                 for role in (_party_role_path(path) for path in finding.targetPaths)
                 if role is not None
             )
+            affected_cargo_groups.update(
+                group
+                for group in (_cargo_group_path(path) for path in finding.targetPaths)
+                if group is not None
+            )
             if finding.category == "legal_relation_topology_mismatch":
                 selected_compounds.update(compound_by_alias)
 
@@ -1701,6 +3338,14 @@ def _repair_selection(
         for compound in compound_slots:
             if _party_role_path(compound.requirement.targetPath) in affected_party_roles:
                 selected_compounds.add(compound.alias)
+
+    affected_cargo_groups.update(
+        group for group in (_cargo_group_path(path) for path in affected_paths) if group is not None
+    )
+    if affected_cargo_groups:
+        for alias, paths in paths_by_alias.items():
+            if any(_cargo_group_path(path) in affected_cargo_groups for path in paths):
+                selected_aliases.add(alias)
 
     for alias, paths in paths_by_alias.items():
         if paths & (affected_paths - line_localized_paths):
@@ -1744,6 +3389,7 @@ def _evaluate_candidate(
         oracle_case=material.oracle_case,
         surface_requirements=compiled.bundle.surfaceRenderingRequirements,
         anchored_replacements=compiled.bundle.anchoredScalarReplacementRequirements,
+        deterministic_prefills=workspace.deterministic_prefills,
         work_items=compiled.work_items,
     )
     return _CandidateEvaluation(
@@ -1852,6 +3498,30 @@ def _target_occurrence_repair(
                 "Render the exact target value on each missing role-owned line without adding it "
                 "to unrelated auxiliary lines."
             )
+        # A repeated party identity can be embedded inside another party's address (for example
+        # ``C/O <notify party>``). Rewriting only that one line can destroy the enclosing role's
+        # already-correct address, forcing repairs to oscillate between two valid targets. Expose
+        # the complete host-owned party group that contains any selected line so both semantics
+        # can be reflowed atomically in one bounded correction.
+        repair_line_set = set(repair_lines)
+        affected_party_roles = {
+            role
+            for item in getattr(material.compiled, "work_items", ())
+            if repair_line_set.intersection(item.evidenceLineIds)
+            for role in (_party_role_path(path) for path in item.targetPaths)
+            if role is not None
+        }
+        if affected_party_roles:
+            repair_line_set.update(
+                line_id
+                for item in material.compiled.work_items
+                if any(
+                    _party_role_path(path) in affected_party_roles for path in item.targetPaths
+                )
+                for line_id in item.evidenceLineIds
+                if line_id in alias_by_line
+            )
+            repair_lines = tuple(sorted(repair_line_set, key=line_number))
         selected_aliases.update(
             alias_by_line[line_id] for line_id in repair_lines if line_id in alias_by_line
         )
@@ -1892,8 +3562,12 @@ def _preview_repair_selection(
     grants authority outside compiler-owned slots and never commits the preview.
     """
 
-    auxiliary_consistency_error = "raw auxiliary identity" in error_message
-    if auxiliary_consistency_error:
+    auxiliary_identity_error = "raw auxiliary" in error_message and "identity" in error_message
+    occurrence_cardinality_error = (
+        "duplicates or omits role-bound party values" in error_message
+    )
+    status_cardinality_error = "changes an unchanged source status surface" in error_message
+    if auxiliary_identity_error or occurrence_cardinality_error or status_cardinality_error:
         base_slots: tuple[_Slot, ...] = ()
         base_compounds: tuple[_CompoundSlot, ...] = ()
     else:
@@ -1905,6 +3579,45 @@ def _preview_repair_selection(
     selected_aliases = {slot.alias for slot in base_slots}
     selected_compounds = {slot.alias for slot in base_compounds}
     diagnostics: list[dict[str, JsonValue]] = []
+
+    if status_cardinality_error:
+        status_aliases: set[str] = set()
+        status_rows: list[dict[str, JsonValue]] = []
+        for requirement in material.compiled.workspace.source_status_requirements:
+            changed_aliases = tuple(
+                slot.alias
+                for slot in material.slots
+                if slot.alias in output
+                and isinstance(output[slot.alias], str)
+                and (
+                    (slot.source_line == requirement.sourceSurface)
+                    != (output[slot.alias] == requirement.sourceSurface)
+                )
+            )
+            if not changed_aliases:
+                continue
+            status_aliases.update(changed_aliases)
+            status_rows.append(
+                {
+                    "sourceSurface": requirement.sourceSurface,
+                    "sourceOccurrences": requirement.sourceOccurrences,
+                    "repairSlots": cast(JsonValue, list(changed_aliases)),
+                }
+            )
+        selected_aliases.update(status_aliases)
+        if status_rows:
+            diagnostics.append(
+                {
+                    "kind": "sourceStatusCardinality",
+                    "requirements": cast(JsonValue, status_rows),
+                }
+            )
+        else:
+            # A status failure without a changed provider-owned line would contradict the
+            # immutable workspace. Keep the run fail-closed and expose the full request rather
+            # than silently losing a host invariant.
+            selected_aliases.update(slot.alias for slot in material.slots)
+            selected_compounds.update(slot.alias for slot in material.compound_slots)
     try:
         preview = _candidate_text_preview(material, output)
     except ValueError:
@@ -1914,15 +3627,42 @@ def _preview_repair_selection(
     selected_aliases.update(slot.alias for slot in occurrence_slots)
     diagnostics.extend(occurrence_diagnostics)
 
-    if auxiliary_consistency_error:
+    missing_literals = _missing_target_literals(
+        preview, material.compiled.workspace.target_literal_requirements
+    )
+    if missing_literals:
+        literal_error = (
+            "candidate preview omits changed target text: "
+            f"{[row.model_dump(mode='json') for row in missing_literals]}"
+        )
+        literal_slots, literal_compounds = _repair_selection(
+            material.slots,
+            material.compound_slots,
+            error_message=literal_error,
+        )
+        selected_aliases.update(slot.alias for slot in literal_slots)
+        selected_compounds.update(slot.alias for slot in literal_compounds)
+        diagnostics.append(
+            {
+                "kind": "missingTargetLiterals",
+                "requirements": cast(
+                    JsonValue,
+                    [row.model_dump(mode="json") for row in missing_literals],
+                ),
+            }
+        )
+
+    if auxiliary_identity_error:
         alias_by_line = {slot.line_id: slot.alias for slot in material.slots}
+        requirements = material.compiled.workspace.raw_auxiliary_identity_requirements
         matched_groups = tuple(
             requirement.consistencyGroupId
-            for requirement in material.compiled.workspace.raw_auxiliary_identity_requirements
+            for requirement in requirements
             if requirement.consistencyGroupId in error_message
+            or requirement.requirementId in error_message
         )
         auxiliary_lines: set[str] = set()
-        for requirement in material.compiled.workspace.raw_auxiliary_identity_requirements:
+        for requirement in requirements:
             if requirement.consistencyGroupId not in matched_groups:
                 continue
             match = re.search(r"L[0-9]{5}", requirement.requirementId)
@@ -1989,6 +3729,7 @@ def _preview_repair_selection(
         oracle_case=material.oracle_case,
         surface_requirements=material.compiled.bundle.surfaceRenderingRequirements,
         anchored_replacements=material.compiled.bundle.anchoredScalarReplacementRequirements,
+        deterministic_prefills=workspace.deterministic_prefills,
         work_items=material.compiled.work_items,
     )
     if preview_audit.findings:
@@ -2018,6 +3759,42 @@ def _preview_repair_selection(
             }
         )
 
+    # Any correction touching one occurrence of a repeated raw auxiliary identity must expose
+    # every physical line of every occurrence in that consistency group. This closure applies
+    # regardless of which validator first noticed the defect (identity consistency, a locked
+    # legal affix, or the full-document audit), preventing repairs from fixing one wrapped line
+    # while invalidating its sibling or repeated copy.
+    alias_by_line = {slot.line_id: slot.alias for slot in material.slots}
+    selected_line_ids = {
+        slot.line_id for slot in material.slots if slot.alias in selected_aliases
+    }
+    touched_groups: set[str] = set()
+    requirement_lines: dict[str, set[str]] = defaultdict(set)
+    for requirement in material.compiled.workspace.raw_auxiliary_identity_requirements:
+        match = re.search(r"L[0-9]{5}", requirement.requirementId)
+        if match is None:
+            continue
+        start = line_number(match.group(0))
+        occupied = {
+            f"L{number:05d}"
+            for number in range(start, start + requirement.sourceIdentityLineCount)
+        }
+        requirement_lines[requirement.consistencyGroupId].update(occupied)
+        if occupied & selected_line_ids:
+            touched_groups.add(requirement.consistencyGroupId)
+    if touched_groups:
+        closed_lines = set().union(*(requirement_lines[group] for group in touched_groups))
+        selected_aliases.update(
+            alias_by_line[line_id] for line_id in closed_lines if line_id in alias_by_line
+        )
+        diagnostics.append(
+            {
+                "kind": "rawAuxiliaryIdentityRepairClosure",
+                "consistencyGroupIds": cast(JsonValue, sorted(touched_groups)),
+                "repairLineIds": cast(JsonValue, sorted(closed_lines, key=line_number)),
+            }
+        )
+
     return (
         tuple(slot for slot in material.slots if slot.alias in selected_aliases),
         tuple(
@@ -2037,9 +3814,26 @@ async def _call_model(
     config: InventoryRunConfig,
     prompt: str,
     semantic_attempt: int,
+    request_kind: Literal["initial_partition", "repair"],
+    initial_partition_ordinal: int | None,
+    initial_partition_count: int,
     repair_context: Mapping[str, JsonValue] | None = None,
 ) -> tuple[Mapping[str, Any] | None, tuple[InventoryModelStage, ...]]:
-    payload = _editor_payload(compiled, slots, compound_slots)
+    if request_kind == "initial_partition" and initial_partition_ordinal is None:
+        raise ValueError("initial partition request requires its partition ordinal")
+    if request_kind == "repair" and initial_partition_ordinal is not None:
+        raise ValueError("repair request cannot carry an initial partition ordinal")
+    profile_context_lines = (
+        config.workflow.template_profile_context_lines
+        if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+        else 0
+    )
+    payload = _editor_payload(
+        compiled,
+        slots,
+        compound_slots,
+        profile_context_lines=profile_context_lines,
+    )
     if repair_context is not None:
         payload["repair"] = cast(
             JsonValue,
@@ -2131,6 +3925,9 @@ async def _call_model(
                 InventoryModelStage(
                     providerModel=config.provider.model,
                     semanticAttempt=semantic_attempt,
+                    requestKind=request_kind,
+                    initialPartitionOrdinal=initial_partition_ordinal,
+                    initialPartitionCount=initial_partition_count,
                     routeProvider=route_provider,
                     routeRound=route_round,
                     routeAttempt=attempt_ordinal,
@@ -2307,6 +4104,9 @@ def _report(
     reference_rows: Mapping[str, Sequence[Mapping[str, Any]]],
     results: Sequence[InventoryProbeCaseResult],
     stages_by_id: Mapping[str, Sequence[InventoryModelStage]],
+    profile_documents_selected: int,
+    profile_lines_selected: int,
+    profile_model_lines: int,
 ) -> str:
     reference_counts = {
         arm: sum(not cast(bool, row["newFullDocumentAuditPassed"]) for row in rows)
@@ -2341,8 +4141,16 @@ def _report(
         (
             "- Model reviewer calls: **0**. A document permits at most "
             f"**{maximum_responses}** "
-            "complete patch responses, and any response after the first requires a deterministic "
-            "host rejection."
+            "patch responses. Oversized initial patches may use dependency-preserving transport "
+            "partitions; after initial assembly, another response requires a deterministic host "
+            "rejection."
+        ),
+        (
+            "- Independently reviewed template profile: "
+            f"**{profile_documents_selected} selected documents / "
+            f"{profile_lines_selected} evidence lines**; "
+            f"**{profile_model_lines} exact OCR lines** reached model-owned slots after "
+            "deterministic compilation."
         ),
         "- Training records published: **0**.",
         "",
@@ -2445,6 +4253,7 @@ def _inventory_case_result(
         oracle_case=material.oracle_case,
         surface_requirements=compiled.bundle.surfaceRenderingRequirements,
         anchored_replacements=compiled.bundle.anchoredScalarReplacementRequirements,
+        deterministic_prefills=compiled.workspace.deterministic_prefills,
         work_items=compiled.work_items,
     )
     if not model_output_committed:
@@ -2649,8 +4458,20 @@ def _run_raw_text_inventory(
     selected_by_id = {row.plan.baseDocumentId: row for row in selected}
     oracle = _load_oracle(project_root, config)
     oracle_by_id = {row.documentId: row for row in oracle.cases}
+    template_profile, template_profile_path = _load_template_mutation_profile(
+        project_root, config
+    )
+    template_profile_by_id: dict[str, TemplateMutationCase] = (
+        {row.documentId: row for row in template_profile.cases}
+        if template_profile is not None
+        else {}
+    )
     if isinstance(config, SynthesisRawTextInventoryBatchConfig):
-        live_ids = tuple(row.plan.baseDocumentId for row in selected)
+        live_ids = (
+            tuple(row.document_id for row in config.cases)
+            if config.selection == "explicit_pinned_document_ids"
+            else tuple(row.plan.baseDocumentId for row in selected)
+        )
         if len(live_ids) != config.workflow.documents:
             raise ValueError("inventory batch input count differs from its fixed contract")
         max_concurrent_documents = config.workflow.max_concurrent_documents
@@ -2711,6 +4532,12 @@ def _run_raw_text_inventory(
         "configSha256": sha256_file(config_path),
         "baseBatchConfigSha256": config.base_batch_config.sha256,
         "regressionOracleSha256": config.regression_oracle.sha256,
+        "templateMutationProfileSha256": (
+            config.template_mutation_profile.sha256
+            if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+            and config.template_mutation_profile is not None
+            else None
+        ),
         "referenceCommits": {
             "glm": config.reference_runs.glm.commit_sha256,
             "luna": config.reference_runs.luna.commit_sha256,
@@ -2761,6 +4588,11 @@ def _run_raw_text_inventory(
     staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
     staged.publish_bytes("prompts/editor.md", prompt_bytes)
     staged.publish_json("regression/oracle.json", oracle.model_dump(mode="json"))
+    if template_profile is not None and template_profile_path is not None:
+        staged.publish_bytes(
+            "regression/template-mutation-profile.json",
+            read_regular_file_bytes(template_profile_path),
+        )
     for arm, rows in reference_rows.items():
         staged.publish_bytes(
             f"regression/{arm}-negative-fixtures.jsonl",
@@ -2773,7 +4605,9 @@ def _run_raw_text_inventory(
         source_rows=source_rows,
         staged=staged,
     )
-    compiled_cases: list[tuple[_CompiledCase, RegressionCase | None]] = []
+    compiled_cases: list[
+        tuple[_CompiledCase, RegressionCase | None, TemplateMutationCase | None]
+    ] = []
     compiler_blocks: dict[str, _CompilerBlock] = {}
     for case_number, document_id in enumerate(live_ids, start=1):
         selected_case = selected_by_id[document_id]
@@ -2786,6 +4620,7 @@ def _run_raw_text_inventory(
                 feature=selected_case.feature,
                 config=base_config,
                 target_integrity_resources=resources,
+                defer_ambiguous_party_scalar_cardinality=True,
             )
             bundle = build_rewrite_contract_bundle(state)
             compiled = compile_case(
@@ -2793,25 +4628,44 @@ def _run_raw_text_inventory(
                 context_lines=0,
                 merge_gap_lines=0,
             )
-            compiled = replace(
-                compiled,
-                work_items=_refine_party_evidence(
-                    compiled.workspace.original_text,
-                    compiled.workspace.source_label,
-                    _refine_sibling_evidence(
-                        _refine_numeric_evidence(
-                            compiled.workspace.current_text,
-                            compiled.work_items,
-                            compiled.bundle,
-                        )
-                    ),
-                    compiled.bundle.surfaceRenderingRequirements,
-                ),
+            refined_work_items = _refine_numeric_evidence(
+                compiled.workspace.current_text,
+                compiled.work_items,
+                compiled.bundle,
             )
+            refined_work_items = _refine_sibling_evidence(
+                refined_work_items,
+                compiled.bundle,
+            )
+            refined_work_items = _refine_cargo_group_evidence(
+                compiled.workspace.current_text,
+                refined_work_items,
+                compiled.bundle,
+            )
+            refined_work_items = _refine_equipment_evidence(
+                compiled.workspace.current_text,
+                refined_work_items,
+                compiled.bundle,
+            )
+            refined_work_items = _refine_party_evidence(
+                compiled.workspace.original_text,
+                compiled.workspace.source_label,
+                refined_work_items,
+                compiled.bundle.surfaceRenderingRequirements,
+            )
+            refined_work_items = _refine_foreign_party_evidence(
+                compiled.workspace.current_text,
+                compiled.workspace.source_label,
+                compiled.workspace.current_target_label,
+                refined_work_items,
+            )
+            compiled = replace(compiled, work_items=refined_work_items)
             occurrence_requirements = _refine_party_occurrence_requirements(
+                compiled.workspace.original_text,
                 compiled.workspace.current_text,
                 compiled.work_items,
                 compiled.workspace.target_value_occurrence_requirements,
+                compiled.workspace.source_label,
             )
             compiled.workspace.target_value_occurrence_requirements = occurrence_requirements
             compiled = replace(
@@ -2857,10 +4711,40 @@ def _run_raw_text_inventory(
                 ),
             )
             continue
-        compiled_cases.append((compiled, oracle_by_id.get(document_id)))
+        profile_case = template_profile_by_id.get(document_id)
+        if profile_case is not None:
+            source_text_sha = sha256_bytes(compiled.workspace.original_text.encode("utf-8"))
+            if profile_case.sourceTextSha256 != source_text_sha:
+                raise ValueError(
+                    "template mutation profile source text differs for " f"{document_id}"
+                )
+        compiled_cases.append((compiled, oracle_by_id.get(document_id), profile_case))
+
+    if compiler_blocks:
+        print(
+            json.dumps(
+                {
+                    "command": "run-raw-text-inventory-batch",
+                    "phase": "compiler_preflight",
+                    "compiler_blocked_documents": len(compiler_blocks),
+                    "blocks": [
+                        {
+                            "document_id": block.document_id,
+                            "error_type": block.error_type,
+                            "error_message": block.error_message,
+                        }
+                        for block in compiler_blocks.values()
+                    ],
+                    "status": "progress",
+                },
+                allow_nan=False,
+                sort_keys=True,
+            ),
+            flush=True,
+        )
 
     materials: list[_InventoryCaseMaterial] = []
-    for compiled, oracle_case in compiled_cases:
+    for compiled, oracle_case, profile_case in compiled_cases:
         document_id = compiled.bundle.result.documentId
         before_inventory = build_mutable_inventory(
             source_text=compiled.workspace.original_text,
@@ -2869,6 +4753,7 @@ def _run_raw_text_inventory(
             target_label=compiled.workspace.current_target_label,
             work_items=compiled.work_items,
             oracle_case=oracle_case,
+            template_profile_case=profile_case,
             surface_requirements=compiled.bundle.surfaceRenderingRequirements,
             anchored_replacements=compiled.bundle.anchoredScalarReplacementRequirements,
         )
@@ -2886,8 +4771,23 @@ def _run_raw_text_inventory(
             target_label=compiled.workspace.current_target_label,
             work_items=compiled.work_items,
             oracle_case=oracle_case,
+            template_profile_case=profile_case,
             surface_requirements=compiled.bundle.surfaceRenderingRequirements,
             anchored_replacements=compiled.bundle.anchoredScalarReplacementRequirements,
+        )
+        occurrence_requirements = _include_unique_linked_party_copies(
+            compiled.workspace.current_text,
+            compiled.work_items,
+            inventory,
+            compiled.workspace.target_value_occurrence_requirements,
+            compiled.workspace.source_status_requirements,
+        )
+        compiled.workspace.target_value_occurrence_requirements = occurrence_requirements
+        compiled = replace(
+            compiled,
+            bundle=compiled.bundle.model_copy(
+                update={"targetValueOccurrenceRequirements": occurrence_requirements}
+            ),
         )
         materials.append(
             _InventoryCaseMaterial(
@@ -2895,11 +4795,30 @@ def _run_raw_text_inventory(
                 oracle_case=oracle_case,
                 inventory=inventory,
                 deterministic_edits=deterministic_edits,
-                slots=_model_slots(compiled, inventory),
+                slots=_model_slots(compiled, inventory, deterministic_edits),
                 compound_slots=_compound_slots(compiled),
                 deterministic_text_sha256=sha256_bytes(deterministic_text.encode("utf-8")),
             )
         )
+
+    _preflight_initial_model_contracts(
+        materials,
+        maximum_slots=(
+            config.workflow.max_initial_slots_per_request
+            if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+            else None
+        ),
+        maximum_successful_responses=(
+            config.workflow.max_successful_model_responses_per_document
+            if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+            else config.workflow.max_model_requests_per_document
+        ),
+        profile_context_lines=(
+            config.workflow.template_profile_context_lines
+            if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+            else 0
+        ),
+    )
 
     key = load_provider_key(project_root, config.environment_file, config.provider.api_key_env)
     client = AsyncOpenAI(
@@ -2949,10 +4868,38 @@ def _run_raw_text_inventory(
                 failure: str | None = None
                 committed = False
                 repair_context: Mapping[str, JsonValue] | None = None
-                active_slots = material.slots
-                active_compound_slots = material.compound_slots
                 candidate_output: dict[str, Any] = {}
-                for semantic_attempt in range(1, maximum_semantic_attempts + 1):
+                maximum_initial_slots = (
+                    config.workflow.max_initial_slots_per_request
+                    if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+                    else None
+                )
+                try:
+                    initial_batches = _initial_request_batches(
+                        material,
+                        maximum_slots=maximum_initial_slots,
+                    )
+                except ValueError as error:
+                    initial_batches = ()
+                    failure = f"Initial request partition rejected the case: {error}"
+                if len(initial_batches) > maximum_semantic_attempts:
+                    failure = (
+                        "Initial request partition exceeds the successful-response budget: "
+                        f"batches={len(initial_batches)}, "
+                        f"budget={maximum_semantic_attempts}"
+                    )
+                    initial_batches = ()
+                active_slots = initial_batches[0].slots if initial_batches else ()
+                active_compound_slots = (
+                    initial_batches[0].compound_slots if initial_batches else ()
+                )
+                initial_batch_index = 0
+                for semantic_attempt in (
+                    range(1, maximum_semantic_attempts + 1) if initial_batches else ()
+                ):
+                    request_kind: Literal["initial_partition", "repair"] = (
+                        "repair" if repair_context is not None else "initial_partition"
+                    )
                     output, attempt_stages = await _call_model(
                         compiled=compiled,
                         slots=active_slots,
@@ -2961,6 +4908,13 @@ def _run_raw_text_inventory(
                         config=config,
                         prompt=prompt_bytes.decode("utf-8"),
                         semantic_attempt=semantic_attempt,
+                        request_kind=request_kind,
+                        initial_partition_ordinal=(
+                            initial_batch_index + 1
+                            if request_kind == "initial_partition"
+                            else None
+                        ),
+                        initial_partition_count=len(initial_batches),
                         repair_context=repair_context,
                     )
                     if output is None:
@@ -2968,6 +4922,15 @@ def _run_raw_text_inventory(
                         failure = "Every configured provider route failed before returning output."
                         break
                     candidate_output.update(output)
+                    initial_batch_index += 1
+                    if initial_batch_index < len(initial_batches):
+                        stage_rows.extend(attempt_stages)
+                        active_slots = initial_batches[initial_batch_index].slots
+                        active_compound_slots = initial_batches[
+                            initial_batch_index
+                        ].compound_slots
+                        repair_context = None
+                        continue
                     try:
                         candidate = _evaluate_candidate(material, candidate_output)
                     except Exception as error:
@@ -3214,7 +5177,16 @@ def _run_raw_text_inventory(
         )
         staged.publish_json(
             f"{prefix}/editor-payload.json",
-            _editor_payload(compiled, material.slots, material.compound_slots),
+            _editor_payload(
+                compiled,
+                material.slots,
+                material.compound_slots,
+                profile_context_lines=(
+                    config.workflow.template_profile_context_lines
+                    if isinstance(config, SynthesisRawTextInventoryBatchConfig)
+                    else 0
+                ),
+            ),
         )
         staged.publish_json(
             f"{prefix}/stages.json",
@@ -3230,6 +5202,24 @@ def _run_raw_text_inventory(
         staged.publish_json(f"{prefix}/result.json", result.model_dump(mode="json"))
 
     total_usage = _combined_usage([stage for stages in stages_by_id.values() for stage in stages])
+    profile_documents_selected = sum(
+        document_id in template_profile_by_id for document_id in live_ids
+    )
+    profile_lines_selected = sum(
+        len(template_profile_by_id[document_id].lines)
+        for document_id in live_ids
+        if document_id in template_profile_by_id
+    )
+    profile_model_lines = sum(
+        sum(
+            any(
+                requirement.get("kind") == "template_profile_residual"
+                for requirement in slot.requirements
+            )
+            for slot in material.slots
+        )
+        for material in materials
+    )
     summary: dict[str, JsonValue] = {
         "schemaVersion": config.schema_version,
         "runId": config.run.run_id,
@@ -3248,6 +5238,10 @@ def _run_raw_text_inventory(
         "needsReviewDocuments": sum(row.status == "needs_review" for row in results),
         "callFailedDocuments": sum(row.status == "call_failed" for row in results),
         "compilerBlockedDocuments": sum(row.status == "compiler_blocked" for row in results),
+        "templateProfileDocumentsAvailable": len(template_profile_by_id),
+        "templateProfileDocumentsSelected": profile_documents_selected,
+        "templateProfileEvidenceLinesSelected": profile_lines_selected,
+        "templateProfileModelLines": profile_model_lines,
         "requests": total_usage.requests,
         "providerAttempts": sum(len(stages) for stages in stages_by_id.values()),
         "failedProviderAttempts": sum(
@@ -3315,6 +5309,9 @@ def _run_raw_text_inventory(
             reference_rows=reference_rows,
             results=results,
             stages_by_id=stages_by_id,
+            profile_documents_selected=profile_documents_selected,
+            profile_lines_selected=profile_lines_selected,
+            profile_model_lines=profile_model_lines,
         ).encode(),
     )
     for name, payload in _plot_bytes(reference_rows, results).items():

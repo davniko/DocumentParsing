@@ -277,6 +277,74 @@ def test_validation_accepts_natural_registry_package_word_order() -> None:
     assert validation.checks["group_1_additional_semantic_role"] is True
 
 
+def test_purpose_slot_accepts_identity_grounding_from_hs_chapter() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    group = seed.cargoGroups[0]
+    identity = group.goodsIdentities[0].model_copy(
+        update={
+            "description": "Coaxial cable and other coaxial electric conductors",
+            "headingDescription": "Insulated wire and cable",
+            "chapterDescription": "Television image and sound recorders and reproducers",
+        }
+    )
+    contract = group.fieldContract.model_copy(
+        update={
+            "additionalInformationSlots": (
+                group.fieldContract.additionalInformationSlots[0].model_copy(
+                    update={
+                        "sourceStyleReference": "PURPOSE: TV SET",
+                        "semanticRole": "purpose_or_end_use",
+                        "sourceFactKinds": (),
+                    }
+                ),
+            )
+        }
+    )
+    seed = seed.model_copy(
+        update={
+            "cargoGroups": (
+                group.model_copy(
+                    update={"goodsIdentities": (identity,), "fieldContract": contract}
+                ),
+            )
+        }
+    )
+    output = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="COAXIAL CABLE AND OTHER COAXIAL ELECTRIC CONDUCTORS",
+                additionalInformation=("PURPOSE: TELEVISION SIGNAL TRANSMISSION",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("KEEP FROZEN AT -18°C",),
+            ),
+        )
+    )
+
+    validation = validate_cargo_language(seed=seed, output=output)
+
+    assert validation.checks["group_1_additional_semantic_role"] is True
+
+
+def test_thermal_handling_accepts_explicit_refrigerated_wording() -> None:
+    seed = build_cargo_language_seed(case_index=0, plan=_plan())
+    output = CargoLanguageGenerationOutput(
+        cargoGroups=(
+            GeneratedCargoLanguageGroup(
+                groupId="g1",
+                description="FROZEN SKIPJACK TUNA LOINS",
+                additionalInformation=("FOOD GRADE, SEALED FOR TRANSIT",),
+                marksAndNumbers=("N/M", "COLDSEA-742"),
+                handlingInstructions=("KEEP REFRIGERATED AT -18 DEGREES CELSIUS",),
+            ),
+        )
+    )
+
+    validation = validate_cargo_language(seed=seed, output=output)
+
+    assert validation.checks["group_1_thermal_handling_coherent"] is True
+
+
 def test_validation_accepts_new_prefixed_batch_identifier_without_source_reuse() -> None:
     seed = build_cargo_language_seed(case_index=0, plan=_plan())
     group = seed.cargoGroups[0]

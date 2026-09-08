@@ -1,0 +1,72 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v5_linguistic_completion
+environment_file: .env
+
+run:
+  run_id: mpci-bl-combined2174-linguistic-completion100-additional-maritime-v4-luna-high
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  semantic_completion_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-semantic-completion100-additional-maritime-v6
+    commit_sha256: 95469b2c11bc8a3e3653fc6032a1931ecf63d9c8248081402218508da05f6d7a
+    transaction_sha256: 7e7697cad4eb4d3b5a6392af0f8458668f1e0fffb97ae2021988cd224666124a
+  completion_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-semantic-completion100-additional-maritime-v6/generation/completion-plans.jsonl
+    sha256: 09ec8cbadd89e20375054252d979ecf2443930c5dca4495bda3e31e3c7470b19
+    records: 100
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  source_target_field: target
+  source_target_schema: bill_of_lading_relation_explicit_v3
+
+prompts:
+  party_identity:
+    path: prompts/synthesis/mpci_bl_party_identity_v2.md
+    sha256: e353cb7d1b046268e7d8bbb99f2c232db93d50d5a6efae2d729645cf3d4cf4ad
+  cargo_language:
+    path: prompts/synthesis/mpci_bl_cargo_language_v1.md
+    sha256: 7f0e1a02a3105ca28f002bc82701e60ffa4e3e10a943436c0f03802fcd7f10d9
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 8192
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-06
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+stage_limits:
+  party_max_output_tokens: 4096
+  cargo_max_output_tokens: 8192
+
+workflow:
+  max_concurrent_requests: 16
+  max_concurrent_documents: 16
+  requests_per_attempt: 1
+  semantic_validation_attempts: 2
+  structured_output_retries: 0
+  provider_native_strict_json_schema: true
+  static_schema_first_attempt: true
+  topology_constrained_schema_on_retry: true
+  preserve_source_field_presence: true
+  preserve_same_as_without_generation: true
+  reuse_explicit_duplicate_notify_identity: true
+  preserve_generic_marks_literals: true
+  exclude_categorical_printed_surfaces: true
+  persist_model_visible_messages: true
+  process_all_completion_plans: true
+  publish_training_records: false
+

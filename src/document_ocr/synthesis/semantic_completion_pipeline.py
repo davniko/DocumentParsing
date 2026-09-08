@@ -207,7 +207,7 @@ class PackageGoodsCompatibilityRealization(BaseModel):
     cargo_group_id: NonEmptyText
     package_signature: tuple[NonEmptyText, ...] = Field(min_length=1, max_length=32)
     basis: Literal[
-        "fit_hs_heading_joint",
+        "fit_hs_signature_conditioned_heading_pool",
         "fit_thermal_profile_joint",
         "fit_dangerous_goods_hazard_joint",
         "provider_native_constrained_package_compatibility_v1",
@@ -1556,6 +1556,7 @@ def run_semantic_completion(
     equipment_counts: Counter[str] = Counter()
     size_counts: Counter[str] = Counter()
     thermal_profile_counts: Counter[str] = Counter()
+    thermal_profile_documents: set[str] = set()
     flashpoint_counts: Counter[str] = Counter()
     package_basis_counts: Counter[str] = Counter()
     used_package_catalog_contexts: set[str] = set()
@@ -1698,6 +1699,8 @@ def run_semantic_completion(
             equipment_counts[equipment_value.type_category] += 1
             size_counts[equipment_value.size_category] += 1
         thermal_profile_counts.update(profiles.values())
+        if profiles:
+            thermal_profile_documents.add(document_id)
         package_basis_counts.update(value.basis for value in package_rows)
         for flashpoint_value in flashpoints:
             outcome = "generated" if flashpoint_value.generated else "omitted"
@@ -1775,12 +1778,14 @@ def run_semantic_completion(
             "ambientHs6": len(thermal_support.ambient),
         },
         "thermalEligibleDocuments": sum(bool(value) for value in eligible_profiles.values()),
-        "thermalDocuments": len(thermal_documents),
+        "thermalDocuments": len(thermal_profile_documents),
+        "thermalQuotaDocuments": len(thermal_documents),
         "thermalProfileCounts": dict(sorted(thermal_profile_counts.items())),
         "packageGoodsCompatibility": {
             "fitDocuments": package_support.audit.fit_document_count,
             "typedPackageGroups": package_support.audit.typed_package_group_count,
             "hsHeadingSupportRows": len(package_support.hs_heading_rows),
+            "hsSignaturePoolSupportRows": len(package_support.hs_signature_pool_rows),
             "thermalProfileSupportRows": len(package_support.thermal_profile_rows),
             "dangerousGoodsSupportRows": len(package_support.dangerous_goods_rows),
             "catalogResolutionRecords": len(package_catalog),
@@ -1809,7 +1814,7 @@ def run_semantic_completion(
 - Relation-v5 targets: **{len(output_rows):,}**
 - Source equipment rows resolved: **{resolved_equipment:,} / {input_equipment:,}**
 - Source temperature rows resolved: **{resolved_temperature:,} / {input_temperature:,}**
-- Thermal documents generated: **{len(thermal_documents):,}**
+- Thermal documents generated: **{len(thermal_profile_documents):,}**
 - Package/goods groups jointly resolved: **{sum(package_basis_counts.values()):,}**
 - Constrained package-catalog contexts consumed: **{len(used_package_catalog_contexts):,}**
 - IMO values / vessel flags generated: **{len(imo_by_document):,} / {len(flag_requested):,}**

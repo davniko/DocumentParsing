@@ -53,12 +53,14 @@ from document_ocr.synthesis.structured_profiles import (
 from document_ocr.synthesis.structured_semantics import (
     apply_cargo_group_numeric_proposals,
     apply_date_proposal,
+    apply_embedded_reference_date_shift,
     apply_identifier_plan,
     build_identifier_request_inventory,
     finalize_non_linguistic_target,
     pending_realizations,
     reserve_structured_identifiers,
 )
+from document_ocr.synthesis.template_integrity import source_template_integrity_issues
 from document_ocr.synthesis.transport_capacity import (
     TransportCapacityReceipt,
     capacity_limits,
@@ -462,6 +464,11 @@ def _selection_candidates(
         )
 
         patch = cast(Mapping[str, Any], source_targets[document_id]["documentPatch"])
+        raw_text = row.get(config.source.fields.input_text)
+        if not isinstance(raw_text, str):
+            reasons.append("source_template_missing_raw_text")
+        else:
+            reasons.extend(source_template_integrity_issues(raw_text, source_targets[document_id]))
         route = patch.get("route")
         parties = patch.get("parties")
         if not isinstance(route, Mapping):
@@ -1402,6 +1409,7 @@ def run_structured_baseline(
     targets: list[dict[str, Any]] = []
     proposal_rows: list[dict[str, Any]] = []
     date_receipts: list[dict[str, Any]] = []
+    reference_date_receipts: list[dict[str, Any]] = []
     change_rows: list[list[dict[str, Any]]] = []
     generated_capacity_receipts: list[TransportCapacityReceipt] = []
     donor_audit_inputs = []
@@ -1461,6 +1469,25 @@ def run_structured_baseline(
                     "proposedShippedOnBoardDate": (
                         shipped.isoformat() if shipped is not None else None
                     ),
+                }
+            )
+        fallback_magnitude = 1 + stream.derive("reference-dates").randbelow(
+            config.generation.maximum_date_jitter_days
+        )
+        fallback_direction = (
+            -1 if stream.derive("reference-date-direction").randbelow(2) == 0 else 1
+        )
+        projected_reference_dates = apply_embedded_reference_date_shift(
+            source_target=source_target,
+            target=target,
+            changes=changes,
+            fallback_shift_days=fallback_direction * fallback_magnitude,
+        )
+        if projected_reference_dates:
+            reference_date_receipts.append(
+                {
+                    "baseDocumentId": document_id,
+                    "projections": list(projected_reference_dates),
                 }
             )
 
@@ -1713,6 +1740,9 @@ def run_structured_baseline(
 
     stage.publish_json("date-donor-leakage-audit.json", donor_audit.model_dump(mode="json"))
     stage.publish_bytes("date-donor-receipts.jsonl", _jsonl(date_receipts))
+    stage.publish_bytes(
+        "embedded-reference-date-receipts.jsonl", _jsonl(reference_date_receipts)
+    )
     stage.publish_bytes("generation/cargo-group-proposals.jsonl", _jsonl(proposal_rows))
     generated_capacity_rows = [
         {

@@ -10,13 +10,14 @@ leaf diff and allocation arithmetic.
 from __future__ import annotations
 
 import hashlib
+import re
 import string
 import unicodedata
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
@@ -47,6 +48,10 @@ from document_ocr.synthesis.run_safety import (
 from document_ocr.synthesis.structured_models import CargoGroupNumericProposal
 
 _ALPHABETS = {"A": string.ascii_uppercase, "a": string.ascii_lowercase, "9": string.digits}
+_EMBEDDED_NUMERIC_DATE = re.compile(
+    r"(?<![0-9])(?P<a>[0-9]{1,2})(?P<separator>[-./])(?P<b>[0-9]{1,2})"
+    r"(?P=separator)(?P<year>[0-9]{2}|[0-9]{4})(?![0-9])"
+)
 
 
 def canonical_formal_identifier(value: str) -> str:
@@ -394,6 +399,136 @@ def apply_date_proposal(
     if not changes and any(value is not None for value in proposed.values()):
         raise ValueError("date proposal did not change any present date")
     return tuple(changes)
+
+
+def _parse_embedded_numeric_date(match: re.Match[str]) -> tuple[date, bool] | None:
+    """Parse an OCR numeric date with the project's frozen day-first ambiguity policy."""
+
+    first = int(match.group("a"))
+    second = int(match.group("b"))
+    year_surface = match.group("year")
+    year = int(year_surface)
+    if len(year_surface) == 2:
+        year += 2000 if year <= 68 else 1900
+    month_first = second > 12 and first <= 12
+    day, month = (second, first) if month_first else (first, second)
+    try:
+        return date(year, month, day), month_first
+    except ValueError:
+        # Reference identifiers can themselves contain three numeric dot/dash groups. They are
+        # not dates unless the source surface forms a valid calendar date.
+        return None
+
+
+def _render_embedded_numeric_date(
+    value: date, *, match: re.Match[str], month_first: bool
+) -> str:
+    first = value.month if month_first else value.day
+    second = value.day if month_first else value.month
+    separator = match.group("separator")
+    year = f"{value.year % 100:02d}" if len(match.group("year")) == 2 else f"{value.year:04d}"
+    return (
+        f"{first:0{len(match.group('a'))}d}{separator}"
+        f"{second:0{len(match.group('b'))}d}{separator}{year}"
+    )
+
+
+def apply_embedded_reference_date_shift(
+    *,
+    source_target: Mapping[str, Any],
+    target: dict[str, Any],
+    changes: list[SemanticChange],
+    fallback_shift_days: int,
+) -> tuple[dict[str, Any], ...]:
+    """Make dates embedded in generated forwarding references valid and temporally coherent.
+
+    Generic identifier reservation intentionally preserves character shape, but digit-by-digit
+    synthesis can turn a source date into an impossible value.  Shift every valid source
+    reference date by the same document-date displacement used by the synthetic scenario.  When
+    the template has no labeled document date, use the caller's non-zero deterministic bounded
+    displacement.  The reference remains one atomic change-ledger leaf.
+    """
+
+    if fallback_shift_days == 0:
+        raise ValueError("embedded reference-date fallback shift must be non-zero")
+    source_patch = cast(Mapping[str, Any], source_target["documentPatch"])
+    target_patch = cast(dict[str, Any], target["documentPatch"])
+    source_anchor: date | None = None
+    target_anchor: date | None = None
+    for field in ("issueDate", "shippedOnBoardDate"):
+        source_value = source_patch.get(field)
+        target_value = target_patch.get(field)
+        if isinstance(source_value, str) and isinstance(target_value, str):
+            source_anchor = date.fromisoformat(source_value)
+            target_anchor = date.fromisoformat(target_value)
+            break
+    shift_days = (
+        (target_anchor - source_anchor).days
+        if source_anchor is not None and target_anchor is not None
+        else fallback_shift_days
+    )
+    if shift_days == 0:
+        shift_days = fallback_shift_days
+    source_references = source_patch.get("forwardingAndExportReferences") or []
+    target_references = target_patch.get("forwardingAndExportReferences") or []
+    if len(source_references) != len(target_references):
+        raise ValueError("reference-date projection requires stable reference cardinality")
+    receipts: list[dict[str, Any]] = []
+    for index, (source_reference, generated_reference) in enumerate(
+        zip(source_references, target_references, strict=True)
+    ):
+        if not isinstance(source_reference, str) or not isinstance(generated_reference, str):
+            raise ValueError("reference-date projection requires string references")
+        matches = tuple(_EMBEDDED_NUMERIC_DATE.finditer(source_reference))
+        if not matches:
+            continue
+        if len(source_reference) != len(generated_reference):
+            raise ValueError("shape-preserving reference allocation changed string length")
+        rendered = generated_reference
+        projected: list[dict[str, Any]] = []
+        for match in reversed(matches):
+            parsed = _parse_embedded_numeric_date(match)
+            if parsed is None:
+                continue
+            source_date, month_first = parsed
+            target_date = source_date + timedelta(days=shift_days)
+            target_surface = _render_embedded_numeric_date(
+                target_date, match=match, month_first=month_first
+            )
+            rendered = rendered[: match.start()] + target_surface + rendered[match.end() :]
+            projected.append(
+                {
+                    "sourceSurface": match.group(0),
+                    "targetSurface": target_surface,
+                    "shiftDays": shift_days,
+                }
+            )
+        if not projected:
+            continue
+        path = f"documentPatch.forwardingAndExportReferences[{index}]"
+        target_references[index] = rendered
+        matching_changes = [
+            position for position, row in enumerate(changes) if row.target_path == path
+        ]
+        if len(matching_changes) != 1:
+            raise ValueError(f"reference-date projection lacks one identifier change: {path}")
+        changes[matching_changes[0]] = _change(
+            path=path,
+            family="document_identifier",
+            old=source_reference,
+            new=rendered,
+            method="global_shape_reservation_plus_joint_embedded_date_shift_v1",
+            coupling_group="reference",
+        )
+        receipts.append(
+            {
+                "targetPath": path,
+                "sourceReference": source_reference,
+                "targetReference": rendered,
+                "dateProjections": list(reversed(projected)),
+            }
+        )
+    return tuple(receipts)
 
 
 def _decimal_places(value: int | float) -> int:

@@ -1,0 +1,63 @@
+schema_version: 1
+source_task: bill_of_lading_relation_explicit_v3
+target_task: bill_of_lading_relation_explicit_v4
+
+run:
+  run_id: mpci-bl-combined2174-dangerous-goods-plan100-additional-maritime-v3
+  output_dir: artifacts/kie-synthesis
+
+inputs:
+  semantic_plan_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-semantic-plan100-additional-maritime-v4
+    manifest_sha256: 81414d1f1d81d12c9ba03332f7dff43b31eff375a1aa4a5b5a5ac0f008341b54
+    commit_sha256: b5eee55b8c207633477b3b067ffd21506826676980714ddfe3170d620490f9de
+    transaction_sha256: 57f63f825d65864ba712450af33b0687a7848c61b86ff1b174ca40da34852034
+  semantic_plans:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-semantic-plan100-additional-maritime-v4/generation/semantic-plans.jsonl
+    sha256: 47f20914f5b3493df3e4811f76670465e471399b0b8f1f97e20a63f6cc0c6263
+    records: 100
+  source_task_constraints:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/task-constraints.json
+    sha256: 9b9fd725589b41c7202e22954e7d21cea3398c588b1cb72bab4a5cb18b81970a
+  registry:
+    run:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4
+      commit_sha256: 16ac5d50ddff4398e8fd128eb0c097da2bc55935f848613000a6bd0d8130c3bc
+      transaction_sha256: 6ca96bd3a0596d04edf7a688f55b9f0a53142fe102516e8e72c4660be3ad6557
+    receipt:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/registry-receipt.json
+      sha256: e528d350aaeb4cf7ebb9595d5171a55766fc3c0d624f421ae76a6b8c543afab7
+    hmt_records:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+      sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+      records: 2934
+    ecics_links:
+      path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+      sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+      records: 3480
+
+generation:
+  random_stream: hmac_sha256_counter_v1
+  sampling_namespace: mpci-bl-combined2174-dangerous-goods-plan100-additional-maritime-v3
+  seed: 20260906
+  branch_method: source_hs_presence_exact_identity_chemical_else_general_v2
+  category_weights_permyriad:
+    EXPLOSIVES: 1111
+    GASES: 1111
+    FLAMMABLE_LIQUIDS: 1111
+    FLAMMABLE_SOLIDS: 1111
+    OXIDIZING_SUBSTANCES_AND_ORGANIC_PEROXIDES: 1111
+    TOXIC_AND_INFECTIOUS_SUBSTANCES: 1111
+    RADIOACTIVE_MATERIAL: 1111
+    CORROSIVE_SUBSTANCES: 1111
+    MISCELLANEOUS_DANGEROUS_SUBSTANCES_AND_ARTICLES: 1112
+  unsupported_category_policy: renormalize_over_branch_support_v1
+  maximum_subsidiary_hazards: 1
+  maximum_collision_attempts: 512
+  sampling_validation_draws_per_branch: 10000
+  maximum_category_deviation_permyriad: 300
+  flashpoint_policy: omit_without_formulation_property_source_v1
+  preserve_dangerous_goods_cardinality: true
+  printed_topology_policy: preserve_selected_template_v1
+  publish_training_records: false
+

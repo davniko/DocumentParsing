@@ -79,10 +79,12 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _line_id,
     _line_number,
     _literal_phrase_pattern,
+    _numeric_span_overlaps_date,
     _parse_measurement_surface,
     _settings,
     apply_deterministic_prefills,
     apply_line_range_replacements,
+    carrier_principal_template_slot_groups,
     deterministic_rewrite_audit,
 )
 from document_ocr.synthesis.raw_text_rewrite_probe import (
@@ -107,9 +109,27 @@ _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _PAGE_MARKER = re.compile(r"^--- PAGE [1-9][0-9]* ---[ \t]*$")
 _SPACE_RUN = re.compile(r"\s+")
-_NUMERIC_TOKEN = re.compile(r"(?<![0-9.,])[-+\N{MINUS SIGN}]?[0-9]+(?:[.,][0-9]+)*(?![0-9])")
+_NUMERIC_TOKEN = re.compile(
+    r"(?<![0-9.,])[-+\N{MINUS SIGN}]?[0-9]+(?:[.,][0-9]+)*(?![0-9])"
+)
+_ATTACHED_NUMERIC_UNIT = re.compile(
+    r"^(?:KGS?|KGM|KILOGRAMS?|CBM|M3|CUM|CUFT|MT|TONS?|"
+    r"PKGS?|PACKAGES?|PLTS?|PALLETS?|CTNS?|CARTONS?|PCS?|PIECES?|"
+    r"BAGS?|BALES?|BOX(?:ES)?|CRATES?|CASES?|DRUMS?|ROLLS?|BUNDLES?|"
+    r"SETS?|LOTS?|UNITS?|SACKS?|JERRICANS?|TINS?|CANS?|BARRELS?|[CF])\b",
+    re.IGNORECASE,
+)
 _TEMPERATURE_CONTEXT = re.compile(
     r"\b(?:TEMP(?:ERATURE)?|SET[ -]?POINT|CELSIUS|CENTIGRADE|FAHRENHEIT)\b",
+    re.IGNORECASE,
+)
+_FORWARDING_REFERENCE_PATH = re.compile(
+    r"^documentPatch\.forwardingAndExportReferences\[[0-9]+\]$"
+)
+_FORWARDING_REFERENCE_CONTEXT = re.compile(
+    r"\b(?:EXPORT(?:[ \t]+REFERENCES?)?|INVOICE|SHIPPING[ \t]+BILL|"
+    r"SB[ \t]*(?:NO\.?|NUMBER)|CUSTOMS|REFERENCE|REF(?:ERENCE)?[ \t]*NO|"
+    r"F/?AGENT[^\r\n]{0,30}\bREF|SHIPPER'?S[ \t]+REF)\b",
     re.IGNORECASE,
 )
 
@@ -140,8 +160,11 @@ class HybridWorkItem(BaseModel):
         "relation_scoped_numeric_surface",
         "thermal_context_numeric_surface",
         "freight_arrangement_surface",
+        "forwarding_reference_context",
         "party_role_block",
+        "literal_in_party_role_block",
         "rendered_surface_and_party_role_block",
+        "carrier_principal_template_slots",
         "wrapped_carrier_signature_literal",
         "location_role_surface",
         "relation_scoped_surface",
@@ -541,39 +564,12 @@ def _apply_compiler_requirements(
     """Apply only requirements with an explicit line or exact audited occurrence count."""
 
     edits: list[AppliedCompilerEdit] = []
-    for operational_requirement in workspace.operational_flavor_requirements:
-        line_number = _line_number(operational_requirement.sourceLineId)
-        current_lines = workspace.current_text.splitlines()
-        if not 1 <= line_number <= len(current_lines):
-            continue
-        current_line = current_lines[line_number - 1]
-        if operational_requirement.sourceValueSurface == operational_requirement.targetValueSurface:
-            continue
-        if current_line.count(operational_requirement.sourceValueSurface) != 1:
-            # A one-character quantity can occur in another value on the same row. The existing
-            # grammar start is not an exact value offset, so ambiguity is delegated rather than
-            # guessed.
-            continue
-        applied = _replace_one_line_surface(
-            workspace,
-            line_number=line_number,
-            source_surface=operational_requirement.sourceValueSurface,
-            target_surface=operational_requirement.targetValueSurface,
-        )
-        if applied is None:
-            continue
-        before, after = applied
-        edits.append(
-            AppliedCompilerEdit(
-                requirementId=operational_requirement.requirementId,
-                kind="operational_surface",
-                lineId=f"L{line_number:05d}",
-                sourceSurface=operational_requirement.sourceValueSurface,
-                targetSurface=operational_requirement.targetValueSurface,
-                beforeLine=before,
-                afterLine=after,
-            )
-        )
+    # Operational requirements are applied exactly once by ``apply_deterministic_prefills``.
+    # That renderer re-resolves the named measurement group at its proven grammar/column. A
+    # second scalar pass here used to search for the old value anywhere on the already-mutated
+    # line; short values such as ``1`` could therefore corrupt a newly generated seal, phone
+    # number, or legal clause. Jurisdictional requirements below are the only compiler-stage
+    # edits because they are deliberately excluded from the deterministic prefill renderer.
 
     jurisdiction_line_owners = Counter(
         line_id
@@ -696,6 +692,28 @@ def _literal_line_numbers(text: str, value: str) -> tuple[set[int], str]:
     return (lines, "flexible_whitespace_literal") if lines else (set(), "unlocated")
 
 
+def _container_identifier_line_numbers(text: str, value: str) -> set[int]:
+    """Locate an ISO-style container identifier despite OCR separator noise.
+
+    Container numbers are semantic identifiers rather than prose. OCR commonly renders the same
+    eleven alphanumeric characters with spaces or a check-digit separator (for example
+    ``MCLU 510204.9``). Removing non-alphanumeric separators from both the label value and one
+    physical OCR line is therefore an exact identifier comparison, not fuzzy matching.
+    """
+
+    expected = "".join(character for character in value.upper() if character.isalnum())
+    # Production ISO 6346 identifiers contain eleven characters. Unit fixtures and a small
+    # number of source labels can omit the check digit, so retain exact comparison for the
+    # ten-character stem as well; shorter strings would be too collision-prone.
+    if len(expected) not in {10, 11}:
+        return set()
+    return {
+        number
+        for number, line in enumerate(text.splitlines(), start=1)
+        if expected in "".join(character for character in line.upper() if character.isalnum())
+    }
+
+
 def _literal_occurrence_line_sets(text: str, value: str) -> tuple[frozenset[int], ...]:
     """Locate each exact or whitespace-normalized occurrence independently."""
 
@@ -788,7 +806,8 @@ def _party_heading_roles(line: str) -> frozenset[str]:
         roles.add("forwardingAgent")
     if re.match(
         r"^(?:delivery agent|agent at destination|agent address|agent for delivery|"
-        r"delivery of goods apply to|for delivery apply to)(?:\b|$)",
+        r"delivery of goods apply to|for delivery apply to|"
+        r"as (?:frt fwdrs )?delivery agent(?: only)?)(?:\b|$)",
         normalized,
     ):
         roles.add("deliveryAgent")
@@ -880,6 +899,19 @@ def _contextual_location_line_numbers(text: str, path: str, value: str) -> set[i
         context_roles: set[str] = set()
         for line in bodies[paragraph_start - 1 : last]:
             context_roles.update(_location_heading_roles(line))
+        # Some carrier forms deliberately separate a heading from its populated value with one
+        # or more blank layout rows. The closest preceding occupied line remains a valid heading
+        # only when it is itself an unambiguous structural location caption. This does not cross a
+        # page marker and does not use arbitrary proximity to infer a role.
+        if requested_role not in context_roles and paragraph_start == first:
+            previous_number = first - 1
+            while previous_number >= 1 and not bodies[previous_number - 1].strip():
+                previous_number -= 1
+            if (
+                previous_number >= 1
+                and _PAGE_MARKER.fullmatch(bodies[previous_number - 1]) is None
+            ):
+                context_roles.update(_location_heading_roles(bodies[previous_number - 1]))
         if requested_role in context_roles:
             role_matches.append(occurrence)
     if role_matches:
@@ -946,7 +978,8 @@ def _party_block_line_groups(
             following = bodies[paragraph_end]
             if not following.strip() or _PAGE_MARKER.fullmatch(following) is not None:
                 break
-            if _party_heading_roles(following):
+            following_roles = _party_heading_roles(following)
+            if following_roles and requested_role not in following_roles:
                 break
             paragraph_end += 1
         heading_roles: set[str] = set()
@@ -956,7 +989,12 @@ def _party_block_line_groups(
             heading_roles.update(preceding_roles)
             if requested_role in preceding_roles:
                 role_heading_line = preceding_heading_line
-        for line_number in range(paragraph_start, first + 1):
+        # Some carriers print a formal NOTIFY PARTY caption and then qualify the named party as
+        # ``(AS FRT FWDRS DELIVERY AGENT ONLY)`` on the following line.  The reviewed label is
+        # correctly role-bound to deliveryAgent in that topology.  Scan the complete bounded
+        # party paragraph for explicit caption grammar, not just lines preceding the name anchor;
+        # `_party_heading_roles` deliberately rejects free-form legal prose.
+        for line_number in range(paragraph_start, paragraph_end + 1):
             roles = _party_heading_roles(bodies[line_number - 1])
             heading_roles.update(roles)
             if requested_role in roles:
@@ -1019,6 +1057,61 @@ def _case_preserving_surface(source: str, target: str) -> str:
     return target
 
 
+def _surface_tokens(value: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"[^\W_]+", value.upper(), flags=re.UNICODE))
+
+
+def _country_is_embedded_in_other_party_scalar(
+    *,
+    line: str,
+    source_country: str,
+    source_party: Mapping[str, Any],
+) -> bool:
+    """Return whether a country occurrence belongs to another labeled party scalar.
+
+    Party addresses can legitimately contain a country word as part of a street or company
+    name (for example ``ORT ISRAEL STR.``). Replacing that token as country metadata corrupts
+    the address and creates an impossible downstream lock. We use exact Unicode word tokens and
+    require neighboring source-scalar context; no fuzzy alias or geographic inference is made.
+    A conservative match leaves the complete scalar to the role-bound renderer.
+    """
+
+    country_tokens = _surface_tokens(source_country)
+    line_tokens = _surface_tokens(line)
+    if not country_tokens or not line_tokens:
+        return False
+    line_positions = tuple(
+        index
+        for index in range(len(line_tokens) - len(country_tokens) + 1)
+        if line_tokens[index : index + len(country_tokens)] == country_tokens
+    )
+    if not line_positions:
+        return False
+    for field, scalar in source_party.items():
+        if field == "country" or not isinstance(scalar, str) or not scalar.strip():
+            continue
+        scalar_tokens = _surface_tokens(scalar)
+        if len(scalar_tokens) <= len(country_tokens):
+            continue
+        for scalar_index in range(len(scalar_tokens) - len(country_tokens) + 1):
+            if scalar_tokens[scalar_index : scalar_index + len(country_tokens)] != country_tokens:
+                continue
+            expected_before = scalar_tokens[scalar_index - 1] if scalar_index > 0 else None
+            after_index = scalar_index + len(country_tokens)
+            expected_after = (
+                scalar_tokens[after_index] if after_index < len(scalar_tokens) else None
+            )
+            for line_index in line_positions:
+                observed_before = line_tokens[line_index - 1] if line_index > 0 else None
+                line_after = line_index + len(country_tokens)
+                observed_after = line_tokens[line_after] if line_after < len(line_tokens) else None
+                before_matches = expected_before is not None and observed_before == expected_before
+                after_matches = expected_after is not None and observed_after == expected_after
+                if before_matches or after_matches:
+                    return True
+    return False
+
+
 def _apply_party_role_country_prefills(
     workspace: RewriteWorkspace,
 ) -> tuple[AppliedDeterministicPrefill, ...]:
@@ -1055,6 +1148,7 @@ def _apply_party_role_country_prefills(
             continue
         resolved = _source_party(cast(Mapping[str, JsonValue], workspace.source_label), leaf.path)
         source_name = resolved[1].get("name") if resolved is not None else None
+        source_party = resolved[1] if resolved is not None else {}
         name_lines = (
             set().union(*_literal_occurrence_line_sets(workspace.original_text, source_name))
             if isinstance(source_name, str)
@@ -1062,10 +1156,25 @@ def _apply_party_role_country_prefills(
             and _literal_occurrence_line_sets(workspace.original_text, source_name)
             else set()
         )
-        occurrences = _literal_occurrence_line_sets(workspace.original_text, leaf.sourceValue)
+        source_surfaces = [leaf.sourceValue]
+        # Some forms print the same country twice inside one proven party block, once as the
+        # label-normalized value (``THE NETHERLANDS``) and once without the optional leading
+        # definite article (``NETHERLANDS``).  This is a grammatical surface variant, not a
+        # country alias or geographic inference.  Own it only inside the same role-proven block
+        # and project it to the exact target country like the complete source surface.
+        article_match = re.fullmatch(r"\s*THE\s+(.+?)\s*", leaf.sourceValue, re.IGNORECASE)
+        if article_match is not None and article_match.group(1) not in source_surfaces:
+            source_surfaces.append(article_match.group(1))
+        occurrences_by_surface = {
+            source_surface: _literal_occurrence_line_sets(
+                workspace.original_text, source_surface
+            )
+            for source_surface in source_surfaces
+        }
         for role_group in role_groups:
             matches = [
-                occurrence
+                (source_surface, occurrence)
+                for source_surface, occurrences in occurrences_by_surface.items()
                 for occurrence in occurrences
                 if len(occurrence) == 1
                 and occurrence <= role_group
@@ -1073,10 +1182,19 @@ def _apply_party_role_country_prefills(
             ]
             if not matches:
                 continue
-            for selected in sorted(matches, key=lambda value: (max(value), min(value))):
+            for source_surface, selected in sorted(
+                matches,
+                key=lambda value: (max(value[1]), min(value[1]), -len(value[0])),
+            ):
                 line_number = next(iter(selected))
                 before = _line_body(current_lines[line_number - 1])
-                source_surface = leaf.sourceValue
+                original_line = workspace.original_text.splitlines()[line_number - 1]
+                if _country_is_embedded_in_other_party_scalar(
+                    line=original_line,
+                    source_country=source_surface,
+                    source_party=source_party,
+                ):
+                    continue
                 if before.count(source_surface) != 1:
                     continue
                 target_surface = _case_preserving_surface(source_surface, leaf.targetValue)
@@ -1122,8 +1240,18 @@ def _numeric_line_numbers(text: str, value: int | float) -> set[int]:
     for line_number, line in enumerate(text.splitlines(), start=1):
         if _PAGE_MARKER.fullmatch(line) is not None:
             continue
-        for token in _NUMERIC_TOKEN.findall(line):
-            if expected in _numeric_surface_values(token):
+        for match in _NUMERIC_TOKEN.finditer(line):
+            if _numeric_span_overlaps_date(line, match.start(), match.end()):
+                continue
+            if match.start() > 0 and line[match.start() - 1].isalnum():
+                continue
+            if (
+                match.end() < len(line)
+                and line[match.end()].isalpha()
+                and _ATTACHED_NUMERIC_UNIT.match(line[match.end() :]) is None
+            ):
+                continue
+            if expected in _numeric_surface_values(match.group(0)):
                 matches.add(line_number)
     return matches
 
@@ -1184,7 +1312,68 @@ def _object_scope(path: str) -> str:
     )
     if party is not None:
         return party.group(1)
+    # A root scalar or root-list element is its own semantic object.  Returning the bare
+    # ``documentPatch`` parent would let an unlocated B/L reference, date, or document number
+    # borrow write authority from every unrelated top-level field in the document.
+    if path.startswith("documentPatch.") and "." not in path[len("documentPatch.") :]:
+        return path
     return path.rsplit(".", 1)[0]
+
+
+def _forwarding_reference_line_numbers(text: str, source_value: str) -> set[int]:
+    """Locate a forwarding/export reference only under explicit reference grammar.
+
+    These label values commonly combine an identifier and date while the document inserts
+    labels such as ``INVOICE NO.`` and ``DATED:`` between them, sometimes across two lines.
+    Searching either atom globally is unsafe because the same identifier can also be the B/L or
+    booking number.  This locator accepts only one- or two-line windows containing every ordered
+    semantic atom and an explicit forwarding/export reference heading.
+    """
+
+    atoms = tuple(
+        atom
+        for piece in source_value.split()
+        if (atom := _semantic_surface(piece)) and len(atom) >= 3
+    )
+    if not atoms:
+        return set()
+    lines = text.splitlines()
+    candidates: list[frozenset[int]] = []
+    for start in range(len(lines)):
+        for width in (1, 2):
+            stop = start + width
+            if stop > len(lines):
+                continue
+            window = "\n".join(lines[start:stop])
+            context_start = max(0, start - 4)
+            context = "\n".join(lines[context_start:stop])
+            if _FORWARDING_REFERENCE_CONTEXT.search(context) is None:
+                continue
+            normalized = _semantic_surface(window)
+            cursor = 0
+            for atom in atoms:
+                position = normalized.find(atom, cursor)
+                if position < 0:
+                    break
+                cursor = position + len(atom)
+            else:
+                candidates.append(
+                    frozenset(
+                        start + offset + 1
+                        for offset, line in enumerate(lines[start:stop])
+                        if any(atom in _semantic_surface(line) for atom in atoms)
+                    )
+                )
+    # A one-line reference can also appear in an overlapping two-line window alongside an
+    # unrelated B/L or booking number.  Retain only locally minimal evidence windows while still
+    # preserving genuinely repeated reference renderings elsewhere in the document.
+    minimal = {
+        candidate
+        for candidate in candidates
+        if candidate
+        and not any(other < candidate for other in candidates if other)
+    }
+    return set().union(*minimal) if minimal else set()
 
 
 def _paragraph_line_numbers(text: str, seeds: set[int]) -> set[int]:
@@ -1235,6 +1424,43 @@ def _relation_scopes(
         value = patch.get(key)
         return value if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) else ()
 
+    # Container allocations are stronger row ownership than repeated cargo text. Dense B/L
+    # tables commonly repeat an identical goods/material/HS tuple under several containers;
+    # locating by that tuple alone makes every indexed group appear to own every copy. When a
+    # source allocation names a printed container, its blank-delimited paragraph is the exact
+    # physical scope for that group and replaces the weaker description-derived scope.
+    allocation_scopes: dict[str, set[int]] = defaultdict(set)
+    target_allocation_groups = {
+        cast(str, row["groupId"]): row
+        for row in objects(target_patch, "cargoAllocationGroups")
+        if isinstance(row, Mapping) and isinstance(row.get("groupId"), str)
+    }
+    for raw_group in objects(source_patch, "cargoAllocationGroups"):
+        if not isinstance(raw_group, Mapping) or not isinstance(raw_group.get("groupId"), str):
+            continue
+        group_id = cast(str, raw_group["groupId"])
+        allocation_sets = [raw_group.get("allocations")]
+        target_group = target_allocation_groups.get(group_id)
+        if target_group is not None:
+            allocation_sets.append(target_group.get("allocations"))
+        container_lines: set[int] = set()
+        for allocations in allocation_sets:
+            if not isinstance(allocations, Sequence) or isinstance(allocations, (str, bytes)):
+                continue
+            for allocation in allocations:
+                number = (
+                    allocation.get("containerNumber")
+                    if isinstance(allocation, Mapping)
+                    else None
+                )
+                if not isinstance(number, str) or not number:
+                    continue
+                located = _container_identifier_line_numbers(text, number)
+                container_lines.update(located)
+        if container_lines:
+            allocation_scopes[group_id].update(_paragraph_line_numbers(text, container_lines))
+    group_paragraphs.update(allocation_scopes)
+
     for family in ("cargoGroups", "cargoPackages", "cargoAllocationGroups"):
         for index, raw_object in enumerate(objects(source_patch, family)):
             if not isinstance(raw_object, Mapping):
@@ -1255,7 +1481,7 @@ def _relation_scopes(
         seeds: set[int] = set()
         for number in numbers:
             if isinstance(number, str) and number:
-                located, _ = _literal_line_numbers(text, number)
+                located = _container_identifier_line_numbers(text, number)
                 seeds.update(located)
         scope = _paragraph_line_numbers(text, seeds)
         if scope:
@@ -1307,6 +1533,150 @@ def _relation_scopes(
     return output
 
 
+def _apply_relation_scoped_additional_information_prefills(
+    workspace: RewriteWorkspace,
+    relation_scopes: Mapping[str, set[int]],
+) -> tuple[AppliedDeterministicPrefill, ...]:
+    """Render exact cargo auxiliary values within their allocation-proven group scope.
+
+    Additional-information rows such as material, batch, and grade are already generated by the
+    linguistic stage. Their insertion has no creative degree of freedom, but dense carrier tables
+    often repeat the same source value under several containers or print one heading above a
+    column of values. Global literal ownership is therefore invalid. This renderer accepts only
+    an exact inline source surface or an exact whole-line value under an exact heading inside the
+    indexed cargo group's relation scope. Ambiguous or absent evidence remains agent-owned.
+    """
+
+    source_groups = _label_patch(workspace.source_label).get("cargoGroups")
+    target_groups = _label_patch(workspace.current_target_label).get("cargoGroups")
+    if not isinstance(source_groups, Sequence) or isinstance(source_groups, (str, bytes)):
+        return ()
+    if not isinstance(target_groups, Sequence) or isinstance(target_groups, (str, bytes)):
+        return ()
+    lines = workspace.current_text.splitlines(keepends=True)
+    applied: list[AppliedDeterministicPrefill] = []
+    for group_index, (source_group, target_group) in enumerate(
+        zip(source_groups, target_groups, strict=False)
+    ):
+        if not isinstance(source_group, Mapping) or not isinstance(target_group, Mapping):
+            continue
+        scope = relation_scopes.get(f"documentPatch.cargoGroups[{group_index}]", set())
+        if not scope:
+            continue
+        source_values = source_group.get("additionalInformation")
+        target_values = target_group.get("additionalInformation")
+        if not isinstance(source_values, Sequence) or isinstance(source_values, (str, bytes)):
+            continue
+        if not isinstance(target_values, Sequence) or isinstance(target_values, (str, bytes)):
+            continue
+        projections: dict[str, set[str]] = defaultdict(set)
+        for source_value, target_value in zip(source_values, target_values, strict=False):
+            if isinstance(source_value, str) and isinstance(target_value, str):
+                projections[source_value].add(target_value)
+        if any(len(targets) > 1 for targets in projections.values()):
+            # Two schema rows with the same source surface but different targets have no
+            # occurrence-level identity in the label. The agent must resolve their topology.
+            continue
+        for value_index, (source_value, target_value) in enumerate(
+            zip(source_values, target_values, strict=False)
+        ):
+            if (
+                not isinstance(source_value, str)
+                or not isinstance(target_value, str)
+                or source_value == target_value
+            ):
+                continue
+            path = (
+                f"documentPatch.cargoGroups[{group_index}].additionalInformation[{value_index}]"
+            )
+            scoped_numbers = tuple(
+                number for number in sorted(scope) if 1 <= number <= len(lines)
+            )
+            exact_occurrences: list[tuple[int, int]] = []
+            for number in scoped_numbers:
+                body = _line_body(lines[number - 1])
+                start = 0
+                while (offset := body.find(source_value, start)) >= 0:
+                    exact_occurrences.append((number, offset))
+                    start = offset + len(source_value)
+            if exact_occurrences:
+                by_line: dict[int, list[int]] = defaultdict(list)
+                for number, offset in exact_occurrences:
+                    by_line[number].append(offset)
+                for number, offsets in sorted(by_line.items()):
+                    before = _line_body(lines[number - 1])
+                    after = before
+                    for offset in reversed(offsets):
+                        after = (
+                            after[:offset] + target_value + after[offset + len(source_value) :]
+                        )
+                    lines[number - 1] = after + _line_ending(lines[number - 1])
+                    applied.append(
+                        AppliedDeterministicPrefill(
+                            lineId=f"L{number:05d}",
+                            targetPaths=(path,),
+                            sourceSurface=source_value,
+                            targetSurface=target_value,
+                            beforeLine=before,
+                            afterLine=after,
+                        )
+                    )
+                continue
+
+            # Columnar forms print a heading once and each field value on its own line. Find the
+            # longest common leading token prefix whose exact heading and exact value line both
+            # occur inside this cargo scope. This deliberately does not search arbitrary
+            # substrings or infer a field alias.
+            source_parts = source_value.split()
+            target_parts = target_value.split()
+            rendered_column = False
+            for prefix_length in range(min(len(source_parts), len(target_parts)) - 1, 0, -1):
+                source_prefix = " ".join(source_parts[:prefix_length])
+                target_prefix = " ".join(target_parts[:prefix_length])
+                if _semantic_surface(source_prefix) != _semantic_surface(target_prefix):
+                    continue
+                source_suffix = " ".join(source_parts[prefix_length:])
+                target_suffix = " ".join(target_parts[prefix_length:])
+                heading_lines = tuple(
+                    number
+                    for number in scoped_numbers
+                    if _semantic_surface(_line_body(lines[number - 1]).strip())
+                    == _semantic_surface(source_prefix)
+                )
+                value_lines = tuple(
+                    number
+                    for number in scoped_numbers
+                    if _line_body(lines[number - 1]).strip() == source_suffix
+                    and any(heading < number for heading in heading_lines)
+                )
+                if not heading_lines or not value_lines:
+                    continue
+                for number in value_lines:
+                    before = _line_body(lines[number - 1])
+                    leading = before[: len(before) - len(before.lstrip())]
+                    trailing = before[len(before.rstrip()) :]
+                    after = leading + target_suffix + trailing
+                    lines[number - 1] = after + _line_ending(lines[number - 1])
+                    applied.append(
+                        AppliedDeterministicPrefill(
+                            lineId=f"L{number:05d}",
+                            targetPaths=(path,),
+                            sourceSurface=source_suffix,
+                            targetSurface=target_suffix,
+                            beforeLine=before,
+                            afterLine=after,
+                        )
+                    )
+                rendered_column = True
+                break
+            if rendered_column:
+                continue
+    if applied:
+        workspace.current_text = "".join(lines)
+        workspace.deterministic_prefills.extend(applied)
+    return tuple(applied)
+
+
 def _requirement_paths_already_prefilled(
     workspace: RewriteWorkspace,
 ) -> frozenset[str]:
@@ -1316,6 +1686,13 @@ def _requirement_paths_already_prefilled(
 
 
 def _line_set_for_directive(text: str, path: str, source_value: JsonValue) -> tuple[set[int], str]:
+    if (
+        _FORWARDING_REFERENCE_PATH.fullmatch(path) is not None
+        and isinstance(source_value, str)
+        and source_value
+    ):
+        lines = _forwarding_reference_line_numbers(text, source_value)
+        return lines, "forwarding_reference_context" if lines else "unlocated"
     if path == "documentPatch.freight.paymentArrangement" and source_value in {
         "prepaid",
         "collect",
@@ -1433,6 +1810,21 @@ def _context_bound_surface_lines(
 ) -> set[int]:
     """Locate a rendered surface through its exact audited context, not all global copies."""
 
+    if requirement.sourceLineIds:
+        bodies = text.splitlines()
+        line_numbers = {int(value[1:]) for value in requirement.sourceLineIds}
+        if any(not 1 <= number <= len(bodies) for number in line_numbers):
+            return set()
+        source_pattern = re.compile(re.escape(requirement.sourceSurface))
+        target_pattern = re.compile(re.escape(requirement.targetSurface))
+        if all(
+            source_pattern.search(bodies[number - 1]) is not None
+            or target_pattern.search(bodies[number - 1]) is not None
+            for number in line_numbers
+        ):
+            return line_numbers
+        return set()
+
     if requirement.kind == "date":
         # Identical printed dates can belong to different semantic fields.  Use the same
         # nearest-heading parser that created the rendering requirement; a blank-delimited block
@@ -1443,6 +1835,12 @@ def _context_bound_surface_lines(
             if _date_context_path(text, match.start()) == requirement.targetPath:
                 contextual.update(_offset_line_numbers(text, match.start(), match.end()))
         return contextual
+    if requirement.kind == "date_global":
+        return {
+            number
+            for match in re.finditer(re.escape(requirement.sourceSurface), text)
+            for number in _offset_line_numbers(text, match.start(), match.end())
+        }
 
     context = requirement.contextEvidence
     if not context:
@@ -1528,12 +1926,15 @@ def compile_case(
 ) -> _CompiledCase:
     workspace = _workspace_from_bundle(bundle)
     compiler_edits = _apply_compiler_requirements(workspace)
-    prefilled_paths = _requirement_paths_already_prefilled(workspace)
     cargo_requirements = {
-        requirement.targetPath: requirement for requirement in bundle.cargoFlavorRewriteRequirements
+        requirement.targetPath: requirement
+        for requirement in bundle.cargoFlavorRewriteRequirements
+        if requirement.lineRole == "label_grounded"
     }
     cargo_surface_paths: dict[str, set[str]] = defaultdict(set)
     for requirement in bundle.cargoFlavorRewriteRequirements:
+        if requirement.lineRole != "label_grounded":
+            continue
         for surface in requirement.sourceSurfaces:
             cargo_surface_paths[_semantic_surface(surface)].add(requirement.targetPath)
 
@@ -1558,6 +1959,8 @@ def compile_case(
     )
     cargo_lines_by_group: dict[str, set[int]] = {}
     for requirement in bundle.cargoFlavorRewriteRequirements:
+        if requirement.lineRole != "label_grounded":
+            continue
         match = re.match(r"^documentPatch\.cargoGroups\[([0-9]+)\]", requirement.targetPath)
         if match is None:
             continue
@@ -1573,6 +1976,8 @@ def compile_case(
         target_label=bundle.targetLabel,
         cargo_lines_by_group=cargo_lines_by_group,
     )
+    _apply_relation_scoped_additional_information_prefills(workspace, relation_scopes)
+    prefilled_paths = _requirement_paths_already_prefilled(workspace)
 
     surface_lines_by_path: dict[str, set[int]] = defaultdict(set)
     for surface_requirement in bundle.surfaceRenderingRequirements:
@@ -1603,6 +2008,18 @@ def compile_case(
 
     direct_evidence: dict[str, tuple[set[int], str]] = {}
     for directive in bundle.labelChangeContract:
+        raw_auxiliary_identity_lines: set[int] = set()
+        if isinstance(directive.sourceValue, str):
+            source_pattern = _literal_phrase_pattern(directive.sourceValue)
+            for requirement in bundle.rawAuxiliaryIdentityRequirements:
+                if source_pattern.search(requirement.sourceIdentity) is None:
+                    continue
+                start = _line_number(
+                    requirement.requirementId[requirement.requirementId.rfind("-L") + 1 :]
+                )
+                raw_auxiliary_identity_lines.update(
+                    range(start, start + requirement.sourceIdentityLineCount)
+                )
         cargo_requirement = cargo_requirements.get(directive.path)
         if cargo_requirement is not None:
             direct_lines = cargo_lines(cargo_requirement)
@@ -1624,34 +2041,57 @@ def compile_case(
                 direct_lines = (direct_lines & party_lines) or party_lines
                 locator = "rendered_surface_and_party_role_block"
         else:
-            direct_lines = _party_block_line_numbers(
+            # Literal evidence is the narrowest authority.  A party role block is used to
+            # disambiguate repeated literals, or as a fallback only when OCR wrapping prevents
+            # literal location.  Choosing the whole block first attached name deltas to city and
+            # country lines and made otherwise valid rewrites fail occurrence checks.
+            direct_lines, locator = _line_set_for_directive(
+                workspace.current_text, directive.path, directive.sourceValue
+            )
+            party_lines = _party_block_line_numbers(
                 workspace.current_text,
                 path=directive.path,
                 source_label=bundle.sourceLabel,
             )
-            if direct_lines:
-                locator = "party_role_block"
+            if party_lines:
+                role_literal_lines = direct_lines & party_lines
+                if role_literal_lines:
+                    direct_lines = role_literal_lines
+                    locator = "literal_in_party_role_block"
+                elif not direct_lines:
+                    direct_lines = party_lines
+                    locator = "party_role_block"
+        if isinstance(directive.sourceValue, str):
+            contextual_location_lines = _contextual_location_line_numbers(
+                workspace.current_text,
+                directive.path,
+                directive.sourceValue,
+            )
+            contextual_location_lines.difference_update(raw_auxiliary_identity_lines)
+            if contextual_location_lines:
+                # A globally repeated locality is not owned by every matching line. The
+                # semantic route/place heading is stronger evidence than literal equality,
+                # including when a derived surface requirement already found global copies.
+                direct_lines = contextual_location_lines
+                locator = "location_role_surface"
             else:
-                direct_lines = (
-                    _contextual_location_line_numbers(
-                        workspace.current_text,
-                        directive.path,
-                        directive.sourceValue,
-                    )
-                    if isinstance(directive.sourceValue, str)
-                    else set()
-                )
-                if direct_lines:
-                    locator = "location_role_surface"
-                else:
-                    direct_lines, locator = _line_set_for_directive(
-                        workspace.current_text, directive.path, directive.sourceValue
-                    )
+                direct_lines.difference_update(raw_auxiliary_identity_lines)
+        if (
+            directive.path == "documentPatch.parties.carrier.name"
+            and isinstance(directive.sourceValue, str)
+        ):
+            principal_groups = carrier_principal_template_slot_groups(
+                workspace.current_text, directive.sourceValue
+            )
+            principal_lines = {number for group in principal_groups for number in group}
+            if principal_lines:
+                direct_lines.update(principal_lines)
+                locator = "carrier_principal_template_slots"
         relation_scope = relation_scopes.get(_object_scope(directive.path), set())
         narrowed = direct_lines & relation_scope
-        if direct_lines and narrowed and narrowed != direct_lines:
+        if direct_lines and relation_scope and narrowed != direct_lines:
             direct_lines = narrowed
-            locator = "relation_scoped_surface"
+            locator = "relation_scoped_surface" if narrowed else "relation_scope_miss"
         direct_evidence[directive.path] = (direct_lines, locator)
         object_lines[_object_scope(directive.path)].update(direct_lines)
 
@@ -1786,9 +2226,21 @@ def compile_case(
             rationale="Reviewed cargo-block line ownership is explicit in the baseline contract.",
         )
     for auxiliary_requirement in bundle.rawAuxiliaryIdentityRequirements:
-        lines, _ = _literal_line_numbers(
-            workspace.current_text, auxiliary_requirement.sourceIdentity
+        match = re.search(r"L[0-9]{5}", auxiliary_requirement.requirementId)
+        if match is None:
+            raise ValueError(
+                "raw auxiliary identity requirement lacks its exact start line: "
+                f"{auxiliary_requirement.requirementId}"
+            )
+        start = _line_number(match.group(0))
+        lines = set(
+            range(start, start + auxiliary_requirement.sourceIdentityLineCount)
         )
+        if not lines or max(lines) > len(workspace.current_text.splitlines()):
+            raise ValueError(
+                "raw auxiliary identity requirement is outside the OCR: "
+                f"{auxiliary_requirement.requirementId}"
+            )
         add_requirement(
             paths=(f"rawAuxiliaryIdentity.{auxiliary_requirement.requirementId}",),
             action="anonymize_auxiliary_identity_preserve_relationship",
@@ -1823,7 +2275,10 @@ def compile_case(
         line_number = _line_number(operational_requirement.sourceLineId)
         work_id = f"W{next_ordinal:04d}"
         next_ordinal += 1
-        applied = operational_requirement.requirementId in applied_requirement_ids
+        applied = (
+            operational_requirement.requirementId in applied_requirement_ids
+            or f"rawOperational.{operational_requirement.requirementId}" in prefilled_paths
+        )
         specs.append(
             {
                 "workItemId": work_id,

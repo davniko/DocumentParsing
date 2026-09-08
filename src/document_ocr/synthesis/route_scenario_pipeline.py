@@ -36,6 +36,7 @@ from document_ocr.synthesis.shipment_scenarios import (
     project_scenario_target,
     sample_shipment_scenario,
 )
+from document_ocr.synthesis.template_integrity import source_template_integrity_issues
 from document_ocr.synthesis.trade_flow_registry import WitsTradeFlowReceipt
 from document_ocr.synthesis.world_port_registry import (
     WorldPortRegistryReceipt,
@@ -236,6 +237,7 @@ def _validate_pinned_documents(
     pinned_document_ids: Sequence[str],
     candidate_ids: Sequence[str],
     targets: Mapping[str, Mapping[str, Any]],
+    raw_texts: Mapping[str, str],
     template_by_document: Mapping[str, str],
     requested: int,
     maximum_per_template: int,
@@ -269,12 +271,17 @@ def _validate_pinned_documents(
             "pinned route selection exceeds maximum_per_template="
             f"{maximum_per_template}: {excess_templates!r}"
         )
-    failures = tuple(
-        (document_id, reason)
-        for document_id in selected
-        for accepted, reason in (_eligible_base_document(targets[document_id]),)
-        if not accepted
-    )
+    failures: list[tuple[str, str]] = []
+    for document_id in selected:
+        accepted, route_reason = _eligible_base_document(targets[document_id])
+        if not accepted and route_reason is not None:
+            failures.append((document_id, route_reason))
+        failures.extend(
+            (document_id, reason)
+            for reason in source_template_integrity_issues(
+                raw_texts[document_id], targets[document_id]
+            )
+        )
     if failures:
         raise RouteScenarioPipelineError(
             f"pinned route selection contains unsupported documents: {failures!r}"
@@ -353,21 +360,25 @@ def run_route_scenario_pilot(
         raise ValueError("route scenario source requires input_sha256")
     source_by_id: dict[str, dict[str, Any]] = {}
     source_hashes: dict[str, str] = {}
+    raw_texts: dict[str, str] = {}
     targets: dict[str, Mapping[str, Any]] = {}
     for row_number, row in enumerate(source_rows, start=1):
         document_id = row.get(document_field)
         target = row.get(target_field)
         input_sha256 = row.get(input_hash_field)
+        raw_text = row.get(config.source.fields.input_text)
         if (
             not isinstance(document_id, str)
             or not isinstance(target, dict)
             or not isinstance(input_sha256, str)
+            or not isinstance(raw_text, str)
         ):
             raise ValueError(f"source row {row_number} is missing required route fields")
         if document_id in source_by_id:
             raise ValueError(f"duplicate source document: {document_id}")
         source_by_id[document_id] = row
         source_hashes[document_id] = input_sha256
+        raw_texts[document_id] = raw_text
         targets[document_id] = target
     corpus_ids = frozenset(source_by_id)
 
@@ -563,12 +574,13 @@ def run_route_scenario_pilot(
         pinned_document_ids=upstream_document_ids,
         candidate_ids=isolated_ids,
         targets=targets,
+        raw_texts=raw_texts,
         template_by_document=template_by_document,
         requested=config.selection.requested_documents,
         maximum_per_template=config.selection.maximum_per_template,
     )
     selection_exclusions: dict[str, int] = {}
-    selection_method = "pinned_upstream_structured_selection_v1"
+    selection_method = "pinned_upstream_structured_selection_with_source_integrity_v2"
     scenarios: list[ShipmentScenario] = []
     projected_rows: list[dict[str, Any]] = []
     for document_id in selected_ids:
@@ -631,12 +643,13 @@ def run_route_scenario_pilot(
             Path(__file__).with_name("trade_flow_registry.py"),
             Path(__file__).with_name("routes.py"),
             Path(__file__).with_name("generators.py"),
+            Path(__file__).with_name("template_integrity.py"),
         )
     }
     transaction = sha256_bytes(
         canonical_json_bytes(
             {
-                "contract": "mpci-bl-route-scenario-pilot-v3",
+                "contract": "mpci-bl-route-scenario-pilot-v4",
                 "configSha256": sha256_file(config_path),
                 "config": config.model_dump(mode="json"),
                 "sourceSha256": config.source.file.sha256,

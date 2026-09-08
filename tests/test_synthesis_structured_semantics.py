@@ -14,6 +14,7 @@ from document_ocr.synthesis.structured_models import CargoGroupNumericProposal
 from document_ocr.synthesis.structured_semantics import (
     apply_cargo_group_numeric_proposals,
     apply_date_proposal,
+    apply_embedded_reference_date_shift,
     apply_identifier_plan,
     build_identifier_request_inventory,
     derive_scaled_group_quantities,
@@ -148,7 +149,88 @@ def test_complete_non_linguistic_semantics_change_every_supported_source_fact() 
     assert len(digest) == 64
     assert pending
     assert {row.kind for row in pending} <= {"registry", "linguistic"}
+
+
+def test_embedded_reference_dates_are_valid_and_follow_document_date_shift() -> None:
+    document_id = "doc_" + "1" * 64
+    source = {
+        "documentPatch": {
+            "issueDate": "2025-05-28",
+            "forwardingAndExportReferences": ["1900502 DT 16.05.2025"],
+        }
+    }
+    target = deepcopy(source)
+    path = f"{document_id}/documentPatch.forwardingAndExportReferences[0]"
+    changes = list(
+        apply_identifier_plan(
+            document_id=document_id,
+            target=target,
+            allocations={path: "3910951 ZL 76.75.7979"},
+        )
+    )
+    changes.extend(
+        apply_date_proposal(
+            target=target,
+            issue_date=date(2023, 7, 7),
+            shipped_on_board_date=None,
+        )
+    )
+
+    receipts = apply_embedded_reference_date_shift(
+        source_target=source,
+        target=target,
+        changes=changes,
+        fallback_shift_days=17,
+    )
+
+    assert target["documentPatch"]["forwardingAndExportReferences"] == [
+        "3910951 ZL 25.06.2023"
+    ]
+    assert receipts[0]["dateProjections"] == [
+        {
+            "sourceSurface": "16.05.2025",
+            "targetSurface": "25.06.2023",
+            "shiftDays": -691,
+        }
+    ]
+    finalize_non_linguistic_target(
+        source_target=source,
+        target=target,
+        changes=changes,
+    )
     validate_allocation_arithmetic(target)
+
+
+def test_non_calendar_reference_number_is_not_treated_as_an_embedded_date() -> None:
+    document_id = "doc_" + "2" * 64
+    source = {
+        "documentPatch": {
+            "forwardingAndExportReferences": ["REF 76.75.7979"],
+        }
+    }
+    target = deepcopy(source)
+    changes = list(
+        apply_identifier_plan(
+            document_id=document_id,
+            target=target,
+            allocations={
+                f"{document_id}/documentPatch.forwardingAndExportReferences[0]": (
+                    "ABC 12.34.5678"
+                )
+            },
+        )
+    )
+
+    receipts = apply_embedded_reference_date_shift(
+        source_target=source,
+        target=target,
+        changes=changes,
+        fallback_shift_days=10,
+    )
+
+    assert receipts == ()
+    assert target["documentPatch"]["forwardingAndExportReferences"] == ["ABC 12.34.5678"]
+    finalize_non_linguistic_target(source_target=source, target=target, changes=changes)
 
 
 def test_all_multi_package_quantities_and_allocations_are_reconciled_together() -> None:

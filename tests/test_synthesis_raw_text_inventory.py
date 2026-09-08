@@ -17,29 +17,47 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
     _temperature_deactivation_line_numbers,
 )
 from document_ocr.synthesis.raw_text_inventory import (
+    _SIGNED_CARRIER_IDENTITY,
     FullDocumentAudit,
     InventoryCandidate,
     RegressionCase,
+    TemplateMutationCase,
+    TemplateMutationLine,
     _carrier_receipt_count_matches_target,
     _is_shipment_aggregate_value_line,
+    _numeric_lines,
+    _raw_agent_identity_line_numbers,
     apply_deterministic_auxiliary_edits,
     audit_full_document,
+    auxiliary_label_surfaces,
     build_mutable_inventory,
     locate_auxiliary_values,
+    locate_embedded_long_identifiers,
+    locate_standalone_opaque_identifiers,
     parse_regression_oracle,
+    parse_template_mutation_profile,
 )
 from document_ocr.synthesis.raw_text_inventory_probe import (
     InventoryProbeCaseResult,
+    _allocation_quantity_evidence_lines,
+    _cargo_marks_sequence_evidence,
     _CompoundSlot,
     _editor_payload,
     _empty_usage,
     _handling_affix_requirements_by_line,
+    _include_unique_linked_party_copies,
+    _initial_request_batches,
     _is_explicit_package_quantity_line,
     _load_inventory_checkpoint,
     _locked_literal_requirements_by_line,
     _output_schema,
+    _party_owned_surface_lines,
+    _preflight_initial_model_contracts,
     _preview_repair_selection,
     _publish_inventory_checkpoint,
+    _refine_cargo_group_evidence,
+    _refine_equipment_evidence,
+    _refine_foreign_party_evidence,
     _refine_numeric_evidence,
     _refine_party_evidence,
     _refine_party_occurrence_requirements,
@@ -60,7 +78,9 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     CompoundPartyFlavorRequirement,
     RawAuxiliaryIdentityRequirement,
     RewriteWorkspace,
+    SourceStatusPreservationRequirement,
     SurfaceRenderingRequirement,
+    TargetLiteralRequirement,
     TargetValueOccurrenceRequirement,
     _party_scalar_occurrence_count,
     source_semantic_role_hints,
@@ -130,7 +150,196 @@ def test_locate_auxiliary_values_requires_explicit_value_syntax() -> None:
     assert all("Merchant" not in row.value for row in values)
 
 
-def test_deterministic_auxiliary_uses_observed_phone_punctuation_after_task_edit() -> None:
+def test_source_only_contact_person_is_model_owned_not_shape_randomized() -> None:
+    text = "CONTACT PERSON: HUANG JINLONG/ PANNI\n"
+
+    located = locate_auxiliary_values(text)
+    assert [(row.category, row.value, row.line_numbers) for row in located] == [
+        ("contact person", "HUANG JINLONG/ PANNI", (1,))
+    ]
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label={},
+        target_label={},
+        work_items=(),
+        oracle_case=None,
+    )
+
+    assert len(inventory) == 1
+    assert inventory[0].category == "source_only_contact_identity"
+    assert inventory[0].disposition == "model_residual"
+    assert inventory[0].sourceSurface == "HUANG JINLONG/ PANNI"
+
+
+def test_contact_person_heading_does_not_make_generic_name_fields_writable() -> None:
+    text = (
+        "(BRAND NAME: INDUSTRIAL TECHNICAL GRADE)\n"
+        "LOGISTICS CONTACT PERSON NAME, TEL. EMAIL\n"
+        "Substance Name(Proper Shipping Name): TRINITROANISOLE\n"
+    )
+
+    assert locate_auxiliary_values(text) == ()
+
+
+def test_auxiliary_label_surfaces_preserve_product_and_acid_headings() -> None:
+    line = "PRODUCT CODE:100G*100BAGS/CARTON: 0402620044 ACID:1003633852023110047"
+
+    assert auxiliary_label_surfaces(line) == ("PRODUCT CODE:", "ACID:")
+    assert sorted(row.value for row in locate_auxiliary_values(line)) == [
+        "0402620044",
+        "1003633852023110047",
+    ]
+
+
+def test_embedded_long_identifier_excludes_phone_and_measurement() -> None:
+    text = (
+        "300G*40BAGS/CARTON: 0402620045 ACID:1003633852023110047\n"
+        "Emergency Phone: 202-37609091\n"
+        "Total Gross Weight: 19464100 KGS\n"
+    )
+
+    values = locate_embedded_long_identifiers(text)
+
+    assert [(row.value, row.line_numbers) for row in values] == [
+        ("0402620045", (1,)),
+        ("1003633852023110047", (1,)),
+    ]
+
+
+def test_template_mutation_profile_grants_exact_line_attention_without_forcing_change() -> None:
+    source_text = "SERVICE CONTRACT\nF14\n"
+    profile_case = TemplateMutationCase(
+        documentId="doc_" + "a" * 64,
+        sourceTextSha256=sha256_bytes(source_text.encode()),
+        lines=(
+            TemplateMutationLine(
+                lineId="L00002",
+                sourceLineSha256=sha256_bytes(b"F14"),
+                findingKinds=("source_only_private_or_auxiliary_fact",),
+            ),
+        ),
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=source_text,
+        current_text=source_text,
+        source_label={},
+        target_label={},
+        work_items=(),
+        oracle_case=None,
+        template_profile_case=profile_case,
+    )
+    profiled = [row for row in inventory if row.category == "template_profile_residual"]
+    assert len(profiled) == 1
+    assert profiled[0].lineIds == ("L00002",)
+
+    audit = audit_full_document(
+        document_id="doc_" + "a" * 64,
+        source_text=source_text,
+        output_text=source_text,
+        source_label={},
+        target_label={},
+        inventory=inventory,
+        deterministic_edits=(),
+        oracle_case=None,
+    )
+    assert audit.passed is True
+
+
+def test_parse_template_mutation_profile_rejects_duplicate_line_ownership() -> None:
+    source_text = "A\nB\n"
+    line = {
+        "lineId": "L00001",
+        "sourceLineSha256": sha256_bytes(b"A"),
+        "findingKinds": ["target_fact_mismatch"],
+    }
+    value = {
+        "schemaVersion": 1,
+        "name": "duplicate-test",
+        "sources": [
+            {
+                "path": "audit/_COMMIT.json",
+                "sha256": "1" * 64,
+                "kind": "certification_commit",
+            }
+        ],
+        "cases": [
+            {
+                "documentId": "doc_" + "b" * 64,
+                "sourceTextSha256": sha256_bytes(source_text.encode()),
+                "lines": [line, line],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="repeats a line ID"):
+        parse_template_mutation_profile(value)
+
+
+def test_template_mutation_profile_rejects_different_source_bytes() -> None:
+    source_text = "SERVICE CONTRACT\nF14\n"
+    profile_case = TemplateMutationCase(
+        documentId="doc_" + "c" * 64,
+        sourceTextSha256=sha256_bytes(b"different source"),
+        lines=(
+            TemplateMutationLine(
+                lineId="L00002",
+                sourceLineSha256=sha256_bytes(b"F14"),
+                findingKinds=("source_only_private_or_auxiliary_fact",),
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="source text SHA-256 differs"):
+        build_mutable_inventory(
+            source_text=source_text,
+            current_text=source_text,
+            source_label={},
+            target_label={},
+            work_items=(),
+            oracle_case=None,
+            template_profile_case=profile_case,
+        )
+
+
+def test_profile_context_is_read_only_and_cannot_be_returned_as_a_slot() -> None:
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00002",
+            source_line="F14",
+            requirements=(
+                {
+                    "kind": "template_profile_residual",
+                    "policy": "reevaluate_exact_line_against_complete_synthetic_target",
+                },
+            ),
+        ),
+    )
+    compiled = SimpleNamespace(
+        workspace=RewriteWorkspace(
+            original_text="SERVICE CONTRACT\nF14\nBOOKING REFERENCE\n",
+            current_text="SERVICE CONTRACT\nF14\nBOOKING REFERENCE\n",
+            current_target_label={"documentPatch": {"references": {"bookingNumber": "B77"}}},
+        ),
+        work_items=(),
+        bundle=SimpleNamespace(result=SimpleNamespace(documentId="doc_" + "d" * 64)),
+    )
+
+    payload = _editor_payload(compiled, slots, profile_context_lines=1)
+    assert payload["templateProfileReadOnlyContext"] == [
+        {"lineId": "L00001", "sourceLine": "SERVICE CONTRACT"},
+        {"lineId": "L00003", "sourceLine": "BOOKING REFERENCE"},
+    ]
+    _output_type, schema = _output_schema(slots)
+    assert schema["required"] == ["s0"]
+    assert isinstance(schema["properties"], dict)
+    assert set(schema["properties"]) == {"s0"}
+
+
+def test_source_only_phone_is_model_owned_after_task_phone_edit() -> None:
     source_text = (
         "TEL:+202-37609091\n"
         "Emergency Phone: 202-37609091\n"
@@ -178,10 +387,10 @@ def test_deterministic_auxiliary_uses_observed_phone_punctuation_after_task_edit
         work_items=(work_item,),
         oracle_case=None,
     )
-    deterministic_sources = {
+    model_sources = {
         row.sourceSurface
         for row in inventory
-        if row.disposition == "deterministic_shape_replacement"
+        if row.disposition == "model_residual"
     }
     output, edits = apply_deterministic_auxiliary_edits(
         text=current_text,
@@ -190,10 +399,10 @@ def test_deterministic_auxiliary_uses_observed_phone_punctuation_after_task_edit
         candidates=inventory,
     )
 
-    assert "+202-37609091" not in deterministic_sources
-    assert "202-37609091" in deterministic_sources
-    assert "Emergency Phone: 202-37609091" not in output
-    assert len(edits) == 1
+    assert "+202-37609091" not in model_sources
+    assert "202-37609091" in model_sources
+    assert output == current_text
+    assert edits == ()
 
 
 def test_locate_auxiliary_values_owns_value_after_trailing_cross_line_heading() -> None:
@@ -260,6 +469,64 @@ def test_locate_auxiliary_values_bounds_multiple_fields_on_one_line() -> None:
     }
 
 
+def test_inventory_does_not_anonymize_identifier_owned_by_task_field() -> None:
+    source_text = "Batch : PR7XB93\nINVOICE NO. 1123200938 DATED: 27.11.2023\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"additionalInformation": ["Batch : PR7XB93"]}],
+            "forwardingAndExportReferences": ["1123200938 27.11.2023"],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"additionalInformation": ["Batch : QL8KD41"]}],
+            "forwardingAndExportReferences": ["6950488277 06.06.2024"],
+        }
+    }
+    work_items = (
+        HybridWorkItem(
+            workItemId="W0001",
+            targetPaths=("documentPatch.cargoGroups[0].additionalInformation[0]",),
+            action="replace",
+            sourceValue="Batch : PR7XB93",
+            targetValue="Batch : QL8KD41",
+            state="agent_residual",
+            evidenceLineIds=("L00001",),
+            spanIds=("S001",),
+            locator="exact_literal",
+            rationale="test",
+        ),
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=("documentPatch.forwardingAndExportReferences[0]",),
+            action="replace",
+            sourceValue="1123200938 27.11.2023",
+            targetValue="6950488277 06.06.2024",
+            state="agent_residual",
+            evidenceLineIds=("L00002",),
+            spanIds=("S002",),
+            locator="forwarding_reference_context",
+            rationale="test",
+        ),
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=source_text,
+        current_text=source_text,
+        source_label=source_label,
+        target_label=target_label,
+        work_items=work_items,
+        oracle_case=None,
+    )
+
+    deterministic_sources = {
+        row.sourceSurface
+        for row in inventory
+        if row.disposition == "deterministic_shape_replacement"
+    }
+    assert deterministic_sources.isdisjoint({"PR7XB93", "1123200938"})
+
+
 def test_locate_auxiliary_values_rejects_measurement_pseudo_tax_field() -> None:
     values = locate_auxiliary_values(
         "REAL CBM: 13.453\n"
@@ -288,6 +555,15 @@ def test_locate_auxiliary_values_handles_references_purchase_orders_and_box_addr
     }
 
 
+def test_purchase_order_does_not_claim_following_package_or_equipment_columns() -> None:
+    values = locate_auxiliary_values(
+        "CSNU8456635 /7025198 PURCH.ORDER SHISHA-PO-015590 "
+        "96 CARTONS /FCL/FCL /40HQ/\n"
+    )
+
+    assert [(row.category, row.value) for row in values] == [("po", "015590")]
+
+
 def test_locate_auxiliary_values_preserves_contact_and_identifier_surface_shapes() -> None:
     text = (
         "EGYPT VAT 712098623\n"
@@ -303,6 +579,59 @@ def test_locate_auxiliary_values_preserves_contact_and_identifier_surface_shapes
         ("phone number", "+20 121 1116 150"),
         ("invoice no", "VTXL- 23460"),
     }
+
+
+def test_locate_auxiliary_values_covers_consolidation_eori_and_cargo_x_id() -> None:
+    text = (
+        "CONSOLIDATION NUMBER\n"
+        "HOURTM2431A1\n"
+        "ROTTERDAM, THE NETHERLANDS EORI#\n"
+        "NL809653035000\n"
+        "*CARGO X ID:9E853AC1-7A97-4BEA-8F4D-\n"
+    )
+
+    values = locate_auxiliary_values(text)
+
+    assert {(row.category, row.value, row.line_numbers) for row in values} == {
+        ("consolidation number", "HOURTM2431A1", (2,)),
+        ("eori", "NL809653035000", (4,)),
+        ("cargo x id", "9E853AC1-7A97-4BEA-8F4D", (5,)),
+    }
+
+
+def test_standalone_opaque_identifier_locator_excludes_dates_and_measurements() -> None:
+    values = locate_standalone_opaque_identifiers(
+        "91330621MA2JUD752G\n"
+        "IL-02-511574089\n"
+        "C41528C68EBE\n"
+        "X20240812580136\n"
+        "27560.000KGS\n"
+        "2024-03-29\n"
+        "29-APR-2024\n"
+    )
+
+    assert {(row.category, row.value, row.line_numbers) for row in values} == {
+        ("unlabelled opaque identifier", "91330621MA2JUD752G", (1,)),
+        ("unlabelled opaque identifier", "IL-02-511574089", (2,)),
+        ("unlabelled opaque identifier", "C41528C68EBE", (3,)),
+        ("unlabelled opaque identifier", "X20240812580136", (4,)),
+    }
+
+
+def test_inventory_does_not_anonymize_standalone_identifier_required_by_target() -> None:
+    text = "TARGETREF2024999\n"
+    target = {"documentPatch": {"forwardingAndExportReferences": ["TARGETREF2024999"]}}
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=target,
+        target_label=target,
+        work_items=(),
+        oracle_case=None,
+    )
+
+    assert not any(row.sourceSurface == "TARGETREF2024999" for row in inventory)
 
 
 def test_inventory_detects_stale_semantics_auxiliary_and_reefer() -> None:
@@ -717,6 +1046,50 @@ def test_inventory_does_not_reclassify_anonymous_equipment_as_package_total() ->
     )
 
 
+def test_inventory_preserves_compact_anonymous_cntr_summary_without_target_containers() -> None:
+    source = {
+        "documentPatch": {
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 10,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+            "containers": None,
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 5,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+            "containers": None,
+        }
+    }
+    text = "--- PAGE 1 ---\nTOTAL: 1X40'HC LCL CNTR(S)\nTOTAL: 10 CARTONS\n"
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=(),
+        oracle_case=None,
+    )
+
+    assert not any(
+        row.category == "shipment_dependent_aggregate" and "CNTR(S)" in row.sourceSurface
+        for row in inventory
+    )
+
+
 @pytest.mark.parametrize(
     ("line", "expected"),
     [
@@ -750,6 +1123,11 @@ def test_shipment_aggregate_detector_requires_populated_field_grammar(
     assert _is_shipment_aggregate_value_line(line) is expected
 
 
+def test_attached_page_count_is_document_topology_not_shipment_aggregate() -> None:
+    assert _is_shipment_aggregate_value_line("TOTAL NUMBER OF ATTACHED 1 PAGE") is False
+    assert _is_shipment_aggregate_value_line("TOTAL NUMBER OF ATTACHED PAGES: 2") is False
+
+
 def test_carrier_receipt_count_is_preserved_only_when_target_container_count_matches() -> None:
     line = "CARRIER'S RECEIPT (see Clause 14.1) 3 container(s)"
     target = {
@@ -769,6 +1147,67 @@ def test_carrier_receipt_count_is_preserved_only_when_target_container_count_mat
     assert _carrier_receipt_count_matches_target(
         line, {"documentPatch": {"containers": None}}
     ) is False
+
+
+@pytest.mark.parametrize(
+    ("line", "following"),
+    [
+        ("TOTAL NUMBER OF CONTAINERS RECEIVED BY THE CARRIER: 3", None),
+        ("Total No. of Containers received by the Carrier: 3", None),
+        ("Weight in Kgs Total: 3 Container(s)", None),
+        ("Total number of containers or packages 3", "received by Carrier:"),
+    ],
+)
+def test_carrier_receipt_count_recognizes_exact_observed_grammars(
+    line: str, following: str | None
+) -> None:
+    target = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "AAAA000001"},
+                {"containerNumber": "AAAA000002"},
+                {"containerNumber": "AAAA000003"},
+            ]
+        }
+    }
+
+    assert _carrier_receipt_count_matches_target(
+        line, target, following_line=following
+    ) is True
+
+
+def test_carrier_receipt_count_recognizes_acknowledged_container_package_grammar() -> None:
+    line = (
+        "TOTAL NO. OF CONTAINERS/PACKAGES RECEIVED & ACKNOWLEDGED BY CARRIER "
+        "FOR THE PURPOSE OF CALCULATION OF PACKAGE LIMITATION (IF APPLICABLE): "
+        "10 CONTAINER(S)/PACKAGE(S)"
+    )
+    target = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": f"AAAA{index:06d}"} for index in range(1, 11)
+            ]
+        }
+    }
+
+    assert _carrier_receipt_count_matches_target(line, target) is True
+    assert (
+        _carrier_receipt_count_matches_target(
+            line,
+            {"documentPatch": {"containers": target["documentPatch"]["containers"][:-1]}},
+        )
+        is False
+    )
+
+
+def test_split_carrier_receipt_count_requires_its_continuation_heading() -> None:
+    target = {"documentPatch": {"containers": [{"containerNumber": "AAAA000001"}]}}
+
+    assert not _carrier_receipt_count_matches_target(
+        "Total number of containers or packages 1",
+        target,
+        following_line="unrelated cargo text",
+    )
 
 
 @pytest.mark.parametrize(
@@ -936,6 +1375,33 @@ def test_numeric_evidence_excludes_dates_and_legal_clause_numbers() -> None:
     assert refined[0].locator == "relation_scoped_numeric_surface"
 
 
+def test_numeric_refinement_never_reopens_a_deterministically_applied_quantity() -> None:
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=(
+            "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+        ),
+        action="replace",
+        sourceValue=3,
+        targetValue=53,
+        state="deterministic_applied",
+        evidenceLineIds=(),
+        spanIds=(),
+        locator="deterministic_requirement",
+        rationale="already rendered by an anchored scalar requirement",
+    )
+    bundle = SimpleNamespace(
+        sourceLabel={},
+        targetLabel={},
+        cargoFlavorRewriteRequirements=(),
+        operationalFlavorRequirements=(),
+    )
+
+    refined = _refine_numeric_evidence("53 PALLETS\n", (item,), bundle)
+
+    assert refined == (item,)
+
+
 def test_model_slot_locks_flattened_equipment_role_surface() -> None:
     text = (
         "--- PAGE 1 ---\n2\n\nQuantity and Kind of Packages\n\n/40' HC Containers Said to Contain\n"
@@ -994,6 +1460,17 @@ def test_inventory_batch_config_pins_cost_first_fallback_and_retry_schedule() ->
         )
         == 0.0
     )
+
+
+def test_inventory_batch_config_allows_bounded_four_response_recovery() -> None:
+    config = load_synthesis_raw_text_inventory_batch_config(
+        Path(
+            "configs/synthesis/"
+            "mpci_bl_raw_text_inventory2_additional_maritime_v27_hard_recovery_glm53.yaml"
+        )
+    )
+
+    assert config.workflow.max_successful_model_responses_per_document == 4
 
 
 def test_inventory_route_retry_distinguishes_transient_from_static_incompatibility() -> None:
@@ -1138,6 +1615,284 @@ def test_dynamic_patch_schema_requires_every_slot_and_forbids_extra_keys() -> No
     assert compounds == ()
 
 
+def test_repeated_identical_auxiliary_lines_require_one_consistent_realization() -> None:
+    requirement = {
+        "kind": "changed_source_auxiliary_copy",
+        "candidateId": "I0042",
+        "source": "MAERSK TAIWAN LTD - TAIPEI",
+        "target": {
+            "policy": "synthesize_distinct_context_compatible_auxiliary_value",
+        },
+    }
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00003",
+            source_line="MAERSK TAIWAN LTD - TAIPEI",
+            requirements=(requirement,),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00019",
+            source_line="MAERSK TAIWAN LTD - TAIPEI",
+            requirements=(requirement,),
+        ),
+    )
+
+    replacements = _validated_output_replacements(
+        slots,
+        {
+            "s0": "FORMOSA MARITIME LTD - TAIPEI",
+            "s1": "FORMOSA MARITIME LTD - TAIPEI",
+        },
+    )
+    assert len(replacements) == 2
+    with pytest.raises(ValueError, match="inconsistent fictional realizations"):
+        _validated_output_replacements(
+            slots,
+            {
+                "s0": "FORMOSA MARITIME LTD - TAIPEI",
+                "s1": "PACIFIC AGENCY LTD - TAIPEI",
+            },
+        )
+
+
+def test_initial_request_partition_keeps_party_dependencies_together() -> None:
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="OLD SHIPPER",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "workItemId": "W0001",
+                    "paths": ["documentPatch.parties.shipper.name"],
+                },
+            ),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="OLD ADDRESS",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "workItemId": "W0002",
+                    "paths": ["documentPatch.parties.shipper.address"],
+                },
+            ),
+        ),
+        _Slot(
+            alias="s2",
+            line_id="L00005",
+            source_line="OLD CARGO",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "workItemId": "W0003",
+                    "paths": ["documentPatch.cargoGroups[0].description"],
+                },
+            ),
+        ),
+        _Slot(alias="s3", line_id="L00009", source_line="AUX A", requirements=()),
+        _Slot(alias="s4", line_id="L00010", source_line="AUX B", requirements=()),
+    )
+    compound = _CompoundSlot(
+        alias="c0",
+        requirement=CompoundPartyFlavorRequirement(
+            targetPath="documentPatch.parties.shipper.name",
+            relationships=("trading_as",),
+            sourceLabelName="OLD SHIPPER",
+            targetPrimaryName="NEW SHIPPER",
+        ),
+    )
+    material = SimpleNamespace(
+        slots=slots,
+        compound_slots=(compound,),
+        compiled=SimpleNamespace(
+            work_items=(),
+            workspace=SimpleNamespace(
+                cargo_flavor_rewrite_requirements=(),
+                raw_auxiliary_identity_requirements=(),
+            ),
+        ),
+    )
+
+    batches = _initial_request_batches(material, maximum_slots=3)
+
+    assert [tuple(slot.alias for slot in batch.slots) for batch in batches] == [
+        ("s0", "s1", "s2"),
+        ("s3", "s4"),
+    ]
+    assert tuple(slot.alias for slot in batches[0].compound_slots) == ("c0",)
+    assert batches[1].compound_slots == ()
+
+
+def test_initial_request_partition_keeps_inventory_candidate_together() -> None:
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="AUXILIARY OFFICE",
+            requirements=(
+                {
+                    "kind": "changed_source_auxiliary_copy",
+                    "candidateId": "I0042",
+                },
+            ),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="UNRELATED",
+            requirements=(),
+        ),
+        _Slot(
+            alias="s2",
+            line_id="L00003",
+            source_line="AUXILIARY OFFICE",
+            requirements=(
+                {
+                    "kind": "changed_source_auxiliary_copy",
+                    "candidateId": "I0042",
+                },
+            ),
+        ),
+    )
+    material = SimpleNamespace(
+        slots=slots,
+        compound_slots=(),
+        compiled=SimpleNamespace(
+            work_items=(),
+            workspace=SimpleNamespace(
+                cargo_flavor_rewrite_requirements=(),
+                raw_auxiliary_identity_requirements=(),
+            ),
+        ),
+    )
+
+    batches = _initial_request_batches(material, maximum_slots=2)
+
+    assert [tuple(slot.alias for slot in batch.slots) for batch in batches] == [
+        ("s0", "s2"),
+        ("s1",),
+    ]
+
+
+def test_initial_request_partition_does_not_join_independent_fixed_path_occurrences() -> None:
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="FIRST COPY",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "workItemId": "W0001",
+                    "paths": ["documentPatch.cargoGroups[0].description"],
+                },
+            ),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="SECOND COPY",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "workItemId": "W0002",
+                    "paths": ["documentPatch.cargoGroups[0].description"],
+                },
+            ),
+        ),
+    )
+    material = SimpleNamespace(
+        slots=slots,
+        compound_slots=(),
+        compiled=SimpleNamespace(
+            work_items=(),
+            workspace=SimpleNamespace(
+                cargo_flavor_rewrite_requirements=(),
+                raw_auxiliary_identity_requirements=(),
+            ),
+        ),
+    )
+
+    batches = _initial_request_batches(material, maximum_slots=1)
+
+    assert [tuple(slot.alias for slot in batch.slots) for batch in batches] == [
+        ("s0",),
+        ("s1",),
+    ]
+
+
+def test_initial_request_partition_rejects_an_oversized_semantic_component() -> None:
+    slots = tuple(
+        _Slot(
+            alias=f"s{index}",
+            line_id=f"L{index + 1:05d}",
+            source_line=f"PARTY {index}",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "paths": ["documentPatch.parties.shipper.name"],
+                },
+            ),
+        )
+        for index in range(4)
+    )
+    material = SimpleNamespace(
+        slots=slots,
+        compound_slots=(),
+        compiled=SimpleNamespace(
+            work_items=(),
+            workspace=SimpleNamespace(
+                cargo_flavor_rewrite_requirements=(),
+                raw_auxiliary_identity_requirements=(),
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="semantic line component exceeds"):
+        _initial_request_batches(material, maximum_slots=3)
+
+
+def test_initial_request_preflight_rejects_partitions_above_response_budget() -> None:
+    slots = tuple(
+        _Slot(
+            alias=f"s{index}",
+            line_id=f"L{index + 1:05d}",
+            source_line=f"LINE {index}",
+            requirements=(),
+        )
+        for index in range(5)
+    )
+    material = SimpleNamespace(
+        slots=slots,
+        compound_slots=(),
+        compiled=SimpleNamespace(
+            bundle=SimpleNamespace(result=SimpleNamespace(documentId="doc_" + "a" * 64)),
+            work_items=(),
+            workspace=SimpleNamespace(
+                cargo_flavor_rewrite_requirements=(),
+                raw_auxiliary_identity_requirements=(),
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="initial request partitions exceed the successful-response budget",
+    ):
+        _preflight_initial_model_contracts(
+            (material,),
+            maximum_slots=3,
+            maximum_successful_responses=1,
+            profile_context_lines=0,
+        )
+
+
 def test_repair_selection_is_line_local_but_expands_a_party_role_block() -> None:
     slots = (
         _Slot(
@@ -1233,7 +1988,7 @@ def test_repair_selection_keeps_nonparty_findings_line_local() -> None:
     assert compounds == ()
 
 
-def test_repair_selection_keeps_cargo_host_error_line_local() -> None:
+def test_repair_selection_expands_a_cargo_group_so_coexisting_values_survive() -> None:
     cargo_path = "documentPatch.cargoGroups[0].description"
     slots = (
         _Slot(
@@ -1263,7 +2018,7 @@ def test_repair_selection_keeps_cargo_host_error_line_local() -> None:
 
     selected, compounds = _repair_selection(slots, (), error_message=error_message)
 
-    assert tuple(row.alias for row in selected) == ("s1",)
+    assert tuple(row.alias for row in selected) == ("s0", "s1", "s2")
     assert compounds == ()
 
 
@@ -1324,6 +2079,139 @@ def test_preview_repair_selection_reports_independent_party_and_cargo_defects_to
     assert preview_audit is not None
 
 
+def test_preview_repair_selection_reports_missing_target_literal_behind_slot_error() -> None:
+    target_path = "documentPatch.cargoGroups[0].additionalInformation[0]"
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="SOURCE ORIGIN",
+            requirements=(
+                {
+                    "kind": "host_locked_target_literal",
+                    "paths": ["documentPatch.cargoGroups[0].origin.name"],
+                    "target": "TARGET ORIGIN",
+                },
+            ),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="OLD PACKING",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "paths": [target_path],
+                    "target": "PACKED IN 234 WOODEN CASES",
+                },
+            ),
+        ),
+    )
+    workspace = RewriteWorkspace(
+        original_text="SOURCE ORIGIN\nOLD PACKING\n",
+        current_text="SOURCE ORIGIN\nOLD PACKING\n",
+        target_literal_requirements=(
+            TargetLiteralRequirement(
+                targetPath=target_path,
+                targetValue="PACKED IN 234 WOODEN CASES",
+                matchPolicy="semantic_literal",
+            ),
+        ),
+    )
+    material = SimpleNamespace(
+        compiled=SimpleNamespace(
+            workspace=workspace,
+            bundle=SimpleNamespace(
+                result=SimpleNamespace(documentId="doc_" + "f" * 64),
+                surfaceRenderingRequirements=(),
+                anchoredScalarReplacementRequirements=(),
+            ),
+            work_items=(),
+        ),
+        slots=slots,
+        compound_slots=(),
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+    )
+
+    selected, compounds, diagnostics, _preview_audit = _preview_repair_selection(
+        material,
+        {"s0": "WRONG ORIGIN", "s1": "REWRITTEN PACKING"},
+        error_message="provider output violates host slot contract: s0",
+    )
+
+    assert tuple(row.alias for row in selected) == ("s0", "s1")
+    assert compounds == ()
+    assert any(row.get("kind") == "missingTargetLiterals" for row in diagnostics)
+
+
+def test_preview_repair_selection_localizes_an_introduced_source_status_copy() -> None:
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="HS 123456",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "paths": ["documentPatch.cargoGroups[0].hsCodes[0]"],
+                    "target": "654321",
+                },
+            ),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="OLD CARGO DETAIL",
+            requirements=(
+                {
+                    "kind": "cargo",
+                    "paths": ["documentPatch.cargoGroups[0].description"],
+                },
+            ),
+        ),
+    )
+    workspace = RewriteWorkspace(
+        original_text="HS 123456\nOLD CARGO DETAIL\nFREIGHT PREPAID\n",
+        current_text="HS 123456\nOLD CARGO DETAIL\nFREIGHT PREPAID\n",
+        source_status_requirements=(
+            SourceStatusPreservationRequirement(
+                sourceSurface="FREIGHT PREPAID",
+                sourceOccurrences=1,
+            ),
+        ),
+    )
+    material = SimpleNamespace(
+        compiled=SimpleNamespace(
+            workspace=workspace,
+            bundle=SimpleNamespace(
+                result=SimpleNamespace(documentId="doc_" + "b" * 64),
+                surfaceRenderingRequirements=(),
+                anchoredScalarReplacementRequirements=(),
+            ),
+            work_items=(),
+        ),
+        slots=slots,
+        compound_slots=(),
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+    )
+
+    selected, compounds, diagnostics, _preview_audit = _preview_repair_selection(
+        material,
+        {"s0": "HS 654321", "s1": "FREIGHT PREPAID"},
+        error_message=(
+            "candidate changes an unchanged source status surface: FREIGHT PREPAID"
+        ),
+    )
+
+    assert tuple(row.alias for row in selected) == ("s1",)
+    assert compounds == ()
+    assert any(row.get("kind") == "sourceStatusCardinality" for row in diagnostics)
+
+
 def test_auxiliary_identity_consistency_is_declared_and_repaired_only_on_group_lines() -> None:
     requirement = RawAuxiliaryIdentityRequirement(
         requirementId="carrier-agent-L00002",
@@ -1369,12 +2257,12 @@ def test_auxiliary_identity_consistency_is_declared_and_repaired_only_on_group_l
         {
             "consistencyGroupId": "carrier-agent-group-1",
             "sourceIdentities": ["OLD AGENT"],
-            "targetPrincipalName": "TARGET CARRIER",
-            "slots": ["s1", "s2"],
-            "instruction": (
-                "Render one distinct fictional auxiliary identity and reuse that exact "
-                "identity in every listed slot while preserving each line's surrounding legal "
-                "relationship wording."
+                "sourceOccurrenceSlotGroups": [["s1"], ["s2"]],
+                "instruction": (
+                    "Render one distinct fictional auxiliary identity exactly once across each "
+                    "sourceOccurrenceSlotGroups entry, reflowing it across that occurrence's "
+                    "physical lines. Reuse the same identity across all occurrence groups while "
+                    "preserving surrounding legal wording and each referenced target principal."
             ),
         }
     ]
@@ -1389,6 +2277,121 @@ def test_auxiliary_identity_consistency_is_declared_and_repaired_only_on_group_l
     )
 
     assert tuple(row.alias for row in selected) == ("s1", "s2")
+    assert compounds == ()
+    assert any(row.get("kind") == "rawAuxiliaryIdentityConsistency" for row in diagnostics)
+
+
+def test_any_auxiliary_identity_line_repair_closes_over_all_repeated_occurrences() -> None:
+    first = RawAuxiliaryIdentityRequirement(
+        requirementId="carrier-agent-L00002",
+        relationship="agent_for_carrier",
+        sourceIdentity="OLD AGENT\nSHIPPING AGENCY",
+        sourceIdentityLineCount=2,
+        gapLineCount=0,
+        consistencyGroupId="carrier-agent-group-1",
+        targetPrincipalName="THE CARRIER",
+        sourceEvidence="OLD AGENT SHIPPING AGENCY as agents for the carrier",
+    )
+    repeated = first.model_copy(
+        update={
+            "requirementId": "carrier-agent-L00005",
+            "sourceIdentity": "OLD AGENT",
+            "sourceIdentityLineCount": 1,
+        }
+    )
+    slots = (
+        _Slot(alias="s0", line_id="L00001", source_line="UNRELATED", requirements=()),
+        _Slot(alias="s1", line_id="L00002", source_line="OLD AGENT", requirements=()),
+        _Slot(alias="s2", line_id="L00003", source_line="SHIPPING AGENCY", requirements=()),
+        _Slot(alias="s3", line_id="L00005", source_line="OLD AGENT", requirements=()),
+    )
+    compiled = SimpleNamespace(
+        workspace=RewriteWorkspace(
+            original_text="UNRELATED\nOLD AGENT\nSHIPPING AGENCY\nRELATION\nOLD AGENT\n",
+            current_text="UNRELATED\nOLD AGENT\nSHIPPING AGENCY\nRELATION\nOLD AGENT\n",
+            raw_auxiliary_identity_requirements=(first, repeated),
+        ),
+        work_items=(),
+        bundle=SimpleNamespace(
+            result=SimpleNamespace(documentId="doc_" + "8" * 64),
+            surfaceRenderingRequirements=(),
+            anchoredScalarReplacementRequirements=(),
+        ),
+    )
+    material = SimpleNamespace(
+        compiled=compiled,
+        slots=slots,
+        compound_slots=(),
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+    )
+
+    selected, _compounds, diagnostics, _audit = _preview_repair_selection(
+        material,
+        {"s0": "UNRELATED", "s1": "NEW AGENT", "s2": "AGENCY", "s3": "NEW AGENT"},
+        error_message="slot changes host-locked legal affixes: s2",
+    )
+
+    assert tuple(row.alias for row in selected) == ("s1", "s2", "s3")
+    assert any(row.get("kind") == "rawAuxiliaryIdentityRepairClosure" for row in diagnostics)
+
+
+def test_auxiliary_identity_source_residual_repairs_every_line_in_the_identity_group() -> None:
+    first = RawAuxiliaryIdentityRequirement(
+        requirementId="carrier-agent-L00002",
+        relationship="agent_for_carrier",
+        sourceIdentity="OLD AGENT\nSHIPPING AGENCY",
+        sourceIdentityLineCount=2,
+        gapLineCount=0,
+        consistencyGroupId="carrier-agent-group-1",
+        targetPrincipalName="THE CARRIER",
+        sourceEvidence="OLD AGENT SHIPPING AGENCY as agents for the carrier",
+    )
+    repeated = first.model_copy(
+        update={
+            "requirementId": "carrier-agent-L00005",
+            "sourceIdentity": "OLD AGENT",
+            "sourceIdentityLineCount": 1,
+        }
+    )
+    slots = (
+        _Slot(alias="s0", line_id="L00001", source_line="UNRELATED", requirements=()),
+        _Slot(alias="s1", line_id="L00002", source_line="OLD AGENT", requirements=()),
+        _Slot(alias="s2", line_id="L00003", source_line="SHIPPING AGENCY", requirements=()),
+        _Slot(alias="s3", line_id="L00005", source_line="OLD AGENT", requirements=()),
+    )
+    compiled = SimpleNamespace(
+        workspace=RewriteWorkspace(
+            original_text="UNRELATED\nOLD AGENT\nSHIPPING AGENCY\nRELATION\nOLD AGENT\n",
+            current_text="UNRELATED\nOLD AGENT\nSHIPPING AGENCY\nRELATION\nOLD AGENT\n",
+            raw_auxiliary_identity_requirements=(first, repeated),
+        ),
+        work_items=(),
+        bundle=SimpleNamespace(
+            result=SimpleNamespace(documentId="doc_" + "c" * 64),
+            surfaceRenderingRequirements=(),
+            anchoredScalarReplacementRequirements=(),
+        ),
+    )
+    material = SimpleNamespace(
+        compiled=compiled,
+        slots=slots,
+        compound_slots=(),
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+    )
+
+    selected, compounds, diagnostics, _preview_audit = _preview_repair_selection(
+        material,
+        {"s0": "UNRELATED", "s1": "NEW AGENT", "s2": "SHIPPING AGENCY", "s3": "NEW AGENT"},
+        error_message=(
+            "raw auxiliary source identity remains after rewrite: carrier-agent-L00002"
+        ),
+    )
+
+    assert tuple(row.alias for row in selected) == ("s1", "s2", "s3")
     assert compounds == ()
     assert any(row.get("kind") == "rawAuxiliaryIdentityConsistency" for row in diagnostics)
 
@@ -1408,6 +2411,7 @@ def test_auxiliary_identity_consistency_accepts_line_wrap_variants() -> None:
         update={
             "requirementId": "carrier-agent-L00004",
             "sourceIdentity": "By Yang Ming Line\n(Thailand) Co., LTD.",
+            "targetPrincipalName": "THE CARRIER",
         }
     )
     slots = (
@@ -1437,15 +2441,113 @@ def test_auxiliary_identity_consistency_accepts_line_wrap_variants() -> None:
                 "By Yang Ming Line\n(Thailand) Co., LTD.",
                 "Yang Ming Line\nBy (Thailand) Co., LTD.",
             ],
-            "targetPrincipalName": "TARGET CARRIER",
-            "slots": ["s0", "s1", "s2", "s3"],
-            "instruction": (
-                "Render one distinct fictional auxiliary identity and reuse that exact "
-                "identity in every listed slot while preserving each line's surrounding legal "
-                "relationship wording."
+                "sourceOccurrenceSlotGroups": [["s0", "s1"], ["s2", "s3"]],
+                "instruction": (
+                    "Render one distinct fictional auxiliary identity exactly once across each "
+                    "sourceOccurrenceSlotGroups entry, reflowing it across that occurrence's "
+                    "physical lines. Reuse the same identity across all occurrence groups while "
+                    "preserving surrounding legal wording and each referenced target principal."
             ),
         }
     ]
+
+
+def test_editor_payload_keeps_all_changed_cargo_scalars_in_one_block() -> None:
+    first_path = "documentPatch.cargoGroups[0].additionalInformation[0]"
+    second_path = "documentPatch.cargoGroups[0].additionalInformation[1]"
+    slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="OLD FIRST",
+            requirements=({"kind": "task_label_delta", "paths": [first_path]},),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="OLD SECOND",
+            requirements=({"kind": "task_label_delta", "paths": [second_path]},),
+        ),
+    )
+    compiled = SimpleNamespace(
+        work_items=(),
+        bundle=SimpleNamespace(result=SimpleNamespace(documentId="doc_" + "d" * 64)),
+        workspace=RewriteWorkspace(
+            original_text="OLD FIRST\nOLD SECOND\n",
+            current_text="OLD FIRST\nOLD SECOND\n",
+            current_target_label={
+                "documentPatch": {
+                    "cargoGroups": [
+                        {
+                            "groupId": "g1",
+                            "additionalInformation": [
+                                "2020 CARTONS CONTAINING 497 PIECES ONLY",
+                                "PACKED IN 2020 CARTONS WITH PROTECTIVE WRAP",
+                            ],
+                        }
+                    ]
+                }
+            },
+        ),
+    )
+
+    payload = _editor_payload(compiled, slots)
+
+    assert payload["cargoBlocks"] == [
+        {
+            "groupPath": "documentPatch.cargoGroups[0]",
+            "slots": ["s0", "s1"],
+            "requiredTargetScalars": [
+                {"path": first_path, "value": "2020 CARTONS CONTAINING 497 PIECES ONLY"},
+                {
+                    "path": second_path,
+                    "value": "PACKED IN 2020 CARTONS WITH PROTECTIVE WRAP",
+                },
+                ],
+                "instruction": (
+                    "Render every required target scalar exactly once across these slots. "
+                    "All values must coexist; never replace one required value with another "
+                    "during a correction. "
+                    "Preserve the block's physical line count and OCR style. For repeated source "
+                    "product rows, repeat and reflow the authoritative target description instead "
+                    "of inventing a product variant or packaging fact."
+                ),
+        }
+    ]
+
+
+def test_editor_payload_omits_removed_optional_cargo_scalar_from_block() -> None:
+    removed_path = "documentPatch.cargoGroups[0].dangerousGoods[0].packingGroupCategory"
+    slot = _Slot(
+        alias="s0",
+        line_id="L00001",
+        source_line="UN 1013 CLASS 2.2 PG III",
+        requirements=({"kind": "task_label_delta", "paths": [removed_path]},),
+    )
+    compiled = SimpleNamespace(
+        work_items=(),
+        bundle=SimpleNamespace(result=SimpleNamespace(documentId="doc_" + "e" * 64)),
+        workspace=RewriteWorkspace(
+            original_text="UN 1013 CLASS 2.2 PG III\n",
+            current_text="UN 1013 CLASS 2.2 PG III\n",
+            current_target_label={
+                "documentPatch": {
+                    "cargoGroups": [
+                        {
+                            "groupId": "g1",
+                            "dangerousGoods": [
+                                {"unNumber": "1013", "hazardCategory": "GASES"}
+                            ],
+                        }
+                    ]
+                }
+            },
+        ),
+    )
+
+    payload = _editor_payload(compiled, (slot,))
+
+    assert payload.get("cargoBlocks") in (None, [])
 
 
 def test_occurrence_repair_targets_only_surplus_auxiliary_carrier_line() -> None:
@@ -1591,6 +2693,182 @@ def test_sibling_evidence_is_limited_to_directly_located_same_object_lines() -> 
     assert refined[2] == unrelated
 
 
+def test_repeated_cargo_scalar_is_bound_to_its_indexed_description_block() -> None:
+    text = (
+        "FIRST GOODS\n"
+        "MATERIAL 12345678\n"
+        "BATCH 1111111111\n"
+        "SECOND GOODS\n"
+        "MATERIAL 12345678\n"
+        "BATCH 2222222222\n"
+    )
+    first = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.cargoGroups[0].additionalInformation[0]",),
+        action="replace",
+        sourceValue="MATERIAL 12345678",
+        targetValue="MATERIAL 87654321",
+        state="agent_residual",
+        evidenceLineIds=("L00001", "L00004"),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="ambiguous repeated scalar",
+    )
+    second = first.model_copy(
+        update={
+            "workItemId": "W0002",
+            "targetPaths": ("documentPatch.cargoGroups[1].additionalInformation[0]",),
+            "targetValue": "MATERIAL 24681357",
+        }
+    )
+    bundle = SimpleNamespace(
+        sourceLabel={"documentPatch": {"cargoGroups": []}},
+        targetLabel={"documentPatch": {"cargoGroups": []}},
+        cargoFlavorRewriteRequirements=(
+            CargoFlavorRewriteRequirement(
+                requirementId="cargo-g1",
+                targetPath="documentPatch.cargoGroups[0].description",
+                targetDescription="SYNTHETIC FIRST GOODS",
+                sourceLineIds=("L00001",),
+                sourceSurfaces=("FIRST GOODS",),
+            ),
+            CargoFlavorRewriteRequirement(
+                requirementId="cargo-g2",
+                targetPath="documentPatch.cargoGroups[1].description",
+                targetDescription="SYNTHETIC SECOND GOODS",
+                sourceLineIds=("L00004",),
+                sourceSurfaces=("SECOND GOODS",),
+            ),
+        )
+    )
+
+    refined = _refine_cargo_group_evidence(text, (first, second), bundle)
+
+    assert refined[0].evidenceLineIds == ("L00002",)
+    assert refined[1].evidenceLineIds == ("L00005",)
+    assert all(row.locator == "cargo_group_relation_scope" for row in refined)
+
+
+def test_complete_marks_sequences_bind_shared_values_to_indexed_cargo_groups() -> None:
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"marksAndNumbers": ["SHARED PLANT", "LOT 100", "ROW A"]},
+                {"marksAndNumbers": ["SHARED PLANT", "LOT 100", "ROW B"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"marksAndNumbers": ["TARGET A", "LOT 900", "NEW A"]},
+                {"marksAndNumbers": ["TARGET B", "LOT 800", "NEW B"]},
+            ]
+        }
+    }
+    text = (
+        "MARKS\n"
+        "SHARED PLANT\nLOT 100\nNEW A\n"
+        "\n"
+        "SHARED PLANT\nLOT 100\nROW B\n"
+        "MARKS COPY\n"
+        "SHARED PLANT\nLOT 100\nROW B\n"
+    )
+
+    evidence = _cargo_marks_sequence_evidence(text, source, target)
+
+    assert evidence["documentPatch.cargoGroups[0].marksAndNumbers[0]"] == frozenset({2})
+    assert evidence["documentPatch.cargoGroups[0].marksAndNumbers[2]"] == frozenset({4})
+    assert evidence["documentPatch.cargoGroups[1].marksAndNumbers[0]"] == frozenset({6, 10})
+    assert evidence["documentPatch.cargoGroups[1].marksAndNumbers[2]"] == frozenset({8, 12})
+
+
+def test_inventory_does_not_rebind_origin_embedded_in_owned_marks_surface() -> None:
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"marksAndNumbers": ["Made in Taiwan"], "origin": {"name": "Taiwan"}}
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"marksAndNumbers": ["Made in Korea"], "origin": {"name": "Korea"}}
+            ]
+        }
+    }
+    text = "Made in Taiwan\nORIGIN: Taiwan\n"
+    items = (
+        HybridWorkItem(
+            workItemId="W0001",
+            targetPaths=("documentPatch.cargoGroups[0].marksAndNumbers[0]",),
+            action="replace",
+            sourceValue="Made in Taiwan",
+            targetValue="Made in Korea",
+            state="agent_residual",
+            evidenceLineIds=("L00001",),
+            spanIds=("S001",),
+            locator="relation_scoped_surface",
+            rationale="complete marks surface",
+        ),
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=("documentPatch.cargoGroups[0].origin.name",),
+            action="replace",
+            sourceValue="Taiwan",
+            targetValue="Korea",
+            state="agent_residual",
+            evidenceLineIds=("L00002",),
+            spanIds=("S002",),
+            locator="exact_literal",
+            rationale="cargo origin",
+        ),
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=items,
+        oracle_case=None,
+    )
+
+    origin_rows = [
+        row
+        for row in inventory
+        if row.sourceSurface.casefold() == "taiwan"
+        and "documentPatch.cargoGroups[0].origin.name" in row.targetPaths
+    ]
+    assert [row.lineIds for row in origin_rows] == [("L00002",)]
+
+
+def test_identical_marks_sequences_are_not_arbitrarily_assigned_to_cargo_groups() -> None:
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"marksAndNumbers": ["SHARED", "LOT 100"]},
+                {"marksAndNumbers": ["SHARED", "LOT 100"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"marksAndNumbers": ["TARGET A", "LOT 900"]},
+                {"marksAndNumbers": ["TARGET B", "LOT 800"]},
+            ]
+        }
+    }
+
+    assert _cargo_marks_sequence_evidence(
+        "SHARED\nLOT 100\n",
+        source,
+        target,
+    ) == {}
+
+
 def test_party_evidence_excludes_decorated_heading_and_unrelated_role_lines() -> None:
     text = "CONSIGNEE (3) (NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER)\nTO ORDER\nOTHER PARTY LINE\n"
     source = {"documentPatch": {"parties": {"consignee": {"name": "TO ORDER"}}}}
@@ -1728,6 +3006,145 @@ def test_inventory_grants_authority_to_complete_party_name_punctuation_variant()
     }
 
 
+def test_party_audit_accepts_city_interleaved_inside_complete_wrapped_address() -> None:
+    source_text = (
+        "NOTIFY PARTY\n"
+        "OLD COMPANY\n"
+        "182 SHIMOBUN, KINSEI-CHO, SHIKOKUCHUO-CITY,\n"
+        "EHIME-PREF. 799-0111 JAPAN\n"
+    )
+    output_text = (
+        "NOTIFY PARTY\n"
+        "NEW COMPANY\n"
+        "18 Al Mashtal Street, Shubra al Khaymah,\n"
+        "Industrial District EGYPT\n"
+    )
+    source = {
+        "documentPatch": {
+            "parties": {
+                "notifyParties": [
+                    {
+                        "name": "OLD COMPANY",
+                        "address": "182 SHIMOBUN, KINSEI-CHO, EHIME-PREF. 799-0111",
+                        "city": "SHIKOKUCHUO-CITY",
+                        "country": "JAPAN",
+                    }
+                ]
+            }
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "notifyParties": [
+                    {
+                        "name": "NEW COMPANY",
+                        "address": "18 Al Mashtal Street, Industrial District",
+                        "city": "Shubra al Khaymah",
+                        "country": "EGYPT",
+                    }
+                ]
+            }
+        }
+    }
+    items = tuple(
+        HybridWorkItem(
+            workItemId=f"W{index:04d}",
+            targetPaths=(f"documentPatch.parties.notifyParties[0].{field}",),
+            action="replace",
+            sourceValue=source["documentPatch"]["parties"]["notifyParties"][0][field],
+            targetValue=target["documentPatch"]["parties"]["notifyParties"][0][field],
+            state="agent_residual",
+            evidenceLineIds=lines,
+            spanIds=("S001",),
+            locator="literal_in_party_role_block",
+            rationale="role-owned party scalar",
+        )
+        for index, (field, lines) in enumerate(
+            (
+                ("name", ("L00002",)),
+                ("address", ("L00003", "L00004")),
+                ("city", ("L00003",)),
+                ("country", ("L00004",)),
+            ),
+            start=1,
+        )
+    )
+
+    audit = audit_full_document(
+        document_id="doc_" + "b" * 64,
+        source_text=source_text,
+        output_text=output_text,
+        source_label=source,
+        target_label=target,
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+        work_items=items,
+    )
+
+    assert audit.passed is True
+
+
+def test_changed_source_constituent_is_licensed_only_inside_rendered_reference() -> None:
+    source_text = "CROP YEAR: 2023\nSB NO: 6446167 DT: 25-07-2023\n"
+    output_text = "CROP YEAR: 2025\nSB NO: 6446167 DT: 25-07-2023\n"
+    source = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "additionalInformation": ["2023"]}],
+            "forwardingAndExportReferences": ["6446167 25-07-2023"],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "additionalInformation": ["2025"]}],
+            "forwardingAndExportReferences": ["6446167 25-07-2023"],
+        }
+    }
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.cargoGroups[0].additionalInformation[0]",),
+        action="replace",
+        sourceValue="2023",
+        targetValue="2025",
+        state="agent_residual",
+        evidenceLineIds=("L00001",),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="exact crop-year line",
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=source_text,
+        current_text=source_text,
+        source_label=source,
+        target_label=target,
+        work_items=(item,),
+        oracle_case=None,
+    )
+    changed_lines = {
+        line_id
+        for row in inventory
+        if row.sourceSurface == "2023"
+        for line_id in row.lineIds
+    }
+    assert changed_lines == {"L00001"}
+
+    audit = audit_full_document(
+        document_id="doc_" + "c" * 64,
+        source_text=source_text,
+        output_text=output_text,
+        source_label=source,
+        target_label=target,
+        inventory=inventory,
+        deterministic_edits=(),
+        oracle_case=None,
+        work_items=(item,),
+    )
+
+    assert audit.passed is True
+
+
 def test_party_occurrence_refinement_counts_abbreviated_legal_principals() -> None:
     text = (
         "CARRIER\nCMA CGM Société Anonyme\n\n"
@@ -1752,7 +3169,7 @@ def test_party_occurrence_refinement_counts_abbreviated_legal_principals() -> No
         requiredOccurrences=3,
     )
 
-    refined = _refine_party_occurrence_requirements(text, (item,), (requirement,))
+    refined = _refine_party_occurrence_requirements(text, text, (item,), (requirement,))
 
     assert refined[0].requiredOccurrences == 2
 
@@ -1785,9 +3202,50 @@ def test_party_occurrence_refinement_excludes_agent_alias_carrier_tokens() -> No
         requiredOccurrences=7,
     )
 
-    refined = _refine_party_occurrence_requirements(text, (item,), (requirement,))
+    refined = _refine_party_occurrence_requirements(text, text, (item,), (requirement,))
 
     assert refined[0].requiredOccurrences == 5
+
+
+def test_party_occurrence_refinement_excludes_carrier_inside_labeled_vessel_name() -> None:
+    text = (
+        "VESSEL\n"
+        "CMA CGM MOLIERE\n"
+        "AS AGENT FOR, THE CARRIER, CMA CGM\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {"carrier": {"name": "CMA CGM"}},
+            "transport": {"vesselName": "CMA CGM MOLIERE"},
+        }
+    }
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.carrier.name",),
+        action="replace",
+        sourceValue="CMA CGM",
+        targetValue="Northgate Maritime Lines LLC",
+        state="agent_residual",
+        evidenceLineIds=("L00003",),
+        spanIds=("S001",),
+        locator="carrier_principal_template_slots",
+        rationale="one legal carrier-principal slot",
+    )
+    requirement = TargetValueOccurrenceRequirement(
+        targetPaths=("documentPatch.parties.carrier.name",),
+        targetValue="Northgate Maritime Lines LLC",
+        requiredOccurrences=2,
+    )
+
+    refined = _refine_party_occurrence_requirements(
+        text,
+        text,
+        (item,),
+        (requirement,),
+        source_label,
+    )
+
+    assert refined[0].requiredOccurrences == 1
 
 
 def test_party_occurrence_refinement_counts_prefilled_header_and_residual_signature() -> None:
@@ -1815,11 +3273,888 @@ def test_party_occurrence_refinement_counts_prefilled_header_and_residual_signat
         requiredOccurrences=1,
     )
 
+    original_text = (
+        "MSC Mediterranean Shipping Company S.A.\n"
+        "SIGNED on behalf of the Carrier MSC Mediterranean Shipping Company S.A.\n"
+        "by Mediterranean Shipping Company (Aust) Pty Ltd as Agent\n"
+    )
     refined = _refine_party_occurrence_requirements(
-        current_text, (item,), (requirement,)
+        original_text, current_text, (item,), (requirement,)
     )
 
     assert refined[0].requiredOccurrences == 2
+
+
+def test_party_occurrence_refinement_preserves_all_original_carrier_principal_slots() -> None:
+    source = "Old Carrier Lines Ltd."
+    target = "Helviora Ocean Link AG"
+    original_text = (
+        f"{source}\n"
+        f"SIGNED FOR THE CARRIER {source}\n"
+        "as agents for the carrier OCLL\n"
+    )
+    current_text = (
+        f"{target}\n"
+        f"SIGNED FOR THE CARRIER {source}\n"
+        "as agents for the carrier OCLL\n"
+    )
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.carrier.name",),
+        action="replace",
+        sourceValue=source,
+        targetValue=target,
+        state="agent_residual",
+        evidenceLineIds=("L00002", "L00003"),
+        spanIds=("S001",),
+        locator="carrier_principal_template_slots",
+        rationale="three carrier-principal slots survive one deterministic prefill",
+    )
+    requirement = TargetValueOccurrenceRequirement(
+        targetPaths=("documentPatch.parties.carrier.name",),
+        targetValue=target,
+        requiredOccurrences=1,
+    )
+
+    refined = _refine_party_occurrence_requirements(
+        original_text, current_text, (item,), (requirement,)
+    )
+
+    assert refined[0].requiredOccurrences == 3
+
+
+def test_equipment_evidence_requires_a_printed_equipment_anchor() -> None:
+    current_text = (
+        "2x40' HW\n"
+        "BORU 949070-7 40' HW SAID TO CONTAIN 10,203.70 KGS\n"
+        "BATCH 69314827 MATERIAL 0084618371 GRADE CMRDY9W\n"
+        "BORU 790788-0 40' HW SAID TO CONTAIN 13,609.53 KGS\n"
+    )
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.containers[0].printedEquipmentSurface",),
+        action="replace_equipment_surface",
+        sourceValue="40' HW",
+        targetValue={
+            "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+        state="agent_residual",
+        evidenceLineIds=("L00001", "L00002", "L00003", "L00004"),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="generic pre-refinement evidence",
+    )
+    bundle = SimpleNamespace(
+        sourceLabel={
+            "documentPatch": {
+                "containers": [
+                    {"containerNumber": "BORU7013618"},
+                    {"containerNumber": "BORU7011256"},
+                ]
+            }
+        },
+        targetLabel={
+            "documentPatch": {
+                "containers": [
+                    {"containerNumber": "BORU9490707"},
+                    {"containerNumber": "BORU7907880"},
+                ]
+            }
+        },
+        anchoredScalarReplacementRequirements=(
+            AnchoredScalarReplacementRequirement(
+                targetPaths=("documentPatch.containers[0].printedEquipmentSurface",),
+                sourceLineIds=("L00002",),
+                sourceSurface="40' HW",
+                targetSurface="40' HIGH CUBE GENERAL PURPOSE",
+            ),
+        ),
+    )
+
+    refined = _refine_equipment_evidence(current_text, (item,), bundle)
+
+    assert refined[0].evidenceLineIds == ("L00002",)
+    assert refined[0].locator == "relation_scoped_surface"
+
+
+def test_equipment_evidence_blocks_identifier_only_insertion() -> None:
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.containers[0].printedEquipmentSurface",),
+        action="add_equipment_surface",
+        sourceValue=None,
+        targetValue={
+            "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+        state="agent_residual",
+        evidenceLineIds=("L00001",),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="container identifier only",
+    )
+    bundle = SimpleNamespace(anchoredScalarReplacementRequirements=())
+
+    refined = _refine_equipment_evidence("MSCU1234567\n", (item,), bundle)
+
+    assert refined[0].state == "blocked_unlocated"
+    assert refined[0].evidenceLineIds == ()
+
+
+def test_shared_target_scalar_is_licensed_only_outside_changed_route_lines() -> None:
+    source_text = (
+        "DELIVERY AGENT\n"
+        "ASTERBRUG DELIVERY LOGISTICS\n"
+        "ROTTERDAM NETHERLANDS\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    output_text = source_text.replace(
+        "ROTTERDAM NETHERLANDS\n", "ROTTERDAM NETHERLANDS\n", 1
+    ).rsplit("ROTTERDAM NETHERLANDS", 1)[0] + "KENOSHA UNITED STATES\n"
+    source = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ROTTERDAM",
+                    "country": "NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "ROTTERDAM", "country": "NETHERLANDS"}},
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ROTTERDAM",
+                    "country": "NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "KENOSHA", "country": "UNITED STATES"}},
+        }
+    }
+    items = (
+        HybridWorkItem(
+            workItemId="W0001",
+            targetPaths=("documentPatch.route.portOfDischarge.name",),
+            action="replace",
+            sourceValue="ROTTERDAM",
+            targetValue="KENOSHA",
+            state="agent_residual",
+            evidenceLineIds=("L00005",),
+            spanIds=("S001",),
+            locator="location_role_surface",
+            rationale="route-owned locality",
+        ),
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=("documentPatch.route.portOfDischarge.country",),
+            action="replace",
+            sourceValue="NETHERLANDS",
+            targetValue="UNITED STATES",
+            state="agent_residual",
+            evidenceLineIds=("L00005",),
+            spanIds=("S001",),
+            locator="location_role_surface",
+            rationale="route-owned country",
+        ),
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=source_text,
+        current_text=output_text,
+        source_label=source,
+        target_label=target,
+        work_items=items,
+        oracle_case=None,
+    )
+    audit = audit_full_document(
+        document_id="doc_" + "f" * 64,
+        source_text=source_text,
+        output_text=output_text,
+        source_label=source,
+        target_label=target,
+        inventory=inventory,
+        deterministic_edits=(),
+        oracle_case=None,
+        work_items=items,
+    )
+
+    assert audit.passed is True
+
+
+def test_nonparty_evidence_excludes_an_unchanged_party_role_copy() -> None:
+    text = (
+        "DELIVERY AGENT\n"
+        "ASTERBRUG DELIVERY LOGISTICS\n"
+        "ROTTERDAM NETHERLANDS\n\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    source = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ROTTERDAM",
+                    "country": "NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "ROTTERDAM", "country": "NETHERLANDS"}},
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ROTTERDAM",
+                    "country": "NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "KENOSHA", "country": "UNITED STATES"}},
+        }
+    }
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.route.portOfDischarge.country",),
+        action="replace",
+        sourceValue="NETHERLANDS",
+        targetValue="UNITED STATES",
+        state="agent_residual",
+        evidenceLineIds=("L00003", "L00006"),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="broad literal evidence",
+    )
+
+    refined = _refine_foreign_party_evidence(text, source, target, (item,))
+
+    assert refined[0].evidenceLineIds == ("L00006",)
+    assert refined[0].state == "agent_residual"
+
+
+def test_nonparty_evidence_excludes_a_changed_party_role_copy() -> None:
+    text = (
+        "DELIVERY AGENT\n"
+        "ASTERBRUG DELIVERY LOGISTICS\n"
+        "ROTTERDAM THE NETHERLANDS\n\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    source = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ROTTERDAM",
+                    "country": "THE NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "ROTTERDAM", "country": "NETHERLANDS"}},
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ALPHEN",
+                    "country": "NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "KENOSHA", "country": "UNITED STATES"}},
+        }
+    }
+    route_city = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.route.portOfDischarge.name",),
+        action="replace",
+        sourceValue="ROTTERDAM",
+        targetValue="KENOSHA",
+        state="agent_residual",
+        evidenceLineIds=("L00003", "L00006"),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="broad literal evidence",
+    )
+    route_country = route_city.model_copy(
+        update={
+            "workItemId": "W0002",
+            "targetPaths": ("documentPatch.route.portOfDischarge.country",),
+            "sourceValue": "NETHERLANDS",
+            "targetValue": "UNITED STATES",
+        }
+    )
+
+    refined = _refine_foreign_party_evidence(
+        text, source, target, (route_city, route_country)
+    )
+
+    assert refined[0].evidenceLineIds == ("L00006",)
+    assert refined[1].evidenceLineIds == ("L00006",)
+
+
+def test_nonparty_country_evidence_excludes_party_shorthand_repeat() -> None:
+    text = (
+        "DESTINATION AGENT\n"
+        "ASTERBRUG DELIVERY LOGISTICS\n"
+        "ROTTERDAM, THE NETHERLANDS\n"
+        "NL809653035000\n"
+        "ROTTERDAM NETHERLANDS\n\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    source = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ROTTERDAM",
+                    "country": "THE NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "ROTTERDAM", "country": "NETHERLANDS"}},
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "ASTERBRUG DELIVERY LOGISTICS",
+                    "city": "ALPHEN AAN DEN RIJN",
+                    "country": "NETHERLANDS",
+                }
+            },
+            "route": {"portOfDischarge": {"name": "KENOSHA", "country": "UNITED STATES"}},
+        }
+    }
+    route_country = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.route.portOfDischarge.country",),
+        action="replace",
+        sourceValue="NETHERLANDS",
+        targetValue="UNITED STATES",
+        state="agent_residual",
+        evidenceLineIds=("L00003", "L00005", "L00008"),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="broad literal evidence",
+    )
+
+    refined = _refine_foreign_party_evidence(text, source, target, (route_country,))
+
+    assert refined[0].evidenceLineIds == ("L00008",)
+
+
+def test_party_address_constituent_protects_only_its_exact_line() -> None:
+    text = (
+        "FREIGHT AND CHARGES (indicate whether prepaid or where payable)\n"
+        "\nMERSIN\n\nPLACE AND DATE OF ISSUE\nMERSIN 30.05.2025\n\n"
+        "For the Carrier:\nBUTROS TRADING & TRANSPORT S.A.\nMERSIN - TURKEY\n"
+    )
+    source = {
+        "documentPatch": {
+            "freight": {"paymentPlace": {"name": "MERSIN"}},
+            "placeOfIssue": {"name": "MERSIN"},
+            "parties": {
+                "carrier": {
+                    "name": "BUTROS TRADING & TRANSPORT S.A.",
+                    "address": "MERSIN - TURKEY",
+                }
+            },
+        }
+    }
+    target = {
+        "documentPatch": {
+            "freight": {"paymentPlace": {"name": "METROTOWN"}},
+            "placeOfIssue": {"name": "LARGO"},
+            "parties": source["documentPatch"]["parties"],
+        }
+    }
+    payment = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.freight.paymentPlace.name",),
+        action="replace",
+        sourceValue="MERSIN",
+        targetValue="METROTOWN",
+        state="agent_residual",
+        evidenceLineIds=("L00003", "L00006", "L00010"),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="shared locality",
+    )
+    issue = payment.model_copy(
+        update={
+            "workItemId": "W0002",
+            "targetPaths": ("documentPatch.placeOfIssue.name",),
+            "targetValue": "LARGO",
+        }
+    )
+
+    refined = _refine_foreign_party_evidence(text, source, target, (payment, issue))
+
+    assert refined[0].evidenceLineIds == ("L00003",)
+    assert refined[1].evidenceLineIds == ("L00006",)
+
+
+def test_allocation_quantity_is_bound_to_its_container_package_rows() -> None:
+    text = (
+        "Total Items: 40\n"
+        "CONT0000001\n"
+        "40' HIGH CUBE\n"
+        "20 Package(s) of MACHINERY\n"
+        "20 PALLETS\n"
+        "CONT0000002\n"
+        "40' HIGH CUBE\n"
+        "20 Package(s) of PARTS\n"
+        "20 PALLETS\n"
+    )
+    source = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "CONT0000001"},
+                {"containerNumber": "CONT0000002"},
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "CONT0000001", "packageQuantity": 20},
+                        {"containerNumber": "CONT0000002", "packageQuantity": 20},
+                    ],
+                }
+            ],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "CONT0000001"},
+                {"containerNumber": "CONT0000002"},
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "CONT0000001", "packageQuantity": 68},
+                        {"containerNumber": "CONT0000002", "packageQuantity": 67},
+                    ],
+                }
+            ],
+        }
+    }
+    first = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=(
+            "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+        ),
+        action="replace",
+        sourceValue=20,
+        targetValue=68,
+        state="agent_residual",
+        evidenceLineIds=("L00003", "L00004", "L00005", "L00007", "L00008", "L00009"),
+        spanIds=("S001",),
+        locator="numeric_surface",
+        rationale="broad numeric evidence",
+    )
+    second = first.model_copy(
+        update={
+            "workItemId": "W0002",
+            "targetPaths": (
+                "documentPatch.cargoAllocationGroups[0].allocations[1].packageQuantity",
+            ),
+            "targetValue": 67,
+        }
+    )
+    bundle = SimpleNamespace(
+        sourceLabel=source,
+        targetLabel=target,
+        cargoFlavorRewriteRequirements=(),
+        operationalFlavorRequirements=(),
+    )
+
+    refined = _refine_numeric_evidence(text, (first, second), bundle)
+
+    assert refined[0].evidenceLineIds == ("L00004", "L00005")
+    assert refined[1].evidenceLineIds == ("L00008", "L00009")
+
+
+def test_allocation_quantity_uses_relation_owned_column_cell_and_formatted_container() -> None:
+    text = (
+        "CONTAINER NOS.\nTYPE\nC. SEAL NO\nQTY\nP. TYPE\nGR. WT(KG)\n"
+        "MCLU 510204.9\nHC40\nA1227883\n990\nBAGS\n25344.000\n"
+    )
+    source = {
+        "documentPatch": {
+            "containers": [{"containerNumber": "MCLU5102049"}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "MCLU5102049", "packageQuantity": 990}
+                    ],
+                }
+            ],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "containers": [{"containerNumber": "MCLU0899808"}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "MCLU0899808", "packageQuantity": 327}
+                    ],
+                }
+            ],
+        }
+    }
+
+    assert _allocation_quantity_evidence_lines(
+        text,
+        path="documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+        source_value=990,
+        source_label=source,
+        target_label=target,
+        candidate_line_numbers={10},
+    ) == {10}
+
+
+@pytest.mark.parametrize(
+    ("surface", "quantity"),
+    (("1 PLT", 1), ("248 CTNS", 248), ("10PL", 10), ("1 PK", 1)),
+)
+def test_package_quantity_recognizes_common_printed_abbreviations(
+    surface: str, quantity: int
+) -> None:
+    assert _is_explicit_package_quantity_line(surface, quantity)
+
+
+def test_allocation_quantities_follow_complete_column_order() -> None:
+    text = (
+        "CONTAINER NOS.\n"
+        "FSCU5906804\n"
+        "KKFU6721390\n"
+        "ONEU9083430\n"
+        "2184 BOXES\n"
+        "2184 BOXES\n"
+        "2184 BOXES\n"
+    )
+    source = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "FSCU5906804"},
+                {"containerNumber": "KKFU6721390"},
+                {"containerNumber": "ONEU9083430"},
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": f"g{index + 1}",
+                    "allocations": [
+                        {"containerNumber": container, "packageQuantity": 2184}
+                    ],
+                }
+                for index, container in enumerate(
+                    ("FSCU5906804", "KKFU6721390", "ONEU9083430")
+                )
+            ],
+        }
+    }
+    target = {
+        "documentPatch": {
+            **source["documentPatch"],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": f"g{index + 1}",
+                    "allocations": [
+                        {"containerNumber": container, "packageQuantity": quantity}
+                    ],
+                }
+                for index, (container, quantity) in enumerate(
+                    zip(
+                        ("FSCU5906804", "KKFU6721390", "ONEU9083430"),
+                        (83, 461, 83),
+                        strict=True,
+                    )
+                )
+            ],
+        }
+    }
+    items = tuple(
+        HybridWorkItem(
+            workItemId=f"W{index + 1:04d}",
+            targetPaths=(
+                f"documentPatch.cargoAllocationGroups[{index}]"
+                ".allocations[0].packageQuantity",
+            ),
+            action="replace",
+            sourceValue=2184,
+            targetValue=quantity,
+            state="agent_residual",
+            evidenceLineIds=(f"L{index + 2:05d}",),
+            spanIds=(f"S{index + 1:03d}",),
+            locator="sibling_object_evidence",
+            rationale="columnar source evidence",
+        )
+        for index, quantity in enumerate((83, 461, 83))
+    )
+    bundle = SimpleNamespace(
+        sourceLabel=source,
+        targetLabel=target,
+        cargoFlavorRewriteRequirements=(),
+        operationalFlavorRequirements=(),
+    )
+
+    refined = _refine_numeric_evidence(text, items, bundle)
+
+    assert [item.evidenceLineIds for item in refined] == [
+        ("L00005",),
+        ("L00006",),
+        ("L00007",),
+    ]
+
+
+def test_allocation_quantities_follow_repeated_complete_cycles() -> None:
+    text = (
+        "MNBU4006124 MLBR0338050\n"
+        "22 PLT 7103.882 KG\n"
+        "MNBU9089862 MLBR0337964\n"
+        "22 PLT 7100.788 KG\n"
+        "SUMMARY\n"
+        "22 PLT CY/CY\n"
+        "22 PLT CY/CY\n"
+    )
+    source = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "MNBU4006124"},
+                {"containerNumber": "MNBU9089862"},
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "MNBU4006124", "packageQuantity": 22},
+                        {"containerNumber": "MNBU9089862", "packageQuantity": 22},
+                    ],
+                }
+            ],
+        }
+    }
+    target = {
+        "documentPatch": {
+            **source["documentPatch"],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "MNBU4006124", "packageQuantity": 4},
+                        {"containerNumber": "MNBU9089862", "packageQuantity": 3},
+                    ],
+                }
+            ],
+        }
+    }
+    first = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=(
+            "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+        ),
+        action="replace",
+        sourceValue=22,
+        targetValue=4,
+        state="agent_residual",
+        evidenceLineIds=("L00001",),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="repeated source evidence",
+    )
+    second = first.model_copy(
+        update={
+            "workItemId": "W0002",
+            "targetPaths": (
+                "documentPatch.cargoAllocationGroups[0].allocations[1].packageQuantity",
+            ),
+            "targetValue": 3,
+            "evidenceLineIds": ("L00003",),
+            "spanIds": ("S002",),
+        }
+    )
+    bundle = SimpleNamespace(
+        sourceLabel=source,
+        targetLabel=target,
+        cargoFlavorRewriteRequirements=(),
+        operationalFlavorRequirements=(),
+    )
+
+    refined = _refine_numeric_evidence(text, (first, second), bundle)
+
+    assert refined[0].evidenceLineIds == ("L00002", "L00006")
+    assert refined[1].evidenceLineIds == ("L00004", "L00007")
+
+
+def test_shipment_package_total_excludes_same_valued_equipment_size() -> None:
+    text = "Total Items: 40\nCONT0000001\n40' HIGH CUBE\n40 PALLETS\n"
+    source = {
+        "documentPatch": {
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 40}]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 135}]
+        }
+    }
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.cargoPackages[0].quantity",),
+        action="replace",
+        sourceValue=40,
+        targetValue=135,
+        state="agent_residual",
+        evidenceLineIds=("L00001", "L00003", "L00004"),
+        spanIds=("S001",),
+        locator="numeric_surface",
+        rationale="broad numeric evidence",
+    )
+    bundle = SimpleNamespace(
+        sourceLabel=source,
+        targetLabel=target,
+        cargoFlavorRewriteRequirements=(),
+        operationalFlavorRequirements=(),
+    )
+
+    refined = _refine_numeric_evidence(text, (item,), bundle)
+
+    assert refined[0].evidenceLineIds == ("L00001",)
+    assert refined[0].locator == "relation_scoped_numeric_surface"
+
+
+def test_package_category_uses_relation_owned_allocation_rows() -> None:
+    source = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "typeCategory": "PACKAGE_PALLET"}
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "CONT0000001", "packageQuantity": 20}
+                    ],
+                }
+            ],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "typeCategory": "PACKAGE_CARTON"}
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": "CONT0000001", "packageQuantity": 68}
+                    ],
+                }
+            ],
+        }
+    }
+    package_type = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.cargoPackages[0].typeCategory",),
+        action="replace",
+        sourceValue="PACKAGE_PALLET",
+        targetValue="PACKAGE_CARTON",
+        state="agent_residual",
+        evidenceLineIds=("L00001", "L00003"),
+        spanIds=("S001",),
+        locator="sibling_object_evidence",
+        rationale="broad sibling evidence",
+    )
+    allocation = HybridWorkItem(
+        workItemId="W0002",
+        targetPaths=(
+            "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+        ),
+        action="replace",
+        sourceValue=20,
+        targetValue=68,
+        state="agent_residual",
+        evidenceLineIds=("L00004", "L00005"),
+        spanIds=("S002",),
+        locator="relation_scoped_numeric_surface",
+        rationale="container-owned package rows",
+    )
+    bundle = SimpleNamespace(sourceLabel=source, targetLabel=target)
+
+    refined = _refine_sibling_evidence((package_type, allocation), bundle)
+
+    assert refined[0].evidenceLineIds == ("L00004", "L00005")
+
+
+def test_material_qualified_package_quantity_is_explicit() -> None:
+    assert _is_explicit_package_quantity_line("47 WOODEN CASES", 47) is True
+    assert _is_explicit_package_quantity_line("47 CORRUGATED CARTONS", 47) is True
+
+
+def test_party_occurrence_refinement_resolves_uneven_repeated_role_blocks() -> None:
+    text = (
+        "--- PAGE 1 ---\nCONSIGNEE\nOLD COMPANY\n"
+        "--- PAGE 2 ---\nCONSIGNEE\nOLD COMPANY\nNOTIFY PARTY\nOLD COMPANY\n"
+    )
+    items = (
+        HybridWorkItem(
+            workItemId="W0001",
+            targetPaths=("documentPatch.parties.consignee.name",),
+            action="replace",
+            sourceValue="OLD COMPANY",
+            targetValue="NEW CONSIGNEE LTD",
+            state="agent_residual",
+            evidenceLineIds=("L00003", "L00006"),
+            spanIds=("S001", "S002"),
+            locator="literal_in_party_role_block",
+            rationale="two role-owned consignee copies",
+        ),
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=("documentPatch.parties.notifyParties[0].name",),
+            action="replace",
+            sourceValue="OLD COMPANY",
+            targetValue="NEW NOTIFY LTD",
+            state="agent_residual",
+            evidenceLineIds=("L00008",),
+            spanIds=("S003",),
+            locator="literal_in_party_role_block",
+            rationale="one role-owned notify copy",
+        ),
+    )
+    requirements = (
+        TargetValueOccurrenceRequirement(
+            targetPaths=("documentPatch.parties.consignee.name",),
+            targetValue="NEW CONSIGNEE LTD",
+            requiredOccurrences=2,
+        ),
+        TargetValueOccurrenceRequirement(
+            targetPaths=("documentPatch.parties.notifyParties[0].name",),
+            targetValue="NEW NOTIFY LTD",
+            requiredOccurrences=1,
+        ),
+    )
+
+    refined = _refine_party_occurrence_requirements(text, text, items, requirements)
+
+    assert {row.targetValue: row.requiredOccurrences for row in refined} == {
+        "NEW CONSIGNEE LTD": 2,
+        "NEW NOTIFY LTD": 1,
+    }
 
 
 def test_occurrence_repair_can_select_inventory_owned_changed_party_line() -> None:
@@ -1858,6 +4193,103 @@ def test_occurrence_repair_can_select_inventory_owned_changed_party_line() -> No
     assert tuple(row.alias for row in selected) == ("s0",)
     assert diagnostics[0]["observedOccurrences"] == 0
     assert diagnostics[0]["roleOwnedLineIds"] == ["L00001"]
+
+
+def test_occurrence_repair_expands_embedded_party_copy_to_enclosing_party_group() -> None:
+    notify_target = "BRIGHTHARBOR TRADE SERVICES LLC"
+    shipper_name = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.shipper.name",),
+        action="replace",
+        sourceValue="OLD SHIPPER",
+        targetValue="NEW SHIPPER",
+        state="agent_residual",
+        evidenceLineIds=("L00001",),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="shipper name",
+    )
+    shipper_address = HybridWorkItem(
+        workItemId="W0002",
+        targetPaths=("documentPatch.parties.shipper.address",),
+        action="replace",
+        sourceValue="C/O OLD NOTIFY OLD ADDRESS",
+        targetValue="NEW ADDRESS",
+        state="agent_residual",
+        evidenceLineIds=("L00002", "L00003"),
+        spanIds=("S002",),
+        locator="party_role_block",
+        rationale="shipper address",
+    )
+    notify_name = HybridWorkItem(
+        workItemId="W0003",
+        targetPaths=("documentPatch.parties.notifyParties[0].name",),
+        action="replace",
+        sourceValue="OLD NOTIFY",
+        targetValue=notify_target,
+        state="agent_residual",
+        evidenceLineIds=("L00004",),
+        spanIds=("S003",),
+        locator="exact_literal",
+        rationale="notify name",
+    )
+    slots = tuple(
+        _Slot(
+            alias=f"s{number - 1}",
+            line_id=f"L{number:05d}",
+            source_line=value,
+            requirements=(
+                {
+                    "kind": "changed_source_occurrence",
+                    "paths": ["documentPatch.parties.notifyParties[0].name"],
+                },
+            )
+            if number in {2, 4, 5}
+            else (),
+        )
+        for number, value in enumerate(
+            ("OLD SHIPPER", "C/O OLD NOTIFY", "OLD ADDRESS", "OLD NOTIFY", "EXPORTER OLD NOTIFY"),
+            start=1,
+        )
+    )
+    workspace = RewriteWorkspace(
+        original_text="\n".join(slot.source_line for slot in slots) + "\n",
+        current_text="\n".join(slot.source_line for slot in slots) + "\n",
+        target_value_occurrence_requirements=(
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.notifyParties[0].name",),
+                targetValue=notify_target,
+                requiredOccurrences=3,
+            ),
+        ),
+    )
+    material = SimpleNamespace(
+        compiled=SimpleNamespace(
+            workspace=workspace,
+            work_items=(shipper_name, shipper_address, notify_name),
+        ),
+        slots=slots,
+    )
+
+    selected, diagnostics = _target_occurrence_repair(
+        material,
+        {
+            "s0": "NEW SHIPPER",
+            "s1": "C/O NEW ADDRESS",
+            "s2": "NEW ADDRESS",
+            "s3": notify_target,
+            "s4": f"EXPORTER {notify_target}",
+        },
+    )
+
+    assert tuple(row.alias for row in selected) == ("s0", "s1", "s2", "s3", "s4")
+    assert diagnostics[0]["repairLineIds"] == [
+        "L00001",
+        "L00002",
+        "L00003",
+        "L00004",
+        "L00005",
+    ]
 
 
 def test_package_quantity_grammar_excludes_vat_ordinals_and_original_counts() -> None:
@@ -2197,8 +4629,188 @@ def test_locked_prefill_literal_is_exposed_and_cannot_be_regenerated() -> None:
     assert _validated_output_replacements((slot,), {"s0": "TEL. NO +62 31 8894 2716 (EXPORT)"})[
         0
     ].newText.endswith("(EXPORT)")
+    assert _validated_output_replacements(
+        (slot,), {"s0": "TEL. NO +62 31 8894 2716 (export)"}
+    )[0].newText == "TEL. NO +62 31 8894 2716 (export)"
     with pytest.raises(ValueError, match="host-locked literals"):
         _validated_output_replacements((slot,), {"s0": "TEL. NO +62 31 7742 6189"})
+
+
+def test_raw_auxiliary_identity_preserves_legal_prefix_and_suffix() -> None:
+    requirement = RawAuxiliaryIdentityRequirement(
+        requirementId="carrier-agent-L00001",
+        relationship="agent_for_carrier",
+        sourceIdentity="MSC KOREA LIMITED",
+        sourceIdentityLineCount=1,
+        gapLineCount=0,
+        consistencyGroupId="carrier-agent-group-1",
+        targetPrincipalName="AURELIA HORIZON MARITIME",
+        sourceEvidence="by MSC KOREA LIMITED As Agent For The Carrier",
+    )
+    workspace = RewriteWorkspace(
+        original_text="by MSC KOREA LIMITED As Agent For The Carrier\n",
+        current_text="by MSC KOREA LIMITED As Agent For The Carrier\n",
+        raw_auxiliary_identity_requirements=(requirement,),
+    )
+    requirements = _locked_literal_requirements_by_line(workspace)["L00001"]
+    slot = _Slot(
+        alias="s0",
+        line_id="L00001",
+        source_line="by MSC KOREA LIMITED As Agent For The Carrier",
+        requirements=tuple(requirements),
+    )
+
+    assert _validated_output_replacements(
+        (slot,),
+        {"s0": "by FICTIONAL SHIPPING LTD As Agent For The Carrier"},
+    )
+    with pytest.raises(ValueError, match="host-locked legal affixes"):
+        _validated_output_replacements(
+            (slot,),
+            {"s0": "for FICTIONAL SHIPPING LTD acting for Carrier"},
+        )
+
+
+def test_wrapped_on_board_agent_locks_only_the_static_heading_prefix() -> None:
+    requirement = RawAuxiliaryIdentityRequirement(
+        requirementId="carrier-agent-L00001",
+        relationship="agent_for_carrier",
+        sourceIdentity="OLD AGENCY\nPTE LTD",
+        sourceIdentityLineCount=2,
+        gapLineCount=0,
+        consistencyGroupId="carrier-agent-group-1",
+        targetPrincipalName="THE CARRIER",
+        sourceEvidence=(
+            "Shipped on Board OLD VESSEL 01-JAN-2024 OLD AGENCY\n"
+            "PTE LTD as agents for the Carrier"
+        ),
+    )
+    workspace = RewriteWorkspace(
+        original_text=requirement.sourceEvidence + "\n",
+        current_text=requirement.sourceEvidence + "\n",
+        raw_auxiliary_identity_requirements=(requirement,),
+    )
+
+    locked = _locked_literal_requirements_by_line(workspace)
+
+    prefixes = [
+        row["target"]
+        for row in locked["L00001"]
+        if row["kind"] == "host_locked_source_prefix"
+    ]
+    assert prefixes == ["Shipped on Board "]
+
+
+def test_numeric_inventory_ignores_date_components() -> None:
+    assert _numeric_lines("15-Sep-2023\n15.000 cu. m.\n", 15.0) == {2}
+
+
+def test_signed_carrier_principal_is_not_a_source_only_signing_identity() -> None:
+    assert (
+        _SIGNED_CARRIER_IDENTITY.fullmatch(
+            "Signed for the Carrier AURELIS OCEAN TRANSPORT S.A. by"
+        )
+        is None
+    )
+
+
+def test_generic_raw_agent_identity_lines_are_recognized() -> None:
+    text = (
+        "Shipped on Board SOURCE VESSEL 19-MAY-2023 OLD SHIPPING AGENCY\n"
+        "PTE LTD As agents for the Carrier\n"
+    )
+
+    assert _raw_agent_identity_line_numbers(
+        text,
+        source_carrier="OLD OCEAN LINE",
+        target_carrier="NEW MERIDIAN LINE",
+    ) == {1, 2}
+
+
+def test_output_validation_reports_all_missing_host_locks_in_one_repair() -> None:
+    slots = tuple(
+        _Slot(
+            alias=f"s{index}",
+            line_id=f"L{index + 1:05d}",
+            source_line=f"COUNTRY: OLD-{index}",
+            requirements=(
+                {
+                    "kind": "host_locked_target_literal",
+                    "paths": [f"documentPatch.route.field{index}"],
+                    "target": target,
+                    "policy": "preserve_verbatim_on_this_line",
+                },
+            ),
+        )
+        for index, target in enumerate(("SINGAPORE", "KOREA, REPUBLIC OF"))
+    )
+
+    with pytest.raises(ValueError) as error:
+        _validated_output_replacements(
+            slots,
+            {"s0": "MALAYSIA", "s1": "JAPAN"},
+        )
+
+    assert "s0" in str(error.value)
+    assert "s1" in str(error.value)
+
+    corrected = _validated_output_replacements(
+        slots,
+        {"s0": "COUNTRY: Singapore", "s1": "COUNTRY: Korea, Republic of"},
+    )
+    assert [row.newText for row in corrected] == [
+        "COUNTRY: SINGAPORE",
+        "COUNTRY: KOREA, REPUBLIC OF",
+    ]
+
+
+def test_slot_local_party_error_expands_to_complete_role_group() -> None:
+    party_slots = (
+        _Slot(
+            alias="s0",
+            line_id="L00001",
+            source_line="OLD ADDRESS",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "paths": ["documentPatch.parties.consignee.address"],
+                    "target": "NEW ADDRESS",
+                },
+            ),
+        ),
+        _Slot(
+            alias="s1",
+            line_id="L00002",
+            source_line="OLD CITY",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "paths": ["documentPatch.parties.consignee.city"],
+                    "target": "NEW CITY",
+                },
+            ),
+        ),
+        _Slot(
+            alias="s2",
+            line_id="L00003",
+            source_line="OLD PORT",
+            requirements=(
+                {
+                    "kind": "task_label_delta",
+                    "paths": ["documentPatch.route.portOfLoading.name"],
+                    "target": "NEW PORT",
+                },
+            ),
+        ),
+    )
+
+    selected, _compounds = _repair_selection(
+        party_slots,
+        (),
+        error_message="provider output slot omits host-locked literals: s0",
+    )
+
+    assert [slot.alias for slot in selected] == ["s0", "s1"]
 
 
 def test_handling_instruction_affix_is_locked_outside_changed_value() -> None:
@@ -2326,6 +4938,117 @@ def test_exact_shared_target_surface_does_not_license_the_changed_role_line() ->
     assert audit.passed is False
     assert audit.findings[0].category == "retained_changed_source_value"
     assert audit.findings[0].lineIds == ("L00001",)
+
+
+def test_shared_surface_is_licensed_on_other_target_paths_proven_line_only() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {"deliveryAgent": {"country": "THE NETHERLANDS"}},
+            "route": {
+                "portOfDischarge": {"country": "NETHERLANDS"},
+                "placeOfDelivery": {"country": "NETHERLANDS"},
+            },
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {"deliveryAgent": {"country": "Netherlands"}},
+            "route": {
+                "portOfDischarge": {"country": "United States"},
+                "placeOfDelivery": {"country": "United States"},
+            },
+        }
+    }
+    work_items = (
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=(
+                "documentPatch.route.portOfDischarge.country",
+                "documentPatch.route.placeOfDelivery.country",
+            ),
+            action="replace",
+            sourceValue="NETHERLANDS",
+            targetValue="United States",
+            state="agent_residual",
+            evidenceLineIds=("L00001", "L00002"),
+            spanIds=("S002", "S003"),
+            locator="exact_literal",
+            rationale="test overlapping source evidence",
+        ),
+    )
+
+    passed = audit_full_document(
+        document_id="doc_" + "8" * 64,
+        source_text="AGENT: THE NETHERLANDS\nPORT: NETHERLANDS\n",
+        output_text="AGENT: Netherlands\nPORT: United States\n",
+        source_label=source,
+        target_label=target,
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+        deterministic_prefills=(
+            AppliedDeterministicPrefill(
+                lineId="L00001",
+                targetPaths=("documentPatch.parties.deliveryAgent.country",),
+                sourceSurface="THE NETHERLANDS",
+                targetSurface="NETHERLANDS",
+                beforeLine="AGENT: THE NETHERLANDS",
+                afterLine="AGENT: NETHERLANDS",
+            ),
+        ),
+        work_items=work_items,
+    )
+    failed = audit_full_document(
+        document_id="doc_" + "9" * 64,
+        source_text="AGENT: THE NETHERLANDS\nPORT: NETHERLANDS\n",
+        output_text="AGENT: Netherlands\nPORT: NETHERLANDS\n",
+        source_label=source,
+        target_label=target,
+        inventory=(),
+        deterministic_edits=(),
+        oracle_case=None,
+        deterministic_prefills=(
+            AppliedDeterministicPrefill(
+                lineId="L00001",
+                targetPaths=("documentPatch.parties.deliveryAgent.country",),
+                sourceSurface="THE NETHERLANDS",
+                targetSurface="NETHERLANDS",
+                beforeLine="AGENT: THE NETHERLANDS",
+                afterLine="AGENT: NETHERLANDS",
+            ),
+        ),
+        work_items=work_items,
+    )
+
+    assert passed.passed is True
+    assert failed.passed is False
+    assert failed.findings[0].lineIds == ("L00002",)
+
+
+def test_party_locality_ownership_covers_shorthand_repeat_inside_role_block() -> None:
+    text = (
+        "DESTINATION AGENT\n"
+        "OLD DELIVERY BV\n"
+        "ROTTERDAM, THE NETHERLANDS\n"
+        "NL809653035000\n"
+        "ROTTERDAM NETHERLANDS\n"
+        "\n"
+        "PORT OF DISCHARGE\n"
+        "ROTTERDAM NETHERLANDS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "deliveryAgent": {
+                    "name": "OLD DELIVERY BV",
+                    "city": "ROTTERDAM",
+                    "country": "THE NETHERLANDS",
+                }
+            }
+        }
+    }
+
+    assert _party_owned_surface_lines(text, source_label, "NETHERLANDS") == {3, 5}
 
 
 def test_legal_relation_surface_is_protected_but_not_granted_model_authority() -> None:
@@ -2698,7 +5421,7 @@ def test_inventory_partitions_shared_source_surface_by_path_owned_lines() -> Non
     ]
 
 
-def test_inventory_marks_unowned_party_scalar_copy_as_auxiliary_flavor() -> None:
+def test_inventory_maps_unowned_party_scalar_copy_to_its_unique_target() -> None:
     source = {
         "documentPatch": {
             "parties": {"carrier": {"address": "12 SOURCE QUAY"}}
@@ -2736,8 +5459,512 @@ def test_inventory_marks_unowned_party_scalar_copy_as_auxiliary_flavor() -> None
         (row.category, row.lineIds) for row in inventory if "changed_source" in row.category
     ] == [
         ("changed_source_occurrence", ("L00001",)),
-        ("changed_source_auxiliary_copy", ("L00002",)),
+        ("changed_source_occurrence", ("L00002",)),
     ]
+    repeated = next(row for row in inventory if row.lineIds == ("L00002",))
+    assert repeated.targetSemantics == [
+        {
+            "path": "documentPatch.parties.carrier.address",
+            "target": "88 TARGET WHARF",
+        }
+    ]
+
+    requirements = _include_unique_linked_party_copies(
+        text,
+        (item,),
+        inventory,
+        (
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.carrier.address",),
+                targetValue="88 TARGET WHARF",
+                requiredOccurrences=1,
+            ),
+        ),
+        (),
+    )
+    assert requirements[0].requiredOccurrences == 2
+
+
+def test_inventory_keeps_unique_scalar_auxiliary_on_multi_target_context_line() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {
+                "notifyParties": [{"city": "TAIPEI", "country": "TAIWAN"}],
+            },
+            "route": {"portOfLoading": {"country": "TAIWAN"}},
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "notifyParties": [{"city": "Qina", "country": "EGYPT"}],
+            },
+            "route": {"portOfLoading": {"country": "KOREA"}},
+        }
+    }
+    text = (
+        "NOTIFY PARTY\n"
+        "TAIPEI, TAIWAN\n"
+        "Collection Business Unit Maersk Taiwan Ltd - Taipei\n"
+        "PORT OF LOADING\n"
+        "TAIWAN\n"
+    )
+    items = (
+        HybridWorkItem(
+            workItemId="W0001",
+            targetPaths=("documentPatch.parties.notifyParties[0].city",),
+            action="replace",
+            sourceValue="TAIPEI",
+            targetValue="Qina",
+            state="agent_residual",
+            evidenceLineIds=("L00002",),
+            spanIds=("S001",),
+            locator="party_role_block",
+            rationale="notify locality",
+        ),
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=("documentPatch.parties.notifyParties[0].country",),
+            action="replace",
+            sourceValue="TAIWAN",
+            targetValue="EGYPT",
+            state="agent_residual",
+            evidenceLineIds=("L00002",),
+            spanIds=("S002",),
+            locator="party_role_block",
+            rationale="notify country",
+        ),
+        HybridWorkItem(
+            workItemId="W0003",
+            targetPaths=("documentPatch.route.portOfLoading.country",),
+            action="replace",
+            sourceValue="TAIWAN",
+            targetValue="KOREA",
+            state="agent_residual",
+            evidenceLineIds=("L00005",),
+            spanIds=("S003",),
+            locator="location_role_surface",
+            rationale="port country",
+        ),
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=items,
+        oracle_case=None,
+    )
+
+    collection_city = next(
+        row
+        for row in inventory
+        if row.sourceSurface == "TAIPEI" and row.lineIds == ("L00003",)
+    )
+    assert collection_city.category == "changed_source_auxiliary_copy"
+    assert collection_city.targetSemantics == {
+        "policy": "synthesize_distinct_context_compatible_auxiliary_value",
+        "mustDifferFromSource": True,
+        "mustNotDuplicateAnyLabeledTarget": True,
+    }
+
+
+def test_inventory_does_not_count_care_of_or_foreign_role_as_notify_copy() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {
+                "shipper": {
+                    "name": "ACE PRIMA RESOURCES SDN BHD",
+                    "address": "C/O CHEMIDEX FZCO 23080-001 A2 BUILDING",
+                },
+                "notifyParties": [{"name": "CHEMIDEX FZCO"}],
+            }
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "shipper": {
+                    "name": "VAJRA MERIDIAN METALS PRIVATE LIMITED",
+                    "address": "PLOT 18 AUTONAGAR INDUSTRIAL ESTATE",
+                },
+                "notifyParties": [{"name": "BRIGHTHARBOR TRADE SERVICES LLC"}],
+            }
+        }
+    }
+    text = (
+        "SHIPPER\nACE PRIMA RESOURCES SDN BHD\nC/O CHEMIDEX FZCO 23080-001 A2 BUILDING\n"
+        "NOTIFY PARTY\nCHEMIDEX FZCO\nEXPORTER: CHEMIDEX FZCO\n"
+    )
+    shipper_address = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.shipper.address",),
+        action="replace",
+        sourceValue="C/O CHEMIDEX FZCO 23080-001 A2 BUILDING",
+        targetValue="PLOT 18 AUTONAGAR INDUSTRIAL ESTATE",
+        state="agent_residual",
+        evidenceLineIds=("L00003",),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="shipper address",
+    )
+    notify = HybridWorkItem(
+        workItemId="W0002",
+        targetPaths=("documentPatch.parties.notifyParties[0].name",),
+        action="replace",
+        sourceValue="CHEMIDEX FZCO",
+        targetValue="BRIGHTHARBOR TRADE SERVICES LLC",
+        state="agent_residual",
+        evidenceLineIds=("L00005",),
+        spanIds=("S002",),
+        locator="literal_in_party_role_block",
+        rationale="notify role",
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=(shipper_address, notify),
+        oracle_case=None,
+    )
+    notify_rows = [
+        row
+        for row in inventory
+        if row.sourceSurface == "CHEMIDEX FZCO" and "changed_source" in row.category
+    ]
+
+    assert [(row.category, row.lineIds) for row in notify_rows] == [
+        ("changed_source_occurrence", ("L00005",)),
+        ("changed_source_auxiliary_copy", ("L00006",)),
+    ]
+    requirements = _include_unique_linked_party_copies(
+        text,
+        (shipper_address, notify),
+        inventory,
+        (
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.notifyParties[0].name",),
+                targetValue="BRIGHTHARBOR TRADE SERVICES LLC",
+                requiredOccurrences=1,
+            ),
+        ),
+        (),
+    )
+    assert requirements[0].requiredOccurrences == 1
+
+
+def test_inventory_does_not_rebind_party_name_that_is_owned_as_marks() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {"shipper": {"name": "TWIN DRAGON MARKETING, INC."}},
+            "cargoGroups": [{"marksAndNumbers": ["TWIN DRAGON MARKETING INC."]}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {"shipper": {"name": "Haiyuan Optoelectronic Commerce Co., Ltd."}},
+            "cargoGroups": [{"marksAndNumbers": ["NOVA CIRCUIT"]}],
+        }
+    }
+    text = "TWIN DRAGON MARKETING, INC.\nTWIN DRAGON MARKETING INC.\n"
+    shipper = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.shipper.name",),
+        action="replace",
+        sourceValue="TWIN DRAGON MARKETING, INC.",
+        targetValue="Haiyuan Optoelectronic Commerce Co., Ltd.",
+        state="agent_residual",
+        evidenceLineIds=("L00001",),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="shipper name slot",
+    )
+    marks = HybridWorkItem(
+        workItemId="W0002",
+        targetPaths=("documentPatch.cargoGroups[0].marksAndNumbers[0]",),
+        action="replace",
+        sourceValue="TWIN DRAGON MARKETING INC.",
+        targetValue="NOVA CIRCUIT",
+        state="agent_residual",
+        evidenceLineIds=("L00002",),
+        spanIds=("S002",),
+        locator="exact_literal",
+        rationale="marks slot",
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=(shipper, marks),
+        oracle_case=None,
+    )
+
+    assert not any(
+        row.lineIds == ("L00002",)
+        and "documentPatch.parties.shipper.name" in row.targetPaths
+        for row in inventory
+    )
+    requirements = _include_unique_linked_party_copies(
+        text,
+        (shipper, marks),
+        inventory,
+        (
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.shipper.name",),
+                targetValue="Haiyuan Optoelectronic Commerce Co., Ltd.",
+                requiredOccurrences=1,
+            ),
+        ),
+        (),
+    )
+    assert requirements[0].requiredOccurrences == 1
+
+
+def test_inventory_exact_marks_owner_beats_tolerant_party_match_without_line_work_item() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {"shipper": {"name": "TWIN DRAGON MARKETING, INC."}},
+            "cargoGroups": [{"marksAndNumbers": ["TWIN DRAGON MARKETING INC."]}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {"shipper": {"name": "Haiyuan Optoelectronic Commerce Co., Ltd."}},
+            "cargoGroups": [{"marksAndNumbers": ["NOVA CIRCUIT"]}],
+        }
+    }
+    text = (
+        "TWIN DRAGON MARKETING, INC.\n"
+        "TWIN DRAGON MARKETING INC.\n"
+        "GOODS DESCRIPTION\n"
+    )
+    shipper = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.shipper.name",),
+        action="replace",
+        sourceValue="TWIN DRAGON MARKETING, INC.",
+        targetValue="Haiyuan Optoelectronic Commerce Co., Ltd.",
+        state="agent_residual",
+        evidenceLineIds=("L00001",),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="shipper name slot",
+    )
+    # Relation-scoped cargo evidence can be broader than the literal marks line.  Exact source
+    # label ownership must still win without relying on this work item's evidence line.
+    marks = HybridWorkItem(
+        workItemId="W0002",
+        targetPaths=("documentPatch.cargoGroups[0].marksAndNumbers[0]",),
+        action="replace",
+        sourceValue="TWIN DRAGON MARKETING INC.",
+        targetValue="NOVA CIRCUIT",
+        state="agent_residual",
+        evidenceLineIds=("L00003",),
+        spanIds=("S002",),
+        locator="relation_scoped_surface",
+        rationale="relation-scoped marks slot",
+    )
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=(shipper, marks),
+        oracle_case=None,
+    )
+
+    conflicting = [
+        row
+        for row in inventory
+        if row.lineIds == ("L00002",)
+        and "documentPatch.parties.shipper.name" in row.targetPaths
+    ]
+    assert conflicting == []
+    exact_marks = [
+        row
+        for row in inventory
+        if row.lineIds == ("L00002",)
+        and "documentPatch.cargoGroups[0].marksAndNumbers[0]" in row.targetPaths
+    ]
+    assert len(exact_marks) == 1
+
+
+def test_inventory_does_not_count_legal_status_as_extra_party_copy() -> None:
+    source = {"documentPatch": {"parties": {"consignee": {"name": "TO ORDER"}}}}
+    target_name = "Kernfeld Energiekomponenten GmbH"
+    target = {"documentPatch": {"parties": {"consignee": {"name": target_name}}}}
+    heading = (
+        "(3) Consignee (complete name and address)/(unless provided otherwise, "
+        "a consignment 'To Order' means To Order of Shipper.)"
+    )
+    legal = "NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER"
+    text = f"{legal}\n{heading}\nTO ORDER\n"
+    item = HybridWorkItem(
+        workItemId="W0001",
+        targetPaths=("documentPatch.parties.consignee.name",),
+        action="replace",
+        sourceValue="TO ORDER",
+        targetValue=target_name,
+        state="agent_residual",
+        evidenceLineIds=("L00003",),
+        spanIds=("S001",),
+        locator="exact_literal",
+        rationale="role-owned consignee value",
+    )
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=(item,),
+        oracle_case=None,
+    )
+    requirements = _include_unique_linked_party_copies(
+        text,
+        (item,),
+        inventory,
+        (
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.consignee.name",),
+                targetValue=target_name,
+                requiredOccurrences=1,
+            ),
+        ),
+        (
+            SourceStatusPreservationRequirement(sourceSurface=legal, sourceOccurrences=1),
+            SourceStatusPreservationRequirement(sourceSurface=heading, sourceOccurrences=1),
+        ),
+    )
+
+    assert requirements[0].requiredOccurrences == 1
+
+
+def test_carrier_cardinality_includes_nested_forwarding_agent_target_occurrences() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {"name": "TRANSGLORY"},
+                "forwardingAgent": {"name": "TRANSGLORY S.A."},
+            }
+        }
+    }
+    text = (
+        "TRANSGLORY S.A.\n"
+        "TRANSGLORY, S.A.\n"
+        "TRANSGLORY, S.A.\n"
+        "TRANSGLORY S.A.\n"
+        "TRANSGLORY, S.A.\n"
+        "TRANSGLORY, S.A.\n"
+        "Signed on behalf of the Carrier: TRANSGLORY\n"
+        "Signed on behalf of the Carrier: TRANSGLORY\n"
+    )
+    carrier_target = "Aureline Oceanic Carriers"
+    forwarding_target = "Aureline Oceanic Carriers S.A."
+    items = (
+        HybridWorkItem(
+            workItemId="W0001",
+            targetPaths=("documentPatch.parties.carrier.name",),
+            action="replace",
+            sourceValue="TRANSGLORY",
+            targetValue=carrier_target,
+            state="agent_residual",
+            evidenceLineIds=("L00007", "L00008"),
+            spanIds=("S001",),
+            locator="party_role_block",
+            rationale="carrier principal",
+        ),
+        HybridWorkItem(
+            workItemId="W0002",
+            targetPaths=("documentPatch.parties.forwardingAgent.name",),
+            action="replace",
+            sourceValue="TRANSGLORY S.A.",
+            targetValue=forwarding_target,
+            state="agent_residual",
+            evidenceLineIds=(
+                "L00001",
+                "L00002",
+                "L00003",
+                "L00004",
+                "L00005",
+                "L00006",
+            ),
+            spanIds=("S002",),
+            locator="party_role_block",
+            rationale="forwarding agent",
+        ),
+    )
+    requirements = _refine_party_occurrence_requirements(
+        text,
+        text,
+        items,
+        (
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.carrier.name",),
+                targetValue=carrier_target,
+                requiredOccurrences=1,
+            ),
+            TargetValueOccurrenceRequirement(
+                targetPaths=("documentPatch.parties.forwardingAgent.name",),
+                targetValue=forwarding_target,
+                requiredOccurrences=1,
+            ),
+        ),
+        source,
+    )
+    adjusted = _include_unique_linked_party_copies(
+        text,
+        items,
+        (),
+        requirements,
+        (),
+    )
+
+    by_path = {row.targetPaths[0]: row.requiredOccurrences for row in adjusted}
+    assert by_path["documentPatch.parties.carrier.name"] == 8
+    assert by_path["documentPatch.parties.forwardingAgent.name"] == 6
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label={
+            "documentPatch": {
+                "parties": {
+                    "carrier": {"name": carrier_target},
+                    "forwardingAgent": {"name": forwarding_target},
+                }
+            }
+        },
+        work_items=items,
+        oracle_case=None,
+    )
+    carrier_owned_lines = {
+        line_id
+        for row in inventory
+        if "documentPatch.parties.carrier.name" in row.targetPaths
+        for line_id in row.lineIds
+    }
+    forwarding_owned_lines = {
+        line_id
+        for row in inventory
+        if "documentPatch.parties.forwardingAgent.name" in row.targetPaths
+        for line_id in row.lineIds
+    }
+    assert carrier_owned_lines == {"L00007", "L00008"}
+    assert forwarding_owned_lines == {
+        "L00001",
+        "L00002",
+        "L00003",
+        "L00004",
+        "L00005",
+        "L00006",
+    }
 
 
 def test_full_document_audit_rejects_punctuation_only_line() -> None:
@@ -2857,6 +6084,46 @@ def test_full_audit_accepts_party_scalar_reflow_within_the_same_role_block() -> 
     )
 
     assert audit.passed is True
+
+
+def test_inventory_groups_case_equivalent_source_values_into_one_auxiliary_decision() -> None:
+    source = {
+        "documentPatch": {
+            "parties": {"shipper": {"country": "TAIWAN"}},
+            "cargoGroups": [{"groupId": "g1", "origin": {"name": "Taiwan"}}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {"shipper": {"country": "Chile"}},
+            "cargoGroups": [
+                {"groupId": "g1", "origin": {"name": "Taiwan, Province of China"}}
+            ],
+        }
+    }
+    text = "CARRIER OFFICE: MAERSK TAIWAN LTD - TAIPEI\n"
+
+    inventory = build_mutable_inventory(
+        source_text=text,
+        current_text=text,
+        source_label=source,
+        target_label=target,
+        work_items=(),
+        oracle_case=None,
+    )
+
+    matching = [
+        row
+        for row in inventory
+        if row.lineIds == ("L00001",)
+        and row.category in {"changed_source_occurrence", "changed_source_auxiliary_copy"}
+    ]
+    assert len(matching) == 1
+    assert matching[0].category == "changed_source_auxiliary_copy"
+    assert set(matching[0].targetPaths) == {
+        "documentPatch.parties.shipper.country",
+        "documentPatch.cargoGroups[0].origin.name",
+    }
 
 
 def test_full_audit_requires_equipment_semantics_on_owned_line() -> None:

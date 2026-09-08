@@ -32,12 +32,16 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
     HybridWorkItem,
     _context_bound_surface_lines,
     _party_block_line_numbers,
+    _party_heading_roles,
 )
 from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _PARTY_HEADING_LINE,
+    _PRESERVABLE_LEGAL_BOILERPLATE_LINE,
     AnchoredScalarReplacementRequirement,
+    AppliedDeterministicPrefill,
     ParsedMeasurementSurface,
     SurfaceRenderingRequirement,
+    _numeric_span_overlaps_date,
     _parse_measurement_surface,
     _raw_agent_blocks,
     _render_measurement_surface,
@@ -52,6 +56,13 @@ _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=Fal
 _PAGE_MARKER = re.compile(r"^--- PAGE [1-9][0-9]* ---[ \t]*$")
 _SPACE_RUN = re.compile(r"\s+")
 _NUMBER = re.compile(r"(?<![0-9.,])[-+\N{MINUS SIGN}]?[0-9]+(?:[.,][0-9]+)*(?![0-9])")
+_ATTACHED_NUMERIC_UNIT = re.compile(
+    r"^(?:KGS?|KGM|KILOGRAMS?|CBM|M3|CUM|CUFT|MT|TONS?|"
+    r"PKGS?|PACKAGES?|PLTS?|PALLETS?|CTNS?|CARTONS?|PCS?|PIECES?|"
+    r"BAGS?|BALES?|BOX(?:ES)?|CRATES?|CASES?|DRUMS?|ROLLS?|BUNDLES?|"
+    r"SETS?|LOTS?|UNITS?|SACKS?|JERRICANS?|TINS?|CANS?|BARRELS?|[CF])\b",
+    re.IGNORECASE,
+)
 _IDENTIFIER_CANONICAL = re.compile(r"[^A-Za-z0-9]+")
 
 # These are semantic field headings, not mappings from observed values.  Values remain opaque and
@@ -61,6 +72,7 @@ _IDENTIFIER_CANONICAL = re.compile(r"[^A-Za-z0-9]+")
 # authority merely because it mentions customs, invoices, taxes, or references.
 _AUXILIARY_LABEL_PATTERN = (
     r"(?:"
+    r"CONTACT\s+PERSON(?:\s+NAME)?|"
     r"ACID(?:\s*-\s*ADVANCE\s+CARGO\s+INFORMATION\s+DECLARATION)?"
     r"(?:\s+(?:NO|NUMBER|N[\N{DEGREE SIGN}\N{MASCULINE ORDINAL INDICATOR}]))?|"
     r"ACI(?:\s+(?:NO|NUMBER))?|"
@@ -70,6 +82,9 @@ _AUXILIARY_LABEL_PATTERN = (
     r"(?:\s+(?:REGISTRATION|IDENTIFICATION))?\s+(?:ID|NO|NUMBER)|"
     r"CUSTOMS(?:\s+(?:REFERENCE|REF|NO|NUMBER))?|"
     r"CERS|"
+    r"CONSOLIDATION(?:\s+(?:NO|NUMBER))?|"
+    r"CARGO\s+X\s+ID|"
+    r"EORI(?:\s+(?:NO|NUMBER))?|"
     r"(?:CARRIER\s+)?BOOKING(?:\s+(?:REFERENCE|REF|NO|NUMBER))?|"
     r"SERVICE\s+CONTRACT(?:\s+(?:NO|NUMBER))?|"
     r"(?:CSO\s*/\s*)?AGREEMENT\s+(?:NO|NUMBER)|"
@@ -84,6 +99,7 @@ _AUXILIARY_LABEL_PATTERN = (
     r"(?:AS\s+PER\s+)?ORDER(?:\s+(?:REF|REFERENCE|NO|NUMBER))?|"
     r"BATCH(?:\s+(?:NO|NUMBER))?|"
     r"LOT(?:\s+(?:REF|REFERENCE|NO|NUMBER))?|"
+    r"PRODUCT\s+(?:CODE|ID|NO|NUMBER)|"
     r"RMS(?:\s+(?:NO|NUMBER))?|"
     r"CUSTOMER\s+CODE|"
     r"F\s*\.?\s*M\s*\.?\s*C\s*\.?(?:\s+(?:NO|NUMBER))?|"
@@ -123,14 +139,41 @@ _IDENTIFIER_VALUE = re.compile(
 )
 _CONTACT_LABEL = re.compile(r"(?i)^(?:DIRECT\s+)?(?:PHONE|TELEPHONE|TEL|MOBILE|PH|FAX)")
 _EMAIL_LABEL = re.compile(r"(?i)^(?:EMAIL|E-MAIL)$")
+_CONTACT_PERSON_LABEL = re.compile(r"(?i)^CONTACT\s+PERSON(?:\s+NAME)?$")
+_PRODUCT_IDENTIFIER_LABEL = re.compile(r"(?i)^PRODUCT\s+(?:CODE|ID|NO|NUMBER)$")
 _ALPHABETIC_IDENTIFIER_LABEL = re.compile(
     r"(?i)^(?:SCAC(?:\s+CODE)?|(?:SWIFT(?:\s*/\s*BIC)?|BIC)(?:\s+CODE)?)$"
 )
 _ALPHABETIC_IDENTIFIER_VALUE = re.compile(r"(?i)(?<![A-Z0-9])[A-Z][A-Z0-9]{3,10}(?![A-Z0-9])")
+_STANDALONE_OPAQUE_IDENTIFIER = re.compile(
+    r"^[ \t*#()\[\]{}'\"]*"
+    r"(?P<value>(?=[A-Za-z0-9._/#\-]{10,64}$)"
+    r"(?=[A-Za-z0-9._/#\-]*[A-Za-z])"
+    r"(?=(?:[^0-9]*[0-9]){3})"
+    r"[A-Za-z0-9][A-Za-z0-9._/#\-]*)"
+    r"[ \t*#()\[\]{}'\"]*$"
+)
+_STANDALONE_MEASUREMENT = re.compile(
+    r"^[+\N{MINUS SIGN}-]?[0-9]+(?:[.,][0-9]+)*(?:"
+    r"KGS?|KGM|KILOGRAMS?|CBM|M3|M\N{SUPERSCRIPT THREE}|CUM|CUFT|MT|TONS?"
+    r")$",
+    re.IGNORECASE,
+)
+_STANDALONE_DATE = re.compile(
+    r"^(?:"
+    r"[0-9]{1,4}[./-][0-9]{1,2}[./-][0-9]{1,4}|"
+    r"[0-9]{1,2}[./-][A-Za-z]{3,9}[./-][0-9]{2,4}|"
+    r"[A-Za-z]{3,9}[./-][0-9]{1,2}[./-][0-9]{2,4}"
+    r")$"
+)
+_EMBEDDED_LONG_IDENTIFIER = re.compile(r"(?<![A-Z0-9])(?P<value>[0-9]{8,})(?![A-Z0-9])")
 _BARE_TAX_OR_VAT_LABEL = re.compile(
     r"(?i)^(?:EG(?:YPTIAN)?\s+)?(?:IMPORTER|CONSIGNEE|EXPORTER)?\s*(?:TAX|VAT)$"
 )
 _AMBIGUOUS_BARE_LABEL = re.compile(r"(?i)^(?:BOOKING|INVOICE|CUSTOMS|REFERENCE|REFERENCES|REF)$")
+_MULTI_VALUE_IDENTIFIER_LABEL = re.compile(
+    r"(?i)^(?:REFERENCES?|REF)[ 	]+(?:NOS?|NUMBERS?)$"
+)
 _AGENCY_RELATION = re.compile(
     r"\b(?:AS\s+AGENT\s+FOR|ON\s+BEHALF\s+OF|TRADING\s+AS|T/?A)\b",
     re.IGNORECASE,
@@ -149,9 +192,36 @@ _SHIPMENT_AGGREGATE_FIELD = re.compile(
     r"[0-9]+\s+CONTAINERS?\s+SAID\s+TO\s+CONTAIN"
     r")(?=\s|:|$)"
 )
+_ATTACHED_PAGE_COUNT = re.compile(
+    r"(?ix)^\s*TOTAL\s+(?:NUMBER|NO\.?)\s+OF\s+ATTACHED\s+"
+    r"(?:[0-9][0-9,]*\s+PAGES?|PAGES?\s*:?\s*[0-9][0-9,]*)\s*$"
+)
 _POPULATED_CARRIER_RECEIPT_CONTAINER_COUNT = re.compile(
     r"(?ix)\bCARRIER['\N{RIGHT SINGLE QUOTATION MARK}]?S\s+RECEIPT\b"
     r"[^\r\n]{0,96}?\b(?P<count>[0-9][0-9,]*)\s+CONTAINER\(S\)(?=\s|$)"
+)
+_ACKNOWLEDGED_CARRIER_RECEIPT_CONTAINER_COUNT = re.compile(
+    r"(?ix)^\s*TOTAL\s+(?:NUMBER|NO\.)\s+OF\s+CONTAINERS?/PACKAGES?\s+"
+    r"RECEIVED\s*&\s*ACKNOWLEDGED\s+BY\s+(?:THE\s+)?CARRIER\s*"
+    r"(?:FOR\s+THE\s+PURPOSE\s+OF\s+CALCULATION\s+OF\s+PACKAGE\s+LIMITATION\s*"
+    r"\(\s*IF\s+APPLICABLE\s*\)\s*)?"
+    r"(?:\(\s*SEE\s+CLAUSE\s+[0-9]+(?:\.[0-9]+)*\s*\))?\s*:\s*"
+    r"(?P<count>[0-9][0-9,]*)\s+CONTAINER\(S\)/PACKAGE\(S\)\s*$"
+)
+_TRAILING_CARRIER_RECEIPT_CONTAINER_COUNT = re.compile(
+    r"(?ix)^\s*TOTAL\s+(?:NUMBER|NO\.)\s+OF\s+CONTAINERS?\s+RECEIVED\s+BY\s+"
+    r"(?:THE\s+)?CARRIER\s*:?\s*(?P<count>[0-9][0-9,]*)\s*$"
+)
+_TOTAL_CONTAINER_COUNT = re.compile(
+    r"(?ix)^\s*(?:WEIGHT\s+IN\s+KGS\s+)?TOTAL\s*:?[ \t]*"
+    r"(?P<count>[0-9][0-9,]*)[ \t]+CONTAINER\(S\)\s*$"
+)
+_SPLIT_CARRIER_RECEIPT_COUNT = re.compile(
+    r"(?ix)^\s*TOTAL\s+(?:NUMBER|NO\.)\s+OF\s+CONTAINERS?\s+OR\s+PACKAGES?\s+"
+    r"(?P<count>[0-9][0-9,]*)\s*$"
+)
+_CARRIER_RECEIPT_CONTINUATION = re.compile(
+    r"(?ix)^\s*RECEIVED\s+BY\s+(?:THE\s+)?CARRIER\s*:?\s*$"
 )
 _LEADING_FIELD_ORDINAL = re.compile(r"^\s*(?:\([0-9]+\)|[0-9]+\.)\s*")
 _CLAUSE_REFERENCE = re.compile(
@@ -169,7 +239,8 @@ _CARRIER_ALIAS = re.compile(
     r"(?i)(?P<alias>\([A-Z0-9][A-Z0-9 .&/-]{0,14}\))(?=\s*,?\s*AS\s+CARRIER\b)"
 )
 _SIGNED_CARRIER_IDENTITY = re.compile(
-    r"(?i)^\s*SIGNED\s+(?P<identity>[A-Z0-9][A-Z0-9 .,&'()/+-]{3,180})\s*$"
+    r"(?i)^\s*SIGNED\s+(?!BY\b|FOR\b|ON\s+BEHALF\b)"
+    r"(?P<identity>[A-Z0-9][A-Z0-9 .,&'()/+-]{3,180})\s*$"
 )
 _SIGNED_BY_HEADING = re.compile(r"(?i)^\s*SIGNED\s+BY\s*:?\s*$")
 _SIGNING_RELATION_LINE = re.compile(r"(?i)^\s*(?:AS\s+AGENTS?\b|ON\s+BEHALF\b|BY\s*:?)")
@@ -178,9 +249,15 @@ _SOURCE_ONLY_FREE_TIME = re.compile(
     r"(?:FREE\s*TIME|FREETIME)\b[^\r\n]{0,100}$"
 )
 _ANONYMOUS_EQUIPMENT_ASSERTION = re.compile(
+    r"(?:"
     r"(?:/|X\s+)?(?:20|40|45)[\u2019'\"]?(?:\s*FT)?\s*"
     r"(?:HC|HQ|HIGH\s+CUBE|DRY|GP|DC|REEFER|RF)?"
-    r"\s*CONTAINERS?\s+SAID\s+TO\s+CONTAIN",
+    r"\s*CONTAINERS?\s+SAID\s+TO\s+CONTAIN"
+    r"|"
+    r"(?:TOTAL\s*:\s*)?[0-9]+\s*X\s*(?:20|40|45)[\u2019'\"]?\s*"
+    r"(?:HC|HQ|HIGH\s+CUBE|DRY|GP|DC|REEFER|RF)?\s*"
+    r"(?:LCL\s+)?(?:CNTR\(S\)|CONTAINERS?)"
+    r")",
     re.IGNORECASE,
 )
 _WEIGHT_AGGREGATE_VALUE = re.compile(
@@ -222,11 +299,13 @@ class InventoryCandidate(BaseModel):
         "changed_source_occurrence",
         "changed_source_auxiliary_copy",
         "source_only_auxiliary",
+        "source_only_contact_identity",
         "shipment_dependent_reefer",
         "shipment_dependent_aggregate",
         "carrier_dependent_branding",
         "source_only_signing_identity",
         "source_only_operational_scalar",
+        "template_profile_residual",
         "regression_oracle_gap",
     ]
     sourceSurface: NonEmptyText
@@ -276,6 +355,50 @@ class RegressionOracle(BaseModel):
     schemaVersion: Literal[1]
     name: NonEmptyText
     cases: Annotated[tuple[RegressionCase, ...], Field(min_length=1)]
+
+
+class TemplateMutationLine(BaseModel):
+    """One independently audited mutable line in a reusable source-template profile."""
+
+    model_config = _STRICT
+
+    lineId: LineId
+    sourceLineSha256: Sha256
+    findingKinds: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+
+
+class TemplateMutationCase(BaseModel):
+    """Mutation evidence tied to the exact bytes and topology of one source template."""
+
+    model_config = _STRICT
+
+    documentId: Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")]
+    sourceTextSha256: Sha256
+    lines: Annotated[tuple[TemplateMutationLine, ...], Field(min_length=1)]
+
+
+class TemplateMutationProfileSource(BaseModel):
+    """Pinned local evidence used to build a mutation profile."""
+
+    model_config = _STRICT
+
+    path: NonEmptyText
+    sha256: Sha256
+    kind: Literal[
+        "certification_commit",
+        "manual_audit",
+    ]
+
+
+class TemplateMutationProfile(BaseModel):
+    """Reviewed source-template line ownership reusable across synthetic descendants."""
+
+    model_config = _STRICT
+
+    schemaVersion: Literal[1]
+    name: NonEmptyText
+    sources: Annotated[tuple[TemplateMutationProfileSource, ...], Field(min_length=1)]
+    cases: Annotated[tuple[TemplateMutationCase, ...], Field(min_length=1)]
 
 
 class FullDocumentFinding(BaseModel):
@@ -335,6 +458,27 @@ def _semantic_surface(value: str) -> str:
     return " ".join(value.casefold().split())
 
 
+def _source_value_group_key(value: str | int | float) -> tuple[str, str]:
+    """Group only case/whitespace-equivalent source values into one semantic decision.
+
+    Reviewed labels can preserve the casing printed by different occurrences of the same fact
+    (for example ``TAIWAN`` as a party country and ``Taiwan`` as cargo origin). Treating those as
+    independent source surfaces can assign two incompatible targets to the same physical line.
+    Numbers remain separate from text so a string identifier such as ``"20"`` is never merged
+    with a measured numeric value merely because their display happens to match.
+    """
+
+    if isinstance(value, str):
+        return "text", _semantic_surface(value)
+    return "number", str(value)
+
+
+def _party_surface_key(value: str) -> str:
+    """Normalize only punctuation and spacing for complete party-scalar ownership checks."""
+
+    return " ".join(_IDENTIFIER_CANONICAL.sub(" ", value).casefold().split())
+
+
 def _contains_surface(text: str, surface: str) -> bool:
     pieces = [piece for piece in _SPACE_RUN.split(surface.strip()) if piece]
     if not pieces:
@@ -366,6 +510,22 @@ def _contains_rendered_surface(text: str, surface: str) -> bool:
         and re.search(r"\s+".join(re.escape(piece) for piece in pieces), text, re.IGNORECASE)
         is not None
     )
+
+
+def _contains_ordered_party_address(text: str, address: str) -> bool:
+    """Accept a wrapped address whose own party city/country is interleaved by the template.
+
+    Flattened OCR often places the city between two address fragments.  Exact role-block
+    ownership is established separately; here we require every alphanumeric address atom, in
+    order, so an interleaved same-party locality is allowed without weakening completeness.
+    """
+
+    target_atoms = re.findall(r"[^\W_]+", address.casefold(), re.UNICODE)
+    observed_atoms = re.findall(r"[^\W_]+", text.casefold(), re.UNICODE)
+    if not target_atoms:
+        return False
+    cursor = iter(observed_atoms)
+    return all(any(observed == target for observed in cursor) for target in target_atoms)
 
 
 def _is_freight_option_header(raw_line: str) -> bool:
@@ -438,8 +598,7 @@ def _party_surface_lines(text: str, surface: str) -> set[int]:
     email domain or URL as another legal identity.
     """
 
-    normalized_surface = _IDENTIFIER_CANONICAL.sub(" ", surface).casefold()
-    normalized_surface = " ".join(normalized_surface.split())
+    normalized_surface = _party_surface_key(surface)
     if len(normalized_surface) < 4:
         return set()
     pattern = re.compile(
@@ -449,8 +608,7 @@ def _party_surface_lines(text: str, surface: str) -> set[int]:
     output: set[int] = set()
     for number, raw_line in enumerate(text.splitlines(), start=1):
         scrubbed = _ELECTRONIC_TOKEN.sub(" ", raw_line)
-        normalized_line = _IDENTIFIER_CANONICAL.sub(" ", scrubbed).casefold()
-        normalized_line = " ".join(normalized_line.split())
+        normalized_line = _party_surface_key(scrubbed)
         if pattern.search(normalized_line) is not None:
             output.add(number)
     return output
@@ -482,12 +640,25 @@ def _numeric_values(surface: str) -> frozenset[Decimal]:
 
 def _numeric_lines(text: str, value: int | float) -> set[int]:
     expected = Decimal(str(value))
-    return {
-        number
-        for number, line in enumerate(text.splitlines(), start=1)
-        if _PAGE_MARKER.fullmatch(line) is None
-        and any(expected in _numeric_values(token) for token in _NUMBER.findall(line))
-    }
+    output: set[int] = set()
+    for number, line in enumerate(text.splitlines(), start=1):
+        if _PAGE_MARKER.fullmatch(line) is not None:
+            continue
+        for match in _NUMBER.finditer(line):
+            if _numeric_span_overlaps_date(line, match.start(), match.end()):
+                continue
+            if match.start() > 0 and line[match.start() - 1].isalnum():
+                continue
+            if (
+                match.end() < len(line)
+                and line[match.end()].isalpha()
+                and _ATTACHED_NUMERIC_UNIT.match(line[match.end() :]) is None
+            ):
+                continue
+            if expected in _numeric_values(match.group(0)):
+                output.add(number)
+                break
+    return output
 
 
 def _is_shipment_aggregate_value_line(raw_line: str) -> bool:
@@ -500,6 +671,8 @@ def _is_shipment_aggregate_value_line(raw_line: str) -> bool:
     explicitly not values.
     """
 
+    if _ATTACHED_PAGE_COUNT.fullmatch(raw_line) is not None:
+        return False
     if _SHIPMENT_AGGREGATE_FIELD.search(raw_line) is None:
         return False
     value_region = _LEADING_FIELD_ORDINAL.sub("", raw_line, count=1)
@@ -510,7 +683,10 @@ def _is_shipment_aggregate_value_line(raw_line: str) -> bool:
 
 
 def _carrier_receipt_count_matches_target(
-    raw_line: str, target_label: Mapping[str, Any]
+    raw_line: str,
+    target_label: Mapping[str, Any],
+    *,
+    following_line: str | None = None,
 ) -> bool:
     """Prove that a populated carrier-receipt count already matches target equipment.
 
@@ -520,6 +696,20 @@ def _carrier_receipt_count_matches_target(
     """
 
     match = _POPULATED_CARRIER_RECEIPT_CONTAINER_COUNT.search(raw_line)
+    if match is None:
+        match = _ACKNOWLEDGED_CARRIER_RECEIPT_CONTAINER_COUNT.fullmatch(raw_line)
+    if match is None:
+        match = _TRAILING_CARRIER_RECEIPT_CONTAINER_COUNT.fullmatch(raw_line)
+    if match is None:
+        match = _TOTAL_CONTAINER_COUNT.fullmatch(raw_line)
+    if match is None:
+        split = _SPLIT_CARRIER_RECEIPT_COUNT.fullmatch(raw_line)
+        if (
+            split is not None
+            and following_line is not None
+            and _CARRIER_RECEIPT_CONTINUATION.fullmatch(following_line) is not None
+        ):
+            match = split
     if match is None:
         return False
     patch = target_label.get("documentPatch")
@@ -736,14 +926,38 @@ def locate_auxiliary_values(text: str) -> tuple[LocatedAuxiliaryValue, ...]:
             return tuple(match.group(0) for match in _EMAIL_VALUE.finditer(value))
         if _CONTACT_LABEL.match(label.strip()) is not None:
             return tuple(match.group(0).strip() for match in _PHONE_VALUE.finditer(value))
+        if _CONTACT_PERSON_LABEL.fullmatch(label.strip()) is not None:
+            letters = tuple(character for character in value if character.isalpha())
+            if (
+                bool(separator.strip())
+                and len(value) <= 160
+                and len(letters) >= 3
+                and not any(character.isdigit() for character in value)
+                and "@" not in value
+            ):
+                return (value,)
+            return ()
         if _ALPHABETIC_IDENTIFIER_LABEL.fullmatch(label.strip()) is not None:
             return tuple(match.group(0) for match in _ALPHABETIC_IDENTIFIER_VALUE.finditer(value))
         candidates = tuple(match.group(0).strip() for match in _IDENTIFIER_VALUE.finditer(value))
-        return tuple(
+        filtered = tuple(
             candidate
             for candidate in candidates
             if any(character.isdigit() or character == "@" for character in candidate)
         )
+        # A singular identifier heading owns one following value. OCR frequently keeps unrelated
+        # cargo columns on that same physical line (for example ``PO-123 96 CARTONS /40HQ/``).
+        # Treating every later identifier-shaped token as part of the purchase order corrupted
+        # package and equipment surfaces. Explicit plural reference headings are the one syntax
+        # in this grammar that deliberately licenses multiple values.
+        if _MULTI_VALUE_IDENTIFIER_LABEL.fullmatch(label.strip()) is not None:
+            return filtered
+        if _PRODUCT_IDENTIFIER_LABEL.fullmatch(label.strip()) is not None:
+            # A product-code row can include an intervening presentation such as
+            # ``100G*100BAGS/CARTON``. The printed identifier is the final identifier-shaped
+            # token in that field, not a package token inside the formulation.
+            return filtered[-1:]
+        return filtered[:1]
 
     lines = text.splitlines()
     located: dict[tuple[str, str], set[int]] = defaultdict(set)
@@ -814,6 +1028,79 @@ def locate_auxiliary_values(text: str) -> tuple[LocatedAuxiliaryValue, ...]:
     )
 
 
+def locate_standalone_opaque_identifiers(text: str) -> tuple[LocatedAuxiliaryValue, ...]:
+    """Locate uncaptioned identifier rows without interpreting their value vocabulary.
+
+    Some B/L templates print a company-registration number, cargo tracking value, or the
+    continuation of a split identifier on a line of its own.  The structural contract is narrow:
+    the complete non-whitespace row must be one 10--64-character mixed alphanumeric token with at
+    least three digits.  Numeric measurements and date-shaped values are explicitly excluded.
+    Whether a located value is source-only is decided later against the target label; this helper
+    only reports the observed surface and line.
+    """
+
+    located: dict[str, set[int]] = defaultdict(set)
+    for line_number_value, raw_line in enumerate(text.splitlines(), start=1):
+        match = _STANDALONE_OPAQUE_IDENTIFIER.fullmatch(raw_line)
+        if match is None:
+            continue
+        value = match.group("value")
+        if (
+            _STANDALONE_MEASUREMENT.fullmatch(value) is not None
+            or _STANDALONE_DATE.fullmatch(value) is not None
+            or _EMAIL_VALUE.fullmatch(value) is not None
+        ):
+            continue
+        located[value].add(line_number_value)
+    return tuple(
+        LocatedAuxiliaryValue(
+            category="unlabelled opaque identifier",
+            value=value,
+            line_numbers=tuple(sorted(line_numbers)),
+        )
+        for value, line_numbers in sorted(located.items())
+    )
+
+
+def auxiliary_label_surfaces(line: str) -> tuple[str, ...]:
+    """Return exact semantic field-label surfaces that a line editor must preserve."""
+
+    return tuple(dict.fromkeys(match.group(0) for match in _AUXILIARY_LABEL.finditer(line)))
+
+
+def locate_embedded_long_identifiers(text: str) -> tuple[LocatedAuxiliaryValue, ...]:
+    """Locate unlabeled long numeric identifiers while excluding dates, phones, and measures."""
+
+    located: dict[str, set[int]] = defaultdict(set)
+    for line_number_value, raw_line in enumerate(text.splitlines(), start=1):
+        phone_spans = tuple(
+            phone.span()
+            for marker in _AUXILIARY_LABEL.finditer(raw_line)
+            if _CONTACT_LABEL.match(marker.group("label")) is not None
+            for phone in _PHONE_VALUE.finditer(raw_line, marker.end())
+        )
+        excluded_spans = (
+            *phone_spans,
+            *(match.span() for match in _STANDALONE_DATE.finditer(raw_line)),
+            *(match.span() for match in _EMAIL_VALUE.finditer(raw_line)),
+        )
+        for match in _EMBEDDED_LONG_IDENTIFIER.finditer(raw_line):
+            if any(start < match.end() and match.start() < end for start, end in excluded_spans):
+                continue
+            trailing = raw_line[match.end() :].lstrip()
+            if _ATTACHED_NUMERIC_UNIT.match(trailing) is not None:
+                continue
+            located[match.group("value")].add(line_number_value)
+    return tuple(
+        LocatedAuxiliaryValue(
+            category="unlabelled embedded numeric identifier",
+            value=value,
+            line_numbers=tuple(sorted(line_numbers)),
+        )
+        for value, line_numbers in sorted(located.items())
+    )
+
+
 def _label_has_temperature(label: Mapping[str, Any]) -> bool:
     patch = label.get("documentPatch")
     containers = patch.get("containers") if isinstance(patch, Mapping) else None
@@ -868,6 +1155,73 @@ def _surface_required_by_target(surface: str, target_surfaces: Sequence[str]) ->
     """
 
     return any(_contains_surface(target_surface, surface) for target_surface in target_surfaces)
+
+
+_REFERENCE_CONTEXT = re.compile(
+    r"\b(?:EXPORT(?:[ \t]+REFERENCES?)?|INVOICE|SHIPPING[ \t]+BILL|"
+    r"SB[ \t]*(?:NO\.?|NUMBER)|CUSTOMS|REFERENCE|REF(?:ERENCE)?[ \t]*NO|"
+    r"F/?AGENT[^\r\n]{0,30}\bREF|SHIPPER'?S[ \t]+REF)\b",
+    re.IGNORECASE,
+)
+
+
+def _target_licensed_occurrence_lines(
+    text: str,
+    source_surface: str,
+    target_surfaces: Sequence[str],
+) -> set[int]:
+    """Return source occurrences that are proven constituents of a rendered target value.
+
+    A changed cargo token can legitimately survive inside an unrelated target field, such as a
+    crop year also appearing inside a new forwarding-reference date.  Licensing is occurrence
+    based: the complete target must be rendered on that line (or in the explicit two-line
+    forwarding-reference grammar).  Other copies remain mutable and cannot hide behind a global
+    substring coincidence.
+    """
+
+    bodies = text.splitlines()
+    occurrence_lines = _surface_lines(text, source_surface)
+    licensed: set[int] = set()
+    containing_targets = tuple(
+        target for target in target_surfaces if _contains_surface(target, source_surface)
+    )
+    for number in occurrence_lines:
+        for target in containing_targets:
+            if _contains_surface(bodies[number - 1], target):
+                licensed.add(number)
+                break
+            atoms = re.findall(r"[A-Z0-9]+", target.upper())
+            if len(atoms) < 2:
+                continue
+            source_line = bodies[number - 1]
+            continuation = re.match(
+                r"^[ \t]*(?:DATED?|DT)\b",
+                source_line,
+                re.IGNORECASE,
+            ) is not None
+            starts = (
+                (max(1, number - 1), number)
+                if _REFERENCE_CONTEXT.search(source_line) is not None or continuation
+                else (number,)
+            )
+            for start in starts:
+                end = min(
+                    len(bodies),
+                    start + 1
+                    if _REFERENCE_CONTEXT.search(source_line) is not None or continuation
+                    else start,
+                )
+                window = "\n".join(bodies[start - 1 : end])
+                observed = re.findall(r"[A-Z0-9]+", window.upper())
+                cursor = iter(observed)
+                if _REFERENCE_CONTEXT.search(window) is not None and all(
+                    any(value == atom for value in cursor) for atom in atoms
+                ):
+                    licensed.add(number)
+                    break
+            if number in licensed:
+                break
+    return licensed
 
 
 def _oracle_surface_applies(surface: str, *, target_label: Mapping[str, Any]) -> bool:
@@ -950,13 +1304,48 @@ def _is_projected_legacy_equipment_leaf(
     )
 
 
-def _raw_agent_identity_line_numbers(text: str) -> set[int]:
+def _raw_agent_identity_surfaces_by_line(
+    text: str,
+    *,
+    source_carrier: str | None,
+    target_carrier: str | None,
+) -> dict[int, tuple[str, ...]]:
+    """Return source-only agent identities by occupied line, excluding carrier principals."""
+
+    output: dict[int, list[str]] = defaultdict(list)
+    accepted_principals = tuple(
+        normalized
+        for value in (source_carrier, target_carrier)
+        if value is not None and (normalized := _semantic_surface(value))
+    )
+    for number, identity, _gap, principal, _evidence in _raw_agent_blocks(text):
+        normalized_principal = _semantic_surface(principal)
+        generic_principal = normalized_principal in {"carrier", "the carrier"}
+        if accepted_principals and not generic_principal and not any(
+            expected in normalized_principal or normalized_principal in expected
+            for expected in accepted_principals
+        ):
+            continue
+        for offset, _fragment in enumerate(identity.splitlines()):
+            output[number + offset].append(identity)
+    return {line: tuple(identities) for line, identities in output.items()}
+
+
+def _raw_agent_identity_line_numbers(
+    text: str,
+    *,
+    source_carrier: str | None,
+    target_carrier: str | None,
+) -> set[int]:
     """Return lines occupied by a source-only agent identity, excluding its carrier principal."""
 
-    output: set[int] = set()
-    for number, identity, _gap, _principal, _evidence in _raw_agent_blocks(text):
-        output.update(range(number, number + len(identity.splitlines())))
-    return output
+    return set(
+        _raw_agent_identity_surfaces_by_line(
+            text,
+            source_carrier=source_carrier,
+            target_carrier=target_carrier,
+        )
+    )
 
 
 def build_mutable_inventory(
@@ -967,6 +1356,7 @@ def build_mutable_inventory(
     target_label: Mapping[str, Any],
     work_items: Sequence[HybridWorkItem],
     oracle_case: RegressionCase | None,
+    template_profile_case: TemplateMutationCase | None = None,
     surface_requirements: Sequence[SurfaceRenderingRequirement] = (),
     anchored_replacements: Sequence[AnchoredScalarReplacementRequirement] = (),
 ) -> tuple[InventoryCandidate, ...]:
@@ -977,7 +1367,13 @@ def build_mutable_inventory(
         for value in _flatten_scalars(target_label)
         if isinstance(value, (str, int, float)) and not isinstance(value, bool)
     }
+    source_scalars = {
+        _semantic_surface(str(value))
+        for value in _flatten_scalars(source_label)
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool)
+    }
     target_string_surfaces = _target_string_surfaces(target_label)
+    current_text_lines = current_text.splitlines()
     raw_candidates: dict[tuple[str, str, tuple[int, ...], tuple[str, ...]], dict[str, Any]] = {}
 
     def add(
@@ -1005,8 +1401,17 @@ def build_mutable_inventory(
 
     leaves = changed_leaves(source_label, target_label)
     work_item_lines = _work_item_lines_by_path(work_items)
-    raw_agent_lines = _raw_agent_identity_line_numbers(current_text)
-    leaves_by_surface: dict[str, list[ChangedLeaf]] = defaultdict(list)
+    work_items_by_line: dict[int, list[HybridWorkItem]] = defaultdict(list)
+    for item in work_items:
+        for evidence_line_id in item.evidenceLineIds:
+            work_items_by_line[line_number(evidence_line_id)].append(item)
+    raw_agent_identities_by_line = _raw_agent_identity_surfaces_by_line(
+        current_text,
+        source_carrier=_party_name(source_label, "carrier"),
+        target_carrier=_party_name(target_label, "carrier"),
+    )
+    raw_agent_lines = set(raw_agent_identities_by_line)
+    leaves_by_surface: dict[tuple[str, str], list[ChangedLeaf]] = defaultdict(list)
     for leaf in leaves:
         if not leaf.requiresTextEdit or leaf.sourceValue == leaf.targetValue:
             continue
@@ -1019,8 +1424,42 @@ def build_mutable_inventory(
         source_surface = str(leaf.sourceValue)
         if len(source_surface.strip()) < 2:
             continue
-        leaves_by_surface[source_surface].append(leaf)
-    for source_surface, related in sorted(leaves_by_surface.items()):
+        leaves_by_surface[_source_value_group_key(leaf.sourceValue)].append(leaf)
+
+    # A raw-only entity can contain several strings that also occur in labeled fields.  If one
+    # constituent has multiple path-specific targets and this physical line belongs to none of
+    # those paths, the line is proven to be auxiliary context.  Do not then bind a second,
+    # single-target constituent on that same line to an arbitrary labeled role.  For example,
+    # ``Collection Business Unit Maersk Taiwan Ltd - Taipei`` is neither the notify party nor a
+    # route location merely because ``TAIPEI`` has one task target elsewhere in the document.
+    # This is derived entirely from changed-label ambiguity and compiler-owned lines; it does not
+    # introduce organization or locality aliases.
+    conflicted_unowned_lines: set[int] = set()
+    for related in leaves_by_surface.values():
+        if not related or not all(isinstance(row.sourceValue, str) for row in related):
+            continue
+        unique_targets = {canonical_json_bytes(row.targetValue) for row in related}
+        if len(unique_targets) <= 1:
+            continue
+        source_surface = min(
+            (cast(str, row.sourceValue) for row in related),
+            key=lambda value: (len(value), value.casefold(), value),
+        )
+        path_owned_lines = {
+            number for row in related for number in work_item_lines.get(row.path, ())
+        }
+        conflicted_unowned_lines.update(
+            _surface_lines(current_text, source_surface) - path_owned_lines
+        )
+
+    for _surface_key, related in sorted(leaves_by_surface.items()):
+        # Every string in a group differs only by casing/whitespace. ``_surface_lines`` is
+        # case-insensitive and whitespace-flexible, so one stable representative locates every
+        # occurrence while the complete set of path targets remains available below.
+        source_surface = min(
+            (str(row.sourceValue) for row in related),
+            key=lambda value: (len(value), value.casefold(), value),
+        )
         if all(isinstance(row.sourceValue, (int, float)) for row in related):
             path_owned_lines = {
                 line_number(line)
@@ -1037,6 +1476,15 @@ def build_mutable_inventory(
                 _numeric_lines(current_text, cast(int | float, related[0].sourceValue))
                 & path_owned_lines
             )
+        elif all(".contactDetails." in row.path for row in related):
+            # Punctuation is part of a contact value's identity and role evidence. Falling back
+            # to punctuation-stripped matching would bind ``+202-...`` from a changed consignee
+            # field to the distinct source-only emergency number ``202-...``.
+            lines = {
+                number
+                for number, line in enumerate(current_text.splitlines(), start=1)
+                if _contains_surface(line, source_surface)
+            }
         else:
             lines = _surface_lines(current_text, source_surface)
         party_name_or_address = all(
@@ -1051,6 +1499,97 @@ def build_mutable_inventory(
                 number
                 for number in tuple(lines)
                 if _PARTY_HEADING_LINE.fullmatch(current_text_lines[number - 1]) is not None
+                or _PRESERVABLE_LEGAL_BOILERPLATE_LINE.fullmatch(
+                    current_text_lines[number - 1]
+                )
+                is not None
+            )
+            # A party name can be a constituent of another changed scalar, most notably a
+            # ``C/O <company>`` phrase inside a different party's address. The larger scalar's
+            # path-owned work item already owns and validates that line; treating the embedded
+            # name as another occurrence of its own party creates a false cardinality obligation.
+            lines.difference_update(
+                number
+                for number in tuple(lines)
+                if any(
+                    isinstance(item.sourceValue, str)
+                    and _semantic_surface(item.sourceValue)
+                    != _semantic_surface(source_surface)
+                    and _contains_surface(item.sourceValue, source_surface)
+                    for item in work_items_by_line.get(number, ())
+                )
+            )
+            party_paths = {row.path for row in related}
+            source_key = _party_surface_key(source_surface)
+            # A party name may also be printed as the exact value of a different labeled field.
+            # For example, marks and numbers can be an exporter name that differs from the
+            # shipper only by punctuation.  Party matching is intentionally punctuation-tolerant,
+            # but an exact foreign scalar is stronger evidence than that tolerant match.  Give
+            # the exact scalar its own path and do not create an impossible dual-target line.
+            foreign_exact_lines = {
+                number
+                for number in tuple(lines)
+                if not re.search(
+                    re.escape(source_surface),
+                    current_text_lines[number - 1],
+                    flags=re.IGNORECASE,
+                )
+                and any(
+                    row.path not in party_paths
+                    and isinstance(row.sourceValue, str)
+                    and row.sourceValue != source_surface
+                    and _party_surface_key(row.sourceValue) == source_key
+                    and re.search(
+                        re.escape(row.sourceValue),
+                        current_text_lines[number - 1],
+                        flags=re.IGNORECASE,
+                    )
+                    is not None
+                    for row in leaves
+                )
+            }
+            lines.difference_update(foreign_exact_lines)
+            # A shorter party scalar can be embedded in a different complete labeled identity.
+            # ``TRANSGLORY`` inside forwarding agent ``TRANSGLORY, S.A.`` remains owned by the
+            # forwarding-agent path even when OCR punctuation differs from the reviewed label.
+            # Complete tolerant party-scalar matching proves the foreign owner; a loose token or
+            # organization-name dictionary would not.
+            embedded_foreign_owner_lines: set[int] = set()
+            for row in leaves:
+                if (
+                    row.path in party_paths
+                    or not isinstance(row.sourceValue, str)
+                    or row.sourceValue == source_surface
+                ):
+                    continue
+                foreign_key = _party_surface_key(row.sourceValue)
+                if (
+                    foreign_key != source_key
+                    and re.search(
+                        rf"(?<![a-z0-9]){re.escape(source_key)}(?![a-z0-9])",
+                        foreign_key,
+                    )
+                    is not None
+                ):
+                    embedded_foreign_owner_lines.update(
+                        _party_surface_lines(current_text, row.sourceValue)
+                    )
+            lines.difference_update(embedded_foreign_owner_lines)
+            # A punctuation-equivalent party scalar can intentionally be printed as a different
+            # task field (most commonly marks and numbers).  That path-owned occurrence must
+            # render its own target; assigning the same physical line to the party as well creates
+            # an impossible dual-target contract.  Only an explicit work item with the same
+            # normalized source surface may claim precedence, so unrelated values sharing a line
+            # do not hide genuine repeated party identities.
+            lines.difference_update(
+                number
+                for number in tuple(lines)
+                if any(
+                    not party_paths.intersection(item.targetPaths)
+                    and isinstance(item.sourceValue, str)
+                    and _party_surface_key(item.sourceValue) == source_key
+                    for item in work_items_by_line.get(number, ())
+                )
             )
         if all(row.path == "documentPatch.freight.paymentArrangement" for row in related):
             # The same words occur in static option captions, payer-amendment boilerplate, and
@@ -1062,14 +1601,49 @@ def build_mutable_inventory(
                 if "documentPatch.freight.paymentArrangement" in item.targetPaths
                 for line in item.evidenceLineIds
             )
-        # A source token sequence that remains inside any target scalar is semantically shared.
-        # The normal compiler owns the changed path.  A global residual rewrite would corrupt a
-        # legitimate target occurrence, so do not grant model authority here; the line-aware
-        # postcondition below still rejects any separate stale occurrence after rendering.
-        if _semantic_surface(source_surface) in target_scalars or _surface_required_by_target(
-            source_surface, target_string_surfaces
-        ):
+        # A locality, carrier token, or other label scalar can also occur *inside* a distinct
+        # raw-only signing-agent identity. That substring belongs to the identity anonymization
+        # contract, not to the coincidentally equal freight, route, or party field. Exclude only
+        # the lines whose parsed identity contains the scalar; other content on the same physical
+        # line (for example a vessel before the agent name) remains owned by its normal work item.
+        lines.difference_update(
+            number
+            for number in tuple(lines)
+            if any(
+                _contains_surface(identity, source_surface)
+                for identity in raw_agent_identities_by_line.get(number, ())
+            )
+        )
+        # A larger changed scalar with a different schema path owns its complete printed line.
+        # This commonly occurs when an origin country is embedded in a marks string (``Made in
+        # Taiwan``) or a party locality is embedded in a complete source-only identity.  Giving
+        # the embedded scalar a second independent target creates contradictory instructions.
+        # The larger exact source value and compiler-owned line provide the ownership proof.
+        related_paths = {row.path for row in related}
+        lines.difference_update(
+            number
+            for number in tuple(lines)
+            if any(
+                isinstance(item.sourceValue, str)
+                and _semantic_surface(item.sourceValue) != _semantic_surface(source_surface)
+                and related_paths.isdisjoint(item.targetPaths)
+                and _contains_surface(item.sourceValue, source_surface)
+                for item in work_items_by_line.get(number, ())
+            )
+        )
+        # An exact shared scalar is handled by path-owned work items and role validation.  When
+        # the source is only a constituent of a larger target, license only the occurrences that
+        # actually render that complete target; separate stale copies remain mutable.
+        if _semantic_surface(source_surface) in target_scalars:
             continue
+        if _surface_required_by_target(source_surface, target_string_surfaces):
+            lines.difference_update(
+                _target_licensed_occurrence_lines(
+                    current_text,
+                    source_surface,
+                    target_string_surfaces,
+                )
+            )
         if not lines:
             continue
         related_by_path = {row.path: row for row in related}
@@ -1134,10 +1708,74 @@ def build_mutable_inventory(
             if not owned_lines:
                 continue
 
+            # An explicitly captioned foreign party role is source-only flavor, not another copy
+            # of the labeled source party. For example, a notify-party name repeated as
+            # ``EXPORTER: ...`` must become a distinct fictional exporter rather than forcing an
+            # extra notify-party target occurrence. Role captions are structural grammar; no
+            # company-name alias or observed-value mapping is involved.
+            source_roles = {
+                "notify"
+                if ".notifyParties[" in path
+                else path.split("documentPatch.parties.", 1)[1].split(".", 1)[0]
+                for path in party_paths
+            }
+            explicit_foreign_role_lines = (
+                {
+                    number
+                    for number in owned_lines
+                    if (roles := _party_heading_roles(current_text_lines[number - 1]))
+                    and roles.isdisjoint(source_roles)
+                }
+                if party_paths
+                else set()
+            )
+            if explicit_foreign_role_lines:
+                add(
+                    category="changed_source_auxiliary_copy",
+                    source_surface=source_surface,
+                    lines=explicit_foreign_role_lines,
+                    paths=tuple(sorted(related_by_path)),
+                    target={
+                        "policy": "synthesize_distinct_context_compatible_auxiliary_value",
+                        "mustDifferFromSource": True,
+                        "mustNotDuplicateAnyLabeledTarget": True,
+                    },
+                    disposition="model_residual",
+                    rationale=(
+                        "The source scalar is printed under an explicit different party-role "
+                        "caption and must be fictionalized as that auxiliary role."
+                    ),
+                )
+                owned_lines = owned_lines - explicit_foreign_role_lines
+            if not owned_lines:
+                continue
+
             unique_targets = {
                 canonical_json_bytes(row.targetValue) for row in related_by_path.values()
             }
-            if not party_paths and len(unique_targets) == 1:
+            if len(unique_targets) == 1:
+                auxiliary_lines = owned_lines & conflicted_unowned_lines
+                if auxiliary_lines:
+                    add(
+                        category="changed_source_auxiliary_copy",
+                        source_surface=source_surface,
+                        lines=auxiliary_lines,
+                        paths=tuple(sorted(related_by_path)),
+                        target={
+                            "policy": "synthesize_distinct_context_compatible_auxiliary_value",
+                            "mustDifferFromSource": True,
+                            "mustNotDuplicateAnyLabeledTarget": True,
+                        },
+                        disposition="model_residual",
+                        rationale=(
+                            "This unowned scalar shares a physical line with a changed source "
+                            "value that has multiple path-specific targets. The line is therefore "
+                            "source-only auxiliary context, not another labeled-role occurrence."
+                        ),
+                    )
+                    owned_lines = owned_lines - auxiliary_lines
+                if not owned_lines:
+                    continue
                 target_map = [
                     {
                         "path": sorted(related_by_path)[0],
@@ -1152,8 +1790,9 @@ def build_mutable_inventory(
                     target=cast(JsonValue, target_map),
                     disposition="model_residual",
                     rationale=(
-                        "An unowned repeated non-party copy has one unambiguous semantic target "
-                        "and must render that same target."
+                        "An unowned repeated scalar copy has one unambiguous semantic target and "
+                        "must render that same target. Explicit legal-agent identities were "
+                        "removed before this decision."
                     ),
                 )
                 continue
@@ -1176,34 +1815,104 @@ def build_mutable_inventory(
             )
 
     current_lines = current_text.splitlines()
-    for auxiliary in locate_auxiliary_values(source_text):
+    explicit_auxiliary = locate_auxiliary_values(source_text)
+    explicit_auxiliary_occurrences = {
+        (value.value, line_number_value)
+        for value in explicit_auxiliary
+        for line_number_value in value.line_numbers
+    }
+    standalone_auxiliary = tuple(
+        auxiliary
+        for auxiliary in locate_standalone_opaque_identifiers(source_text)
+        if not _surface_required_by_target(auxiliary.value, target_string_surfaces)
+    )
+    embedded_auxiliary = tuple(
+        auxiliary
+        for auxiliary in locate_embedded_long_identifiers(source_text)
+        if _semantic_surface(auxiliary.value) not in source_scalars
+        and _semantic_surface(auxiliary.value) not in target_scalars
+        and not any(
+            (auxiliary.value, line_number_value) in explicit_auxiliary_occurrences
+            for line_number_value in auxiliary.line_numbers
+        )
+    )
+    for auxiliary in (*explicit_auxiliary, *standalone_auxiliary, *embedded_auxiliary):
         # Deterministic shape replacement requires the exact punctuation-bearing source bytes.
         # A task-owned phone may have already been replaced while a punctuation-equivalent
         # source-only phone remains elsewhere (``+202-...`` versus ``202-...``).  The canonical
         # fallback used by semantic inventory discovery must not authorize an exact local write
         # with bytes that are absent from that line; the separately parsed observed auxiliary
         # surface owns the remaining value.
+        contact_person = _CONTACT_PERSON_LABEL.fullmatch(auxiliary.category) is not None
+        contact_value = (
+            contact_person
+            or _CONTACT_LABEL.match(auxiliary.category) is not None
+            or _EMAIL_LABEL.fullmatch(auxiliary.category) is not None
+        )
+        candidate_lines = (
+            set(auxiliary.line_numbers)
+            if contact_value
+            else _surface_lines(current_text, auxiliary.value)
+        )
         auxiliary_lines = {
             number
-            for number in _surface_lines(current_text, auxiliary.value)
-            if _contains_surface(current_lines[number - 1], auxiliary.value)
+            for number in candidate_lines
+            if 1 <= number <= len(current_lines)
+            and _contains_surface(current_lines[number - 1], auxiliary.value)
+            # An explicit auxiliary-style heading can also be the printed grammar for a
+            # task-facing field (for example ``BATCH: PR7XB93`` or
+            # ``INVOICE NO. 1123200938 DATED ...``).  The semantic work item owns that
+            # occurrence and its target value.  Independently anonymizing the embedded token
+            # would create two contradictory targets for one physical span.
+            and not any(
+                any(
+                    isinstance(source_scalar, str)
+                    and _contains_surface(source_scalar, auxiliary.value)
+                    for source_scalar in _flatten_scalars(item.sourceValue)
+                )
+                for item in work_items_by_line.get(number, ())
+            )
         }
         if not auxiliary_lines:
             continue
         add(
-            category="source_only_auxiliary",
+            category=(
+                "source_only_contact_identity" if contact_value else "source_only_auxiliary"
+            ),
             source_surface=auxiliary.value,
             lines=auxiliary_lines,
             paths=(),
-            target={
-                "policy": "synthesize_shape_compatible_fictional_value",
-                "semanticField": auxiliary.category,
-                "preserveRepeatedIdentity": True,
-            },
-            disposition="deterministic_shape_replacement",
+            target=(
+                {
+                    "policy": "synthesize_realistic_fictional_person_identity",
+                    "preserveRepeatedIdentity": True,
+                    "preservePrintedDelimiters": True,
+                }
+                if contact_person
+                else (
+                    {
+                        "policy": "synthesize_realistic_fictional_contact_value",
+                        "semanticField": auxiliary.category,
+                        "preservePrintedDelimiters": True,
+                        "preserveRepeatedIdentity": True,
+                    }
+                    if contact_value
+                    else {
+                        "policy": "synthesize_shape_compatible_fictional_value",
+                        "semanticField": auxiliary.category,
+                        "preserveRepeatedIdentity": True,
+                    }
+                )
+            ),
+            disposition=("model_residual" if contact_value else "deterministic_shape_replacement"),
             rationale=(
-                "An explicit source-only identifier or contact value must be anonymized even "
-                "though it is outside the task label."
+                "A named source-only contact must be replaced with a realistic fictional "
+                "identity while preserving its printed role and delimiters."
+                if contact_value
+                else (
+                    "An explicit source-only identifier or contact value must be anonymized "
+                    "even though it is outside the task label."
+                )
             ),
         )
 
@@ -1269,7 +1978,14 @@ def build_mutable_inventory(
             aggregate_line = _is_shipment_aggregate_value_line(raw_line)
             bare_volume_line = _BARE_VOLUME_AGGREGATE.fullmatch(raw_line) is not None
             if number not in known_lines and (aggregate_line or bare_volume_line):
-                if _carrier_receipt_count_matches_target(raw_line, target_label):
+                following_line = (
+                    current_lines[number] if number < len(current_lines) else None
+                )
+                if _carrier_receipt_count_matches_target(
+                    raw_line,
+                    target_label,
+                    following_line=following_line,
+                ):
                     continue
                 # A source document can print an anonymous equipment summary even when the task
                 # label has no container identities.  In that case the line is valid source-only
@@ -1451,6 +2167,51 @@ def build_mutable_inventory(
                         ),
                     )
 
+    if template_profile_case is not None:
+        if template_profile_case.sourceTextSha256 != sha256_bytes(source_text.encode("utf-8")):
+            raise ValueError("template mutation profile source text SHA-256 differs")
+        source_lines = source_text.splitlines()
+        current_lines = current_text.splitlines()
+        if len(source_lines) != len(current_lines):
+            raise ValueError("template mutation profile requires stable source/current topology")
+        for profile_line in template_profile_case.lines:
+            number = line_number(profile_line.lineId)
+            if not 1 <= number <= len(source_lines):
+                raise ValueError(
+                    "template mutation profile line is outside the source OCR: "
+                    f"{profile_line.lineId}"
+                )
+            source_line = source_lines[number - 1]
+            if sha256_bytes(source_line.encode("utf-8")) != profile_line.sourceLineSha256:
+                raise ValueError(
+                    "template mutation profile line SHA-256 differs: "
+                    f"{profile_line.lineId}"
+                )
+            if not source_line.strip() or _PAGE_MARKER.fullmatch(source_line) is not None:
+                raise ValueError(
+                    "template mutation profile cannot own a blank/page-marker line: "
+                    f"{profile_line.lineId}"
+                )
+            add(
+                category="template_profile_residual",
+                source_surface=source_line.strip(),
+                lines={number},
+                paths=(),
+                target={
+                    "policy": "reevaluate_exact_line_against_complete_synthetic_target",
+                    "findingKinds": list(profile_line.findingKinds),
+                    "sourceLineId": profile_line.lineId,
+                    "allowUnchangedOnlyWhenAlreadyTargetCoherent": True,
+                },
+                disposition="model_residual",
+                rationale=(
+                    "Independent whole-document review previously found this exact source-"
+                    "template line capable of retaining stale, private, repeated, derived, or "
+                    "contradictory shipment semantics. Reconcile it against the complete current "
+                    "target; preserve it only when it is already target-coherent."
+                ),
+            )
+
     # Present the inventory in document order.  Category-first ordering makes a later auxiliary
     # copy appear before the labeled occurrence that explains it, increasing provider context
     # switching and making audit receipts harder to read.  The remaining fields provide a stable
@@ -1599,6 +2360,7 @@ def audit_full_document(
     oracle_case: RegressionCase | None,
     surface_requirements: Sequence[SurfaceRenderingRequirement] = (),
     anchored_replacements: Sequence[AnchoredScalarReplacementRequirement] = (),
+    deterministic_prefills: Sequence[AppliedDeterministicPrefill] = (),
     work_items: Sequence[HybridWorkItem] = (),
 ) -> FullDocumentAudit:
     """Evaluate source-to-output completeness independently of the model contract."""
@@ -1642,7 +2404,7 @@ def audit_full_document(
             )
         )
 
-    grouped: dict[str, list[ChangedLeaf]] = defaultdict(list)
+    grouped: dict[tuple[str, str], list[ChangedLeaf]] = defaultdict(list)
     for leaf in changed_leaves(source_label, target_label):
         if (
             leaf.requiresTextEdit
@@ -1651,8 +2413,12 @@ def audit_full_document(
             and isinstance(leaf.sourceValue, (str, int, float))
             and not isinstance(leaf.sourceValue, bool)
         ):
-            grouped[str(leaf.sourceValue)].append(leaf)
-    for surface, leaves in sorted(grouped.items()):
+            grouped[_source_value_group_key(leaf.sourceValue)].append(leaf)
+    for _surface_key, leaves in sorted(grouped.items()):
+        surface = min(
+            (str(row.sourceValue) for row in leaves),
+            key=lambda value: (len(value), value.casefold(), value),
+        )
         owned_lines = {
             line_number(line)
             for item in work_items
@@ -1673,6 +2439,8 @@ def audit_full_document(
                 number
                 for number in occurrence_lines
                 if _PARTY_HEADING_LINE.fullmatch(source_lines[number - 1]) is not None
+                or _PRESERVABLE_LEGAL_BOILERPLATE_LINE.fullmatch(source_lines[number - 1])
+                is not None
             }
             occurrence_lines.difference_update(heading_lines)
         if all(leaf.path == "documentPatch.freight.paymentArrangement" for leaf in leaves):
@@ -1691,19 +2459,46 @@ def audit_full_document(
         }
         stale_lines = (occurrence_lines & owned_lines) - rendered_changed_target_lines
         unowned_lines = occurrence_lines - owned_lines
+        changed_paths = {leaf.path for leaf in leaves}
+        shared_target_owned_lines = {
+            line_number(line)
+            for item in work_items
+            if not (set(item.targetPaths) & changed_paths)
+            and isinstance(item.targetValue, (str, int, float))
+            and not isinstance(item.targetValue, bool)
+            and _semantic_surface(str(item.targetValue)) == _semantic_surface(surface)
+            for line in item.evidenceLineIds
+            if 1 <= line_number(line) <= len(output_lines)
+            and _contains_surface(output_lines[line_number(line) - 1], str(item.targetValue))
+        }
+        shared_target_owned_lines.update(
+            line_number(prefill.lineId)
+            for prefill in deterministic_prefills
+            if not (set(prefill.targetPaths) & changed_paths)
+            and _semantic_surface(prefill.targetSurface) == _semantic_surface(surface)
+            and 1 <= line_number(prefill.lineId) <= len(output_lines)
+            and _contains_surface(
+                output_lines[line_number(prefill.lineId) - 1], prefill.targetSurface
+            )
+        )
+        # The same printed surface can be stale for one path and required by another.  Only the
+        # exact target path's proven evidence lines are licensed; a global target-value match
+        # would let a stale occurrence in the changed role hide behind an unrelated field.
+        stale_lines.difference_update(shared_target_owned_lines)
         if _semantic_surface(surface) in target_scalars:
             # An exact shared scalar may legitimately remain outside the changed field's proven
             # evidence lines, but it never licenses the changed path itself.
             pass
         elif _surface_required_by_target(surface, target_string_surfaces):
+            licensed_lines = _target_licensed_occurrence_lines(
+                output_text,
+                surface,
+                target_string_surfaces,
+            )
             stale_lines.update(
                 number
                 for number in unowned_lines
-                if not any(
-                    _contains_surface(target_surface, surface)
-                    and _contains_surface(output_lines[number - 1], target_surface)
-                    for target_surface in target_string_surfaces
-                )
+                if number not in licensed_lines
             )
         else:
             stale_lines.update(unowned_lines)
@@ -1777,6 +2572,8 @@ def audit_full_document(
         contains_target = (
             _contains_rendered_surface(rendered_block, leaf.targetValue)
             if leaf.path.endswith(".name")
+            else _contains_ordered_party_address(rendered_block, leaf.targetValue)
+            if leaf.path.endswith(".address")
             else _contains_surface(rendered_block, leaf.targetValue)
         )
         if owned_lines and contains_target:
@@ -1858,13 +2655,18 @@ def audit_full_document(
             )
 
     for requirement in surface_requirements:
-        if requirement.kind not in {"date", "carrier_header_identity"} or (
+        if requirement.kind not in {
+            "date",
+            "date_global",
+            "carrier_header_identity",
+            "carrier_principal_identity",
+        } or (
             requirement.sourceSurface == requirement.targetSurface
         ):
             continue
         owned_lines = _context_bound_surface_lines(source_text, requirement)
         if not owned_lines:
-            if requirement.kind == "date":
+            if requirement.kind in {"date", "date_global"}:
                 # When issue and shipped-on-board dates have the same source value, the contract
                 # intentionally contains the observed print formats under both semantic paths.
                 # A particular format can belong only to the other path (for example, the
@@ -1883,7 +2685,12 @@ def audit_full_document(
             number
             for number in sorted(owned_lines)
             if not _contains_rendered_surface(output_lines[number - 1], requirement.targetSurface)
-            or _contains_rendered_surface(output_lines[number - 1], requirement.sourceSurface)
+            or (
+                requirement.sourceSurface not in requirement.targetSurface
+                and _contains_rendered_surface(
+                    output_lines[number - 1], requirement.sourceSurface
+                )
+            )
         )
         if mismatched:
             ordinal += 1
@@ -2035,6 +2842,12 @@ def audit_full_document(
                 if 1 <= number <= len(output_lines)
             )
             handled = not _contains_surface(candidate_output, candidate.sourceSurface)
+            if candidate.category == "template_profile_residual":
+                # A profile grants reviewed write/attention authority; it is not an assertion
+                # that this line must change for every descendant. A later target may agree with
+                # the source. This stage never publishes; independent whole-document
+                # certification owns semantic acceptance.
+                handled = True
             if not handled and candidate.category == "changed_source_occurrence":
                 target_rows = (
                     candidate.targetSemantics if isinstance(candidate.targetSemantics, list) else []
@@ -2066,6 +2879,12 @@ def audit_full_document(
                 "inventory_candidate_unhandled",
                 candidate.sourceSurface,
                 paths=candidate.targetPaths,
+                line_numbers=tuple(
+                    number
+                    for number in (line_number(value) for value in candidate.lineIds)
+                    if 1 <= number <= len(output_lines)
+                    and _contains_surface(output_lines[number - 1], candidate.sourceSurface)
+                ),
                 explanation="A mutable inventory candidate has no verified disposition.",
             )
 
@@ -2106,3 +2925,24 @@ def parse_regression_oracle(value: Mapping[str, Any]) -> RegressionOracle:
         cases.append(RegressionCase.model_validate(case_payload, strict=True))
     payload["cases"] = tuple(cases)
     return RegressionOracle.model_validate(payload, strict=True)
+
+
+def parse_template_mutation_profile(value: Mapping[str, Any]) -> TemplateMutationProfile:
+    """Parse a strict JSON profile and reject ambiguous duplicate ownership."""
+
+    profile = TemplateMutationProfile.model_validate_json(canonical_json_bytes(value), strict=True)
+    document_ids = tuple(row.documentId for row in profile.cases)
+    if len(document_ids) != len(set(document_ids)):
+        raise ValueError("template mutation profile repeats a document ID")
+    for case in profile.cases:
+        line_ids = tuple(row.lineId for row in case.lines)
+        if len(line_ids) != len(set(line_ids)):
+            raise ValueError(
+                f"template mutation profile repeats a line ID: {case.documentId}"
+            )
+        if line_ids != tuple(sorted(line_ids, key=line_number)):
+            raise ValueError(
+                "template mutation profile lines are not in document order: "
+                f"{case.documentId}"
+            )
+    return profile

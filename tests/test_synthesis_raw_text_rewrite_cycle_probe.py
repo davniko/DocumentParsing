@@ -35,10 +35,14 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     SemanticReviewReceipt,
     SurfaceRenderingRequirement,
     TargetIntegrityResources,
+    _aggregate_equipment_breakdown_requirements,
     _bounded_largest_remainder_allocation,
     _bounded_line_context,
     _cargo_flavor_rewrite_failures,
     _combine_usage,
+    _container_measurement_occurrences,
+    _dangerous_goods_context_surfaces,
+    _dangerous_goods_proper_shipping_name_surfaces,
     _dangerous_goods_tuple_surfaces,
     _evidence_occurs,
     _finding_conflicts_with_anchored_scalar_authority,
@@ -46,27 +50,41 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _finding_conflicts_with_surface_authority,
     _finding_grounds_format_damage_only_in_unchanged_text,
     _introduced_html_entities,
+    _isolated_formatting_changes,
     _line_id,
+    _membership_package_allocations,
+    _missing_target_literals,
     _operational_flavor_requirements_rendered,
+    _operational_measurement_match,
+    _project_unrenderable_equipment_to_template,
     _prompt_content,
+    _required_surfaces_rendered,
     _review_audit_payload,
     _settings,
     _single_container_unallocated_package_projection,
     _target_route_jurisdictions,
     _terminal_editor_output,
+    aggregate_operational_replacement_requirements,
     anchored_measurement_replacement_requirements,
+    anchored_package_quantity_replacement_requirements,
     anchored_scalar_replacement_requirements,
     apply_deterministic_prefills,
     apply_line_range_replacements,
+    bind_cargo_package_surface_guards,
     build_empirical_operational_profiles,
     build_rewrite_contract_bundle,
+    cargo_auxiliary_package_requirements,
+    cargo_component_measurement_replacement_requirements,
     cargo_flavor_rewrite_requirements,
+    cargo_package_quantity_replacement_requirements,
+    cargo_package_type_replacement_requirements,
     compact_label_change_contract,
     compound_party_flavor_requirements,
     container_equipment_replacement_requirements,
     container_package_type_replacement_requirements,
     deterministic_rewrite_audit,
     editable_indexed_ocr_lines,
+    exact_cargo_line_replacement_requirements,
     indexed_ocr_lines,
     inline_slot_topology_requirements,
     jurisdictional_surface_requirements,
@@ -77,12 +95,14 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     prepare_target_integrity,
     raw_auxiliary_identity_requirements,
     recover_explicit_hs_target_facts,
+    repair_overlapping_source_scalar_targets,
     rewrite_changed_leaves,
     source_semantic_role_hints,
     source_status_preservation_requirements,
     surface_rendering_requirements,
     target_literal_requirements,
     target_value_occurrence_requirements,
+    unexpected_cargo_package_surfaces,
 )
 from document_ocr.synthesis.raw_text_rewrite_probe import ChangedLeaf
 from document_ocr.synthesis.transport_capacity import capacity_limits
@@ -104,6 +124,93 @@ def _edit(
 
 def _workspace(text: str) -> RewriteWorkspace:
     return RewriteWorkspace(original_text=text, current_text=text)
+
+
+def test_repeated_cargo_descriptions_select_strong_rows_not_generic_heading() -> None:
+    source_description = (
+        "KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC"
+    )
+    raw_text = (
+        "FABRIC\n\n"
+        "BORU 701361-8 40' HW\n"
+        "754 ROLLS - KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC\n"
+        "HS CODE: 60062200\n\n"
+        "BORU 701125-6 40' HW\n"
+        "653 ROLLS - KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC\n"
+        "HS CODE: 60062200\n"
+    )
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": source_description, "hsCodes": ["60062200"]},
+                {"groupId": "g2", "description": source_description, "hsCodes": ["60062200"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "SYNTHETIC PAPER LABELS", "hsCodes": ["48219046"]},
+                {
+                    "groupId": "g2",
+                    "description": "SYNTHETIC BEARING HOUSINGS",
+                    "hsCodes": ["84832073"],
+                },
+            ]
+        }
+    }
+
+    requirements = cargo_flavor_rewrite_requirements(raw_text, source, target)
+
+    assert [row.sourceLineIds for row in requirements] == [
+        ("L00004",),
+        ("L00008",),
+    ]
+
+
+def test_shared_hs_codes_are_projected_within_their_cargo_group_rows() -> None:
+    source_description = (
+        "KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC"
+    )
+    raw_text = (
+        "BORU 701361-8 40' HW\n"
+        "754 ROLLS - KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC\n"
+        "HS CODE: 60062200\n\n"
+        "BORU 701125-6 40' HW\n"
+        "653 ROLLS - KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC\n"
+        "HS CODE: 60062200\n"
+    )
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": source_description, "hsCodes": ["60062200"]},
+                {"groupId": "g2", "description": source_description, "hsCodes": ["60062200"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "SYNTHETIC PAPER LABELS", "hsCodes": ["48219046"]},
+                {
+                    "groupId": "g2",
+                    "description": "SYNTHETIC BEARING HOUSINGS",
+                    "hsCodes": ["84832073"],
+                },
+            ]
+        }
+    }
+
+    requirements = tuple(
+        row
+        for row in surface_rendering_requirements(raw_text, source, target)
+        if row.kind == "hs_code"
+    )
+
+    assert [(row.targetPath, row.targetSurface, row.sourceLineIds) for row in requirements] == [
+        ("documentPatch.cargoGroups[0].hsCodes[0]", "48219046", ("L00003",)),
+        ("documentPatch.cargoGroups[1].hsCodes[0]", "84832073", ("L00007",)),
+    ]
 
 
 def test_bounded_line_context_keeps_focus_and_omits_oversized_neighbor() -> None:
@@ -150,9 +257,7 @@ def test_single_container_aggregate_package_projection_requires_exact_source_tot
             "containers": [{"containerNumber": "MRSU0452645"}],
         }
     }
-    occurrences = {
-        0: (("package_quantity", 1, "111", "111 CARTONS", "labeled_measurement"),)
-    }
+    occurrences = {0: (("package_quantity", 1, "111", "111 CARTONS", "labeled_measurement"),)}
 
     assert _single_container_unallocated_package_projection(
         source,
@@ -161,16 +266,17 @@ def test_single_container_aggregate_package_projection_requires_exact_source_tot
         (target["documentPatch"]["containers"][0],),
         occurrences,
     ) == {"MRSU0452645": 963}
-    occurrences[0] = (
-        ("package_quantity", 1, "110", "110 CARTONS", "labeled_measurement"),
+    occurrences[0] = (("package_quantity", 1, "110", "110 CARTONS", "labeled_measurement"),)
+    assert (
+        _single_container_unallocated_package_projection(
+            source,
+            target,
+            (source["documentPatch"]["containers"][0],),
+            (target["documentPatch"]["containers"][0],),
+            occurrences,
+        )
+        == {}
     )
-    assert _single_container_unallocated_package_projection(
-        source,
-        target,
-        (source["documentPatch"]["containers"][0],),
-        (target["documentPatch"]["containers"][0],),
-        occurrences,
-    ) == {}
 
 
 def test_operational_output_allows_column_shift_before_owned_measurement() -> None:
@@ -182,6 +288,8 @@ def test_operational_output_allows_column_shift_before_owned_measurement() -> No
         sourceMeasurementStartColumn=19,
         sourceValueSurface="807",
         targetValueSurface="1637",
+        sourceCanonicalValue="807",
+        targetCanonicalValue="1637",
         consistencyGroupId="EITU6784428-package_quantity",
         targetContainerNumber="EITU6784428",
         targetEquipmentFamily="forty_high_cube",
@@ -197,6 +305,23 @@ def test_operational_output_allows_column_shift_before_owned_measurement() -> No
         (requirement,),
     )
 
+    assert _operational_flavor_requirements_rendered(
+        "EITU6784428/40' HIGH CUBE GENERAL PURPOSE/SEAL/"
+        "1637 INTERMEDIATE BULK CONTAINERS\n",
+        (requirement,),
+    )
+
+
+def test_operational_package_parser_accepts_registry_vehicle_surface() -> None:
+    match = _operational_measurement_match(
+        "TOTAL: 85 VEHICLES",
+        "package_quantity",
+        expected_surface="85",
+    )
+
+    assert match is not None
+    assert match.group("package").upper() == "VEHICLES"
+
 
 def test_operational_package_prefill_owns_its_task_quantity_path() -> None:
     requirement = OperationalFlavorRequirement(
@@ -207,6 +332,8 @@ def test_operational_package_prefill_owns_its_task_quantity_path() -> None:
         sourceMeasurementStartColumn=23,
         sourceValueSurface="12",
         targetValueSurface="7",
+        sourceCanonicalValue="12",
+        targetCanonicalValue="7",
         consistencyGroupId="TEMU7054494-package_quantity",
         targetContainerNumber="TEMU7054494",
         targetEquipmentFamily="forty_high_cube",
@@ -218,16 +345,12 @@ def test_operational_package_prefill_owns_its_task_quantity_path() -> None:
     )
     target = {
         "documentPatch": {
-            "cargoPackages": [
-                {"groupId": "g1", "packageId": "p1", "quantity": 7}
-            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 7}],
             "cargoAllocationGroups": [
                 {
                     "groupId": "g1",
                     "packageIds": ["p1"],
-                    "allocations": [
-                        {"containerNumber": "TEMU7054494", "packageQuantity": 7}
-                    ],
+                    "allocations": [{"containerNumber": "TEMU7054494", "packageQuantity": 7}],
                 }
             ],
             "containers": [{"containerNumber": "TEMU7054494"}],
@@ -243,7 +366,9 @@ def test_operational_package_prefill_owns_its_task_quantity_path() -> None:
     prefills = apply_deterministic_prefills(workspace)
 
     assert prefills[0].targetPaths == (
+        "rawOperational.operational-L00001-package_quantity",
         "auxiliary.container[TEMU7054494].package_quantity",
+        "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
         "documentPatch.cargoPackages[0].quantity",
     )
 
@@ -559,10 +684,7 @@ def test_maritime_route_country_ignores_same_named_non_port_location() -> None:
 
 
 def test_same_target_party_roles_own_an_extra_auxiliary_printed_occurrence() -> None:
-    raw = (
-        "Consignee\nOLD FACTORY\nNotify Party\nOLD FACTORY\n"
-        "IMPORTER: OLD FACTORY\n"
-    )
+    raw = "Consignee\nOLD FACTORY\nNotify Party\nOLD FACTORY\nIMPORTER: OLD FACTORY\n"
     leaves = rewrite_changed_leaves(
         {
             "documentPatch": {
@@ -598,9 +720,351 @@ def test_dangerous_goods_tuple_supports_explosive_compatibility_group() -> None:
         target_packing_group=None,
     )
 
-    assert surfaces == (
-        ("IMDG CLASS: 3 / UN NO.: 1993", "IMDG CLASS: 1.1D / UN NO.: 0402", False),
+    assert surfaces == (("IMDG CLASS: 3 / UN NO.: 1993", "IMDG CLASS: 1.1D / UN NO.: 0402", False),)
+
+
+def test_dangerous_goods_free_text_tail_is_replaced_with_target_shipping_name() -> None:
+    source = "UN 3077 ENVIRONMENTALLY HAZARDOUS SUBSTANCE, SOLID, N.O.S.\n"
+
+    surfaces = _dangerous_goods_proper_shipping_name_surfaces(
+        source,
+        source_un_number="3077",
+        target_un_number="0402",
+        target_proper_shipping_name="Ammonium perchlorate",
     )
+
+    assert surfaces == (
+        (
+            "L00001",
+            "UN 3077 ENVIRONMENTALLY HAZARDOUS SUBSTANCE, SOLID, N.O.S.",
+            "UN 0402 AMMONIUM PERCHLORATE",
+        ),
+    )
+
+
+def test_dangerous_goods_structured_tail_is_left_to_tuple_renderer() -> None:
+    source = (
+        "UN Number: 2078 - IMDG Class: 6.1 - PG: II\n"
+        "Label/Subrisk: CLASS 9/- UN#: UN3077 Packaging Group: III "
+        "Emergency Phone: 202-37609091\n"
+        "CLASS:6.1 UNDG NO:2078**TAX\n"
+    )
+
+    assert not _dangerous_goods_proper_shipping_name_surfaces(
+        source,
+        source_un_number="2078",
+        target_un_number="0213",
+        target_proper_shipping_name="Trinitroanisole",
+    )
+    assert not _dangerous_goods_proper_shipping_name_surfaces(
+        source,
+        source_un_number="3077",
+        target_un_number="0213",
+        target_proper_shipping_name="Trinitroanisole",
+    )
+    assert not _dangerous_goods_proper_shipping_name_surfaces(
+        source,
+        source_un_number="2078",
+        target_un_number="0213",
+        target_proper_shipping_name="Trinitroanisole",
+    )
+    assert _dangerous_goods_tuple_surfaces(
+        source,
+        source_un_number="3077",
+        target_un_number="0213",
+        target_exact_class="1.1D",
+        target_packing_group=None,
+    ) == (
+        (
+            "CLASS 9/- UN#: UN3077 Packaging Group: III",
+            "CLASS 1.1D/- UN#: UN0213",
+            True,
+        ),
+    )
+
+
+def test_dangerous_goods_context_rewrites_dense_and_labeled_semantics() -> None:
+    source = (
+        "9 3077 III\n"
+        "Chemical Details:\n"
+        "Substance Name(Proper Shipping Name): "
+        "ENVIRONMENTALLY HAZARDOUS SUBSTANCE, SOLID, N.O.S.*\n"
+        "DIMETHOMORPH 50% WP Class: 9\n"
+        "Label/Subrisk: CLASS 9/- UN#: UN3077 Packaging Group: III\n"
+    )
+
+    surfaces = _dangerous_goods_context_surfaces(
+        source,
+        source_un_number="3077",
+        target_un_number="0213",
+        target_proper_shipping_name="TRINITROANISOLE",
+        target_exact_class="1.1D",
+        target_packing_group=None,
+    )
+
+    assert (
+        "L00001",
+        "9 3077 III",
+        "1.1D 0213",
+        "denseTuple",
+    ) in surfaces
+    assert (
+        "L00003",
+        "ENVIRONMENTALLY HAZARDOUS SUBSTANCE, SOLID, N.O.S.",
+        "TRINITROANISOLE",
+        "properShippingName",
+    ) in surfaces
+    assert (
+        "L00004",
+        "Class: 9",
+        "Class: 1.1D",
+        "exactHazardClass",
+    ) in surfaces
+
+
+def test_dg_component_weight_preserves_source_share_and_numeric_style() -> None:
+    source = "(184 Fibreboard boxes-4G - 2008.000 kgs.) Proper Shipping Name: SOURCE\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "description": "SOURCE",
+                    "grossWeight": {"value": 2258.8, "unit": "kilogram"},
+                }
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "description": "TARGET",
+                    "grossWeight": {"value": 19464.1, "unit": "kilogram"},
+                }
+            ]
+        }
+    }
+    surface = SurfaceRenderingRequirement(
+        kind="dangerous_goods_tuple",
+        targetPath="auxiliary.cargoGroups[0].dangerousGoods[0].properShippingName",
+        sourceSurface="SOURCE",
+        targetSurface="TARGET",
+        sourceOccurrences=1,
+        contextEvidence=source.strip(),
+        sourceLineIds=("L00001",),
+    )
+
+    requirements = cargo_component_measurement_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        (),
+        (surface,),
+    )
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceSurface == "2008.000"
+    assert requirements[0].targetSurface == "17302.954"
+
+
+@pytest.mark.parametrize(
+    "source_line",
+    ("BOBA PEARL 1KG X 18 BAGS", "132 CONTAINERS OF 24 KG NET EACH PRODUCT"),
+)
+def test_per_unit_packaging_weight_is_not_scaled_as_cargo_component(
+    source_line: str,
+) -> None:
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "description": "SOURCE GOODS",
+                    "grossWeight": {"value": 12179.48, "unit": "kilogram"},
+                }
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "description": "TARGET GOODS",
+                    "grossWeight": {"value": 3040.41, "unit": "kilogram"},
+                }
+            ]
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source_line,),
+        ),
+    )
+
+    assert cargo_component_measurement_replacement_requirements(
+        source_line + "\n",
+        source_label,
+        target_label,
+        cargo,
+        (),
+    ) == ()
+
+
+def test_changed_dg_package_material_drops_incompatible_un_packaging_code() -> None:
+    source = "(184 Fibreboard boxes-4G - 2008.000 kgs.) Proper Shipping Name: SOURCE\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "SOURCE"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 184,
+                    "typeCategory": "PACKAGE_BOX_FIBREBOARD",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 3160,
+                    "typeCategory": "PACKAGE_CASE_WOODEN",
+                }
+            ],
+        }
+    }
+    cargo = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="TARGET",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=(source.strip(),),
+    )
+
+    requirements = cargo_package_type_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        (cargo,),
+    )
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceSurface == "Fibreboard boxes-4G"
+    assert requirements[0].targetSurface == "wooden Cases"
+
+
+def test_cargo_auxiliary_package_rows_are_owned_until_the_next_heading() -> None:
+    source = (
+        "3160 Wooden Case(s) of TARGET\n"
+        "PRODUCT CODE:100G*100BAGS/CARTON: 0402620044\n"
+        "300G*40BAGS/CARTON: 0402620045\n"
+        "(3160 wooden Cases - 17302.954 kgs.) TARGET\n"
+        "Total: 19,464.100 kgs. 44.100 cu. m.\n"
+    )
+    guarded = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="TARGET",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=("3160 Wooden Case(s) of SOURCE",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("WOODEN CASE", "WOODEN CASES"),
+    )
+
+    requirements = cargo_auxiliary_package_requirements(source, (guarded,))
+
+    assert len(requirements) == 2
+    assert requirements[0].lineRole == "label_grounded"
+    assert requirements[1].lineRole == "source_only_auxiliary_packaging"
+    assert requirements[1].sourceLineIds == ("L00002", "L00003")
+    assert unexpected_cargo_package_surfaces(source.splitlines()[1], guarded) == (
+        "BAGS",
+        "CARTON",
+    )
+
+
+def test_cargo_auxiliary_scan_stops_before_carrier_receipt_total() -> None:
+    source = (
+        "TARGET GOODS\n"
+        "PRODUCT PACKED IN SOURCE BAGS\n"
+        "Total number of containers or packages 1 received by Carrier:\n"
+        "SIGNED BY CARRIER\n"
+    )
+    guarded = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="TARGET GOODS",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=("SOURCE GOODS",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("CASE", "CASES"),
+    )
+
+    requirements = cargo_auxiliary_package_requirements(source, (guarded,))
+
+    assert len(requirements) == 2
+    assert requirements[1].sourceLineIds == ("L00002",)
+
+
+def test_cargo_package_guard_ignores_non_package_lot_and_unit_prose() -> None:
+    guarded = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="TARGET GOODS",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=("SOURCE GOODS",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("CARTON", "CARTONS"),
+    )
+
+    assert unexpected_cargo_package_surfaces("TARGET GOODS EXPORT LOT", guarded) == ()
+    assert unexpected_cargo_package_surfaces("Rate Unit Currency Prepaid Collect", guarded) == ()
+    assert unexpected_cargo_package_surfaces("Collection Business Unit", guarded) == ()
+    assert unexpected_cargo_package_surfaces(
+        "CARGO IS STOWED IN A REFRIGERATED CONTAINER SET AT PLUS 1 DEG C", guarded
+    ) == ()
+    assert unexpected_cargo_package_surfaces("10 LOTS OF TARGET GOODS", guarded) == ("LOTS",)
+    assert unexpected_cargo_package_surfaces("PACKED IN 4 UNITS", guarded) == ("UNITS",)
+    assert unexpected_cargo_package_surfaces("8 SETS OF TARGET GOODS", guarded) == ("SETS",)
+
+
+def test_cargo_auxiliary_scan_excludes_path_owned_container_row() -> None:
+    source = (
+        "SOURCE GOODS\n"
+        "MSCU1234567 /SEAL 10 CASES /FCL/FCL /40HQ/\n"
+        "PRODUCT CODE:100G*100BAGS/CARTON: 0402620044\n"
+    )
+    guarded = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="TARGET GOODS",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=("SOURCE GOODS",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("PACKAGE", "PACKAGES"),
+    )
+
+    requirements = cargo_auxiliary_package_requirements(
+        source,
+        (guarded,),
+        excluded_line_ids=frozenset(("L00002",)),
+    )
+
+    assert len(requirements) == 2
+    assert requirements[1].sourceLineIds == ("L00003",)
 
 
 def test_editor_workspace_omits_immutable_blank_lines_and_page_markers() -> None:
@@ -1362,6 +1826,47 @@ def test_ambiguous_shared_contact_cardinality_fails_closed_before_api_call() -> 
         target_value_occurrence_requirements(source, leaves)
 
 
+def test_inventory_can_defer_ambiguous_repeated_party_scalar_cardinality() -> None:
+    source = (
+        "--- PAGE 1 ---\nCONSIGNEE\nOLD COMPANY\n"
+        "--- PAGE 2 ---\nCONSIGNEE\nOLD COMPANY\nNOTIFY PARTY\nOLD COMPANY\n"
+    )
+    leaves = (
+        ChangedLeaf(
+            path="documentPatch.parties.consignee.name",
+            sourcePresent=True,
+            targetPresent=True,
+            sourceValue="OLD COMPANY",
+            targetValue="NEW CONSIGNEE LTD",
+            evidenceClass="printed_fact",
+            requiresTextEdit=True,
+        ),
+        ChangedLeaf(
+            path="documentPatch.parties.notifyParties[0].name",
+            sourcePresent=True,
+            targetPresent=True,
+            sourceValue="OLD COMPANY",
+            targetValue="NEW NOTIFY LTD",
+            evidenceClass="printed_fact",
+            requiresTextEdit=True,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="cannot be assigned exactly"):
+        target_value_occurrence_requirements(source, leaves)
+
+    provisional = target_value_occurrence_requirements(
+        source,
+        leaves,
+        defer_ambiguous_party_scalar_cardinality=True,
+    )
+
+    assert {row.targetValue: row.requiredOccurrences for row in provisional} == {
+        "NEW CONSIGNEE LTD": 2,
+        "NEW NOTIFY LTD": 1,
+    }
+
+
 def test_exact_label_scalar_must_replace_its_original_printed_line() -> None:
     source = "--- PAGE 1 ---\nEXPORT REFERENCES\n\nINVOICE NO: OLDREF123\n"
     leaves = (
@@ -1922,6 +2427,69 @@ def test_decorated_party_heading_is_protected_from_party_value_rewrite() -> None
             workspace,
             (_edit(source, 2, 2, "CONSIGNEE (3) (NOT NEGOTIABLE UNLESS CONSIGNED AS INDICATED)"),),
         )
+
+
+def test_evergreen_legal_terms_are_not_parsed_as_auxiliary_carrier_identity() -> None:
+    source = (
+        "--- PAGE 1 ---\n"
+        "NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER\n"
+        "ORIGINAL\n\n"
+        "(TERMS OF BILL OF LADING ARE NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER ORIGINAL)\n\n"
+        "As agent for the Carrier and the Vessel Provider Evergreen Marine (Asia) Pte. Ltd.\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {"carrier": {"name": "Evergreen Marine (Asia) Pte. Ltd."}}
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "parties": {"carrier": {"name": "Marivanta Ocean Carriers GmbH"}}
+        }
+    }
+
+    requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
+    statuses = source_status_preservation_requirements(source, ())
+
+    assert requirements == ()
+    assert {row.sourceSurface for row in statuses} == {
+        "NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER",
+        "(TERMS OF BILL OF LADING ARE NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER ORIGINAL)",
+    }
+
+
+def test_legal_clause_with_changed_named_principal_is_not_byte_protected() -> None:
+    line = (
+        "(TERMS OF BILL OF LADING ARE CONTINUED ON THE SHEET. The legal provider "
+        'Evergreen Marine (Asia) Pte. Ltd. does business as "Evergreen Line")'
+    )
+    leaf = ChangedLeaf(
+        path="documentPatch.parties.carrier.name",
+        sourcePresent=True,
+        targetPresent=True,
+        sourceValue="Evergreen Marine (Asia) Pte. Ltd.",
+        targetValue="Marineridge Ocean Transport Ltd.",
+        evidenceClass="printed_fact",
+        requiresTextEdit=True,
+    )
+
+    assert source_status_preservation_requirements(line, (leaf,)) == ()
+
+
+def test_legal_clause_to_order_grammar_remains_byte_protected() -> None:
+    line = "(TERMS OF BILL OF LADING ARE NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER ORIGINAL)"
+    leaf = ChangedLeaf(
+        path="documentPatch.parties.consignee.name",
+        sourcePresent=True,
+        targetPresent=True,
+        sourceValue="TO ORDER",
+        targetValue="Kestrel Meridian Trading Ltd.",
+        evidenceClass="printed_fact",
+        requiresTextEdit=True,
+    )
+
+    requirements = source_status_preservation_requirements(line, (leaf,))
+    assert [(row.sourceSurface, row.sourceOccurrences) for row in requirements] == [(line, 1)]
 
 
 def test_unchanged_legal_boilerplate_and_bill_cardinality_are_byte_protected() -> None:
@@ -2676,6 +3244,111 @@ def test_repeated_shared_dates_preserve_every_named_month_punctuation_style() ->
     assert "02.MAY.2024" in workspace.current_text
 
 
+def test_shared_identical_date_surface_uses_one_document_wide_occurrence_contract() -> None:
+    raw = "SHIPPED ON BOARD DATE\n09/01/2024\nPLACE AND DATE OF ISSUE\n09/01/2024\n"
+    source = {
+        "documentPatch": {
+            "issueDate": "2024-01-09",
+            "shippedOnBoardDate": "2024-01-09",
+        }
+    }
+    target = {
+        "documentPatch": {
+            "issueDate": "2023-05-08",
+            "shippedOnBoardDate": "2023-05-08",
+        }
+    }
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert [
+        (row.kind, row.targetPath, row.sourceSurface, row.targetSurface, row.sourceOccurrences)
+        for row in requirements
+    ] == [
+        (
+            "date_global",
+            "documentPatch.issueDate;documentPatch.shippedOnBoardDate",
+            "09/01/2024",
+            "08/05/2023",
+            2,
+        )
+    ]
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.count("08/05/2023") == 2
+    assert "09/01/2024" not in workspace.current_text
+    assert _required_surfaces_rendered(workspace.current_text, requirements)
+
+
+def test_date_issued_heading_owns_issue_date_before_shipped_on_board_line() -> None:
+    raw = "PLACE ISSUED: NANSHA ,China\nDATE ISSUED: May 7, 2025\nSHIPPED ON BOARD: May 7, 2025\n"
+    source = {
+        "documentPatch": {
+            "issueDate": "2025-05-07",
+            "shippedOnBoardDate": "2025-05-07",
+        }
+    }
+    target = {
+        "documentPatch": {
+            "issueDate": "2025-06-28",
+            "shippedOnBoardDate": "2025-06-29",
+        }
+    }
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert {
+        (row.targetPath, row.sourceOccurrences) for row in requirements if row.kind == "date"
+    } == {
+        ("documentPatch.issueDate", 1),
+        ("documentPatch.shippedOnBoardDate", 1),
+    }
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert "DATE ISSUED: Jun 28, 2025" in workspace.current_text
+    assert "SHIPPED ON BOARD: Jun 29, 2025" in workspace.current_text
+    assert _required_surfaces_rendered(workspace.current_text, requirements)
+
+
+def test_changed_date_does_not_overwrite_unchanged_field_with_same_source_value() -> None:
+    raw = "SHIPPED ON BOARD DATE\n05/05/2024\nPLACE AND DATE OF ISSUE\n05/05/2024\n"
+    source = {
+        "documentPatch": {
+            "issueDate": "2024-05-05",
+            "shippedOnBoardDate": "2024-05-05",
+        }
+    }
+    target = {
+        "documentPatch": {
+            "issueDate": "2024-09-20",
+            "shippedOnBoardDate": "2024-05-05",
+        }
+    }
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert [(row.kind, row.targetPath, row.sourceOccurrences) for row in requirements] == [
+        ("date", "documentPatch.issueDate", 1)
+    ]
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert "SHIPPED ON BOARD DATE\n05/05/2024" in workspace.current_text
+    assert "PLACE AND DATE OF ISSUE\n20/09/2024" in workspace.current_text
+    assert _required_surfaces_rendered(workspace.current_text, requirements)
+
+
 def test_date_rendering_supports_year_named_month_and_month_punctuation() -> None:
     source = {
         "documentPatch": {
@@ -2689,10 +3362,7 @@ def test_date_rendering_supports_year_named_month_and_month_punctuation() -> Non
             "shippedOnBoardDate": "2024-04-08",
         }
     }
-    raw = (
-        "Place and date of issue\nAntwerp / 2025-NOV-16\n"
-        "On Board Date\nAUG. 06, 2022\n"
-    )
+    raw = "Place and date of issue\nAntwerp / 2025-NOV-16\nOn Board Date\nAUG. 06, 2022\n"
 
     requirements = surface_rendering_requirements(raw, source, target)
 
@@ -2726,6 +3396,13 @@ def test_hs_rendering_splits_delimiter_list_and_expands_one_aggregate_slot() -> 
         ("52094200", "48055080"),
         ("52114200", "55121990"),
     ]
+    requirements = surface_rendering_requirements(
+        "NCM: 52094200/52114200\n", two_source, two_target
+    )
+    assert [(row.sourceSurface, row.targetSurface) for row in requirements] == [
+        ("52094200", "48055080"),
+        ("52114200", "55121990"),
+    ]
 
     aggregate_source = {
         "documentPatch": {
@@ -2750,6 +3427,157 @@ def test_hs_rendering_splits_delimiter_list_and_expands_one_aggregate_slot() -> 
     assert requirements[0].kind == "hs_code_block"
     assert requirements[0].sourceSurface == "2401.100.010"
     assert requirements[0].targetSurface == "0902.400.010, 1209.910.010"
+
+
+def test_repeated_identical_hs_surfaces_keep_exact_row_ownership() -> None:
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["2401108590"]},
+                {"groupId": "g2", "hsCodes": ["2401108590"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["8418294258"]},
+                {"groupId": "g2", "hsCodes": ["8524119097"]},
+            ]
+        }
+    }
+    raw = "HS CODE: 2401108590\nHS CODE: 2401108590\n"
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert [(row.sourceLineIds, row.targetSurface) for row in requirements] == [
+        (("L00001",), "8418294258"),
+        (("L00002",), "8524119097"),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == ("HS CODE: 8418294258\nHS CODE: 8524119097\n")
+
+
+def test_conflicting_hs_targets_on_one_line_are_rendered_by_exact_position() -> None:
+    requirements = (
+        SurfaceRenderingRequirement(
+            kind="hs_code",
+            targetPath="documentPatch.cargoGroups[0].hsCodes[0]",
+            sourceSurface="60062200",
+            targetSurface="48219046",
+            sourceOccurrences=1,
+            contextEvidence="HS CODE: 60062200 - 60062200",
+            sourceLineIds=("L00001",),
+        ),
+        SurfaceRenderingRequirement(
+            kind="hs_code",
+            targetPath="documentPatch.cargoGroups[1].hsCodes[0]",
+            sourceSurface="60062200",
+            targetSurface="84832073",
+            sourceOccurrences=1,
+            contextEvidence="HS CODE: 60062200 - 60062200",
+            sourceLineIds=("L00001",),
+        ),
+    )
+    raw = "HS CODE: 60062200 - 60062200\n"
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "HS CODE: 48219046 - 84832073\n"
+    assert [row.targetSurface for row in workspace.deterministic_prefills] == [
+        "48219046",
+        "84832073",
+    ]
+
+
+def test_short_hs_surface_is_not_bound_inside_a_longer_labeled_hs_code() -> None:
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["0810909000", "081090"]},
+            ]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "hsCodes": ["0302498113", "030289"]},
+            ]
+        }
+    }
+    raw = "HS CODE: 0810.90.9000\nHS CODE: 0810.90\n"
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
+        (("L00001",), "0810.90.9000", "0302.49.8113"),
+        (("L00002",), "0810.90", "0302.89"),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text == "HS CODE: 0302.49.8113\nHS CODE: 0302.89\n"
+
+
+def test_line_owned_date_prefill_handles_date_attached_to_heading_text() -> None:
+    raw = "DATE OF ISSUE ON2024-03-16\n"
+    source = {"documentPatch": {"issueDate": "2024-03-16"}}
+    target = {"documentPatch": {"issueDate": "2024-05-13"}}
+
+    requirements = surface_rendering_requirements(raw, source, target)
+
+    assert requirements[0].sourceLineIds == ("L00001",)
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text == "DATE OF ISSUE ON2024-05-13\n"
+
+
+def test_cargo_origin_prefill_changes_only_explicit_origin_grammar() -> None:
+    raw = (
+        "SHIPPER\nTAIWAN COMPONENTS LTD\n"
+        "Exporter Registration Country: TAIWAN\n"
+        "Made in Taiwan\nMade in Taiwan\n"
+    )
+    source = {"documentPatch": {"cargoGroups": [{"groupId": "g1", "origin": {"name": "Taiwan"}}]}}
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "origin": {"name": "Taiwan, Province of China"}}]
+        }
+    }
+
+    requirements = surface_rendering_requirements(raw, source, target)
+    origin = [row for row in requirements if row.kind == "cargo_origin"]
+
+    assert len(origin) == 1
+    assert origin[0].sourceLineIds == ("L00004", "L00005")
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=tuple(origin),
+    )
+    apply_deterministic_prefills(workspace)
+    assert "TAIWAN COMPONENTS LTD" in workspace.current_text
+    assert "Exporter Registration Country: TAIWAN" in workspace.current_text
+    assert workspace.current_text.count("Made in Taiwan, Province of China") == 2
 
 
 def test_carrier_receipt_count_is_projected_from_the_corresponding_package_quantity() -> None:
@@ -2787,10 +3615,15 @@ def test_carrier_header_alias_is_bound_to_the_target_carrier_identity() -> None:
 
     assert [(row.kind, row.sourceSurface, row.targetSurface) for row in surfaces] == [
         (
+            "carrier_principal_identity",
+            "MSC Mediterranean Shipping Company S.A.",
+            "Helvetic Blueway Transport AG",
+        ),
+        (
             "carrier_header_identity",
             "MEDITERRANEAN SHIPPING COMPANY S.A.",
             "Helvetic Blueway Transport AG",
-        )
+        ),
     ]
     occurrences = target_value_occurrence_requirements(raw, leaves, surface_requirements=surfaces)
     assert (
@@ -2801,6 +3634,41 @@ def test_carrier_header_alias_is_bound_to_the_target_carrier_identity() -> None:
         )
         == 2
     )
+
+
+def test_legal_carrier_principals_are_prefilled_without_replacing_signing_agent() -> None:
+    raw = (
+        "CMA CGM\n"
+        "CARRIER\n"
+        "CMA CGM Société Anonyme\n"
+        "SIGNED FOR THE CARRIER CMA CGM S.A.\n"
+        "BY CMA CGM Deutschland GmbH Shipping Agency as agents for the carrier CMA CGM S. A.\n"
+    )
+    source = {"documentPatch": {"parties": {"carrier": {"name": "CMA CGM Société Anonyme"}}}}
+    target = {"documentPatch": {"parties": {"carrier": {"name": "Helvetic Crest Navigation AG"}}}}
+    requirements = surface_rendering_requirements(raw, source, target)
+    principal = [row for row in requirements if row.kind == "carrier_principal_identity"]
+    assert [(row.sourceLineIds, row.sourceSurface) for row in principal] == [
+        (("L00004",), "CMA CGM S.A."),
+        (("L00005",), "CMA CGM S. A."),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        current_target_label=target,
+        surface_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    lines = workspace.current_text.splitlines()
+    assert lines[3] == "SIGNED FOR THE CARRIER Helvetic Crest Navigation AG"
+    assert lines[4] == (
+        "BY CMA CGM Deutschland GmbH Shipping Agency as agents for the carrier "
+        "Helvetic Crest Navigation AG"
+    )
+    assert "CMA CGM Deutschland GmbH Shipping Agency" in lines[4]
+    assert _required_surfaces_rendered(workspace.current_text, requirements)
 
 
 def test_carrier_receipt_equipment_breakdown_preserves_mixed_target_sizes() -> None:
@@ -2832,6 +3700,26 @@ def test_carrier_receipt_equipment_breakdown_preserves_mixed_target_sizes() -> N
     assert [(row.kind, row.targetSurface) for row in requirements] == [
         ("carrier_receipt_equipment_breakdown", "10 X 40' + 2 X 20'")
     ]
+
+
+def test_carrier_receipt_summary_is_not_partially_rendered_after_topology_projection() -> None:
+    raw = "CARRIER'S RECEIPT\n2 X 40'\n"
+    target = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "AAAA000001",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {"containerNumber": "BBBB000002"},
+            ]
+        }
+    }
+
+    requirements = surface_rendering_requirements(raw, target, target)
+
+    assert not any(row.kind == "carrier_receipt_equipment_breakdown" for row in requirements)
 
 
 def test_split_anonymous_equipment_summary_renders_every_target_semantic_pair() -> None:
@@ -2887,6 +3775,49 @@ def test_split_anonymous_equipment_summary_renders_every_target_semantic_pair() 
     assert {path for prefill in prefills for path in prefill.targetPaths} == {
         f"documentPatch.containers[{index}].printedEquipmentSurface" for index in range(4)
     }
+
+
+def test_deterministic_prefills_do_not_cascade_across_same_line_targets() -> None:
+    raw = "1 Package(s) of 01 UNIT NEW VEHICLE\n"
+    requirements = (
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoPackages[0].typeCategory",),
+            sourceLineIds=("L00001",),
+            sourceSurface="Package",
+            targetSurface="Unit",
+            surfaceKind="package_noun",
+        ),
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoPackages[0].typeCategory",),
+            sourceLineIds=("L00001",),
+            sourceSurface="UNIT",
+            targetSurface="UNITS",
+            surfaceKind="package_noun",
+        ),
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoPackages[0].quantity",),
+            sourceLineIds=("L00001",),
+            sourceSurface="1",
+            targetSurface="19",
+            surfaceKind="measurement",
+        ),
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoPackages[0].quantity",),
+            sourceLineIds=("L00001",),
+            sourceSurface="01",
+            targetSurface="19",
+            surfaceKind="measurement",
+        ),
+    )
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "19 Unit(s) of 19 UNITS NEW VEHICLE\n"
 
 
 def test_dangerous_goods_exact_class_and_un_preserve_printed_grammar() -> None:
@@ -2954,20 +3885,16 @@ def test_dangerous_goods_exact_class_and_un_preserve_printed_grammar() -> None:
     assert workspace.current_text == ("CLASS:2.2 UNDG NO:1013\nUN Number: 1013 - IMDG Class: 2.2\n")
 
 
-def test_sparse_dangerous_goods_target_may_omit_unprinted_category() -> None:
+def test_sparse_dangerous_goods_target_rewrites_source_shipping_name_tail() -> None:
     raw = "UN 3077 ENVIRONMENTALLY HAZARDOUS SUBSTANCE, SOLID, N.O.S.\n"
     source = {
         "documentPatch": {
-            "cargoGroups": [
-                {"groupId": "g1", "dangerousGoods": [{"unNumber": "3077"}]}
-            ]
+            "cargoGroups": [{"groupId": "g1", "dangerousGoods": [{"unNumber": "3077"}]}]
         }
     }
     target = {
         "documentPatch": {
-            "cargoGroups": [
-                {"groupId": "g1", "dangerousGoods": [{"unNumber": "0213"}]}
-            ]
+            "cargoGroups": [{"groupId": "g1", "dangerousGoods": [{"unNumber": "0213"}]}]
         }
     }
     payload = _linguistic_plan_with_hs_codes("290930").model_dump(mode="json")
@@ -2986,7 +3913,50 @@ def test_sparse_dangerous_goods_target_may_omit_unprinted_category() -> None:
 
     requirements = surface_rendering_requirements(raw, source, target, plan)
 
-    assert requirements == ()
+    assert len(requirements) == 1
+    assert requirements[0].kind == "dangerous_goods_proper_shipping_name"
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text == "UN 0213 TRINITROANISOLE\n"
+
+
+def test_dangerous_goods_prefill_defers_ocr_wrapped_occurrences_to_owned_cargo_span() -> None:
+    raw = "TOLUENE DIISOCYANATE\nTOLUENE\nDIISOCYANATE)\n"
+    requirements = (
+        SurfaceRenderingRequirement(
+            kind="dangerous_goods_proper_shipping_name",
+            targetPath="auxiliary.cargoGroups[0].dangerousGoods[0].properShippingName",
+            sourceSurface="TOLUENE DIISOCYANATE",
+            targetSurface="TRINITROANISOLE",
+            sourceOccurrences=2,
+            contextEvidence="TOLUENE DIISOCYANATE",
+            sourceLineIds=("L00001",),
+        ),
+        SurfaceRenderingRequirement(
+            kind="dangerous_goods_proper_shipping_name",
+            targetPath="documentPatch.cargoGroups[0].description",
+            sourceSurface="TOLUENE DIISOCYANATE",
+            targetSurface="TRINITROANISOLE",
+            sourceOccurrences=2,
+            contextEvidence="TOLUENE\nDIISOCYANATE)",
+            sourceLineIds=("L00002", "L00003"),
+        ),
+    )
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        surface_requirements=requirements,
+    )
+
+    prefills = apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "TRINITROANISOLE\nTOLUENE\nDIISOCYANATE)\n"
+    assert len(prefills) == 1
+    assert prefills[0].lineId == "L00001"
 
 
 def test_reviewer_cannot_contradict_a_derived_carrier_receipt_surface() -> None:
@@ -3007,6 +3977,105 @@ def test_reviewer_cannot_contradict_a_derived_carrier_receipt_surface() -> None:
     )
 
     assert _finding_conflicts_with_surface_authority(finding, workspace)
+
+
+def test_ordered_forwarding_reference_accepts_printed_labels_between_target_atoms() -> None:
+    leaf = ChangedLeaf(
+        path="documentPatch.forwardingAndExportReferences[0]",
+        sourcePresent=True,
+        targetPresent=True,
+        sourceValue="1123200938 27.11.2023",
+        targetValue="785897 07.07.2023",
+        evidenceClass="printed_fact",
+        requiresTextEdit=True,
+    )
+    requirements = target_literal_requirements((leaf,))
+
+    assert requirements[0].matchPolicy == "ordered_semantic_atoms"
+    assert not _missing_target_literals("INVOICE NO. 785897 DATED: 07.07.2023\n", requirements)
+    assert _missing_target_literals("B/L NO. 785897\nUNRELATED DATE: 07.07.2023\n", requirements)
+
+
+def test_party_scalar_is_validated_by_role_block_not_global_literal() -> None:
+    leaf = ChangedLeaf(
+        path="documentPatch.parties.notifyParties[0].address",
+        sourcePresent=True,
+        targetPresent=True,
+        sourceValue="OLD ROAD, OLD DISTRICT",
+        targetValue="18 Al Mashtal Street, Industrial District",
+        evidenceClass="printed_fact",
+        requiresTextEdit=True,
+    )
+
+    assert target_literal_requirements((leaf,)) == ()
+
+
+def test_date_surface_validation_is_bound_to_its_semantic_heading() -> None:
+    requirement = SurfaceRenderingRequirement(
+        kind="date",
+        targetPath="documentPatch.issueDate",
+        sourceSurface="MAY/15/2024",
+        targetSurface="JUL/07/2023",
+        sourceOccurrences=1,
+        contextEvidence="PLACE AND DATE OF ISSUE MAY/15/2024",
+    )
+    output = "UNRELATED REFERENCE DATE MAY/15/2024\nPLACE AND DATE OF ISSUE JUL/07/2023\n"
+
+    assert _required_surfaces_rendered(output, (requirement,))
+
+
+def test_format_guard_treats_numeric_sign_as_part_of_changed_value() -> None:
+    source = "Temperature: -18.0 C\n"
+    target = "Temperature: 1.0 C\n"
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        source_label={
+            "documentPatch": {
+                "containers": [{"temperatureSetpoint": {"unit": "celsius", "value": -18}}]
+            }
+        },
+        current_target_label={
+            "documentPatch": {
+                "containers": [{"temperatureSetpoint": {"unit": "celsius", "value": 1}}]
+            }
+        },
+    )
+
+    assert _isolated_formatting_changes(workspace, target) == ()
+
+
+def test_format_guard_accepts_hyphenation_inside_wrapped_changed_free_text() -> None:
+    source = "STRETCH WRAPPED WITH EDGES PROTECTION\n"
+    target = "STRETCH-WRAPPED WITH EDGE-PROTECTION\n"
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        source_label={
+            "documentPatch": {
+                "cargoGroups": [
+                    {
+                        "additionalInformation": [
+                            "STRETCH WRAPPED WITH EDGES PROTECTION FOAM AND CARDBOARD"
+                        ]
+                    }
+                ]
+            }
+        },
+        current_target_label={
+            "documentPatch": {
+                "cargoGroups": [
+                    {
+                        "additionalInformation": [
+                            "STRETCH-WRAPPED WITH EDGE-PROTECTION FOAM AND CARDBOARD"
+                        ]
+                    }
+                ]
+            }
+        },
+    )
+
+    assert _isolated_formatting_changes(workspace, target) == ()
 
 
 def test_reviewer_format_finding_must_quote_a_changed_surface() -> None:
@@ -3407,6 +4476,61 @@ def test_target_integrity_preserves_valid_contact_domain_when_party_name_is_abse
     assert receipt["semantic_changes"] == []
 
 
+def test_unprinted_target_equipment_is_explicitly_projected_out_of_template() -> None:
+    source = "CONTAINER: MCLU5086082\nSEAL: 12805\n"
+    source_label = {
+        "schemaVersion": "3.0.0-experimental",
+        "documentPatch": {"containers": [{"containerNumber": "MCLU5086082"}]},
+    }
+    target = {
+        "schemaVersion": "5.0.0-experimental",
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "MCLU4686729",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ]
+        },
+    }
+
+    projected, changes = _project_unrenderable_equipment_to_template(
+        source, source_label, target
+    )
+
+    assert "sizeCategory" not in projected["documentPatch"]["containers"][0]
+    assert "typeCategory" not in projected["documentPatch"]["containers"][0]
+    assert [row.reason for row in changes] == ["unprinted_equipment_topology"]
+    assert target["documentPatch"]["containers"][0]["sizeCategory"] == (
+        "TWENTY_FOOT_STANDARD_HEIGHT"
+    )
+
+
+def test_unprinted_temperature_bearing_equipment_fails_instead_of_downgrading() -> None:
+    source = "CONTAINER: MCLU5086082\nSEAL: 12805\n"
+    source_label = {
+        "schemaVersion": "3.0.0-experimental",
+        "documentPatch": {"containers": [{"containerNumber": "MCLU5086082"}]},
+    }
+    target = {
+        "schemaVersion": "5.0.0-experimental",
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "MCLU4686729",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "REFRIGERATED",
+                    "temperatureSetpoint": {"value": -18.0, "unit": "celsius"},
+                }
+            ]
+        },
+    }
+
+    with pytest.raises(ValueError, match="temperature-bearing target equipment"):
+        _project_unrenderable_equipment_to_template(source, source_label, target)
+
+
 def test_rewrite_preflight_reprojects_an_overweight_semantic_target() -> None:
     config = load_synthesis_raw_text_rewrite_cycle_probe_config(
         Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
@@ -3538,10 +4662,7 @@ def test_operational_flavor_projects_membership_only_printed_package_rows() -> N
     config = load_synthesis_raw_text_rewrite_cycle_probe_config(
         Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
     )
-    source = (
-        "HASU4803711 40 DRY 9'6 36 PALLET\n"
-        "CAAU7756961 40 DRY 9'6 52 PALLET\n"
-    )
+    source = "HASU4803711 40 DRY 9'6 36 PALLET\nCAAU7756961 40 DRY 9'6 52 PALLET\n"
     source_label = {
         "documentPatch": {
             "containers": [
@@ -3608,6 +4729,86 @@ def test_operational_flavor_projects_membership_only_printed_package_rows() -> N
     ]
 
 
+def test_operational_discovery_does_not_treat_tare_net_vent_or_zero_as_cargo_measures() -> None:
+    source = (
+        "CARU5733550\n"
+        "Tare Weight: 3,690 kgs.\n"
+        "NET WEIGHT: 17472 KGS\n"
+        "VENT.: 20.0 CBM/H\n"
+        "0000 KGS\n"
+        "Gross Cargo Weight: 1,996.000 kgs.\n"
+        "Measurement: 15.582 cu. m.\n"
+    )
+
+    occurrences = _container_measurement_occurrences(
+        source,
+        ({"containerNumber": "CARU5733550", "typeDescription": "40' DRY VAN"},),
+    )
+
+    assert [(row[0], row[1], row[2]) for row in occurrences[0]] == [
+        ("tare_weight_kg", 2, "3,690"),
+        ("gross_weight_kg", 6, "1,996.000"),
+        ("volume_m3", 7, "15.582"),
+    ]
+    assert _operational_measurement_match("Tare Weight: 3,690 kgs.", "gross_weight_kg") is None
+    assert _operational_measurement_match("NET WEIGHT: 17472 KGS", "gross_weight_kg") is None
+    assert _operational_measurement_match("VENT.: 20.0 CBM/H", "volume_m3") is None
+
+
+def test_membership_only_without_container_local_package_rows_needs_no_projection() -> None:
+    source_containers = ({"containerNumber": "MSMU7618640", "typeDescription": "40HC"},)
+    target_containers = (
+        {
+            "containerNumber": "MSMU4058481",
+            "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": list(source_containers),
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 34}
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": [],
+                    "coverage": "container_membership_only",
+                    "allocations": [{"containerNumber": "MSMU7618640"}],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": list(target_containers),
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 14}
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": [],
+                    "coverage": "container_membership_only",
+                    "allocations": [{"containerNumber": "MSMU4058481"}],
+                }
+            ],
+        }
+    }
+
+    assert (
+        _membership_package_allocations(
+            source_label,
+            target_label,
+            source_containers,
+            target_containers,
+            {0: (("tare_weight_kg", 2, "3,840", "evidence", "labeled_measurement"),)},
+        )
+        == {}
+    )
+
+
 def test_changed_equipment_is_bound_to_its_own_container_row() -> None:
     source = (
         "CAXU9173485 40' Dry Hi-Cube\nDRYU9087067 40' Dry Hi-Cube\nECMU9427372 40' Dry Hi-Cube\n"
@@ -3664,6 +4865,105 @@ def test_changed_equipment_is_bound_to_its_own_container_row() -> None:
     ]
 
 
+def test_changed_equipment_updates_a_container_local_cargo_row_alias() -> None:
+    source = (
+        "MSMU7790583\n"
+        "40' HIGH CUBE\n"
+        "20 Package(s) of 1x40 'HQ CONTAINING:\n"
+        "20 x PACKAGE OF USED SPARE PARTS\n"
+        "MSMU8832908\n"
+        "40' HIGH CUBE\n"
+        "20 Package(s) of 1x40 'HQ CONTAINING:\n"
+        "20 x PACKAGE OF USED SPARE PARTS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "MSMU7790583", "typeDescription": "40' HIGH CUBE"},
+                {"containerNumber": "MSMU8832908", "typeDescription": "40' HIGH CUBE"},
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 40,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "MSMU7790583", "packageQuantity": 20},
+                        {"containerNumber": "MSMU8832908", "packageQuantity": 20},
+                    ],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "MSMU4885005",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": "MSMU9420443",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 135,
+                    "typeCategory": "PACKAGE_PIECE",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "MSMU4885005", "packageQuantity": 68},
+                        {"containerNumber": "MSMU9420443", "packageQuantity": 67},
+                    ],
+                }
+            ],
+        }
+    }
+
+    requirements = container_equipment_replacement_requirements(
+        source, source_label, target_label
+    )
+
+    second = [
+        row
+        for row in requirements
+        if row.targetPaths == ("documentPatch.containers[1].printedEquipmentSurface",)
+    ]
+    assert {(row.sourceLineIds, row.sourceSurface) for row in second} == {
+        (("L00006",), "40' HIGH CUBE"),
+        (("L00007",), "1x40 'HQ"),
+    }
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.splitlines()[5] == "20' STANDARD HEIGHT GENERAL PURPOSE"
+    assert workspace.current_text.splitlines()[6] == (
+        "20 Package(s) of 1x20' STANDARD HEIGHT GENERAL PURPOSE CONTAINING:"
+    )
+
+
 def test_single_container_equipment_can_bind_to_a_separate_type_row() -> None:
     source = "Cntr/Chassis Nr.\nMCLU 510204.9\n\nType and size\n1 X 40 HC\n"
     source_label = {
@@ -3687,6 +4987,171 @@ def test_single_container_equipment_can_bind_to_a_separate_type_row() -> None:
 
     assert [(row.sourceLineIds, row.targetSurface) for row in requirements] == [
         (("L00005",), "20' STANDARD HEIGHT GENERAL PURPOSE")
+    ]
+
+
+def test_multi_container_equipment_binds_to_unique_adjacent_type_rows() -> None:
+    source = "BEAU4253489\nSEAL A1\n1 x 40HC\n\nMEDU6168416\nSEAL B2\n20GP\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "BEAU4253489", "typeDescription": "1 x 40HC"},
+                {"containerNumber": "MEDU6168416", "typeDescription": "20GP"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "BEAU9253725",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": "MEDU9629757",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ]
+        }
+    }
+
+    requirements = container_equipment_replacement_requirements(source, source_label, target_label)
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
+        (("L00003",), "1 x 40HC", "20' STANDARD HEIGHT GENERAL PURPOSE"),
+        (("L00007",), "20GP", "40' HIGH CUBE GENERAL PURPOSE"),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.splitlines()[2] == "20' STANDARD HEIGHT GENERAL PURPOSE"
+    assert workspace.current_text.splitlines()[6] == "40' HIGH CUBE GENERAL PURPOSE"
+
+
+def test_multi_container_equipment_allows_decorative_blank_inside_owned_record() -> None:
+    source = "BEAU4253489\nSEAL A1\n\nQTY 1 40' HC\n\nMEDU6168416\nSEAL B2\n\nQTY 1 40' HC\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "BEAU4253489", "typeDescription": "40' HC"},
+                {"containerNumber": "MEDU6168416", "typeDescription": "40' HC"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "BEAU9253725",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": "MEDU9629757",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ]
+        }
+    }
+
+    requirements = container_equipment_replacement_requirements(source, source_label, target_label)
+
+    assert [(row.sourceLineIds, row.sourceSurface) for row in requirements] == [
+        (("L00004",), "40' HC")
+    ]
+
+
+def test_unresolved_partial_equipment_surface_is_replaced_on_its_container_row() -> None:
+    source = "TGHU6144091|40|0491515\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [{"containerNumber": "TGHU6144091", "typeDescription": "40"}]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "TGHU9144098",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ]
+        }
+    }
+
+    requirements = container_equipment_replacement_requirements(source, source_label, target_label)
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
+        (("L00001",), "40", "40' HIGH CUBE GENERAL PURPOSE")
+    ]
+
+
+def test_single_container_recovers_one_unlabeled_printed_equipment_alias() -> None:
+    source = "CAIU4204766 / 04070\n52 PACKAGES /FCL / FCL/40HQ/7060.000KGS/40.000M3\n"
+    source_label = {
+        "documentPatch": {"containers": [{"containerNumber": "CAIU4204766"}]}
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "CAIU6730332",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ]
+        }
+    }
+
+    requirements = container_equipment_replacement_requirements(source, source_label, target_label)
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
+        (("L00002",), "40HQ", "20' STANDARD HEIGHT GENERAL PURPOSE")
+    ]
+
+
+def test_positional_equipment_rows_bind_when_occurrence_count_matches_container_subset() -> None:
+    source = (
+        "FSCU5906804 / 2439296\nKKFU6721390 / A147072\nONEU9083430 / 2439382\n"
+        "/FCL / FCL/40RQ/19886.321KGS/57.000M3\n"
+        "/FCL / FCL/40RQ/19881.604KGS/57.000M3\n"
+        "/FCL / FCL/40RQ/19886.321KGS/57.000M3\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "FSCU5906804", "typeDescription": "40RQ"},
+                {"containerNumber": "KKFU6721390", "typeDescription": "40RQ"},
+                {"containerNumber": "ONEU9083430", "typeDescription": "40RQ"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": f"ONEU90000{index}0",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+                for index in range(3)
+            ]
+        }
+    }
+
+    requirements = container_equipment_replacement_requirements(source, source_label, target_label)
+
+    assert [row.sourceLineIds for row in requirements] == [
+        ("L00004",),
+        ("L00005",),
+        ("L00006",),
     ]
 
 
@@ -3843,6 +5308,662 @@ def test_package_noun_renderer_does_not_upgrade_membership_only_allocations() ->
             _target_integrity_resources().packages,
         )
         == ()
+    )
+
+
+def test_package_noun_renderer_preserves_parenthesized_plural_envelope() -> None:
+    source = "TGBU1028944 20 DRY 14 PACKAGE(S) 1900.000 KGS\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [{"containerNumber": "TGBU1028944", "typeDescription": "20 DRY"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 14,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [{"containerNumber": "TGBU1028944", "packageQuantity": 14}],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "TGBU7153847",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 14,
+                    "typeCategory": "PACKAGE_BUNDLE",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [{"containerNumber": "TGBU7153847", "packageQuantity": 14}],
+                }
+            ],
+        }
+    }
+
+    requirements = container_package_type_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+
+    assert "14 BUNDLE(S)" in workspace.current_text
+    assert "BUNDLES(S)" not in workspace.current_text
+
+
+def test_cargo_package_noun_renderer_covers_totals_and_repeated_allocation_rows() -> None:
+    source = (
+        "TOTAL 1,878 CARTONS\n"
+        "(TOTAL ONE THOUSAND EIGHT HUNDRED\n"
+        "SEVENTY EIGHT CARTONS ONLY)\n"
+        "1X472 CARTONS\n"
+        "SOURCE GOODS\n"
+        "1X472 CARTONS\n"
+        "SOURCE GOODS\n"
+        "1X467 CARTONS\n"
+        "SOURCE GOODS\n"
+        "1X467 CARTONS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "SOURCE GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1878,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "CMAU7221965", "packageQuantity": 467},
+                        {"containerNumber": "TCNU2842580", "packageQuantity": 472},
+                        {"containerNumber": "CAAU6051350", "packageQuantity": 467},
+                        {"containerNumber": "CAIU8394366", "packageQuantity": 472},
+                    ],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 991,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "CMAU9109297", "packageQuantity": 247},
+                        {"containerNumber": "TCNU3213134", "packageQuantity": 249},
+                        {"containerNumber": "CAAU6283355", "packageQuantity": 246},
+                        {"containerNumber": "CAIU5101377", "packageQuantity": 249},
+                    ],
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            sourceLineIds=(
+                "L00004",
+                "L00005",
+                "L00006",
+                "L00007",
+                "L00008",
+                "L00009",
+                "L00010",
+            ),
+            sourceSurfaces=(
+                "1X472 CARTONS",
+                "SOURCE GOODS",
+                "1X472 CARTONS",
+                "SOURCE GOODS",
+                "1X467 CARTONS",
+                "SOURCE GOODS",
+                "1X467 CARTONS",
+            ),
+            targetDescription="TARGET GOODS",
+        ),
+    )
+
+    requirements = cargo_package_type_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    assert {line for row in requirements for line in row.sourceLineIds} == {
+        "L00001",
+        "L00003",
+        "L00004",
+        "L00006",
+        "L00008",
+        "L00010",
+    }
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+
+    assert "CARTON" not in workspace.current_text
+    assert workspace.current_text.count("PACKAGES") == 6
+
+    quantity_requirements = cargo_package_quantity_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        cargo,
+    )
+    assert [row.sourceLineIds[0] for row in quantity_requirements] == [
+        "L00001",
+        "L00004",
+        "L00006",
+        "L00008",
+        "L00010",
+    ]
+    assert [row.targetSurface for row in quantity_requirements] == [
+        "991",
+        "249",
+        "249",
+        "247",
+        "246",
+    ]
+
+    guarded = bind_cargo_package_surface_guards(
+        cargo,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+    )
+    assert guarded[0].enforcePackageSurfaceGuard
+    assert guarded[0].allowedPackageSurfaces == ("PACKAGE", "PACKAGES")
+
+
+def test_cargo_package_guard_rejects_an_invented_non_target_package_noun() -> None:
+    requirement = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="SYNTHETIC MACHINE PARTS",
+        sourceLineIds=("L00001", "L00002"),
+        sourceSurfaces=("SOURCE MACHINE PARTS", "PACKED FOR EXPORT"),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("PACKAGE", "PACKAGES"),
+    )
+
+    failures = _cargo_flavor_rewrite_failures(
+        "SYNTHETIC MACHINE PARTS\nPACKED IN EXPORT CARTONS\n",
+        (requirement,),
+    )
+
+    assert failures[0]["unexpectedPackageSurfaces"] == [
+        {
+            "lineId": "L00002",
+            "surface": "CARTONS",
+            "allowedSurfaces": ["PACKAGE", "PACKAGES"],
+        }
+    ]
+
+
+def test_cargo_package_guard_allows_package_surface_in_explicit_target_text() -> None:
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "SOURCE GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 665,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "description": "HOT-ROLLED STEEL",
+                    "additionalInformation": ["101 PACKAGES PACKED IN STEEL BUNDLES"],
+                }
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 101,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+        }
+    }
+    requirement = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-1-span-1",
+        targetPath="documentPatch.cargoGroups[0].description",
+        targetDescription="HOT-ROLLED STEEL",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=("SOURCE GOODS",),
+    )
+
+    guarded = bind_cargo_package_surface_guards(
+        (requirement,),
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+    )
+
+    assert set(guarded[0].allowedPackageSurfaces) == {
+        "PACKAGE",
+        "PACKAGES",
+        "STEEL BUNDLES",
+    }
+    assert not _cargo_flavor_rewrite_failures(
+        "HOT-ROLLED STEEL\n101 PACKAGES PACKED IN STEEL BUNDLES\n",
+        guarded,
+    )
+
+
+def test_compact_aggregate_equipment_summary_renders_every_target_family() -> None:
+    source = "5 X 40HC\nContinued on Next Sheet\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": f"CMAU00000{index}0", "typeDescription": "40HC"}
+                for index in range(5)
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": f"CMAU10000{index}0",
+                    "sizeCategory": (
+                        "FORTY_FOOT_HIGH_CUBE" if index < 3 else "TWENTY_FOOT_STANDARD_HEIGHT"
+                    ),
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+                for index in range(5)
+            ]
+        }
+    }
+
+    requirements = _aggregate_equipment_breakdown_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 5
+    assert {row.targetSurface for row in requirements} == {
+        "3 X 40' HIGH CUBE GENERAL PURPOSE + 2 X 20' STANDARD HEIGHT GENERAL PURPOSE"
+    }
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.splitlines()[0] == next(iter(requirements)).targetSurface
+
+
+def test_parenthetical_aggregate_equipment_summary_renders_every_target_family() -> None:
+    source = "SAY: EIGHT (20DRX8) CONTAINERS ONLY.\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [{"containerNumber": f"CMAU00000{index}0"} for index in range(8)]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": f"CMAU10000{index}0",
+                    "sizeCategory": (
+                        "FORTY_FOOT_HIGH_CUBE" if index != 2 else "TWENTY_FOOT_STANDARD_HEIGHT"
+                    ),
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+                for index in range(8)
+            ]
+        }
+    }
+
+    requirements = _aggregate_equipment_breakdown_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 8
+    assert {row.targetSurface for row in requirements} == {
+        "SAY: EIGHT (40' HIGH CUBE GENERAL PURPOSEX7 + "
+        "20' STANDARD HEIGHT GENERAL PURPOSEX1) CONTAINERS ONLY."
+    }
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        surface_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.splitlines()[0] == next(iter(requirements)).targetSurface
+
+
+def test_aggregate_summary_is_not_partially_rendered_after_topology_projection() -> None:
+    source = "SAY: TWO (20DRX2) CONTAINERS ONLY.\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "CMAU0000010"},
+                {"containerNumber": "CMAU0000020"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "CMAU1000010",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {"containerNumber": "CMAU1000020"},
+            ]
+        }
+    }
+
+    requirements = _aggregate_equipment_breakdown_requirements(
+        source, source_label, target_label
+    )
+
+    assert requirements == ()
+
+
+def test_mixed_parenthetical_aggregate_equipment_summary_is_reconciled() -> None:
+    source = "SAY : TWO (20DRX1 & 40HCX1) CONTAINERS ONLY.\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "FSCU3530390"},
+                {"containerNumber": "MEDU4913783"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "FSCU1127468",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": "MEDU2919397",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ]
+        }
+    }
+
+    requirements = _aggregate_equipment_breakdown_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 2
+    assert {row.targetSurface for row in requirements} == {
+        "SAY : TWO (40' HIGH CUBE GENERAL PURPOSEX2) CONTAINERS ONLY."
+    }
+
+
+def test_counted_aggregate_equipment_preserves_container_clause() -> None:
+    source = "2 x 40HR CONTAINER\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "MNBU4006124", "typeDescription": "40HR - CONTAINER"},
+                {"containerNumber": "MNBU9089862", "typeDescription": "40HR - CONTAINER"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "MNBU1006127",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": "MNBU1089860",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ]
+        }
+    }
+
+    requirements = _aggregate_equipment_breakdown_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 2
+    assert {row.targetSurface for row in requirements} == {
+        "1 x 40' HIGH CUBE GENERAL PURPOSE + 1 x 20' STANDARD HEIGHT GENERAL PURPOSE CONTAINER"
+    }
+
+
+def test_literal_aggregate_equipment_supports_unresolved_source_alias() -> None:
+    source = "2x40' HW\n"
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "BORU7013618", "typeDescription": "40' HW"},
+                {"containerNumber": "BORU7011256", "typeDescription": "40' HW"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "BORU9013612",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": "BORU9011252",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ]
+        }
+    }
+
+    requirements = _aggregate_equipment_breakdown_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 2
+    assert {row.targetSurface for row in requirements} == {
+        "1x40' HIGH CUBE GENERAL PURPOSE + 1x20' STANDARD HEIGHT GENERAL PURPOSE"
+    }
+
+
+def test_dense_container_table_reconciles_rows_tare_and_document_totals() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    limits = capacity_limits(config.target_integrity.transport_capacity)
+    source_numbers = ("TLLU4654238", "CMAU7646960")
+    target_numbers = ("TLLU1488350", "CMAU9583639")
+    source = (
+        "--- PAGE 1 ---\n"
+        "GROSS WEIGHT\nCARGO\nKGS\nKGS\nCBM\n"
+        f"{source_numbers[0]}\nSEAL A1\n1 x 40HC 20 PACKAGE(S)\n"
+        "20000.000\n3700\n60.000\n\n"
+        f"{source_numbers[1]}\nSEAL A2\n1 x 40HC 10 PACKAGE(S)\n"
+        "10000.000\n2300\n40.000\n\n"
+        "Continued From Previous Sheet Sheet 2 of 3 30000.000 6000 100.000\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": number, "typeDescription": "40HC"} for number in source_numbers
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 30000, "unit": "kilogram"},
+                    "volume": {"value": 100, "unit": "cubic_metre"},
+                }
+            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 30}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": source_numbers[0], "packageQuantity": 20},
+                        {"containerNumber": source_numbers[1], "packageQuantity": 10},
+                    ],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": target_numbers[0],
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+                {
+                    "containerNumber": target_numbers[1],
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                },
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 20000, "unit": "kilogram"},
+                    "volume": {"value": 60, "unit": "cubic_metre"},
+                }
+            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 12}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": target_numbers[0], "packageQuantity": 7},
+                        {"containerNumber": target_numbers[1], "packageQuantity": 5},
+                    ],
+                }
+            ],
+        }
+    }
+    profiles = (
+        EmpiricalOperationalProfile(
+            document_id="profile-40",
+            container_number="PROF4000000",
+            equipment_family="forty_high_cube",
+            gross_weight_kg=None,
+            gross_utilization=None,
+            volume_m3=None,
+            volume_utilization=None,
+            tare_weight_kg=Decimal("3850"),
+        ),
+        EmpiricalOperationalProfile(
+            document_id="profile-20",
+            container_number="PROF2000000",
+            equipment_family="twenty_standard",
+            gross_weight_kg=None,
+            gross_utilization=None,
+            volume_m3=None,
+            volume_utilization=None,
+            tare_weight_kg=Decimal("2250"),
+        ),
+    )
+
+    operational = operational_flavor_requirements(
+        source,
+        source_label,
+        target_label,
+        source_document_id="source-document",
+        scenario_id="scenario-dense",
+        profiles=profiles,
+        limits=limits,
+    )
+    aggregates = aggregate_operational_replacement_requirements(source, operational)
+    equipment = container_equipment_replacement_requirements(source, source_label, target_label)
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        operational_flavor_requirements=operational,
+        anchored_scalar_replacement_requirements=(aggregates + equipment),
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert {row.kind for row in operational} == {
+        "gross_weight_kg",
+        "tare_weight_kg",
+        "volume_m3",
+        "package_quantity",
+    }
+    assert workspace.current_text.splitlines()[8:19] == [
+        "1 x 40HC 7 PACKAGE(S)",
+        "11666.667",
+        "3850",
+        "35.000",
+        "",
+        source_numbers[1],
+        "SEAL A2",
+        "1 x 20' STANDARD HEIGHT GENERAL PURPOSE 5 PACKAGE(S)",
+        "8333.333",
+        "2250",
+        "25.000",
+    ]
+    assert workspace.current_text.splitlines()[-1] == (
+        "Continued From Previous Sheet Sheet 2 of 3 20000.000 6100 60.000"
     )
 
 
@@ -4308,6 +6429,128 @@ def test_labeled_measurement_replacement_preserves_grouping_and_precision() -> N
     )
 
 
+def test_labeled_net_weight_and_every_repeated_measurement_are_prefilled() -> None:
+    source = (
+        "--- PAGE 1 ---\n"
+        "NET WEIGHT: 16,000 KGS\n"
+        "Net Weight (KGS)\n"
+        "16000.000\n"
+        "G.W 16128.000 N.W 16000.000\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "netWeight": {"value": 16000, "unit": "kilogram"}}]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "netWeight": {"value": 24715.9, "unit": "kilogram"}}]
+        }
+    }
+
+    requirements = anchored_measurement_replacement_requirements(source, source_label, target_label)
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
+        (("L00002",), "16,000", "24,715.9"),
+        (("L00004", "L00005"), "16000.000", "24715.900"),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert "NET WEIGHT: 24,715.9 KGS" in workspace.current_text
+    assert "24715.900" in workspace.current_text
+    assert "G.W 16128.000 N.W 24715.900" in workspace.current_text
+    assert "16,000" not in workspace.current_text
+    assert "16000.000" not in workspace.current_text
+
+
+def test_package_quantity_prefill_covers_all_explicit_noun_bound_occurrences() -> None:
+    source = (
+        "--- PAGE 1 ---\n"
+        "640 BAGS\n"
+        "640.00BAGS\n"
+        "SAY SIX HUNDRED FORTY PACKAGE(S)\n"
+        "PHONE +60 640 9999\n"
+        "60 DAYS FREE TIME\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1"}],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 640}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [{"containerNumber": "ABCD0000000", "packageQuantity": 640}],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1"}],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 512}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [{"containerNumber": "ABCD0000000", "packageQuantity": 512}],
+                }
+            ],
+        }
+    }
+    leaves = rewrite_changed_leaves(source_label, target_label)
+
+    requirements = anchored_package_quantity_replacement_requirements(source, leaves)
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
+        (("L00002",), "640", "512"),
+        (("L00003",), "640.00", "512.00"),
+        (("L00004",), "SIX HUNDRED FORTY", "FIVE HUNDRED TWELVE"),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text == (
+        "--- PAGE 1 ---\n"
+        "512 BAGS\n"
+        "512.00BAGS\n"
+        "SAY FIVE HUNDRED TWELVE PACKAGE(S)\n"
+        "PHONE +60 640 9999\n"
+        "60 DAYS FREE TIME\n"
+    )
+
+
+def test_package_quantity_prefill_rejects_one_source_number_with_conflicting_targets() -> None:
+    source = "10 BAGS\n10 CARTONS\n"
+    leaves = (
+        ChangedLeaf(
+            path="documentPatch.cargoPackages[0].quantity",
+            sourcePresent=True,
+            targetPresent=True,
+            sourceValue=10,
+            targetValue=12,
+            evidenceClass="printed_fact",
+            requiresTextEdit=True,
+        ),
+        ChangedLeaf(
+            path="documentPatch.cargoPackages[1].quantity",
+            sourcePresent=True,
+            targetPresent=True,
+            sourceValue=10,
+            targetValue=8,
+            evidenceClass="printed_fact",
+            requiresTextEdit=True,
+        ),
+    )
+
+    assert anchored_package_quantity_replacement_requirements(source, leaves) == ()
+
+
 def test_deterministic_prefill_applies_every_repeated_anchored_value() -> None:
     source = (
         "--- PAGE 1 ---\nMEASUREMENT: 67.700CBM\nCONTAINER TOTAL: 67.700CBM\nREFERENCE: ABC-123\n"
@@ -4339,6 +6582,170 @@ def test_deterministic_prefill_applies_every_repeated_anchored_value() -> None:
     assert {row.lineId for row in applied} == set(requirements[0].sourceLineIds)
     assert all(row.targetPaths == requirements[0].targetPaths for row in applied)
     assert deterministic_rewrite_audit(workspace, ()).anchoredScalarReplacementsRendered
+
+
+def test_package_noun_prefill_allows_digit_adjacent_compact_surfaces() -> None:
+    source = "88PLTS=1556CTNS=31064PCS\n2396CARTON(S)\n"
+    requirements = (
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoPackages[0].typeCategory",),
+            sourceLineIds=("L00001",),
+            sourceSurface="CTNS",
+            targetSurface="SACKS",
+            surfaceKind="package_noun",
+        ),
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoPackages[1].typeCategory",),
+            sourceLineIds=("L00002",),
+            sourceSurface="CARTON",
+            targetSurface="PACKAGE",
+            surfaceKind="package_noun",
+        ),
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "88PLTS=1556SACKS=31064PCS\n2396PACKAGE(S)\n"
+
+
+def test_repeated_equal_package_totals_remain_owned_by_their_cargo_groups() -> None:
+    source = (
+        "1 Container Said to Contain 1 PACKAGE\n"
+        "FIRST MACHINE\n"
+        "MAEU4092466 SEAL1 40 OPEN 9'6 1 PACKAGE 22000.000 KGS\n"
+        "1 Container Said to Contain 1 PACKAGE\n"
+        "SECOND MACHINE\n"
+        "MAEU4198170 SEAL2 40 OPEN 9'6 1 PACKAGE 22100.000 KGS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "FIRST MACHINE"},
+                {"groupId": "g2", "description": "SECOND MACHINE"},
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                },
+                {
+                    "groupId": "g2",
+                    "packageId": "p2",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                },
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "allocations": [
+                        {"containerNumber": "MAEU4092466", "packageQuantity": 1}
+                    ],
+                },
+                {
+                    "groupId": "g2",
+                    "packageIds": ["p2"],
+                    "allocations": [
+                        {"containerNumber": "MAEU4198170", "packageQuantity": 1}
+                    ],
+                },
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "ELECTRIC GENERATOR"},
+                {"groupId": "g2", "description": "OTHER SEATS"},
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 33,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                },
+                {
+                    "groupId": "g2",
+                    "packageId": "p2",
+                    "quantity": 34,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "allocations": [
+                        {"containerNumber": "MAEU4105558", "packageQuantity": 33}
+                    ],
+                },
+                {
+                    "groupId": "g2",
+                    "packageIds": ["p2"],
+                    "allocations": [
+                        {"containerNumber": "MAEU8030987", "packageQuantity": 34}
+                    ],
+                },
+            ],
+        }
+    }
+    cargo_requirements = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="ELECTRIC GENERATOR",
+            sourceLineIds=("L00002",),
+            sourceSurfaces=("FIRST MACHINE",),
+        ),
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-2-span-1",
+            targetPath="documentPatch.cargoGroups[1].description",
+            targetDescription="OTHER SEATS",
+            sourceLineIds=("L00005",),
+            sourceSurfaces=("SECOND MACHINE",),
+        ),
+    )
+
+    package_types = cargo_package_type_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo_requirements,
+    )
+    quantities = cargo_package_quantity_replacement_requirements(
+        source, source_label, target_label, cargo_requirements
+    )
+
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in package_types] == [
+        (("L00001",), "PACKAGE", "PACKAGES"),
+        (("L00003",), "PACKAGE", "PACKAGES"),
+        (("L00004",), "PACKAGE", "CARTONS"),
+        (("L00006",), "PACKAGE", "CARTONS"),
+    ]
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in quantities] == [
+        (("L00001",), "1", "33"),
+        (("L00003",), "1", "33"),
+        (("L00004",), "1", "34"),
+        (("L00006",), "1", "34"),
+    ]
+    assert quantities[0].targetPaths == (
+        "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+        "documentPatch.cargoPackages[0].quantity",
+    )
+    assert quantities[2].targetPaths == (
+        "documentPatch.cargoAllocationGroups[1].allocations[0].packageQuantity",
+        "documentPatch.cargoPackages[1].quantity",
+    )
 
 
 def test_deterministic_prefill_applies_unambiguous_derived_surfaces() -> None:
@@ -4388,6 +6795,34 @@ def test_deterministic_prefill_applies_unambiguous_derived_surfaces() -> None:
         "19/09/2024",
         "10 X 40' + 2 X 20'",
     }
+
+
+def test_deterministic_prefill_defers_one_hs_surface_with_multiple_targets() -> None:
+    source = "HS CODE: 2401108590\n"
+    first = SurfaceRenderingRequirement(
+        kind="hs_code",
+        targetPath="documentPatch.cargoGroups[0].hsCodes[0]",
+        sourceSurface="2401108590",
+        targetSurface="0902400010",
+        sourceOccurrences=1,
+        contextEvidence=source.strip(),
+    )
+    second = first.model_copy(
+        update={
+            "targetPath": "documentPatch.cargoGroups[1].hsCodes[0]",
+            "targetSurface": "1209910010",
+        }
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        surface_requirements=(first, second),
+    )
+
+    applied = apply_deterministic_prefills(workspace)
+
+    assert applied == ()
+    assert workspace.current_text == source
 
 
 def test_deterministic_prefill_rejects_unowned_conflicting_date_projection() -> None:
@@ -4484,6 +6919,70 @@ def test_cargo_spans_assign_repeated_and_similar_descriptions_one_to_one() -> No
         ("L00006",),
         ("L00008",),
     ]
+
+
+def test_cargo_spans_do_not_merge_adjacent_exact_near_duplicate_products() -> None:
+    source = (
+        "USED MACHINE CATERPILLAR 966 F SERIAL NUMBER 3XJ01530\n"
+        "MAEU4092466 ML-ES0121810 40 OPEN 9'6 1 PACKAGE 22000.000 KGS\n"
+        "1 Container Said to Contain 1 PACKAGE\n"
+        "USED MACHINE CATERPILLAR 966 D SERIAL NUMBER 94X02316\n"
+        "MAEU4198170 ML-ES0121855 40 OPEN 9'6 1 PACKAGE 22100.000 KGS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "USED MACHINE CATERPILLAR 966 F"},
+                {"groupId": "g2", "description": "USED MACHINE CATERPILLAR 966 D"},
+            ]
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "ELECTRIC GENERATOR"},
+                {"groupId": "g2", "description": "OTHER SEATS"},
+            ]
+        }
+    }
+
+    requirements = cargo_flavor_rewrite_requirements(source, source_label, target_label)
+
+    assert [(row.targetPath, row.sourceLineIds) for row in requirements] == [
+        ("documentPatch.cargoGroups[0].description", ("L00001",)),
+        ("documentPatch.cargoGroups[1].description", ("L00004",)),
+    ]
+
+
+def test_exact_single_line_cargo_description_is_compiled_without_model_rewriting() -> None:
+    source = "Heading\nproduits de maintenance industrielle\nUN 3077 OLD SHIPPING NAME\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "produits de maintenance industrielle"}
+            ]
+        }
+    }
+    requirements = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="ammonium perchlorate",
+            sourceLineIds=("L00002",),
+            sourceSurfaces=("produits de maintenance industrielle",),
+        ),
+    )
+
+    compiled = exact_cargo_line_replacement_requirements(source, source_label, requirements)
+
+    assert compiled == (
+        AnchoredScalarReplacementRequirement(
+            targetPaths=("documentPatch.cargoGroups[0].description",),
+            sourceLineIds=("L00002",),
+            sourceSurface="produits de maintenance industrielle",
+            targetSurface="ammonium perchlorate",
+        ),
+    )
 
 
 def test_cargo_span_does_not_match_word_suffix_in_unrelated_header() -> None:
@@ -4696,6 +7195,33 @@ def test_raw_only_carrier_agent_is_synthesized_in_its_existing_relationship() ->
     assert deterministic_rewrite_audit(workspace, ()).rawAuxiliaryIdentitiesReplaced
 
 
+def test_generic_signatory_role_is_not_invented_as_a_private_agent_identity() -> None:
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
+    source = (
+        "By\n"
+        "General Manager\n"
+        "as agent for the Carrier SOURCE LINE\n"
+    )
+
+    assert raw_auxiliary_identity_requirements(source, source_label, target_label) == ()
+
+
+def test_named_signatory_with_generic_role_remains_anonymization_owned() -> None:
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
+    source = (
+        "A. MARIN\n"
+        "General Manager\n"
+        "as agent for the Carrier SOURCE LINE\n"
+    )
+
+    requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceIdentity == "A. MARIN\nGeneral Manager"
+
+
 def test_repeated_inline_and_split_carrier_agents_share_one_fictional_identity() -> None:
     source_label = {
         "documentPatch": {"parties": {"carrier": {"name": "MEDITERRANEAN SHIPPING COMPANY S.A."}}}
@@ -4783,6 +7309,170 @@ def test_signed_for_carrier_principal_is_not_absorbed_into_following_agent_ident
     assert requirements[0].sourceIdentity == "BY CMA CGM XIAMEN"
     assert requirements[0].sourceEvidence == (
         "BY CMA CGM XIAMEN\nas agents for the carrier CMA CGM S. A."
+    )
+
+
+def test_abbreviated_agent_principal_still_anonymizes_the_explicit_agent() -> None:
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {"name": "CMA CGM Société Anonyme au Capital de 234 988 330 Euros"}
+            }
+        }
+    }
+    target_label = {
+        "documentPatch": {"parties": {"carrier": {"name": "HELVETIC CREST NAVIGATION AG"}}}
+    }
+    source = (
+        "SIGNED FOR THE CARRIER CMA CGM S.A.\n"
+        "BY CMA CGM Deutschland GmbH Shipping Agency as agents for the carrier CMA CGM S. A.\n"
+    )
+
+    requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceIdentity == "BY CMA CGM Deutschland GmbH Shipping Agency"
+    assert requirements[0].targetPrincipalName == "HELVETIC CREST NAVIGATION AG"
+
+
+def test_signed_for_carrier_trailing_by_is_not_part_of_the_principal() -> None:
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "CMA CGM SA"}}}}
+    target_label = {
+        "documentPatch": {"parties": {"carrier": {"name": "NORTHGATE MARITIME LINES LLC"}}}
+    }
+    source = (
+        "Signed for the Carrier CMA CGM SA by\nCMA CGM (AMERICA) LLC as agent for the Carrier\n"
+    )
+
+    surfaces = surface_rendering_requirements(source, source_label, target_label)
+    principal = [row for row in surfaces if row.kind == "carrier_principal_identity"]
+    assert [(row.sourceSurface, row.sourceLineIds) for row in principal] == [
+        ("CMA CGM SA", ("L00001",))
+    ]
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        current_target_label=target_label,
+        surface_requirements=tuple(surfaces),
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.splitlines()[0] == (
+        "Signed for the Carrier NORTHGATE MARITIME LINES LLC by"
+    )
+    auxiliary = raw_auxiliary_identity_requirements(source, source_label, target_label)
+    assert len(auxiliary) == 1
+    assert auxiliary[0].sourceIdentity == "CMA CGM (AMERICA) LLC"
+    assert auxiliary[0].targetPrincipalName == "NORTHGATE MARITIME LINES LLC"
+
+
+def test_wrapped_on_board_agent_is_anonymized_when_the_task_has_no_carrier() -> None:
+    source = (
+        "Shipped on Board EVER LEARNED 19-MAY-2023 CMA CGM CHINA SHIPPING\n"
+        "CO. LTD As agents for the Carrier\n"
+    )
+    label = {"documentPatch": {"parties": {}}}
+
+    requirements = raw_auxiliary_identity_requirements(source, label, label)
+
+    assert len(requirements) == 1
+    assert requirements[0].requirementId == "carrier-agent-L00001"
+    assert requirements[0].sourceIdentity == "CMA CGM CHINA SHIPPING\nCO. LTD"
+    assert requirements[0].sourceIdentityLineCount == 2
+    assert requirements[0].targetPrincipalName == "THE CARRIER"
+
+
+def test_inline_on_board_agent_excludes_vessel_and_date_from_its_identity() -> None:
+    source = (
+        "Shipped on Board APL SINGAPURA 20-MAY-2024 CMA CGM XIAMEN "
+        "As agents for the Carrier\n\nWeight in Kgs Total: 5 CONTAINER(S)\n"
+    )
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "CMA CGM S.A."}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "ALTURA MARITIMA S.A."}}}}
+
+    requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceIdentity == "CMA CGM XIAMEN"
+    assert requirements[0].sourceIdentityLineCount == 1
+    assert requirements[0].gapLineCount == 0
+    assert requirements[0].targetPrincipalName == "THE CARRIER"
+
+
+def test_inline_on_board_agent_accepts_a_unicode_fictional_identity() -> None:
+    source = (
+        "Shipped on Board APL SINGAPURA 20-MAY-2024 CMA CGM XIAMEN "
+        "As agents for the Carrier\n\nWeight in Kgs Total: 5 CONTAINER(S)\n"
+    )
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "CMA CGM S.A."}}}}
+    target_label = {
+        "documentPatch": {"parties": {"carrier": {"name": "ALTURA MARITIMA S.A."}}}
+    }
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        current_target_label=target_label,
+        raw_auxiliary_identity_requirements=raw_auxiliary_identity_requirements(
+            source, source_label, target_label
+        ),
+    )
+
+    commit = apply_line_range_replacements(
+        workspace,
+        (
+            _edit(
+                source,
+                1,
+                1,
+                "Shipped on Board KANDA LOGGER 09-APR-2025 "
+                "Servicios Logísticos Altamar S. de R.L. As agents for the Carrier",
+            ),
+        ),
+    )
+
+    assert len(commit.rawAuxiliaryIdentityRealizations) == 1
+    assert commit.rawAuxiliaryIdentityRealizations[0].gapLineCount == 0
+    assert deterministic_rewrite_audit(workspace, ()).rawAuxiliaryIdentitiesReplaced
+
+
+def test_generic_agent_relation_stays_generic_when_target_carrier_exists() -> None:
+    source = (
+        "Shipped on Board SOURCE VESSEL 19-MAY-2023 OLD SHIPPING AGENCY\n"
+        "PTE LTD As agents for the Carrier\n"
+    )
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "OLD OCEAN LINE"}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "NEW MERIDIAN LINE"}}}}
+
+    requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 1
+    assert requirements[0].targetPrincipalName == "THE CARRIER"
+
+
+def test_shared_carrier_legal_identity_repairs_the_longer_party_target() -> None:
+    raw = "FORWARDING AGENT\nTRANSGLORY S.A.\nSigned on behalf of the Carrier: TRANSGLORY\n"
+    source = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {"name": "TRANSGLORY"},
+                "forwardingAgent": {"name": "TRANSGLORY S.A."},
+            }
+        }
+    }
+    target = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {"name": "Aureline Oceanic Carriers"},
+                "forwardingAgent": {"name": "Kestrel Meridian Forwarding S.A."},
+            }
+        }
+    }
+
+    changes = repair_overlapping_source_scalar_targets(raw, source, target)
+
+    assert [row.reason for row in changes] == ["shared_source_party_identity_topology"]
+    assert target["documentPatch"]["parties"]["carrier"]["name"] == ("Aureline Oceanic Carriers")
+    assert target["documentPatch"]["parties"]["forwardingAgent"]["name"] == (
+        "Aureline Oceanic Carriers S.A."
     )
 
 
