@@ -226,6 +226,59 @@ def test_dangerous_goods_un_number_accepts_standard_un_prefix() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "text",
+    (
+        "INVOICE NO. 785897 DATED: 07.07.2023\n",
+        "EXPORT REFERENCE: 785897\nDATE: 07.07.2023\n",
+    ),
+)
+def test_ordered_reference_literal_accepts_bounded_contextual_atoms(text: str) -> None:
+    assert _target_literal_present(
+        text=text,
+        target_path="documentPatch.forwardingAndExportReferences[0]",
+        target_value="785897 07.07.2023",
+        match_policy="ordered_semantic_atoms",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "B/L NO. 785897\nUNRELATED DATE: 07.07.2023\n",
+        "INVOICE NO. 07.07.2023 DATED: 785897\n",
+        "INVOICE NO. 785897 ONE TWO THREE FOUR FIVE SIX SEVEN 07.07.2023\n",
+        "INVOICE NO. 785897\nUNRELATED\nDATE: 07.07.2023\n",
+    ),
+)
+def test_ordered_reference_literal_rejects_unowned_or_unbounded_atoms(text: str) -> None:
+    assert not _target_literal_present(
+        text=text,
+        target_path="documentPatch.forwardingAndExportReferences[0]",
+        target_value="785897 07.07.2023",
+        match_policy="ordered_semantic_atoms",
+    )
+
+
+def test_host_audit_accepts_ordered_reference_literal_contract() -> None:
+    source = "--- PAGE 1 ---\nINVOICE NO. 1123200938 DATED: 27.11.2023\n"
+    output = "--- PAGE 1 ---\nINVOICE NO. 785897 DATED: 07.07.2023\n"
+    contract = {
+        "targetLiteralRequirements": [
+            {
+                "targetPath": "documentPatch.forwardingAndExportReferences[0]",
+                "targetValue": "785897 07.07.2023",
+                "matchPolicy": "ordered_semantic_atoms",
+            }
+        ],
+        "targetValueOccurrenceRequirements": [],
+        "targetIntegrity": {"final_receipt": {"valid": True}, "topology_matched": True},
+        "rawAuxiliaryIdentityRequirements": [],
+    }
+
+    assert _host_audit(source=source, output=output, contract=contract).passed is True
+
+
 def test_read_only_checkpoint_replays_candidate_identity(tmp_path: Path) -> None:
     document_id = "doc_" + "b" * 64
     source = "--- PAGE 1 ---\nOLD-123\nOLD CARRIER\nOLD CARRIER\n"

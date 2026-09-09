@@ -40,6 +40,7 @@ from document_ocr.synthesis.raw_text_inventory import (
 from document_ocr.synthesis.raw_text_inventory_probe import (
     InventoryProbeCaseResult,
     _allocation_quantity_evidence_lines,
+    _auxiliary_label_lock_requirements,
     _cargo_marks_sequence_evidence,
     _CompoundSlot,
     _editor_payload,
@@ -191,6 +192,34 @@ def test_auxiliary_label_surfaces_preserve_product_and_acid_headings() -> None:
         "0402620044",
         "1003633852023110047",
     ]
+
+
+def test_package_owned_lot_is_not_also_locked_as_an_auxiliary_label() -> None:
+    package_requirement = {
+        "kind": "source_only_cargo_packaging",
+        "paths": ["documentPatch.cargoGroups[0].description"],
+        "source": ["lot"],
+        "target": {
+            "description": "TARGET GOODS",
+            "allowedPackageSurfaces": ["CARTON", "CARTONS"],
+        },
+    }
+
+    assert auxiliary_label_surfaces("One lot used machines and parts") == ("lot ",)
+    assert (
+        _auxiliary_label_lock_requirements(
+            "One lot used machines and parts", (package_requirement,)
+        )
+        == ()
+    )
+    assert _auxiliary_label_lock_requirements("LOT: B7", ()) == (
+        {
+            "kind": "host_locked_source_literal",
+            "paths": ["rawTemplate.fieldLabel"],
+            "target": "LOT: ",
+            "policy": "preserve_verbatim_on_this_line",
+        },
+    )
 
 
 def test_embedded_long_identifier_excludes_phone_and_measurement() -> None:

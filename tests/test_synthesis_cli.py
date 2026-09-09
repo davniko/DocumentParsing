@@ -10,7 +10,16 @@ import pytest
 import yaml
 
 from document_ocr.synthesis import cli
-from document_ocr.synthesis.config import SynthesisRouteScenarioPilotConfig
+from document_ocr.synthesis.config import (
+    SynthesisRawTextPipelineConfig,
+    SynthesisRouteScenarioPilotConfig,
+)
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_RAW_TEXT_PIPELINE_CONFIG = (
+    _PROJECT_ROOT
+    / "configs/synthesis/mpci_bl_raw_text_pipeline100_additional_maritime_v1_glm53.yaml"
+)
 
 
 def _route_config_value(tmp_path: Path) -> dict[str, Any]:
@@ -333,3 +342,97 @@ def test_route_scenario_config_error_is_reported_without_running_pipeline(
     assert error["status"] == "error"
     assert error["error_type"] == "ValidationError"
     assert "direct_routes_only" in error["diagnostic"]
+
+
+def test_validate_raw_text_pipeline_config_emits_production_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "document-kie-synthesis",
+            "validate-raw-text-pipeline-config",
+            "--config",
+            str(_RAW_TEXT_PIPELINE_CONFIG),
+            "--project-root",
+            str(_PROJECT_ROOT),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "certification_shard_size": 50,
+        "command": "validate-raw-text-pipeline-config",
+        "correction_attempts_per_round": 1,
+        "correction_rounds": 3,
+        "documents": 100,
+        "inventory_rounds": 3,
+        "run_id": "mpci-bl-raw-text-pipeline100-additional-maritime-v1-glm53",
+        "resume_mode": "fresh",
+        "status": "valid",
+    }
+
+
+@pytest.mark.parametrize("command", ("preflight-raw-text-pipeline", "run-raw-text-pipeline"))
+def test_raw_text_pipeline_cli_delegates_exact_config(
+    command: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from document_ocr.synthesis import raw_text_pipeline
+
+    calls: list[tuple[Path, Path, SynthesisRawTextPipelineConfig]] = []
+
+    def fake_pipeline(
+        *,
+        project_root: Path,
+        config_path: Path,
+        config: SynthesisRawTextPipelineConfig,
+    ) -> dict[str, Any]:
+        calls.append((project_root, config_path, config))
+        return {"runId": config.run.run_id, "documents": config.workflow.documents}
+
+    target = (
+        "preflight_raw_text_pipeline"
+        if command.startswith("preflight")
+        else "run_raw_text_pipeline"
+    )
+    monkeypatch.setattr(raw_text_pipeline, target, fake_pipeline)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "document-kie-synthesis",
+            command,
+            "--config",
+            str(_RAW_TEXT_PIPELINE_CONFIG),
+            "--project-root",
+            str(_PROJECT_ROOT),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert len(calls) == 1
+    assert calls[0][0] == _PROJECT_ROOT.resolve()
+    assert calls[0][1] == _RAW_TEXT_PIPELINE_CONFIG.resolve()
+    assert calls[0][2].workflow.documents == 100
+    assert json.loads(captured.out) == {
+        "command": command,
+        "result": {
+            "documents": 100,
+            "runId": "mpci-bl-raw-text-pipeline100-additional-maritime-v1-glm53",
+        },
+        "status": "complete",
+    }

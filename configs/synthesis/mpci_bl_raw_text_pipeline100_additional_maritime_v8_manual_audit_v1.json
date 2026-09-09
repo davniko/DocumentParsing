@@ -1,0 +1,383 @@
+{
+  "schemaVersion": 1,
+  "pipelineCommitSha256": "45e18a71c2b0ba4fc682e952fa8070323f3c06a71648b4e2fb15ec434196c8c0",
+  "randomSampleSize": 25,
+  "cases": [
+    {
+      "documentId": "doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "Four plastic drums are compatible with the generic drum package target; dangerous-goods facts, weights, parties, route, and identities reconcile, and source shipment identities are absent."
+    },
+    {
+      "documentId": "doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 588 cartons, 6328.6 kg, 24.9 cubic metres, refrigerated 40-foot container at -24 C, route, parties, dates, and repeated values agree; no source shipment value remains."
+    },
+    {
+      "documentId": "doc_2809b1ea448cee68911e4c468afb3ef8f1c12b0a94ee2f8ca1922e2b5538c208",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 50-carton allocation, 20-foot equipment, 23666.3 kg, 22.8 cubic metres, OLED cargo, route, parties, dates, and marks reconcile with unchanged physical topology and no source identity."
+    },
+    {
+      "documentId": "doc_8cafc8c13fc735f4399f07ce0f13389a987cb569a2fb4bab621e84eedffd18c4",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 353 plus 817 allocations total 1170 packages, both 40-foot high-cube rows and their measurements are coherent, and target parties, route, cargo, and source-identity replacement agree."
+    },
+    {
+      "documentId": "doc_2d393b7327a4eb7b645ee1bfca916f7a3561d60057c47e9e19faf6ba18821cea",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The generated destination-office block is internally inconsistent: Ystad Shipping is placed at Kalmar Port, then at Ystad, Sweden, with Finnish +358 telephone and fax numbers and a Kalmar email address (final lines 45-52)."
+    },
+    {
+      "documentId": "doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "A United States shipper and exporter retain Ecuador-specific RUC and DAE field semantics at final lines 12 and 53 even though their values were fictionalized; the cargo arithmetic itself reconciles."
+    },
+    {
+      "documentId": "doc_d98052338410f8cf321980945f59ead9d50522e42d130b912c8a2a1cadb69a1c",
+      "semanticConsistency": false,
+      "templateFidelity": false,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The same repeated forwarding-agent block has conflicting VAT identifiers at final lines 24 and 135, and both signatures delete the fixed legal label wording 'the Carrier'."
+    },
+    {
+      "documentId": "doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The named Singapore consignee block assigns that party an Egypt-specific ACID and derived importer-tax identity at final lines 24-28 and 50-51; the rewritten values are private-safe but jurisdictionally incoherent."
+    },
+    {
+      "documentId": "doc_4c4e07528c1272f84a110bd90e867fb4597b07e08f64a71a4259e2e1a66bb2ff",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The Germany-to-Italy shipment with German shipper and Italian consignee retains an Egypt-specific ACID field at final line 32; quantities, equipment, weights, and freight otherwise reconcile."
+    },
+    {
+      "documentId": "doc_1c3797a521af25c4dd20bc95238d6605c4ef404b343374bee3833c7be71541fd",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 872 packages, 27005 kg, 52.93 cubic metres, 40-foot high-cube container, Ecuador-to-Panama route, straight consignee, dates, and repeated identities reconcile without source shipment residue."
+    },
+    {
+      "documentId": "doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The two-carton mould shipment, 2137.6 kg, 2.29 cubic metres, equipment, target references, Thai parties and route, dates, and repeated carrier details agree; all source values were replaced."
+    },
+    {
+      "documentId": "doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "Final line 183 retains source '2 X 40HC' against one 20-foot plus one 40HC; tares 3850+2970 differ from total 5940 and volumes 19.850+15.400 differ from total 39.700."
+    },
+    {
+      "documentId": "doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "Whole-shipment measurements are attached to the first of two containers, Egypt ACID semantics remain on a Vietnam route, and source carrier registry 562024422 is reassigned to the synthetic carrier."
+    },
+    {
+      "documentId": "doc_dd3a55957dccc2a3e3e24db7b9dc28194c661c0f5cc45be312ca1de907b55610",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The negotiable bearer-form bill, 648-package allocation, 40-foot high-cube equipment, cargo, China-to-Belgium route, original-surrender clause, identities, and prepaid terms are mutually coherent and rewritten."
+    },
+    {
+      "documentId": "doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 350-package allocation, 43.76 cubic metres, 40-foot high-cube equipment, cargo, reference, parties, New-Zealand-to-Hong-Kong route, and repeated identities agree without source shipment residue."
+    },
+    {
+      "documentId": "doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "Final lines 61-62 identify the foreign exporter as a Spanish company even though the target and final shipper/exporter is Kaviron in India; weights, allocations, and source-value replacement otherwise reconcile."
+    },
+    {
+      "documentId": "doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 1315 cases, 40-foot high-cube equipment, Chile-to-China route, parties, dates, marks, freight, repeated references, and source-identity replacement all agree."
+    },
+    {
+      "documentId": "doc_afd4f1f4981dd5dbd87467c2c3dce798ab1fbe7362ee18771149c4047b07d13b",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The five allocations total 2847 bags; equipment topology, aggregate 22457.2 kg and 58.6 cubic metres, cargo, parties, route, references, and source-identity replacement reconcile."
+    },
+    {
+      "documentId": "doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The 3011 cartons, 25344 kg, reefer container at -23 C, route, straight-waybill status, freight, parties, and repeated values agree, while all concrete source shipment identities were replaced."
+    },
+    {
+      "documentId": "doc_3eda6ec841ce6be8666c4af8177d975f998a8ee63fc896f4093e35ecc01fad17",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The Singapore consignee tax identifier is reused as an Egypt-specific ACID at final lines 129-131, and the auxiliary office block mixes Singapore, Tanjung Aru, +60, and +65 locations; values are fictionalized but incoherent."
+    },
+    {
+      "documentId": "doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The generated 11172.192 kg over the target 4.32 cubic metres implies 2586 kg/m3 for polyisobutylene, 2.84 times BASF's 0.91 g/cm3 manufacturer value; the three-bag cargo is physically incoherent. Evidence: https://automotive-transportation.basf.com/dam/jcr%3A2b29f68c-efeb-33fd-997b-704d14111c82/basf/www/global/segments/performance-chemicals/fuel-and-lubricant-solutions/Oppanol/downloads/2021_BASF_Oppanol_PIB_8-5x14_Digital.pdf"
+    },
+    {
+      "documentId": "doc_c81f71d2468cbae5c3e3d08ff33a5e16745fbda39e5145144c516e30f77b0fdf",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "Component gross and net values reconcile to 12150 and 11750, but final line 124 prints crossed 11900; line 127 still assigns the synthetic shipment to source Maersk Line India."
+    },
+    {
+      "documentId": "doc_0dcc89acef2074d1ed2ca7dee64f52771d5f59337b3d7ef426e9bb6c2fe53b86",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "All twelve container rows agree with the target, but final line 93 retains the source shipment's exact standalone operational term '21 DAYS FREE DETENTION AT DESTINATION'."
+    },
+    {
+      "documentId": "doc_38da8dbfe44b5b0131fb881088b3fa68695a088da25d0e23a90d9f33f64b5a6e",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The target is negotiable but the final has a named straight consignee under 'NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER'; its sole 40HC also carries 42810 kg above the configured 28690 kg payload ceiling."
+    },
+    {
+      "documentId": "doc_52bede31b871bcc9166df9638a93fd6e9105f0dbef48addd7b2e78f8e010b2dc",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["deterministic_random"],
+      "notes": "The one 20-foot, ten-pallet shipment and dense gross/tare/volume tuple 25706.400, 2100, and 25.000 repeat consistently, with coherent route, parties, dates, and source-value replacement."
+    },
+    {
+      "documentId": "doc_a95a03d37ebe8eb03b6927cd4771b18b006e7df9880d3ed099c167962dac13ee",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Five repeated 36-pallet summaries, allocations, weights, parties, routes, dates, and equipment reconcile across 542 lines and ten pages; no source shipment identity remains."
+    },
+    {
+      "documentId": "doc_e836b643a799620af0e897e0fa36d0673bd4b23f3c839e454855518d6f98ac4b",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "All repeated 78-carton, 9364.5 kg, 58.92 cubic-metre, party, route, and shipment facts reconcile across three pages with no source identity."
+    },
+    {
+      "documentId": "doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Bundle allocations total 14; weights, volumes, tares, five-container equipment topology, parties, dates, and route all reconcile without source shipment identity."
+    },
+    {
+      "documentId": "doc_372c779c9aaeed273fda78438a576603853d91a582536f977f72a8d1325899e5",
+      "semanticConsistency": false,
+      "templateFidelity": false,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The target vessel CIC PAOLA occupies cargo-description slots at final lines 48, 131, and 218 instead of hot-rolled steel, and one identifier is inconsistently labeled ACID and CUSTOMS REFERENCE."
+    },
+    {
+      "documentId": "doc_d422eaa8085d05e468b52d16a4c77b03715924308d50a64700bfe5f78e140440",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The two bags, 40-foot high-cube equipment, 4260.1 kg, tare, 60.38 cubic metres, parties, dates, and route reconcile over three pages with no source identity."
+    },
+    {
+      "documentId": "doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The target assigns the sole 20-foot equipment to FCIU9720830 but the final never associates sizes with individual containers; it also says three originals were signed while the originals field says ZERO."
+    },
+    {
+      "documentId": "doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a",
+      "semanticConsistency": false,
+      "templateFidelity": false,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Serial ranges total 1884 rather than 2495; vehicles contradict machinery-parts cargo and capacity; China conflicts with a retained Mauritius exporter address; local line wrapping is materially broken."
+    },
+    {
+      "documentId": "doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "A populated 'Consigned to order of' block contradicts the target non-negotiable classification and the final SEAWAYBILL/non-negotiable wording; other cargo and shipment facts reconcile."
+    },
+    {
+      "documentId": "doc_3438a61a5ab18c0fe93d4c77f2552c0246107c37584aa6d1096f18fe62aa0234",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Rows under a KGM/MTQ header sum to 63.200 KGM while the printed total is 63200.000 KGM; an HLCU-prefixed source-carrier reference survives after the carrier was changed."
+    },
+    {
+      "documentId": "doc_f0f120de2654d5d6b09ff02003a3f53de38919d80d7707fcdb146d7b4d9dd948",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The 579-package allocations, two repeated 28630.3 kg measurements, container roles, temperatures, parties, and dates reconcile; unchanged carrier policy text is static boilerplate."
+    },
+    {
+      "documentId": "doc_19f564dad81401b03004a6eb1f6370af31a805bd8950f960791821280def70ea",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Target package, route, and equipment facts are present, but source-only measurements survive verbatim at final lines 75, 133, and 163: 44,020 and VOL 15,120."
+    },
+    {
+      "documentId": "doc_fe1eea9232910412e9a98cacd85f7dbdfaba4e97ccd566ed52fbefb3907f9959",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The 83-bag, 461-package, and 83-carton allocations, weights, volumes, -22 C reefer handling, parties, and route agree, and source identities were replaced."
+    },
+    {
+      "documentId": "doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Package allocations and cargo facts reconcile, but final line 112 directs this Orivane shipment's amendments to the exact source Maersk URL and line 124 retains the source carrier policy."
+    },
+    {
+      "documentId": "doc_c471b8946e93d312af277c90f4e83012a423e809d9b667c8d45623398712161e",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The 295 plus 426 allocations reconcile, but final line 89 directs the Bluecrest shipment's amendments to the exact source Maersk URL."
+    },
+    {
+      "documentId": "doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Target reefer, package, and route values agree, but source thermograph identifiers at final line 71 and the complete USD charge schedule at lines 89-104 remain verbatim."
+    },
+    {
+      "documentId": "doc_d34414195dfae89d9387f38d5d33e418541cefde995056f6867dd226176265fd",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Gross weights and package hierarchy reconcile, but the exact source tare 4150 KGS remains at final lines 98 and 107."
+    },
+    {
+      "documentId": "doc_d5498799bb1a50c8e5b9fe9cc82a59bf217c1ad6ee7225d922f90109946c20ec",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Six bags, 2440.6 kg, 16.5 cubic metres, route, parties, dates, auxiliary identifiers, and source-value replacement all agree."
+    },
+    {
+      "documentId": "doc_459854a39c037656175b474a53435d64056c22f67ed4351ee860c2ee9fb8f3d9",
+      "semanticConsistency": true,
+      "templateFidelity": false,
+      "privacyRewritten": true,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Target facts and source-value replacement agree, but final line 3 corrupts the fixed template label 'FMC-OTI NO.' into malformed 'FMC-OTI EM.'."
+    },
+    {
+      "documentId": "doc_47c2f3a7c8ccaa5c8d8e014267dcfd334a07c50024956fc94b995ff0a54416ca",
+      "semanticConsistency": false,
+      "templateFidelity": false,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Final line 95 attaches shipment-wide packaging to one allocation, lines 106-107 duplicate equipment, and lines 132-136 retain source Japanese address fragments in an Egyptian identity block."
+    },
+    {
+      "documentId": "doc_11ac17a4963225bdb78247f8c29d8e1a47b79ac942682ce8f459170c37389489",
+      "semanticConsistency": false,
+      "templateFidelity": false,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Final lines 46-52 reverse the package hierarchy, lines 54-69 repeat the cargo description thirteen times, lines 89-90 duplicate the carrier, and line 72 retains the source detention term."
+    },
+    {
+      "documentId": "doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "Cargo, equipment, route, and aggregates reconcile, but exact source operational date '13 NOV 2025' survives at final line 112 under a relabeled field."
+    },
+    {
+      "documentId": "doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031",
+      "semanticConsistency": false,
+      "templateFidelity": false,
+      "privacyRewritten": false,
+      "selectionBasis": ["risk_weighted"],
+      "notes": "The target says negotiable, but the final has a named non-order consignee and an unmet non-negotiable-unless-to-order condition; source tare 3910 survives four times."
+    }
+  ]
+}

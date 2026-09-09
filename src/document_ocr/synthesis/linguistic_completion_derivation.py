@@ -13,7 +13,6 @@ import copy
 import json
 import os
 from collections.abc import Mapping, Sequence
-from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
@@ -35,6 +34,10 @@ from document_ocr.synthesis.linguistic_completion_pipeline import (
     LinguisticAttemptRecord,
     LinguisticCompletionDocumentRecord,
     LinguisticUnitArtifact,
+    LinguisticUsageTotals,
+    linguistic_summary_incurred_usage,
+    linguistic_unit_usage_totals,
+    linguistic_usage_summary_fields,
 )
 from document_ocr.synthesis.raw_text_template import printed_topology_mismatches
 from document_ocr.synthesis.run_safety import StagedArtifactRun
@@ -276,14 +279,19 @@ def _replacement_unit(
         unitId="cargo",
         attempts=(attempt,),
         transcripts=(
-            {
-                "derivation": "current_validator_replay_of_standalone_cargo_language_probe_v2",
-                "sourceRecordStatus": record.status,
-                "sourceValidationChecks": (
-                    record.validation.checks if record.validation is not None else None
-                ),
-                "providerResponseIds": list(record.usage.providerResponseIds),
-            },
+            cast(
+                JsonValue,
+                {
+                    "derivation": (
+                        "current_validator_replay_of_standalone_cargo_language_probe_v2"
+                    ),
+                    "sourceRecordStatus": record.status,
+                    "sourceValidationChecks": (
+                        record.validation.checks if record.validation is not None else None
+                    ),
+                    "providerResponseIds": list(record.usage.providerResponseIds),
+                },
+            ),
         ),
         selectedAttempt=1,
         selectedOutputSha256=output_sha,
@@ -305,6 +313,110 @@ def _artifact_paths(root: Path) -> tuple[str, ...]:
             if relative not in _RESERVED:
                 paths.append(relative)
     return tuple(sorted(paths))
+
+
+def _prior_correction_receipts(base_root: Path) -> frozenset[tuple[str, str]]:
+    path = base_root / "derivation.json"
+    if not path.exists():
+        return frozenset()
+    value = json.loads(read_regular_file_bytes(path))
+    rows = value.get("corrections") if isinstance(value, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("base derivation has an invalid correction receipt list")
+    receipts: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("base derivation has an invalid correction receipt")
+        document_id = row.get("documentId")
+        commit_sha256 = row.get("correctionCommitSha256")
+        if not isinstance(document_id, str) or not isinstance(commit_sha256, str):
+            raise ValueError("base derivation correction receipt lacks identity")
+        receipts.add((document_id, commit_sha256))
+    return frozenset(receipts)
+
+
+def _correction_usage_already_retained(
+    *,
+    document_id: str,
+    correction_commit_sha256: str,
+    correction: CargoLanguageCaseRecord,
+    base_unit: LinguisticUnitArtifact,
+    prior_receipts: frozenset[tuple[str, str]],
+) -> bool:
+    correction_ids = frozenset(correction.usage.providerResponseIds)
+    retained_ids = frozenset(
+        response_id
+        for attempt in base_unit.attempts
+        for response_id in attempt.usage.providerResponseIds
+    )
+    overlap = correction_ids & retained_ids
+    if overlap and overlap != correction_ids:
+        raise ValueError("cargo correction provider responses partially overlap the base unit")
+    if correction_ids and overlap == correction_ids:
+        return True
+    return (document_id, correction_commit_sha256) in prior_receipts
+
+
+def _result_unit_paths(results: Sequence[Mapping[str, Any]]) -> tuple[str, ...]:
+    paths: list[str] = []
+    for row in results:
+        party_paths = row.get("partyUnitPaths")
+        cargo_path = row.get("cargoUnitPath")
+        if (
+            not isinstance(party_paths, list)
+            or any(not isinstance(path, str) for path in party_paths)
+            or not isinstance(cargo_path, str)
+        ):
+            raise ValueError("base result has invalid linguistic unit paths")
+        paths.extend(cast(list[str], party_paths))
+        paths.append(cargo_path)
+    if len(paths) != len(set(paths)):
+        raise ValueError("base results reference one linguistic unit more than once")
+    return tuple(paths)
+
+
+def _result_unit_usage(
+    *,
+    base_root: Path,
+    results: Sequence[Mapping[str, Any]],
+    overrides: Mapping[str, bytes],
+) -> LinguisticUsageTotals:
+    paths = _result_unit_paths(results)
+    artifact_paths = frozenset(_artifact_paths(base_root))
+    actual_unit_paths = frozenset(
+        path
+        for path in artifact_paths
+        if path.startswith("generation/units/") and path.endswith(".json")
+    )
+    if frozenset(paths) != actual_unit_paths:
+        raise ValueError("base result/unit artifact topology differs")
+    units: list[LinguisticUnitArtifact] = []
+    for path in paths:
+        payload = (
+            overrides[path]
+            if path in overrides
+            else read_regular_file_bytes(base_root / path)
+        )
+        units.append(LinguisticUnitArtifact.model_validate_json(payload, strict=True))
+    return linguistic_unit_usage_totals(units)
+
+
+def _base_incurred_usage(
+    *,
+    base_summary: Mapping[str, Any],
+    base_retained: LinguisticUsageTotals,
+) -> LinguisticUsageTotals:
+    accounted = linguistic_summary_incurred_usage(base_summary)
+    if accounted is not None:
+        return accounted
+    if base_summary.get("resumedFromRun") is not None or base_summary.get(
+        "derivedFromRun"
+    ) is not None:
+        raise ValueError(
+            "base lineage predates complete incurred-usage accounting; discarded attempts "
+            "cannot be proven from its retained artifact"
+        )
+    return base_retained
 
 
 def derive_linguistic_completion(
@@ -354,22 +466,30 @@ def derive_linguistic_completion(
         _upgrade_plan_role_contract(row)
         for row in _load_jsonl(base_root / "planning/document-plans.jsonl")
     )
+    base_summary = cast(
+        dict[str, JsonValue],
+        json.loads(read_regular_file_bytes(base_root / "generation/summary.json")),
+    )
     result_by_id = {cast(str, row["baseDocumentId"]): row for row in base_results}
     target_by_id = {cast(str, row["baseDocumentId"]): row for row in base_targets}
     plan_by_id = {row.baseDocumentId: row for row in base_plans}
     if tuple(result_by_id) != tuple(target_by_id) or tuple(result_by_id) != tuple(plan_by_id):
         raise ValueError("base linguistic result/target order differs")
+    base_retained_usage = _result_unit_usage(
+        base_root=base_root,
+        results=base_results,
+        overrides={},
+    )
+    base_incurred_usage = _base_incurred_usage(
+        base_summary=base_summary,
+        base_retained=base_retained_usage,
+    )
+    prior_receipts = _prior_correction_receipts(base_root)
     derived_units: dict[str, bytes] = {}
     receipts: list[dict[str, JsonValue]] = []
-    added_usage: dict[str, int] = {
-        "requests": 0,
-        "inputTokens": 0,
-        "cacheReadTokens": 0,
-        "outputTokens": 0,
-        "reasoningTokens": 0,
-        "visibleOutputTokens": 0,
-    }
-    added_cost = Decimal(0)
+    incorporated_usage = LinguisticUsageTotals()
+    newly_incurred_usage = LinguisticUsageTotals()
+    previously_incurred_corrections = 0
     for document_id, (record, root, commit_sha, transaction_sha) in corrections.items():
         try:
             result = result_by_id[document_id]
@@ -439,17 +559,19 @@ def derive_linguistic_completion(
                 canonical_json_bytes(result), strict=True
             ).model_dump(mode="json")
         )
-        usage = record.usage
-        for key in (
-            "requests",
-            "inputTokens",
-            "cacheReadTokens",
-            "outputTokens",
-            "reasoningTokens",
-            "visibleOutputTokens",
-        ):
-            added_usage[key] += cast(int, getattr(usage, key))
-        added_cost += usage.estimatedCostUsd
+        correction_usage = LinguisticUsageTotals.from_receipt(record.usage)
+        incorporated_usage += correction_usage
+        usage_already_incurred = _correction_usage_already_retained(
+            document_id=document_id,
+            correction_commit_sha256=commit_sha,
+            correction=record,
+            base_unit=base_unit,
+            prior_receipts=prior_receipts,
+        )
+        if usage_already_incurred:
+            previously_incurred_corrections += 1
+        else:
+            newly_incurred_usage += correction_usage
         receipts.append(
             {
                 "documentId": document_id,
@@ -459,8 +581,20 @@ def derive_linguistic_completion(
                 "correctionCommitSha256": commit_sha,
                 "correctionTransactionSha256": transaction_sha,
                 "correctionResultSha256": sha256_file(root / "generation/results.jsonl"),
+                "usageDisposition": (
+                    "already_in_base_lineage"
+                    if usage_already_incurred
+                    else "newly_incorporated"
+                ),
             }
         )
+
+    retained_usage = _result_unit_usage(
+        base_root=base_root,
+        results=base_results,
+        overrides=derived_units,
+    )
+    incurred_usage = base_incurred_usage + newly_incurred_usage
 
     results_bytes = b"".join(canonical_json_bytes(row) + b"\n" for row in base_results)
     targets_bytes = b"".join(canonical_json_bytes(row) + b"\n" for row in base_targets)
@@ -480,6 +614,9 @@ def derive_linguistic_completion(
         "targetsSha256": sha256_bytes(targets_bytes),
         "plansSha256": sha256_bytes(plans_bytes),
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
+        "linguisticCompletionImplementationSha256": sha256_file(
+            Path(__file__).with_name("linguistic_completion_pipeline.py")
+        ),
     }
     transaction_sha = sha256_bytes(canonical_json_bytes(transaction))
     staged = StagedArtifactRun(
@@ -514,26 +651,26 @@ def derive_linguistic_completion(
     staged.publish_bytes("generation/results.jsonl", results_bytes)
     staged.publish_bytes("generation/targets.jsonl", targets_bytes)
     staged.publish_bytes("planning/document-plans.jsonl", plans_bytes)
-    base_summary = cast(
-        dict[str, JsonValue],
-        json.loads(read_regular_file_bytes(base_root / "generation/summary.json")),
+    base_summary.update(
+        linguistic_usage_summary_fields(
+            retained=retained_usage,
+            incremental=LinguisticUsageTotals(),
+            incurred=incurred_usage,
+        )
     )
-    for key in (
-        "requests",
-        "inputTokens",
-        "cacheReadTokens",
-        "outputTokens",
-        "reasoningTokens",
-        "visibleOutputTokens",
-    ):
-        value = base_summary.get(key)
-        if isinstance(value, int):
-            base_summary[key] = value + added_usage[key]
-    old_cost = Decimal(cast(str, base_summary.get("estimatedCostUsd", "0")))
-    base_summary["estimatedCostUsd"] = str(old_cost + added_cost)
     base_summary["runId"] = run_id
     base_summary["derivedFromRun"] = base_root.name
     base_summary["cargoCorrectionDocuments"] = len(corrections)
+    base_summary["newlyIncurredCargoCorrectionDocuments"] = (
+        len(corrections) - previously_incurred_corrections
+    )
+    base_summary["previouslyIncurredCargoCorrectionDocuments"] = (
+        previously_incurred_corrections
+    )
+    base_summary["incorporatedCargoCorrectionRequests"] = incorporated_usage.requests
+    base_summary["incorporatedCargoCorrectionEstimatedCostUsd"] = str(
+        incorporated_usage.estimated_cost_usd
+    )
     base_summary["transactionSha256"] = transaction_sha
     staged.publish_bytes("generation/summary.json", json_artifact_bytes(base_summary))
     staged.publish_bytes("derivation.json", json_artifact_bytes(transaction))

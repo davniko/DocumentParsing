@@ -2176,6 +2176,91 @@ class SynthesisRawTextCertifiedPublicationConfig(_StrictModel):
         return self
 
 
+class RawTextPipelineCertificationConfig(_StrictModel):
+    """Template and bounds for dynamically sharded independent certification runs."""
+
+    environment_file: NonEmptyString
+    shard_size: Annotated[int, Field(ge=1, le=50)]
+    max_attempts_per_candidate: Annotated[int, Field(ge=1, le=4)]
+    prompt: PinnedFileConfig
+    provider: RawTextRewriteProviderConfig
+    workflow: RawTextCertificationWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @model_validator(mode="after")
+    def template_matches_shard_capacity(self) -> RawTextPipelineCertificationConfig:
+        if self.workflow.documents != self.shard_size:
+            raise ValueError(
+                "pipeline certification template documents must equal shard_size"
+            )
+        return self
+
+
+class RawTextPipelineCorrectionConfig(_StrictModel):
+    """Template and bounds for exact-evidence correction/recertification cycles."""
+
+    environment_file: NonEmptyString
+    shard_size: Annotated[int, Field(ge=1, le=50)]
+    max_rounds_per_document: Annotated[int, Field(ge=1, le=6)]
+    max_attempts_per_round: Annotated[int, Field(ge=1, le=4)] = 1
+    prompt: PinnedFileConfig
+    provider: RawTextRewriteProviderConfig
+    workflow: RawTextCertifiedCorrectionWorkflowConfig
+
+    @field_validator("environment_file")
+    @classmethod
+    def safe_environment_file(cls, value: str) -> str:
+        return _safe_path(value)
+
+    @model_validator(mode="after")
+    def template_matches_shard_capacity(self) -> RawTextPipelineCorrectionConfig:
+        if self.workflow.documents != self.shard_size:
+            raise ValueError("pipeline correction template documents must equal shard_size")
+        return self
+
+
+class RawTextPipelineWorkflowConfig(_StrictModel):
+    """Fail-closed bounds for one complete rendered/certified publication cohort."""
+
+    documents: Annotated[int, Field(ge=1, le=100_000)]
+    max_inventory_rounds: Annotated[int, Field(ge=1, le=4)]
+    require_every_inventory_case_training_ready: Literal[True]
+    require_every_case_independently_certified: Literal[True]
+    require_complete_cohort_publication: Literal[True]
+
+
+class SynthesisRawTextPipelineConfig(_StrictModel):
+    """One configurable inventory -> certify -> correct -> publish production workflow."""
+
+    schema_version: Literal[1]
+    task: Literal["bill_of_lading_synthetic_raw_text_pipeline_v1"]
+    run: SynthesisRunConfig
+    inventory_config: PinnedFileConfig
+    inventory_resume_run: CommittedArtifactDirectoryConfig | None = None
+    pipeline_resume_run: CommittedArtifactDirectoryConfig | None = None
+    certification: RawTextPipelineCertificationConfig
+    correction: RawTextPipelineCorrectionConfig
+    publication: RawTextCertifiedPublicationWorkflowConfig
+    workflow: RawTextPipelineWorkflowConfig
+
+    @model_validator(mode="after")
+    def pipeline_contract_is_consistent(self) -> SynthesisRawTextPipelineConfig:
+        if self.publication.documents != self.workflow.documents:
+            raise ValueError("pipeline publication count differs from workflow.documents")
+        if self.inventory_resume_run is not None and self.pipeline_resume_run is not None:
+            raise ValueError(
+                "inventory_resume_run and pipeline_resume_run are mutually exclusive"
+            )
+        # Generated child run IDs append bounded stage/round/shard suffixes.
+        if len(self.run.run_id) > 96:
+            raise ValueError("pipeline run_id is too long for deterministic child run IDs")
+        return self
+
+
 class LinguisticProbeAnalysisInputConfig(_StrictModel):
     run: CommittedArtifactDirectoryConfig
     results: DatasetFileConfig
@@ -2479,6 +2564,16 @@ def load_synthesis_raw_text_certified_publication_config(
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
     return SynthesisRawTextCertifiedPublicationConfig.model_validate(value, strict=True)
+
+
+def load_synthesis_raw_text_pipeline_config(path: Path) -> SynthesisRawTextPipelineConfig:
+    try:
+        value = yaml.load(path.read_bytes(), Loader=_UniqueKeySafeLoader)
+    except UnicodeDecodeError as error:
+        raise ValueError("synthesis configuration is not valid UTF-8") from error
+    if not isinstance(value, dict):
+        raise ValueError("synthesis configuration root must be a mapping")
+    return SynthesisRawTextPipelineConfig.model_validate(value, strict=True)
 
 
 def load_synthesis_package_compatibility_catalog_config(

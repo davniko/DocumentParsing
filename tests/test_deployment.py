@@ -26,6 +26,7 @@ COMPOSE_PATH = PROJECT_ROOT / "compose.yaml"
 VLLM_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "vllm" / "Dockerfile"
 TRAINING_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "training" / "Dockerfile"
 TRAINING_VERIFY_PATH = PROJECT_ROOT / "docker" / "training" / "verify_environment.py"
+SYNTHESIS_DOCKERFILE_PATH = PROJECT_ROOT / "docker" / "synthesis" / "Dockerfile"
 VLLM_BUILD_MANIFEST_PATH = PROJECT_ROOT / "docker" / "vllm" / "build-manifest.json"
 FOLLOWUP_WATCHER_PATH = PROJECT_ROOT / "tools" / "run_blc500_after_training.sh"
 VLLM_PATCH_PATHS = (
@@ -68,6 +69,9 @@ def test_operator_entrypoints_and_snapshot_config_are_installed() -> None:
         "document-kie-label-agents": "document_ocr.labeling_agents.cli:main",
         "document-kie-label-source": "document_ocr.labeling_agents.source_cli:main",
         "document-kie-semantic-v3": "document_ocr.semantic_v3.cli:main",
+        "document-kie-synthesis": "document_ocr.synthesis.cli:main",
+        "document-kie-align-datasets": "document_ocr.training.dataset_alignment:main",
+        "document-kie-dataset-eda": "document_ocr.training.dataset_eda:main",
         "document-kie-train": "document_ocr.training.cli:main",
     }
     snapshot = load_snapshot_config(PROJECT_ROOT / "configs" / "s3_snapshot.blc_swb.yaml")
@@ -110,10 +114,14 @@ def _load_compose_service() -> dict[str, Any]:
     services = document.get("services")
     assert isinstance(services, dict)
     assert set(services) == {
+        "decoder-tools",
+        "decoder-trainer",
         "glm-ocr-vllm",
         "kie-tools",
         "kie-trainer",
         "mlflow-server",
+        "synthesis-tools",
+        "synthesis-tools-cuda",
     }
     service = services["glm-ocr-vllm"]
     assert isinstance(service, dict)
@@ -139,6 +147,29 @@ def _load_mlflow_compose_service() -> dict[str, Any]:
     service = document["services"]["mlflow-server"]
     assert isinstance(service, dict)
     return service
+
+
+def _load_synthesis_compose_service() -> dict[str, Any]:
+    document: Any = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
+    service = document["services"]["synthesis-tools"]
+    assert isinstance(service, dict)
+    return service
+
+
+def test_synthesis_container_exposes_the_configurable_pipeline_entrypoint() -> None:
+    service = _load_synthesis_compose_service()
+    dockerfile = SYNTHESIS_DOCKERFILE_PATH.read_text(encoding="utf-8")
+
+    assert service["profiles"] == ["synthesis"]
+    assert service["build"] == {
+        "context": ".",
+        "dockerfile": "docker/synthesis/Dockerfile",
+    }
+    assert service["working_dir"] == "/workspace"
+    assert service["command"] == ["--help"]
+    assert ".:/workspace" in service["volumes"]
+    assert "COPY src ./src" in dockerfile
+    assert 'ENTRYPOINT ["python", "-m", "document_ocr.synthesis.cli"]' in dockerfile
 
 
 def test_training_container_is_explicit_safe_and_content_pinned() -> None:
@@ -205,7 +236,7 @@ def test_training_container_is_explicit_safe_and_content_pinned() -> None:
     assert '"torch": "2.13.0"' not in verifier
     assert 'torch.__version__.split("+", maxsplit=1)[0] != "2.13.0"' in verifier
 
-    assert mlflow_service["profiles"] == ["training"]
+    assert mlflow_service["profiles"] == ["training", "decoder-training"]
     assert mlflow_service["image"] == (
         "ghcr.io/mlflow/mlflow:v3.15.1@sha256:"
         "ea84a0b879f08b35a6f22f22b294024413e780b8fc978eecf5f760ac16cc9ce5"

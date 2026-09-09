@@ -237,11 +237,22 @@ def run_raw_text_certified_publication(
     if len(scenario_ids) != len(set(scenario_ids)):
         raise ValueError("certified publication repeats a synthetic scenario")
 
-    transaction = {
+    transaction: dict[str, JsonValue] = {
         "schemaVersion": 1,
         "runId": config.run.run_id,
         "configSha256": sha256_file(config_path),
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
+        "dependencyImplementationSha256": {
+            "certification": sha256_file(
+                Path(__file__).with_name("raw_text_certification.py")
+            ),
+            "inventoryRunner": sha256_file(
+                Path(__file__).with_name("raw_text_inventory_probe.py")
+            ),
+            "targetSchema": sha256_file(
+                Path(__file__).parents[1] / "label_schemas/bill_of_lading_v5.py"
+            ),
+        },
         "sourceRuns": [
             {
                 "path": source.run.path,

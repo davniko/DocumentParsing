@@ -2228,6 +2228,52 @@ def _handling_affix_requirements_by_line(
     return locked
 
 
+def _auxiliary_label_lock_requirements(
+    line: str,
+    requirements: Sequence[Mapping[str, JsonValue]],
+) -> tuple[dict[str, JsonValue], ...]:
+    """Lock field captions unless a stronger package contract owns the same surface.
+
+    ``LOT`` is both an auxiliary identifier caption and a transport-package noun.  The broad
+    caption grammar intentionally recognizes whitespace-separated forms such as ``LOT 7K``, but
+    that also finds the ``lot `` fragment in a cargo phrase such as ``One lot used machines``.
+    Once the cargo compiler has positively established package semantics (numeric/written
+    quantity, compact packaging, ``... OF``, or packing syntax), that path-owned write authority
+    must outrank the generic caption heuristic.  Otherwise the same token is simultaneously
+    mutable and host-locked, producing an unsatisfiable model contract.
+
+    Compare normalized complete surfaces rather than vocabulary tokens.  This keeps unrelated
+    labels on the same line locked and leaves an actual ``LOT:`` caption untouched unless the
+    cargo requirement owns that exact surface.
+    """
+
+    mutable_package_surfaces: set[str] = set()
+    for requirement in requirements:
+        if requirement.get("kind") != "source_only_cargo_packaging":
+            continue
+        source = requirement.get("source")
+        if not isinstance(source, Sequence) or isinstance(source, (str, bytes)):
+            raise ValueError("source-only cargo packaging requirement has invalid source")
+        for surface in source:
+            if not isinstance(surface, str) or not surface.strip():
+                raise ValueError("source-only cargo packaging surface must be populated text")
+            mutable_package_surfaces.add(_semantic_normalize(surface))
+
+    output: list[dict[str, JsonValue]] = []
+    for label_surface in auxiliary_label_surfaces(line):
+        if _semantic_normalize(label_surface) in mutable_package_surfaces:
+            continue
+        output.append(
+            {
+                "kind": "host_locked_source_literal",
+                "paths": cast(JsonValue, ["rawTemplate.fieldLabel"]),
+                "target": label_surface,
+                "policy": "preserve_verbatim_on_this_line",
+            }
+        )
+    return tuple(output)
+
+
 def _model_slots(
     compiled: _CompiledCase,
     inventory: Sequence[InventoryCandidate],
@@ -2340,15 +2386,11 @@ def _model_slots(
         number = line_number(line_id)
         if not 1 <= number <= len(current_lines):
             continue
-        for label_surface in auxiliary_label_surfaces(current_lines[number - 1]):
-            requirements_by_line[line_id].append(
-                {
-                    "kind": "host_locked_source_literal",
-                    "paths": cast(JsonValue, ["rawTemplate.fieldLabel"]),
-                    "target": label_surface,
-                    "policy": "preserve_verbatim_on_this_line",
-                }
+        requirements_by_line[line_id].extend(
+            _auxiliary_label_lock_requirements(
+                current_lines[number - 1], requirements_by_line[line_id]
             )
+        )
     locked_by_line = _locked_literal_requirements_by_line(compiled.workspace)
     handling_locks_by_line = _handling_affix_requirements_by_line(
         compiled.workspace, compiled.work_items
@@ -4437,11 +4479,28 @@ def run_raw_text_inventory_batch(
     )
 
 
+def preflight_raw_text_inventory_batch(
+    *,
+    project_root: Path,
+    config_path: Path,
+    config: SynthesisRawTextInventoryBatchConfig,
+) -> dict[str, JsonValue]:
+    """Compile every pinned case and model request contract without loading provider secrets."""
+
+    return _run_raw_text_inventory(
+        project_root=project_root,
+        config_path=config_path,
+        config=config,
+        preflight_only=True,
+    )
+
+
 def _run_raw_text_inventory(
     *,
     project_root: Path,
     config_path: Path,
     config: InventoryRunConfig,
+    preflight_only: bool = False,
 ) -> dict[str, JsonValue]:
     base_config_path = _resolve_pinned_file(
         project_root,
@@ -4550,6 +4609,9 @@ def _run_raw_text_inventory(
         "inventoryImplementationSha256": sha256_file(
             Path(__file__).with_name("raw_text_inventory.py")
         ),
+        "hybridBatchImplementationSha256": sha256_file(
+            Path(__file__).with_name("raw_text_hybrid_batch.py")
+        ),
         "hybridCompilerImplementationSha256": sha256_file(
             Path(__file__).with_name("raw_text_hybrid_probe.py")
         ),
@@ -4574,30 +4636,32 @@ def _run_raw_text_inventory(
             ),
         },
     }
-    staged = StagedArtifactRun(
-        output_parent=resolve_config_path(project_root, config.run.output_dir),
-        run_name=config.run.run_id,
-        transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
-    )
-    if staged.completed:
-        return cast(
-            dict[str, JsonValue],
-            json.loads(read_regular_file_bytes(staged.final_root / "summary.json")),
+    staged: StagedArtifactRun | None = None
+    if not preflight_only:
+        staged = StagedArtifactRun(
+            output_parent=resolve_config_path(project_root, config.run.output_dir),
+            run_name=config.run.run_id,
+            transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
         )
-    staged.recover_interrupted_temporary_files()
-    staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
-    staged.publish_bytes("prompts/editor.md", prompt_bytes)
-    staged.publish_json("regression/oracle.json", oracle.model_dump(mode="json"))
-    if template_profile is not None and template_profile_path is not None:
-        staged.publish_bytes(
-            "regression/template-mutation-profile.json",
-            read_regular_file_bytes(template_profile_path),
-        )
-    for arm, rows in reference_rows.items():
-        staged.publish_bytes(
-            f"regression/{arm}-negative-fixtures.jsonl",
-            b"".join(canonical_json_bytes(row) + b"\n" for row in rows),
-        )
+        if staged.completed:
+            return cast(
+                dict[str, JsonValue],
+                json.loads(read_regular_file_bytes(staged.final_root / "summary.json")),
+            )
+        staged.recover_interrupted_temporary_files()
+        staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
+        staged.publish_bytes("prompts/editor.md", prompt_bytes)
+        staged.publish_json("regression/oracle.json", oracle.model_dump(mode="json"))
+        if template_profile is not None and template_profile_path is not None:
+            staged.publish_bytes(
+                "regression/template-mutation-profile.json",
+                read_regular_file_bytes(template_profile_path),
+            )
+        for arm, rows in reference_rows.items():
+            staged.publish_bytes(
+                f"regression/{arm}-negative-fixtures.jsonl",
+                b"".join(canonical_json_bytes(row) + b"\n" for row in rows),
+            )
 
     resources = build_target_integrity_resources(
         project_root=project_root,
@@ -4819,6 +4883,29 @@ def _run_raw_text_inventory(
             else 0
         ),
     )
+
+    if preflight_only:
+        if compiler_blocks:
+            details = "; ".join(
+                f"{document_id}: {block.error_type}: {block.error_message}"
+                for document_id, block in compiler_blocks.items()
+            )
+            raise ValueError(
+                "inventory compiler preflight blocked "
+                f"{len(compiler_blocks)}/{len(live_ids)} document(s): {details}"
+            )
+        return {
+            "schemaVersion": 1,
+            "runId": config.run.run_id,
+            "status": "preflight_complete",
+            "documents": len(live_ids),
+            "compiledDocuments": len(materials),
+            "compilerBlockedDocuments": 0,
+            "providerSecretsLoaded": False,
+            "providerRequests": 0,
+        }
+
+    assert staged is not None
 
     key = load_provider_key(project_root, config.environment_file, config.provider.api_key_env)
     client = AsyncOpenAI(

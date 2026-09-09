@@ -44,8 +44,10 @@ from document_ocr.synthesis.raw_text_hybrid_probe import (
 from document_ocr.synthesis.raw_text_inventory import locate_auxiliary_values
 from document_ocr.synthesis.raw_text_inventory_probe import _validate_reference_run
 from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
+    TargetLiteralRequirement,
     TargetValueOccurrenceRequirement,
     _combine_usage,
+    _missing_target_literals,
     _settings,
     _target_value_occurrence_count,
 )
@@ -256,6 +258,15 @@ def _target_literal_present(
         compact_text = re.sub(r"[^A-Z0-9]", "", text.upper())
         compact_target = re.sub(r"[^A-Z0-9]", "", target_value.upper())
         return bool(compact_target) and compact_target in compact_text
+    if match_policy == "ordered_semantic_atoms":
+        if not isinstance(target_path, str):
+            raise ValueError("ordered target literal requirement lacks a target path")
+        requirement = TargetLiteralRequirement(
+            targetPath=target_path,
+            targetValue=target_value,
+            matchPolicy="ordered_semantic_atoms",
+        )
+        return not _missing_target_literals(text, (requirement,))
     if match_policy != "semantic_literal":
         raise ValueError(f"unknown target literal match policy: {match_policy!r}")
     if _count_surface(text, target_value) >= 1:
@@ -824,6 +835,17 @@ def run_raw_text_certification(
         "inputCaseContractFilename": contract_name,
         "promptSha256": config.prompt.sha256,
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
+        "dependencyImplementationSha256": {
+            name: sha256_file(Path(__file__).with_name(filename))
+            for name, filename in (
+                ("providerRuntime", "linguistic_probe_runtime.py"),
+                ("hybridRuntime", "raw_text_hybrid_probe.py"),
+                ("inventory", "raw_text_inventory.py"),
+                ("inventoryRunner", "raw_text_inventory_probe.py"),
+                ("rewriteContract", "raw_text_rewrite_cycle_probe.py"),
+                ("rewriteRuntime", "raw_text_rewrite_probe.py"),
+            )
+        },
         "documentIds": list(config.case_ids),
         "runtime": {
             "pydanticAiVersion": version("pydantic-ai-slim"),

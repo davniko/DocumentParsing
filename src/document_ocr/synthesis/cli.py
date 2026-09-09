@@ -27,6 +27,7 @@ from document_ocr.synthesis.config import (
     load_synthesis_raw_text_hybrid_probe_config,
     load_synthesis_raw_text_inventory_batch_config,
     load_synthesis_raw_text_inventory_probe_config,
+    load_synthesis_raw_text_pipeline_config,
     load_synthesis_raw_text_rewrite_cycle_probe_config,
     load_synthesis_raw_text_rewrite_probe_config,
     load_synthesis_route_scenario_pilot_config,
@@ -87,6 +88,7 @@ def main() -> None:
         "validate-raw-text-inventory-probe-config",
         "run-raw-text-inventory-probe",
         "validate-raw-text-inventory-batch-config",
+        "preflight-raw-text-inventory-batch",
         "run-raw-text-inventory-batch",
         "validate-raw-text-certification-config",
         "run-raw-text-certification",
@@ -94,6 +96,9 @@ def main() -> None:
         "run-raw-text-certified-correction",
         "validate-raw-text-certified-publication-config",
         "run-raw-text-certified-publication",
+        "validate-raw-text-pipeline-config",
+        "preflight-raw-text-pipeline",
+        "run-raw-text-pipeline",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -107,6 +112,12 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-raw-text-pipeline-config",
+            "preflight-raw-text-pipeline",
+            "run-raw-text-pipeline",
+        }:
+            raw_text_pipeline_config = load_synthesis_raw_text_pipeline_config(config_path)
+        elif arguments.command in {
             "validate-raw-text-certified-publication-config",
             "run-raw-text-certified-publication",
         }:
@@ -129,6 +140,7 @@ def main() -> None:
             )
         elif arguments.command in {
             "validate-raw-text-inventory-batch-config",
+            "preflight-raw-text-inventory-batch",
             "run-raw-text-inventory-batch",
         }:
             raw_text_inventory_batch_config = load_synthesis_raw_text_inventory_batch_config(
@@ -248,7 +260,59 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-raw-text-certified-publication-config":
+        if arguments.command == "validate-raw-text-pipeline-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_id": raw_text_pipeline_config.run.run_id,
+                "documents": raw_text_pipeline_config.workflow.documents,
+                "inventory_rounds": (
+                    raw_text_pipeline_config.workflow.max_inventory_rounds
+                ),
+                "certification_shard_size": (
+                    raw_text_pipeline_config.certification.shard_size
+                ),
+                "correction_rounds": (
+                    raw_text_pipeline_config.correction.max_rounds_per_document
+                ),
+                "correction_attempts_per_round": (
+                    raw_text_pipeline_config.correction.max_attempts_per_round
+                ),
+                "resume_mode": (
+                    "pipeline"
+                    if raw_text_pipeline_config.pipeline_resume_run is not None
+                    else (
+                        "inventory"
+                        if raw_text_pipeline_config.inventory_resume_run is not None
+                        else "fresh"
+                    )
+                ),
+            }
+        elif arguments.command == "preflight-raw-text-pipeline":
+            from document_ocr.synthesis.raw_text_pipeline import preflight_raw_text_pipeline
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_raw_text_pipeline(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_pipeline_config,
+                ),
+            }
+        elif arguments.command == "run-raw-text-pipeline":
+            from document_ocr.synthesis.raw_text_pipeline import run_raw_text_pipeline
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": run_raw_text_pipeline(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_pipeline_config,
+                ),
+            }
+        elif arguments.command == "validate-raw-text-certified-publication-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -571,6 +635,20 @@ def main() -> None:
                 "command": arguments.command,
                 "status": "complete",
                 "result": run_raw_text_inventory_batch(
+                    project_root=project_root,
+                    config_path=config_path,
+                    config=raw_text_inventory_batch_config,
+                ),
+            }
+        elif arguments.command == "preflight-raw-text-inventory-batch":
+            from document_ocr.synthesis.raw_text_inventory_probe import (
+                preflight_raw_text_inventory_batch,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_raw_text_inventory_batch(
                     project_root=project_root,
                     config_path=config_path,
                     config=raw_text_inventory_batch_config,

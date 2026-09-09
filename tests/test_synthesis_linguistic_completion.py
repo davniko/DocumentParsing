@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -22,17 +24,27 @@ from document_ocr.synthesis.config import (
 from document_ocr.synthesis.linguistic_completion_pipeline import (
     GeneratedPartyContactsV2,
     GeneratedPartyIdentityV2,
+    LinguisticAttemptRecord,
+    LinguisticUnitArtifact,
+    LinguisticUsageTotals,
     PartyCompletionOutput,
     SourceSensitiveInventory,
     _dynamic_cargo_output_model,
     _dynamic_party_output_model,
+    _prior_incurred_usage,
     _resume_unit_passes_current_contract,
     _run_unit,
     _validate_persisted_output,
     build_document_linguistic_plan,
+    linguistic_summary_incurred_usage,
+    linguistic_unit_usage_totals,
+    linguistic_usage_summary_fields,
     validate_party_completion,
 )
-from document_ocr.synthesis.linguistic_probe_runtime import openai_responses_settings
+from document_ocr.synthesis.linguistic_probe_runtime import (
+    LinguisticUsageReceipt,
+    openai_responses_settings,
+)
 from document_ocr.synthesis.semantic_completion_pipeline import SemanticCompletionPlanRow
 
 
@@ -58,6 +70,125 @@ def test_persisted_json_arrays_rehydrate_as_strict_tuple_fields() -> None:
     hydrated = _validate_persisted_output(PartyCompletionOutput, payload)
 
     assert hydrated.party.contactDetails.phoneNumbers == ("+63 32 555 0194",)
+
+
+def _usage_receipt(
+    *,
+    response_id: str,
+    requests: int = 1,
+    input_tokens: int = 100,
+    cache_read_tokens: int = 40,
+    cache_write_tokens: int = 10,
+    output_tokens: int = 30,
+    reasoning_tokens: int = 20,
+    cost: str = "0.001",
+) -> LinguisticUsageReceipt:
+    return LinguisticUsageReceipt(
+        requests=requests,
+        providerResponseIds=(response_id,),
+        finishReasons=tuple("stop" for _ in range(requests)),
+        inputTokens=input_tokens,
+        cacheReadTokens=cache_read_tokens,
+        cacheWriteTokens=cache_write_tokens,
+        outputTokens=output_tokens,
+        reasoningTokens=reasoning_tokens,
+        visibleOutputTokens=output_tokens - reasoning_tokens,
+        estimatedCostUsd=Decimal(cost),
+    )
+
+
+def _usage_unit(*receipts: LinguisticUsageReceipt) -> LinguisticUnitArtifact:
+    now = datetime(2026, 9, 8, tzinfo=UTC)
+    attempts = tuple(
+        LinguisticAttemptRecord(
+            attempt=index,
+            schemaMode="static",
+            outputSchemaSha256="a" * 64,
+            userPromptSha256="b" * 64,
+            startedAt=now,
+            completedAt=now,
+            durationMs=0,
+            status="success" if index == len(receipts) else "validation_failed",
+            output={"value": index},
+            checks={"accepted": index == len(receipts)},
+            usage=receipt,
+            errorType=None,
+            errorMessage=None,
+        )
+        for index, receipt in enumerate(receipts, start=1)
+    )
+    return LinguisticUnitArtifact(
+        schemaVersion=1,
+        stage="party_identity",
+        unitId="party-shipper-1",
+        attempts=attempts,
+        transcripts=tuple({"attempt": row.attempt} for row in attempts),
+        selectedAttempt=len(attempts),
+        selectedOutputSha256="c" * 64,
+        status="success",
+    )
+
+
+def test_usage_accounting_keeps_retained_incremental_and_incurred_totals_distinct() -> None:
+    retained = linguistic_unit_usage_totals(
+        (
+            _usage_unit(
+                _usage_receipt(response_id="resp_old_failed", cost="0.002"),
+                _usage_receipt(response_id="resp_retained", cost="0.003"),
+            ),
+        )
+    )
+    reused = LinguisticUsageTotals.from_receipt(
+        _usage_receipt(response_id="resp_old_failed", cost="0.002")
+    )
+    incremental = retained - reused
+    prior_incurred = LinguisticUsageTotals(
+        requests=7,
+        input_tokens=700,
+        cache_read_tokens=280,
+        cache_write_tokens=70,
+        output_tokens=210,
+        reasoning_tokens=140,
+        visible_output_tokens=70,
+        estimated_cost_usd=Decimal("0.014"),
+    )
+    fields = linguistic_usage_summary_fields(
+        retained=retained,
+        incremental=incremental,
+        incurred=prior_incurred + incremental,
+    )
+
+    assert fields["requests"] == 2
+    assert fields["incrementalRequests"] == 1
+    assert fields["incurredRequests"] == 8
+    assert fields["cacheWriteTokens"] == 20
+    assert fields["incrementalCacheWriteTokens"] == 10
+    assert fields["incurredCacheWriteTokens"] == 80
+    assert fields["estimatedCostUsd"] == "0.005"
+    assert fields["incrementalEstimatedCostUsd"] == "0.003"
+    assert fields["incurredEstimatedCostUsd"] == "0.017"
+    assert linguistic_summary_incurred_usage(fields) == prior_incurred + incremental
+
+
+def test_usage_accounting_rejects_partial_or_negative_contracts() -> None:
+    with pytest.raises(ValueError, match="partial incurred-usage"):
+        linguistic_summary_incurred_usage({"incurredRequests": 1})
+    with pytest.raises(ValueError, match="negative"):
+        LinguisticUsageTotals(requests=1) - LinguisticUsageTotals(requests=2)
+
+
+def test_resume_rejects_legacy_lineage_with_unprovable_discarded_attempts(
+    tmp_path: Path,
+) -> None:
+    generation = tmp_path / "generation"
+    generation.mkdir()
+    (generation / "summary.json").write_text(
+        json.dumps({"derivedFromRun": "legacy-parent", "requests": 10}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="predates complete incurred-usage"):
+        _prior_incurred_usage(resume_root=tmp_path, document_plans=())
 
 
 def _plan() -> SemanticCompletionPlanRow:

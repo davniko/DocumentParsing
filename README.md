@@ -642,6 +642,14 @@ cannot supply label values absent from raw OCR. Publication also compares outcom
 accepted targets without exposing those references to either agent. The Ollama example config
 supports an exact operator-supplied local model tag with no automatic cloud fallback.
 
+The terminal synthetic raw-text renderer, independent audit, exact-line correction, mandatory
+recertification, and complete-cohort publication are integrated behind one configurable production
+entry point. Run its provider-free compiler preflight before any paid execution; the command and
+restart/publication contracts are documented in the
+[certified raw-text pipeline guide](docs/kie-synthesis-raw-text-production-pipeline.md).
+The current 100-document calibration remains deliberately unpublished: manual review exposed
+false positives among machine-certified cases, so the guide's quality gate blocks a larger launch.
+
 ## Development validation
 
 ```bash

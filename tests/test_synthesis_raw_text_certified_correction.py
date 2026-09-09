@@ -1,21 +1,36 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
 
+from document_ocr.hashing import canonical_json_bytes, sha256_bytes
+from document_ocr.synthesis.config import load_synthesis_raw_text_certified_correction_config
 from document_ocr.synthesis.raw_text_certification import SemanticAuditFinding
 from document_ocr.synthesis.raw_text_certified_correction import (
+    CorrectionStage,
     _apply_corrections,
+    _attach_host_audit,
     _correction_lines,
+    _correction_result,
     _deterministic_host_findings,
+    _empty_usage,
     _findings_without_changed_evidence,
     _host_occurrence_findings,
+    _load_case_checkpoint,
     _output_schema,
     _party_address_occurrence_line_sets,
+    _payload,
+    _publish_case_checkpoint,
     _refine_carrier_occurrence_contract,
     _select_repair_rows,
     _transient_route_error,
 )
+from document_ocr.synthesis.run_safety import StagedArtifactRun
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _finding(*line_ids: str) -> SemanticAuditFinding:
@@ -76,6 +91,130 @@ def test_correction_changes_only_defect_line_and_echoes_comparison() -> None:
     assert audit.citedLines == 2
     assert audit.changedLines == 1
     assert audit.resolvedFindings == 1
+
+
+def test_correction_checkpoint_replays_exact_output_and_rejects_tampering(
+    tmp_path: Path,
+) -> None:
+    document_id = "doc_" + "c" * 64
+    source = "HEAD\nOLD 10\nKEEP\nNEW 20\n"
+    current = source
+    source_label = {"documentPatch": {"cargoGroups": [{"packages": 10}]}}
+    target_label = {"documentPatch": {"cargoGroups": [{"packages": 20}]}}
+    contract = _contract()
+    finding = _finding("L00002", "L00004")
+    findings = (finding,)
+    rows = _correction_lines(source=source, current=current, findings=findings)
+    output = {"s0": "NEW 20", "s1": "NEW 20"}
+    final, audit = _apply_corrections(
+        source=source,
+        current=current,
+        rows=rows,
+        findings=findings,
+        output=output,
+        contract=contract,
+    )
+    _output_type, schema = _output_schema(rows)
+    payload = _payload(
+        document_id=document_id,
+        source_label=source_label,
+        target_label=target_label,
+        rows=rows,
+    )
+    stage = _attach_host_audit(
+        (
+            CorrectionStage(
+                routeProvider=None,
+                semanticAttempt=1,
+                routeRound=1,
+                routeAttempt=1,
+                retryDelayBeforeSeconds=0.0,
+                inputPayloadSha256=sha256_bytes(canonical_json_bytes(payload)),
+                outputSchemaSha256=sha256_bytes(canonical_json_bytes(schema)),
+                startedAtUnixSeconds=1.0,
+                completedAtUnixSeconds=2.0,
+                usage=_empty_usage(),
+                messages=[],
+                modelOutput=output,
+                hostAudit=None,
+                errorType=None,
+                errorMessage=None,
+            ),
+        ),
+        audit,
+    )
+    result = _correction_result(
+        document_id=document_id,
+        status="correction_candidate",
+        reason=(
+            "Every exact-line local gate passed; independent recertification is required."
+        ),
+        source=source,
+        current=current,
+        final=final,
+        rows=rows,
+        findings=findings,
+        stages=stage,
+    )
+    config = load_synthesis_raw_text_certified_correction_config(
+        _PROJECT_ROOT
+        / "configs/synthesis/"
+        "mpci_bl_raw_text_certified_correction2_glm53_v22_wrapped_carrier_topology.yaml"
+    )
+    staged = StagedArtifactRun(
+        output_parent=tmp_path,
+        run_name="correction-checkpoint-test",
+        transaction_sha256="d" * 64,
+    )
+    _publish_case_checkpoint(
+        staged=staged,
+        document_id=document_id,
+        source=source,
+        current=current,
+        source_label=source_label,
+        target_label=target_label,
+        contract=contract,
+        findings=findings,
+        rows=rows,
+        already_certified=False,
+        stages=stage,
+        final=final,
+        result=result,
+    )
+
+    loaded = _load_case_checkpoint(
+        staged=staged,
+        document_id=document_id,
+        source=source,
+        current=current,
+        source_label=source_label,
+        target_label=target_label,
+        contract=contract,
+        findings=findings,
+        rows=rows,
+        already_certified=False,
+        config=config,
+    )
+
+    assert loaded == (result, stage, final)
+    checkpoint_path = staged.stage_root / f"cases/{document_id}/checkpoint.json"
+    value = json.loads(checkpoint_path.read_text())
+    value["finalText"] = final.replace("NEW 20", "TAMPERED", 1)
+    checkpoint_path.write_bytes(canonical_json_bytes(value) + b"\n")
+    with pytest.raises(ValueError, match="deterministic replay"):
+        _load_case_checkpoint(
+            staged=staged,
+            document_id=document_id,
+            source=source,
+            current=current,
+            source_label=source_label,
+            target_label=target_label,
+            contract=contract,
+            findings=findings,
+            rows=rows,
+            already_certified=False,
+            config=config,
+        )
 
 
 def test_correction_rejects_finding_when_all_evidence_is_unchanged() -> None:
@@ -184,6 +323,29 @@ def test_deterministic_host_finding_localizes_missing_target_to_source_role_line
 
     assert len(findings) == 1
     assert tuple(row.lineId for row in findings[0].evidence) == ("L00002",)
+
+
+def test_deterministic_host_finding_accepts_ordered_reference_literal() -> None:
+    source = "EXPORT REFERENCE\n1123200938 DATE: 27.11.2023\n"
+    current = "EXPORT REFERENCE\n785897 DATE: 07.07.2023\n"
+    contract = {
+        **_contract(),
+        "targetLiteralRequirements": [
+            {
+                "matchPolicy": "ordered_semantic_atoms",
+                "targetPath": "documentPatch.forwardingAndExportReferences[0]",
+                "targetValue": "785897 07.07.2023",
+            }
+        ],
+        "changedLeaves": [
+            {
+                "path": "documentPatch.forwardingAndExportReferences[0]",
+                "sourceValue": "1123200938 27.11.2023",
+            }
+        ],
+    }
+
+    assert _deterministic_host_findings(source=source, current=current, contract=contract) == ()
 
 
 def test_deterministic_host_finding_localizes_punctuation_variant_party_copies() -> None:
@@ -390,6 +552,69 @@ def test_carrier_contract_replays_repeated_address_topology() -> None:
     refined = _refine_carrier_occurrence_contract(source=source, contract=contract)
 
     assert refined["targetValueOccurrenceRequirements"][0]["requiredOccurrences"] == 2
+
+
+def test_carrier_contract_ignores_uncontracted_split_address() -> None:
+    source = (
+        "Transpac Container System Pte. Ltd.\n"
+        "d/b/a Blue Anchor Line\n"
+        "5 Temasek Boulevard\n"
+        "#06-01-03\n"
+        "SuntecTower Five\n"
+        "Singapore (038985)\n"
+    )
+    contract = {
+        **_contract(),
+        "changedLeaves": [
+            {
+                "path": "documentPatch.parties.carrier.name",
+                "sourceValue": "Transpac Container System Pte. Ltd. d/b/a Blue Anchor Line",
+            },
+            {
+                "path": "documentPatch.parties.carrier.address",
+                "sourceValue": "5 Temasek Boulevard #06-01-03 SuntecTower Five (038985)",
+            },
+        ],
+        "targetValueOccurrenceRequirements": [
+            {
+                "targetPaths": ["documentPatch.parties.carrier.name"],
+                "targetValue": "Rivermark Transit AG",
+                "requiredOccurrences": 1,
+            }
+        ],
+    }
+
+    refined = _refine_carrier_occurrence_contract(source=source, contract=contract)
+
+    assert refined["targetValueOccurrenceRequirements"][0]["requiredOccurrences"] == 1
+
+
+def test_carrier_contract_rejects_unlocatable_contracted_split_address() -> None:
+    source = (
+        "5 Temasek Boulevard\n"
+        "#06-01-03\n"
+        "SuntecTower Five\n"
+        "Singapore (038985)\n"
+    )
+    contract = {
+        **_contract(),
+        "changedLeaves": [
+            {
+                "path": "documentPatch.parties.carrier.address",
+                "sourceValue": "5 Temasek Boulevard #06-01-03 SuntecTower Five (038985)",
+            }
+        ],
+        "targetValueOccurrenceRequirements": [
+            {
+                "targetPaths": ["documentPatch.parties.carrier.address"],
+                "targetValue": "Industriestrasse 27",
+                "requiredOccurrences": 1,
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="carrier address has no role-owned source template slot"):
+        _refine_carrier_occurrence_contract(source=source, contract=contract)
 
 
 def test_correction_rejects_line_edge_whitespace_drift() -> None:

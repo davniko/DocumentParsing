@@ -18,6 +18,7 @@ import time
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from importlib.metadata import version
@@ -1403,7 +1404,10 @@ def _seed_reusable_units(
             not isinstance(row, dict) for row in raw_party_units
         ):
             raise ValueError("linguistic resume source has invalid party-unit plans")
-        prior_party_units = {cast(str, row.get("unitId")): row for row in raw_party_units}
+        prior_party_units = {
+            cast(str, row.get("unitId")): row
+            for row in cast(list[dict[str, JsonValue]], raw_party_units)
+        }
         for unit_plan in plan.partyUnits:
             prior_unit_plan = prior_party_units.get(unit_plan.unitId)
             if prior_unit_plan is None or prior_unit_plan.get("seed") != unit_plan.seed.model_dump(
@@ -1634,13 +1638,13 @@ async def _run_completion_async(
     return tuple(cast(LinguisticCompletionDocumentRecord, row) for row in results)
 
 
-def _all_units(
-    staged: StagedArtifactRun, document_plans: Sequence[DocumentLinguisticPlan]
+def _all_units_from_root(
+    root: Path, document_plans: Sequence[DocumentLinguisticPlan]
 ) -> tuple[LinguisticUnitArtifact, ...]:
     rows: list[LinguisticUnitArtifact] = []
     for index, plan in enumerate(document_plans):
         for unit in plan.partyUnits:
-            path = staged.stage_root / _unit_path(index, unit.unitId)
+            path = root / _unit_path(index, unit.unitId)
             rows.append(
                 LinguisticUnitArtifact.model_validate_json(
                     read_regular_file_bytes(path), strict=True
@@ -1648,11 +1652,183 @@ def _all_units(
             )
         rows.append(
             LinguisticUnitArtifact.model_validate_json(
-                read_regular_file_bytes(staged.stage_root / _unit_path(index, "cargo")),
+                read_regular_file_bytes(root / _unit_path(index, "cargo")),
                 strict=True,
             )
         )
     return tuple(rows)
+
+
+def _all_units(
+    staged: StagedArtifactRun, document_plans: Sequence[DocumentLinguisticPlan]
+) -> tuple[LinguisticUnitArtifact, ...]:
+    return _all_units_from_root(staged.stage_root, document_plans)
+
+
+@dataclass(frozen=True, slots=True)
+class LinguisticUsageTotals:
+    requests: int = 0
+    input_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int = 0
+    visible_output_tokens: int = 0
+    estimated_cost_usd: Decimal = Decimal(0)
+
+    @classmethod
+    def from_receipt(cls, usage: LinguisticUsageReceipt) -> LinguisticUsageTotals:
+        return cls(
+            requests=usage.requests,
+            input_tokens=usage.inputTokens,
+            cache_read_tokens=usage.cacheReadTokens,
+            cache_write_tokens=usage.cacheWriteTokens,
+            output_tokens=usage.outputTokens,
+            reasoning_tokens=usage.reasoningTokens,
+            visible_output_tokens=usage.visibleOutputTokens,
+            estimated_cost_usd=usage.estimatedCostUsd,
+        )
+
+    def __add__(self, other: LinguisticUsageTotals) -> LinguisticUsageTotals:
+        return LinguisticUsageTotals(
+            requests=self.requests + other.requests,
+            input_tokens=self.input_tokens + other.input_tokens,
+            cache_read_tokens=self.cache_read_tokens + other.cache_read_tokens,
+            cache_write_tokens=self.cache_write_tokens + other.cache_write_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            reasoning_tokens=self.reasoning_tokens + other.reasoning_tokens,
+            visible_output_tokens=self.visible_output_tokens + other.visible_output_tokens,
+            estimated_cost_usd=self.estimated_cost_usd + other.estimated_cost_usd,
+        )
+
+    def __sub__(self, other: LinguisticUsageTotals) -> LinguisticUsageTotals:
+        result = LinguisticUsageTotals(
+            requests=self.requests - other.requests,
+            input_tokens=self.input_tokens - other.input_tokens,
+            cache_read_tokens=self.cache_read_tokens - other.cache_read_tokens,
+            cache_write_tokens=self.cache_write_tokens - other.cache_write_tokens,
+            output_tokens=self.output_tokens - other.output_tokens,
+            reasoning_tokens=self.reasoning_tokens - other.reasoning_tokens,
+            visible_output_tokens=self.visible_output_tokens - other.visible_output_tokens,
+            estimated_cost_usd=self.estimated_cost_usd - other.estimated_cost_usd,
+        )
+        if any(
+            value < 0
+            for value in (
+                result.requests,
+                result.input_tokens,
+                result.cache_read_tokens,
+                result.cache_write_tokens,
+                result.output_tokens,
+                result.reasoning_tokens,
+                result.visible_output_tokens,
+                result.estimated_cost_usd,
+            )
+        ):
+            raise ValueError("linguistic usage subtraction produced a negative value")
+        return result
+
+
+def linguistic_unit_usage_totals(
+    units: Sequence[LinguisticUnitArtifact],
+) -> LinguisticUsageTotals:
+    total = LinguisticUsageTotals()
+    for unit in units:
+        for attempt in unit.attempts:
+            total += LinguisticUsageTotals.from_receipt(attempt.usage)
+    return total
+
+
+def linguistic_summary_incurred_usage(
+    summary: Mapping[str, Any],
+) -> LinguisticUsageTotals | None:
+    names = {
+        "requests": "incurredRequests",
+        "input_tokens": "incurredInputTokens",
+        "cache_read_tokens": "incurredCacheReadTokens",
+        "cache_write_tokens": "incurredCacheWriteTokens",
+        "output_tokens": "incurredOutputTokens",
+        "reasoning_tokens": "incurredReasoningTokens",
+        "visible_output_tokens": "incurredVisibleOutputTokens",
+    }
+    present = {name for name in (*names.values(), "incurredEstimatedCostUsd") if name in summary}
+    if not present:
+        return None
+    expected = {*names.values(), "incurredEstimatedCostUsd"}
+    if present != expected:
+        raise ValueError("resume summary has a partial incurred-usage accounting contract")
+    values: dict[str, int] = {}
+    for field, name in names.items():
+        value = summary[name]
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"resume summary has invalid {name}")
+        values[field] = value
+    cost_value = summary["incurredEstimatedCostUsd"]
+    if not isinstance(cost_value, str):
+        raise ValueError("resume summary has invalid incurredEstimatedCostUsd")
+    cost = Decimal(cost_value)
+    if not cost.is_finite() or cost < 0:
+        raise ValueError("resume summary has invalid incurredEstimatedCostUsd")
+    return LinguisticUsageTotals(**values, estimated_cost_usd=cost)
+
+
+def linguistic_usage_summary_fields(
+    *,
+    retained: LinguisticUsageTotals,
+    incremental: LinguisticUsageTotals,
+    incurred: LinguisticUsageTotals,
+) -> dict[str, JsonValue]:
+    """Render the three non-interchangeable provider-usage views in one contract."""
+
+    return {
+        "usageAccounting": "retained_incremental_and_all_attempt_resume_lineage_v1",
+        "requests": retained.requests,
+        "inputTokens": retained.input_tokens,
+        "cacheReadTokens": retained.cache_read_tokens,
+        "cacheWriteTokens": retained.cache_write_tokens,
+        "outputTokens": retained.output_tokens,
+        "reasoningTokens": retained.reasoning_tokens,
+        "visibleOutputTokens": retained.visible_output_tokens,
+        "estimatedCostUsd": str(retained.estimated_cost_usd),
+        "incrementalRequests": incremental.requests,
+        "incrementalInputTokens": incremental.input_tokens,
+        "incrementalCacheReadTokens": incremental.cache_read_tokens,
+        "incrementalCacheWriteTokens": incremental.cache_write_tokens,
+        "incrementalOutputTokens": incremental.output_tokens,
+        "incrementalReasoningTokens": incremental.reasoning_tokens,
+        "incrementalVisibleOutputTokens": incremental.visible_output_tokens,
+        "incrementalEstimatedCostUsd": str(incremental.estimated_cost_usd),
+        "incurredRequests": incurred.requests,
+        "incurredInputTokens": incurred.input_tokens,
+        "incurredCacheReadTokens": incurred.cache_read_tokens,
+        "incurredCacheWriteTokens": incurred.cache_write_tokens,
+        "incurredOutputTokens": incurred.output_tokens,
+        "incurredReasoningTokens": incurred.reasoning_tokens,
+        "incurredVisibleOutputTokens": incurred.visible_output_tokens,
+        "incurredEstimatedCostUsd": str(incurred.estimated_cost_usd),
+    }
+
+
+def _prior_incurred_usage(
+    *,
+    resume_root: Path | None,
+    document_plans: Sequence[DocumentLinguisticPlan],
+) -> LinguisticUsageTotals:
+    if resume_root is None:
+        return LinguisticUsageTotals()
+    summary = cast(
+        dict[str, Any],
+        json.loads(read_regular_file_bytes(resume_root / "generation/summary.json")),
+    )
+    accounted = linguistic_summary_incurred_usage(summary)
+    if accounted is not None:
+        return accounted
+    if summary.get("resumedFromRun") is not None or summary.get("derivedFromRun") is not None:
+        raise ValueError(
+            "resume lineage predates complete incurred-usage accounting; its discarded ancestor "
+            "attempts cannot be proven from the retained artifact"
+        )
+    return linguistic_unit_usage_totals(_all_units_from_root(resume_root, document_plans))
 
 
 def _report(summary: Mapping[str, Any]) -> str:
@@ -1671,13 +1847,15 @@ def _report(summary: Mapping[str, Any]) -> str:
 - Reused explicit notify identities: **{summary["reusedNotifyIdentities"]:,}**
 - Cargo generation units: **{summary["cargoUnits"]:,}**
 - Reused prior successful units: **{summary["reusedUnits"]:,}**
-- Provider requests: **{summary["requests"]:,}**
+- Provider requests represented by retained unit artifacts: **{summary["requests"]:,}**
 - New provider requests in this run: **{summary["incrementalRequests"]:,}**
+- All provider requests incurred across the resume lineage: **{summary["incurredRequests"]:,}**
 - First-attempt unit acceptance: **{summary["firstAttemptAcceptedUnits"]:,} / {summary["units"]:,}**
 - Retried units: **{summary["retriedUnits"]:,}**
 - Input / output / reasoning tokens: **{token_totals}**
-- Estimated provider cost: **${summary["estimatedCostUsd"]}**
+- Estimated cost represented by retained unit artifacts: **${summary["estimatedCostUsd"]}**
 - Incremental provider cost in this run: **${summary["incrementalEstimatedCostUsd"]}**
+- All-attempt estimated cost across the resume lineage: **${summary["incurredEstimatedCostUsd"]}**
 - Concurrent wall time: **{summary["wallSeconds"]:.3f} seconds**
 - Throughput: **{summary["throughputDocumentsPerHour"]:.2f} documents/hour**
 
@@ -1875,17 +2053,13 @@ def run_linguistic_completion(
         ).name
     )
     generated_name_counts = Counter(generated_names)
-    total_cost = sum(
-        (attempt.usage.estimatedCostUsd for unit in units for attempt in unit.attempts),
-        Decimal(0),
-    )
-    reused_cost = sum(
-        (attempt.usage.estimatedCostUsd for unit in reused_units for attempt in unit.attempts),
-        Decimal(0),
-    )
-    reused_requests = sum(
-        attempt.usage.requests for unit in reused_units for attempt in unit.attempts
-    )
+    retained_usage = linguistic_unit_usage_totals(units)
+    reused_usage = linguistic_unit_usage_totals(reused_units)
+    incremental_usage = retained_usage - reused_usage
+    incurred_usage = _prior_incurred_usage(
+        resume_root=resume_root,
+        document_plans=document_plans,
+    ) + incremental_usage
     party_units = sum(len(row.partyUnits) for row in document_plans)
     same_as = sum(
         row.sameAsReference is not None for plan in document_plans for row in plan.partyProjections
@@ -1920,30 +2094,13 @@ def run_linguistic_completion(
         "units": len(units),
         "reusedUnits": len(reused_units),
         "newUnits": len(units) - len(reused_units),
-        "requests": sum(attempt.usage.requests for unit in units for attempt in unit.attempts),
-        "incrementalRequests": (
-            sum(attempt.usage.requests for unit in units for attempt in unit.attempts)
-            - reused_requests
-        ),
         "firstAttemptAcceptedUnits": sum(unit.attempts[0].status == "success" for unit in units),
         "retriedUnits": sum(len(unit.attempts) > 1 for unit in units),
-        "inputTokens": sum(
-            attempt.usage.inputTokens for unit in units for attempt in unit.attempts
+        **linguistic_usage_summary_fields(
+            retained=retained_usage,
+            incremental=incremental_usage,
+            incurred=incurred_usage,
         ),
-        "cacheReadTokens": sum(
-            attempt.usage.cacheReadTokens for unit in units for attempt in unit.attempts
-        ),
-        "outputTokens": sum(
-            attempt.usage.outputTokens for unit in units for attempt in unit.attempts
-        ),
-        "reasoningTokens": sum(
-            attempt.usage.reasoningTokens for unit in units for attempt in unit.attempts
-        ),
-        "visibleOutputTokens": sum(
-            attempt.usage.visibleOutputTokens for unit in units for attempt in unit.attempts
-        ),
-        "estimatedCostUsd": str(total_cost),
-        "incrementalEstimatedCostUsd": str(total_cost - reused_cost),
         "resumedFromRun": resume_root.name if resume_root is not None else None,
         "wallSeconds": wall_seconds,
         "throughputDocumentsPerHour": (

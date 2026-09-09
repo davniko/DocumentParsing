@@ -75,6 +75,19 @@ _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _PAGE_MARKER = re.compile(r"^--- PAGE [1-9][0-9]* ---[ \t]*$")
 _OPAQUE_NUMERIC_LINE = re.compile(r"^[0-9]{5,}$")
+_UNCHANGED_REASON = (
+    "Input candidate was already independently certified and remained byte-identical."
+)
+_CALL_FAILED_REASON = "Every configured provider route failed before a structured correction."
+_CORRECTION_CANDIDATE_REASON = (
+    "Every exact-line local gate passed; independent recertification is required."
+)
+_EXHAUSTED_REASON = (
+    "The bounded correction responses were exhausted without a valid candidate."
+)
+_LOCAL_POSTCONDITION_REASON = (
+    "The bounded correction responses exhausted deterministic local postconditions."
+)
 
 
 class CorrectionLine(BaseModel):
@@ -453,13 +466,25 @@ def _refine_carrier_occurrence_contract(
     changed_leaves = refined.get("changedLeaves")
     if not isinstance(occurrence_rows, list) or not isinstance(changed_leaves, list):
         raise ValueError("source contract lacks carrier occurrence inputs")
+    carrier_name_rows: list[dict[str, Any]] = []
+    carrier_address_rows: list[dict[str, Any]] = []
+    for row in occurrence_rows:
+        if not isinstance(row, dict):
+            raise ValueError("invalid target occurrence requirement")
+        paths = row.get("targetPaths")
+        if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+            raise ValueError("target occurrence requirement lacks string paths")
+        if "documentPatch.parties.carrier.name" in paths:
+            carrier_name_rows.append(row)
+        if "documentPatch.parties.carrier.address" in paths:
+            carrier_address_rows.append(row)
     source_carriers = {
         row.get("sourceValue")
         for row in changed_leaves
         if isinstance(row, Mapping)
         and row.get("path") == "documentPatch.parties.carrier.name"
         and isinstance(row.get("sourceValue"), str)
-    }
+    } if carrier_name_rows else set()
     if len(source_carriers) > 1:
         raise ValueError("source contract has conflicting carrier-name source values")
     if source_carriers:
@@ -467,15 +492,11 @@ def _refine_carrier_occurrence_contract(
         required = carrier_principal_template_slot_count(source, source_carrier)
         if required < 1:
             raise ValueError("carrier name has no role-owned source template slot")
-        for row in occurrence_rows:
-            if not isinstance(row, dict):
-                raise ValueError("invalid target occurrence requirement")
-            paths = row.get("targetPaths")
-            if isinstance(paths, list) and "documentPatch.parties.carrier.name" in paths:
-                previous = row.get("requiredOccurrences")
-                if not isinstance(previous, int):
-                    raise ValueError("carrier occurrence requirement lacks an integer cardinality")
-                row["requiredOccurrences"] = max(previous, required)
+        for row in carrier_name_rows:
+            previous = row.get("requiredOccurrences")
+            if not isinstance(previous, int):
+                raise ValueError("carrier occurrence requirement lacks an integer cardinality")
+            row["requiredOccurrences"] = max(previous, required)
 
     source_addresses = {
         row.get("sourceValue")
@@ -483,7 +504,7 @@ def _refine_carrier_occurrence_contract(
         if isinstance(row, Mapping)
         and row.get("path") == "documentPatch.parties.carrier.address"
         and isinstance(row.get("sourceValue"), str)
-    }
+    } if carrier_address_rows else set()
     if len(source_addresses) > 1:
         raise ValueError("source contract has conflicting carrier-address source values")
     if source_addresses:
@@ -491,15 +512,11 @@ def _refine_carrier_occurrence_contract(
         address_required = _party_scalar_occurrence_count(source, source_address)
         if address_required < 1:
             raise ValueError("carrier address has no role-owned source template slot")
-        for row in occurrence_rows:
-            if not isinstance(row, dict):
-                raise ValueError("invalid target occurrence requirement")
-            paths = row.get("targetPaths")
-            if isinstance(paths, list) and "documentPatch.parties.carrier.address" in paths:
-                previous = row.get("requiredOccurrences")
-                if not isinstance(previous, int):
-                    raise ValueError("carrier address occurrence requirement lacks cardinality")
-                row["requiredOccurrences"] = max(previous, address_required)
+        for row in carrier_address_rows:
+            previous = row.get("requiredOccurrences")
+            if not isinstance(previous, int):
+                raise ValueError("carrier address occurrence requirement lacks cardinality")
+            row["requiredOccurrences"] = max(previous, address_required)
     return refined
 
 
@@ -854,6 +871,88 @@ def _failed_application_audit(
     )
 
 
+def _repair_context(
+    *,
+    semantic_attempt: int,
+    host_error: str,
+    repair_findings: Sequence[SemanticAuditFinding],
+) -> dict[str, JsonValue]:
+    return {
+        "semanticAttempt": semantic_attempt + 1,
+        "hostRejection": host_error,
+        "hostFindings": cast(
+            JsonValue,
+            [row.model_dump(mode="json") for row in repair_findings],
+        ),
+        "instruction": (
+            "Correct only the resubmitted slots. The other first-response lines are retained "
+            "unchanged by the host."
+        ),
+    }
+
+
+def _correction_change_counts(
+    *,
+    current: str,
+    final: str,
+    findings: Sequence[SemanticAuditFinding],
+) -> tuple[int, int]:
+    current_lines = current.splitlines()
+    final_lines = final.splitlines()
+    if len(current_lines) != len(final_lines):
+        raise ValueError("correction loop changed physical line topology")
+    changed_line_ids = {
+        f"L{number:05d}"
+        for number, (before, after) in enumerate(
+            zip(current_lines, final_lines, strict=True), start=1
+        )
+        if before != after
+    }
+    locally_resolved = sum(
+        bool({evidence.lineId for evidence in finding.evidence} & changed_line_ids)
+        for finding in findings
+    )
+    return len(changed_line_ids), locally_resolved
+
+
+def _correction_result(
+    *,
+    document_id: str,
+    status: Literal[
+        "unchanged_certified",
+        "correction_candidate",
+        "needs_review",
+        "call_failed",
+    ],
+    reason: str,
+    source: str,
+    current: str,
+    final: str,
+    rows: Sequence[CorrectionLine],
+    findings: Sequence[SemanticAuditFinding],
+    stages: Sequence[CorrectionStage],
+) -> CorrectionCaseResult:
+    changed, locally_resolved = _correction_change_counts(
+        current=current,
+        final=final,
+        findings=findings,
+    )
+    return CorrectionCaseResult(
+        documentId=document_id,
+        status=status,
+        reason=reason,
+        citedLines=len(rows),
+        changedLines=changed,
+        sourceFindings=len(findings),
+        locallyResolvedFindings=locally_resolved,
+        requiresRecertification=status == "correction_candidate",
+        sourceTextSha256=sha256_bytes(source.encode()),
+        inputCandidateSha256=sha256_bytes(current.encode()),
+        finalTextSha256=sha256_bytes(final.encode()),
+        usage=_combined_usage(stages),
+    )
+
+
 def _output_schema(
     rows: Sequence[CorrectionLine],
 ) -> tuple[type[dict[str, Any]], dict[str, JsonValue]]:
@@ -1200,6 +1299,307 @@ def _attach_host_audit(
     raise ValueError("correction host audit has no successful provider response")
 
 
+def _correction_checkpoint_identity(
+    *,
+    document_id: str,
+    source: str,
+    current: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    findings: Sequence[SemanticAuditFinding],
+    rows: Sequence[CorrectionLine],
+    already_certified: bool,
+) -> dict[str, JsonValue]:
+    return {
+        "schemaVersion": 1,
+        "documentId": document_id,
+        "sourceTextSha256": sha256_bytes(source.encode()),
+        "inputCandidateSha256": sha256_bytes(current.encode()),
+        "sourceLabelSha256": sha256_bytes(canonical_json_bytes(source_label)),
+        "targetLabelSha256": sha256_bytes(canonical_json_bytes(target_label)),
+        "sourceContractSha256": sha256_bytes(canonical_json_bytes(contract)),
+        "auditFindingsSha256": sha256_bytes(
+            canonical_json_bytes([row.model_dump(mode="json") for row in findings])
+        ),
+        "correctionRowsSha256": sha256_bytes(
+            canonical_json_bytes([row.model_dump(mode="json") for row in rows])
+        ),
+        "alreadyCertified": already_certified,
+    }
+
+
+def _publish_case_checkpoint(
+    *,
+    staged: StagedArtifactRun,
+    document_id: str,
+    source: str,
+    current: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    findings: Sequence[SemanticAuditFinding],
+    rows: Sequence[CorrectionLine],
+    already_certified: bool,
+    stages: Sequence[CorrectionStage],
+    final: str,
+    result: CorrectionCaseResult,
+) -> None:
+    staged.publish_json(
+        f"cases/{document_id}/checkpoint.json",
+        {
+            **_correction_checkpoint_identity(
+                document_id=document_id,
+                source=source,
+                current=current,
+                source_label=source_label,
+                target_label=target_label,
+                contract=contract,
+                findings=findings,
+                rows=rows,
+                already_certified=already_certified,
+            ),
+            "stages": [row.model_dump(mode="json") for row in stages],
+            "finalText": final,
+            "result": result.model_dump(mode="json"),
+        },
+    )
+
+
+def _replay_correction_stages(
+    *,
+    document_id: str,
+    source: str,
+    current: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    findings: Sequence[SemanticAuditFinding],
+    rows: Sequence[CorrectionLine],
+    already_certified: bool,
+    stages: Sequence[CorrectionStage],
+    config: SynthesisRawTextCertifiedCorrectionConfig,
+) -> tuple[str, CorrectionCaseResult]:
+    if already_certified:
+        if stages:
+            raise ValueError("already-certified correction checkpoint contains provider stages")
+        return current, _correction_result(
+            document_id=document_id,
+            status="unchanged_certified",
+            reason=_UNCHANGED_REASON,
+            source=source,
+            current=current,
+            final=current,
+            rows=rows,
+            findings=findings,
+            stages=(),
+        )
+    if not findings or not rows or not stages:
+        raise ValueError("non-certified correction checkpoint lacks work or provider stages")
+
+    working_current = current
+    active_rows = tuple(rows)
+    repair_context: Mapping[str, JsonValue] | None = None
+    cursor = 0
+    final_status: Literal["correction_candidate", "needs_review", "call_failed"] | None = None
+    final_reason: str | None = None
+    maximum_attempts = config.workflow.max_successful_model_responses_per_document
+    for semantic_attempt in range(1, maximum_attempts + 1):
+        start = cursor
+        while cursor < len(stages) and stages[cursor].semanticAttempt == semantic_attempt:
+            cursor += 1
+        attempt_stages = tuple(stages[start:cursor])
+        if not attempt_stages:
+            raise ValueError("correction checkpoint skips a semantic attempt")
+        if tuple(row.routeAttempt for row in attempt_stages) != tuple(
+            range(1, len(attempt_stages) + 1)
+        ):
+            raise ValueError("correction checkpoint route attempts are not contiguous")
+        payload = _payload(
+            document_id=document_id,
+            source_label=source_label,
+            target_label=target_label,
+            rows=active_rows,
+            repair_context=repair_context,
+        )
+        _output_type, schema = _output_schema(active_rows)
+        payload_sha256 = sha256_bytes(canonical_json_bytes(payload))
+        schema_sha256 = sha256_bytes(canonical_json_bytes(schema))
+        if any(
+            row.inputPayloadSha256 != payload_sha256
+            or row.outputSchemaSha256 != schema_sha256
+            for row in attempt_stages
+        ):
+            raise ValueError("correction checkpoint request contract differs on replay")
+        successful = tuple(row for row in attempt_stages if row.modelOutput is not None)
+        if not successful:
+            if any(row.hostAudit is not None for row in attempt_stages):
+                raise ValueError("failed correction attempt unexpectedly carries a host audit")
+            final_status = "call_failed"
+            final_reason = _CALL_FAILED_REASON
+            break
+        if len(successful) != 1 or successful[0] is not attempt_stages[-1]:
+            raise ValueError("correction checkpoint has ambiguous successful route output")
+        output_stage = successful[0]
+        if any(
+            row.hostAudit is not None for row in attempt_stages if row is not output_stage
+        ):
+            raise ValueError("correction checkpoint attaches a host audit to a failed route")
+        if not isinstance(output_stage.modelOutput, dict):
+            raise ValueError("correction checkpoint model output is not an object")
+        output = cast(Mapping[str, Any], output_stage.modelOutput)
+        try:
+            candidate, audit = _apply_corrections(
+                source=source,
+                current=working_current,
+                rows=active_rows,
+                findings=findings,
+                output=output,
+                contract=contract,
+                baseline_current=current,
+            )
+        except Exception as error:
+            host_error = f"{type(error).__name__}: {error}"
+            expected_audit = _failed_application_audit(
+                rows=active_rows,
+                message=host_error,
+            )
+            if output_stage.hostAudit != expected_audit:
+                raise ValueError(
+                    "correction checkpoint failed-application audit differs on replay"
+                ) from error
+            if semantic_attempt >= maximum_attempts:
+                final_status = "needs_review"
+                final_reason = (
+                    "Structured correction failed deterministic host application: "
+                    f"{host_error}"
+                )
+                break
+            active_rows, repair_findings = _select_repair_rows(
+                rows=rows,
+                source=source,
+                current=working_current,
+                contract=contract,
+                host_error=host_error,
+            )
+            repair_context = _repair_context(
+                semantic_attempt=semantic_attempt,
+                host_error=host_error,
+                repair_findings=repair_findings,
+            )
+            continue
+        if output_stage.hostAudit != audit:
+            raise ValueError("correction checkpoint host audit differs on replay")
+        working_current = candidate
+        if audit.passed:
+            final_status = "correction_candidate"
+            final_reason = _CORRECTION_CANDIDATE_REASON
+            break
+        if semantic_attempt >= maximum_attempts:
+            final_status = "needs_review"
+            final_reason = _LOCAL_POSTCONDITION_REASON
+            break
+        host_error = "; ".join(audit.findings)
+        active_rows, repair_findings = _select_repair_rows(
+            rows=rows,
+            source=source,
+            current=working_current,
+            contract=contract,
+            host_error=host_error,
+            unresolved_findings=_findings_without_changed_evidence(
+                baseline=current,
+                candidate=working_current,
+                findings=findings,
+            ),
+        )
+        repair_context = _repair_context(
+            semantic_attempt=semantic_attempt,
+            host_error=host_error,
+            repair_findings=repair_findings,
+        )
+
+    if final_status is None or final_reason is None or cursor != len(stages):
+        raise ValueError("correction checkpoint stage sequence is not terminal and exact")
+    result = _correction_result(
+        document_id=document_id,
+        status=final_status,
+        reason=final_reason,
+        source=source,
+        current=current,
+        final=working_current,
+        rows=rows,
+        findings=findings,
+        stages=stages,
+    )
+    return working_current, result
+
+
+def _load_case_checkpoint(
+    *,
+    staged: StagedArtifactRun,
+    document_id: str,
+    source: str,
+    current: str,
+    source_label: Mapping[str, Any],
+    target_label: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    findings: Sequence[SemanticAuditFinding],
+    rows: Sequence[CorrectionLine],
+    already_certified: bool,
+    config: SynthesisRawTextCertifiedCorrectionConfig,
+) -> tuple[CorrectionCaseResult, tuple[CorrectionStage, ...], str] | None:
+    path = staged.stage_root / f"cases/{document_id}/checkpoint.json"
+    if not path.exists():
+        return None
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"correction checkpoint is not a regular file: {path}")
+    value = json.loads(read_regular_file_bytes(path))
+    identity = _correction_checkpoint_identity(
+        document_id=document_id,
+        source=source,
+        current=current,
+        source_label=source_label,
+        target_label=target_label,
+        contract=contract,
+        findings=findings,
+        rows=rows,
+        already_certified=already_certified,
+    )
+    expected_keys = {*identity, "stages", "finalText", "result"}
+    if not isinstance(value, dict) or set(value) != expected_keys:
+        raise ValueError(f"correction checkpoint has an invalid shape: {path}")
+    if any(value.get(key) != expected for key, expected in identity.items()):
+        raise ValueError(f"correction checkpoint identity differs: {path}")
+    stage_values = value.get("stages")
+    final = value.get("finalText")
+    result_value = value.get("result")
+    if not isinstance(stage_values, list) or not isinstance(final, str):
+        raise ValueError(f"correction checkpoint payload has an invalid shape: {path}")
+    stages = tuple(
+        CorrectionStage.model_validate_json(canonical_json_bytes(row), strict=True)
+        for row in stage_values
+    )
+    result = CorrectionCaseResult.model_validate_json(
+        canonical_json_bytes(result_value), strict=True
+    )
+    replayed_final, replayed_result = _replay_correction_stages(
+        document_id=document_id,
+        source=source,
+        current=current,
+        source_label=source_label,
+        target_label=target_label,
+        contract=contract,
+        findings=findings,
+        rows=rows,
+        already_certified=already_certified,
+        stages=stages,
+        config=config,
+    )
+    if final != replayed_final or result != replayed_result:
+        raise ValueError(f"correction checkpoint fails deterministic replay: {path}")
+    return result, stages, final
+
+
 def _report(results: Sequence[CorrectionCaseResult], stages: Sequence[CorrectionStage]) -> str:
     usage = _combined_usage(stages)
     count = max(1, len(results))
@@ -1350,6 +1750,18 @@ def run_raw_text_certified_correction(
         "certificationRunTransactionSha256": config.certification_run.transaction_sha256,
         "promptSha256": config.prompt.sha256,
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
+        "dependencyImplementationSha256": {
+            name: sha256_file(Path(__file__).with_name(filename))
+            for name, filename in (
+                ("certification", "raw_text_certification.py"),
+                ("providerRuntime", "linguistic_probe_runtime.py"),
+                ("hybridRuntime", "raw_text_hybrid_probe.py"),
+                ("inventory", "raw_text_inventory.py"),
+                ("inventoryRunner", "raw_text_inventory_probe.py"),
+                ("rewriteContract", "raw_text_rewrite_cycle_probe.py"),
+                ("rewriteRuntime", "raw_text_rewrite_probe.py"),
+            )
+        },
         "documentIds": list(config.case_ids),
         "runtime": {
             "pydanticAiVersion": version("pydantic-ai-slim"),
@@ -1377,23 +1789,55 @@ def run_raw_text_certified_correction(
     staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
     staged.publish_bytes("prompts/corrector.md", prompt_bytes)
 
-    key = load_provider_key(project_root, config.environment_file, config.provider.api_key_env)
-    client_arguments: dict[str, Any] = {
-        "api_key": key,
-        "max_retries": config.provider.transport_max_retries,
-        "timeout": config.provider.request_timeout_seconds,
-    }
-    if config.provider.kind == "openrouter":
-        client_arguments.update(
-            {"base_url": _OPENROUTER_BASE_URL, "default_headers": {"X-Title": "DocumentParsing"}}
-        )
-    client = AsyncOpenAI(**client_arguments)
-    model, _ = _model_pair(
-        client=client, editor_provider=config.provider, reviewer_provider=config.provider
-    )
     results: dict[str, CorrectionCaseResult] = {}
     stages_by_id: dict[str, tuple[CorrectionStage, ...]] = {}
     outputs: dict[str, str] = {}
+    for document_id in config.case_ids:
+        material = case_material[document_id]
+        checkpoint = _load_case_checkpoint(
+            staged=staged,
+            document_id=document_id,
+            source=cast(str, material["source"]),
+            current=cast(str, material["current"]),
+            source_label=cast(Mapping[str, Any], material["sourceLabel"]),
+            target_label=cast(Mapping[str, Any], material["targetLabel"]),
+            contract=cast(Mapping[str, Any], material["contract"]),
+            findings=cast(tuple[SemanticAuditFinding, ...], material["findings"]),
+            rows=cast(tuple[CorrectionLine, ...], material["rows"]),
+            already_certified=cast(bool, material["alreadyCertified"]),
+            config=config,
+        )
+        if checkpoint is not None:
+            results[document_id], stages_by_id[document_id], outputs[document_id] = checkpoint
+    checkpointed_at_start = len(results)
+
+    client: AsyncOpenAI | None = None
+    model: Model | None = None
+    needs_provider = any(
+        document_id not in results
+        and not cast(bool, case_material[document_id]["alreadyCertified"])
+        for document_id in config.case_ids
+    )
+    if needs_provider:
+        key = load_provider_key(project_root, config.environment_file, config.provider.api_key_env)
+        client_arguments: dict[str, Any] = {
+            "api_key": key,
+            "max_retries": config.provider.transport_max_retries,
+            "timeout": config.provider.request_timeout_seconds,
+        }
+        if config.provider.kind == "openrouter":
+            client_arguments.update(
+                {
+                    "base_url": _OPENROUTER_BASE_URL,
+                    "default_headers": {"X-Title": "DocumentParsing"},
+                }
+            )
+        client = AsyncOpenAI(**client_arguments)
+        model, _ = _model_pair(
+            client=client,
+            editor_provider=config.provider,
+            reviewer_provider=config.provider,
+        )
     limiter = asyncio.Semaphore(config.workflow.max_concurrent_documents)
     progress_lock = asyncio.Lock()
     started = time.perf_counter()
@@ -1405,32 +1849,33 @@ def run_raw_text_certified_correction(
         findings = cast(tuple[SemanticAuditFinding, ...], material["findings"])
         rows = cast(tuple[CorrectionLine, ...], material["rows"])
         already_certified = cast(bool, material["alreadyCertified"])
+        source_label = cast(Mapping[str, Any], material["sourceLabel"])
+        target_label = cast(Mapping[str, Any], material["targetLabel"])
+        contract = cast(Mapping[str, Any], material["contract"])
         stage_rows: tuple[CorrectionStage, ...] = ()
         final = current
         if already_certified:
             status: Literal[
                 "unchanged_certified", "correction_candidate", "needs_review", "call_failed"
             ] = "unchanged_certified"
-            reason = (
-                "Input candidate was already independently certified and remained byte-identical."
-            )
-            changed = 0
-            locally_resolved = 0
+            reason = _UNCHANGED_REASON
         else:
+            if model is None:
+                raise RuntimeError("correction provider was not initialized for pending work")
             all_stage_rows: list[CorrectionStage] = []
             working_current = current
             active_rows = rows
             repair_context: Mapping[str, JsonValue] | None = None
             status = "needs_review"
-            reason = "The bounded correction responses were exhausted without a valid candidate."
+            reason = _EXHAUSTED_REASON
             async with limiter:
                 for semantic_attempt in range(
                     1, config.workflow.max_successful_model_responses_per_document + 1
                 ):
                     output, attempt_stages = await _call_model(
                         document_id=document_id,
-                        source_label=cast(Mapping[str, Any], material["sourceLabel"]),
-                        target_label=cast(Mapping[str, Any], material["targetLabel"]),
+                        source_label=source_label,
+                        target_label=target_label,
                         rows=active_rows,
                         model=model,
                         config=config,
@@ -1441,9 +1886,7 @@ def run_raw_text_certified_correction(
                     if output is None:
                         all_stage_rows.extend(attempt_stages)
                         status = "call_failed"
-                        reason = (
-                            "Every configured provider route failed before a structured correction."
-                        )
+                        reason = _CALL_FAILED_REASON
                         break
                     try:
                         candidate, audit = _apply_corrections(
@@ -1452,7 +1895,7 @@ def run_raw_text_certified_correction(
                             rows=active_rows,
                             findings=findings,
                             output=output,
-                            contract=cast(Mapping[str, Any], material["contract"]),
+                            contract=contract,
                             baseline_current=current,
                         )
                     except Exception as error:
@@ -1475,46 +1918,33 @@ def run_raw_text_certified_correction(
                             rows=rows,
                             source=source,
                             current=working_current,
-                            contract=cast(Mapping[str, Any], material["contract"]),
+                            contract=contract,
                             host_error=host_error,
                         )
-                        repair_context = {
-                            "semanticAttempt": semantic_attempt + 1,
-                            "hostRejection": host_error,
-                            "hostFindings": cast(
-                                JsonValue,
-                                [row.model_dump(mode="json") for row in repair_findings],
-                            ),
-                            "instruction": (
-                                "Correct only the resubmitted slots. The other first-response "
-                                "lines are retained unchanged by the host."
-                            ),
-                        }
+                        repair_context = _repair_context(
+                            semantic_attempt=semantic_attempt,
+                            host_error=host_error,
+                            repair_findings=repair_findings,
+                        )
                         continue
                     all_stage_rows.extend(_attach_host_audit(attempt_stages, audit))
                     working_current = candidate
                     if audit.passed:
                         status = "correction_candidate"
-                        reason = (
-                            "Every exact-line local gate passed; independent recertification is "
-                            "required."
-                        )
+                        reason = _CORRECTION_CANDIDATE_REASON
                         break
                     if (
                         semantic_attempt
                         >= config.workflow.max_successful_model_responses_per_document
                     ):
-                        reason = (
-                            "The bounded correction responses exhausted deterministic local "
-                            "postconditions."
-                        )
+                        reason = _LOCAL_POSTCONDITION_REASON
                         break
                     host_error = "; ".join(audit.findings)
                     active_rows, repair_findings = _select_repair_rows(
                         rows=rows,
                         source=source,
                         current=working_current,
-                        contract=cast(Mapping[str, Any], material["contract"]),
+                        contract=contract,
                         host_error=host_error,
                         unresolved_findings=_findings_without_changed_evidence(
                             baseline=current,
@@ -1522,56 +1952,46 @@ def run_raw_text_certified_correction(
                             findings=findings,
                         ),
                     )
-                    repair_context = {
-                        "semanticAttempt": semantic_attempt + 1,
-                        "hostRejection": host_error,
-                        "hostFindings": cast(
-                            JsonValue,
-                            [row.model_dump(mode="json") for row in repair_findings],
-                        ),
-                        "instruction": (
-                            "Correct only the resubmitted slots. The other first-response lines "
-                            "are retained unchanged by the host."
-                        ),
-                    }
+                    repair_context = _repair_context(
+                        semantic_attempt=semantic_attempt,
+                        host_error=host_error,
+                        repair_findings=repair_findings,
+                    )
             stage_rows = tuple(all_stage_rows)
             final = working_current
-            current_lines = current.splitlines()
-            final_lines = final.splitlines()
-            if len(current_lines) != len(final_lines):
-                raise RuntimeError("correction loop changed physical line topology")
-            changed_line_ids = {
-                f"L{number:05d}"
-                for number, (before, after) in enumerate(
-                    zip(current_lines, final_lines, strict=True), start=1
-                )
-                if before != after
-            }
-            changed = len(changed_line_ids)
-            locally_resolved = sum(
-                bool({evidence.lineId for evidence in finding.evidence} & changed_line_ids)
-                for finding in findings
-            )
-        result = CorrectionCaseResult(
-            documentId=document_id,
+        result = _correction_result(
+            document_id=document_id,
             status=status,
             reason=reason,
-            citedLines=len(rows),
-            changedLines=changed,
-            sourceFindings=len(findings),
-            locallyResolvedFindings=locally_resolved,
-            requiresRecertification=status == "correction_candidate",
-            sourceTextSha256=sha256_bytes(source.encode()),
-            inputCandidateSha256=sha256_bytes(current.encode()),
-            finalTextSha256=sha256_bytes(final.encode()),
-            usage=_combined_usage(stage_rows),
+            source=source,
+            current=current,
+            final=final,
+            rows=rows,
+            findings=findings,
+            stages=stage_rows,
         )
         async with progress_lock:
+            _publish_case_checkpoint(
+                staged=staged,
+                document_id=document_id,
+                source=source,
+                current=current,
+                source_label=source_label,
+                target_label=target_label,
+                contract=contract,
+                findings=findings,
+                rows=rows,
+                already_certified=already_certified,
+                stages=stage_rows,
+                final=final,
+                result=result,
+            )
             results[document_id] = result
             stages_by_id[document_id] = stage_rows
             outputs[document_id] = final
             elapsed = time.perf_counter() - started
-            rate = len(results) / elapsed if elapsed else 0.0
+            processed = len(results) - checkpointed_at_start
+            rate = processed / elapsed if elapsed else 0.0
             print(
                 json.dumps(
                     {
@@ -1603,9 +2023,16 @@ def run_raw_text_certified_correction(
 
     async def execute() -> None:
         try:
-            await asyncio.gather(*(run_case(document_id) for document_id in config.case_ids))
+            await asyncio.gather(
+                *(
+                    run_case(document_id)
+                    for document_id in config.case_ids
+                    if document_id not in results
+                )
+            )
         finally:
-            await client.close()
+            if client is not None:
+                await client.close()
 
     asyncio.run(execute())
     if set(results) != set(config.case_ids):
@@ -1616,6 +2043,7 @@ def run_raw_text_certified_correction(
     )
     usage = _combined_usage(all_stages)
     wall_seconds = time.perf_counter() - started
+    processed = len(ordered_results) - checkpointed_at_start
     for document_id in config.case_ids:
         material = case_material[document_id]
         source = cast(str, material["source"])
@@ -1662,6 +2090,8 @@ def run_raw_text_certified_correction(
         "status": "complete",
         "model": config.provider.model,
         "documents": len(ordered_results),
+        "checkpointedDocumentsAtStart": checkpointed_at_start,
+        "processedDocumentsThisInvocation": processed,
         "unchangedCertifiedDocuments": sum(
             row.status == "unchanged_certified" for row in ordered_results
         ),
@@ -1693,7 +2123,9 @@ def run_raw_text_certified_correction(
             else None
         ),
         "wallSeconds": round(wall_seconds, 6),
-        "throughputDocumentsPerHour": round(len(ordered_results) / wall_seconds * 3600, 6),
+        "throughputDocumentsPerHour": (
+            round(processed / wall_seconds * 3600, 6) if processed else None
+        ),
         "trainingRecordsPublished": False,
     }
     staged.publish_json("summary.json", summary)

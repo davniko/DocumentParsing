@@ -1,0 +1,117 @@
+schema_version: 1
+task: bill_of_lading_synthetic_raw_text_pipeline_v1
+
+run:
+  run_id: mpci-bl-raw-text-pipeline100-additional-maritime-v3-glm53
+  output_dir: artifacts/kie-synthesis
+
+inventory_config:
+  path: configs/synthesis/mpci_bl_raw_text_inventory100_additional_maritime_v58_pipeline_glm53.yaml
+  sha256: 9ef35d70837412262407bc5ca4dc933bce2afdc131c00fc26a6d89f9a3530fae
+
+certification:
+  environment_file: .env
+  shard_size: 50
+  max_attempts_per_candidate: 2
+  prompt:
+    path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v2.md
+    sha256: c7f9c9ea36009472b9767f72a085c406e569790a34270be242815be4e252cea6
+  provider:
+    kind: openrouter
+    model: z-ai/glm-5.3-flash
+    api_key_env: OPENROUTER_API_KEY
+    reasoning_effort: minimal
+    request_timeout_seconds: 180.0
+    transport_max_retries: 0
+    max_output_tokens: 8192
+    require_parameters: true
+    data_collection: deny
+    allow_fallbacks: true
+    provider_only: [deepinfra/fp4, coreweave/fp8, nextbit/fp8]
+    provider_order: [deepinfra/fp4, coreweave/fp8, nextbit/fp8]
+    max_price: {prompt: 0.15, completion: 0.50}
+    pricing:
+      currency: USD
+      effective_date: 2026-09-08
+      source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+      input_usd_per_million: 0.075
+      cached_input_usd_per_million: 0.015
+      cache_write_multiplier: 1.0
+      output_usd_per_million: 0.25
+  workflow:
+    documents: 50
+    max_concurrent_documents: 6
+    semantic_audit_passes: 1
+    max_provider_route_rounds: 4
+    retry_initial_delay_seconds: 5.0
+    retry_delay_multiplier: 2.0
+    retry_max_delay_seconds: 30.0
+    retry_jitter_seconds: 2.0
+    provider_native_json_schema: true
+    require_exact_finding_evidence: true
+    require_input_candidate_immutable: true
+    require_exact_line_and_page_topology: true
+    require_prior_host_contract: true
+    persist_every_prompt_response_and_receipt: true
+    publish_training_records: false
+
+correction:
+  environment_file: .env
+  shard_size: 50
+  max_rounds_per_document: 3
+  prompt:
+    path: prompts/synthesis/mpci_bl_raw_text_certified_line_corrector_v2.md
+    sha256: f7d2381d7d062bad04bf3e9affa259c545b54a03de738f40fe0ebea432f3f016
+  provider:
+    kind: openrouter
+    model: z-ai/glm-5.3-flash
+    api_key_env: OPENROUTER_API_KEY
+    reasoning_effort: minimal
+    request_timeout_seconds: 180.0
+    transport_max_retries: 0
+    max_output_tokens: 8192
+    require_parameters: true
+    data_collection: deny
+    allow_fallbacks: true
+    provider_only: [deepinfra/fp4, coreweave/fp8, nextbit/fp8]
+    provider_order: [deepinfra/fp4, coreweave/fp8, nextbit/fp8]
+    max_price: {prompt: 0.15, completion: 0.50}
+    pricing:
+      currency: USD
+      effective_date: 2026-09-08
+      source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+      input_usd_per_million: 0.075
+      cached_input_usd_per_million: 0.015
+      cache_write_multiplier: 1.0
+      output_usd_per_million: 0.25
+  workflow:
+    documents: 50
+    max_concurrent_documents: 6
+    max_provider_route_rounds: 4
+    max_successful_model_responses_per_document: 2
+    retry_initial_delay_seconds: 5.0
+    retry_delay_multiplier: 2.0
+    retry_max_delay_seconds: 30.0
+    retry_jitter_seconds: 2.0
+    provider_native_json_schema: true
+    require_exact_finding_evidence: true
+    require_only_cited_lines_mutable: true
+    require_exact_line_and_page_topology: true
+    persist_every_prompt_response_and_receipt: true
+    publish_training_records: false
+
+publication:
+  documents: 100
+  require_every_case_certified: true
+  require_unique_source_documents: true
+  require_unique_scenarios: true
+  replay_current_host_audit: true
+  require_v5_canonical_target: true
+  publish_training_records: true
+
+workflow:
+  documents: 100
+  max_inventory_rounds: 3
+  require_every_inventory_case_training_ready: true
+  require_every_case_independently_certified: true
+  require_complete_cohort_publication: true

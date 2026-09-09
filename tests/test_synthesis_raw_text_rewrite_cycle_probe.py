@@ -35,6 +35,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     SemanticReviewReceipt,
     SurfaceRenderingRequirement,
     TargetIntegrityResources,
+    _aggregate_empirical_measure_total,
     _aggregate_equipment_breakdown_requirements,
     _bounded_largest_remainder_allocation,
     _bounded_line_context,
@@ -44,6 +45,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _dangerous_goods_context_surfaces,
     _dangerous_goods_proper_shipping_name_surfaces,
     _dangerous_goods_tuple_surfaces,
+    _dense_aggregate_measurement_rows,
     _evidence_occurs,
     _finding_conflicts_with_anchored_scalar_authority,
     _finding_conflicts_with_equipment_authority,
@@ -61,6 +63,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _required_surfaces_rendered,
     _review_audit_payload,
     _settings,
+    _shipped_on_board_trailing_identity,
     _single_container_unallocated_package_projection,
     _target_route_jurisdictions,
     _terminal_editor_output,
@@ -77,6 +80,7 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     cargo_component_measurement_replacement_requirements,
     cargo_flavor_rewrite_requirements,
     cargo_package_quantity_replacement_requirements,
+    cargo_package_replacement_requirements,
     cargo_package_type_replacement_requirements,
     compact_label_change_contract,
     compound_party_flavor_requirements,
@@ -1037,8 +1041,18 @@ def test_cargo_package_guard_ignores_non_package_lot_and_unit_prose() -> None:
         "CARGO IS STOWED IN A REFRIGERATED CONTAINER SET AT PLUS 1 DEG C", guarded
     ) == ()
     assert unexpected_cargo_package_surfaces("10 LOTS OF TARGET GOODS", guarded) == ("LOTS",)
+    assert unexpected_cargo_package_surfaces("One lot used machines", guarded) == ("lot",)
+    assert unexpected_cargo_package_surfaces("TWELVE SETS TARGET GOODS", guarded) == ("SETS",)
+    assert unexpected_cargo_package_surfaces("THREE UNITS TARGET GOODS", guarded) == ("UNITS",)
     assert unexpected_cargo_package_surfaces("PACKED IN 4 UNITS", guarded) == ("UNITS",)
     assert unexpected_cargo_package_surfaces("8 SETS OF TARGET GOODS", guarded) == ("SETS",)
+    assert unexpected_cargo_package_surfaces("One Business Unit", guarded) == ()
+    assert unexpected_cargo_package_surfaces("One temperature set at 5 C", guarded) == ()
+    assert unexpected_cargo_package_surfaces("Continued on Next Sheet", guarded) == ()
+    assert unexpected_cargo_package_surfaces("Sheet 1 of 3", guarded) == ()
+    assert unexpected_cargo_package_surfaces("TWELVE SHEETS TARGET GOODS", guarded) == (
+        "SHEETS",
+    )
 
 
 def test_cargo_auxiliary_scan_excludes_path_owned_container_row() -> None:
@@ -5832,12 +5846,13 @@ def test_dense_container_table_reconciles_rows_tare_and_document_totals() -> Non
     target_numbers = ("TLLU1488350", "CMAU9583639")
     source = (
         "--- PAGE 1 ---\n"
-        "GROSS WEIGHT\nCARGO\nKGS\nKGS\nCBM\n"
+        "GROSS WEIGHT\nCARGO\nKGS\nTARE\nCBM\n"
         f"{source_numbers[0]}\nSEAL A1\n1 x 40HC 20 PACKAGE(S)\n"
         "20000.000\n3700\n60.000\n\n"
         f"{source_numbers[1]}\nSEAL A2\n1 x 40HC 10 PACKAGE(S)\n"
         "10000.000\n2300\n40.000\n\n"
-        "Continued From Previous Sheet Sheet 2 of 3 30000.000 6000 100.000\n"
+        "Weight in Kgs Total: 2 CONTAINER(S) Continued From Previous Sheet "
+        "Sheet 2 of 3 30000.000 6000 100.000\n"
     )
     source_label = {
         "documentPatch": {
@@ -5932,7 +5947,16 @@ def test_dense_container_table_reconciles_rows_tare_and_document_totals() -> Non
         profiles=profiles,
         limits=limits,
     )
-    aggregates = aggregate_operational_replacement_requirements(source, operational)
+    aggregates = aggregate_operational_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        operational,
+        source_document_id="source-document",
+        scenario_id="scenario-dense",
+        profiles=profiles,
+        limits=limits,
+    )
     equipment = container_equipment_replacement_requirements(source, source_label, target_label)
     workspace = RewriteWorkspace(
         original_text=source,
@@ -5963,8 +5987,544 @@ def test_dense_container_table_reconciles_rows_tare_and_document_totals() -> Non
         "25.000",
     ]
     assert workspace.current_text.splitlines()[-1] == (
-        "Continued From Previous Sheet Sheet 2 of 3 20000.000 6100 60.000"
+        "Weight in Kgs Total: 2 CONTAINER(S) Continued From Previous Sheet "
+        "Sheet 2 of 3 20000.000 6100 60.000"
     )
+
+
+def test_dense_tuple_rows_on_later_page_allocate_per_container_and_reconcile_hidden_row() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    limits = capacity_limits(config.target_integrity.transport_capacity)
+    numbers = ("CMAU7221965", "TCNU2842580", "CAAU6051350", "CAIU8394366")
+    source = (
+        "--- PAGE 1 ---\n"
+        "GROSS WEIGHT\nCARGO\nKGS\nTARE\nCBM\n\n"
+        f"{numbers[0]}\n1 x 40HC 467 CARTONS\nCARGO DESCRIPTION\n"
+        "--- PAGE 3 ---\n"
+        f"{numbers[1]}\nSEAL A1\n1 x 40HC 472 CARTONS\n24407.120 3700 50.000\n\n"
+        f"{numbers[2]}\nSEAL A2\n1 x 40HC 467 CARTONS\n24148.570 3700 50.000\n\n"
+        f"{numbers[3]}\nSEAL A3\n1 x 40HC 472 CARTONS\n24308.000 3870 50.000\n\n"
+        "Weight in Kgs Total: 4 CONTAINER(S)\n"
+        "ADDITIONAL CHARGES of 3\n"
+        "97012.260 14970 200.000\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": number, "typeDescription": "40HC"} for number in numbers
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 97012.26, "unit": "kilogram"},
+                    "volume": {"value": 200, "unit": "cubic_metre"},
+                }
+            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 1878}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": number, "packageQuantity": quantity}
+                        for number, quantity in zip(numbers, (467, 472, 467, 472), strict=True)
+                    ],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": number,
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+                for number in numbers
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 19835.75, "unit": "kilogram"},
+                    "volume": {"value": 74.8, "unit": "cubic_metre"},
+                }
+            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 991}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": number, "packageQuantity": quantity}
+                        for number, quantity in zip(numbers, (247, 249, 246, 249), strict=True)
+                    ],
+                }
+            ],
+        }
+    }
+    profiles = (
+        EmpiricalOperationalProfile(
+            document_id="profile-40",
+            container_number="PROF4000000",
+            equipment_family="forty_high_cube",
+            gross_weight_kg=None,
+            gross_utilization=None,
+            volume_m3=None,
+            volume_utilization=None,
+            tare_weight_kg=Decimal("3600"),
+        ),
+    )
+
+    operational = operational_flavor_requirements(
+        source,
+        source_label,
+        target_label,
+        source_document_id="source-document",
+        scenario_id="scenario-later-page-tuples",
+        profiles=profiles,
+        limits=limits,
+    )
+    aggregates = aggregate_operational_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        operational,
+        source_document_id="source-document",
+        scenario_id="scenario-later-page-tuples",
+        profiles=profiles,
+        limits=limits,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        operational_flavor_requirements=operational,
+        anchored_scalar_replacement_requirements=aggregates,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    lines = workspace.current_text.splitlines()
+    assert lines[14] == "4983.957 3600 18.794"
+    assert lines[19] == "4923.910 3600 18.568"
+    assert lines[24] == "4983.957 3600 18.794"
+    assert lines[-1] == "19835.750 14400 74.800"
+    assert sum(
+        Decimal(row.targetCanonicalValue)
+        for row in operational
+        if row.kind == "gross_weight_kg"
+    ) == Decimal("14891.824")
+
+
+def test_dense_tuple_does_not_cross_an_intervening_container_boundary() -> None:
+    source = (
+        "GROSS WEIGHT\nCARGO\nKGS\nTARE\nMEASUREMENT\n"
+        "CMAU1111111\n"
+        "NOTE\n"
+        "CMAU2222222\n"
+        "1 PACKAGE\n"
+        "1000 2000 30\n"
+    )
+    containers = (
+        {"containerNumber": "CMAU1111111"},
+        {"containerNumber": "CMAU2222222"},
+    )
+
+    occurrences = _container_measurement_occurrences(source, containers)
+
+    assert 0 not in occurrences
+    assert {row[0] for row in occurrences[1]} == {
+        "gross_weight_kg",
+        "tare_weight_kg",
+        "volume_m3",
+        "package_quantity",
+    }
+
+
+def test_single_container_total_tuple_keeps_gross_tare_volume_column_order() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    limits = capacity_limits(config.target_integrity.transport_capacity)
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n\n"
+        "CMAU8692912\nSEAL TBA\n1 x 40HC\n100 PACKAGE(S)\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n"
+        "Continued From Previous Sheet Sheet 2 of 3\n"
+        "22930.000 3700 50.000\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": [{"containerNumber": "CMAU8692912", "typeDescription": "40HC"}],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 22930, "unit": "kilogram"},
+                }
+            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 100}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "CMAU8692912", "packageQuantity": 100}
+                    ],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "CMAU8692912",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 4260.1, "unit": "kilogram"},
+                }
+            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 2}],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "CMAU8692912", "packageQuantity": 2}
+                    ],
+                }
+            ],
+        }
+    }
+    profiles = (
+        EmpiricalOperationalProfile(
+            document_id="profile-40",
+            container_number="PROF4000000",
+            equipment_family="forty_high_cube",
+            gross_weight_kg=None,
+            gross_utilization=None,
+            volume_m3=Decimal("33.5"),
+            volume_utilization=None,
+            tare_weight_kg=Decimal("3600"),
+        ),
+    )
+
+    operational = operational_flavor_requirements(
+        source,
+        source_label,
+        target_label,
+        source_document_id="source-document",
+        scenario_id="scenario-single-total-tuple",
+        profiles=profiles,
+        limits=limits,
+    )
+    aggregates = aggregate_operational_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        operational,
+        source_document_id="source-document",
+        scenario_id="scenario-single-total-tuple",
+        profiles=profiles,
+        limits=limits,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        operational_flavor_requirements=operational,
+        anchored_scalar_replacement_requirements=aggregates,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text.splitlines()[-1] == "4260.100 3600 33.500"
+    assert {row.kind for row in operational} == {
+        "gross_weight_kg",
+        "tare_weight_kg",
+        "volume_m3",
+        "package_quantity",
+    }
+
+
+def test_dense_total_tuple_rejects_repeated_rows_with_divergent_columns() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    limits = capacity_limits(config.target_integrity.transport_capacity)
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n1000.000 2000 30.000\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n1000.000 2100 30.000\n"
+    )
+    label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "CMAU8692912",
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 1000, "unit": "kilogram"},
+                }
+            ],
+        }
+    }
+
+    with pytest.raises(ValueError, match="tare columns disagree"):
+        aggregate_operational_replacement_requirements(
+            source,
+            label,
+            label,
+            (),
+            source_document_id="source-document",
+            scenario_id="scenario-ambiguous-total",
+            profiles=(),
+            limits=limits,
+        )
+
+
+def test_dense_total_tuple_rewrites_every_equivalent_repeated_copy() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    limits = capacity_limits(config.target_integrity.transport_capacity)
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n1000,000 2000 30.000\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n1000.000 2000 30.000\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "CMAU8692912",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 1000, "unit": "kilogram"},
+                    "volume": {"value": 30, "unit": "cubic_metre"},
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "CMAU8692912",
+                    "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ],
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 800.5, "unit": "kilogram"},
+                    "volume": {"value": 20.25, "unit": "cubic_metre"},
+                }
+            ],
+        }
+    }
+    profiles = (
+        EmpiricalOperationalProfile(
+            document_id="profile-20",
+            container_number="PROF2000000",
+            equipment_family="twenty_standard",
+            gross_weight_kg=None,
+            gross_utilization=None,
+            volume_m3=None,
+            volume_utilization=None,
+            tare_weight_kg=Decimal("2250"),
+        ),
+    )
+
+    requirements = aggregate_operational_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        (),
+        source_document_id="source-document",
+        scenario_id="scenario-repeated-total",
+        profiles=profiles,
+        limits=limits,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text.splitlines() == [
+        "GROSS WEIGHT",
+        "Cargo",
+        "TARE",
+        "MEASUREMENT",
+        "Weight in Kgs Total: 1 CONTAINER(S)",
+        "800,500 2250 20.250",
+        "Weight in Kgs Total: 1 CONTAINER(S)",
+        "800.500 2250 20.250",
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        (
+            "GROSS WEIGHTLESS\nCargo\nNOTARE\nACBMX\n"
+            "Weight in Kgs Total: 1 CONTAINER(S)\n1000.000 2000 30.000\n"
+        ),
+        (
+            "GROSS WEIGHT\nNET WEIGHT\nMEASUREMENT\nKGS\nKGS\nCBM\n"
+            "Weight in Kgs Total: 1 CONTAINER(S)\n1000.000 2000 30.000\n"
+        ),
+        (
+            "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+            "Weight in Kgs Total: 1 CONTAINERIZATION 1000.000 2000 30.000\n"
+        ),
+        (
+            "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+            "Weight in Kgs Total: 1 CONTAINER(S) 1000.000 USD 2000 RATE 30.000\n"
+        ),
+    ),
+)
+def test_dense_total_ownership_rejects_header_marker_and_tuple_false_positives(
+    source: str,
+) -> None:
+    assert _dense_aggregate_measurement_rows(source) == ()
+
+
+def test_dense_total_recognizes_real_vertical_rows_after_sheet_caption() -> None:
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n"
+        "Sheet 1 of 3\n"
+        "16326.400\n"
+        "2230\n"
+        "23.040\n"
+    )
+
+    rows = _dense_aggregate_measurement_rows(source)
+
+    assert len(rows) == 1
+    assert rows[0].value_line_indexes == (6, 7, 8)
+    assert rows[0].value_surfaces == ("16326.400", "2230", "23.040")
+
+
+def test_dense_total_recognizes_real_caption_prefixed_tuple() -> None:
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n"
+        "Continued From Previous Sheet Sheet 2 of 3 20760.000 3700 50.000\n"
+    )
+
+    rows = _dense_aggregate_measurement_rows(source)
+
+    assert len(rows) == 1
+    assert rows[0].value_line_indexes == (5, 5, 5)
+    assert rows[0].value_surfaces == ("20760.000", "3700", "50.000")
+
+
+def test_dense_total_accepts_one_ocr_blank_before_a_reviewed_caption() -> None:
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+        "Weight in Kgs Total: 1 CONTAINER(S)\n\n"
+        "Sheet 2 of 2\n"
+        "8527.450\n"
+        "3700\n"
+        "50.000\n"
+    )
+
+    rows = _dense_aggregate_measurement_rows(source)
+
+    assert len(rows) == 1
+    assert rows[0].value_line_indexes == (7, 8, 9)
+
+
+def test_dense_total_accepts_exact_standard_caption_after_inline_tuple() -> None:
+    source = (
+        "GROSS WEIGHT\nCargo\nTARE\nMEASUREMENT\n"
+        "Weight in Kgs Total: 2 CONTAINER(S) Continued From Previous Sheet Sheet 2 of 3 "
+        "52848.000 4410 57.600 ABOVE PARTICULARS DECLARED BY SHIPPER. "
+        "CARRIER NOT RESPONSIBLE.\n"
+    )
+
+    rows = _dense_aggregate_measurement_rows(source)
+
+    assert len(rows) == 1
+    assert rows[0].value_surfaces == ("52848.000", "4410", "57.600")
+
+
+def test_aggregate_empirical_scaling_retains_observed_precision() -> None:
+    config = load_synthesis_raw_text_rewrite_cycle_probe_config(
+        Path("configs/synthesis/mpci_bl_raw_text_atomic10_luna_high.yaml")
+    )
+    limits = capacity_limits(config.target_integrity.transport_capacity)
+    absolute = Decimal("3.965")
+    maximum = Decimal("34.860")
+    profile = EmpiricalOperationalProfile(
+        document_id="profile-20",
+        container_number="PROF2000000",
+        equipment_family="twenty_standard",
+        gross_weight_kg=None,
+        gross_utilization=None,
+        volume_m3=absolute,
+        volume_utilization=absolute / maximum,
+        tare_weight_kg=None,
+    )
+    containers = (
+        {
+            "containerNumber": "CMAU1111111",
+            "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+        {
+            "containerNumber": "CMAU2222222",
+            "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+    )
+
+    total = _aggregate_empirical_measure_total(
+        kind="volume_m3",
+        target_containers=containers,
+        requirements=(),
+        source_document_id="source-document",
+        scenario_id="scenario-precision",
+        profiles=(profile,),
+        limits=limits,
+    )
+
+    assert total == Decimal("7.930")
+    assert total.as_tuple().exponent == -3
+
+
+def test_three_number_contact_line_without_measurement_header_is_not_operational() -> None:
+    raw = "CONTAINER CMAU8692912\nFor delivery call 002 02 37481558\n"
+
+    assert _container_measurement_occurrences(
+        raw, ({"containerNumber": "CMAU8692912"},)
+    ) == {}
 
 
 def test_inline_operational_row_is_prefilled_right_to_left_without_column_drift() -> None:
@@ -6505,9 +7065,13 @@ def test_package_quantity_prefill_covers_all_explicit_noun_bound_occurrences() -
     requirements = anchored_package_quantity_replacement_requirements(source, leaves)
 
     assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in requirements] == [
-        (("L00002",), "640", "512"),
-        (("L00003",), "640.00", "512.00"),
-        (("L00004",), "SIX HUNDRED FORTY", "FIVE HUNDRED TWELVE"),
+        (("L00002",), "640 BAGS", "512 BAGS"),
+        (("L00003",), "640.00BAGS", "512.00BAGS"),
+        (
+            ("L00004",),
+            "SAY SIX HUNDRED FORTY PACKAGE(S)",
+            "SAY FIVE HUNDRED TWELVE PACKAGE(S)",
+        ),
     ]
     workspace = RewriteWorkspace(
         original_text=source,
@@ -6616,9 +7180,11 @@ def test_package_noun_prefill_allows_digit_adjacent_compact_surfaces() -> None:
 def test_repeated_equal_package_totals_remain_owned_by_their_cargo_groups() -> None:
     source = (
         "1 Container Said to Contain 1 PACKAGE\n"
+        "\n"
         "FIRST MACHINE\n"
         "MAEU4092466 SEAL1 40 OPEN 9'6 1 PACKAGE 22000.000 KGS\n"
         "1 Container Said to Contain 1 PACKAGE\n"
+        "\n"
         "SECOND MACHINE\n"
         "MAEU4198170 SEAL2 40 OPEN 9'6 1 PACKAGE 22100.000 KGS\n"
     )
@@ -6703,48 +7269,893 @@ def test_repeated_equal_package_totals_remain_owned_by_their_cargo_groups() -> N
             requirementId="cargo-group-1-span-1",
             targetPath="documentPatch.cargoGroups[0].description",
             targetDescription="ELECTRIC GENERATOR",
-            sourceLineIds=("L00002",),
+            sourceLineIds=("L00003",),
             sourceSurfaces=("FIRST MACHINE",),
         ),
         CargoFlavorRewriteRequirement(
             requirementId="cargo-group-2-span-1",
             targetPath="documentPatch.cargoGroups[1].description",
             targetDescription="OTHER SEATS",
-            sourceLineIds=("L00005",),
+            sourceLineIds=("L00007",),
             sourceSurfaces=("SECOND MACHINE",),
         ),
     )
 
-    package_types = cargo_package_type_replacement_requirements(
+    replacements = cargo_package_replacement_requirements(
         source,
         source_label,
         target_label,
         _target_integrity_resources().packages,
         cargo_requirements,
     )
-    quantities = cargo_package_quantity_replacement_requirements(
-        source, source_label, target_label, cargo_requirements
-    )
 
-    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in package_types] == [
-        (("L00001",), "PACKAGE", "PACKAGES"),
-        (("L00003",), "PACKAGE", "PACKAGES"),
-        (("L00004",), "PACKAGE", "CARTONS"),
-        (("L00006",), "PACKAGE", "CARTONS"),
+    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in replacements] == [
+        (("L00001", "L00004"), "1 PACKAGE", "33 PACKAGES"),
+        (("L00005", "L00008"), "1 PACKAGE", "34 CARTONS"),
     ]
-    assert [(row.sourceLineIds, row.sourceSurface, row.targetSurface) for row in quantities] == [
-        (("L00001",), "1", "33"),
-        (("L00003",), "1", "33"),
-        (("L00004",), "1", "34"),
-        (("L00006",), "1", "34"),
-    ]
-    assert quantities[0].targetPaths == (
+    assert replacements[0].targetPaths == (
         "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
         "documentPatch.cargoPackages[0].quantity",
+        "documentPatch.cargoPackages[0].typeCategory",
     )
-    assert quantities[2].targetPaths == (
+    assert replacements[1].targetPaths == (
         "documentPatch.cargoAllocationGroups[1].allocations[0].packageQuantity",
         "documentPatch.cargoPackages[1].quantity",
+        "documentPatch.cargoPackages[1].typeCategory",
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=replacements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text.splitlines() == [
+        "1 Container Said to Contain 33 PACKAGES",
+        "",
+        "FIRST MACHINE",
+        "MAEU4092466 SEAL1 40 OPEN 9'6 33 PACKAGES 22000.000 KGS",
+        "1 Container Said to Contain 34 CARTONS",
+        "",
+        "SECOND MACHINE",
+        "MAEU4198170 SEAL2 40 OPEN 9'6 34 CARTONS 22100.000 KGS",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("target_category", "expected"),
+    (
+        ("PACKAGE_BOX", "1 Container Said to Contain 2 BOXES - 4G"),
+        ("PACKAGE_CARTON", "1 Container Said to Contain 2 CARTONS"),
+    ),
+)
+def test_typed_preamble_preserves_un_code_only_for_unchanged_package_category(
+    target_category: str,
+    expected: str,
+) -> None:
+    source = "1 Container Said to Contain 1 BOX - 4G\n\nSOURCE GOODS\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "SOURCE GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_BOX",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 2,
+                    "typeCategory": target_category,
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00003",),
+            sourceSurfaces=("SOURCE GOODS",),
+        ),
+    )
+
+    replacements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=replacements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text.splitlines()[0] == expected
+
+
+def test_typed_preamble_projects_a_multi_group_document_package_total() -> None:
+    source = (
+        "1 Container Said to Contain 111 CARTONS\n\n"
+        "FIRST GOODS\n"
+        "56 CARTONS FIRST GOODS\n"
+        "SECOND GOODS\n"
+        "55 CARTONS SECOND GOODS\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "FIRST GOODS"},
+                {"groupId": "g2", "description": "SECOND GOODS"},
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 56,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+                {
+                    "groupId": "g2",
+                    "packageId": "p2",
+                    "quantity": 55,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "description": "TARGET ONE"},
+                {"groupId": "g2", "description": "TARGET TWO"},
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 361,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+                {
+                    "groupId": "g2",
+                    "packageId": "p2",
+                    "quantity": 602,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET ONE",
+            sourceLineIds=("L00003",),
+            sourceSurfaces=("FIRST GOODS",),
+        ),
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-2-span-1",
+            targetPath="documentPatch.cargoGroups[1].description",
+            targetDescription="TARGET TWO",
+            sourceLineIds=("L00005",),
+            sourceSurfaces=("SECOND GOODS",),
+        ),
+    )
+
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    preamble = next(row for row in requirements if "L00001" in row.sourceLineIds)
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=(preamble,),
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert preamble.sourceSurface == "111 CARTONS"
+    assert preamble.targetSurface == "963 PACKAGES"
+    assert workspace.current_text.splitlines()[0] == (
+        "1 Container Said to Contain 963 PACKAGES"
+    )
+
+
+def test_unlabeled_outer_package_preamble_stays_owned_by_its_cargo_editor() -> None:
+    source = "2 containers said to contain 88 PALLET\n\nASSY OPEN CELL\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "ASSY OPEN CELL"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1556,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 31064,
+                    "typeCategory": "PACKAGE_PIECE",
+                },
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "KAOLINIC CLAYS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 721,
+                    "typeCategory": "PACKAGE_SACK",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 14394,
+                    "typeCategory": "PACKAGE_SACK",
+                },
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="KAOLINIC CLAYS",
+            sourceLineIds=("L00003",),
+            sourceSurfaces=("ASSY OPEN CELL",),
+        ),
+    )
+    guarded = bind_cargo_package_surface_guards(
+        cargo,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+    )
+    deterministic = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        guarded,
+    )
+
+    expanded = cargo_auxiliary_package_requirements(source, guarded)
+
+    assert deterministic == ()
+    assert expanded[-1].lineRole == "source_only_auxiliary_packaging"
+    assert expanded[-1].sourceLineIds == ("L00001",)
+
+
+def test_equal_quantity_does_not_bind_a_mismatched_typed_preamble_category() -> None:
+    source = "1 Container Said to Contain 10 PALLETS\n\nSOURCE GOODS\n"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "SOURCE GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 10,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 2,
+                    "typeCategory": "PACKAGE_BOX",
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00003",),
+            sourceSurfaces=("SOURCE GOODS",),
+        ),
+    )
+
+    deterministic = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    guarded = bind_cargo_package_surface_guards(
+        cargo,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+    )
+    expanded = cargo_auxiliary_package_requirements(source, guarded)
+
+    assert deterministic == ()
+    assert expanded[-1].lineRole == "source_only_auxiliary_packaging"
+    assert expanded[-1].sourceLineIds == ("L00001",)
+
+
+@pytest.mark.parametrize(
+    (
+        "source",
+        "source_quantity",
+        "target_quantity",
+        "source_category",
+        "target_category",
+        "expected",
+    ),
+    (
+        (
+            "12.680 KG23 PALLETS",
+            23,
+            24,
+            "PACKAGE_PALLET",
+            "PACKAGE_BAG",
+            "12.680 KG24 BAGS",
+        ),
+        (
+            "1X472 CARTONS",
+            472,
+            472,
+            "PACKAGE_CARTON",
+            "PACKAGE_PACKAGE",
+            "1X472 PACKAGES",
+        ),
+    ),
+)
+def test_fused_package_context_is_rewritten_as_one_exact_fact(
+    source: str,
+    source_quantity: int,
+    target_quantity: int,
+    source_category: str,
+    target_category: str,
+    expected: str,
+) -> None:
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": source_quantity,
+                    "typeCategory": source_category,
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": target_quantity,
+                    "typeCategory": target_category,
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == expected
+
+
+def test_type_only_package_projection_does_not_lock_model_owned_quantity() -> None:
+    source = "22 PLT"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 44,
+                    "typeCategory": "PACKAGE_PALLET",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "MSCU1234567", "packageQuantity": 22},
+                        {"containerNumber": "MSCU7654321", "packageQuantity": 22},
+                    ],
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 7,
+                    "typeCategory": "PACKAGE_PALLET",
+                }
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "packageIds": ["p1"],
+                    "coverage": "single_package_level",
+                    "allocations": [
+                        {"containerNumber": "MSCU1111111", "packageQuantity": 4},
+                        {"containerNumber": "MSCU2222222", "packageQuantity": 3},
+                    ],
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "22 PALLETS"
+    assert len(requirements) == 1
+    assert requirements[0].sourceSurface == "PLT"
+    assert requirements[0].targetSurface == "PALLETS"
+    assert requirements[0].surfaceKind == "package_noun"
+
+
+def test_same_line_singular_and_plural_package_facts_keep_occurrence_identity() -> None:
+    source = "1 CARTON + 2 CARTONS"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 2,
+                    "typeCategory": "PACKAGE_CARTON",
+                },
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_BAG",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 2,
+                    "typeCategory": "PACKAGE_BAG",
+                },
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "1 BAG + 2 BAGS"
+    assert [row.targetPaths for row in requirements] == [
+        ("documentPatch.cargoPackages[0].typeCategory",),
+        ("documentPatch.cargoPackages[1].typeCategory",),
+    ]
+
+
+def test_same_line_package_join_does_not_apply_plural_owner_to_singular_fact() -> None:
+    source = "1 BOX + 20 BOXES"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 20,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 20,
+                    "typeCategory": "PACKAGE_BAG",
+                },
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == "1 BOX + 20 BAGS"
+    assert requirements[0].targetPaths == (
+        "documentPatch.cargoPackages[1].typeCategory",
+    )
+
+
+def test_repeated_identical_package_surface_with_partial_ownership_fails_closed() -> None:
+    source = "1 BOX + 2 BOX"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 2,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_BOX",
+                },
+                {
+                    "groupId": "g1",
+                    "packageId": "p2",
+                    "quantity": 2,
+                    "typeCategory": "PACKAGE_BAG",
+                },
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="lacks occurrence-level ownership"):
+        cargo_package_replacement_requirements(
+            source,
+            source_label,
+            target_label,
+            _target_integrity_resources().packages,
+            cargo,
+        )
+
+
+def test_composite_exact_cargo_line_remains_model_owned_after_package_prefill() -> None:
+    source = "1X472 CARTONS"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 472,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 991,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+    package = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    package_line_ids = frozenset(
+        line_id for requirement in package for line_id in requirement.sourceLineIds
+    )
+
+    exact = exact_cargo_line_replacement_requirements(
+        source,
+        source_label,
+        cargo,
+        excluded_line_ids=package_line_ids,
+    )
+    merged = merge_anchored_scalar_replacement_requirements(package, exact)
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=merged,
+        cargo_flavor_rewrite_requirements=cargo,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert exact == ()
+    assert workspace.current_text == "1X991 PACKAGES"
+    assert not deterministic_rewrite_audit(workspace, ()).cargoFlavorRewritten
+
+
+def test_typed_preamble_detector_and_extractor_share_relation_local_predicate() -> None:
+    source = "1 PACKAGE, 1 CONTAINER SAID TO CONTAIN 100 KG\n\nSOURCE GOODS"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "SOURCE GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 1,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "TARGET GOODS"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 2,
+                    "typeCategory": "PACKAGE_BAG",
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="TARGET GOODS",
+            sourceLineIds=("L00003",),
+            sourceSurfaces=("SOURCE GOODS",),
+        ),
+    )
+
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceSurface == "1 PACKAGE"
+    assert requirements[0].targetSurface == "2 BAGS"
+
+
+def test_parenthesized_es_package_totals_rewrite_every_exact_repeat() -> None:
+    source = "2328 BOX(ES) of 2328 BOX(ES) of 2328 BOXES WITH FRESH FRUIT"
+    source_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": source}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 2328,
+                    "typeCategory": "PACKAGE_BOX",
+                }
+            ],
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "FRESH FRUIT"}],
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 519,
+                    "typeCategory": "PACKAGE_BOX",
+                }
+            ],
+        }
+    }
+    cargo = (
+        CargoFlavorRewriteRequirement(
+            requirementId="cargo-group-1-span-1",
+            targetPath="documentPatch.cargoGroups[0].description",
+            targetDescription="FRESH FRUIT",
+            sourceLineIds=("L00001",),
+            sourceSurfaces=(source,),
+        ),
+    )
+    requirements = cargo_package_replacement_requirements(
+        source,
+        source_label,
+        target_label,
+        _target_integrity_resources().packages,
+        cargo,
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        anchored_scalar_replacement_requirements=requirements,
+    )
+
+    apply_deterministic_prefills(workspace)
+
+    assert workspace.current_text == (
+        "519 BOX(ES) of 519 BOX(ES) of 519 BOXES WITH FRESH FRUIT"
     )
 
 
@@ -7205,6 +8616,84 @@ def test_generic_signatory_role_is_not_invented_as_a_private_agent_identity() ->
     )
 
     assert raw_auxiliary_identity_requirements(source, source_label, target_label) == ()
+
+
+@pytest.mark.parametrize(
+    "role",
+    (
+        "Managing Director",
+        "Director",
+        "Vice President",
+        "Branch Manager",
+        "Operations Manager",
+    ),
+)
+def test_generic_signatory_titles_are_not_private_agent_identities(role: str) -> None:
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
+    source = f"By\n{role}\nas agent for the Carrier SOURCE LINE\n"
+
+    assert raw_auxiliary_identity_requirements(source, source_label, target_label) == ()
+
+
+@pytest.mark.parametrize(
+    "caption",
+    (
+        "Signed on behalf of the Carrier",
+        "Signed for the Carrier",
+        "As Authorized Signatory",
+        "As Authorised Signatory",
+        "On behalf of the Carrier",
+    ),
+)
+def test_generic_legal_signatory_captions_are_not_private_identities(
+    caption: str,
+) -> None:
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
+    source = f"{caption}\nas agent for the Carrier SOURCE LINE\n"
+
+    assert raw_auxiliary_identity_requirements(source, source_label, target_label) == ()
+
+
+def test_shipped_on_board_trailing_identity_split_is_exact_and_unicode_safe() -> None:
+    assert (
+        _shipped_on_board_trailing_identity(
+            "SHIPPED ON BOARD MV NORTH STAR 08.SEP.2026 ŽELEZNIŠKA LOGISTIKA D.O.O."
+        )
+        == "ŽELEZNIŠKA LOGISTIKA D.O.O."
+    )
+    assert (
+        _shipped_on_board_trailing_identity(
+            "SHIPPED ON BOARD MV NORTH STAR 08.SEP.2026 ---"
+        )
+        is None
+    )
+
+
+def test_shipped_on_board_split_rejects_an_adversarial_long_nonmatch() -> None:
+    source = "SHIPPED ON BOARD " + "A" * 100_000 + " NOT-A-DATE"
+
+    assert _shipped_on_board_trailing_identity(source) is None
+
+
+@pytest.mark.parametrize(
+    "identity",
+    (
+        "A. MARIN\nManaging Director",
+        "BLUEWATER DIRECTOR LOGISTICS LTD",
+        "SOUTHERN CROSS OPERATIONS MANAGER INC",
+    ),
+)
+def test_named_or_company_signatory_titles_remain_anonymization_owned(identity: str) -> None:
+    source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
+    source = f"{identity}\nas agent for the Carrier SOURCE LINE\n"
+
+    requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
+
+    assert len(requirements) == 1
+    assert requirements[0].sourceIdentity == identity
 
 
 def test_named_signatory_with_generic_role_remains_anonymization_owned() -> None:
