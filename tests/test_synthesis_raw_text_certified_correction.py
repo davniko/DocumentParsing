@@ -2,19 +2,41 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.config import load_synthesis_raw_text_certified_correction_config
-from document_ocr.synthesis.raw_text_certification import SemanticAuditFinding
+from document_ocr.synthesis.raw_text_certification import (
+    CertificationAuditReplay,
+    CertificationCaseResult,
+    SemanticAuditEvidence,
+    SemanticAuditFinding,
+    _audit_plan,
+    _host_audit,
+)
+from document_ocr.synthesis.raw_text_certification_artifacts import (
+    ValidatedCertificationCase,
+    ValidatedCertificationRun,
+)
+from document_ocr.synthesis.raw_text_certification_host import CertificationInvariantCase
+from document_ocr.synthesis.raw_text_certification_invariants import (
+    CertificationInvariantAudit,
+    CertificationInvariantEnvelope,
+    DeterministicCertificationFinding,
+    DeterministicLineRepair,
+    InvariantCheck,
+    InvariantEvidence,
+)
 from document_ocr.synthesis.raw_text_certified_correction import (
     CorrectionStage,
     _apply_corrections,
     _attach_host_audit,
     _correction_lines,
     _correction_result,
+    _deterministic_correction_case,
     _deterministic_host_findings,
     _empty_usage,
     _findings_without_changed_evidence,
@@ -27,10 +49,214 @@ from document_ocr.synthesis.raw_text_certified_correction import (
     _refine_carrier_occurrence_contract,
     _select_repair_rows,
     _transient_route_error,
+    run_raw_text_certified_correction,
 )
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _invariant_envelope(document_id: str, candidate: str) -> CertificationInvariantEnvelope:
+    return CertificationInvariantEnvelope(
+        schemaVersion=1,
+        documentId=document_id,
+        sourceTextSha256="1" * 64,
+        candidateTextSha256=sha256_bytes(candidate.encode()),
+        sourceContractSha256="2" * 64,
+        inventorySha256="3" * 64,
+        deterministicEditsSha256="4" * 64,
+        sourceLabelSha256="5" * 64,
+        targetLabelSha256="6" * 64,
+        referenceReceiptSha256="7" * 64,
+        capacityPolicySha256="8" * 64,
+        implementationSha256="9" * 64,
+        requirementCounts=(),
+    )
+
+
+def _deterministic_case_fixture(
+    *,
+    semantic_findings: tuple[SemanticAuditFinding, ...] = (),
+) -> tuple[ValidatedCertificationCase, ValidatedCertificationRun, CertificationInvariantCase]:
+    document_id = "doc_" + "a" * 64
+    source = "--- PAGE 1 ---\nB/L: OLD-123\n"
+    candidate = source
+    contract = {
+        **_contract(),
+        "targetLiteralRequirements": [
+            {"targetPath": "documentPatch.billOfLadingNumber", "targetValue": "NEW-456"}
+        ],
+        "sourceLabel": {"documentPatch": {"billOfLadingNumber": "OLD-123"}},
+        "targetLabel": {"documentPatch": {"billOfLadingNumber": "NEW-456"}},
+    }
+    repair = DeterministicLineRepair(
+        method="replace_exact_fragment_v1",
+        lineId="L00002",
+        expectedCurrentLineSha256=sha256_bytes(b"B/L: OLD-123"),
+        oldFragment="OLD-123",
+        newFragment="NEW-456",
+    )
+    finding = DeterministicCertificationFinding(
+        invariantId="D" + "a" * 16,
+        findingKind="target_fact_mismatch",
+        dimension="target_fact_fidelity",
+        evidence=(InvariantEvidence(lineId="L00002", currentLine="B/L: OLD-123"),),
+        targetPaths=("documentPatch.billOfLadingNumber",),
+        problem="Compiler-owned bill number differs.",
+        repairs=(repair,),
+    )
+    envelope = _invariant_envelope(document_id, candidate)
+    audit = CertificationInvariantAudit(
+        schemaVersion=1,
+        envelopeSha256=sha256_bytes(canonical_json_bytes(envelope.model_dump(mode="json"))),
+        passed=False,
+        checks=(InvariantCheck(checkId="target_literals", findings=1, passed=False),),
+        findings=(finding,),
+    )
+    invariant = CertificationInvariantCase(
+        inventory=(),
+        deterministic_edits=(),
+        envelope=envelope,
+        audit=audit,
+    )
+    plan = _audit_plan(contract, source=source, current=candidate)
+    host = _host_audit(source=source, output=candidate, contract=contract)
+    result = CertificationCaseResult(
+        documentId=document_id,
+        auditContractVersion=3,
+        certificationMode="production",
+        auditPlanSha256=sha256_bytes(canonical_json_bytes(plan)),
+        invariantEnvelopeSha256=sha256_bytes(
+            canonical_json_bytes(envelope.model_dump(mode="json"))
+        ),
+        invariantAuditSha256=sha256_bytes(canonical_json_bytes(audit.model_dump(mode="json"))),
+        status="needs_review",
+        reason="Deterministic rejection.",
+        auditPasses=0,
+        cleanAuditPasses=0,
+        requiredAuditPasses=2,
+        semanticFindings=0,
+        deterministicFindings=1,
+        candidateImmutable=True,
+        hostAudit=host,
+        sourceTextSha256=sha256_bytes(source.encode()),
+        inputCandidateSha256=sha256_bytes(candidate.encode()),
+        finalTextSha256=sha256_bytes(candidate.encode()),
+        usage=_empty_usage(),
+    )
+    replay = CertificationAuditReplay(
+        outputs=(),
+        findings=semantic_findings,
+        audit_passes=0,
+        clean_audit_passes=0,
+        audit_plan_sha256=result.auditPlanSha256,
+    )
+    certified = ValidatedCertificationCase(
+        document_id=document_id,
+        source=source.encode(),
+        candidate=candidate.encode(),
+        source_label=cast(dict[str, Any], contract["sourceLabel"]),
+        target_label=cast(dict[str, Any], contract["targetLabel"]),
+        contract=contract,
+        audit_plan=plan,
+        result=result,
+        stages=(),
+        replay=replay,
+        invariant_case=invariant,
+    )
+    run = ValidatedCertificationRun(
+        root=Path("unused"),
+        config=cast(Any, object()),
+        cases=(certified,),
+        transaction={},
+        summary={},
+        invariant_context=cast(Any, object()),
+    )
+    repaired = candidate.replace("OLD-123", "NEW-456")
+    repaired_envelope = _invariant_envelope(document_id, repaired)
+    repaired_invariant = CertificationInvariantCase(
+        inventory=(),
+        deterministic_edits=(),
+        envelope=repaired_envelope,
+        audit=CertificationInvariantAudit(
+            schemaVersion=1,
+            envelopeSha256=sha256_bytes(
+                canonical_json_bytes(repaired_envelope.model_dump(mode="json"))
+            ),
+            passed=True,
+            checks=(InvariantCheck(checkId="target_literals", findings=0, passed=True),),
+            findings=(),
+        ),
+    )
+    return certified, run, repaired_invariant
+
+
+def test_contract_v3_correction_applies_only_complete_host_authored_repairs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import document_ocr.synthesis.raw_text_certified_correction as correction_module
+
+    certified, run, repaired_invariant = _deterministic_case_fixture()
+    monkeypatch.setattr(
+        correction_module,
+        "evaluate_certification_invariant_case",
+        lambda **_kwargs: repaired_invariant,
+    )
+
+    corrected = _deterministic_correction_case(
+        certified=certified,
+        certification_run=run,
+    )
+
+    assert corrected.final.endswith("B/L: NEW-456\n")
+    assert corrected.result.status == "correction_candidate"
+    assert corrected.result.appliedDeterministicRepairs == 1
+    assert corrected.result.requiresRecertification
+    assert corrected.final_invariant.audit.passed
+
+
+def test_contract_v3_semantic_finding_quarantines_without_call_or_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import document_ocr.synthesis.raw_text_certified_correction as correction_module
+
+    semantic = SemanticAuditFinding(
+        findingKind="target_fact_mismatch",
+        evidence=(SemanticAuditEvidence(lineId="L00002", currentFragment="B/L: OLD-123"),),
+        problem="Semantic reviewer requires human adjudication.",
+    )
+    certified, run, _repaired_invariant = _deterministic_case_fixture(semantic_findings=(semantic,))
+    monkeypatch.setattr(
+        correction_module,
+        "evaluate_certification_invariant_case",
+        lambda **_kwargs: pytest.fail("semantic quarantine must not attempt a repair"),
+    )
+
+    corrected = _deterministic_correction_case(
+        certified=certified,
+        certification_run=run,
+    )
+
+    assert corrected.final.encode() == certified.candidate
+    assert corrected.result.status == "needs_review"
+    assert corrected.result.semanticFindings == 1
+    assert corrected.result.appliedDeterministicRepairs == 0
+    assert corrected.result.usage.requests == 0
+
+
+def test_new_correction_rejects_legacy_finding_only_authority() -> None:
+    config_path = (
+        _PROJECT_ROOT / "configs/synthesis/"
+        "mpci_bl_raw_text_certified_correction2_glm53_v22_wrapped_carrier_topology.yaml"
+    )
+    config = load_synthesis_raw_text_certified_correction_config(config_path)
+
+    with pytest.raises(ValueError, match="explicit modern certification authority"):
+        run_raw_text_certified_correction(
+            project_root=_PROJECT_ROOT,
+            config_path=config_path,
+            config=config,
+        )
 
 
 def _finding(*line_ids: str) -> SemanticAuditFinding:
@@ -48,6 +274,10 @@ def _finding(*line_ids: str) -> SemanticAuditFinding:
 
 def _contract() -> dict[str, object]:
     return {
+        "compactLabelChangeContract": [],
+        "sourceStatusPreservationRequirements": [],
+        "surfaceRenderingRequirements": [],
+        "operationalFlavorRequirements": [],
         "targetLiteralRequirements": [],
         "targetValueOccurrenceRequirements": [],
         "targetIntegrity": {
@@ -55,6 +285,12 @@ def _contract() -> dict[str, object]:
             "topology_matched": True,
         },
         "rawAuxiliaryIdentityRequirements": [],
+        "jurisdictionalSurfaceRequirements": [],
+        "compoundPartyFlavorRequirements": [],
+        "inlineSlotTopologyRequirements": [],
+        "cargoFlavorRewriteRequirements": [],
+        "anchoredScalarReplacementRequirements": [],
+        "sourceSemanticRoleHints": [],
     }
 
 
@@ -146,9 +382,7 @@ def test_correction_checkpoint_replays_exact_output_and_rejects_tampering(
     result = _correction_result(
         document_id=document_id,
         status="correction_candidate",
-        reason=(
-            "Every exact-line local gate passed; independent recertification is required."
-        ),
+        reason=("Every exact-line local gate passed; independent recertification is required."),
         source=source,
         current=current,
         final=final,
@@ -157,8 +391,7 @@ def test_correction_checkpoint_replays_exact_output_and_rejects_tampering(
         stages=stage,
     )
     config = load_synthesis_raw_text_certified_correction_config(
-        _PROJECT_ROOT
-        / "configs/synthesis/"
+        _PROJECT_ROOT / "configs/synthesis/"
         "mpci_bl_raw_text_certified_correction2_glm53_v22_wrapped_carrier_topology.yaml"
     )
     staged = StagedArtifactRun(
@@ -243,18 +476,11 @@ def test_correction_rejects_finding_when_all_evidence_is_unchanged() -> None:
 
 
 def test_correction_expands_exact_repeated_private_identifier_occurrences() -> None:
-    text = (
-        "CARRIER\n"
-        "CO. REG. NO 196700080N\n"
-        "TERMS\n"
-        "CO. REG. NO 196700080N\n"
-    )
+    text = "CARRIER\nCO. REG. NO 196700080N\nTERMS\nCO. REG. NO 196700080N\n"
     finding = SemanticAuditFinding.model_validate(
         {
             "findingKind": "party_or_legal_identity_mismatch",
-            "evidence": (
-                {"lineId": "L00002", "currentFragment": "CO. REG. NO 196700080N"},
-            ),
+            "evidence": ({"lineId": "L00002", "currentFragment": "CO. REG. NO 196700080N"},),
             "problem": "The source carrier registration survives.",
         }
     )
@@ -590,12 +816,7 @@ def test_carrier_contract_ignores_uncontracted_split_address() -> None:
 
 
 def test_carrier_contract_rejects_unlocatable_contracted_split_address() -> None:
-    source = (
-        "5 Temasek Boulevard\n"
-        "#06-01-03\n"
-        "SuntecTower Five\n"
-        "Singapore (038985)\n"
-    )
+    source = "5 Temasek Boulevard\n#06-01-03\nSuntecTower Five\nSingapore (038985)\n"
     contract = {
         **_contract(),
         "changedLeaves": [

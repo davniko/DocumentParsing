@@ -153,6 +153,28 @@ def canonical_equipment_surface(
     return f"{_SIZE_PRINTED_SURFACE[size_category]} {_TYPE_PRINTED_SURFACE[type_category]}"
 
 
+_CANONICAL_EQUIPMENT_PATTERNS = tuple(
+    (
+        re.compile(rf"(?<![A-Z0-9]){re.escape(surface)}(?![A-Z0-9])"),
+        size_category,
+        type_category,
+    )
+    for surface, size_category, type_category in sorted(
+        (
+            (
+                _normalize(canonical_equipment_surface(size_category, type_category)),
+                size_category,
+                type_category,
+            )
+            for size_category in _SIZE_PRINTED_SURFACE
+            for type_category in _TYPE_PRINTED_SURFACE
+        ),
+        key=lambda row: len(row[0]),
+        reverse=True,
+    )
+)
+
+
 def review_source_equipment_surface(
     printed_surface: str | None,
     *,
@@ -180,21 +202,8 @@ def review_source_equipment_surface(
     # The synthesis renderer exposes this complete semantic phrase when a carrier-specific source
     # abbreviation cannot be projected safely. Recognize it before the corpus shorthand grammar
     # so every model-facing category has an exact, round-trippable printed representation.
-    canonical_pairs = sorted(
-        (
-            (
-                _normalize(canonical_equipment_surface(size_category, type_category)),
-                size_category,
-                type_category,
-            )
-            for size_category in _SIZE_PRINTED_SURFACE
-            for type_category in _TYPE_PRINTED_SURFACE
-        ),
-        key=lambda row: len(row[0]),
-        reverse=True,
-    )
-    for canonical, canonical_size_category, canonical_type_category in canonical_pairs:
-        if re.search(rf"(?<![A-Z0-9]){re.escape(canonical)}(?![A-Z0-9])", semantic):
+    for pattern, canonical_size_category, canonical_type_category in _CANONICAL_EQUIPMENT_PATTERNS:
+        if pattern.search(semantic):
             return ReviewedEquipmentSurface(
                 printed_surface=printed_surface,
                 normalized_surface=normalized,

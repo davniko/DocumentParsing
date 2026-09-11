@@ -1980,11 +1980,15 @@ class SynthesisRawTextInventoryBatchConfig(_StrictModel):
 
 
 class RawTextCertificationWorkflowConfig(_StrictModel):
-    """One-pass, read-only semantic audit over an immutable rendered candidate."""
+    """Bounded read-only semantic audits over one immutable rendered candidate."""
 
     documents: Annotated[int, Field(ge=1, le=50)]
     max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
-    semantic_audit_passes: Literal[1]
+    semantic_audit_passes: Literal[1, 2]
+    confirmation_reasoning_effort: Literal["high"] | None = None
+    evaluation_only: bool = False
+    require_complete_dimension_coverage: bool = False
+    require_unanimous_clean: bool = False
     max_provider_route_rounds: Annotated[int, Field(ge=1, le=4)]
     retry_initial_delay_seconds: Annotated[float, Field(ge=0, le=60)]
     retry_delay_multiplier: Annotated[float, Field(ge=1, le=4)]
@@ -2004,17 +2008,41 @@ class RawTextCertificationWorkflowConfig(_StrictModel):
             raise ValueError("certification concurrency exceeds the document count")
         if self.retry_max_delay_seconds < self.retry_initial_delay_seconds:
             raise ValueError("certification retry maximum is below its initial delay")
+        if self.semantic_audit_passes == 1 and self.confirmation_reasoning_effort is not None:
+            raise ValueError("single-pass certification cannot configure a confirmation effort")
+        if self.semantic_audit_passes == 2 and self.confirmation_reasoning_effort != "high":
+            raise ValueError("two-pass certification requires an explicit high confirmation")
         return self
+
+
+class RawTextCertificationInvariantInputsConfig(_StrictModel):
+    """Pinned, read-only facts used by the contract-v3 deterministic audit."""
+
+    iso3166_snapshot: PinnedFileConfig
+    geonames_registry: CommittedArtifactDirectoryConfig
+    geonames_registry_receipt_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    phonenumberslite_version: NonEmptyString
+    package_registry: PinnedFileConfig
+    package_registry_entries: Annotated[int, Field(gt=0)]
+    transport_capacity: TransportCapacityConfig
 
 
 class SynthesisRawTextCertificationConfig(_StrictModel):
     """Fail-closed read-only semantic audit over a committed raw-text candidate run."""
 
-    schema_version: Literal[2]
-    task: Literal["bill_of_lading_synthetic_raw_text_certification_v2"]
+    schema_version: Literal[2, 3]
+    task: Literal[
+        "bill_of_lading_synthetic_raw_text_certification_v2",
+        "bill_of_lading_synthetic_raw_text_certification_v3",
+    ]
+    # Committed v2 certification artifacts predate the explicit audit-contract marker.  Treat
+    # that immutable on-disk shape as contract 1; every newly hardened configuration writes 2.
+    audit_contract_version: Literal[1, 2, 3] = 1
     environment_file: NonEmptyString
     run: SynthesisRunConfig
     input_run: CommittedArtifactDirectoryConfig
+    benchmark_plan: CommittedArtifactDirectoryConfig | None = None
+    invariant_inputs: RawTextCertificationInvariantInputsConfig | None = None
     input_case_contract_filename: Literal["contract.json", "source-contract.json"] = "contract.json"
     case_ids: tuple[Annotated[str, StringConstraints(pattern=r"^doc_[0-9a-f]{64}$")], ...] = Field(
         min_length=1, max_length=50
@@ -2044,13 +2072,117 @@ class SynthesisRawTextCertificationConfig(_StrictModel):
                 "certification transport retries must be application-visible (set provider "
                 "transport_max_retries to zero)"
             )
-        if self.provider.kind == "openrouter":
-            if not self.provider.allow_fallbacks or not self.provider.provider_order:
-                raise ValueError("OpenRouter certification requires an explicit fallback order")
-            if len(self.provider.provider_order) < 2:
-                raise ValueError("OpenRouter certification requires at least two provider routes")
-        if self.provider.max_output_tokens > 8192:
-            raise ValueError("certification output allowance exceeds its bounded contract")
+        if self.audit_contract_version in {1, 2}:
+            if (
+                self.schema_version != 2
+                or self.task != "bill_of_lading_synthetic_raw_text_certification_v2"
+                or self.invariant_inputs is not None
+            ):
+                raise ValueError(
+                    "certification contracts v1/v2 require their original schema and no "
+                    "contract-v3 invariant inputs"
+                )
+        elif (
+            self.schema_version != 3
+            or self.task != "bill_of_lading_synthetic_raw_text_certification_v3"
+            or self.invariant_inputs is None
+        ):
+            raise ValueError(
+                "certification contract v3 requires schema/task v3 and pinned invariant inputs"
+            )
+        if self.audit_contract_version == 1:
+            if self.provider.max_output_tokens > 8192:
+                raise ValueError("legacy certification output allowance exceeds its contract")
+            if self.benchmark_plan is not None:
+                raise ValueError("legacy certification cannot claim a benchmark plan")
+            if self.provider.kind == "openrouter" and (
+                not self.provider.allow_fallbacks
+                or not self.provider.provider_order
+                or len(self.provider.provider_order) < 2
+            ):
+                raise ValueError(
+                    "legacy OpenRouter certification requires at least two fallback routes"
+                )
+            if (
+                self.workflow.semantic_audit_passes != 1
+                or self.workflow.evaluation_only
+                or self.workflow.require_complete_dimension_coverage
+                or self.workflow.require_unanimous_clean
+            ):
+                raise ValueError(
+                    "legacy certification requires its original single-pass finding contract"
+                )
+        else:
+            if self.provider.kind != "openrouter":
+                raise ValueError(
+                    "certification contracts v2/v3 currently require their proven OpenRouter "
+                    "model identity contract"
+                )
+            if self.provider.model != "z-ai/glm-5.3-flash":
+                raise ValueError(
+                    "certification contracts v2/v3 require the empirically evaluated GLM model"
+                )
+            routed_provider_ids = self.provider.provider_order or ()
+            has_routed_fallback = self.provider.allow_fallbacks and len(routed_provider_ids) >= 2
+            isolated_provider_ids = self.provider.provider_only or ()
+            has_isolated_evaluation_route = (
+                self.workflow.evaluation_only
+                and not self.provider.allow_fallbacks
+                and self.provider.provider_order is None
+                and self.provider.provider_sort is None
+                and len(isolated_provider_ids) == 1
+            )
+            if not (has_routed_fallback or has_isolated_evaluation_route):
+                raise ValueError(
+                    "certification contracts v2/v3 require either production fallback routes or "
+                    "one isolated evaluation route"
+                )
+            active_provider_ids = (
+                routed_provider_ids if has_routed_fallback else isolated_provider_ids
+            )
+            if not set(active_provider_ids).issubset(
+                {
+                    "deepinfra/fp4",
+                    "coreweave/fp8",
+                    "fireworks",
+                    "nextbit/fp8",
+                }
+            ):
+                raise ValueError(
+                    "certification contracts v2/v3 contain an unevaluated provider route"
+                )
+            if self.provider.max_output_tokens != 12288:
+                raise ValueError(
+                    "certification contracts v2/v3 require their measured bounded output allowance"
+                )
+            if not self.workflow.require_complete_dimension_coverage:
+                raise ValueError(
+                    "certification contracts v2/v3 require complete dimension coverage"
+                )
+            if self.workflow.evaluation_only:
+                if (
+                    self.workflow.semantic_audit_passes != 1
+                    or self.workflow.require_unanimous_clean
+                ):
+                    raise ValueError(
+                        "evaluation-only certification v2/v3 requires one non-unanimous pass"
+                    )
+            elif self.benchmark_plan is not None:
+                raise ValueError("production certification cannot claim an evaluation plan")
+            elif not (
+                self.workflow.semantic_audit_passes == 2
+                and self.workflow.require_unanimous_clean
+                and self.provider.reasoning_effort == "low"
+            ):
+                raise ValueError(
+                    "production certification v2/v3 requires a low/high unanimous two-pass cascade"
+                )
+            if self.workflow.evaluation_only and (
+                self.provider.reasoning_effort not in {"low", "medium", "high"}
+            ):
+                raise ValueError(
+                    "single-pass certification contract v2/v3 requires low, medium, or high effort"
+                )
         return self
 
 
@@ -2058,6 +2190,9 @@ class RawTextCertifiedCorrectionWorkflowConfig(_StrictModel):
     """Bounds for one exact-evidence correction pass over certified candidates."""
 
     documents: Annotated[int, Field(ge=1, le=50)]
+    # Default 1 only decodes immutable historical configs.  Every new correction must opt in to
+    # the complete contract-v2 audit authority explicitly.
+    required_audit_contract_version: Literal[1, 2, 3] = 1
     max_concurrent_documents: Annotated[int, Field(ge=1, le=16)]
     max_provider_route_rounds: Annotated[int, Field(ge=1, le=4)]
     max_successful_model_responses_per_document: Annotated[int, Field(ge=1, le=3)]
@@ -2132,13 +2267,14 @@ class RawTextCertifiedPublicationSourceConfig(_StrictModel):
 
     run: CommittedArtifactDirectoryConfig
     certified_documents: Annotated[int, Field(ge=1, le=100_000)]
-    certified_document_ids_sha256: Annotated[
-        str, StringConstraints(pattern=r"^[0-9a-f]{64}$")
-    ]
+    certified_document_ids_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
 
 class RawTextCertifiedPublicationWorkflowConfig(_StrictModel):
     documents: Annotated[int, Field(ge=1, le=100_000)]
+    # Default 1 only decodes immutable historical configs; active publication requires an
+    # explicitly configured contract-v2 source policy.
+    required_audit_contract_version: Literal[1, 2, 3] = 1
     require_every_case_certified: Literal[True]
     require_unique_source_documents: Literal[True]
     require_unique_scenarios: Literal[True]
@@ -2153,9 +2289,7 @@ class SynthesisRawTextCertifiedPublicationConfig(_StrictModel):
     schema_version: Literal[1]
     task: Literal["bill_of_lading_synthetic_raw_text_certified_publication_v1"]
     run: SynthesisRunConfig
-    certification_sources: tuple[RawTextCertifiedPublicationSourceConfig, ...] = Field(
-        min_length=1
-    )
+    certification_sources: tuple[RawTextCertifiedPublicationSourceConfig, ...] = Field(min_length=1)
     workflow: RawTextCertifiedPublicationWorkflowConfig
 
     @field_validator("certification_sources", mode="before")
@@ -2170,9 +2304,7 @@ class SynthesisRawTextCertifiedPublicationConfig(_StrictModel):
             raise ValueError("certified publication sources must be unique")
         selected = sum(row.certified_documents for row in self.certification_sources)
         if selected != self.workflow.documents:
-            raise ValueError(
-                "certified source counts differ from the publication document count"
-            )
+            raise ValueError("certified source counts differ from the publication document count")
         return self
 
 
@@ -2180,6 +2312,10 @@ class RawTextPipelineCertificationConfig(_StrictModel):
     """Template and bounds for dynamically sharded independent certification runs."""
 
     environment_file: NonEmptyString
+    # See SynthesisRawTextCertificationConfig.audit_contract_version.  The default is needed to
+    # replay immutable pipeline ancestors, while generated current children serialize it.
+    audit_contract_version: Literal[1, 2, 3] = 1
+    invariant_inputs: RawTextCertificationInvariantInputsConfig | None = None
     shard_size: Annotated[int, Field(ge=1, le=50)]
     max_attempts_per_candidate: Annotated[int, Field(ge=1, le=4)]
     prompt: PinnedFileConfig
@@ -2194,9 +2330,63 @@ class RawTextPipelineCertificationConfig(_StrictModel):
     @model_validator(mode="after")
     def template_matches_shard_capacity(self) -> RawTextPipelineCertificationConfig:
         if self.workflow.documents != self.shard_size:
-            raise ValueError(
-                "pipeline certification template documents must equal shard_size"
-            )
+            raise ValueError("pipeline certification template documents must equal shard_size")
+        if self.audit_contract_version in {1, 2} and self.invariant_inputs is not None:
+            raise ValueError("pipeline certification v1/v2 cannot configure v3 invariant inputs")
+        if self.audit_contract_version == 3 and self.invariant_inputs is None:
+            raise ValueError("pipeline certification v3 requires pinned invariant inputs")
+        if self.audit_contract_version == 1:
+            if (
+                self.workflow.semantic_audit_passes != 1
+                or self.workflow.evaluation_only
+                or self.workflow.require_complete_dimension_coverage
+                or self.workflow.require_unanimous_clean
+            ):
+                raise ValueError(
+                    "legacy pipeline certification requires its original finding contract"
+                )
+        else:
+            if self.provider.kind != "openrouter":
+                raise ValueError("pipeline certification v2/v3 requires OpenRouter")
+            if self.provider.model != "z-ai/glm-5.3-flash":
+                raise ValueError("pipeline certification v2/v3 requires the evaluated GLM model")
+            if (
+                not self.provider.allow_fallbacks
+                or self.provider.provider_order is None
+                or len(self.provider.provider_order) < 2
+            ):
+                raise ValueError(
+                    "pipeline certification v2/v3 requires at least two fallback routes"
+                )
+            if not set(self.provider.provider_order).issubset(
+                {
+                    "deepinfra/fp4",
+                    "coreweave/fp8",
+                    "fireworks",
+                    "nextbit/fp8",
+                }
+            ):
+                raise ValueError("pipeline certification v2/v3 has an unevaluated provider route")
+            if self.provider.max_output_tokens != 12288:
+                raise ValueError(
+                    "pipeline certification contract v2/v3 requires its measured bounded "
+                    "output allowance"
+                )
+            if not (
+                self.workflow.require_complete_dimension_coverage
+                and self.workflow.require_unanimous_clean
+                and not self.workflow.evaluation_only
+            ):
+                raise ValueError(
+                    "pipeline certification contract v2/v3 requires complete coverage and "
+                    "unanimous clean"
+                )
+            if not (
+                self.workflow.semantic_audit_passes == 2 and self.provider.reasoning_effort == "low"
+            ):
+                raise ValueError(
+                    "pipeline certification v2/v3 requires a native low/high two-pass cascade"
+                )
         return self
 
 
@@ -2236,8 +2426,14 @@ class RawTextPipelineWorkflowConfig(_StrictModel):
 class SynthesisRawTextPipelineConfig(_StrictModel):
     """One configurable inventory -> certify -> correct -> publish production workflow."""
 
-    schema_version: Literal[1]
-    task: Literal["bill_of_lading_synthetic_raw_text_pipeline_v1"]
+    # Schema v1 is retained solely to decode and replay the immutable contract-v1/v2
+    # pipeline lineage.  Contract-v3 production runs have a distinct top-level schema so
+    # selecting the old semantic authority cannot be mistaken for the current launch path.
+    schema_version: Literal[1, 2]
+    task: Literal[
+        "bill_of_lading_synthetic_raw_text_pipeline_v1",
+        "bill_of_lading_synthetic_raw_text_pipeline_v2",
+    ]
     run: SynthesisRunConfig
     inventory_config: PinnedFileConfig
     inventory_resume_run: CommittedArtifactDirectoryConfig | None = None
@@ -2249,11 +2445,42 @@ class SynthesisRawTextPipelineConfig(_StrictModel):
 
     @model_validator(mode="after")
     def pipeline_contract_is_consistent(self) -> SynthesisRawTextPipelineConfig:
+        if self.certification.audit_contract_version == 3:
+            if (
+                self.schema_version != 2
+                or self.task != "bill_of_lading_synthetic_raw_text_pipeline_v2"
+            ):
+                raise ValueError(
+                    "contract-v3 pipeline certification requires top-level schema/task v2"
+                )
+        elif (
+            self.schema_version != 1 or self.task != "bill_of_lading_synthetic_raw_text_pipeline_v1"
+        ):
+            raise ValueError(
+                "legacy pipeline certification requires its original top-level schema/task v1"
+            )
         if self.publication.documents != self.workflow.documents:
             raise ValueError("pipeline publication count differs from workflow.documents")
         if self.inventory_resume_run is not None and self.pipeline_resume_run is not None:
+            raise ValueError("inventory_resume_run and pipeline_resume_run are mutually exclusive")
+        if self.certification.audit_contract_version in {2, 3} and (
+            self.correction.workflow.required_audit_contract_version
+            != self.certification.audit_contract_version
+            or self.publication.required_audit_contract_version
+            != self.certification.audit_contract_version
+        ):
             raise ValueError(
-                "inventory_resume_run and pipeline_resume_run are mutually exclusive"
+                "pipeline certification requires matching correction/publication audit contracts"
+            )
+        if self.certification.audit_contract_version == 3 and (
+            self.correction.max_rounds_per_document != 1
+            or self.correction.max_attempts_per_round != 1
+            or self.correction.workflow.max_provider_route_rounds != 1
+            or self.correction.workflow.max_successful_model_responses_per_document != 1
+        ):
+            raise ValueError(
+                "contract-v3 deterministic correction requires exactly one round and one "
+                "attempt; provider retry/response bounds are inactive and must be one"
             )
         # Generated child run IDs append bounded stage/round/shard suffixes.
         if len(self.run.run_id) > 96:

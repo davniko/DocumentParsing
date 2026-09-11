@@ -644,11 +644,19 @@ supports an exact operator-supplied local model tag with no automatic cloud fall
 
 The terminal synthetic raw-text renderer, independent audit, exact-line correction, mandatory
 recertification, and complete-cohort publication are integrated behind one configurable production
-entry point. Run its provider-free compiler preflight before any paid execution; the command and
-restart/publication contracts are documented in the
+entry point. Contract 3 adds a compiler-owned, eight-dimension deterministic invariant envelope and
+atomic host-authored repair before the residual semantic screen. Replay its pinned provider-free
+15-case calibration before any paid execution; the exact command, contract-era boundary, and
+restart/publication rules are documented in the
 [certified raw-text pipeline guide](docs/kie-synthesis-raw-text-production-pipeline.md).
-The current 100-document calibration remains deliberately unpublished: manual review exposed
-false positives among machine-certified cases, so the guide's quality gate blocks a larger launch.
+The authorized contract-v3 v9 100-document calibration is complete and deliberately unpublished:
+51 candidates failed deterministic invariants, 43 failed the residual semantic audit, and only 6
+were machine-certified. Exhaustive manual review retained 4 and quarantined 2 carrier-reference
+false positives. The immutable
+[outcome/EDA report](artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/REPORT.md)
+contains the exact manifests, tables, workbooks, costs, and 35 Matplotlib/Seaborn plots. A larger
+launch is blocked pending a provider-free carrier-reference regression fix and a new reviewed
+canary; no training records were published.
 
 ## Development validation
 

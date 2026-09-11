@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "pipelineCommitSha256": "7fd13b2dc81c63c2400e0746d118654613c0b22c15d8aa40441b77558ddccf6d",
+  "randomSampleSize": 6,
+  "cases": [
+    {
+      "documentId": "doc_09585226e5552adad580b1d71b70fdf80b3aee7a85263a49dd3b8c82909c13b1",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": [
+        "deterministic_random",
+        "exhaustive_machine_certified_census"
+      ],
+      "notes": "Full source, candidate, target-label, changed-line, invariant, and two-pass semantic receipts reviewed; the candidate is internally coherent and no source-private shipment fact remains in an assigned role."
+    },
+    {
+      "documentId": "doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": [
+        "deterministic_random",
+        "exhaustive_machine_certified_census"
+      ],
+      "notes": "Full source, candidate, target-label, changed-line, invariant, and two-pass semantic receipts reviewed; target facts, repeated quantities, equipment, parties, jurisdictional surfaces, and auxiliary identifiers are coherent."
+    },
+    {
+      "documentId": "doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": [
+        "deterministic_random",
+        "exhaustive_machine_certified_census",
+        "carrier_reference_risk"
+      ],
+      "notes": "Candidate L00060 names the Carrier's Russia policy and retains https://www.maersk.com after the carrier was changed from Maersk A/S to Blue Meridian Navigation Ltd.; this is a source-carrier reference and cross-field semantic contradiction."
+    },
+    {
+      "documentId": "doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": [
+        "deterministic_random",
+        "exhaustive_machine_certified_census"
+      ],
+      "notes": "Full three-page source, candidate, target-label, changed-line, invariant, and two-pass semantic receipts reviewed; repeated cargo, temperature, jurisdiction, route, and party facts reconcile and no source-private assigned fact remains."
+    },
+    {
+      "documentId": "doc_d422eaa8085d05e468b52d16a4c77b03715924308d50a64700bfe5f78e140440",
+      "semanticConsistency": true,
+      "templateFidelity": true,
+      "privacyRewritten": true,
+      "selectionBasis": [
+        "deterministic_random",
+        "exhaustive_machine_certified_census"
+      ],
+      "notes": "Full three-page source, candidate, target-label, changed-line, invariant, and two-pass semantic receipts reviewed; repeated legal, carrier, route, equipment, cargo, weight, and identifier surfaces are mutually consistent."
+    },
+    {
+      "documentId": "doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff",
+      "semanticConsistency": false,
+      "templateFidelity": true,
+      "privacyRewritten": false,
+      "selectionBasis": [
+        "deterministic_random",
+        "exhaustive_machine_certified_census",
+        "carrier_reference_risk"
+      ],
+      "notes": "Candidate L00119 continues a clause assigning the Carrier's Russia policy to https://www.maersk.com after the carrier was changed from Maersk A/S to Nordhaven Maritime A/S; this is a source-carrier reference and cross-field semantic contradiction."
+    }
+  ]
+}

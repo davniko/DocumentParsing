@@ -1,0 +1,490 @@
+{
+  "schemaVersion": 2,
+  "task": "raw_text_certification_contract_v3_benchmark_cohort_v2",
+  "run": {
+    "runId": "mpci-bl-raw-text-certification-benchmark15-secondary-cohort-v1",
+    "outputDir": "artifacts/kie-synthesis"
+  },
+  "sourceQualityAudit": {
+    "path": "artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-additional-maritime-v8-quality-audit-v2",
+    "commitSha256": "b29f51c8f5758f20c111f9c4a6ea6803c64cb2c029abdd6f3d76096477ff3c2c",
+    "transactionSha256": "11d51214fdc68e6d70c49e3162386b1c6f2d81c733a9d23924ec6cdbc2247dfc"
+  },
+  "sourcePipeline": {
+    "path": "artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-additional-maritime-v8-glm53",
+    "commitSha256": "45e18a71c2b0ba4fc682e952fa8070323f3c06a71648b4e2fb15ec434196c8c0",
+    "transactionSha256": "c1667e31bd0cccaf6e6a765a98f27f6f3b80238de84c3402cd1e165a7fc69c8f"
+  },
+  "manualAudit": {
+    "path": "configs/synthesis/mpci_bl_raw_text_pipeline100_additional_maritime_v8_manual_audit_v1.json",
+    "sha256": "bce13d18b7d34ce59d8665b22d020723eb1c0e1245c9b015fe6addbaca4becdf"
+  },
+  "prompt": {
+    "path": "prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v3.md",
+    "sha256": "6e643e0c5b52d5391729c2c954b60123ccf52f4f9b0ffec4b30d1fc3260653ee"
+  },
+  "compilerInventoryConfig": {
+    "path": "configs/synthesis/mpci_bl_raw_text_inventory100_additional_maritime_v61_certification_v3_compiler.yaml",
+    "sha256": "737531a7a2c5dc8ba900155a6cf43dcc373cad15785ec98fb84dcdc3b56099d2"
+  },
+  "invariantInputs": {
+    "iso3166_snapshot": {
+      "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+      "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
+    },
+    "geonames_registry": {
+      "path": "artifacts/kie-synthesis/registries/geonames-cities15000-current-v1",
+      "commit_sha256": "5146b39ff411060091854f3fbce19ef65afc1be04a4de7d901d4585d931e7c42",
+      "transaction_sha256": "3da978ea6c24d642a4bd1f6a0f42dbf6119a25f38c9a708a9c8ad5564c248117"
+    },
+    "geonames_registry_receipt_sha256": "bfac2357b10b5170e4461452f2c749db226f713feb6a781fd68de82f14f4dfe9",
+    "phonenumberslite_version": "9.0.38",
+    "package_registry": {
+      "path": "artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json",
+      "sha256": "2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f"
+    },
+    "package_registry_entries": 405,
+    "transport_capacity": {
+      "policy": "source_type_aware_maersk_upper_bounds_v1",
+      "published_reference_margin_fraction": 0.05,
+      "twenty_standard_payload_kg": 28300,
+      "twenty_standard_volume_m3": 33.2,
+      "forty_standard_payload_kg": 28870,
+      "forty_standard_volume_m3": 67.7,
+      "forty_high_cube_payload_kg": 28690,
+      "forty_high_cube_volume_m3": 76.4,
+      "forty_five_high_cube_payload_kg": 27650,
+      "forty_five_high_cube_volume_m3": 86,
+      "out_of_gauge_payload_kg": 47300,
+      "unclassified_payload_kg": 47300,
+      "unclassified_volume_m3": 86
+    }
+  },
+  "gates": {
+    "requireAllChallengerDefectsCaught": true,
+    "requireAllChallengerControlsClean": true,
+    "requirePerfectCounterfactualCascade": true,
+    "requireEveryExpectedDimensionObserved": true,
+    "minimumChallengerIssueRecall": 0.9,
+    "minimumChallengerFindingPrecision": 0.9,
+    "minimumCascadeIssueRecall": 0.9,
+    "minimumCascadeFindingPrecision": 0.9,
+    "maximumCombinedArmCostUsd": 0.2,
+    "minimumMedianReasoningRatio": 1.5,
+    "maximumMedianCostRatio": 3
+  },
+  "cases": [
+    {
+      "documentId": "doc_2d393b7327a4eb7b645ee1bfca916f7a3561d60057c47e9e19faf6ba18821cea",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "cb71d9f923b085f81d4c01cbcb094700de9e427b94246505bdfd1641688cecbf",
+      "issues": [
+        {
+          "issueId": "destination_office_city_and_address_conflict",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00046"
+            ],
+            [
+              "L00047",
+              "L00049",
+              "L00052"
+            ]
+          ],
+          "description": "The Ystad destination office is assigned conflicting Kalmar and Ystad address/email surfaces."
+        },
+        {
+          "issueId": "swedish_office_uses_finnish_phone_country_code",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00046",
+              "L00049"
+            ],
+            [
+              "L00050",
+              "L00051"
+            ]
+          ],
+          "description": "The Swedish destination office is assigned Finnish +358 telephone and fax numbers."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "a7c3f6e5fe5facca7337756df85a3c9e52cf1f1e41b3508bac5077cfec3c79ab",
+      "issues": [
+        {
+          "issueId": "united_states_exporter_uses_ecuador_ruc",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00008",
+              "L00011",
+              "L00058"
+            ],
+            [
+              "L00012"
+            ]
+          ],
+          "description": "The United States exporter retains Ecuador-specific RUC field semantics."
+        },
+        {
+          "issueId": "united_states_exporter_uses_ecuador_dae",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00008",
+              "L00011",
+              "L00058"
+            ],
+            [
+              "L00053"
+            ]
+          ],
+          "description": "The United States exporter retains Ecuador-specific DAE field semantics."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_c81f71d2468cbae5c3e3d08ff33a5e16745fbda39e5145144c516e30f77b0fdf",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "14dc8d1c31ae8149f40f848ebf208289cb300f8f75db25a4d448bb4f38640eb9",
+      "issues": [
+        {
+          "issueId": "target_container_gross_weight_not_rendered",
+          "primaryDimension": "target_fact_fidelity",
+          "acceptableDimensions": [
+            "target_fact_fidelity",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00124"
+            ]
+          ],
+          "description": "The source-owned container total row prints 11900.000 KGS instead of the compiler-authoritative target operational gross weight 3810.000."
+        },
+        {
+          "issueId": "derived_target_package_total_not_rendered",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "target_fact_fidelity",
+            "equipment_temperature_and_capacity",
+            "cargo_packages_and_dangerous_goods"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00124"
+            ]
+          ],
+          "description": "The container total row never renders the derived target package total 963 for its 361-box and 602-carton cargo groups."
+        },
+        {
+          "issueId": "source_maersk_office_clause_survives",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00097",
+              "L00099"
+            ],
+            [
+              "L00127"
+            ]
+          ],
+          "description": "A shipment-specific Maersk Line India office clause survives after the carrier was fictionalized."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_19f564dad81401b03004a6eb1f6370af31a805bd8950f960791821280def70ea",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "bae6089ae7eb49a36fafcb5307cf21775d90221912fe4f82f8717681e474c655",
+      "issues": [
+        {
+          "issueId": "source_measurement_44020_survives",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "repeated_and_derived_relations"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00075",
+              "L00163"
+            ]
+          ],
+          "description": "The source-only measurement 44,020 survives in the shipment measurements."
+        },
+        {
+          "issueId": "source_volume_15120_survives",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "repeated_and_derived_relations"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00133"
+            ]
+          ],
+          "description": "The source-only volume 15,120 survives in the container detail."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_459854a39c037656175b474a53435d64056c22f67ed4351ee860c2ee9fb8f3d9",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "a399fb88fa8d30094aa85fa1a72ec7ce366c259836adaebc89fd1449f443c970",
+      "issues": [
+        {
+          "issueId": "fmc_oti_label_corrupted",
+          "primaryDimension": "template_format_and_model_artifacts",
+          "acceptableDimensions": [
+            "template_format_and_model_artifacts"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00003"
+            ]
+          ],
+          "description": "The fixed template label FMC-OTI NO. is corrupted into FMC-OTI EM."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_47c2f3a7c8ccaa5c8d8e014267dcfd334a07c50024956fc94b995ff0a54416ca",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "be14139dd0d58b0ede20d2da9349b9db1df97acb271829687c582b5e6d041c8a",
+      "issues": [
+        {
+          "issueId": "shipment_package_inventory_misassigned_to_one_container",
+          "primaryDimension": "cargo_packages_and_dangerous_goods",
+          "acceptableDimensions": [
+            "cargo_packages_and_dangerous_goods",
+            "target_fact_fidelity",
+            "repeated_and_derived_relations"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00095"
+            ]
+          ],
+          "description": "One 132-carton allocation is incorrectly described as packed in the shipment-wide 527 cartons and 264 pieces."
+        },
+        {
+          "issueId": "container_equipment_type_duplicated",
+          "primaryDimension": "equipment_temperature_and_capacity",
+          "acceptableDimensions": [
+            "equipment_temperature_and_capacity",
+            "template_format_and_model_artifacts"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00106"
+            ],
+            [
+              "L00107"
+            ]
+          ],
+          "description": "The MSMU container's 40-foot high-cube equipment type is printed twice on adjacent lines."
+        },
+        {
+          "issueId": "source_japanese_address_fragments_survive_egyptian_block",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "party_legal_and_negotiability",
+            "route_jurisdiction_and_identifiers"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00126",
+              "L00129",
+              "L00130",
+              "L00131"
+            ],
+            [
+              "L00132",
+              "L00133",
+              "L00136"
+            ]
+          ],
+          "description": "Japanese source address fragments survive inside the synthetic Egyptian exporter identity block."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "800ed351a609506958520539fd62e7b2928122cedc8789d1c35dac021eb8784b",
+      "issues": [
+        {
+          "issueId": "negotiable_target_has_named_non_order_consignee",
+          "primaryDimension": "party_legal_and_negotiability",
+          "acceptableDimensions": [
+            "party_legal_and_negotiability",
+            "target_fact_fidelity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00021"
+            ],
+            [
+              "L00027"
+            ]
+          ],
+          "description": "The negotiable target has a named non-order consignee and an unmet non-negotiable-unless-to-order condition."
+        },
+        {
+          "issueId": "source_tare_3910_survives",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "equipment_temperature_and_capacity",
+            "repeated_and_derived_relations"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00067",
+              "L00129",
+              "L00132",
+              "L00135"
+            ]
+          ],
+          "description": "The exact source tare 3910 survives four times although it is absent from the synthetic target."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "3fcdde7210fd42f35ef714824da9bc4871035c9a0a66dcc35e34cc2bc098647b",
+      "issues": [
+        {
+          "issueId": "source_thermograph_identifiers_survive",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00071"
+            ]
+          ],
+          "description": "The source shipment's thermograph identifiers survive verbatim in the synthetic reefer shipment."
+        },
+        {
+          "issueId": "source_usd_charge_schedule_survives",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00089",
+              "L00090",
+              "L00093",
+              "L00094",
+              "L00097",
+              "L00098",
+              "L00101",
+              "L00102",
+              "L00104"
+            ]
+          ],
+          "description": "The complete source-specific USD 4503 freight charge schedule survives verbatim."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "ff06a3bf852d961a6fb3a942f77dc50d424228352ea59091f5c7e6a8ff6f505f",
+      "issues": [
+        {
+          "issueId": "foreign_exporter_conflicts_target_shipper",
+          "primaryDimension": "target_fact_fidelity",
+          "acceptableDimensions": [
+            "target_fact_fidelity",
+            "party_legal_and_negotiability",
+            "route_jurisdiction_and_identifiers",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00008",
+              "L00011"
+            ],
+            [
+              "L00060",
+              "L00061",
+              "L00062"
+            ]
+          ],
+          "description": "The shipment's foreign exporter is a Spanish company while the target shipper/exporter is Kaviron in India."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "be67c263a540abdb783a00ed5ccf2cc7797429c5b40d92c493c5a91a407ea3e7",
+      "issues": []
+    },
+    {
+      "documentId": "doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "6b2cf851afdf71107827960884b8ff371d2869b6da674a2567732293945da7b2",
+      "issues": []
+    },
+    {
+      "documentId": "doc_8cafc8c13fc735f4399f07ce0f13389a987cb569a2fb4bab621e84eedffd18c4",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "d62c4019dea70a7e73da57a90badcb77416b58a5b5440731e900aaacdd9d4acf",
+      "issues": []
+    },
+    {
+      "documentId": "doc_1c3797a521af25c4dd20bc95238d6605c4ef404b343374bee3833c7be71541fd",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "bcebffe6d52e69141fda734efd22e8b7ffa4d35cbb06b69a0ff866258393184d",
+      "issues": []
+    },
+    {
+      "documentId": "doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "c879e82c62615c5401bd469473108db62dc6758af15f1d31946949fc656ca953",
+      "issues": []
+    },
+    {
+      "documentId": "doc_dd3a55957dccc2a3e3e24db7b9dc28194c661c0f5cc45be312ca1de907b55610",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "824fdf4927c0f4e07b610fe7f96446e1935d7534b014dea8f2bb30054722ede4",
+      "issues": []
+    }
+  ]
+}

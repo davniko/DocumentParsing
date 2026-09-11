@@ -77,7 +77,7 @@ _AUXILIARY_LABEL_PATTERN = (
     r"(?:\s+(?:NO|NUMBER|N[\N{DEGREE SIGN}\N{MASCULINE ORDINAL INDICATOR}]))?|"
     r"ACI(?:\s+(?:NO|NUMBER))?|"
     r"(?:EG(?:YPTIAN)?\s+)?(?:IMPORTER|CONSIGNEE|EXPORTER)?\s*"
-    r"(?:TAX|VAT)(?:ATION)?(?:\s+(?:ID|NO|NUMBER))?|"
+    r"(?:TAX|VAT)(?:ATION)?(?:\s+(?:ID|NO|NUM|NUMBER))?|"
     r"(?:FOREIGN\s+)?(?:IMPORTER|CONSIGNEE|EXPORTER)"
     r"(?:\s+(?:REGISTRATION|IDENTIFICATION))?\s+(?:ID|NO|NUMBER)|"
     r"CUSTOMS(?:\s+(?:REFERENCE|REF|NO|NUMBER))?|"
@@ -86,6 +86,12 @@ _AUXILIARY_LABEL_PATTERN = (
     r"CARGO\s+X\s+ID|"
     r"EORI(?:\s+(?:NO|NUMBER))?|"
     r"(?:CARRIER\s+)?BOOKING(?:\s+(?:REFERENCE|REF|NO|NUMBER))?|"
+    r"CARRIER(?:'S|\N{RIGHT SINGLE QUOTATION MARK}S)?\s+"
+    r"(?:REFERENCES?|REF)(?:\s+(?:NOS?|NUMBERS?))?|"
+    r"(?:COMPANY|CARRIER)?\s*(?:REGISTRATION|REGISTERED)"
+    r"(?:\s+(?:ID|NO|NUM|NUMBER))?|"
+    r"R\s*\.?\s*C\s*\.?\s*S\s*\.?(?:\s+(?:ID|NO|NUM|NUMBER))?|"
+    r"THERMOGRAPHS?(?:\s+(?:ID|NO|NUM|NUMBER))?|"
     r"SERVICE\s+CONTRACT(?:\s+(?:NO|NUMBER))?|"
     r"(?:CSO\s*/\s*)?AGREEMENT\s+(?:NO|NUMBER)|"
     r"INVOICE(?:\s+(?:NO|NUMBER))?|"
@@ -102,7 +108,8 @@ _AUXILIARY_LABEL_PATTERN = (
     r"PRODUCT\s+(?:CODE|ID|NO|NUMBER)|"
     r"RMS(?:\s+(?:NO|NUMBER))?|"
     r"CUSTOMER\s+CODE|"
-    r"F\s*\.?\s*M\s*\.?\s*C\s*\.?(?:\s+(?:NO|NUMBER))?|"
+    r"F\s*\.?\s*M\s*\.?\s*C\s*\.?(?:\s*-\s*OTI)?"
+    r"(?:\s+(?:NO|NUMBER))?|"
     r"SHIPPER(?:'S)?\s+(?:ID|NO|NUMBER)|"
     r"SCAC(?:\s+CODE)?|"
     r"(?:SWIFT(?:\s*/\s*BIC)?|BIC)(?:\s+CODE)?|"
@@ -172,7 +179,22 @@ _BARE_TAX_OR_VAT_LABEL = re.compile(
 )
 _AMBIGUOUS_BARE_LABEL = re.compile(r"(?i)^(?:BOOKING|INVOICE|CUSTOMS|REFERENCE|REFERENCES|REF)$")
 _MULTI_VALUE_IDENTIFIER_LABEL = re.compile(
-    r"(?i)^(?:REFERENCES?|REF)[ 	]+(?:NOS?|NUMBERS?)$"
+    r"(?i)^(?:(?:REFERENCES?|REF)[ \t]+(?:NOS?|NUMBERS?)|"
+    r"CARRIER(?:'S|\N{RIGHT SINGLE QUOTATION MARK}S)?[ \t]+(?:REFERENCES?|REF)"
+    r"(?:[ \t]+(?:NOS?|NUMBERS?))?|THERMOGRAPHS?)$"
+)
+_SPACED_REGISTRATION_LABEL = re.compile(
+    r"(?i)^(?:(?:COMPANY|CARRIER)?\s*(?:REGISTRATION|REGISTERED)"
+    r"(?:\s+(?:ID|NO|NUM|NUMBER))?|"
+    r"R\s*\.?\s*C\s*\.?\s*S\s*\.?(?:\s+(?:ID|NO|NUM|NUMBER))?)$"
+)
+_SPACED_REGISTRATION_VALUE = re.compile(
+    r"(?i)^[A-Z0-9][A-Z0-9./#\-]*(?:[ \t]+[A-Z0-9][A-Z0-9./#\-]*)+$"
+)
+_TRAILING_REGISTRATION_FIELD = re.compile(
+    r"(?ix)^\s*(?P<value>[A-Z0-9][A-Z0-9./#\-]*"
+    r"(?:[ \t]+[A-Z0-9][A-Z0-9./#\-]*)+?)[ \t]+"
+    r"(?P<label>R\s*\.?\s*C\s*\.?\s*S\s*\.?|REG(?:ISTRATION)?\.?\s+NO\.?)\b"
 )
 _AGENCY_RELATION = re.compile(
     r"\b(?:AS\s+AGENT\s+FOR|ON\s+BEHALF\s+OF|TRADING\s+AS|T/?A)\b",
@@ -220,9 +242,7 @@ _SPLIT_CARRIER_RECEIPT_COUNT = re.compile(
     r"(?ix)^\s*TOTAL\s+(?:NUMBER|NO\.)\s+OF\s+CONTAINERS?\s+OR\s+PACKAGES?\s+"
     r"(?P<count>[0-9][0-9,]*)\s*$"
 )
-_CARRIER_RECEIPT_CONTINUATION = re.compile(
-    r"(?ix)^\s*RECEIVED\s+BY\s+(?:THE\s+)?CARRIER\s*:?\s*$"
-)
+_CARRIER_RECEIPT_CONTINUATION = re.compile(r"(?ix)^\s*RECEIVED\s+BY\s+(?:THE\s+)?CARRIER\s*:?\s*$")
 _LEADING_FIELD_ORDINAL = re.compile(r"^\s*(?:\([0-9]+\)|[0-9]+\.)\s*")
 _CLAUSE_REFERENCE = re.compile(
     r"(?i)\b(?:SEE\s+)?CLAUSE\s+[0-9]+(?:\.[0-9]+)*"
@@ -939,6 +959,14 @@ def locate_auxiliary_values(text: str) -> tuple[LocatedAuxiliaryValue, ...]:
             return ()
         if _ALPHABETIC_IDENTIFIER_LABEL.fullmatch(label.strip()) is not None:
             return tuple(match.group(0) for match in _ALPHABETIC_IDENTIFIER_VALUE.finditer(value))
+        if _SPACED_REGISTRATION_LABEL.fullmatch(label.strip()) is not None:
+            canonical = re.sub(r"[^A-Z0-9]", "", value.upper())
+            if (
+                _SPACED_REGISTRATION_VALUE.fullmatch(value) is not None
+                and len(canonical) >= 6
+                and sum(character.isdigit() for character in canonical) >= 5
+            ):
+                return (value,)
         candidates = tuple(match.group(0).strip() for match in _IDENTIFIER_VALUE.finditer(value))
         filtered = tuple(
             candidate
@@ -967,6 +995,16 @@ def locate_auxiliary_values(text: str) -> tuple[LocatedAuxiliaryValue, ...]:
         # syntax is self-describing and therefore grants narrowly bounded write authority.
         for match in _EMAIL_VALUE.finditer(raw_line):
             located[("email", match.group(0))].add(index)
+        trailing_registration = _TRAILING_REGISTRATION_FIELD.match(raw_line)
+        if trailing_registration is not None:
+            value = trailing_registration.group("value").strip()
+            canonical = re.sub(r"[^A-Z0-9]", "", value.upper())
+            if (
+                _SPACED_REGISTRATION_VALUE.fullmatch(value) is not None
+                and len(canonical) >= 6
+                and sum(character.isdigit() for character in canonical) >= 5
+            ):
+                located[(_semantic_surface(trailing_registration.group("label")), value)].add(index)
         trailing_heading_label: str | None = None
         if len(raw_line) <= 500:
             auxiliary_markers = list(_AUXILIARY_LABEL.finditer(raw_line))
@@ -1194,11 +1232,14 @@ def _target_licensed_occurrence_lines(
             if len(atoms) < 2:
                 continue
             source_line = bodies[number - 1]
-            continuation = re.match(
-                r"^[ \t]*(?:DATED?|DT)\b",
-                source_line,
-                re.IGNORECASE,
-            ) is not None
+            continuation = (
+                re.match(
+                    r"^[ \t]*(?:DATED?|DT)\b",
+                    source_line,
+                    re.IGNORECASE,
+                )
+                is not None
+            )
             starts = (
                 (max(1, number - 1), number)
                 if _REFERENCE_CONTEXT.search(source_line) is not None or continuation
@@ -1321,9 +1362,13 @@ def _raw_agent_identity_surfaces_by_line(
     for number, identity, _gap, principal, _evidence in _raw_agent_blocks(text):
         normalized_principal = _semantic_surface(principal)
         generic_principal = normalized_principal in {"carrier", "the carrier"}
-        if accepted_principals and not generic_principal and not any(
-            expected in normalized_principal or normalized_principal in expected
-            for expected in accepted_principals
+        if (
+            accepted_principals
+            and not generic_principal
+            and not any(
+                expected in normalized_principal or normalized_principal in expected
+                for expected in accepted_principals
+            )
         ):
             continue
         for offset, _fragment in enumerate(identity.splitlines()):
@@ -1499,9 +1544,7 @@ def build_mutable_inventory(
                 number
                 for number in tuple(lines)
                 if _PARTY_HEADING_LINE.fullmatch(current_text_lines[number - 1]) is not None
-                or _PRESERVABLE_LEGAL_BOILERPLATE_LINE.fullmatch(
-                    current_text_lines[number - 1]
-                )
+                or _PRESERVABLE_LEGAL_BOILERPLATE_LINE.fullmatch(current_text_lines[number - 1])
                 is not None
             )
             # A party name can be a constituent of another changed scalar, most notably a
@@ -1513,8 +1556,7 @@ def build_mutable_inventory(
                 for number in tuple(lines)
                 if any(
                     isinstance(item.sourceValue, str)
-                    and _semantic_surface(item.sourceValue)
-                    != _semantic_surface(source_surface)
+                    and _semantic_surface(item.sourceValue) != _semantic_surface(source_surface)
                     and _contains_surface(item.sourceValue, source_surface)
                     for item in work_items_by_line.get(number, ())
                 )
@@ -1656,8 +1698,7 @@ def build_mutable_inventory(
         for owners, owned_lines in sorted(line_groups.items()):
             if owners:
                 target_map = [
-                    {"path": path, "target": related_by_path[path].targetValue}
-                    for path in owners
+                    {"path": path, "target": related_by_path[path].targetValue} for path in owners
                 ]
                 add(
                     category="changed_source_occurrence",
@@ -1673,13 +1714,11 @@ def build_mutable_inventory(
                 )
                 continue
 
-            party_paths = tuple(
+            owned_party_paths = tuple(
                 sorted(path for path in related_by_path if _party_role_path(path) is not None)
             )
             carrier_principal_paths = tuple(
-                path
-                for path in party_paths
-                if path == "documentPatch.parties.carrier.name"
+                path for path in owned_party_paths if path == "documentPatch.parties.carrier.name"
             )
             carrier_principal_lines = owned_lines - raw_agent_lines
             if carrier_principal_paths and carrier_principal_lines:
@@ -1717,7 +1756,7 @@ def build_mutable_inventory(
                 "notify"
                 if ".notifyParties[" in path
                 else path.split("documentPatch.parties.", 1)[1].split(".", 1)[0]
-                for path in party_paths
+                for path in owned_party_paths
             }
             explicit_foreign_role_lines = (
                 {
@@ -1726,7 +1765,7 @@ def build_mutable_inventory(
                     if (roles := _party_heading_roles(current_text_lines[number - 1]))
                     and roles.isdisjoint(source_roles)
                 }
-                if party_paths
+                if owned_party_paths
                 else set()
             )
             if explicit_foreign_role_lines:
@@ -1876,9 +1915,7 @@ def build_mutable_inventory(
         if not auxiliary_lines:
             continue
         add(
-            category=(
-                "source_only_contact_identity" if contact_value else "source_only_auxiliary"
-            ),
+            category=("source_only_contact_identity" if contact_value else "source_only_auxiliary"),
             source_surface=auxiliary.value,
             lines=auxiliary_lines,
             paths=(),
@@ -1978,9 +2015,7 @@ def build_mutable_inventory(
             aggregate_line = _is_shipment_aggregate_value_line(raw_line)
             bare_volume_line = _BARE_VOLUME_AGGREGATE.fullmatch(raw_line) is not None
             if number not in known_lines and (aggregate_line or bare_volume_line):
-                following_line = (
-                    current_lines[number] if number < len(current_lines) else None
-                )
+                following_line = current_lines[number] if number < len(current_lines) else None
                 if _carrier_receipt_count_matches_target(
                     raw_line,
                     target_label,
@@ -2184,8 +2219,7 @@ def build_mutable_inventory(
             source_line = source_lines[number - 1]
             if sha256_bytes(source_line.encode("utf-8")) != profile_line.sourceLineSha256:
                 raise ValueError(
-                    "template mutation profile line SHA-256 differs: "
-                    f"{profile_line.lineId}"
+                    f"template mutation profile line SHA-256 differs: {profile_line.lineId}"
                 )
             if not source_line.strip() or _PAGE_MARKER.fullmatch(source_line) is not None:
                 raise ValueError(
@@ -2294,15 +2328,12 @@ def apply_deterministic_auxiliary_edits(
     original_lines = tuple(line.rstrip("\r\n") for line in lines)
     touched_by_source: dict[str, tuple[str, ...]] = {}
     for source in replacements:
-        authorized = tuple(
-            sorted(authorized_line_ids[source], key=line_number)
-        )
+        authorized = tuple(sorted(authorized_line_ids[source], key=line_number))
         for authorized_line_id in authorized:
             index = line_number(authorized_line_id) - 1
             if not 0 <= index < len(original_lines):
                 raise ValueError(
-                    "deterministic auxiliary line is outside the OCR: "
-                    f"{authorized_line_id}"
+                    f"deterministic auxiliary line is outside the OCR: {authorized_line_id}"
                 )
             if source not in original_lines[index]:
                 raise ValueError(
@@ -2495,11 +2526,7 @@ def audit_full_document(
                 surface,
                 target_string_surfaces,
             )
-            stale_lines.update(
-                number
-                for number in unowned_lines
-                if number not in licensed_lines
-            )
+            stale_lines.update(number for number in unowned_lines if number not in licensed_lines)
         else:
             stale_lines.update(unowned_lines)
         if stale_lines:
@@ -2566,9 +2593,7 @@ def audit_full_document(
                 source_label=cast(Mapping[str, JsonValue], source_label),
             )
         )
-        rendered_block = "\n".join(
-            output_lines[number - 1] for number in sorted(owned_lines)
-        )
+        rendered_block = "\n".join(output_lines[number - 1] for number in sorted(owned_lines))
         contains_target = (
             _contains_rendered_surface(rendered_block, leaf.targetValue)
             if leaf.path.endswith(".name")
@@ -2660,9 +2685,7 @@ def audit_full_document(
             "date_global",
             "carrier_header_identity",
             "carrier_principal_identity",
-        } or (
-            requirement.sourceSurface == requirement.targetSurface
-        ):
+        } or (requirement.sourceSurface == requirement.targetSurface):
             continue
         owned_lines = _context_bound_surface_lines(source_text, requirement)
         if not owned_lines:
@@ -2687,9 +2710,7 @@ def audit_full_document(
             if not _contains_rendered_surface(output_lines[number - 1], requirement.targetSurface)
             or (
                 requirement.sourceSurface not in requirement.targetSurface
-                and _contains_rendered_surface(
-                    output_lines[number - 1], requirement.sourceSurface
-                )
+                and _contains_rendered_surface(output_lines[number - 1], requirement.sourceSurface)
             )
         )
         if mismatched:
@@ -2722,8 +2743,7 @@ def audit_full_document(
             and requirement.targetPath in item.targetPaths
         )
         if deterministic_surfaces and all(
-            requirement.targetSurface in output_text
-            for requirement in deterministic_surfaces
+            requirement.targetSurface in output_text for requirement in deterministic_surfaces
         ):
             # A mixed anonymous summary can represent several indexed containers on one line.
             # Each path is independently tied to the same host-derived exact surface, so an
@@ -2749,10 +2769,12 @@ def audit_full_document(
         )
         if anchored_equipment_lines and all(
             (
-                (reviewed := review_source_equipment_surface(
-                    output_lines[number - 1],
-                    temperature_present=expected_type.startswith("REFRIGERATED"),
-                )).resolution
+                (
+                    reviewed := review_source_equipment_surface(
+                        output_lines[number - 1],
+                        temperature_present=expected_type.startswith("REFRIGERATED"),
+                    )
+                ).resolution
                 == "reviewed_source_grammar"
                 and reviewed.size_category == expected_size
                 and reviewed.type_category == expected_type
@@ -2937,12 +2959,9 @@ def parse_template_mutation_profile(value: Mapping[str, Any]) -> TemplateMutatio
     for case in profile.cases:
         line_ids = tuple(row.lineId for row in case.lines)
         if len(line_ids) != len(set(line_ids)):
-            raise ValueError(
-                f"template mutation profile repeats a line ID: {case.documentId}"
-            )
+            raise ValueError(f"template mutation profile repeats a line ID: {case.documentId}")
         if line_ids != tuple(sorted(line_ids, key=line_number)):
             raise ValueError(
-                "template mutation profile lines are not in document order: "
-                f"{case.documentId}"
+                f"template mutation profile lines are not in document order: {case.documentId}"
             )
     return profile

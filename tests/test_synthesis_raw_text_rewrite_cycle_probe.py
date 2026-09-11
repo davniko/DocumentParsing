@@ -53,7 +53,9 @@ from document_ocr.synthesis.raw_text_rewrite_cycle_probe import (
     _finding_grounds_format_damage_only_in_unchanged_text,
     _introduced_html_entities,
     _isolated_formatting_changes,
+    _jurisdictional_surfaces_rendered,
     _line_id,
+    _load_customs_program_registry,
     _membership_package_allocations,
     _missing_target_literals,
     _operational_flavor_requirements_rendered,
@@ -131,9 +133,7 @@ def _workspace(text: str) -> RewriteWorkspace:
 
 
 def test_repeated_cargo_descriptions_select_strong_rows_not_generic_heading() -> None:
-    source_description = (
-        "KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC"
-    )
+    source_description = "KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC"
     raw_text = (
         "FABRIC\n\n"
         "BORU 701361-8 40' HW\n"
@@ -173,9 +173,7 @@ def test_repeated_cargo_descriptions_select_strong_rows_not_generic_heading() ->
 
 
 def test_shared_hs_codes_are_projected_within_their_cargo_group_rows() -> None:
-    source_description = (
-        "KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC"
-    )
+    source_description = "KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC"
     raw_text = (
         "BORU 701361-8 40' HW\n"
         "754 ROLLS - KNITTED FABRIC - RECYCLED KNITTED FABRIC - COMMODITY OF FABRIC\n"
@@ -310,8 +308,7 @@ def test_operational_output_allows_column_shift_before_owned_measurement() -> No
     )
 
     assert _operational_flavor_requirements_rendered(
-        "EITU6784428/40' HIGH CUBE GENERAL PURPOSE/SEAL/"
-        "1637 INTERMEDIATE BULK CONTAINERS\n",
+        "EITU6784428/40' HIGH CUBE GENERAL PURPOSE/SEAL/1637 INTERMEDIATE BULK CONTAINERS\n",
         (requirement,),
     )
 
@@ -746,6 +743,34 @@ def test_dangerous_goods_free_text_tail_is_replaced_with_target_shipping_name() 
     )
 
 
+def test_dangerous_goods_free_text_tail_preserves_punctuation_boundary() -> None:
+    source = "UN3265, CORROSIVE LIQUID, ACIDIC, ORGANIC, N.O.S.\n"
+
+    surfaces = _dangerous_goods_proper_shipping_name_surfaces(
+        source,
+        source_un_number="3265",
+        target_un_number="2293",
+        target_proper_shipping_name="4-Methoxy-4-methylpentan-2-one",
+    )
+
+    assert surfaces == (
+        (
+            "L00001",
+            "UN3265, CORROSIVE LIQUID, ACIDIC, ORGANIC, N.O.S.",
+            "UN2293, 4-METHOXY-4-METHYLPENTAN-2-ONE",
+        ),
+    )
+
+
+def test_dangerous_goods_free_text_tail_rejects_a_fused_name_without_boundary() -> None:
+    assert not _dangerous_goods_proper_shipping_name_surfaces(
+        "UN3265CORROSIVE LIQUID\n",
+        source_un_number="3265",
+        target_un_number="2293",
+        target_proper_shipping_name="4-Methoxy-4-methylpentan-2-one",
+    )
+
+
 def test_dangerous_goods_structured_tail_is_left_to_tuple_renderer() -> None:
     source = (
         "UN Number: 2078 - IMDG Class: 6.1 - PG: II\n"
@@ -912,13 +937,16 @@ def test_per_unit_packaging_weight_is_not_scaled_as_cargo_component(
         ),
     )
 
-    assert cargo_component_measurement_replacement_requirements(
-        source_line + "\n",
-        source_label,
-        target_label,
-        cargo,
-        (),
-    ) == ()
+    assert (
+        cargo_component_measurement_replacement_requirements(
+            source_line + "\n",
+            source_label,
+            target_label,
+            cargo,
+            (),
+        )
+        == ()
+    )
 
 
 def test_changed_dg_package_material_drops_incompatible_un_packaging_code() -> None:
@@ -1037,9 +1065,12 @@ def test_cargo_package_guard_ignores_non_package_lot_and_unit_prose() -> None:
     assert unexpected_cargo_package_surfaces("TARGET GOODS EXPORT LOT", guarded) == ()
     assert unexpected_cargo_package_surfaces("Rate Unit Currency Prepaid Collect", guarded) == ()
     assert unexpected_cargo_package_surfaces("Collection Business Unit", guarded) == ()
-    assert unexpected_cargo_package_surfaces(
-        "CARGO IS STOWED IN A REFRIGERATED CONTAINER SET AT PLUS 1 DEG C", guarded
-    ) == ()
+    assert (
+        unexpected_cargo_package_surfaces(
+            "CARGO IS STOWED IN A REFRIGERATED CONTAINER SET AT PLUS 1 DEG C", guarded
+        )
+        == ()
+    )
     assert unexpected_cargo_package_surfaces("10 LOTS OF TARGET GOODS", guarded) == ("LOTS",)
     assert unexpected_cargo_package_surfaces("One lot used machines", guarded) == ("lot",)
     assert unexpected_cargo_package_surfaces("TWELVE SETS TARGET GOODS", guarded) == ("SETS",)
@@ -1050,9 +1081,7 @@ def test_cargo_package_guard_ignores_non_package_lot_and_unit_prose() -> None:
     assert unexpected_cargo_package_surfaces("One temperature set at 5 C", guarded) == ()
     assert unexpected_cargo_package_surfaces("Continued on Next Sheet", guarded) == ()
     assert unexpected_cargo_package_surfaces("Sheet 1 of 3", guarded) == ()
-    assert unexpected_cargo_package_surfaces("TWELVE SHEETS TARGET GOODS", guarded) == (
-        "SHEETS",
-    )
+    assert unexpected_cargo_package_surfaces("TWELVE SHEETS TARGET GOODS", guarded) == ("SHEETS",)
 
 
 def test_cargo_auxiliary_scan_excludes_path_owned_container_row() -> None:
@@ -1079,6 +1108,52 @@ def test_cargo_auxiliary_scan_excludes_path_owned_container_row() -> None:
 
     assert len(requirements) == 2
     assert requirements[1].sourceLineIds == ("L00003",)
+
+
+def test_standalone_package_preamble_is_owned_across_its_container_header() -> None:
+    source = "GROUP TWO GOODS\n2184 BOXES\nONEU9083430:\nGROUP THREE GOODS\n"
+    group_two = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-2-span-1",
+        targetPath="documentPatch.cargoGroups[1].description",
+        targetDescription="TARGET TWO",
+        sourceLineIds=("L00001",),
+        sourceSurfaces=("GROUP TWO GOODS",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("PACKAGE", "PACKAGES"),
+    )
+    group_three = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-3-span-1",
+        targetPath="documentPatch.cargoGroups[2].description",
+        targetDescription="TARGET THREE",
+        sourceLineIds=("L00004",),
+        sourceSurfaces=("GROUP THREE GOODS",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("CARTON", "CARTONS"),
+    )
+
+    requirements = cargo_auxiliary_package_requirements(source, (group_two, group_three))
+
+    assert len(requirements) == 3
+    auxiliary = requirements[-1]
+    assert auxiliary.requirementId == "cargo-group-3-span-1-auxiliary-packaging"
+    assert auxiliary.sourceLineIds == ("L00002",)
+
+
+def test_standalone_package_row_without_container_bridge_is_not_reassigned() -> None:
+    source = "GROUP TWO GOODS\n2184 BOXES\nREFERENCE ROW\nGROUP THREE GOODS\n"
+    group_three = CargoFlavorRewriteRequirement(
+        requirementId="cargo-group-3-span-1",
+        targetPath="documentPatch.cargoGroups[2].description",
+        targetDescription="TARGET THREE",
+        sourceLineIds=("L00004",),
+        sourceSurfaces=("GROUP THREE GOODS",),
+        enforcePackageSurfaceGuard=True,
+        allowedPackageSurfaces=("CARTON", "CARTONS"),
+    )
+
+    requirements = cargo_auxiliary_package_requirements(source, (group_three,))
+
+    assert requirements == (group_three,)
 
 
 def test_editor_workspace_omits_immutable_blank_lines_and_page_markers() -> None:
@@ -1519,6 +1594,519 @@ def test_customs_program_requirement_is_not_emitted_for_its_own_jurisdiction() -
     )
 
     assert requirements == ()
+
+
+def test_v3_customs_registry_compiles_ecuador_export_programs_and_generic_replay() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v3.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    source = "DAE NO: 028-2026-40-00000123\nRUC NUMBER: 0999999999001\n"
+    target = {
+        "documentPatch": {
+            "route": {
+                "portOfLoading": {"name": "Kotzebue"},
+                "placeOfReceipt": {"name": "Kotzebue"},
+            }
+        }
+    }
+
+    requirements = jurisdictional_surface_requirements(source, target, resources)
+
+    assert [row.programId for row in requirements] == [
+        "ecuador_customs_export_declaration",
+        "ecuador_unique_taxpayer_registry",
+    ]
+    assert [row.targetSurface for row in requirements] == ["EXPORT REFERENCE", "TAX ID"]
+    assert {row.targetRouteCountryCode for row in requirements} == {"US"}
+    assert _jurisdictional_surfaces_rendered(
+        "EXPORT REFERENCE: EX-2026-000123\nTAX ID: US-77-1234567\n",
+        requirements,
+        source_value=source,
+    )
+    assert not _jurisdictional_surfaces_rendered(
+        "DAE NO: 028-2026-40-00000123\nTAX ID: US-77-1234567\n",
+        requirements,
+        source_value=source,
+    )
+
+
+def test_v4_customs_registry_covers_acid_orthography_without_matching_cargo_acids() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v4.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    source = (
+        "Acid N° 4770842732025030029 C\n"
+        "ACID 3500756972023090256\n"
+        "VAT: 200505416 ACID:2005054162024050025\n"
+        "FATTY ACID: STEARIC ACID\n"
+        "(CAPRYLIC ACID) 8,P.G. III\n"
+    )
+    target = {
+        "documentPatch": {
+            "route": {
+                "portOfDischarge": {"name": "Izuhara"},
+                "placeOfDelivery": {"name": "Izuhara"},
+            }
+        }
+    }
+
+    requirements = jurisdictional_surface_requirements(source, target, resources)
+
+    assert [(row.sourceSurface, row.sourceLineIds) for row in requirements] == [
+        ("ACID N°", ("L00001",)),
+        ("ACID:", ("L00003",)),
+        ("ACID", ("L00002",)),
+    ]
+
+
+def test_v5_customs_registry_generalizes_only_country_incoherent_party_captions() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    source = (
+        "ACID: 1006934902023040070\n"
+        "Egyptian Importer Tax ID: 100693490\n"
+        "Egyptian Importer VAT Number: 100693490\n"
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "El Iskandariya (Alexandria)"}},
+            "parties": {
+                "consignee": {
+                    "name": "TARGET IMPORTER",
+                    "country": "Pakistan",
+                }
+            },
+        }
+    }
+
+    requirements = jurisdictional_surface_requirements(source, target, resources)
+
+    assert [row.sourceSurface for row in requirements] == [
+        "EGYPTIAN IMPORTER VAT NUMBER",
+        "EGYPTIAN IMPORTER TAX ID",
+    ]
+    assert [row.targetSurface for row in requirements] == [
+        "IMPORTER VAT NUMBER",
+        "IMPORTER TAX ID",
+    ]
+    assert {row.rewriteBasis for row in requirements} == {"target_party_country_changed"}
+    assert {row.targetPartyRole for row in requirements} == {"consignee"}
+    assert {row.targetPartyCountryCode for row in requirements} == {"PK"}
+    assert {row.targetRouteCountryCode for row in requirements} == {"EG"}
+
+
+def test_v5_customs_party_caption_stays_specific_without_changed_country_evidence() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "El Iskandariya (Alexandria)"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER", "country": "Egypt"}},
+        }
+    }
+
+    requirements = jurisdictional_surface_requirements(
+        "Egyptian Importer Tax ID: 100693490\n", target, resources
+    )
+
+    assert requirements == ()
+
+
+def test_v5_customs_party_caption_uses_route_change_when_party_country_is_absent() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "Izuhara"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER"}},
+        }
+    }
+
+    (requirement,) = jurisdictional_surface_requirements(
+        "Egyptian Importer Tax ID: 100693490\n", target, resources
+    )
+
+    assert requirement.rewriteBasis == "target_route_country_changed"
+    assert requirement.targetRouteCountryCode == "JP"
+    assert requirement.targetPartyRole == "consignee"
+    assert requirement.targetPartyCountryCode is None
+
+
+def test_v5_customs_party_caption_tracks_a_multiline_occurrence_span() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "Izuhara"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER"}},
+        }
+    }
+
+    (requirement,) = jurisdictional_surface_requirements(
+        "EGYPTIAN IMPORTER TAX\nID: 100693490\n", target, resources
+    )
+
+    assert requirement.sourceLineIds == ("L00001", "L00002")
+    assert requirement.sourceOccurrenceLineIds == (("L00001", "L00002"),)
+    assert _jurisdictional_surfaces_rendered(
+        "IMPORTER TAX\nID: 867614375\n",
+        (requirement,),
+        source_value="EGYPTIAN IMPORTER TAX\nID: 100693490\n",
+    )
+    assert not _jurisdictional_surfaces_rendered(
+        "EGYPTIAN IMPORTER TAX\nID: 867614375\n",
+        (requirement,),
+        source_value="EGYPTIAN IMPORTER TAX\nID: 100693490\n",
+    )
+
+
+def test_v5_customs_party_caption_omits_blank_lines_from_multiline_ownership() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "Izuhara"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER"}},
+        }
+    }
+    source = "EGYPTIAN IMPORTER\n\nTAX ID: 100693490\n"
+
+    (requirement,) = jurisdictional_surface_requirements(source, target, resources)
+
+    assert requirement.sourceLineIds == ("L00001", "L00003")
+    assert requirement.sourceOccurrenceLineIds == (("L00001", "L00003"),)
+    assert _jurisdictional_surfaces_rendered(
+        "IMPORTER\n\nTAX ID: 867614375\n",
+        (requirement,),
+        source_value=source,
+    )
+    assert not _jurisdictional_surfaces_rendered(
+        "EGYPTIAN IMPORTER\n\nTAX ID: 867614375\n",
+        (requirement,),
+        source_value=source,
+    )
+
+
+def test_v5_customs_party_caption_does_not_match_across_a_page_marker() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "Izuhara"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER"}},
+        }
+    }
+
+    requirements = jurisdictional_surface_requirements(
+        "EGYPTIAN IMPORTER\n--- PAGE 2 ---\nTAX ID: 100693490\n",
+        target,
+        resources,
+    )
+
+    assert requirements == ()
+
+
+def test_v6_party_registry_binds_rcs_to_the_changed_carrier_and_explicit_grammar() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v6.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+        party_identifier_registries=registry.party_registries,
+    )
+    source = (
+        "CARRIER:\n"
+        "CMA CGM Société Anonyme\n"
+        "Head Office: 4, quai d'Arenc - 13002 Marseille - France\n"
+        "562 024 422 R.C.S. Marseille\n"
+        "\n"
+        "GENERAL TERMS REFER TO THE R.C.S. REGISTER.\n"
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {
+                    "name": "CMA CGM Société Anonyme",
+                    "city": "Marseille",
+                    "country": "France",
+                }
+            }
+        }
+    }
+    target_label = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {
+                    "name": "Valmeris Oceanic AG",
+                    "city": "Martigny-Ville",
+                    "country": "Switzerland",
+                }
+            }
+        }
+    }
+
+    (requirement,) = jurisdictional_surface_requirements(
+        source,
+        target_label,
+        resources,
+        source_label=source_label,
+    )
+
+    assert requirement.programId == "france_register_of_commerce_and_companies"
+    assert requirement.tradeDirection == "party"
+    assert requirement.rewriteBasis == "target_party_registry_country_changed"
+    assert requirement.sourceLineIds == ("L00004",)
+    assert requirement.sourceOccurrences == 1
+    assert requirement.sourcePartyCountryCode == "FR"
+    assert requirement.targetPartyRole == "carrier"
+    assert requirement.targetPartyCountryCode == "CH"
+    assert requirement.targetRouteCountryCode is None
+    assert requirement.targetSurface == "REG. NO."
+    assert requirement.alternativeTargetSurfaces == ("COMPANY REG.",)
+    assert _jurisdictional_surfaces_rendered(
+        source.replace("R.C.S.", "Reg. No.", 1),
+        (requirement,),
+        source_value=source,
+    )
+    assert _jurisdictional_surfaces_rendered(
+        source.replace("R.C.S.", "COMPANY REG.", 1),
+        (requirement,),
+        source_value=source,
+    )
+    assert not _jurisdictional_surfaces_rendered(
+        source,
+        (requirement,),
+        source_value=source,
+    )
+
+
+def test_v6_party_registry_stays_inactive_for_same_country_or_unbound_prose() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v6.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+        party_identifier_registries=registry.party_registries,
+    )
+    source_label = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {
+                    "name": "CMA CGM Société Anonyme",
+                    "city": "Marseille",
+                    "country": "France",
+                }
+            }
+        }
+    }
+    same_country_target = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {
+                    "name": "Nouvelle Ligne Maritime SA",
+                    "city": "Le Havre",
+                    "country": "France",
+                }
+            }
+        }
+    }
+    changed_country_target = {
+        "documentPatch": {
+            "parties": {
+                "carrier": {
+                    "name": "Valmeris Oceanic AG",
+                    "city": "Martigny-Ville",
+                    "country": "Switzerland",
+                }
+            }
+        }
+    }
+    party_line = "CMA CGM Société Anonyme\n562 024 422 R.C.S. Marseille\n"
+    prose_only = (
+        "CMA CGM Société Anonyme\n"
+        "Head Office: Marseille, France\n"
+        "\n"
+        "562 024 422 R.C.S. Marseille appears in an unrelated annex.\n"
+    )
+
+    assert (
+        jurisdictional_surface_requirements(
+            party_line,
+            same_country_target,
+            resources,
+            source_label=source_label,
+        )
+        == ()
+    )
+    assert (
+        jurisdictional_surface_requirements(
+            prose_only,
+            changed_country_target,
+            resources,
+            source_label=source_label,
+        )
+        == ()
+    )
+
+
+def test_v6_customs_registry_compiles_egyptian_importer_tax_number_caption() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v6.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+        party_identifier_registries=registry.party_registries,
+    )
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "Izuhara"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER", "country": "Japan"}},
+        }
+    }
+
+    (requirement,) = jurisdictional_surface_requirements(
+        "Egyptian importer tax no.352-292-555\n",
+        target,
+        resources,
+    )
+
+    assert requirement.sourceSurface == "EGYPTIAN IMPORTER TAX NO."
+    assert requirement.targetSurface == "IMPORTER TAX NO."
+    assert requirement.rewriteBasis == "target_route_country_changed"
+
+
+def test_v7_customs_registry_allows_only_the_explicit_consignee_role_prefix() -> None:
+    baseline = _target_integrity_resources()
+    registry = _load_customs_program_registry(
+        Path("data/registries/customs-programs/document-customs-surfaces-v7.json"),
+        expected_entries=5,
+    )
+    resources = TargetIntegrityResources(
+        countries=baseline.countries,
+        packages=baseline.packages,
+        route_countries_by_name=baseline.route_countries_by_name,
+        route_port_countries_by_name=baseline.route_port_countries_by_name,
+        customs_programs=registry.entries,
+        party_identifier_registries=registry.party_registries,
+    )
+    source = "EGYPTIAN IMPORTER TAX ID: 212563378\n"
+    target = {
+        "documentPatch": {
+            "route": {"portOfDischarge": {"name": "Izuhara"}},
+            "parties": {"consignee": {"name": "TARGET IMPORTER"}},
+        }
+    }
+
+    (requirement,) = jurisdictional_surface_requirements(source, target, resources)
+
+    assert requirement.targetPartyRole == "consignee"
+    assert requirement.alternativeTargetSurfaces == ("CONSIGNEE IMPORTER TAX ID",)
+    assert _jurisdictional_surfaces_rendered(
+        "CONSIGNEE IMPORTER TAX ID: 144421400\n",
+        (requirement,),
+        source_value=source,
+    )
+    assert not _jurisdictional_surfaces_rendered(
+        "FOREIGN IMPORTER TAX ID: 144421400\n",
+        (requirement,),
+        source_value=source,
+    )
 
 
 def test_atomic_patch_requires_stale_customs_program_replacement_without_matching_acidic() -> None:
@@ -2374,6 +2962,33 @@ def test_split_signed_on_behalf_agent_is_an_explicit_auxiliary_identity() -> Non
     )
 
 
+def test_signed_on_behalf_colon_preserves_the_legal_relation_prefix() -> None:
+    raw = (
+        "Signed on behalf of the Carrier: TRANSGLORY\nSigned on behalf of the Carrier: TRANSGLORY\n"
+    )
+    source = {"documentPatch": {"parties": {"carrier": {"name": "TRANSGLORY"}}}}
+    target = {"documentPatch": {"parties": {"carrier": {"name": "Aureline Oceanic Carriers"}}}}
+
+    requirements = surface_rendering_requirements(raw, source, target)
+    principals = [row for row in requirements if row.kind == "carrier_principal_identity"]
+
+    assert [(row.sourceSurface, row.sourceLineIds) for row in principals] == [
+        ("TRANSGLORY", ("L00001",)),
+        ("TRANSGLORY", ("L00002",)),
+    ]
+    workspace = RewriteWorkspace(
+        original_text=raw,
+        current_text=raw,
+        current_target_label=target,
+        surface_requirements=tuple(requirements),
+    )
+    apply_deterministic_prefills(workspace)
+    assert workspace.current_text.splitlines() == [
+        "Signed on behalf of the Carrier: Aureline Oceanic Carriers",
+        "Signed on behalf of the Carrier: Aureline Oceanic Carriers",
+    ]
+
+
 def test_presentation_only_label_difference_does_not_require_ocr_edit() -> None:
     source = {"documentPatch": {"parties": {"consignee": {"country": "EGYPT"}}}}
     target = {"documentPatch": {"parties": {"consignee": {"country": "Egypt"}}}}
@@ -2452,14 +3067,10 @@ def test_evergreen_legal_terms_are_not_parsed_as_auxiliary_carrier_identity() ->
         "As agent for the Carrier and the Vessel Provider Evergreen Marine (Asia) Pte. Ltd.\n"
     )
     source_label = {
-        "documentPatch": {
-            "parties": {"carrier": {"name": "Evergreen Marine (Asia) Pte. Ltd."}}
-        }
+        "documentPatch": {"parties": {"carrier": {"name": "Evergreen Marine (Asia) Pte. Ltd."}}}
     }
     target_label = {
-        "documentPatch": {
-            "parties": {"carrier": {"name": "Marivanta Ocean Carriers GmbH"}}
-        }
+        "documentPatch": {"parties": {"carrier": {"name": "Marivanta Ocean Carriers GmbH"}}}
     }
 
     requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
@@ -4509,9 +5120,7 @@ def test_unprinted_target_equipment_is_explicitly_projected_out_of_template() ->
         },
     }
 
-    projected, changes = _project_unrenderable_equipment_to_template(
-        source, source_label, target
-    )
+    projected, changes = _project_unrenderable_equipment_to_template(source, source_label, target)
 
     assert "sizeCategory" not in projected["documentPatch"]["containers"][0]
     assert "typeCategory" not in projected["documentPatch"]["containers"][0]
@@ -4781,9 +5390,7 @@ def test_membership_only_without_container_local_package_rows_needs_no_projectio
     source_label = {
         "documentPatch": {
             "containers": list(source_containers),
-            "cargoPackages": [
-                {"groupId": "g1", "packageId": "p1", "quantity": 34}
-            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 34}],
             "cargoAllocationGroups": [
                 {
                     "groupId": "g1",
@@ -4797,9 +5404,7 @@ def test_membership_only_without_container_local_package_rows_needs_no_projectio
     target_label = {
         "documentPatch": {
             "containers": list(target_containers),
-            "cargoPackages": [
-                {"groupId": "g1", "packageId": "p1", "quantity": 14}
-            ],
+            "cargoPackages": [{"groupId": "g1", "packageId": "p1", "quantity": 14}],
             "cargoAllocationGroups": [
                 {
                     "groupId": "g1",
@@ -4953,9 +5558,7 @@ def test_changed_equipment_updates_a_container_local_cargo_row_alias() -> None:
         }
     }
 
-    requirements = container_equipment_replacement_requirements(
-        source, source_label, target_label
-    )
+    requirements = container_equipment_replacement_requirements(source, source_label, target_label)
 
     second = [
         row
@@ -5109,9 +5712,7 @@ def test_unresolved_partial_equipment_surface_is_replaced_on_its_container_row()
 
 def test_single_container_recovers_one_unlabeled_printed_equipment_alias() -> None:
     source = "CAIU4204766 / 04070\n52 PACKAGES /FCL / FCL/40HQ/7060.000KGS/40.000M3\n"
-    source_label = {
-        "documentPatch": {"containers": [{"containerNumber": "CAIU4204766"}]}
-    }
+    source_label = {"documentPatch": {"containers": [{"containerNumber": "CAIU4204766"}]}}
     target_label = {
         "documentPatch": {
             "containers": [
@@ -5725,9 +6326,7 @@ def test_aggregate_summary_is_not_partially_rendered_after_topology_projection()
         }
     }
 
-    requirements = _aggregate_equipment_breakdown_requirements(
-        source, source_label, target_label
-    )
+    requirements = _aggregate_equipment_breakdown_requirements(source, source_label, target_label)
 
     assert requirements == ()
 
@@ -6114,9 +6713,7 @@ def test_dense_tuple_rows_on_later_page_allocate_per_container_and_reconcile_hid
     assert lines[24] == "4983.957 3600 18.794"
     assert lines[-1] == "19835.750 14400 74.800"
     assert sum(
-        Decimal(row.targetCanonicalValue)
-        for row in operational
-        if row.kind == "gross_weight_kg"
+        Decimal(row.targetCanonicalValue) for row in operational if row.kind == "gross_weight_kg"
     ) == Decimal("14891.824")
 
 
@@ -6172,9 +6769,7 @@ def test_single_container_total_tuple_keeps_gross_tare_volume_column_order() -> 
                     "groupId": "g1",
                     "packageIds": ["p1"],
                     "coverage": "single_package_level",
-                    "allocations": [
-                        {"containerNumber": "CMAU8692912", "packageQuantity": 100}
-                    ],
+                    "allocations": [{"containerNumber": "CMAU8692912", "packageQuantity": 100}],
                 }
             ],
         }
@@ -6200,9 +6795,7 @@ def test_single_container_total_tuple_keeps_gross_tare_volume_column_order() -> 
                     "groupId": "g1",
                     "packageIds": ["p1"],
                     "coverage": "single_package_level",
-                    "allocations": [
-                        {"containerNumber": "CMAU8692912", "packageQuantity": 2}
-                    ],
+                    "allocations": [{"containerNumber": "CMAU8692912", "packageQuantity": 2}],
                 }
             ],
         }
@@ -6522,9 +7115,7 @@ def test_aggregate_empirical_scaling_retains_observed_precision() -> None:
 def test_three_number_contact_line_without_measurement_header_is_not_operational() -> None:
     raw = "CONTAINER CMAU8692912\nFor delivery call 002 02 37481558\n"
 
-    assert _container_measurement_occurrences(
-        raw, ({"containerNumber": "CMAU8692912"},)
-    ) == {}
+    assert _container_measurement_occurrences(raw, ({"containerNumber": "CMAU8692912"},)) == {}
 
 
 def test_inline_operational_row_is_prefilled_right_to_left_without_column_drift() -> None:
@@ -7212,16 +7803,12 @@ def test_repeated_equal_package_totals_remain_owned_by_their_cargo_groups() -> N
                 {
                     "groupId": "g1",
                     "packageIds": ["p1"],
-                    "allocations": [
-                        {"containerNumber": "MAEU4092466", "packageQuantity": 1}
-                    ],
+                    "allocations": [{"containerNumber": "MAEU4092466", "packageQuantity": 1}],
                 },
                 {
                     "groupId": "g2",
                     "packageIds": ["p2"],
-                    "allocations": [
-                        {"containerNumber": "MAEU4198170", "packageQuantity": 1}
-                    ],
+                    "allocations": [{"containerNumber": "MAEU4198170", "packageQuantity": 1}],
                 },
             ],
         }
@@ -7250,16 +7837,12 @@ def test_repeated_equal_package_totals_remain_owned_by_their_cargo_groups() -> N
                 {
                     "groupId": "g1",
                     "packageIds": ["p1"],
-                    "allocations": [
-                        {"containerNumber": "MAEU4105558", "packageQuantity": 33}
-                    ],
+                    "allocations": [{"containerNumber": "MAEU4105558", "packageQuantity": 33}],
                 },
                 {
                     "groupId": "g2",
                     "packageIds": ["p2"],
-                    "allocations": [
-                        {"containerNumber": "MAEU8030987", "packageQuantity": 34}
-                    ],
+                    "allocations": [{"containerNumber": "MAEU8030987", "packageQuantity": 34}],
                 },
             ],
         }
@@ -7476,9 +8059,7 @@ def test_typed_preamble_projects_a_multi_group_document_package_total() -> None:
 
     assert preamble.sourceSurface == "111 CARTONS"
     assert preamble.targetSurface == "963 PACKAGES"
-    assert workspace.current_text.splitlines()[0] == (
-        "1 Container Said to Contain 963 PACKAGES"
-    )
+    assert workspace.current_text.splitlines()[0] == ("1 Container Said to Contain 963 PACKAGES")
 
 
 def test_unlabeled_outer_package_preamble_stays_owned_by_its_cargo_editor() -> None:
@@ -7917,9 +8498,7 @@ def test_same_line_package_join_does_not_apply_plural_owner_to_singular_fact() -
     apply_deterministic_prefills(workspace)
 
     assert workspace.current_text == "1 BOX + 20 BAGS"
-    assert requirements[0].targetPaths == (
-        "documentPatch.cargoPackages[1].typeCategory",
-    )
+    assert requirements[0].targetPaths == ("documentPatch.cargoPackages[1].typeCategory",)
 
 
 def test_repeated_identical_package_surface_with_partial_ownership_fails_closed() -> None:
@@ -8154,9 +8733,7 @@ def test_parenthesized_es_package_totals_rewrite_every_exact_repeat() -> None:
 
     apply_deterministic_prefills(workspace)
 
-    assert workspace.current_text == (
-        "519 BOX(ES) of 519 BOX(ES) of 519 BOXES WITH FRESH FRUIT"
-    )
+    assert workspace.current_text == ("519 BOX(ES) of 519 BOX(ES) of 519 BOXES WITH FRESH FRUIT")
 
 
 def test_deterministic_prefill_applies_unambiguous_derived_surfaces() -> None:
@@ -8609,11 +9186,7 @@ def test_raw_only_carrier_agent_is_synthesized_in_its_existing_relationship() ->
 def test_generic_signatory_role_is_not_invented_as_a_private_agent_identity() -> None:
     source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
     target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
-    source = (
-        "By\n"
-        "General Manager\n"
-        "as agent for the Carrier SOURCE LINE\n"
-    )
+    source = "By\nGeneral Manager\nas agent for the Carrier SOURCE LINE\n"
 
     assert raw_auxiliary_identity_requirements(source, source_label, target_label) == ()
 
@@ -8664,9 +9237,7 @@ def test_shipped_on_board_trailing_identity_split_is_exact_and_unicode_safe() ->
         == "ŽELEZNIŠKA LOGISTIKA D.O.O."
     )
     assert (
-        _shipped_on_board_trailing_identity(
-            "SHIPPED ON BOARD MV NORTH STAR 08.SEP.2026 ---"
-        )
+        _shipped_on_board_trailing_identity("SHIPPED ON BOARD MV NORTH STAR 08.SEP.2026 ---")
         is None
     )
 
@@ -8699,11 +9270,7 @@ def test_named_or_company_signatory_titles_remain_anonymization_owned(identity: 
 def test_named_signatory_with_generic_role_remains_anonymization_owned() -> None:
     source_label = {"documentPatch": {"parties": {"carrier": {"name": "SOURCE LINE"}}}}
     target_label = {"documentPatch": {"parties": {"carrier": {"name": "TARGET LINE"}}}}
-    source = (
-        "A. MARIN\n"
-        "General Manager\n"
-        "as agent for the Carrier SOURCE LINE\n"
-    )
+    source = "A. MARIN\nGeneral Manager\nas agent for the Carrier SOURCE LINE\n"
 
     requirements = raw_auxiliary_identity_requirements(source, source_label, target_label)
 
@@ -8893,9 +9460,7 @@ def test_inline_on_board_agent_accepts_a_unicode_fictional_identity() -> None:
         "As agents for the Carrier\n\nWeight in Kgs Total: 5 CONTAINER(S)\n"
     )
     source_label = {"documentPatch": {"parties": {"carrier": {"name": "CMA CGM S.A."}}}}
-    target_label = {
-        "documentPatch": {"parties": {"carrier": {"name": "ALTURA MARITIMA S.A."}}}
-    }
+    target_label = {"documentPatch": {"parties": {"carrier": {"name": "ALTURA MARITIMA S.A."}}}}
     workspace = RewriteWorkspace(
         original_text=source,
         current_text=source,

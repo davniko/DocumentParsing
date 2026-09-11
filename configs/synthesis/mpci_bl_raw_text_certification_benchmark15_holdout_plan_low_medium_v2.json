@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "task": "raw_text_certification_contract_v2_benchmark_plan_v2",
+  "run": {
+    "runId": "mpci-bl-raw-text-certification-benchmark15-holdout-plan-low-medium-v2",
+    "outputDir": "artifacts/kie-synthesis"
+  },
+  "cohortRun": {
+    "path": "artifacts/kie-synthesis/mpci-bl-raw-text-certification-benchmark15-holdout-cohort-v4",
+    "commitSha256": "89a722c248a00decb096e043368a6d1a5c971457775ec8aa13d23e5e5f2aa6d6",
+    "transactionSha256": "860665d1f26bb8e4de5b6192f73e14305363eb89ffade4f2e11d146a6470e472"
+  },
+  "baseline": {
+    "effort": "low",
+    "config": {
+      "path": "configs/synthesis/mpci_bl_raw_text_certification_benchmark15_holdout_baseline_low_v2.yaml",
+      "sha256": "31ac77712d62b3c027221d3f2cb97fb5fecb9a0fb0a75fbdcf88bd602776ed71"
+    }
+  },
+  "challenger": {
+    "effort": "medium",
+    "config": {
+      "path": "configs/synthesis/mpci_bl_raw_text_certification_benchmark15_holdout_challenger_medium_v2.yaml",
+      "sha256": "2aa060aae9fdbacd0d2a174573407ee8e01764e9a183eda7575cba21bcf4739b"
+    }
+  }
+}

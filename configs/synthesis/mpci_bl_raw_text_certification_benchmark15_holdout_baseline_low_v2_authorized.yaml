@@ -1,0 +1,80 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+audit_contract_version: 2
+environment_file: .env
+run:
+  run_id: mpci-bl-raw-text-certification-benchmark15-holdout-baseline-low-v2
+  output_dir: artifacts/kie-synthesis
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification-benchmark15-holdout-cohort-v4
+  commit_sha256: 89a722c248a00decb096e043368a6d1a5c971457775ec8aa13d23e5e5f2aa6d6
+  transaction_sha256: 860665d1f26bb8e4de5b6192f73e14305363eb89ffade4f2e11d146a6470e472
+benchmark_plan:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification-benchmark15-holdout-plan-low-medium-v2
+  commit_sha256: 5848e19a480ce423bf4ea1606c0f2cba178b136c940f1711368f4e46d3c1c311
+  transaction_sha256: aac3c8dad1d21cf9fbf5edff77eafdd351c06ed185e9dfe6d55fb9cc16eec967
+input_case_contract_filename: source-contract.json
+case_ids:
+  - doc_2d393b7327a4eb7b645ee1bfca916f7a3561d60057c47e9e19faf6ba18821cea
+  - doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1
+  - doc_c81f71d2468cbae5c3e3d08ff33a5e16745fbda39e5145144c516e30f77b0fdf
+  - doc_19f564dad81401b03004a6eb1f6370af31a805bd8950f960791821280def70ea
+  - doc_459854a39c037656175b474a53435d64056c22f67ed4351ee860c2ee9fb8f3d9
+  - doc_47c2f3a7c8ccaa5c8d8e014267dcfd334a07c50024956fc94b995ff0a54416ca
+  - doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031
+  - doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c
+  - doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9
+  - doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373
+  - doc_2809b1ea448cee68911e4c468afb3ef8f1c12b0a94ee2f8ca1922e2b5538c208
+  - doc_8cafc8c13fc735f4399f07ce0f13389a987cb569a2fb4bab621e84eedffd18c4
+  - doc_1c3797a521af25c4dd20bc95238d6605c4ef404b343374bee3833c7be71541fd
+  - doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c
+  - doc_dd3a55957dccc2a3e3e24db7b9dc28194c661c0f5cc45be312ca1de907b55610
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v3.md
+  sha256: 6e643e0c5b52d5391729c2c954b60123ccf52f4f9b0ffec4b30d1fc3260653ee
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 12288
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+    - fireworks
+  max_price:
+    prompt: 0.15
+    completion: 0.5
+  generation_settings:
+    temperature: 0.0
+  pricing:
+    currency: USD
+    effective_date: 2026-09-09
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.15
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.5
+workflow:
+  documents: 15
+  max_concurrent_documents: 1
+  semantic_audit_passes: 1
+  evaluation_only: true
+  require_complete_dimension_coverage: true
+  require_unanimous_clean: false
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 20.0
+  retry_jitter_seconds: 0.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

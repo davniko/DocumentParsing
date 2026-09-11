@@ -12,6 +12,7 @@ dependencies = [
   "aiosqlite>=0.22,<0.23",
   "boto3[crt]>=1.43,<2",
   "httpx>=0.28,<0.29",
+  "phonenumberslite==9.0.38",
   "pillow>=12.3,<13",
   "pyarrow>=25,<26",
   "pydantic>=2.13,<3",

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "task": "raw_text_certification_contract_v3_deterministic_benchmark_v1",
+  "run": {
+    "runId": "mpci-bl-raw-text-certification-benchmark15-deterministic-v1",
+    "outputDir": "artifacts/kie-synthesis"
+  },
+  "cohortRun": {
+    "path": "artifacts/kie-synthesis/mpci-bl-raw-text-certification-benchmark15-cohort-v13",
+    "commitSha256": "1bcbdf0cf4b433a77849e5565976cb77f44ab3c6d53cd08ab1bcf636397d87a2",
+    "transactionSha256": "aae91600b2516ebb613047f548aa803e17c0b3f4d182f02149e79f991e31cf66"
+  },
+  "gates": {
+    "requireEveryDefectCaseCaught": true,
+    "requireEveryControlClean": true,
+    "requireEveryExpectedDimensionObserved": true,
+    "minimumIssueRecall": 0.9,
+    "minimumFindingPrecision": 0.9
+  }
+}

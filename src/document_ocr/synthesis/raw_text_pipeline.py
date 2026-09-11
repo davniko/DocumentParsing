@@ -37,8 +37,18 @@ from document_ocr.synthesis.raw_text_certification import (
     CertificationCaseResult,
     run_raw_text_certification,
 )
+from document_ocr.synthesis.raw_text_certification_artifacts import (
+    load_validated_certification_run,
+)
+from document_ocr.synthesis.raw_text_certification_host import (
+    complete_deterministic_repair_set,
+)
+from document_ocr.synthesis.raw_text_certification_invariants import (
+    CertificationInvariantAudit,
+)
 from document_ocr.synthesis.raw_text_certified_correction import (
     CorrectionCaseResult,
+    _deterministic_correction_case,
     _refine_carrier_occurrence_contract,
     run_raw_text_certified_correction,
 )
@@ -66,6 +76,13 @@ _COHORT_STOP_REASON = (
     "complete-cohort processing stopped after another case exhausted its bounded attempts"
 )
 _REPEATED_CANDIDATE_REASON = "correction repeated an earlier candidate byte-for-byte"
+_CORRECTION_ROUND_LIMIT_REASON = (
+    "independent audit still found actionable defects after the configured correction-round limit"
+)
+_V3_CERTIFICATION_QUARANTINE_REASON = (
+    "contract-v3 certification quarantined a semantic, unowned, or non-repairable defect; "
+    "it grants no correction authority"
+)
 
 
 class RawTextPipelineBlockedError(RuntimeError):
@@ -269,6 +286,7 @@ class _PipelineResumeState:
     lineage_sha256: str
     certified_sources: dict[_RunReference, list[str]]
     unresolved: tuple[str, ...]
+    terminal_failures: dict[str, str]
 
 
 def _ensure_under_project_root(project_root: Path, path: Path, *, label: str) -> Path:
@@ -290,9 +308,7 @@ def _read_json_object(path: Path) -> dict[str, Any]:
 def _read_bound_transaction(reference: _RunReference) -> dict[str, Any]:
     value = _read_json_object(reference.root / "provenance/transaction.json")
     if sha256_bytes(canonical_json_bytes(value)) != reference.transaction_sha256:
-        raise ValueError(
-            f"committed provenance is not bound to its transaction: {reference.root}"
-        )
+        raise ValueError(f"committed provenance is not bound to its transaction: {reference.root}")
     return value
 
 
@@ -312,9 +328,7 @@ def _read_model_array(path: Path, model: type[BaseModel]) -> tuple[BaseModel, ..
     value = json.loads(read_regular_file_bytes(path))
     if not isinstance(value, list):
         raise ValueError(f"expected JSON array: {path}")
-    return tuple(
-        model.model_validate_json(canonical_json_bytes(row), strict=True) for row in value
-    )
+    return tuple(model.model_validate_json(canonical_json_bytes(row), strict=True) for row in value)
 
 
 def _inventory_contract_sha256(config: SynthesisRawTextInventoryBatchConfig) -> str:
@@ -372,9 +386,10 @@ def _require_inventory_scope(
         or config.workflow.documents != len(document_ids)
     ):
         raise ValueError(f"{label} differs from its configured unique scope")
-    if config.selection == "explicit_pinned_document_ids" and tuple(
-        row.document_id for row in config.cases
-    ) != document_ids:
+    if (
+        config.selection == "explicit_pinned_document_ids"
+        and tuple(row.document_id for row in config.cases) != document_ids
+    ):
         raise ValueError(f"{label} differs from its explicit pinned selection")
 
 
@@ -519,22 +534,20 @@ def _validate_inventory_child_run(
         "inventoryImplementationSha256": stage_hashes["inventoryContract"],
         "hybridBatchImplementationSha256": stage_hashes["hybridBatch"],
         "hybridCompilerImplementationSha256": stage_hashes["hybridRuntime"],
+        "containerSemanticsImplementationSha256": stage_hashes["containerSemantics"],
         "providerRuntimeImplementationSha256": stage_hashes["providerRuntime"],
         "rewriteContractImplementationSha256": stage_hashes["rewriteContract"],
     }
     if any(
-        transaction.get(key) != expected
-        for key, expected in expected_implementation_fields.items()
+        transaction.get(key) != expected for key, expected in expected_implementation_fields.items()
     ):
         raise ValueError("inventory child implementation provenance differs")
     if (
         transaction.get("configSha256") != child_config_sha256
         or transaction.get("runId") != child_config.run.run_id
         or transaction.get("liveDocumentIds") != list(document_ids)
-        or transaction.get("baseBatchConfigSha256")
-        != child_config.base_batch_config.sha256
-        or transaction.get("regressionOracleSha256")
-        != child_config.regression_oracle.sha256
+        or transaction.get("baseBatchConfigSha256") != child_config.base_batch_config.sha256
+        or transaction.get("regressionOracleSha256") != child_config.regression_oracle.sha256
         or transaction.get("templateMutationProfileSha256")
         != (
             child_config.template_mutation_profile.sha256
@@ -554,15 +567,11 @@ def _validate_inventory_child_run(
         runtime.get("model") != provider.model
         or runtime.get("outputMode") != child_config.workflow.output_mode
         or runtime.get("providerOrder") != list(provider.provider_order or ())
-        or runtime.get("maxConcurrentDocuments")
-        != child_config.workflow.max_concurrent_documents
-        or runtime.get("maxProviderRouteRounds")
-        != child_config.workflow.max_provider_route_rounds
+        or runtime.get("maxConcurrentDocuments") != child_config.workflow.max_concurrent_documents
+        or runtime.get("maxProviderRouteRounds") != child_config.workflow.max_provider_route_rounds
     ):
         raise ValueError("inventory child runtime provenance differs from its configuration")
-    child_transaction_contract_sha256 = _inventory_transaction_contract_sha256(
-        transaction
-    )
+    child_transaction_contract_sha256 = _inventory_transaction_contract_sha256(transaction)
     if (
         transaction_contract_sha256 is not None
         and child_transaction_contract_sha256 != transaction_contract_sha256
@@ -602,26 +611,21 @@ def _validate_inventory_child_run(
         or summary.get("runId") != child_config.run.run_id
         or summary.get("status") != "complete"
         or summary.get("liveDocuments") != len(document_ids)
-        or summary.get("trainingReadyDocuments")
-        != status_counts["training_ready"]
+        or summary.get("trainingReadyDocuments") != status_counts["training_ready"]
         or summary.get("needsReviewDocuments") != status_counts["needs_review"]
         or summary.get("callFailedDocuments") != status_counts["call_failed"]
-        or summary.get("compilerBlockedDocuments")
-        != status_counts["compiler_blocked"]
+        or summary.get("compilerBlockedDocuments") != status_counts["compiler_blocked"]
     ):
         raise ValueError("inventory child summary differs from its exact results")
     identities: dict[str, _InventoryInputIdentity] = {}
     for result in results:
         case_result = InventoryProbeCaseResult.model_validate_json(
-            read_regular_file_bytes(
-                reference.root / "cases" / result.documentId / "result.json"
-            ),
+            read_regular_file_bytes(reference.root / "cases" / result.documentId / "result.json"),
             strict=True,
         )
         if case_result != result:
             raise ValueError(
-                "inventory aggregate and per-case results differ: "
-                f"{result.documentId}"
+                f"inventory aggregate and per-case results differ: {result.documentId}"
             )
         if (
             _case_artifact_sha256(reference, result.documentId, "final.txt")
@@ -644,22 +648,25 @@ def _stage_template_contract_sha256(
     prompt: BaseModel,
     provider: BaseModel,
     workflow: BaseModel,
+    audit_contract_version: Literal[1, 2, 3] | None = None,
+    invariant_inputs: BaseModel | None = None,
 ) -> str:
     """Hash model behavior while excluding only child scope and scheduling."""
 
     workflow_value = workflow.model_dump(mode="json")
     workflow_value.pop("documents")
     workflow_value.pop("max_concurrent_documents")
-    return sha256_bytes(
-        canonical_json_bytes(
-            {
-                "environmentFile": environment_file,
-                "prompt": prompt.model_dump(mode="json"),
-                "provider": provider.model_dump(mode="json"),
-                "workflow": workflow_value,
-            }
-        )
-    )
+    value: dict[str, JsonValue] = {
+        "environmentFile": environment_file,
+        "prompt": cast(JsonValue, prompt.model_dump(mode="json")),
+        "provider": cast(JsonValue, provider.model_dump(mode="json")),
+        "workflow": cast(JsonValue, workflow_value),
+    }
+    if audit_contract_version is not None:
+        value["auditContractVersion"] = audit_contract_version
+    if invariant_inputs is not None:
+        value["invariantInputs"] = cast(JsonValue, invariant_inputs.model_dump(mode="json"))
+    return sha256_bytes(canonical_json_bytes(value))
 
 
 def _provider_order(provider: BaseModel) -> list[str]:
@@ -701,7 +708,12 @@ def _validate_certification_child_run(
     """Validate one committed certification run and its immutable candidate handoff."""
 
     config_path = reference.root / "config.yaml"
-    child_config = load_synthesis_raw_text_certification_config(config_path)
+    configured_child = load_synthesis_raw_text_certification_config(config_path)
+    certification_run = load_validated_certification_run(
+        reference.root,
+        project_root=(project_root if configured_child.audit_contract_version == 3 else None),
+    )
+    child_config = certification_run.config
     _validate_component_config_root(
         project_root=project_root,
         reference=reference,
@@ -718,100 +730,96 @@ def _validate_certification_child_run(
             prompt=child_config.prompt,
             provider=child_config.provider,
             workflow=child_config.workflow,
+            audit_contract_version=child_config.audit_contract_version,
+            invariant_inputs=child_config.invariant_inputs,
         )
         != expected_template_sha256
     ):
         raise ValueError("pipeline certification child behavior contract differs")
     input_run = resolve_reference(
         _LineageRunReference(
-        path=child_config.input_run.path,
-        commitSha256=child_config.input_run.commit_sha256,
-        transactionSha256=child_config.input_run.transaction_sha256,
+            path=child_config.input_run.path,
+            commitSha256=child_config.input_run.commit_sha256,
+            transactionSha256=child_config.input_run.transaction_sha256,
         )
     )
     contract_filename = child_config.input_case_contract_filename
-    transaction = _read_bound_transaction(reference)
+    transaction = certification_run.transaction
     expected_dependencies = {
+        "containerSemantics": stage_hashes["containerSemantics"],
         "providerRuntime": stage_hashes["providerRuntime"],
         "hybridRuntime": stage_hashes["hybridRuntime"],
         "inventory": stage_hashes["inventoryContract"],
         "inventoryRunner": stage_hashes["inventory"],
         "rewriteContract": stage_hashes["rewriteContract"],
         "rewriteRuntime": stage_hashes["rewriteRuntime"],
+        "transportCapacity": stage_hashes["transportCapacity"],
+        **(
+            {
+                "certificationHost": stage_hashes["certificationHost"],
+                "certificationInvariants": stage_hashes["certificationInvariants"],
+                "certificationReferences": stage_hashes["certificationReferences"],
+            }
+            if child_config.audit_contract_version == 3
+            else {}
+        ),
     }
     runtime = transaction.get("runtime")
     if (
-        transaction.get("schemaVersion") != 2
+        transaction.get("schemaVersion") != (3 if child_config.audit_contract_version == 3 else 2)
         or transaction.get("runId") != child_config.run.run_id
         or transaction.get("configSha256") != sha256_file(config_path)
+        or transaction.get("resolvedConfigSha256")
+        != sha256_bytes(canonical_json_bytes(child_config.model_dump(mode="json")))
         or transaction.get("inputRunCommitSha256") != input_run.commit_sha256
-        or transaction.get("inputRunTransactionSha256")
-        != input_run.transaction_sha256
+        or transaction.get("inputRunTransactionSha256") != input_run.transaction_sha256
         or transaction.get("inputCaseContractFilename") != contract_filename
         or transaction.get("promptSha256") != child_config.prompt.sha256
         or transaction.get("implementationSha256") != stage_hashes["certification"]
-        or transaction.get("dependencyImplementationSha256")
-        != expected_dependencies
+        or transaction.get("dependencyImplementationSha256") != expected_dependencies
         or transaction.get("documentIds") != list(document_ids)
         or not isinstance(runtime, dict)
         or runtime.get("model") != child_config.provider.model
         or runtime.get("providerOrder") != _provider_order(child_config.provider)
-        or runtime.get("maxConcurrentDocuments")
-        != child_config.workflow.max_concurrent_documents
-        or runtime.get("semanticAuditPasses")
-        != child_config.workflow.semantic_audit_passes
+        or runtime.get("maxConcurrentDocuments") != child_config.workflow.max_concurrent_documents
+        or runtime.get("semanticAuditPasses") != child_config.workflow.semantic_audit_passes
+        or runtime.get("auditContractVersion") != child_config.audit_contract_version
+        or runtime.get("certificationMode") != "production"
+        or runtime.get("reasoningEfforts") != ["low", "high"]
     ):
         raise ValueError("pipeline certification child provenance differs")
 
-    results = cast(
-        tuple[CertificationCaseResult, ...],
-        _read_model_rows(
-            reference.root / "generation/results.jsonl",
-            CertificationCaseResult,
-        ),
-    )
+    results = tuple(row.result for row in certification_run.cases)
     if tuple(row.documentId for row in results) != document_ids:
         raise ValueError("pipeline certification child results differ from its scope")
-    summary = _read_json_object(reference.root / "summary.json")
+    summary = certification_run.summary
     status_counts = {
         status: sum(row.status == status for row in results)
-        for status in ("certified", "needs_review", "call_failed")
+        for status in ("certified", "evaluated_clean", "needs_review", "call_failed")
     }
     if (
-        summary.get("schemaVersion") != 2
+        summary.get("schemaVersion") != (3 if child_config.audit_contract_version == 3 else 2)
         or summary.get("runId") != child_config.run.run_id
         or summary.get("status") != "complete"
         or summary.get("documents") != len(results)
         or summary.get("certifiedDocuments") != status_counts["certified"]
+        or summary.get("evaluatedCleanDocuments") != status_counts["evaluated_clean"]
         or summary.get("needsReviewDocuments") != status_counts["needs_review"]
         or summary.get("callFailedDocuments") != status_counts["call_failed"]
-        or summary.get("semanticFindings")
-        != sum(row.semanticFindings for row in results)
+        or summary.get("semanticFindings") != sum(row.semanticFindings for row in results)
+        or (
+            child_config.audit_contract_version == 3
+            and summary.get("deterministicFindings")
+            != sum(row.deterministicFindings for row in results)
+        )
         or summary.get("candidateBytesModified") != 0
         or summary.get("trainingRecordsPublished") is not False
     ):
         raise ValueError("pipeline certification child summary differs from its results")
     for result in results:
-        per_case = CertificationCaseResult.model_validate_json(
-            read_regular_file_bytes(
-                reference.root / "cases" / result.documentId / "result.json"
-            ),
-            strict=True,
-        )
-        if per_case != result:
-            raise ValueError(
-                "pipeline certification aggregate and per-case results differ: "
-                f"{result.documentId}"
-            )
-        source_sha256 = _case_artifact_sha256(
-            reference, result.documentId, "source.txt"
-        )
-        input_sha256 = _case_artifact_sha256(
-            reference, result.documentId, "input-candidate.txt"
-        )
-        final_sha256 = _case_artifact_sha256(
-            reference, result.documentId, "final.txt"
-        )
+        source_sha256 = _case_artifact_sha256(reference, result.documentId, "source.txt")
+        input_sha256 = _case_artifact_sha256(reference, result.documentId, "input-candidate.txt")
+        final_sha256 = _case_artifact_sha256(reference, result.documentId, "final.txt")
         if (
             source_sha256 != result.sourceTextSha256
             or input_sha256 != result.inputCandidateSha256
@@ -820,8 +828,7 @@ def _validate_certification_child_run(
             or result.candidateImmutable is not True
         ):
             raise ValueError(
-                "pipeline certification child candidate identity differs: "
-                f"{result.documentId}"
+                f"pipeline certification child candidate identity differs: {result.documentId}"
             )
     return results, input_run, contract_filename
 
@@ -860,43 +867,94 @@ def _validate_correction_child_run(
         raise ValueError("pipeline correction child behavior contract differs")
     certification_run = resolve_reference(
         _LineageRunReference(
-        path=child_config.certification_run.path,
-        commitSha256=child_config.certification_run.commit_sha256,
-        transactionSha256=child_config.certification_run.transaction_sha256,
+            path=child_config.certification_run.path,
+            commitSha256=child_config.certification_run.commit_sha256,
+            transactionSha256=child_config.certification_run.transaction_sha256,
         )
     )
-    transaction = _read_bound_transaction(reference)
-    expected_dependencies = {
-        "certification": stage_hashes["certification"],
-        "providerRuntime": stage_hashes["providerRuntime"],
-        "hybridRuntime": stage_hashes["hybridRuntime"],
-        "inventory": stage_hashes["inventoryContract"],
-        "inventoryRunner": stage_hashes["inventory"],
-        "rewriteContract": stage_hashes["rewriteContract"],
-        "rewriteRuntime": stage_hashes["rewriteRuntime"],
-    }
-    runtime = transaction.get("runtime")
+    required_contract = child_config.workflow.required_audit_contract_version
+    validated_certification = load_validated_certification_run(
+        certification_run.root,
+        project_root=project_root if required_contract == 3 else None,
+    )
     if (
-        transaction.get("schemaVersion") != 1
+        validated_certification.config.audit_contract_version != required_contract
+        or validated_certification.config.workflow.evaluation_only
+        or validated_certification.config.workflow.semantic_audit_passes != 2
+    ):
+        raise ValueError("pipeline correction source is not its required production contract")
+    transaction = _read_bound_transaction(reference)
+    expected_dependencies = (
+        {
+            "certification": stage_hashes["certification"],
+            "certificationArtifacts": stage_hashes["certificationArtifacts"],
+            "certificationHost": stage_hashes["certificationHost"],
+            "certificationInvariants": stage_hashes["certificationInvariants"],
+            "certificationReferences": stage_hashes["certificationReferences"],
+            "rewriteRuntime": stage_hashes["rewriteRuntime"],
+        }
+        if required_contract == 3
+        else {
+            "certification": stage_hashes["certification"],
+            "certificationArtifacts": stage_hashes["certificationArtifacts"],
+            "providerRuntime": stage_hashes["providerRuntime"],
+            "hybridRuntime": stage_hashes["hybridRuntime"],
+            "inventory": stage_hashes["inventoryContract"],
+            "inventoryRunner": stage_hashes["inventory"],
+            "rewriteContract": stage_hashes["rewriteContract"],
+            "rewriteRuntime": stage_hashes["rewriteRuntime"],
+        }
+    )
+    runtime = transaction.get("runtime")
+    common_transaction_mismatch = (
+        transaction.get("schemaVersion") != (3 if required_contract == 3 else 2)
         or transaction.get("runId") != child_config.run.run_id
         or transaction.get("configSha256") != sha256_file(config_path)
-        or transaction.get("certificationRunCommitSha256")
-        != certification_run.commit_sha256
+        or transaction.get("resolvedConfigSha256")
+        != sha256_bytes(canonical_json_bytes(child_config.model_dump(mode="json")))
+        or transaction.get("certificationRunCommitSha256") != certification_run.commit_sha256
         or transaction.get("certificationRunTransactionSha256")
         != certification_run.transaction_sha256
-        or transaction.get("promptSha256") != child_config.prompt.sha256
+        or transaction.get("certificationConfigSha256")
+        != sha256_file(certification_run.root / "config.yaml")
+        or transaction.get("certificationResolvedConfigSha256")
+        != sha256_bytes(
+            canonical_json_bytes(validated_certification.config.model_dump(mode="json"))
+        )
+        or transaction.get("certificationTransactionArtifactSha256")
+        != sha256_file(certification_run.root / "provenance/transaction.json")
+        or transaction.get("certificationSummarySha256")
+        != sha256_file(certification_run.root / "summary.json")
+        or transaction.get("certificationAuditContractVersion") != required_contract
+        or transaction.get("certificationMode") != "production"
         or transaction.get("implementationSha256") != stage_hashes["correction"]
-        or transaction.get("dependencyImplementationSha256")
-        != expected_dependencies
+        or transaction.get("dependencyImplementationSha256") != expected_dependencies
         or transaction.get("documentIds") != list(document_ids)
+        or not isinstance(runtime, dict)
+    )
+    legacy_runtime_mismatch = required_contract == 2 and (
+        transaction.get("promptSha256") != child_config.prompt.sha256
         or not isinstance(runtime, dict)
         or runtime.get("model") != child_config.provider.model
         or runtime.get("providerOrder") != _provider_order(child_config.provider)
-        or runtime.get("maxConcurrentDocuments")
-        != child_config.workflow.max_concurrent_documents
+        or runtime.get("maxConcurrentDocuments") != child_config.workflow.max_concurrent_documents
         or runtime.get("maxSuccessfulModelResponsesPerDocument")
         != child_config.workflow.max_successful_model_responses_per_document
-    ):
+    )
+    deterministic_runtime_mismatch = required_contract == 3 and (
+        transaction.get("correctionMode") != "deterministic_exact_fragment_v1"
+        or transaction.get("invariantReferenceReceiptSha256")
+        != validated_certification.transaction.get("invariantReferenceReceiptSha256")
+        or transaction.get("capacityConfigSha256")
+        != validated_certification.transaction.get("capacityConfigSha256")
+        or not isinstance(runtime, dict)
+        or runtime
+        != {
+            "providerRequests": 0,
+            "maxConcurrentDocuments": child_config.workflow.max_concurrent_documents,
+        }
+    )
+    if common_transaction_mismatch or legacy_runtime_mismatch or deterministic_runtime_mismatch:
         raise ValueError("pipeline correction child provenance differs")
 
     results = cast(
@@ -919,81 +977,131 @@ def _validate_correction_child_run(
         )
     }
     if (
-        summary.get("schemaVersion") != 1
+        summary.get("schemaVersion") != (3 if required_contract == 3 else 1)
         or summary.get("runId") != child_config.run.run_id
         or summary.get("status") != "complete"
         or summary.get("documents") != len(results)
-        or summary.get("unchangedCertifiedDocuments")
-        != status_counts["unchanged_certified"]
-        or summary.get("correctionCandidateDocuments")
-        != status_counts["correction_candidate"]
+        or summary.get("unchangedCertifiedDocuments") != status_counts["unchanged_certified"]
+        or summary.get("correctionCandidateDocuments") != status_counts["correction_candidate"]
         or summary.get("needsReviewDocuments") != status_counts["needs_review"]
         or summary.get("callFailedDocuments") != status_counts["call_failed"]
-        or summary.get("sourceFindings")
-        != sum(row.sourceFindings for row in results)
+        or summary.get("sourceFindings") != sum(row.sourceFindings for row in results)
+        or (
+            required_contract == 3
+            and (
+                summary.get("semanticFindings") != sum(row.semanticFindings for row in results)
+                or summary.get("deterministicFindings")
+                != sum(row.deterministicFindings for row in results)
+                or summary.get("appliedDeterministicRepairs")
+                != sum(row.appliedDeterministicRepairs for row in results)
+                or summary.get("requests") != 0
+                or summary.get("providerAttempts") != 0
+            )
+        )
         or summary.get("citedLines") != sum(row.citedLines for row in results)
         or summary.get("changedLines") != sum(row.changedLines for row in results)
         or summary.get("trainingRecordsPublished") is not False
     ):
         raise ValueError("pipeline correction child summary differs from its results")
+    certified_cases = validated_certification.case_by_id()
     for result in results:
         per_case = CorrectionCaseResult.model_validate_json(
-            read_regular_file_bytes(
-                reference.root / "cases" / result.documentId / "result.json"
-            ),
+            read_regular_file_bytes(reference.root / "cases" / result.documentId / "result.json"),
             strict=True,
         )
         if per_case != result:
             raise ValueError(
-                "pipeline correction aggregate and per-case results differ: "
-                f"{result.documentId}"
+                f"pipeline correction aggregate and per-case results differ: {result.documentId}"
             )
         if (
             _case_artifact_sha256(reference, result.documentId, "source.txt")
             != result.sourceTextSha256
-            or _case_artifact_sha256(
-                reference, result.documentId, "input-candidate.txt"
-            )
+            or _case_artifact_sha256(reference, result.documentId, "input-candidate.txt")
             != result.inputCandidateSha256
             or _case_artifact_sha256(reference, result.documentId, "final.txt")
             != result.finalTextSha256
         ):
             raise ValueError(
-                "pipeline correction child candidate identity differs: "
-                f"{result.documentId}"
+                f"pipeline correction child candidate identity differs: {result.documentId}"
             )
         for filename in ("source-label.json", "target-label.json"):
             if _read_json_object(
                 reference.root / "cases" / result.documentId / filename
-            ) != _read_json_object(
-                certification_run.root / "cases" / result.documentId / filename
-            ):
+            ) != _read_json_object(certification_run.root / "cases" / result.documentId / filename):
                 raise ValueError(
-                    "pipeline correction child contract handoff differs: "
-                    f"{result.documentId}"
+                    f"pipeline correction child contract handoff differs: {result.documentId}"
                 )
         source = read_regular_file_bytes(
             certification_run.root / "cases" / result.documentId / "source.txt"
         ).decode("utf-8")
-        expected_contract = _refine_carrier_occurrence_contract(
-            source=source,
-            contract=_read_json_object(
-                certification_run.root
-                / "cases"
-                / result.documentId
-                / "source-contract.json"
-            ),
+        source_contract = _read_json_object(
+            certification_run.root / "cases" / result.documentId / "source-contract.json"
         )
-        if _read_json_object(
-            reference.root
-            / "cases"
-            / result.documentId
-            / "source-contract.json"
-        ) != expected_contract:
-            raise ValueError(
-                "pipeline correction child refined contract differs: "
-                f"{result.documentId}"
+        expected_contract = (
+            source_contract
+            if required_contract == 3
+            else _refine_carrier_occurrence_contract(
+                source=source,
+                contract=source_contract,
             )
+        )
+        if (
+            _read_json_object(reference.root / "cases" / result.documentId / "source-contract.json")
+            != expected_contract
+        ):
+            raise ValueError(
+                f"pipeline correction child refined contract differs: {result.documentId}"
+            )
+        if required_contract == 3:
+            certified_invariant = certified_cases[result.documentId].invariant_case
+            if certified_invariant is None:
+                raise ValueError("pipeline contract-v3 source lost its invariant artifacts")
+            expected = _deterministic_correction_case(
+                certified=certified_cases[result.documentId],
+                certification_run=validated_certification,
+            )
+            case_root = reference.root / "cases" / result.documentId
+            if (
+                result != expected.result
+                or read_regular_file_bytes(case_root / "final.txt")
+                != expected.final.encode("utf-8")
+                or json.loads(
+                    read_regular_file_bytes(case_root / "authorized-deterministic-repairs.json")
+                )
+                != [row.model_dump(mode="json") for row in expected.authorized_repairs]
+                or json.loads(
+                    read_regular_file_bytes(case_root / "applied-deterministic-repairs.json")
+                )
+                != [row.model_dump(mode="json") for row in expected.applied_repairs]
+                or _read_json_object(case_root / "pre-invariant-envelope.json")
+                != certified_invariant.envelope.model_dump(mode="json")
+                or _read_json_object(case_root / "pre-invariant-audit.json")
+                != certified_invariant.audit.model_dump(mode="json")
+                or _read_json_object(case_root / "invariant-envelope.json")
+                != expected.final_invariant.envelope.model_dump(mode="json")
+                or _read_json_object(case_root / "invariant-audit.json")
+                != expected.final_invariant.audit.model_dump(mode="json")
+                or json.loads(read_regular_file_bytes(case_root / "stages.json")) != []
+            ):
+                raise ValueError(
+                    f"pipeline deterministic correction replay differs: {result.documentId}"
+                )
+            attempted_envelope = case_root / "attempted-invariant-envelope.json"
+            attempted_audit = case_root / "attempted-invariant-audit.json"
+            if expected.attempted_invariant is None:
+                if attempted_envelope.exists() or attempted_audit.exists():
+                    raise ValueError(
+                        "pipeline correction has an unexpected attempted audit: "
+                        f"{result.documentId}"
+                    )
+            elif _read_json_object(
+                attempted_envelope
+            ) != expected.attempted_invariant.envelope.model_dump(mode="json") or _read_json_object(
+                attempted_audit
+            ) != expected.attempted_invariant.audit.model_dump(mode="json"):
+                raise ValueError(
+                    f"pipeline correction attempted audit differs: {result.documentId}"
+                )
     return results, certification_run
 
 
@@ -1002,16 +1110,22 @@ def _stage_implementation_hashes() -> dict[str, str]:
         name: sha256_file(Path(__file__).with_name(filename))
         for name, filename in (
             ("config", "config.py"),
+            ("containerSemantics", "container_semantics.py"),
             ("inventory", "raw_text_inventory_probe.py"),
             ("inventoryContract", "raw_text_inventory.py"),
             ("hybridBatch", "raw_text_hybrid_batch.py"),
             ("hybridRuntime", "raw_text_hybrid_probe.py"),
             ("certification", "raw_text_certification.py"),
+            ("certificationArtifacts", "raw_text_certification_artifacts.py"),
+            ("certificationHost", "raw_text_certification_host.py"),
+            ("certificationInvariants", "raw_text_certification_invariants.py"),
+            ("certificationReferences", "raw_text_certification_references.py"),
             ("correction", "raw_text_certified_correction.py"),
             ("publication", "raw_text_certified_publication.py"),
             ("providerRuntime", "linguistic_probe_runtime.py"),
             ("rewriteContract", "raw_text_rewrite_cycle_probe.py"),
             ("rewriteRuntime", "raw_text_rewrite_probe.py"),
+            ("transportCapacity", "transport_capacity.py"),
         )
     }
 
@@ -1059,7 +1173,8 @@ def _load_inventory_resume_state(
 
     summary = _read_json_object(parent_run.root / "summary.json")
     if (
-        summary.get("status") != "blocked"
+        summary.get("schemaVersion") != config.schema_version
+        or summary.get("status") != "blocked"
         or summary.get("documents") != config.workflow.documents
         or summary.get("certifiedDocuments") != 0
         or summary.get("correctionRounds") != 0
@@ -1084,16 +1199,16 @@ def _load_inventory_resume_state(
     )
     parent_inventory_path = parent_run.root / "inputs/inventory-config.yaml"
     parent_inventory_sha256 = sha256_file(parent_inventory_path)
-    parent_inventory = load_synthesis_raw_text_inventory_batch_config(
-        parent_inventory_path
-    )
+    parent_inventory = load_synthesis_raw_text_inventory_batch_config(parent_inventory_path)
     if (
         parent_config.run.run_id != parent_run.root.name
         or parent_config.workflow.documents != config.workflow.documents
+        or parent_config.schema_version != config.schema_version
+        or parent_config.task != config.task
+        or parent_transaction.get("schemaVersion") != parent_config.schema_version
         or parent_transaction.get("configSha256") != parent_config_sha256
         or parent_transaction.get("runId") != parent_config.run.run_id
-        or parent_transaction.get("inventoryConfigSha256")
-        != parent_inventory_sha256
+        or parent_transaction.get("inventoryConfigSha256") != parent_inventory_sha256
         or parent_config.inventory_config.sha256 != parent_inventory_sha256
     ):
         raise ValueError("pipeline inventory resume parent configuration provenance differs")
@@ -1123,6 +1238,7 @@ def _load_inventory_resume_state(
         raise ValueError("pipeline inventory resume source lacks stage implementation hashes")
     current_stage_hashes = _stage_implementation_hashes()
     inventory_dependencies = (
+        "containerSemantics",
         "inventory",
         "inventoryContract",
         "hybridBatch",
@@ -1157,10 +1273,7 @@ def _load_inventory_resume_state(
         _read_model_rows(lineage_path, _InventoryResumeLineageRow),
     )
     document_ids = tuple(row.documentId for row in rows)
-    if (
-        len(rows) != config.workflow.documents
-        or len(document_ids) != len(set(document_ids))
-    ):
+    if len(rows) != config.workflow.documents or len(document_ids) != len(set(document_ids)):
         raise ValueError("pipeline inventory resume lineage differs from the unique cohort")
 
     reference_cache: dict[tuple[str, str, str], _RunReference] = {}
@@ -1190,16 +1303,12 @@ def _load_inventory_resume_state(
                 f"pipeline inventory resume row has no inventory history: {row.documentId}"
             )
         rounds = tuple(history.round for history in row.history)
-        if (
-            any(round_number < 1 for round_number in rounds)
-            or tuple(sorted(set(rounds))) != rounds
-        ):
+        if any(round_number < 1 for round_number in rounds) or tuple(sorted(set(rounds))) != rounds:
             raise ValueError(
                 f"pipeline inventory resume rounds are not strictly ordered: {row.documentId}"
             )
         histories_by_id[row.documentId] = [
-            cast(dict[str, JsonValue], history.model_dump(mode="json"))
-            for history in row.history
+            cast(dict[str, JsonValue], history.model_dump(mode="json")) for history in row.history
         ]
         for history in row.history:
             history_by_round[history.round].append((row.documentId, history))
@@ -1256,9 +1365,7 @@ def _load_inventory_resume_state(
             stage_hashes=current_stage_hashes,
         )
         if inventory_transaction_contract_sha256 is None:
-            inventory_transaction_contract_sha256 = (
-                child_transaction_contract_sha256
-            )
+            inventory_transaction_contract_sha256 = child_transaction_contract_sha256
         for (document_id, history), result in zip(
             round_history,
             results,
@@ -1282,9 +1389,7 @@ def _load_inventory_resume_state(
                 )
         validated_by_round[round_number] = (reference, round_ids, results)
         expected_scope = tuple(
-            result.documentId
-            for result in results
-            if result.status != "training_ready"
+            result.documentId for result in results if result.status != "training_ready"
         )
 
     if inventory_transaction_contract_sha256 is None:
@@ -1292,8 +1397,7 @@ def _load_inventory_resume_state(
     if ancestor_resume is not None:
         if (
             ancestor_resume.document_ids != document_ids
-            or ancestor_resume.inventory_contract_sha256
-            != inventory_contract_sha256
+            or ancestor_resume.inventory_contract_sha256 != inventory_contract_sha256
             or ancestor_resume.inventory_transaction_contract_sha256
             != inventory_transaction_contract_sha256
             or ancestor_resume.prior_rounds >= prior_rounds
@@ -1308,13 +1412,11 @@ def _load_inventory_resume_state(
                     "pipeline inventory resume ancestry is not an exact history prefix: "
                     f"{document_id}"
                 )
-            if (
-                document_id in ancestor_resume.states_by_id
-                and len(current_history) != len(ancestor_history)
+            if document_id in ancestor_resume.states_by_id and len(current_history) != len(
+                ancestor_history
             ):
                 raise ValueError(
-                    "pipeline inventory resume retried an ancestor-ready case: "
-                    f"{document_id}"
+                    f"pipeline inventory resume retried an ancestor-ready case: {document_id}"
                 )
 
     subruns = cast(
@@ -1340,8 +1442,7 @@ def _load_inventory_resume_state(
             or transaction_resume is not None
             or parent_transaction.get("inventoryResumeLineageSha256") is not None
             or subruns != inventory_subruns
-            or tuple(row.round for row in inventory_subruns)
-            != tuple(range(1, prior_rounds + 1))
+            or tuple(row.round for row in inventory_subruns) != tuple(range(1, prior_rounds + 1))
         ):
             raise ValueError("pipeline inventory resume parent subrun topology differs")
     else:
@@ -1360,8 +1461,7 @@ def _load_inventory_resume_state(
             or subruns[0] != resume_markers[0]
             or transaction_resume != expected_parent_resume
             or recorded_parent_resume != expected_parent_resume
-            or resume_markers[0].run.model_dump(mode="json")
-            != expected_parent_resume
+            or resume_markers[0].run.model_dump(mode="json") != expected_parent_resume
             or resume_markers[0].documentIds != document_ids
             or resume_markers[0].round != ancestor_resume.prior_rounds
             or tuple(row.round for row in inventory_subruns)
@@ -1378,10 +1478,8 @@ def _load_inventory_resume_state(
         ancestor_lineage_sha256 = sha256_file(ancestor.root / "lineage/cases.jsonl")
         if (
             ancestor_resume.parent_run != ancestor
-            or resume_markers[0].summarySha256
-            != sha256_file(ancestor.root / "summary.json")
-            or parent_transaction.get("inventoryResumeLineageSha256")
-            != ancestor_lineage_sha256
+            or resume_markers[0].summarySha256 != sha256_file(ancestor.root / "summary.json")
+            or parent_transaction.get("inventoryResumeLineageSha256") != ancestor_lineage_sha256
         ):
             raise ValueError("pipeline chained inventory resume provenance differs")
 
@@ -1411,9 +1509,7 @@ def _load_inventory_resume_state(
                     f"pipeline inventory resume blocked row has partial state: {row.documentId}"
                 )
             if row.history[-1].status == "training_ready":
-                raise ValueError(
-                    f"pipeline inventory resume lost a ready state: {row.documentId}"
-                )
+                raise ValueError(f"pipeline inventory resume lost a ready state: {row.documentId}")
             continue
         if (
             row.inventoryRound is None
@@ -1431,10 +1527,7 @@ def _load_inventory_resume_state(
         source_sha256 = _case_artifact_sha256(reference, row.documentId, "source.txt")
         candidate_sha256 = _case_artifact_sha256(reference, row.documentId, "final.txt")
         read_regular_file_bytes(reference.root / "cases" / row.documentId / "contract.json")
-        if (
-            source_sha256 != row.sourceTextSha256
-            or candidate_sha256 != row.currentCandidateSha256
-        ):
+        if source_sha256 != row.sourceTextSha256 or candidate_sha256 != row.currentCandidateSha256:
             raise ValueError(
                 f"pipeline inventory resume candidate handoff differs: {row.documentId}"
             )
@@ -1481,9 +1574,7 @@ def _load_inventory_resume_state(
         lineage_sha256=lineage_sha256,
         input_identities_by_id=input_identities_by_id,
         inventory_contract_sha256=inventory_contract_sha256,
-        inventory_transaction_contract_sha256=(
-            inventory_transaction_contract_sha256
-        ),
+        inventory_transaction_contract_sha256=(inventory_transaction_contract_sha256),
     )
 
 
@@ -1524,7 +1615,8 @@ def _load_pipeline_resume_state(
 
     summary = _read_json_object(parent_run.root / "summary.json")
     if (
-        summary.get("status") != "blocked"
+        summary.get("schemaVersion") != config.schema_version
+        or summary.get("status") != "blocked"
         or summary.get("documents") != config.workflow.documents
         or summary.get("inventoryReadyDocuments") != config.workflow.documents
         or summary.get("trainingRecordsPublished") is not False
@@ -1541,17 +1633,16 @@ def _load_pipeline_resume_state(
     parent_config = load_synthesis_raw_text_pipeline_config(parent_config_path)
     parent_inventory_path = parent_run.root / "inputs/inventory-config.yaml"
     parent_inventory_sha256 = sha256_file(parent_inventory_path)
-    parent_inventory = load_synthesis_raw_text_inventory_batch_config(
-        parent_inventory_path
-    )
+    parent_inventory = load_synthesis_raw_text_inventory_batch_config(parent_inventory_path)
     if (
         parent_config.run.run_id != parent_run.root.name
         or parent_config.workflow.documents != config.workflow.documents
-        or parent_transaction.get("schemaVersion") != 1
+        or parent_transaction.get("schemaVersion") != parent_config.schema_version
+        or parent_config.schema_version != config.schema_version
+        or parent_config.task != config.task
         or parent_transaction.get("configSha256") != parent_config_sha256
         or parent_transaction.get("runId") != parent_config.run.run_id
-        or parent_transaction.get("inventoryConfigSha256")
-        != parent_inventory_sha256
+        or parent_transaction.get("inventoryConfigSha256") != parent_inventory_sha256
         or parent_config.inventory_config.sha256 != parent_inventory_sha256
         or config.inventory_config.sha256 != parent_inventory_sha256
     ):
@@ -1566,12 +1657,16 @@ def _load_pipeline_resume_state(
         prompt=config.certification.prompt,
         provider=config.certification.provider,
         workflow=config.certification.workflow,
+        audit_contract_version=config.certification.audit_contract_version,
+        invariant_inputs=config.certification.invariant_inputs,
     )
     parent_certification_contract = _stage_template_contract_sha256(
         environment_file=parent_config.certification.environment_file,
         prompt=parent_config.certification.prompt,
         provider=parent_config.certification.provider,
         workflow=parent_config.certification.workflow,
+        audit_contract_version=parent_config.certification.audit_contract_version,
+        invariant_inputs=parent_config.certification.invariant_inputs,
     )
     current_correction_contract = _stage_template_contract_sha256(
         environment_file=config.correction.environment_file,
@@ -1611,8 +1706,7 @@ def _load_pipeline_resume_state(
     )
     if mismatched_stages:
         raise ValueError(
-            "pipeline continuation implementation differs for: "
-            + ", ".join(mismatched_stages)
+            "pipeline continuation implementation differs for: " + ", ".join(mismatched_stages)
         )
     if (
         parent_transaction.get("targetSchemaImplementationSha256")
@@ -1651,10 +1745,7 @@ def _load_pipeline_resume_state(
         _read_model_rows(lineage_path, _PipelineResumeLineageRow),
     )
     document_ids = tuple(row.documentId for row in rows)
-    if (
-        len(rows) != config.workflow.documents
-        or len(document_ids) != len(set(document_ids))
-    ):
+    if len(rows) != config.workflow.documents or len(document_ids) != len(set(document_ids)):
         raise ValueError("pipeline continuation lineage differs from the unique cohort")
 
     reference_cache: dict[tuple[str, str, str], _RunReference] = {}
@@ -1698,18 +1789,15 @@ def _load_pipeline_resume_state(
         current = histories_by_id[row.documentId]
         if current[: len(prefix)] != prefix:
             raise ValueError(
-                "pipeline continuation ancestry is not an exact history prefix: "
-                f"{row.documentId}"
+                f"pipeline continuation ancestry is not an exact history prefix: {row.documentId}"
             )
         if (
             ancestor_pipeline is not None
-            and ancestor_pipeline.states_by_id[row.documentId].final_certification_run
-            is not None
+            and ancestor_pipeline.states_by_id[row.documentId].final_certification_run is not None
             and current != prefix
         ):
             raise ValueError(
-                "pipeline continuation retried an already certified case: "
-                f"{row.documentId}"
+                f"pipeline continuation retried an already certified case: {row.documentId}"
             )
 
     subruns = cast(
@@ -1738,8 +1826,7 @@ def _load_pipeline_resume_state(
             or markers[0].round != 0
             or markers[0].run.model_dump(mode="json") != expected_value
             or markers[0].documentIds != document_ids
-            or markers[0].summarySha256
-            != sha256_file(expected_parent.root / "summary.json")
+            or markers[0].summarySha256 != sha256_file(expected_parent.root / "summary.json")
             or parent_transaction.get("pipelineResumeRun") != expected_value
             or parent_transaction.get("pipelineResumeLineageSha256")
             != ancestor_pipeline.lineage_sha256
@@ -1761,8 +1848,7 @@ def _load_pipeline_resume_state(
             or markers[0].round != ancestor_inventory.prior_rounds
             or markers[0].run.model_dump(mode="json") != expected_value
             or markers[0].documentIds != document_ids
-            or markers[0].summarySha256
-            != sha256_file(expected_parent.root / "summary.json")
+            or markers[0].summarySha256 != sha256_file(expected_parent.root / "summary.json")
             or parent_transaction.get("inventoryResumeRun") != expected_value
             or parent_transaction.get("inventoryResumeLineageSha256")
             != ancestor_inventory.lineage_sha256
@@ -1781,12 +1867,10 @@ def _load_pipeline_resume_state(
     ):
         raise ValueError("pipeline continuation base run has unexpected resume provenance")
 
-    inventory_events_by_round: dict[
-        int, list[tuple[str, _InventoryHistoryRow]]
-    ] = defaultdict(list)
-    appended_events_by_run: dict[
-        tuple[str, str, str], list[tuple[str, _PipelineHistoryRow]]
-    ] = defaultdict(list)
+    inventory_events_by_round: dict[int, list[tuple[str, _InventoryHistoryRow]]] = defaultdict(list)
+    appended_events_by_run: dict[tuple[str, str, str], list[tuple[str, _PipelineHistoryRow]]] = (
+        defaultdict(list)
+    )
     for row in rows:
         saw_non_inventory = False
         prefix_length = len(prefix_histories[row.documentId])
@@ -1844,9 +1928,7 @@ def _load_pipeline_resume_state(
         )
         if inventory_transaction_contract_sha256 is None:
             inventory_transaction_contract_sha256 = child_transaction_contract_sha256
-        for (document_id, event), result in zip(
-            round_events, inventory_results, strict=True
-        ):
+        for (document_id, event), result in zip(round_events, inventory_results, strict=True):
             if (
                 result.documentId != document_id
                 or result.status != event.status
@@ -1860,21 +1942,15 @@ def _load_pipeline_resume_state(
             prior_identity = inventory_input_identities.setdefault(document_id, identity)
             if prior_identity != identity:
                 raise ValueError(
-                    "pipeline continuation inventory input identity changed: "
-                    f"{document_id}"
+                    f"pipeline continuation inventory input identity changed: {document_id}"
                 )
             if result.status == "training_ready":
                 if document_id in states_by_id:
                     raise ValueError(
-                        "pipeline continuation inventory retried a ready case: "
-                        f"{document_id}"
+                        f"pipeline continuation inventory retried a ready case: {document_id}"
                     )
-                source_sha256 = _case_artifact_sha256(
-                    reference, document_id, "source.txt"
-                )
-                candidate_sha256 = _case_artifact_sha256(
-                    reference, document_id, "final.txt"
-                )
+                source_sha256 = _case_artifact_sha256(reference, document_id, "source.txt")
+                candidate_sha256 = _case_artifact_sha256(reference, document_id, "final.txt")
                 states_by_id[document_id] = _CaseState(
                     document_id=document_id,
                     inventory_run=reference,
@@ -1885,9 +1961,7 @@ def _load_pipeline_resume_state(
                     candidate_hashes={candidate_sha256},
                 )
         expected_scope = tuple(
-            result.documentId
-            for result in inventory_results
-            if result.status != "training_ready"
+            result.documentId for result in inventory_results if result.status != "training_ready"
         )
     if expected_scope or len(states_by_id) != len(document_ids):
         raise ValueError("pipeline continuation source does not have a ready inventory cohort")
@@ -1905,12 +1979,12 @@ def _load_pipeline_resume_state(
     ):
         raise ValueError("pipeline continuation inventory ancestry contract differs")
 
-    certification_events: dict[
-        tuple[str, str, str], list[tuple[str, _CertificationHistoryRow]]
-    ] = defaultdict(list)
-    correction_events: dict[
-        tuple[str, str, str], list[tuple[str, _CorrectionHistoryRow]]
-    ] = defaultdict(list)
+    certification_events: dict[tuple[str, str, str], list[tuple[str, _CertificationHistoryRow]]] = (
+        defaultdict(list)
+    )
+    correction_events: dict[tuple[str, str, str], list[tuple[str, _CorrectionHistoryRow]]] = (
+        defaultdict(list)
+    )
     for row in rows:
         for event in row.history:
             run_value = event.run
@@ -1945,16 +2019,9 @@ def _load_pipeline_resume_state(
             expected_template_sha256=current_certification_contract,
             stage_hashes=current_stage_hashes,
         )
-        cert_event_ids = tuple(
-            document_id for document_id, _event in cert_events
-        )
-        if (
-            tuple(result.documentId for result in cert_child_results)
-            != cert_event_ids
-        ):
-            raise ValueError(
-                "pipeline continuation certification history differs from child scope"
-            )
+        cert_event_ids = tuple(document_id for document_id, _event in cert_events)
+        if tuple(result.documentId for result in cert_child_results) != cert_event_ids:
+            raise ValueError("pipeline continuation certification history differs from child scope")
         certification_results[cert_key] = (
             {result.documentId: result for result in cert_child_results},
             cert_input_run,
@@ -1967,35 +2034,28 @@ def _load_pipeline_resume_state(
     ] = {}
     for correction_key, correction_run_events in correction_events.items():
         correction_reference = resolve_reference(correction_run_events[0][1].run)
-        correction_child_results, correction_certification_run = (
-            _validate_correction_child_run(
+        correction_child_results, correction_certification_run = _validate_correction_child_run(
             project_root=project_root,
             reference=correction_reference,
             resolve_reference=resolve_reference,
             expected_template_sha256=current_correction_contract,
             stage_hashes=current_stage_hashes,
-            )
         )
-        correction_event_ids = tuple(
-            document_id for document_id, _event in correction_run_events
-        )
-        if (
-            tuple(result.documentId for result in correction_child_results)
-            != correction_event_ids
-        ):
-            raise ValueError(
-                "pipeline continuation correction history differs from child scope"
-            )
+        correction_event_ids = tuple(document_id for document_id, _event in correction_run_events)
+        if tuple(result.documentId for result in correction_child_results) != correction_event_ids:
+            raise ValueError("pipeline continuation correction history differs from child scope")
         correction_results[correction_key] = (
             {result.documentId: result for result in correction_child_results},
             correction_certification_run,
         )
 
     certified_sources: dict[_RunReference, list[str]] = defaultdict(list)
+    terminal_failures: dict[str, str] = {}
     for row in rows:
         state = states_by_id[row.documentId]
         state.history = list(histories_by_id[row.documentId])
         prefix_length = len(prefix_histories[row.documentId])
+        derived_terminal_reason: str | None = None
         for event_index, event in enumerate(row.history):
             if isinstance(event, _InventoryHistoryRow):
                 continue
@@ -2023,22 +2083,16 @@ def _load_pipeline_resume_state(
                 if (
                     input_run != state.candidate_run
                     or contract_filename != state.contract_filename
-                    or cert_transition_result.sourceTextSha256
-                    != state.source_text_sha256
-                    or cert_transition_result.inputCandidateSha256
-                    != state.current_candidate_sha256
-                    or cert_transition_result.finalTextSha256
-                    != state.current_candidate_sha256
+                    or cert_transition_result.sourceTextSha256 != state.source_text_sha256
+                    or cert_transition_result.inputCandidateSha256 != state.current_candidate_sha256
+                    or cert_transition_result.finalTextSha256 != state.current_candidate_sha256
                     or event.attempt != state.certification_attempts + 1
                     or event.status != cert_transition_result.status
-                    or event.semanticFindings
-                    != cert_transition_result.semanticFindings
-                    or event.hostAuditPassed
-                    != cert_transition_result.hostAudit.passed
+                    or event.semanticFindings != cert_transition_result.semanticFindings
+                    or event.hostAuditPassed != cert_transition_result.hostAudit.passed
                 ):
                     raise ValueError(
-                        "pipeline continuation certification transition differs: "
-                        f"{row.documentId}"
+                        f"pipeline continuation certification transition differs: {row.documentId}"
                     )
                 if is_local_event:
                     state.local_certification_attempts += 1
@@ -2055,25 +2109,16 @@ def _load_pipeline_resume_state(
                     if _read_json_object(
                         reference.root / "cases" / row.documentId / filename
                     ) != _read_json_object(
-                        state.candidate_run.root
-                        / "cases"
-                        / row.documentId
-                        / filename
+                        state.candidate_run.root / "cases" / row.documentId / filename
                     ):
                         raise ValueError(
                             "pipeline continuation certification label handoff differs: "
                             f"{row.documentId}"
                         )
                 if _read_json_object(
-                    reference.root
-                    / "cases"
-                    / row.documentId
-                    / "source-contract.json"
+                    reference.root / "cases" / row.documentId / "source-contract.json"
                 ) != _read_json_object(
-                    state.candidate_run.root
-                    / "cases"
-                    / row.documentId
-                    / state.contract_filename
+                    state.candidate_run.root / "cases" / row.documentId / state.contract_filename
                 ):
                     raise ValueError(
                         "pipeline continuation certification contract handoff differs: "
@@ -2083,8 +2128,31 @@ def _load_pipeline_resume_state(
                 if cert_transition_result.status == "certified":
                     state.final_certification_run = reference
                     certified_sources[reference].append(row.documentId)
-                elif _certification_is_actionable(cert_transition_result):
-                    state.pending_correction_run = reference
+                else:
+                    invariant_audit = (
+                        _certification_invariant_audit(reference, row.documentId)
+                        if cert_transition_result.auditContractVersion == 3
+                        else None
+                    )
+                    terminal_reason = (
+                        _v3_certification_terminal_reason(
+                            result=cert_transition_result,
+                            invariant_audit=invariant_audit,
+                            correction_rounds=state.correction_rounds,
+                            correction_round_limit=(
+                                parent_config.correction.max_rounds_per_document
+                            ),
+                        )
+                        if invariant_audit is not None
+                        else None
+                    )
+                    if terminal_reason is not None:
+                        derived_terminal_reason = terminal_reason
+                    elif _certification_is_actionable(
+                        cert_transition_result,
+                        invariant_audit,
+                    ):
+                        state.pending_correction_run = reference
             else:
                 correction_result_map, certification_run = correction_results[key]
                 correction_transition_result = correction_result_map[row.documentId]
@@ -2092,22 +2160,18 @@ def _load_pipeline_resume_state(
                 if (
                     state.final_certification_run is not None
                     or state.pending_correction_run is None
-                    or state.correction_rounds
-                    >= parent_config.correction.max_rounds_per_document
+                    or state.correction_rounds >= parent_config.correction.max_rounds_per_document
                     or certification_run != state.pending_correction_run
-                    or correction_transition_result.sourceTextSha256
-                    != state.source_text_sha256
+                    or correction_transition_result.sourceTextSha256 != state.source_text_sha256
                     or correction_transition_result.inputCandidateSha256
                     != state.current_candidate_sha256
                     or event.round != state.correction_rounds + 1
                     or event.attempt not in (None, expected_attempt)
                     or event.status != correction_transition_result.status
-                    or event.candidateSha256
-                    != correction_transition_result.finalTextSha256
+                    or event.candidateSha256 != correction_transition_result.finalTextSha256
                 ):
                     raise ValueError(
-                        "pipeline continuation correction transition differs: "
-                        f"{row.documentId}"
+                        f"pipeline continuation correction transition differs: {row.documentId}"
                     )
                 if is_local_event:
                     state.local_correction_attempts += 1
@@ -2125,36 +2189,24 @@ def _load_pipeline_resume_state(
                     correction_transition_result.status == "correction_candidate"
                     and correction_transition_result.requiresRecertification
                 ):
-                    if (
-                        correction_transition_result.finalTextSha256
-                        in state.candidate_hashes
-                    ):
-                        if (
-                            is_local_event
-                            and (
-                                event_index != len(row.history) - 1
-                                or row.blockingReason != _REPEATED_CANDIDATE_REASON
-                            )
+                    if correction_transition_result.finalTextSha256 in state.candidate_hashes:
+                        if is_local_event and (
+                            event_index != len(row.history) - 1
+                            or row.blockingReason != _REPEATED_CANDIDATE_REASON
                         ):
                             raise ValueError(
                                 "pipeline continuation parent continued after a repeated "
                                 f"candidate: {row.documentId}"
                             )
+                        derived_terminal_reason = _REPEATED_CANDIDATE_REASON
                         continue
-                    state.candidate_hashes.add(
-                        correction_transition_result.finalTextSha256
-                    )
+                    state.candidate_hashes.add(correction_transition_result.finalTextSha256)
                     state.candidate_run = reference
-                    state.current_candidate_sha256 = (
-                        correction_transition_result.finalTextSha256
-                    )
+                    state.current_candidate_sha256 = correction_transition_result.finalTextSha256
                     state.contract_filename = "source-contract.json"
                     state.certification_attempts = 0
                     state.correction_rounds += 1
-                    if (
-                        state.correction_rounds
-                        > parent_config.correction.max_rounds_per_document
-                    ):
+                    if state.correction_rounds > parent_config.correction.max_rounds_per_document:
                         raise ValueError(
                             "pipeline continuation parent exceeded its "
                             "correction-round bound: "
@@ -2164,6 +2216,10 @@ def _load_pipeline_resume_state(
                     state.local_certification_attempts = 0
                     state.local_correction_attempts = 0
                     state.pending_correction_run = None
+                else:
+                    terminal_reason = _v3_correction_terminal_reason(correction_transition_result)
+                    if terminal_reason is not None:
+                        derived_terminal_reason = terminal_reason
 
         expected_final = (
             resolve_reference(row.finalCertificationRun)
@@ -2177,34 +2233,34 @@ def _load_pipeline_resume_state(
             or row.currentCandidateSha256 != state.current_candidate_sha256
             or row.correctionRounds != state.correction_rounds
             or expected_final != state.final_certification_run
-            or (row.status == "certified")
-            != (state.final_certification_run is not None)
+            or (row.status == "certified") != (state.final_certification_run is not None)
             or (row.blockingReason is None) != (row.status == "certified")
         ):
             raise ValueError(
                 "pipeline continuation terminal case state differs from its history: "
                 f"{row.documentId}"
             )
+        if derived_terminal_reason is not None:
+            if row.blockingReason != derived_terminal_reason:
+                raise ValueError(
+                    "pipeline continuation terminal reason differs from its deterministic "
+                    f"state: {row.documentId}"
+                )
+            terminal_failures[row.documentId] = derived_terminal_reason
 
     local_subruns = tuple(row for row in subruns if row is not expected_marker)
-    local_inventory_subruns = tuple(
-        row for row in local_subruns if row.stage == "inventory"
-    )
+    local_inventory_subruns = tuple(row for row in local_subruns if row.stage == "inventory")
     if ancestor_pipeline is not None:
         if local_inventory_subruns:
-            raise ValueError(
-                "pipeline continuation parent reran inventory after a pipeline resume"
-            )
+            raise ValueError("pipeline continuation parent reran inventory after a pipeline resume")
     else:
         prior_inventory_rounds = (
             ancestor_inventory.prior_rounds if ancestor_inventory is not None else 0
         )
         if (
             not local_inventory_subruns
-            or len(local_inventory_subruns)
-            > parent_config.workflow.max_inventory_rounds
-            or local_subruns[: len(local_inventory_subruns)]
-            != local_inventory_subruns
+            or len(local_inventory_subruns) > parent_config.workflow.max_inventory_rounds
+            or local_subruns[: len(local_inventory_subruns)] != local_inventory_subruns
             or tuple(row.round for row in local_inventory_subruns)
             != tuple(
                 range(
@@ -2214,12 +2270,8 @@ def _load_pipeline_resume_state(
             )
             or any(row.shard != 1 for row in local_inventory_subruns)
         ):
-            raise ValueError(
-                "pipeline continuation parent inventory subrun topology differs"
-            )
-        first_inventory_reference = resolve_reference(
-            local_inventory_subruns[0].run
-        )
+            raise ValueError("pipeline continuation parent inventory subrun topology differs")
+        first_inventory_reference = resolve_reference(local_inventory_subruns[0].run)
         expected_first_inventory_root = _ensure_under_project_root(
             project_root,
             resolve_config_path(project_root, parent_inventory.run.output_dir)
@@ -2247,12 +2299,8 @@ def _load_pipeline_resume_state(
         event_stage = first_event.stage
         if (
             subrun.stage != event_stage
-            or subrun.documentIds
-            != tuple(document_id for document_id, _event in local_events)
-            or any(
-                event.stage != event_stage
-                for _document_id, event in local_events
-            )
+            or subrun.documentIds != tuple(document_id for document_id, _event in local_events)
+            or any(event.stage != event_stage for _document_id, event in local_events)
         ):
             raise ValueError("pipeline continuation subrun differs from appended history")
         if (
@@ -2262,16 +2310,13 @@ def _load_pipeline_resume_state(
             event_stage == "correction"
             and len(subrun.documentIds) > parent_config.correction.shard_size
         ):
-            raise ValueError(
-                "pipeline continuation parent component scope exceeds its shard bound"
-            )
+            raise ValueError("pipeline continuation parent component scope exceeds its shard bound")
         reference = resolve_reference(subrun.run)
         if subrun.summarySha256 != sha256_file(reference.root / "summary.json"):
             raise ValueError("pipeline continuation subrun summary identity differs")
         if isinstance(first_event, _InventoryHistoryRow):
             if not all(
-                isinstance(event, _InventoryHistoryRow)
-                for _document_id, event in local_events
+                isinstance(event, _InventoryHistoryRow) for _document_id, event in local_events
             ):
                 raise ValueError("pipeline continuation subrun mixes history stages")
             rounds = {
@@ -2282,8 +2327,7 @@ def _load_pipeline_resume_state(
             expected_round = next(iter(rounds)) if len(rounds) == 1 else -1
         elif isinstance(first_event, _CertificationHistoryRow):
             if not all(
-                isinstance(event, _CertificationHistoryRow)
-                for _document_id, event in local_events
+                isinstance(event, _CertificationHistoryRow) for _document_id, event in local_events
             ):
                 raise ValueError("pipeline continuation subrun mixes history stages")
             attempts = {
@@ -2294,8 +2338,7 @@ def _load_pipeline_resume_state(
             expected_round = next(iter(attempts)) if len(attempts) == 1 else -1
         else:
             if not all(
-                isinstance(event, _CorrectionHistoryRow)
-                for _document_id, event in local_events
+                isinstance(event, _CorrectionHistoryRow) for _document_id, event in local_events
             ):
                 raise ValueError("pipeline continuation subrun mixes history stages")
             rounds = {
@@ -2307,28 +2350,20 @@ def _load_pipeline_resume_state(
         if subrun.round != expected_round:
             raise ValueError("pipeline continuation subrun round differs from case history")
         child_config_path = reference.root / "config.yaml"
-        if event_stage == "inventory" and (
-            reference.root.name == parent_inventory.run.run_id
-        ):
+        if event_stage == "inventory" and (reference.root.name == parent_inventory.run.run_id):
             recorded_config_path = parent_inventory_path
         else:
             recorded_config_path = (
-                parent_run.root
-                / "generated-configs"
-                / f"{reference.root.name}.yaml"
+                parent_run.root / "generated-configs" / f"{reference.root.name}.yaml"
             )
         if sha256_file(recorded_config_path) != sha256_file(child_config_path):
             raise ValueError("pipeline continuation generated child config differs")
     if local_subrun_keys != set(appended_events_by_run):
         raise ValueError("pipeline continuation appended history lacks a local subrun")
 
-    certified = sum(
-        state.final_certification_run is not None for state in states_by_id.values()
-    )
+    certified = sum(state.final_certification_run is not None for state in states_by_id.values())
     blocked = len(document_ids) - certified
-    primary_blocking = sum(
-        row.blockingReason not in (None, _COHORT_STOP_REASON) for row in rows
-    )
+    primary_blocking = sum(row.blockingReason not in (None, _COHORT_STOP_REASON) for row in rows)
     if (
         summary.get("certifiedDocuments") != certified
         or summary.get("correctionRounds")
@@ -2355,6 +2390,7 @@ def _load_pipeline_resume_state(
         lineage_sha256=lineage_sha256,
         certified_sources=dict(certified_sources),
         unresolved=unresolved,
+        terminal_failures=terminal_failures,
     )
 
 
@@ -2379,9 +2415,7 @@ def _record_subrun(
     )
 
 
-def _validate_pipeline_paths(
-    *, project_root: Path, config: SynthesisRawTextPipelineConfig
-) -> None:
+def _validate_pipeline_paths(*, project_root: Path, config: SynthesisRawTextPipelineConfig) -> None:
     _ensure_under_project_root(
         project_root,
         resolve_config_path(project_root, config.run.output_dir),
@@ -2394,8 +2428,23 @@ def _validate_pipeline_config_file(
 ) -> None:
     if config_path.is_symlink() or not config_path.is_file():
         raise ValueError("pipeline configuration must be a regular file")
-    if load_synthesis_raw_text_pipeline_config(config_path) != config:
+    loaded_config = load_synthesis_raw_text_pipeline_config(config_path)
+    if loaded_config != config:
         raise ValueError("pipeline configuration object differs from config_path")
+    required_contract = 3 if loaded_config.schema_version == 2 else 2
+    if (
+        "audit_contract_version" not in loaded_config.certification.model_fields_set
+        or loaded_config.certification.audit_contract_version != required_contract
+        or "required_audit_contract_version"
+        not in loaded_config.correction.workflow.model_fields_set
+        or loaded_config.correction.workflow.required_audit_contract_version != required_contract
+        or "required_audit_contract_version" not in loaded_config.publication.model_fields_set
+        or loaded_config.publication.required_audit_contract_version != required_contract
+    ):
+        raise ValueError(
+            f"pipeline schema v{loaded_config.schema_version} requires explicit matching "
+            f"contract-v{required_contract} certification, correction, and publication"
+        )
 
 
 def _load_inventory_config(
@@ -2491,17 +2540,14 @@ def preflight_raw_text_pipeline(
         resumed_inventory_documents = (
             len(inventory_resume.states_by_id) if inventory_resume is not None else 0
         )
-        if (
-            resumed_inventory_documents + inventory.workflow.documents
-            != config.workflow.documents
-        ):
+        if resumed_inventory_documents + inventory.workflow.documents != config.workflow.documents:
             raise ValueError("pipeline preflight scopes do not cover the complete cohort")
         compiled_inventory_documents = inventory.workflow.documents
     else:
         resumed_inventory_documents = config.workflow.documents
         compiled_inventory_documents = 0
     return {
-        "schemaVersion": 1,
+        "schemaVersion": config.schema_version,
         "runId": config.run.run_id,
         "status": "preflight_complete",
         "documents": config.workflow.documents,
@@ -2517,6 +2563,14 @@ def preflight_raw_text_pipeline(
         ),
         "unresolvedPipelineDocuments": (
             len(pipeline_resume.unresolved) if pipeline_resume is not None else 0
+        ),
+        "terminalPipelineDocuments": (
+            len(pipeline_resume.terminal_failures) if pipeline_resume is not None else 0
+        ),
+        "retryablePipelineDocuments": (
+            len(pipeline_resume.unresolved) - len(pipeline_resume.terminal_failures)
+            if pipeline_resume is not None
+            else 0
         ),
         "certificationShardSize": config.certification.shard_size,
         "correctionShardSize": config.correction.shard_size,
@@ -2559,8 +2613,18 @@ def _certification_config(
     )
     return SynthesisRawTextCertificationConfig.model_validate(
         {
-            "schema_version": 2,
-            "task": "bill_of_lading_synthetic_raw_text_certification_v2",
+            "schema_version": 3 if pipeline.certification.audit_contract_version == 3 else 2,
+            "task": (
+                "bill_of_lading_synthetic_raw_text_certification_v3"
+                if pipeline.certification.audit_contract_version == 3
+                else "bill_of_lading_synthetic_raw_text_certification_v2"
+            ),
+            "audit_contract_version": pipeline.certification.audit_contract_version,
+            "invariant_inputs": (
+                pipeline.certification.invariant_inputs.model_dump(mode="python")
+                if pipeline.certification.invariant_inputs is not None
+                else None
+            ),
             "environment_file": pipeline.certification.environment_file,
             "run": {"run_id": run_id, "output_dir": pipeline.run.output_dir},
             "input_run": source.config_value(),
@@ -2586,6 +2650,7 @@ def _correction_config(
     workflow["max_concurrent_documents"] = min(
         cast(int, workflow["max_concurrent_documents"]), len(document_ids)
     )
+    workflow["required_audit_contract_version"] = pipeline.certification.audit_contract_version
     return SynthesisRawTextCertifiedCorrectionConfig.model_validate(
         {
             "schema_version": 1,
@@ -2634,12 +2699,60 @@ def _publication_config(
     )
 
 
-def _certification_is_actionable(result: CertificationCaseResult) -> bool:
-    return (
-        result.status == "needs_review"
-        and result.auditPasses == 1
-        and (result.semanticFindings > 0 or not result.hostAudit.passed)
+def _certification_invariant_audit(
+    reference: _RunReference,
+    document_id: str,
+) -> CertificationInvariantAudit:
+    return CertificationInvariantAudit.model_validate_json(
+        read_regular_file_bytes(reference.root / "cases" / document_id / "invariant-audit.json"),
+        strict=True,
     )
+
+
+def _certification_is_actionable(
+    result: CertificationCaseResult,
+    invariant_audit: CertificationInvariantAudit | None = None,
+) -> bool:
+    if result.status != "needs_review" or result.certificationMode != "production":
+        return False
+    if result.auditContractVersion == 2:
+        if invariant_audit is not None:
+            raise ValueError("contract-v2 actionability received contract-v3 invariants")
+        return result.semanticFindings > 0 or not result.hostAudit.passed
+    if invariant_audit is None:
+        raise ValueError("contract-v3 actionability lacks its deterministic invariant audit")
+    repairs = complete_deterministic_repair_set(invariant_audit)
+    return (
+        result.semanticFindings == 0
+        and result.deterministicFindings == len(invariant_audit.findings)
+        and bool(repairs)
+    )
+
+
+def _v3_certification_terminal_reason(
+    *,
+    result: CertificationCaseResult,
+    invariant_audit: CertificationInvariantAudit,
+    correction_rounds: int,
+    correction_round_limit: int,
+) -> str | None:
+    """Return a stable terminal cause only when identical replay cannot make progress."""
+
+    if result.auditContractVersion != 3 or result.status != "needs_review":
+        return None
+    if not _certification_is_actionable(result, invariant_audit):
+        return _V3_CERTIFICATION_QUARANTINE_REASON
+    if correction_rounds >= correction_round_limit:
+        return _CORRECTION_ROUND_LIMIT_REASON
+    return None
+
+
+def _v3_correction_terminal_reason(result: CorrectionCaseResult) -> str | None:
+    if result.correctionContractVersion != 3 or (
+        result.status == "correction_candidate" and result.requiresRecertification
+    ):
+        return None
+    return f"deterministic correction could not prove a complete atomic repair: {result.status}"
 
 
 def _case_lineage(
@@ -2662,9 +2775,7 @@ def _case_lineage(
                     if state is not None
                     else None
                 ),
-                "sourceTextSha256": (
-                    state.source_text_sha256 if state is not None else None
-                ),
+                "sourceTextSha256": (state.source_text_sha256 if state is not None else None),
                 "currentCandidateSha256": (
                     state.current_candidate_sha256 if state is not None else None
                 ),
@@ -2771,7 +2882,7 @@ def _finish_pipeline(
     staged.publish_json("lineage/subruns.json", subruns)
     staged.publish_json("provenance/transaction.json", transaction)
     summary: dict[str, JsonValue] = {
-        "schemaVersion": 1,
+        "schemaVersion": config.schema_version,
         "runId": config.run.run_id,
         "status": status,
         "documents": config.workflow.documents,
@@ -2802,7 +2913,7 @@ def _finish_pipeline(
     staged.commit(
         expected_artifacts=_artifact_inventory(staged.stage_root),
         metadata={
-            "schemaVersion": 1,
+            "schemaVersion": config.schema_version,
             "status": status,
             "documents": config.workflow.documents,
             "certifiedDocuments": certified,
@@ -2859,7 +2970,7 @@ def run_raw_text_pipeline(
     )
     stage_implementation_sha256 = _stage_implementation_hashes()
     transaction: dict[str, JsonValue] = {
-        "schemaVersion": 1,
+        "schemaVersion": config.schema_version,
         "runId": config.run.run_id,
         "configSha256": sha256_file(config_path),
         "inventoryConfigSha256": config.inventory_config.sha256,
@@ -2880,9 +2991,7 @@ def run_raw_text_pipeline(
             pipeline_resume.lineage_sha256 if pipeline_resume is not None else None
         ),
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
-        "stageImplementationSha256": cast(
-            JsonValue, stage_implementation_sha256
-        ),
+        "stageImplementationSha256": cast(JsonValue, stage_implementation_sha256),
         "targetSchemaImplementationSha256": _target_schema_implementation_sha256(),
     }
     staged = StagedArtifactRun(
@@ -2891,9 +3000,7 @@ def run_raw_text_pipeline(
         transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
     )
     if staged.completed:
-        result = cast(
-            dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json")
-        )
+        result = cast(dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json"))
         result["artifactRoot"] = str(staged.final_root)
         result["commitSha256"] = sha256_file(staged.final_root / "_COMMIT.json")
         _raise_blocked(result)
@@ -2937,9 +3044,7 @@ def run_raw_text_pipeline(
         )
         ordered_ids = pipeline_resume.document_ids
         remaining = tuple()
-        prior_inventory_rounds = max(
-            state.inventory_round for state in states_by_id.values()
-        )
+        prior_inventory_rounds = max(state.inventory_round for state in states_by_id.values())
         inventory_input_identities = {}
         inventory_contract_sha256 = _inventory_contract_sha256(initial_inventory)
         inventory_transaction_contract_sha256 = None
@@ -2972,9 +3077,7 @@ def run_raw_text_pipeline(
         ordered_ids = inventory_resume.document_ids
         remaining = inventory_resume.remaining
         prior_inventory_rounds = inventory_resume.prior_rounds
-        inventory_input_identities = dict(
-            inventory_resume.input_identities_by_id
-        )
+        inventory_input_identities = dict(inventory_resume.input_identities_by_id)
         inventory_contract_sha256 = inventory_resume.inventory_contract_sha256
         inventory_transaction_contract_sha256 = (
             inventory_resume.inventory_transaction_contract_sha256
@@ -3054,19 +3157,14 @@ def run_raw_text_pipeline(
             stage_hashes=stage_implementation_sha256,
         )
         if inventory_transaction_contract_sha256 is None:
-            inventory_transaction_contract_sha256 = (
-                child_transaction_contract_sha256
-            )
+            inventory_transaction_contract_sha256 = child_transaction_contract_sha256
         for document_id, identity in child_input_identities.items():
             prior_identity = inventory_input_identities.setdefault(
                 document_id,
                 identity,
             )
             if prior_identity != identity:
-                raise ValueError(
-                    "inventory input identity changed across attempts: "
-                    f"{document_id}"
-                )
+                raise ValueError(f"inventory input identity changed across attempts: {document_id}")
         row_ids = tuple(row.documentId for row in inventory_results)
         if inventory_resume is None and local_inventory_round == 1:
             ordered_ids = row_ids
@@ -3149,12 +3247,14 @@ def run_raw_text_pipeline(
     if pipeline_resume is not None:
         for reference, certified_document_ids in pipeline_resume.certified_sources.items():
             certified_sources[reference].extend(certified_document_ids)
+    terminal_failures: dict[str, str] = (
+        dict(pipeline_resume.terminal_failures) if pipeline_resume is not None else {}
+    )
     pending: dict[str, _CaseState] = {
         state.document_id: state
         for state in ordered_states
-        if state.final_certification_run is None
+        if state.final_certification_run is None and state.document_id not in terminal_failures
     }
-    terminal_failures: dict[str, str] = {}
     certification_sequence = 0
     correction_sequence = 0
     while pending:
@@ -3175,9 +3275,9 @@ def run_raw_text_pipeline(
             )
             for state in pending.values()
         )
-        certification_groups: dict[
-            tuple[_RunReference, str, int], list[_CaseState]
-        ] = defaultdict(list)
+        certification_groups: dict[tuple[_RunReference, str, int], list[_CaseState]] = defaultdict(
+            list
+        )
         actionable: list[tuple[_CaseState, _RunReference]] = []
         for state in tuple(pending.values()):
             if state.pending_correction_run is not None:
@@ -3243,18 +3343,14 @@ def run_raw_text_pipeline(
                 )
                 if tuple(row.documentId for row in certification_results) != document_ids:
                     raise ValueError("certification results differ from their configured scope")
-                for state, certification_result in zip(
-                    shard, certification_results, strict=True
-                ):
+                for state, certification_result in zip(shard, certification_results, strict=True):
                     source_sha256 = _case_artifact_sha256(
                         reference, state.document_id, "source.txt"
                     )
                     input_sha256 = _case_artifact_sha256(
                         reference, state.document_id, "input-candidate.txt"
                     )
-                    final_sha256 = _case_artifact_sha256(
-                        reference, state.document_id, "final.txt"
-                    )
+                    final_sha256 = _case_artifact_sha256(reference, state.document_id, "final.txt")
                     if (
                         source_sha256 != state.source_text_sha256
                         or input_sha256 != state.current_candidate_sha256
@@ -3281,28 +3377,40 @@ def run_raw_text_pipeline(
                         state.final_certification_run = reference
                         certified_sources[reference].append(state.document_id)
                         del pending[state.document_id]
-                    elif _certification_is_actionable(certification_result):
-                        if (
-                            state.correction_rounds
-                            >= config.correction.max_rounds_per_document
-                        ):
-                            terminal_failures[state.document_id] = (
-                                "independent audit still found actionable defects after the "
-                                "configured correction-round limit"
+                    else:
+                        invariant_audit = (
+                            _certification_invariant_audit(reference, state.document_id)
+                            if certification_result.auditContractVersion == 3
+                            else None
+                        )
+                        terminal_reason = (
+                            _v3_certification_terminal_reason(
+                                result=certification_result,
+                                invariant_audit=invariant_audit,
+                                correction_rounds=state.correction_rounds,
+                                correction_round_limit=(config.correction.max_rounds_per_document),
                             )
+                            if invariant_audit is not None
+                            else None
+                        )
+                        if terminal_reason is not None:
+                            terminal_failures[state.document_id] = terminal_reason
                             del pending[state.document_id]
-                        else:
+                        elif _certification_is_actionable(
+                            certification_result,
+                            invariant_audit,
+                        ):
                             state.pending_correction_run = reference
                             actionable.append((state, reference))
-                    elif (
-                        state.local_certification_attempts
-                        >= config.certification.max_attempts_per_candidate
-                    ):
-                        terminal_failures[state.document_id] = (
-                            "independent certification did not return a valid actionable audit "
-                            "within the configured attempt limit"
-                        )
-                        del pending[state.document_id]
+                        elif (
+                            state.local_certification_attempts
+                            >= config.certification.max_attempts_per_candidate
+                        ):
+                            terminal_failures[state.document_id] = (
+                                "independent certification did not return a valid actionable "
+                                "audit within the configured attempt limit"
+                            )
+                            del pending[state.document_id]
 
         correction_groups: dict[tuple[_RunReference, int], list[_CaseState]] = defaultdict(list)
         for state, certification_run in actionable:
@@ -3360,9 +3468,7 @@ def run_raw_text_pipeline(
                     input_sha256 = _case_artifact_sha256(
                         reference, state.document_id, "input-candidate.txt"
                     )
-                    final_sha256 = _case_artifact_sha256(
-                        reference, state.document_id, "final.txt"
-                    )
+                    final_sha256 = _case_artifact_sha256(reference, state.document_id, "final.txt")
                     if (
                         source_sha256 != state.source_text_sha256
                         or input_sha256 != state.current_candidate_sha256
@@ -3390,7 +3496,11 @@ def run_raw_text_pipeline(
                         correction_result.status != "correction_candidate"
                         or not correction_result.requiresRecertification
                     ):
-                        if (
+                        terminal_reason = _v3_correction_terminal_reason(correction_result)
+                        if terminal_reason is not None:
+                            terminal_failures[state.document_id] = terminal_reason
+                            del pending[state.document_id]
+                        elif (
                             state.local_correction_attempts
                             >= config.correction.max_attempts_per_round
                         ):

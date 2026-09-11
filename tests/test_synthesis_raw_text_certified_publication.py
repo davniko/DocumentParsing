@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -7,9 +8,13 @@ import pytest
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.config import SynthesisRawTextCertifiedPublicationConfig
 from document_ocr.synthesis.raw_text_certification import (
+    CertificationAuditReplay,
     CertificationCaseResult,
     _empty_usage,
     _host_audit,
+)
+from document_ocr.synthesis.raw_text_certification_artifacts import (
+    ValidatedCertificationCase,
 )
 from document_ocr.synthesis.raw_text_certified_publication import _load_case
 
@@ -32,6 +37,7 @@ def _publication_config() -> dict[str, object]:
         ],
         "workflow": {
             "documents": 1,
+            "required_audit_contract_version": 2,
             "require_every_case_certified": True,
             "require_unique_source_documents": True,
             "require_unique_scenarios": True,
@@ -42,15 +48,10 @@ def _publication_config() -> dict[str, object]:
     }
 
 
-def _write_json(path: Path, value: object) -> None:
-    path.write_bytes(canonical_json_bytes(value))
-
-
-def _certified_case(tmp_path: Path) -> tuple[Path, str]:
+def _certified_case(tmp_path: Path) -> tuple[Path, ValidatedCertificationCase]:
     root = tmp_path / "certification"
     document_id = "doc_" + "1" * 64
-    case = root / "cases" / document_id
-    case.mkdir(parents=True)
+    root.mkdir()
     source = b"--- PAGE 1 ---\nB/L OLD\n"
     final = b"--- PAGE 1 ---\nB/L NEW\n"
     source_label = {
@@ -83,6 +84,7 @@ def _certified_case(tmp_path: Path) -> tuple[Path, str]:
         },
         "rawAuxiliaryIdentityRequirements": [],
         "sourceLabel": source_label,
+        "targetLabel": target_label,
         "result": {
             "documentId": document_id,
             "scenarioId": scenario_id,
@@ -91,14 +93,19 @@ def _certified_case(tmp_path: Path) -> tuple[Path, str]:
             "targetLabelSha256": sha256_bytes(canonical_json_bytes(target_label)),
         },
     }
-    audit = _host_audit(
-        source=source.decode(), output=final.decode(), contract=contract
-    )
+    audit = _host_audit(source=source.decode(), output=final.decode(), contract=contract)
+    audit_plan = {"auditContractVersion": 2, "test": "already replayed"}
+    audit_plan_sha256 = sha256_bytes(canonical_json_bytes(audit_plan))
     result = CertificationCaseResult(
         documentId=document_id,
+        auditContractVersion=2,
+        certificationMode="production",
+        auditPlanSha256=audit_plan_sha256,
         status="certified",
-        reason="Independent audit passed.",
-        auditPasses=1,
+        reason="Every required read-only semantic audit and deterministic host gate passed.",
+        auditPasses=2,
+        cleanAuditPasses=2,
+        requiredAuditPasses=2,
         semanticFindings=0,
         candidateImmutable=True,
         hostAudit=audit,
@@ -107,15 +114,25 @@ def _certified_case(tmp_path: Path) -> tuple[Path, str]:
         finalTextSha256=sha256_bytes(final),
         usage=_empty_usage(),
     )
-    (case / "source.txt").write_bytes(source)
-    (case / "input-candidate.txt").write_bytes(final)
-    (case / "final.txt").write_bytes(final)
-    _write_json(case / "source-label.json", source_label)
-    _write_json(case / "target-label.json", target_label)
-    _write_json(case / "source-contract.json", contract)
-    _write_json(case / "stages.json", [])
-    _write_json(case / "result.json", result.model_dump(mode="json"))
-    return root, document_id
+    replay = CertificationAuditReplay(
+        outputs=(),
+        findings=(),
+        audit_passes=2,
+        clean_audit_passes=2,
+        audit_plan_sha256=audit_plan_sha256,
+    )
+    return root, ValidatedCertificationCase(
+        document_id=document_id,
+        source=source,
+        candidate=final,
+        source_label=source_label,
+        target_label=target_label,
+        contract=contract,
+        audit_plan=audit_plan,
+        result=result,
+        stages=(),
+        replay=replay,
+    )
 
 
 def test_publication_config_requires_exact_source_count() -> None:
@@ -127,20 +144,18 @@ def test_publication_config_requires_exact_source_count() -> None:
 
 
 def test_load_case_replays_certification_and_current_host_contract(tmp_path: Path) -> None:
-    root, document_id = _certified_case(tmp_path)
+    root, certified = _certified_case(tmp_path)
 
-    loaded = _load_case(root, document_id)
+    loaded = _load_case(root, certified, required_audit_contract_version=2)
 
-    assert loaded.document_id == document_id
+    assert loaded.document_id == certified.document_id
     assert loaded.scenario_id == "syn_" + "2" * 64
     assert loaded.final_text == b"--- PAGE 1 ---\nB/L NEW\n"
 
 
 def test_load_case_rejects_certification_that_changed_candidate_bytes(tmp_path: Path) -> None:
-    root, document_id = _certified_case(tmp_path)
-    (root / "cases" / document_id / "final.txt").write_bytes(
-        b"--- PAGE 1 ---\nB/L ALTERED\n"
-    )
+    root, certified = _certified_case(tmp_path)
+    tampered = replace(certified, candidate=b"--- PAGE 1 ---\nB/L ALTERED\n")
 
-    with pytest.raises(ValueError, match="modified candidate bytes"):
-        _load_case(root, document_id)
+    with pytest.raises(ValueError, match="complete certification contract"):
+        _load_case(root, tampered, required_audit_contract_version=2)

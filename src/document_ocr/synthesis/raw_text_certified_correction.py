@@ -13,13 +13,14 @@ import json
 import re
 import time
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from decimal import Decimal
 from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
 from openai import AsyncOpenAI
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_validator
 from pydantic_ai import Agent, NativeOutput, StructuredDict, capture_run_messages
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import Model
@@ -27,7 +28,10 @@ from pydantic_ai.usage import UsageLimits
 
 from document_ocr.atomic import read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
-from document_ocr.synthesis.config import SynthesisRawTextCertifiedCorrectionConfig
+from document_ocr.synthesis.config import (
+    SynthesisRawTextCertifiedCorrectionConfig,
+    load_synthesis_raw_text_certified_correction_config,
+)
 from document_ocr.synthesis.linguistic_probe_runtime import (
     LinguisticUsageReceipt,
     load_provider_key,
@@ -35,14 +39,22 @@ from document_ocr.synthesis.linguistic_probe_runtime import (
     usage_receipt,
 )
 from document_ocr.synthesis.raw_text_certification import (
-    CertificationCaseResult,
-    CertificationStage,
     SemanticAuditFinding,
-    SemanticAuditOutput,
     _host_audit,
     _target_literal_present,
-    _validate_audit_output,
 )
+from document_ocr.synthesis.raw_text_certification_artifacts import (
+    ValidatedCertificationCase,
+    ValidatedCertificationRun,
+    load_validated_certification_run,
+)
+from document_ocr.synthesis.raw_text_certification_host import (
+    CertificationInvariantCase,
+    apply_deterministic_line_repairs,
+    complete_deterministic_repair_set,
+    evaluate_certification_invariant_case,
+)
+from document_ocr.synthesis.raw_text_certification_invariants import DeterministicLineRepair
 from document_ocr.synthesis.raw_text_hybrid_probe import (
     _artifact_inventory,
     _literal_occurrence_line_sets,
@@ -82,9 +94,7 @@ _CALL_FAILED_REASON = "Every configured provider route failed before a structure
 _CORRECTION_CANDIDATE_REASON = (
     "Every exact-line local gate passed; independent recertification is required."
 )
-_EXHAUSTED_REASON = (
-    "The bounded correction responses were exhausted without a valid candidate."
-)
+_EXHAUSTED_REASON = "The bounded correction responses were exhausted without a valid candidate."
 _LOCAL_POSTCONDITION_REASON = (
     "The bounded correction responses exhausted deterministic local postconditions."
 )
@@ -139,6 +149,8 @@ class CorrectionCaseResult(BaseModel):
     model_config = _STRICT
 
     documentId: str
+    correctionContractVersion: Literal[1, 3] = 1
+    certificationAuditContractVersion: Literal[2, 3] = 2
     status: Literal[
         "unchanged_certified",
         "correction_candidate",
@@ -149,12 +161,71 @@ class CorrectionCaseResult(BaseModel):
     citedLines: Annotated[int, Field(ge=0)]
     changedLines: Annotated[int, Field(ge=0)]
     sourceFindings: Annotated[int, Field(ge=0)]
+    semanticFindings: Annotated[int, Field(ge=0)] = 0
+    deterministicFindings: Annotated[int, Field(ge=0)] = 0
+    appliedDeterministicRepairs: Annotated[int, Field(ge=0)] = 0
     locallyResolvedFindings: Annotated[int, Field(ge=0)]
     requiresRecertification: bool
     sourceTextSha256: str
     inputCandidateSha256: str
     finalTextSha256: str
+    preInvariantAuditSha256: str | None = None
+    postInvariantAuditSha256: str | None = None
     usage: LinguisticUsageReceipt
+
+    @model_validator(mode="after")
+    def correction_authority_is_consistent(self) -> CorrectionCaseResult:
+        if self.correctionContractVersion == 1:
+            if (
+                self.certificationAuditContractVersion != 2
+                or self.semanticFindings != 0
+                or self.deterministicFindings != 0
+                or self.appliedDeterministicRepairs != 0
+                or self.preInvariantAuditSha256 is not None
+                or self.postInvariantAuditSha256 is not None
+            ):
+                raise ValueError("legacy correction result has contract-v3 metadata")
+            return self
+        if (
+            self.certificationAuditContractVersion != 3
+            or self.preInvariantAuditSha256 is None
+            or self.postInvariantAuditSha256 is None
+            or self.sourceFindings != self.semanticFindings + self.deterministicFindings
+            or self.usage.requests != 0
+            or self.usage.providerResponseIds
+            or self.usage.inputTokens != 0
+            or self.usage.outputTokens != 0
+            or self.usage.estimatedCostUsd != 0
+            or self.status == "call_failed"
+        ):
+            raise ValueError("contract-v3 correction result violates deterministic-only authority")
+        if self.status == "correction_candidate":
+            if not (
+                self.semanticFindings == 0
+                and self.deterministicFindings > 0
+                and self.appliedDeterministicRepairs > 0
+                and self.locallyResolvedFindings == self.deterministicFindings
+                and self.requiresRecertification
+                and self.finalTextSha256 != self.inputCandidateSha256
+            ):
+                raise ValueError("contract-v3 correction candidate lacks complete exact repair")
+        elif self.status == "unchanged_certified":
+            if not (
+                self.sourceFindings == 0
+                and self.appliedDeterministicRepairs == 0
+                and self.locallyResolvedFindings == 0
+                and not self.requiresRecertification
+                and self.finalTextSha256 == self.inputCandidateSha256
+            ):
+                raise ValueError("contract-v3 unchanged result is not already certified")
+        elif not (
+            self.appliedDeterministicRepairs == 0
+            and self.locallyResolvedFindings == 0
+            and not self.requiresRecertification
+            and self.finalTextSha256 == self.inputCandidateSha256
+        ):
+            raise ValueError("contract-v3 quarantine result mutated candidate bytes")
+        return self
 
 
 def _empty_usage() -> LinguisticUsageReceipt:
@@ -187,22 +258,6 @@ def _line_number(line_id: str) -> int:
     if re.fullmatch(r"L[0-9]{5}", line_id) is None:
         raise ValueError(f"invalid line ID: {line_id!r}")
     return int(line_id[1:])
-
-
-def _last_semantic_output(stages_path: Path, *, candidate: str) -> SemanticAuditOutput:
-    value = json.loads(read_regular_file_bytes(stages_path))
-    if not isinstance(value, list):
-        raise ValueError(f"certification stages must be a list: {stages_path}")
-    stages = tuple(
-        CertificationStage.model_validate_json(canonical_json_bytes(row), strict=True)
-        for row in value
-    )
-    outputs = [row.modelOutput for row in stages if row.modelOutput is not None]
-    if not outputs:
-        raise ValueError(f"certification case has no provider-valid semantic output: {stages_path}")
-    output = SemanticAuditOutput.model_validate_json(canonical_json_bytes(outputs[-1]), strict=True)
-    _validate_audit_output(output, current=candidate)
-    return output
 
 
 def _host_occurrence_findings(
@@ -331,9 +386,7 @@ def _host_occurrence_findings(
     return tuple(findings)
 
 
-def _evidence_for_lines(
-    current: str, line_numbers: Sequence[int]
-) -> tuple[dict[str, str], ...]:
+def _evidence_for_lines(current: str, line_numbers: Sequence[int]) -> tuple[dict[str, str], ...]:
     current_lines = current.splitlines()
     return tuple(
         {
@@ -432,19 +485,14 @@ def _party_address_occurrence_line_sets(
                 (max(group) for group in role_localities if min(group) >= first_address),
                 default=max(address_group),
             )
-            preceding_names = tuple(
-                group for group in role_names if max(group) <= first_address
-            )
+            preceding_names = tuple(group for group in role_names if max(group) <= first_address)
             first_line = (
                 max(max(group) for group in preceding_names) + 1
-                if preceding_names
-                and max(max(group) for group in preceding_names) < first_address
+                if preceding_names and max(max(group) for group in preceding_names) < first_address
                 else first_address
             )
             owned = frozenset(
-                number
-                for number in range(first_line, last_locality + 1)
-                if number in role_group
+                number for number in range(first_line, last_locality + 1) if number in role_group
             )
             if owned:
                 expanded.append(owned)
@@ -478,13 +526,17 @@ def _refine_carrier_occurrence_contract(
             carrier_name_rows.append(row)
         if "documentPatch.parties.carrier.address" in paths:
             carrier_address_rows.append(row)
-    source_carriers = {
-        row.get("sourceValue")
-        for row in changed_leaves
-        if isinstance(row, Mapping)
-        and row.get("path") == "documentPatch.parties.carrier.name"
-        and isinstance(row.get("sourceValue"), str)
-    } if carrier_name_rows else set()
+    source_carriers = (
+        {
+            row.get("sourceValue")
+            for row in changed_leaves
+            if isinstance(row, Mapping)
+            and row.get("path") == "documentPatch.parties.carrier.name"
+            and isinstance(row.get("sourceValue"), str)
+        }
+        if carrier_name_rows
+        else set()
+    )
     if len(source_carriers) > 1:
         raise ValueError("source contract has conflicting carrier-name source values")
     if source_carriers:
@@ -498,13 +550,17 @@ def _refine_carrier_occurrence_contract(
                 raise ValueError("carrier occurrence requirement lacks an integer cardinality")
             row["requiredOccurrences"] = max(previous, required)
 
-    source_addresses = {
-        row.get("sourceValue")
-        for row in changed_leaves
-        if isinstance(row, Mapping)
-        and row.get("path") == "documentPatch.parties.carrier.address"
-        and isinstance(row.get("sourceValue"), str)
-    } if carrier_address_rows else set()
+    source_addresses = (
+        {
+            row.get("sourceValue")
+            for row in changed_leaves
+            if isinstance(row, Mapping)
+            and row.get("path") == "documentPatch.parties.carrier.address"
+            and isinstance(row.get("sourceValue"), str)
+        }
+        if carrier_address_rows
+        else set()
+    )
     if len(source_addresses) > 1:
         raise ValueError("source contract has conflicting carrier-address source values")
     if source_addresses:
@@ -1124,9 +1180,7 @@ def _apply_corrections(
             unresolved += 1
     host = _host_audit(source=source, output=candidate, contract=contract)
     unresolved_message = (
-        f"correction left {unresolved} semantic finding(s) wholly unchanged"
-        if unresolved
-        else None
+        f"correction left {unresolved} semantic finding(s) wholly unchanged" if unresolved else None
     )
     audit = CorrectionHostAudit(
         # A finding may cite comparison lines, but at least one of its evidence lines must change.
@@ -1426,8 +1480,7 @@ def _replay_correction_stages(
         payload_sha256 = sha256_bytes(canonical_json_bytes(payload))
         schema_sha256 = sha256_bytes(canonical_json_bytes(schema))
         if any(
-            row.inputPayloadSha256 != payload_sha256
-            or row.outputSchemaSha256 != schema_sha256
+            row.inputPayloadSha256 != payload_sha256 or row.outputSchemaSha256 != schema_sha256
             for row in attempt_stages
         ):
             raise ValueError("correction checkpoint request contract differs on replay")
@@ -1441,9 +1494,7 @@ def _replay_correction_stages(
         if len(successful) != 1 or successful[0] is not attempt_stages[-1]:
             raise ValueError("correction checkpoint has ambiguous successful route output")
         output_stage = successful[0]
-        if any(
-            row.hostAudit is not None for row in attempt_stages if row is not output_stage
-        ):
+        if any(row.hostAudit is not None for row in attempt_stages if row is not output_stage):
             raise ValueError("correction checkpoint attaches a host audit to a failed route")
         if not isinstance(output_stage.modelOutput, dict):
             raise ValueError("correction checkpoint model output is not an object")
@@ -1471,8 +1522,7 @@ def _replay_correction_stages(
             if semantic_attempt >= maximum_attempts:
                 final_status = "needs_review"
                 final_reason = (
-                    "Structured correction failed deterministic host application: "
-                    f"{host_error}"
+                    f"Structured correction failed deterministic host application: {host_error}"
                 )
                 break
             active_rows, repair_findings = _select_repair_rows(
@@ -1653,18 +1703,456 @@ def _report(results: Sequence[CorrectionCaseResult], stages: Sequence[Correction
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _DeterministicCorrectionCase:
+    certified: ValidatedCertificationCase
+    final: str
+    authorized_repairs: tuple[DeterministicLineRepair, ...]
+    applied_repairs: tuple[DeterministicLineRepair, ...]
+    attempted_invariant: CertificationInvariantCase | None
+    final_invariant: CertificationInvariantCase
+    result: CorrectionCaseResult
+
+
+def _invariant_audit_sha256(case: CertificationInvariantCase) -> str:
+    return sha256_bytes(canonical_json_bytes(case.audit.model_dump(mode="json")))
+
+
+def _deterministic_cited_lines(certified: ValidatedCertificationCase) -> tuple[str, ...]:
+    invariant = certified.invariant_case
+    if invariant is None:
+        raise ValueError("contract-v3 correction case lacks deterministic certification inputs")
+    return tuple(
+        sorted(
+            {
+                evidence.lineId
+                for finding in certified.replay.findings
+                for evidence in finding.evidence
+            }
+            | {
+                evidence.lineId
+                for finding in invariant.audit.findings
+                for evidence in finding.evidence
+            },
+            key=_line_number,
+        )
+    )
+
+
+def _deterministic_correction_case(
+    *,
+    certified: ValidatedCertificationCase,
+    certification_run: ValidatedCertificationRun,
+) -> _DeterministicCorrectionCase:
+    invariant = certified.invariant_case
+    context = certification_run.invariant_context
+    if invariant is None or context is None:
+        raise ValueError("contract-v3 correction lacks replayed invariant context")
+    source = certified.source.decode("utf-8")
+    current = certified.candidate.decode("utf-8")
+    semantic_findings = certified.replay.findings
+    deterministic_findings = invariant.audit.findings
+    pre_host = _host_audit(source=source, output=current, contract=certified.contract)
+    authorized = complete_deterministic_repair_set(invariant.audit)
+    applied: tuple[DeterministicLineRepair, ...] = ()
+    attempted: CertificationInvariantCase | None = None
+    final = current
+    final_invariant = invariant
+    status: Literal["unchanged_certified", "correction_candidate", "needs_review"]
+    requires_recertification = False
+    resolved_findings = 0
+
+    if certified.result.status == "certified":
+        if semantic_findings or not invariant.audit.passed or not pre_host.passed:
+            raise ValueError(
+                "contract-v3 certified case fails its replayed clean gates: "
+                f"{certified.document_id}"
+            )
+        status = "unchanged_certified"
+        reason = _UNCHANGED_REASON
+    elif semantic_findings:
+        status = "needs_review"
+        reason = (
+            "Semantic-audit findings have quarantine authority only; no candidate bytes were "
+            "changed."
+        )
+    elif authorized is None:
+        status = "needs_review"
+        reason = (
+            "At least one deterministic certification defect lacks exact host-authored repair "
+            "authority; no candidate bytes were changed."
+        )
+    elif not authorized:
+        status = "needs_review"
+        reason = (
+            "The candidate lacks a complete deterministic repair set; provider failure or an "
+            "unowned classic host finding cannot authorize a write."
+        )
+    else:
+        repaired = apply_deterministic_line_repairs(current, authorized)
+        attempted = evaluate_certification_invariant_case(
+            document_id=certified.document_id,
+            source=source,
+            candidate=repaired,
+            contract=certified.contract,
+            inventory=invariant.inventory,
+            deterministic_edits=invariant.deterministic_edits,
+            context=context,
+        )
+        repaired_host = _host_audit(
+            source=source,
+            output=repaired,
+            contract=certified.contract,
+        )
+        if attempted.audit.passed and repaired_host.passed:
+            status = "correction_candidate"
+            reason = (
+                "Every certification defect had exact host-authored repair authority and the "
+                "complete deterministic and classic host audits passed after atomic application; "
+                "fresh independent recertification is required."
+            )
+            final = repaired
+            final_invariant = attempted
+            applied = authorized
+            resolved_findings = len(deterministic_findings)
+            requires_recertification = True
+        else:
+            status = "needs_review"
+            reason = (
+                "The complete authorized repair set did not satisfy every post-repair invariant; "
+                "the atomic candidate change was discarded."
+            )
+
+    cited_lines = _deterministic_cited_lines(certified)
+    changed_lines = sum(
+        source_line != final_line
+        for source_line, final_line in zip(current.splitlines(), final.splitlines(), strict=True)
+    )
+    result = CorrectionCaseResult(
+        documentId=certified.document_id,
+        correctionContractVersion=3,
+        certificationAuditContractVersion=3,
+        status=status,
+        reason=reason,
+        citedLines=len(cited_lines),
+        changedLines=changed_lines,
+        sourceFindings=len(semantic_findings) + len(deterministic_findings),
+        semanticFindings=len(semantic_findings),
+        deterministicFindings=len(deterministic_findings),
+        appliedDeterministicRepairs=len(applied),
+        locallyResolvedFindings=resolved_findings,
+        requiresRecertification=requires_recertification,
+        sourceTextSha256=sha256_bytes(certified.source),
+        inputCandidateSha256=sha256_bytes(certified.candidate),
+        finalTextSha256=sha256_bytes(final.encode("utf-8")),
+        preInvariantAuditSha256=_invariant_audit_sha256(invariant),
+        postInvariantAuditSha256=_invariant_audit_sha256(final_invariant),
+        usage=_empty_usage(),
+    )
+    return _DeterministicCorrectionCase(
+        certified=certified,
+        final=final,
+        authorized_repairs=authorized or (),
+        applied_repairs=applied,
+        attempted_invariant=attempted,
+        final_invariant=final_invariant,
+        result=result,
+    )
+
+
+def _deterministic_correction_report(cases: Sequence[_DeterministicCorrectionCase]) -> str:
+    results = tuple(row.result for row in cases)
+    return "\n".join(
+        (
+            "# Deterministic raw-text correction",
+            "",
+            "## Outcome",
+            "",
+            f"- Input documents: **{len(results)}**.",
+            (
+                "- Previously certified and copied unchanged: "
+                f"**{sum(row.status == 'unchanged_certified' for row in results)}**."
+            ),
+            (
+                "- Exact-repair candidates requiring independent recertification: "
+                f"**{sum(row.status == 'correction_candidate' for row in results)}**."
+            ),
+            (
+                "- Quarantined without mutation: "
+                f"**{sum(row.status == 'needs_review' for row in results)}**."
+            ),
+            (
+                "- Semantic findings (quarantine only): "
+                f"**{sum(row.semanticFindings for row in results)}**."
+            ),
+            f"- Deterministic findings: **{sum(row.deterministicFindings for row in results)}**.",
+            (
+                "- Applied host-authored fragment repairs: "
+                f"**{sum(row.appliedDeterministicRepairs for row in results)}**."
+            ),
+            "- Provider requests / cost: **0 / $0**.",
+            "",
+            "Repairs are atomic and limited to line-hash-bound fragments emitted by the "
+            "deterministic certification engine. Any semantic finding, missing repair authority, "
+            "overlap, or failed full postcondition quarantines the unchanged candidate.",
+            "",
+        )
+    )
+
+
+def _run_contract_v3_correction(
+    *,
+    project_root: Path,
+    config_path: Path,
+    config: SynthesisRawTextCertifiedCorrectionConfig,
+    certification_root: Path,
+    certification_run: ValidatedCertificationRun,
+) -> dict[str, JsonValue]:
+    cases_by_id = certification_run.case_by_id()
+    cases: list[_DeterministicCorrectionCase] = []
+    for document_id in config.case_ids:
+        certified = cases_by_id.get(document_id)
+        if certified is None:
+            raise ValueError(f"certification run lacks correction case {document_id}")
+        cases.append(
+            _deterministic_correction_case(
+                certified=certified,
+                certification_run=certification_run,
+            )
+        )
+    frozen_cases = tuple(cases)
+    implementation_dependencies = {
+        name: sha256_file(Path(__file__).with_name(filename))
+        for name, filename in (
+            ("certification", "raw_text_certification.py"),
+            ("certificationArtifacts", "raw_text_certification_artifacts.py"),
+            ("certificationHost", "raw_text_certification_host.py"),
+            ("certificationInvariants", "raw_text_certification_invariants.py"),
+            ("certificationReferences", "raw_text_certification_references.py"),
+            ("rewriteRuntime", "raw_text_rewrite_probe.py"),
+        )
+    }
+    transaction: dict[str, JsonValue] = {
+        "schemaVersion": 3,
+        "runId": config.run.run_id,
+        "configSha256": sha256_file(config_path),
+        "resolvedConfigSha256": sha256_bytes(canonical_json_bytes(config.model_dump(mode="json"))),
+        "certificationRunCommitSha256": config.certification_run.commit_sha256,
+        "certificationRunTransactionSha256": config.certification_run.transaction_sha256,
+        "certificationConfigSha256": sha256_file(certification_root / "config.yaml"),
+        "certificationResolvedConfigSha256": sha256_bytes(
+            canonical_json_bytes(certification_run.config.model_dump(mode="json"))
+        ),
+        "certificationTransactionArtifactSha256": sha256_file(
+            certification_root / "provenance/transaction.json"
+        ),
+        "certificationSummarySha256": sha256_file(certification_root / "summary.json"),
+        "certificationAuditContractVersion": 3,
+        "certificationMode": "production",
+        "correctionMode": "deterministic_exact_fragment_v1",
+        "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
+        "dependencyImplementationSha256": cast(JsonValue, implementation_dependencies),
+        "documentIds": cast(JsonValue, list(config.case_ids)),
+        "invariantReferenceReceiptSha256": certification_run.transaction[
+            "invariantReferenceReceiptSha256"
+        ],
+        "capacityConfigSha256": certification_run.transaction["capacityConfigSha256"],
+        "runtime": {
+            "providerRequests": 0,
+            "maxConcurrentDocuments": config.workflow.max_concurrent_documents,
+        },
+    }
+    staged = StagedArtifactRun(
+        output_parent=resolve_config_path(project_root, config.run.output_dir),
+        run_name=config.run.run_id,
+        transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
+    )
+    if staged.completed:
+        completed = cast(
+            dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json")
+        )
+        completed["artifactRoot"] = str(staged.final_root)
+        completed["commitSha256"] = sha256_file(staged.final_root / "_COMMIT.json")
+        return completed
+    staged.recover_interrupted_temporary_files()
+    staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
+    reference_receipt = certification_root / "references/certification-reference-receipt.json"
+    staged.publish_bytes(
+        "references/certification-reference-receipt.json",
+        read_regular_file_bytes(reference_receipt),
+    )
+    for row in frozen_cases:
+        certified = row.certified
+        invariant = certified.invariant_case
+        if invariant is None:
+            raise RuntimeError("validated contract-v3 case lost its invariant inputs")
+        prefix = f"cases/{certified.document_id}"
+        source = certified.source.decode("utf-8")
+        current = certified.candidate.decode("utf-8")
+        staged.publish_bytes(f"{prefix}/source.txt", certified.source)
+        staged.publish_bytes(f"{prefix}/input-candidate.txt", certified.candidate)
+        staged.publish_bytes(f"{prefix}/final.txt", row.final.encode("utf-8"))
+        staged.publish_bytes(
+            f"{prefix}/diff-from-input.patch",
+            unified_text_diff(current, row.final).encode("utf-8"),
+        )
+        staged.publish_bytes(
+            f"{prefix}/diff-from-source.patch",
+            unified_text_diff(source, row.final).encode("utf-8"),
+        )
+        staged.publish_json(f"{prefix}/source-label.json", certified.source_label)
+        staged.publish_json(f"{prefix}/target-label.json", certified.target_label)
+        staged.publish_json(f"{prefix}/source-contract.json", certified.contract)
+        staged.publish_json(f"{prefix}/audit-plan.json", certified.audit_plan)
+        staged.publish_json(
+            f"{prefix}/certification-result.json",
+            certified.result.model_dump(mode="json"),
+        )
+        staged.publish_json(
+            f"{prefix}/semantic-findings.json",
+            [finding.model_dump(mode="json") for finding in certified.replay.findings],
+        )
+        staged.publish_json(
+            f"{prefix}/inventory.json",
+            [value.model_dump(mode="json") for value in invariant.inventory],
+        )
+        staged.publish_json(
+            f"{prefix}/deterministic-edits.json",
+            [value.model_dump(mode="json") for value in invariant.deterministic_edits],
+        )
+        staged.publish_json(
+            f"{prefix}/pre-invariant-envelope.json",
+            invariant.envelope.model_dump(mode="json"),
+        )
+        staged.publish_json(
+            f"{prefix}/pre-invariant-audit.json",
+            invariant.audit.model_dump(mode="json"),
+        )
+        staged.publish_json(
+            f"{prefix}/authorized-deterministic-repairs.json",
+            [value.model_dump(mode="json") for value in row.authorized_repairs],
+        )
+        staged.publish_json(
+            f"{prefix}/applied-deterministic-repairs.json",
+            [value.model_dump(mode="json") for value in row.applied_repairs],
+        )
+        if row.attempted_invariant is not None:
+            staged.publish_json(
+                f"{prefix}/attempted-invariant-envelope.json",
+                row.attempted_invariant.envelope.model_dump(mode="json"),
+            )
+            staged.publish_json(
+                f"{prefix}/attempted-invariant-audit.json",
+                row.attempted_invariant.audit.model_dump(mode="json"),
+            )
+        staged.publish_json(
+            f"{prefix}/invariant-envelope.json",
+            row.final_invariant.envelope.model_dump(mode="json"),
+        )
+        staged.publish_json(
+            f"{prefix}/invariant-audit.json",
+            row.final_invariant.audit.model_dump(mode="json"),
+        )
+        staged.publish_json(f"{prefix}/stages.json", [])
+        staged.publish_json(f"{prefix}/result.json", row.result.model_dump(mode="json"))
+    results = tuple(row.result for row in frozen_cases)
+    summary: dict[str, JsonValue] = {
+        "schemaVersion": 3,
+        "runId": config.run.run_id,
+        "status": "complete",
+        "correctionContractVersion": 3,
+        "certificationAuditContractVersion": 3,
+        "documents": len(results),
+        "unchangedCertifiedDocuments": sum(row.status == "unchanged_certified" for row in results),
+        "correctionCandidateDocuments": sum(
+            row.status == "correction_candidate" for row in results
+        ),
+        "needsReviewDocuments": sum(row.status == "needs_review" for row in results),
+        "callFailedDocuments": 0,
+        "sourceFindings": sum(row.sourceFindings for row in results),
+        "semanticFindings": sum(row.semanticFindings for row in results),
+        "deterministicFindings": sum(row.deterministicFindings for row in results),
+        "authorizedDeterministicRepairs": sum(len(row.authorized_repairs) for row in frozen_cases),
+        "appliedDeterministicRepairs": sum(row.appliedDeterministicRepairs for row in results),
+        "citedLines": sum(row.citedLines for row in results),
+        "changedLines": sum(row.changedLines for row in results),
+        "requests": 0,
+        "providerAttempts": 0,
+        "failedProviderAttempts": 0,
+        "inputTokens": 0,
+        "reasoningTokens": 0,
+        "visibleOutputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": "0",
+        "providerReportedCostUsd": None,
+        "trainingRecordsPublished": False,
+    }
+    staged.publish_json("summary.json", summary)
+    staged.publish_bytes(
+        "generation/results.jsonl",
+        b"".join(canonical_json_bytes(row.model_dump(mode="json")) + b"\n" for row in results),
+    )
+    staged.publish_bytes("REPORT.md", _deterministic_correction_report(frozen_cases).encode())
+    staged.publish_json("provenance/transaction.json", transaction)
+    staged.commit(
+        expected_artifacts=_artifact_inventory(staged.stage_root),
+        metadata={
+            "schemaVersion": 3,
+            "documents": len(results),
+            "correctionCandidateDocuments": cast(int, summary["correctionCandidateDocuments"]),
+            "trainingRecordsPublished": False,
+        },
+    )
+    output = dict(summary)
+    output["artifactRoot"] = str(staged.final_root)
+    output["commitSha256"] = sha256_file(staged.final_root / "_COMMIT.json")
+    return output
+
+
 def run_raw_text_certified_correction(
     *,
     project_root: Path,
     config_path: Path,
     config: SynthesisRawTextCertifiedCorrectionConfig,
 ) -> dict[str, JsonValue]:
+    if config_path.is_symlink() or not config_path.is_file():
+        raise ValueError("certified-correction configuration must be a regular file")
+    loaded_config = load_synthesis_raw_text_certified_correction_config(config_path)
+    if loaded_config != config:
+        raise ValueError("certified-correction configuration object differs from config_path")
+    if (
+        "required_audit_contract_version" not in loaded_config.workflow.model_fields_set
+        or loaded_config.workflow.required_audit_contract_version not in {2, 3}
+    ):
+        raise ValueError("new correction requires an explicit modern certification authority")
+    required_contract = loaded_config.workflow.required_audit_contract_version
     certification_root = _validate_reference_run(
         project_root,
         config.certification_run.path,
         config.certification_run.commit_sha256,
         config.certification_run.transaction_sha256,
     )
+    certification_run = load_validated_certification_run(
+        certification_root,
+        project_root=project_root if required_contract == 3 else None,
+    )
+    certification_config = certification_run.config
+    if (
+        certification_config.audit_contract_version != required_contract
+        or certification_config.workflow.evaluation_only
+        or certification_config.workflow.semantic_audit_passes != 2
+        or certification_config.workflow.confirmation_reasoning_effort != "high"
+    ):
+        raise ValueError("correction source is not the required production certification run")
+    if required_contract == 3:
+        return _run_contract_v3_correction(
+            project_root=project_root,
+            config_path=config_path,
+            config=config,
+            certification_root=certification_root,
+            certification_run=certification_run,
+        )
+    certification_cases = certification_run.case_by_id()
     prompt_path = resolve_config_path(project_root, config.prompt.path)
     if (
         prompt_path.is_symlink()
@@ -1675,36 +2163,18 @@ def run_raw_text_certified_correction(
     prompt_bytes = read_regular_file_bytes(prompt_path)
     case_material: dict[str, dict[str, Any]] = {}
     for document_id in config.case_ids:
-        case_root = certification_root / "cases" / document_id
-        if not case_root.is_dir():
+        certified_case = certification_cases.get(document_id)
+        if certified_case is None:
             raise ValueError(f"certification run lacks correction case {document_id}")
-        required = (
-            "source.txt",
-            "final.txt",
-            "source-label.json",
-            "target-label.json",
-            "source-contract.json",
-            "stages.json",
-            "result.json",
-        )
-        if any(
-            (case_root / name).is_symlink() or not (case_root / name).is_file() for name in required
-        ):
-            raise ValueError(f"certification case is incomplete: {document_id}")
-        source = read_regular_file_bytes(case_root / "source.txt").decode("utf-8")
-        current = read_regular_file_bytes(case_root / "final.txt").decode("utf-8")
-        result = CertificationCaseResult.model_validate_json(
-            read_regular_file_bytes(case_root / "result.json"), strict=True
-        )
-        if result.documentId != document_id or result.inputCandidateSha256 != sha256_bytes(
-            current.encode()
-        ):
-            raise ValueError(f"certification candidate identity differs: {document_id}")
-        audit_output = _last_semantic_output(case_root / "stages.json", candidate=current)
-        model_findings = _validate_audit_output(audit_output, current=current)
+        case_root = certification_root / "cases" / document_id
+        source = certified_case.source.decode("utf-8")
+        current = certified_case.candidate.decode("utf-8")
+        result = certified_case.result
+        raw_contract = certified_case.contract
+        model_findings = certified_case.replay.findings
         contract = _refine_carrier_occurrence_contract(
             source=source,
-            contract=_read_json_object(case_root / "source-contract.json"),
+            contract=raw_contract,
         )
         occurrence_findings = _host_occurrence_findings(
             source=source,
@@ -1722,7 +2192,9 @@ def run_raw_text_certified_correction(
             unique_findings[digest] = finding
         findings = tuple(unique_findings[key] for key in sorted(unique_findings))
         current_host_audit = _host_audit(source=source, output=current, contract=contract)
-        already_certified = not findings and current_host_audit.passed
+        already_certified = (
+            result.status == "certified" and not findings and current_host_audit.passed
+        )
         if result.status == "certified" and model_findings:
             raise ValueError(f"certified case carries semantic findings: {document_id}")
         if not already_certified and not findings:
@@ -1733,8 +2205,8 @@ def run_raw_text_certified_correction(
             "root": case_root,
             "source": source,
             "current": current,
-            "sourceLabel": _read_json_object(case_root / "source-label.json"),
-            "targetLabel": _read_json_object(case_root / "target-label.json"),
+            "sourceLabel": certified_case.source_label,
+            "targetLabel": certified_case.target_label,
             "contract": contract,
             "findings": findings,
             "rows": _correction_lines(source=source, current=current, findings=findings),
@@ -1743,17 +2215,29 @@ def run_raw_text_certified_correction(
         }
 
     transaction = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "runId": config.run.run_id,
         "configSha256": sha256_file(config_path),
+        "resolvedConfigSha256": sha256_bytes(canonical_json_bytes(config.model_dump(mode="json"))),
         "certificationRunCommitSha256": config.certification_run.commit_sha256,
         "certificationRunTransactionSha256": config.certification_run.transaction_sha256,
+        "certificationConfigSha256": sha256_file(certification_root / "config.yaml"),
+        "certificationResolvedConfigSha256": sha256_bytes(
+            canonical_json_bytes(certification_config.model_dump(mode="json"))
+        ),
+        "certificationTransactionArtifactSha256": sha256_file(
+            certification_root / "provenance/transaction.json"
+        ),
+        "certificationSummarySha256": sha256_file(certification_root / "summary.json"),
+        "certificationAuditContractVersion": certification_config.audit_contract_version,
+        "certificationMode": "production",
         "promptSha256": config.prompt.sha256,
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
         "dependencyImplementationSha256": {
             name: sha256_file(Path(__file__).with_name(filename))
             for name, filename in (
                 ("certification", "raw_text_certification.py"),
+                ("certificationArtifacts", "raw_text_certification_artifacts.py"),
                 ("providerRuntime", "linguistic_probe_runtime.py"),
                 ("hybridRuntime", "raw_text_hybrid_probe.py"),
                 ("inventory", "raw_text_inventory.py"),
@@ -1784,7 +2268,12 @@ def run_raw_text_certified_correction(
         transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
     )
     if staged.completed:
-        return cast(dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json"))
+        completed = cast(
+            dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json")
+        )
+        completed["artifactRoot"] = str(staged.final_root)
+        completed["commitSha256"] = sha256_file(staged.final_root / "_COMMIT.json")
+        return completed
     staged.recover_interrupted_temporary_files()
     staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
     staged.publish_bytes("prompts/corrector.md", prompt_bytes)

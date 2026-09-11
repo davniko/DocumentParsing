@@ -1,0 +1,62 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+audit_contract_version: 2
+environment_file: .env
+run:
+  run_id: mpci-bl-raw-text-certification-benchmark15-holdout-medium-probe1-v1
+  output_dir: artifacts/kie-synthesis
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification-benchmark15-holdout-cohort-v2
+  commit_sha256: c854303c00f2af61c46763c9e13bb3b568281b22e1b1c16c84e509043f3548e9
+  transaction_sha256: cc3010668b065e7402230016fa85077901e63bcb6d255c3940f8c70d994758fe
+input_case_contract_filename: source-contract.json
+case_ids:
+  - doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v3.md
+  sha256: c30eaff0ac103097bfc5f807f08b72e0213d5063713cd761408d023cd2cd43a9
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: medium
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 12288
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+    - fireworks
+  max_price:
+    prompt: 0.15
+    completion: 0.5
+  generation_settings:
+    temperature: 0.0
+  pricing:
+    currency: USD
+    effective_date: 2026-09-09
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.15
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.5
+workflow:
+  documents: 1
+  max_concurrent_documents: 1
+  semantic_audit_passes: 1
+  evaluation_only: true
+  require_complete_dimension_coverage: true
+  require_unanimous_clean: false
+  max_provider_route_rounds: 1
+  retry_initial_delay_seconds: 0.0
+  retry_delay_multiplier: 1.0
+  retry_max_delay_seconds: 0.0
+  retry_jitter_seconds: 0.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false

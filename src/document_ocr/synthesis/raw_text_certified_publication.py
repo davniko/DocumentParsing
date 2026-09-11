@@ -14,11 +14,17 @@ from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.label_schemas.bill_of_lading_v5 import (
     BillOfLadingRelationExplicitV5Label,
 )
-from document_ocr.synthesis.config import SynthesisRawTextCertifiedPublicationConfig
-from document_ocr.synthesis.raw_text_certification import (
-    CertificationCaseResult,
-    _host_audit,
+from document_ocr.synthesis.config import (
+    SynthesisRawTextCertifiedPublicationConfig,
+    load_synthesis_raw_text_certified_publication_config,
 )
+from document_ocr.synthesis.raw_text_certification import CertificationCaseResult
+from document_ocr.synthesis.raw_text_certification_artifacts import (
+    ValidatedCertificationCase,
+    ValidatedCertificationRun,
+    load_validated_certification_run,
+)
+from document_ocr.synthesis.raw_text_certification_host import CertificationInvariantCase
 from document_ocr.synthesis.raw_text_hybrid_probe import _artifact_inventory
 from document_ocr.synthesis.raw_text_inventory_probe import _validate_reference_run
 from document_ocr.synthesis.run_safety import StagedArtifactRun
@@ -37,7 +43,10 @@ class _CertifiedCase:
     source_label: dict[str, Any]
     target_label: dict[str, Any]
     contract: dict[str, Any]
+    audit_plan: dict[str, Any]
+    stages_sha256: str
     result: CertificationCaseResult
+    invariant_case: CertificationInvariantCase | None
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -47,65 +56,34 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
-def _read_jsonl(path: Path) -> tuple[dict[str, Any], ...]:
-    payload = read_regular_file_bytes(path)
-    if payload and not payload.endswith(b"\n"):
-        raise ValueError(f"JSONL artifact lacks a terminal newline: {path}")
-    rows: list[dict[str, Any]] = []
-    for line_number, line in enumerate(payload.splitlines(), start=1):
-        if not line.strip():
-            raise ValueError(f"JSONL artifact contains a blank row: {path}:{line_number}")
-        value = json.loads(line)
-        if not isinstance(value, dict):
-            raise ValueError(f"JSONL row is not an object: {path}:{line_number}")
-        rows.append(cast(dict[str, Any], value))
-    return tuple(rows)
-
-
-def _certified_ids(root: Path) -> tuple[str, ...]:
-    rows = _read_jsonl(root / "generation" / "results.jsonl")
-    ids = tuple(
-        sorted(
-            cast(str, row["documentId"])
-            for row in rows
-            if row.get("status") == "certified"
-            and isinstance(row.get("documentId"), str)
-        )
-    )
-    if len(ids) != len(set(ids)):
-        raise ValueError(f"certification results repeat a certified document: {root}")
-    return ids
-
-
-def _load_case(root: Path, document_id: str) -> _CertifiedCase:
-    case_root = root / "cases" / document_id
-    required = (
-        "source.txt",
-        "input-candidate.txt",
-        "final.txt",
-        "source-label.json",
-        "target-label.json",
-        "source-contract.json",
-        "stages.json",
-        "result.json",
-    )
-    for name in required:
-        path = case_root / name
-        if path.is_symlink() or not path.is_file():
-            raise ValueError(f"certified case artifact is missing or unsafe: {path}")
-    source = read_regular_file_bytes(case_root / "source.txt")
-    candidate = read_regular_file_bytes(case_root / "input-candidate.txt")
-    final = read_regular_file_bytes(case_root / "final.txt")
-    if candidate != final:
-        raise ValueError(f"read-only certification modified candidate bytes: {document_id}")
-    result = CertificationCaseResult.model_validate_json(
-        read_regular_file_bytes(case_root / "result.json"), strict=True
-    )
+def _load_case(
+    root: Path,
+    certified: ValidatedCertificationCase,
+    *,
+    required_audit_contract_version: int,
+) -> _CertifiedCase:
+    document_id = certified.document_id
+    source = certified.source
+    candidate = certified.candidate
+    final = certified.candidate
+    result = certified.result
+    source_label = certified.source_label
+    target_label = certified.target_label
+    contract = certified.contract
+    replay = certified.replay
     if (
         result.documentId != document_id
+        or result.auditContractVersion != required_audit_contract_version
+        or result.certificationMode != "production"
         or result.status != "certified"
-        or result.auditPasses != 1
+        or result.auditPasses != 2
+        or result.cleanAuditPasses != 2
+        or result.requiredAuditPasses != 2
+        or replay.audit_passes != 2
+        or replay.findings
+        or result.auditPlanSha256 != sha256_bytes(canonical_json_bytes(certified.audit_plan))
         or result.semanticFindings != 0
+        or result.deterministicFindings != 0
         or not result.hostAudit.passed
         or result.hostAudit.findings
         or result.sourceTextSha256 != sha256_bytes(source)
@@ -113,9 +91,22 @@ def _load_case(root: Path, document_id: str) -> _CertifiedCase:
         or result.finalTextSha256 != sha256_bytes(final)
     ):
         raise ValueError(f"case does not meet the complete certification contract: {document_id}")
-    source_label = _read_json_object(case_root / "source-label.json")
-    target_label = _read_json_object(case_root / "target-label.json")
-    contract = _read_json_object(case_root / "source-contract.json")
+    invariant = certified.invariant_case
+    if required_audit_contract_version == 3:
+        if (
+            invariant is None
+            or not invariant.audit.passed
+            or invariant.audit.findings
+            or result.invariantEnvelopeSha256
+            != sha256_bytes(canonical_json_bytes(invariant.envelope.model_dump(mode="json")))
+            or result.invariantAuditSha256
+            != sha256_bytes(canonical_json_bytes(invariant.audit.model_dump(mode="json")))
+        ):
+            raise ValueError(
+                f"case does not have replayed deterministic certification: {document_id}"
+            )
+    elif invariant is not None:
+        raise ValueError(f"contract-v2 publication case carries v3 invariants: {document_id}")
     contract_result = contract.get("result")
     if not isinstance(contract_result, dict):
         raise ValueError(f"source contract lacks its scenario receipt: {document_id}")
@@ -149,16 +140,6 @@ def _load_case(root: Path, document_id: str) -> _CertifiedCase:
     ).canonical_target()
     if canonical_target != target_label:
         raise ValueError(f"target is not canonical schema-v5 JSON: {document_id}")
-    replay = _host_audit(
-        source=source.decode("utf-8"),
-        output=final.decode("utf-8"),
-        contract=contract,
-    )
-    if not replay.passed or replay.findings:
-        raise ValueError(
-            f"current host audit rejects previously certified case {document_id}: "
-            f"{replay.findings}"
-        )
     return _CertifiedCase(
         source_run=root,
         document_id=document_id,
@@ -168,7 +149,12 @@ def _load_case(root: Path, document_id: str) -> _CertifiedCase:
         source_label=source_label,
         target_label=target_label,
         contract=contract,
+        audit_plan=certified.audit_plan,
+        stages_sha256=sha256_bytes(
+            canonical_json_bytes([row.model_dump(mode="json") for row in certified.stages]) + b"\n"
+        ),
         result=result,
+        invariant_case=invariant,
     )
 
 
@@ -185,6 +171,7 @@ def _report(cases: tuple[_CertifiedCase, ...]) -> str:
             "",
             f"- Independently certified document/label pairs: **{len(cases)} / {len(cases)}**.",
             "- Semantic findings at publication: **0**.",
+            "- Deterministic invariant findings at publication: **0**.",
             "- Current deterministic host-audit failures: **0**.",
             "- Candidate bytes modified by certification/publication: **0**.",
             f"- Source / synthetic OCR bytes: **{source_bytes:,} / {output_bytes:,}**.",
@@ -206,8 +193,20 @@ def run_raw_text_certified_publication(
     config_path: Path,
     config: SynthesisRawTextCertifiedPublicationConfig,
 ) -> dict[str, JsonValue]:
+    if config_path.is_symlink() or not config_path.is_file():
+        raise ValueError("certified-publication configuration must be a regular file")
+    loaded_config = load_synthesis_raw_text_certified_publication_config(config_path)
+    if loaded_config != config:
+        raise ValueError("certified-publication configuration object differs from config_path")
+    if (
+        "required_audit_contract_version" not in loaded_config.workflow.model_fields_set
+        or config.workflow.required_audit_contract_version not in {2, 3}
+    ):
+        raise ValueError("new publication requires an explicit modern certification contract")
+    required_contract = config.workflow.required_audit_contract_version
     source_roots: list[Path] = []
     selected_ids: dict[Path, tuple[str, ...]] = {}
+    source_runs: dict[Path, ValidatedCertificationRun] = {}
     for source in config.certification_sources:
         root = _validate_reference_run(
             project_root,
@@ -215,16 +214,38 @@ def run_raw_text_certified_publication(
             source.run.commit_sha256,
             source.run.transaction_sha256,
         )
-        ids = _certified_ids(root)
+        certification_run = load_validated_certification_run(
+            root,
+            project_root=project_root if required_contract == 3 else None,
+        )
+        certification_config = certification_run.config
+        if (
+            certification_config.audit_contract_version != required_contract
+            or certification_config.workflow.evaluation_only
+            or certification_config.workflow.semantic_audit_passes != 2
+        ):
+            raise ValueError(f"publication source is not the required production contract: {root}")
+        ids = tuple(
+            sorted(
+                row.document_id
+                for row in certification_run.cases
+                if row.result.status == "certified"
+            )
+        )
         if len(ids) != source.certified_documents:
             raise ValueError(f"configured certified count differs for source: {root}")
         if sha256_bytes(canonical_json_bytes(list(ids))) != source.certified_document_ids_sha256:
             raise ValueError(f"configured certified document identity differs for source: {root}")
         source_roots.append(root)
         selected_ids[root] = ids
+        source_runs[root] = certification_run
 
     cases = tuple(
-        _load_case(root, document_id)
+        _load_case(
+            root,
+            source_runs[root].case_by_id()[document_id],
+            required_audit_contract_version=required_contract,
+        )
         for root in source_roots
         for document_id in selected_ids[root]
     )
@@ -238,19 +259,35 @@ def run_raw_text_certified_publication(
         raise ValueError("certified publication repeats a synthetic scenario")
 
     transaction: dict[str, JsonValue] = {
-        "schemaVersion": 1,
+        "schemaVersion": 3 if required_contract == 3 else 1,
         "runId": config.run.run_id,
         "configSha256": sha256_file(config_path),
+        "resolvedConfigSha256": sha256_bytes(canonical_json_bytes(config.model_dump(mode="json"))),
+        "requiredAuditContractVersion": config.workflow.required_audit_contract_version,
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
         "dependencyImplementationSha256": {
-            "certification": sha256_file(
-                Path(__file__).with_name("raw_text_certification.py")
+            "certification": sha256_file(Path(__file__).with_name("raw_text_certification.py")),
+            "certificationArtifacts": sha256_file(
+                Path(__file__).with_name("raw_text_certification_artifacts.py")
             ),
-            "inventoryRunner": sha256_file(
-                Path(__file__).with_name("raw_text_inventory_probe.py")
-            ),
+            "inventoryRunner": sha256_file(Path(__file__).with_name("raw_text_inventory_probe.py")),
             "targetSchema": sha256_file(
                 Path(__file__).parents[1] / "label_schemas/bill_of_lading_v5.py"
+            ),
+            **(
+                {
+                    "certificationHost": sha256_file(
+                        Path(__file__).with_name("raw_text_certification_host.py")
+                    ),
+                    "certificationInvariants": sha256_file(
+                        Path(__file__).with_name("raw_text_certification_invariants.py")
+                    ),
+                    "certificationReferences": sha256_file(
+                        Path(__file__).with_name("raw_text_certification_references.py")
+                    ),
+                }
+                if required_contract == 3
+                else {}
             ),
         },
         "sourceRuns": [
@@ -260,8 +297,28 @@ def run_raw_text_certified_publication(
                 "transactionSha256": source.run.transaction_sha256,
                 "certifiedDocuments": source.certified_documents,
                 "certifiedDocumentIdsSha256": source.certified_document_ids_sha256,
+                "configSha256": sha256_file(source_runs[root].root / "config.yaml"),
+                "resolvedConfigSha256": sha256_bytes(
+                    canonical_json_bytes(source_runs[root].config.model_dump(mode="json"))
+                ),
+                "transactionArtifactSha256": sha256_file(
+                    source_runs[root].root / "provenance/transaction.json"
+                ),
+                "summarySha256": sha256_file(source_runs[root].root / "summary.json"),
+                **(
+                    {
+                        "invariantReferenceReceiptSha256": source_runs[root].transaction[
+                            "invariantReferenceReceiptSha256"
+                        ],
+                        "capacityConfigSha256": source_runs[root].transaction[
+                            "capacityConfigSha256"
+                        ],
+                    }
+                    if required_contract == 3
+                    else {}
+                ),
             }
-            for source in config.certification_sources
+            for source, root in zip(config.certification_sources, source_roots, strict=True)
         ],
         "documentIdsSha256": sha256_bytes(canonical_json_bytes(sorted(document_ids))),
         "scenarioIdsSha256": sha256_bytes(canonical_json_bytes(sorted(scenario_ids))),
@@ -272,7 +329,12 @@ def run_raw_text_certified_publication(
         transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
     )
     if staged.completed:
-        return cast(dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json"))
+        completed = cast(
+            dict[str, JsonValue], _read_json_object(staged.final_root / "summary.json")
+        )
+        completed["artifactRoot"] = str(staged.final_root)
+        completed["commitSha256"] = sha256_file(staged.final_root / "_COMMIT.json")
+        return completed
     staged.recover_interrupted_temporary_files()
     staged.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
 
@@ -302,6 +364,22 @@ def run_raw_text_certified_publication(
                 "certificationResultSha256": sha256_bytes(
                     canonical_json_bytes(row.result.model_dump(mode="json"))
                 ),
+                "certificationAuditPlanSha256": sha256_bytes(canonical_json_bytes(row.audit_plan)),
+                "certificationStagesSha256": row.stages_sha256,
+                "certificationInvariantEnvelopeSha256": (
+                    sha256_bytes(
+                        canonical_json_bytes(row.invariant_case.envelope.model_dump(mode="json"))
+                    )
+                    if row.invariant_case is not None
+                    else None
+                ),
+                "certificationInvariantAuditSha256": (
+                    sha256_bytes(
+                        canonical_json_bytes(row.invariant_case.audit.model_dump(mode="json"))
+                    )
+                    if row.invariant_case is not None
+                    else None
+                ),
             }
         )
         prefix = f"cases/{row.scenario_id}"
@@ -310,12 +388,28 @@ def run_raw_text_certified_publication(
         staged.publish_json(f"{prefix}/source-label.json", row.source_label)
         staged.publish_json(f"{prefix}/target-label.json", row.target_label)
         staged.publish_json(f"{prefix}/source-contract.json", row.contract)
+        staged.publish_json(f"{prefix}/certification-audit-plan.json", row.audit_plan)
         staged.publish_json(
             f"{prefix}/certification-result.json", row.result.model_dump(mode="json")
         )
-        staged.publish_json(
-            f"{prefix}/lineage.json", lineage[-1]
-        )
+        staged.publish_json(f"{prefix}/lineage.json", lineage[-1])
+        if row.invariant_case is not None:
+            staged.publish_json(
+                f"{prefix}/inventory.json",
+                [value.model_dump(mode="json") for value in row.invariant_case.inventory],
+            )
+            staged.publish_json(
+                f"{prefix}/deterministic-edits.json",
+                [value.model_dump(mode="json") for value in row.invariant_case.deterministic_edits],
+            )
+            staged.publish_json(
+                f"{prefix}/certification-invariant-envelope.json",
+                row.invariant_case.envelope.model_dump(mode="json"),
+            )
+            staged.publish_json(
+                f"{prefix}/certification-invariant-audit.json",
+                row.invariant_case.audit.model_dump(mode="json"),
+            )
 
     records_bytes = b"".join(canonical_json_bytes(row) + b"\n" for row in records)
     lineage_bytes = b"".join(canonical_json_bytes(row) + b"\n" for row in lineage)
@@ -345,13 +439,14 @@ def run_raw_text_certified_publication(
     }
     staged.publish_json("dataset/manifest.json", dataset_manifest)
     summary: dict[str, JsonValue] = {
-        "schemaVersion": 1,
+        "schemaVersion": 3 if required_contract == 3 else 1,
         "runId": config.run.run_id,
         "status": "complete",
         "sourceCertificationRuns": len(source_roots),
         "documents": len(cases),
         "certifiedDocuments": len(cases),
         "semanticFindings": 0,
+        "deterministicFindings": 0,
         "currentHostAuditFailures": 0,
         "candidateBytesModified": 0,
         "trainingRecordsPublished": True,
@@ -366,7 +461,7 @@ def run_raw_text_certified_publication(
     staged.commit(
         expected_artifacts=_artifact_inventory(staged.stage_root),
         metadata={
-            "schemaVersion": 1,
+            "schemaVersion": 3 if required_contract == 3 else 1,
             "documents": len(cases),
             "certifiedDocuments": len(cases),
             "trainingRecordsPublished": True,

@@ -64,9 +64,7 @@ def _leaf(source: str, target: str) -> ChangedLeaf:
 
 
 def test_root_fields_and_list_elements_do_not_share_document_patch_scope() -> None:
-    assert _object_scope("documentPatch.billOfLadingNumber") == (
-        "documentPatch.billOfLadingNumber"
-    )
+    assert _object_scope("documentPatch.billOfLadingNumber") == ("documentPatch.billOfLadingNumber")
     assert _object_scope("documentPatch.forwardingAndExportReferences[1]") == (
         "documentPatch.forwardingAndExportReferences[1]"
     )
@@ -133,9 +131,9 @@ def test_contextual_location_accepts_blank_separated_structural_heading() -> Non
     assert _contextual_location_line_numbers(
         text, "documentPatch.freight.paymentPlace.name", "MERSIN"
     ) == {3}
-    assert _contextual_location_line_numbers(
-        text, "documentPatch.placeOfIssue.name", "MERSIN"
-    ) == {6}
+    assert _contextual_location_line_numbers(text, "documentPatch.placeOfIssue.name", "MERSIN") == {
+        6
+    }
 
 
 def test_surface_requirement_exact_line_ids_override_repeated_context_surface() -> None:
@@ -154,13 +152,7 @@ def test_surface_requirement_exact_line_ids_override_repeated_context_surface() 
 
 
 def test_contextual_route_location_excludes_same_literal_inside_party_blocks() -> None:
-    text = (
-        "CONSIGNEE\n"
-        "OLD TRADING CO\n"
-        "ALEXANDRIA EGYPT\n\n"
-        "PORT OF DISCHARGE\n"
-        "ALEXANDRIA\n"
-    )
+    text = "CONSIGNEE\nOLD TRADING CO\nALEXANDRIA EGYPT\n\nPORT OF DISCHARGE\nALEXANDRIA\n"
 
     assert _contextual_location_line_numbers(
         text,
@@ -203,15 +195,7 @@ def test_delivery_agent_qualifier_inside_notify_block_owns_only_that_party_parag
 
 
 def test_relation_scopes_prefer_container_allocations_over_repeated_goods_text() -> None:
-    text = (
-        "AAAA900001\n"
-        "SAME GOODS\n"
-        "MATERIAL 111\n"
-        "\n"
-        "BBBB900002\n"
-        "SAME GOODS\n"
-        "MATERIAL 222\n"
-    )
+    text = "AAAA900001\nSAME GOODS\nMATERIAL 111\n\nBBBB900002\nSAME GOODS\nMATERIAL 222\n"
     source = {
         "documentPatch": {
             "cargoGroups": [{"groupId": "g1"}, {"groupId": "g2"}],
@@ -256,15 +240,7 @@ def test_relation_scopes_prefer_container_allocations_over_repeated_goods_text()
 
 
 def test_additional_information_prefill_is_group_scoped_and_supports_columns() -> None:
-    text = (
-        "AAAA900001\n"
-        "MATERIAL\n"
-        "111\n"
-        "111\n"
-        "\n"
-        "BBBB900002\n"
-        "MATERIAL 111\n"
-    )
+    text = "AAAA900001\nMATERIAL\n111\n111\n\nBBBB900002\nMATERIAL 111\n"
     source = {
         "documentPatch": {
             "cargoGroups": [
@@ -351,19 +327,13 @@ def test_party_role_country_prefill_owns_the_party_block_not_detached_metadata()
     expected = expected.replace("TAIWAN\n\n", "ALGERIA\n\n", 1)
     assert workspace.current_text == expected
     assert [row.lineId for row in applied] == ["L00004", "L00005"]
-    assert {row.targetPaths for row in applied} == {
-        ("documentPatch.parties.shipper.country",)
-    }
+    assert {row.targetPaths for row in applied} == {("documentPatch.parties.shipper.country",)}
     assert {row.targetSurface for row in applied} == {"ALGERIA"}
 
 
 def test_party_country_prefill_does_not_rewrite_country_inside_street_name() -> None:
     text = (
-        "--- PAGE 1 ---\n"
-        "Shipper\n"
-        "SOURCE EXPORTS LTD\n"
-        "11 ORT ISRAEL STR.\n"
-        "BAT - YAM 5954, ISRAEL\n"
+        "--- PAGE 1 ---\nShipper\nSOURCE EXPORTS LTD\n11 ORT ISRAEL STR.\nBAT - YAM 5954, ISRAEL\n"
     )
     source_label = {
         "documentPatch": {
@@ -532,6 +502,68 @@ def test_compiler_preserves_customs_heading_delimiter_and_value_spacing() -> Non
     assert workspace.current_text == "--- PAGE 1 ---\nCUSTOMS REFERENCE : 1002845232025040024\n"
     assert len(edits) == 1
     assert edits[0].targetSurface == "CUSTOMS REFERENCE :"
+
+
+def test_compiler_preserves_title_case_and_shared_acronym_in_party_caption() -> None:
+    source = "Egyptian Importer VAT Number: 412629453\n"
+    requirement = JurisdictionalSurfaceRequirement(
+        requirementId="jurisdiction-egypt-importer-vat",
+        programId="egypt_advance_cargo_information",
+        tradeDirection="import",
+        programJurisdictionCountryCode="EG",
+        targetRouteCountryCode="EG",
+        sourceLineIds=("L00001",),
+        sourceSurface="EGYPTIAN IMPORTER VAT NUMBER",
+        targetSurface="IMPORTER VAT NUMBER",
+        sourceOccurrences=1,
+        authority="NAFEZA",
+        officialSourceUrl="https://www.nafeza.gov.eg/en/pages/15",
+        rewriteBasis="target_party_country_changed",
+        targetPartyRole="consignee",
+        targetPartyCountryCode="PK",
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        jurisdictional_requirements=(requirement,),
+    )
+
+    edits = _apply_compiler_requirements(workspace)
+
+    assert workspace.current_text == "Importer VAT Number: 412629453\n"
+    assert [row.targetSurface for row in edits] == ["Importer VAT Number"]
+
+
+def test_compiler_uses_canonical_party_registry_caption_and_preserves_identifier() -> None:
+    source = "562 024 422 R.C.S. Marseille\n"
+    requirement = JurisdictionalSurfaceRequirement(
+        requirementId="jurisdiction-france-rcs",
+        programId="france_register_of_commerce_and_companies",
+        tradeDirection="party",
+        programJurisdictionCountryCode="FR",
+        targetRouteCountryCode=None,
+        sourceLineIds=("L00001",),
+        sourceSurface="R.C.S.",
+        targetSurface="REG. NO.",
+        alternativeTargetSurfaces=("COMPANY REG.",),
+        sourceOccurrences=1,
+        authority="Direction de l'information légale et administrative",
+        officialSourceUrl="https://entreprendre.service-public.gouv.fr/vosdroits/F31190",
+        rewriteBasis="target_party_registry_country_changed",
+        targetPartyRole="carrier",
+        sourcePartyCountryCode="FR",
+        targetPartyCountryCode="CH",
+    )
+    workspace = RewriteWorkspace(
+        original_text=source,
+        current_text=source,
+        jurisdictional_requirements=(requirement,),
+    )
+
+    edits = _apply_compiler_requirements(workspace)
+
+    assert workspace.current_text == "562 024 422 Reg. No. Marseille\n"
+    assert [row.targetSurface for row in edits] == ["Reg. No."]
 
 
 def test_compiler_does_not_reapply_prefilled_operational_value_inside_new_seal() -> None:
@@ -756,10 +788,7 @@ def test_numeric_locator_does_not_authorize_page_markers() -> None:
 
 
 def test_numeric_locator_ignores_identifier_digits_but_keeps_attached_units() -> None:
-    text = (
-        "VOYAGE 1UAMMH2EL\nTOTAL 2 PACKAGES\nGROSS WEIGHT 20931.200KGS\n"
-        "15-Sep-2023\n"
-    )
+    text = "VOYAGE 1UAMMH2EL\nTOTAL 2 PACKAGES\nGROSS WEIGHT 20931.200KGS\n15-Sep-2023\n"
 
     assert _numeric_line_numbers(text, 2) == {2}
     assert _numeric_line_numbers(text, 20931.2) == {3}
@@ -1006,10 +1035,7 @@ def test_numeric_locator_never_treats_page_marker_as_business_evidence() -> None
 
 
 def test_carrier_locator_accepts_exact_name_wrapped_by_signed_by_form_labels() -> None:
-    text = (
-        "SIGNED ORIENT OVERSEAS CONTAINER LINE\n"
-        "BY: (CHINA) CO., LTD\n"
-    )
+    text = "SIGNED ORIENT OVERSEAS CONTAINER LINE\nBY: (CHINA) CO., LTD\n"
 
     assert _line_set_for_directive(
         text,
@@ -1080,12 +1106,7 @@ def test_conflicting_identical_dates_are_prefilled_by_semantic_heading() -> None
 
 
 def test_repeated_page_dates_remain_owned_by_their_semantic_heading() -> None:
-    page = (
-        "DATE LADEN ON BOARD\n"
-        "11 MAY 2023\n\n"
-        "DATED\n"
-        "11 MAY 2023\n"
-    )
+    page = "DATE LADEN ON BOARD\n11 MAY 2023\n\nDATED\n11 MAY 2023\n"
     text = f"--- PAGE 1 ---\n{page}--- PAGE 2 ---\n{page}"
     workspace = RewriteWorkspace(
         original_text=text,

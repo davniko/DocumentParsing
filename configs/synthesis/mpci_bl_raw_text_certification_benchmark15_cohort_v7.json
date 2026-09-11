@@ -1,0 +1,741 @@
+{
+  "schemaVersion": 2,
+  "task": "raw_text_certification_contract_v3_benchmark_cohort_v2",
+  "run": {
+    "runId": "mpci-bl-raw-text-certification-benchmark15-cohort-v18",
+    "outputDir": "artifacts/kie-synthesis"
+  },
+  "sourceQualityAudit": {
+    "path": "artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-additional-maritime-v8-quality-audit-v2",
+    "commitSha256": "b29f51c8f5758f20c111f9c4a6ea6803c64cb2c029abdd6f3d76096477ff3c2c",
+    "transactionSha256": "11d51214fdc68e6d70c49e3162386b1c6f2d81c733a9d23924ec6cdbc2247dfc"
+  },
+  "sourcePipeline": {
+    "path": "artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-additional-maritime-v8-glm53",
+    "commitSha256": "45e18a71c2b0ba4fc682e952fa8070323f3c06a71648b4e2fb15ec434196c8c0",
+    "transactionSha256": "c1667e31bd0cccaf6e6a765a98f27f6f3b80238de84c3402cd1e165a7fc69c8f"
+  },
+  "manualAudit": {
+    "path": "configs/synthesis/mpci_bl_raw_text_pipeline100_additional_maritime_v8_manual_audit_v1.json",
+    "sha256": "bce13d18b7d34ce59d8665b22d020723eb1c0e1245c9b015fe6addbaca4becdf"
+  },
+  "prompt": {
+    "path": "prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v3.md",
+    "sha256": "6e643e0c5b52d5391729c2c954b60123ccf52f4f9b0ffec4b30d1fc3260653ee"
+  },
+  "compilerInventoryConfig": {
+    "path": "configs/synthesis/mpci_bl_raw_text_inventory100_additional_maritime_v64_certification_v3_compiler.yaml",
+    "sha256": "2787fafb26cb09c51324dde25a20bfec185e1005cf8767392e7467c89c69b2ae"
+  },
+  "invariantInputs": {
+    "iso3166_snapshot": {
+      "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+      "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
+    },
+    "geonames_registry": {
+      "path": "artifacts/kie-synthesis/registries/geonames-cities15000-current-v1",
+      "commit_sha256": "5146b39ff411060091854f3fbce19ef65afc1be04a4de7d901d4585d931e7c42",
+      "transaction_sha256": "3da978ea6c24d642a4bd1f6a0f42dbf6119a25f38c9a708a9c8ad5564c248117"
+    },
+    "geonames_registry_receipt_sha256": "bfac2357b10b5170e4461452f2c749db226f713feb6a781fd68de82f14f4dfe9",
+    "phonenumberslite_version": "9.0.38",
+    "package_registry": {
+      "path": "artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json",
+      "sha256": "2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f"
+    },
+    "package_registry_entries": 405,
+    "transport_capacity": {
+      "policy": "source_type_aware_maersk_upper_bounds_v1",
+      "published_reference_margin_fraction": 0.05,
+      "twenty_standard_payload_kg": 28300,
+      "twenty_standard_volume_m3": 33.2,
+      "forty_standard_payload_kg": 28870,
+      "forty_standard_volume_m3": 67.7,
+      "forty_high_cube_payload_kg": 28690,
+      "forty_high_cube_volume_m3": 76.4,
+      "forty_five_high_cube_payload_kg": 27650,
+      "forty_five_high_cube_volume_m3": 86,
+      "out_of_gauge_payload_kg": 47300,
+      "unclassified_payload_kg": 47300,
+      "unclassified_volume_m3": 86
+    }
+  },
+  "gates": {
+    "requireAllChallengerDefectsCaught": true,
+    "requireAllChallengerControlsClean": true,
+    "requirePerfectCounterfactualCascade": true,
+    "requireEveryExpectedDimensionObserved": true,
+    "minimumChallengerIssueRecall": 0.9,
+    "minimumChallengerFindingPrecision": 0.9,
+    "minimumCascadeIssueRecall": 0.9,
+    "minimumCascadeFindingPrecision": 0.9,
+    "maximumCombinedArmCostUsd": 0.2,
+    "minimumMedianReasoningRatio": 1.5,
+    "maximumMedianCostRatio": 3
+  },
+  "cases": [
+    {
+      "documentId": "doc_38da8dbfe44b5b0131fb881088b3fa68695a088da25d0e23a90d9f33f64b5a6e",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "1565049fd4f83e265cf1bb6e10e02ef1cb09de002ed388d3758f08043747af5e",
+      "issues": [
+        {
+          "issueId": "negotiable_named_straight_consignee",
+          "primaryDimension": "party_legal_and_negotiability",
+          "acceptableDimensions": [
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00120",
+              "L00222"
+            ],
+            [
+              "L00121",
+              "L00223"
+            ]
+          ],
+          "description": "The negotiable target conflicts with named straight-consignee blocks under NOT NEGOTIABLE UNLESS CONSIGNED TO ORDER."
+        },
+        {
+          "issueId": "single_40hc_payload_capacity",
+          "primaryDimension": "equipment_temperature_and_capacity",
+          "acceptableDimensions": [
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00055"
+            ],
+            [
+              "L00069"
+            ]
+          ],
+          "description": "The sole 40HC is printed with 42810 kg, above the configured 28690 kg payload ceiling."
+        },
+        {
+          "issueId": "source_equipment_without_target_inventory",
+          "primaryDimension": "equipment_temperature_and_capacity",
+          "acceptableDimensions": [
+            "equipment_temperature_and_capacity",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00055"
+            ],
+            [
+              "L00057"
+            ]
+          ],
+          "description": "Source-only 1x40HC and 1 FCL equipment assertions remain even though the synthetic target has no container inventory."
+        },
+        {
+          "issueId": "source_tax_identifier_unrewritten",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00065"
+            ]
+          ],
+          "description": "The source TAX ID 78-8196789 remains attached to the rewritten shipper instead of the compiler-owned replacement 14-0743514."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "e6cc18b2d2bf995d2c24fb473ddb0139262a8b5fccd9979db6acbf01d52b02fb",
+      "issues": [
+        {
+          "issueId": "stale_two_40hc_aggregate",
+          "primaryDimension": "equipment_temperature_and_capacity",
+          "acceptableDimensions": [
+            "equipment_temperature_and_capacity",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00183"
+            ]
+          ],
+          "description": "The candidate retains 2 X 40HC although the target inventory contains one 20-foot standard and one 40HC."
+        },
+        {
+          "issueId": "tare_components_do_not_total",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00078"
+            ],
+            [
+              "L00084"
+            ],
+            [
+              "L00190"
+            ]
+          ],
+          "description": "Printed tares 3850 and 2970 sum to 6820, not the aggregate 5940."
+        },
+        {
+          "issueId": "volume_components_do_not_total",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00080"
+            ],
+            [
+              "L00086"
+            ],
+            [
+              "L00190"
+            ]
+          ],
+          "description": "Printed volumes 19.850 and 15.400 sum to 35.250, not the aggregate 39.700."
+        },
+        {
+          "issueId": "repeated_foreign_exporter_id_unrewritten",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00006"
+            ],
+            [
+              "L00099"
+            ]
+          ],
+          "description": "Both copies retain source foreign-exporter identifier NZ8630061817 rather than the compiler-owned UE8630061817 replacement."
+        },
+        {
+          "issueId": "source_company_registration_unrewritten",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00030"
+            ]
+          ],
+          "description": "The source company registration 394 118 260 remains instead of the compiler-owned 849 622 530 replacement."
+        },
+        {
+          "issueId": "unauthorized_vat_to_tax_caption",
+          "primaryDimension": "template_format_and_model_artifacts",
+          "acceptableDimensions": [
+            "template_format_and_model_artifacts"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00006"
+            ]
+          ],
+          "description": "The candidate changes the source VAT field caption to TAX without any compiler-owned jurisdictional caption rewrite."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "b2e75bdc642d9803daf81f6896ceff8a472a695b70f005eec45500298e9478ca",
+      "issues": [
+        {
+          "issueId": "shipment_tare_precedes_first_container",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00066"
+            ],
+            [
+              "L00070"
+            ],
+            [
+              "L00084"
+            ],
+            [
+              "L00173"
+            ]
+          ],
+          "description": "The shipment tare 2350 is positioned as the first container's tare while a second container is present, so container tares do not sum to the printed total 6050."
+        },
+        {
+          "issueId": "shipment_volume_precedes_first_container",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00068"
+            ],
+            [
+              "L00070"
+            ],
+            [
+              "L00084"
+            ],
+            [
+              "L00173"
+            ]
+          ],
+          "description": "The shipment volume 74.100 is positioned as the first container's volume while a second container is present, so container volumes do not sum to the printed total 74.100."
+        },
+        {
+          "issueId": "egypt_acid_on_vietnam_route",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00094"
+            ]
+          ],
+          "description": "Egypt-specific ACID/importer semantics remain on a Vietnam destination route."
+        },
+        {
+          "issueId": "source_carrier_registry_reassigned",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00030"
+            ]
+          ],
+          "description": "The source carrier registry number 562 024 422 is retained and relabeled for the fictional carrier."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_372c779c9aaeed273fda78438a576603853d91a582536f977f72a8d1325899e5",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "5b650d11c4829a9927f1003ab3a834fa2b73f4641e6558625ba1d1f92c746dfb",
+      "issues": [
+        {
+          "issueId": "vessel_in_cargo_description_slots",
+          "primaryDimension": "cargo_packages_and_dangerous_goods",
+          "acceptableDimensions": [
+            "cargo_packages_and_dangerous_goods",
+            "template_format_and_model_artifacts"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00048",
+              "L00131",
+              "L00218"
+            ],
+            [
+              "L00049",
+              "L00132",
+              "L00219"
+            ]
+          ],
+          "description": "The vessel name CIC PAOLA occupies repeated cargo-description slots alongside the hot-rolled-steel cargo."
+        },
+        {
+          "issueId": "same_identifier_changes_field_kind",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "template_format_and_model_artifacts"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00050",
+              "L00219"
+            ],
+            [
+              "L00135"
+            ]
+          ],
+          "description": "The same identifier is labeled ACID in some copies and CUSTOMS REFERENCE in another."
+        },
+        {
+          "issueId": "egypt_acid_on_hong_kong_route",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00050",
+              "L00135",
+              "L00219"
+            ]
+          ],
+          "description": "Egypt-specific ACID captions remain across all three copies although the complete synthetic route is bound to Hong Kong."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "c68acfdea1c2c165caf78e64eb24fd1984b1cff71cbc809bcd15f74192816da6",
+      "issues": [
+        {
+          "issueId": "container_size_assignment_missing",
+          "primaryDimension": "target_fact_fidelity",
+          "acceptableDimensions": [
+            "equipment_temperature_and_capacity",
+            "target_fact_fidelity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00052"
+            ],
+            [
+              "L00076"
+            ]
+          ],
+          "description": "The aggregate seven-40HC plus one-20-foot statement never associates the target 20-foot size with FCIU9720830."
+        },
+        {
+          "issueId": "zero_originals_conflicts_three_signed",
+          "primaryDimension": "party_legal_and_negotiability",
+          "acceptableDimensions": [
+            "party_legal_and_negotiability",
+            "repeated_and_derived_relations"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00086"
+            ],
+            [
+              "L00102"
+            ]
+          ],
+          "description": "The shipment-specific clause says three originals were signed while the originals field says ZERO."
+        },
+        {
+          "issueId": "repeated_telephone_values_disagree",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00133"
+            ],
+            [
+              "L00143"
+            ]
+          ],
+          "description": "A source telephone field repeated one value, but its two candidate copies disagree."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "c3d937612a28d9f54b70318f876e8370916e6aad52e556ebc4eb38f1b91c4bfe",
+      "issues": [
+        {
+          "issueId": "serial_ranges_do_not_total_packages",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "cargo_packages_and_dangerous_goods"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00072"
+            ],
+            [
+              "L00129"
+            ],
+            [
+              "L00131"
+            ],
+            [
+              "L00132"
+            ],
+            [
+              "L00134"
+            ],
+            [
+              "L00135"
+            ],
+            [
+              "L00136"
+            ],
+            [
+              "L00137"
+            ],
+            [
+              "L00074"
+            ]
+          ],
+          "description": "The printed serial ranges contain 1884 members rather than the target and printed total of 2495."
+        },
+        {
+          "issueId": "vehicles_conflict_harvesting_parts",
+          "primaryDimension": "cargo_packages_and_dangerous_goods",
+          "acceptableDimensions": [
+            "cargo_packages_and_dangerous_goods",
+            "target_fact_fidelity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00074",
+              "L00077"
+            ],
+            [
+              "L00143",
+              "L00147",
+              "L00152"
+            ]
+          ],
+          "description": "The candidate calls 2495 harvesting-machinery parts VEHICLES, creating a cargo/package semantic contradiction."
+        },
+        {
+          "issueId": "china_exporter_conflicts_mauritius_address",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00164",
+              "L00166"
+            ],
+            [
+              "L00171"
+            ],
+            [
+              "L00174"
+            ]
+          ],
+          "description": "The exporter is explicitly assigned China while its shipment-specific address remains Mauritius."
+        },
+        {
+          "issueId": "heterogeneous_container_assignments_not_rendered",
+          "primaryDimension": "target_fact_fidelity",
+          "acceptableDimensions": [
+            "target_fact_fidelity",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00061",
+              "L00063",
+              "L00065",
+              "L00067"
+            ],
+            [
+              "L00076"
+            ]
+          ],
+          "description": "The aggregate three-20-foot plus one-40HC statement does not locally associate each target container number with its heterogeneous size and type."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_d98052338410f8cf321980945f59ead9d50522e42d130b912c8a2a1cadb69a1c",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "8108cf2fead05c0a85b8c55b27640fa0b32a54c395d450ec9a2f49ec1b6e9151",
+      "issues": [
+        {
+          "issueId": "repeated_forwarder_vat_conflict",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "party_legal_and_negotiability",
+            "route_jurisdiction_and_identifiers",
+            "repeated_and_derived_relations",
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00024"
+            ],
+            [
+              "L00135"
+            ]
+          ],
+          "description": "The same repeated forwarding-agent block carries two different VAT identifiers."
+        },
+        {
+          "issueId": "carrier_signature_label_deleted",
+          "primaryDimension": "template_format_and_model_artifacts",
+          "acceptableDimensions": [
+            "template_format_and_model_artifacts",
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00110"
+            ],
+            [
+              "L00206"
+            ]
+          ],
+          "description": "Both repeated signatures delete the fixed legal label wording 'the Carrier:' while changing the signer."
+        },
+        {
+          "issueId": "source_registration_uuid_unrewritten",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00081"
+            ]
+          ],
+          "description": "The source registration UUID 4D8172B9-6601-45C3-EF8204 remains instead of the compiler-owned 8I5234L4-7899-40N3-RMRNHR replacement."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "2b1ec443d3ec9688992f6600b72a7b59a7d16ba041cb1b5eb0810db68bd2e64b",
+      "issues": [
+        {
+          "issueId": "to_order_block_conflicts_seawaybill",
+          "primaryDimension": "party_legal_and_negotiability",
+          "acceptableDimensions": [
+            "party_legal_and_negotiability",
+            "target_fact_fidelity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00008"
+            ],
+            [
+              "L00009"
+            ],
+            [
+              "L00045",
+              "L00046"
+            ]
+          ],
+          "description": "A populated Consigned to order of block conflicts with the non-negotiable target and SEAWAYBILL text."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_3438a61a5ab18c0fe93d4c77f2552c0246107c37584aa6d1096f18fe62aa0234",
+      "expectedClean": false,
+      "manualAuditNotesSha256": "da56a72d78884cbd5ef9e24e5841e739025db067313e67e5aae9542cce35dc46",
+      "issues": [
+        {
+          "issueId": "container_weights_factor_thousand_mismatch",
+          "primaryDimension": "repeated_and_derived_relations",
+          "acceptableDimensions": [
+            "repeated_and_derived_relations",
+            "equipment_temperature_and_capacity"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00080"
+            ],
+            [
+              "L00094"
+            ],
+            [
+              "L00111"
+            ],
+            [
+              "L00117"
+            ],
+            [
+              "L00118"
+            ],
+            [
+              "L00129"
+            ]
+          ],
+          "description": "Representative container weights are printed as 4.000, 4.240, and 2.000 under KGM while the same document prints 063200.000 KGM and TOTAL ADMT 63.200, exposing a factor-1000 component/unit mismatch."
+        },
+        {
+          "issueId": "source_carrier_prefix_survives_reference",
+          "primaryDimension": "source_private_and_auxiliary_replacement",
+          "acceptableDimensions": [
+            "source_private_and_auxiliary_replacement",
+            "party_legal_and_negotiability"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00011"
+            ]
+          ],
+          "description": "An HLCU-prefixed source-carrier reference survives after the shipment carrier was fictionalized."
+        },
+        {
+          "issueId": "egyptian_importer_caption_gained_foreign_qualifier",
+          "primaryDimension": "route_jurisdiction_and_identifiers",
+          "acceptableDimensions": [
+            "route_jurisdiction_and_identifiers",
+            "template_format_and_model_artifacts"
+          ],
+          "requiredEvidenceGroups": [
+            [
+              "L00149"
+            ]
+          ],
+          "description": "The Egyptian importer tax caption should become the explicit neutral Importer Tax No. caption, but the candidate invents a Foreign qualifier."
+        }
+      ]
+    },
+    {
+      "documentId": "doc_a95a03d37ebe8eb03b6927cd4771b18b006e7df9880d3ed099c167962dac13ee",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "dcc448b098d6099a4424697c4d7b7923374a09f0485e30e44572e770ec417da2",
+      "issues": []
+    },
+    {
+      "documentId": "doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "be67c263a540abdb783a00ed5ccf2cc7797429c5b40d92c493c5a91a407ea3e7",
+      "issues": []
+    },
+    {
+      "documentId": "doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "5db710a5285a17a8165bb77a6d39a78e7d7164ecf79c993aa23d92de4b48d13f",
+      "issues": []
+    },
+    {
+      "documentId": "doc_d5498799bb1a50c8e5b9fe9cc82a59bf217c1ad6ee7225d922f90109946c20ec",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "49a59cf48e8e34c00a1df9a041f858b2441bd603c119fb62d0a1957506b23bfd",
+      "issues": []
+    },
+    {
+      "documentId": "doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "43ea5d3f17c103ecb2ef30aa5eb0f4fda7f83a12ee5e234335cb5f1c7892d02e",
+      "issues": []
+    },
+    {
+      "documentId": "doc_f0f120de2654d5d6b09ff02003a3f53de38919d80d7707fcdb146d7b4d9dd948",
+      "expectedClean": true,
+      "manualAuditNotesSha256": "77cc2fc755b30e8c706077798c09e21acc895c1cdca66f69f45b9beceea813dc",
+      "issues": []
+    }
+  ]
+}

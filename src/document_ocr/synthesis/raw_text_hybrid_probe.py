@@ -109,9 +109,7 @@ _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _PAGE_MARKER = re.compile(r"^--- PAGE [1-9][0-9]* ---[ \t]*$")
 _SPACE_RUN = re.compile(r"\s+")
-_NUMERIC_TOKEN = re.compile(
-    r"(?<![0-9.,])[-+\N{MINUS SIGN}]?[0-9]+(?:[.,][0-9]+)*(?![0-9])"
-)
+_NUMERIC_TOKEN = re.compile(r"(?<![0-9.,])[-+\N{MINUS SIGN}]?[0-9]+(?:[.,][0-9]+)*(?![0-9])")
 _ATTACHED_NUMERIC_UNIT = re.compile(
     r"^(?:KGS?|KGM|KILOGRAMS?|CBM|M3|CUM|CUFT|MT|TONS?|"
     r"PKGS?|PACKAGES?|PLTS?|PALLETS?|CTNS?|CARTONS?|PCS?|PIECES?|"
@@ -123,9 +121,7 @@ _TEMPERATURE_CONTEXT = re.compile(
     r"\b(?:TEMP(?:ERATURE)?|SET[ -]?POINT|CELSIUS|CENTIGRADE|FAHRENHEIT)\b",
     re.IGNORECASE,
 )
-_FORWARDING_REFERENCE_PATH = re.compile(
-    r"^documentPatch\.forwardingAndExportReferences\[[0-9]+\]$"
-)
+_FORWARDING_REFERENCE_PATH = re.compile(r"^documentPatch\.forwardingAndExportReferences\[[0-9]+\]$")
 _FORWARDING_REFERENCE_CONTEXT = re.compile(
     r"\b(?:EXPORT(?:[ \t]+REFERENCES?)?|INVOICE|SHIPPING[ \t]+BILL|"
     r"SB[ \t]*(?:NO\.?|NUMBER)|CUSTOMS|REFERENCE|REF(?:ERENCE)?[ \t]*NO|"
@@ -550,6 +546,25 @@ def _render_route_neutral_customs_heading(
         rendered = rendered.lower()
     elif observed_letters.istitle():
         rendered = rendered.title()
+    else:
+        observed_words = re.findall(r"[A-Za-z]+", observed)
+        if (
+            observed_words
+            and all(word.isupper() or word.istitle() for word in observed_words)
+            and any(word.istitle() for word in observed_words)
+        ):
+            # Title-style captions often retain acronyms (``Egyptian Importer VAT Number``).
+            # ``str.istitle`` rejects that mixed style, while emitting the registry's canonical
+            # uppercase target needlessly damages the surrounding template typography.  Title
+            # ordinary target words and preserve only acronyms actually shared with the source.
+            source_acronyms = {
+                word.casefold(): word for word in observed_words if len(word) > 1 and word.isupper()
+            }
+            rendered = re.sub(
+                r"[A-Za-z]+",
+                lambda word: source_acronyms.get(word.group(0).casefold(), word.group(0).title()),
+                generic_target,
+            )
     if registered_source.rstrip().endswith(("-", ":", "#")):
         delimiter = re.search(r"[ \t]*[-:#]+[ \t]*$", observed)
         if delimiter is None:
@@ -579,9 +594,22 @@ def _apply_compiler_requirements(
     for requirement in workspace.jurisdictional_requirements:
         lines = workspace.current_text.splitlines(keepends=True)
         source_pattern = _literal_phrase_pattern(requirement.sourceSurface)
-        target_pattern = _literal_phrase_pattern(requirement.targetSurface)
+        target_patterns = tuple(
+            _literal_phrase_pattern(surface)
+            for surface in (
+                requirement.targetSurface,
+                *requirement.alternativeTargetSurfaces,
+            )
+        )
         planned: list[tuple[int, str, str, str]] = []
-        deterministic = len(requirement.sourceLineIds) == requirement.sourceOccurrences
+        occurrence_groups = requirement.sourceOccurrenceLineIds or tuple(
+            (line_id,) for line_id in requirement.sourceLineIds
+        )
+        deterministic = (
+            len(occurrence_groups) == requirement.sourceOccurrences
+            and len(requirement.sourceLineIds) == requirement.sourceOccurrences
+            and all(len(line_ids) == 1 for line_ids in occurrence_groups)
+        )
         for line_id in requirement.sourceLineIds:
             if jurisdiction_line_owners[line_id] != 1:
                 # Several named-program selectors on one line form one legal/customs clause.
@@ -595,7 +623,7 @@ def _apply_compiler_requirements(
             before = _line_body(lines[line_number - 1])
             matches = tuple(source_pattern.finditer(before))
             if not matches:
-                if target_pattern.search(before) is not None:
+                if any(pattern.search(before) is not None for pattern in target_patterns):
                     continue
                 deterministic = False
                 break
@@ -610,11 +638,7 @@ def _apply_compiler_requirements(
                 registered_source=requirement.sourceSurface,
                 generic_target=requirement.targetSurface,
             )
-            after = (
-                before[: matches[0].start()]
-                + rendered_target
-                + before[matches[0].end() :]
-            )
+            after = before[: matches[0].start()] + rendered_target + before[matches[0].end() :]
             planned.append((line_number, before, after, rendered_target))
         if not deterministic:
             continue
@@ -793,9 +817,7 @@ def _party_heading_roles(line: str) -> frozenset[str]:
         normalized,
     ):
         roles.add("shipper")
-    if re.match(
-        r"^(?:(?:name|name and address|address) of )?consignee(?:\b|$)", normalized
-    ):
+    if re.match(r"^(?:(?:name|name and address|address) of )?consignee(?:\b|$)", normalized):
         roles.add("consignee")
     if re.match(
         r"^(?:(?:name|name and address|address) of )?notify(?: party| parties)?(?:\b|$)",
@@ -821,8 +843,7 @@ def _party_heading_roles(line: str) -> frozenset[str]:
             re.IGNORECASE,
         )
         is not None
-        or re.match(r"^[ \t]*(?:OCEAN[ \t]+)?CARRIER[ \t]*:", stripped, re.IGNORECASE)
-        is not None
+        or re.match(r"^[ \t]*(?:OCEAN[ \t]+)?CARRIER[ \t]*:", stripped, re.IGNORECASE) is not None
     ):
         roles.add("carrier")
     return frozenset(roles)
@@ -907,10 +928,7 @@ def _contextual_location_line_numbers(text: str, path: str, value: str) -> set[i
             previous_number = first - 1
             while previous_number >= 1 and not bodies[previous_number - 1].strip():
                 previous_number -= 1
-            if (
-                previous_number >= 1
-                and _PAGE_MARKER.fullmatch(bodies[previous_number - 1]) is None
-            ):
+            if previous_number >= 1 and _PAGE_MARKER.fullmatch(bodies[previous_number - 1]) is None:
                 context_roles.update(_location_heading_roles(bodies[previous_number - 1]))
         if requested_role in context_roles:
             role_matches.append(occurrence)
@@ -1166,9 +1184,7 @@ def _apply_party_role_country_prefills(
         if article_match is not None and article_match.group(1) not in source_surfaces:
             source_surfaces.append(article_match.group(1))
         occurrences_by_surface = {
-            source_surface: _literal_occurrence_line_sets(
-                workspace.original_text, source_surface
-            )
+            source_surface: _literal_occurrence_line_sets(workspace.original_text, source_surface)
             for source_surface in source_surfaces
         }
         for role_group in role_groups:
@@ -1370,8 +1386,7 @@ def _forwarding_reference_line_numbers(text: str, source_value: str) -> set[int]
     minimal = {
         candidate
         for candidate in candidates
-        if candidate
-        and not any(other < candidate for other in candidates if other)
+        if candidate and not any(other < candidate for other in candidates if other)
     }
     return set().union(*minimal) if minimal else set()
 
@@ -1449,9 +1464,7 @@ def _relation_scopes(
                 continue
             for allocation in allocations:
                 number = (
-                    allocation.get("containerNumber")
-                    if isinstance(allocation, Mapping)
-                    else None
+                    allocation.get("containerNumber") if isinstance(allocation, Mapping) else None
                 )
                 if not isinstance(number, str) or not number:
                     continue
@@ -1465,9 +1478,9 @@ def _relation_scopes(
         for index, raw_object in enumerate(objects(source_patch, family)):
             if not isinstance(raw_object, Mapping):
                 continue
-            group_id = raw_object.get("groupId")
-            if isinstance(group_id, str) and group_paragraphs.get(group_id):
-                output[f"documentPatch.{family}[{index}]"] = set(group_paragraphs[group_id])
+            object_group_id = raw_object.get("groupId")
+            if isinstance(object_group_id, str) and group_paragraphs.get(object_group_id):
+                output[f"documentPatch.{family}[{index}]"] = set(group_paragraphs[object_group_id])
 
     source_containers = objects(source_patch, "containers")
     target_containers = objects(target_patch, "containers")
@@ -1586,12 +1599,8 @@ def _apply_relation_scoped_additional_information_prefills(
                 or source_value == target_value
             ):
                 continue
-            path = (
-                f"documentPatch.cargoGroups[{group_index}].additionalInformation[{value_index}]"
-            )
-            scoped_numbers = tuple(
-                number for number in sorted(scope) if 1 <= number <= len(lines)
-            )
+            path = f"documentPatch.cargoGroups[{group_index}].additionalInformation[{value_index}]"
+            scoped_numbers = tuple(number for number in sorted(scope) if 1 <= number <= len(lines))
             exact_occurrences: list[tuple[int, int]] = []
             for number in scoped_numbers:
                 body = _line_body(lines[number - 1])
@@ -1607,9 +1616,7 @@ def _apply_relation_scoped_additional_information_prefills(
                     before = _line_body(lines[number - 1])
                     after = before
                     for offset in reversed(offsets):
-                        after = (
-                            after[:offset] + target_value + after[offset + len(source_value) :]
-                        )
+                        after = after[:offset] + target_value + after[offset + len(source_value) :]
                     lines[number - 1] = after + _line_ending(lines[number - 1])
                     applied.append(
                         AppliedDeterministicPrefill(
@@ -1755,9 +1762,7 @@ def _wrapped_carrier_signature_lines(text: str, source_value: str) -> set[int]:
         )
         if signed is None or following is None:
             continue
-        observed = _semantic_surface(
-            f"{signed.group('value')} {following.group('value')}"
-        )
+        observed = _semantic_surface(f"{signed.group('value')} {following.group('value')}")
         if observed == expected:
             return {index + 1, index + 2}
     return set()
@@ -2011,14 +2016,16 @@ def compile_case(
         raw_auxiliary_identity_lines: set[int] = set()
         if isinstance(directive.sourceValue, str):
             source_pattern = _literal_phrase_pattern(directive.sourceValue)
-            for requirement in bundle.rawAuxiliaryIdentityRequirements:
-                if source_pattern.search(requirement.sourceIdentity) is None:
+            for auxiliary_requirement in bundle.rawAuxiliaryIdentityRequirements:
+                if source_pattern.search(auxiliary_requirement.sourceIdentity) is None:
                     continue
                 start = _line_number(
-                    requirement.requirementId[requirement.requirementId.rfind("-L") + 1 :]
+                    auxiliary_requirement.requirementId[
+                        auxiliary_requirement.requirementId.rfind("-L") + 1 :
+                    ]
                 )
                 raw_auxiliary_identity_lines.update(
-                    range(start, start + requirement.sourceIdentityLineCount)
+                    range(start, start + auxiliary_requirement.sourceIdentityLineCount)
                 )
         cargo_requirement = cargo_requirements.get(directive.path)
         if cargo_requirement is not None:
@@ -2076,9 +2083,8 @@ def compile_case(
                 locator = "location_role_surface"
             else:
                 direct_lines.difference_update(raw_auxiliary_identity_lines)
-        if (
-            directive.path == "documentPatch.parties.carrier.name"
-            and isinstance(directive.sourceValue, str)
+        if directive.path == "documentPatch.parties.carrier.name" and isinstance(
+            directive.sourceValue, str
         ):
             principal_groups = carrier_principal_template_slot_groups(
                 workspace.current_text, directive.sourceValue
@@ -2233,9 +2239,7 @@ def compile_case(
                 f"{auxiliary_requirement.requirementId}"
             )
         start = _line_number(match.group(0))
-        lines = set(
-            range(start, start + auxiliary_requirement.sourceIdentityLineCount)
-        )
+        lines = set(range(start, start + auxiliary_requirement.sourceIdentityLineCount))
         if not lines or max(lines) > len(workspace.current_text.splitlines()):
             raise ValueError(
                 "raw auxiliary identity requirement is outside the OCR: "

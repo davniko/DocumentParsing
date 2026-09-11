@@ -1,0 +1,77 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_inventory_batch_v2
+environment_file: .env
+
+run:
+  run_id: mpci-bl-raw-text-inventory100-additional-maritime-v64-certification-v3-compiler
+  output_dir: artifacts/kie-synthesis
+
+base_batch_config:
+  path: configs/synthesis/mpci_bl_raw_text_hybrid100_additional_maritime_v9_certification_v3.yaml
+  sha256: 1d32c6bcadb926c64312bc7929d928b00fed2fcba95c17b96ad49671d9b28d9c
+regression_oracle:
+  path: data/evaluation/mpci-bl-raw-text-rewrite-regression-v1.json
+  sha256: 3fe3fcbd25112bd67e07d402adc4b8a5b8ef5a1066def8bb843b88ed2758516d
+template_mutation_profile:
+  path: data/evaluation/mpci-bl-additional100-template-mutation-profile-v2.json
+  sha256: e4bb82970942ba5fd75b733f35f864a580abd51258811c24429d4f108cb79711
+reference_runs:
+  glm:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-hybrid50-glm53-flash-v7
+    commit_sha256: 11d58854d9b1d21c5b3feacf1712e323996dc90eacddea2b151077fed471b5ff
+    transaction_sha256: 0c8cdebb54fbe5c14102626fe8d6af1958653c5df6ddbe847b87677ecdb00b83
+  luna:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-hybrid50-luna-low-v6
+    commit_sha256: de6241c153f5aff4c96b7929ccb6b93b8de37b7553f61056ce42c5f75cdd2f23
+    transaction_sha256: cbbbe1ab47a0449d95a91721c5c70897a044aa16da51a88f23987e42f0a67d13
+
+selection: all_pinned_targets_in_order
+
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_inventory_editor_v2.md
+  sha256: c02919a94b2523fe25dddaafc1fa2eef5fced4d88eda0840c0e63eb2eb81a8d5
+
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: minimal
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: true
+  provider_only: [deepinfra/fp4, coreweave/fp8, nextbit/fp8]
+  provider_order: [deepinfra/fp4, coreweave/fp8, nextbit/fp8]
+  max_price: {prompt: 0.15, completion: 0.50}
+  pricing:
+    currency: USD
+    effective_date: 2026-09-08
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.075
+    cached_input_usd_per_million: 0.015
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.25
+
+workflow:
+  regression_documents: 12
+  documents: 100
+  max_concurrent_documents: 6
+  template_profile_context_lines: 2
+  output_mode: native
+  max_initial_slots_per_request: 56
+  max_successful_model_responses_per_document: 4
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 20.0
+  retry_jitter_seconds: 2.0
+  deterministic_auxiliary_rendering: true
+  require_every_output_slot: true
+  require_full_document_regression_oracle: true
+  require_no_retained_changed_source_values: true
+  require_no_retained_source_auxiliary_values: true
+  persist_every_prompt_response_and_receipt: true
+  enable_case_checkpoints: true
+  publish_training_records: false

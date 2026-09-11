@@ -1,0 +1,76 @@
+schema_version: 2
+task: bill_of_lading_synthetic_raw_text_certification_v2
+audit_contract_version: 2
+environment_file: .env
+run:
+  run_id: mpci-bl-raw-text-certification-benchmark15-low-v8
+  output_dir: artifacts/kie-synthesis
+input_run:
+  path: artifacts/kie-synthesis/mpci-bl-raw-text-certification-benchmark15-cohort-v12
+  commit_sha256: 605414e1c7619e61e9b839f67ed9149a69d09c840c758b3dc1791af0d26c66a1
+  transaction_sha256: ebdf601e73e3a9249f5d7cd30b53ab0c65f6dc3f5ebbdbe7ca39ba15990dca62
+input_case_contract_filename: source-contract.json
+case_ids:
+  - doc_38da8dbfe44b5b0131fb881088b3fa68695a088da25d0e23a90d9f33f64b5a6e
+  - doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a
+  - doc_69e32613070d3a88bbf5603adb9af14671715dd3df8f540e7ae9a90e67dfa6f0
+  - doc_372c779c9aaeed273fda78438a576603853d91a582536f977f72a8d1325899e5
+  - doc_1cbeb1316e1eb7a6f584fc12f3a1761d5343995209d502ea4b0a9b6fc1cc5642
+  - doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+  - doc_d98052338410f8cf321980945f59ead9d50522e42d130b912c8a2a1cadb69a1c
+  - doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852
+  - doc_3438a61a5ab18c0fe93d4c77f2552c0246107c37584aa6d1096f18fe62aa0234
+  - doc_a95a03d37ebe8eb03b6927cd4771b18b006e7df9880d3ed099c167962dac13ee
+  - doc_e836b643a799620af0e897e0fa36d0673bd4b23f3c839e454855518d6f98ac4b
+  - doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+  - doc_d422eaa8085d05e468b52d16a4c77b03715924308d50a64700bfe5f78e140440
+  - doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559
+  - doc_f0f120de2654d5d6b09ff02003a3f53de38919d80d7707fcdb146d7b4d9dd948
+prompt:
+  path: prompts/synthesis/mpci_bl_raw_text_semantic_auditor_v3.md
+  sha256: 5e2b2912724c549b94bf2be08beb9e29ac2fe6a481e979022979f14e1810a63d
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 180.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+    - fireworks
+  max_price:
+    prompt: 0.15
+    completion: 0.5
+  generation_settings:
+    temperature: 0.0
+  pricing:
+    currency: USD
+    effective_date: 2026-09-09
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.15
+    cached_input_usd_per_million: 0.03
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.5
+workflow:
+  documents: 15
+  max_concurrent_documents: 1
+  semantic_audit_passes: 1
+  evaluation_only: true
+  require_complete_dimension_coverage: true
+  require_unanimous_clean: false
+  max_provider_route_rounds: 4
+  retry_initial_delay_seconds: 5.0
+  retry_delay_multiplier: 2.0
+  retry_max_delay_seconds: 20.0
+  retry_jitter_seconds: 0.0
+  provider_native_json_schema: true
+  require_exact_finding_evidence: true
+  require_input_candidate_immutable: true
+  require_exact_line_and_page_topology: true
+  require_prior_host_contract: true
+  persist_every_prompt_response_and_receipt: true
+  publish_training_records: false
