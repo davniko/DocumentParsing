@@ -1,0 +1,137 @@
+schema_version: 1
+reviewed_on: 2026-09-12
+reviewer: Codex
+source_run: mpci-bl-carrier-bound-template-extraction30-v20-openrouter-continuation
+review_scope:
+  - committed artifact hashes
+  - exact offline host recertification
+  - final independent critic lineage
+  - source and masked-template inspection
+  - carrier identity
+  - duplicate short values
+  - multi-container ownership
+  - repeated multi-page ownership
+  - temperature and dangerous-goods ownership
+conclusion: >-
+  The development gate passes. All 30 documents are certified, every final critic pass is a fresh
+  GPT-5.6 Luna response routed by OpenRouter to OpenAI under the current critic prompt, and all 30
+  templates rebuild byte-for-byte from their checkpoints plus final critic receipts. Manual review
+  found no defect in the seven inspected high-risk cases. This authorizes the disjoint transfer-200
+  extraction; it does not authorize full-corpus preprocessing or production-pipeline changes.
+
+machine_evidence:
+  documents: 30
+  certified: 30
+  rejected: 0
+  acceptance_gate_passed: true
+  bindings: 1997
+  occurrences: 2595
+  deterministic_bindings: 1860
+  agent_assisted_bindings: 137
+  deterministic_fraction: 0.9313970956
+  semantic_only_target_facts: 34
+  exact_offline_recertification:
+    documents_rebuilt: 30
+    byte_identical_to_published: 30
+    rebuilt_published_and_recorded_hashes_equal: 30
+    applied_revision_transactions_replayed: 93
+  final_critic_receipts:
+    fresh_under_current_prompt: 30
+    downstream_provider_openai: 30
+    provider_cost_receipt_present: 30
+    critic_prompt_sha256: 4eeb08459ae710cefcebdeecbeced75dc61dd967e22b14718d0a0a5d3e03a2ec
+  marginal_openrouter_cost_usd: 0.769027150000
+  accepted_lineage_cost_usd: 3.463234990000
+  marginal_requests: 65
+  marginal_input_tokens: 1545511
+  marginal_output_tokens: 348590
+  marginal_reasoning_tokens: 289598
+  wall_seconds: 1105.055596
+  peak_rss_mib: 633.250
+
+cases:
+  - ordinal: 3
+    document_id: doc_09585226e5552adad580b1d71b70fdf80b3aee7a85263a49dd3b8c82909c13b1
+    carrier: Oceanwide Logistics, Inc.
+    focus: duplicate two-letter country-code occurrence
+    manual_verdict: pass
+    evidence:
+      - Source line 73 is exactly "SHIPPER COUNTRY CODE: DE".
+      - The derived country-code slot owns byte range 1385:1387, the value after the caption.
+      - It does not own the DE substring embedded in the words COUNTRY CODE.
+      - The independent final critic explicitly confirmed the corrected duplicate selection.
+
+  - ordinal: 6
+    document_id: doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+    carrier: Hapag-Lloyd Aktiengesellschaft
+    focus: temperature and inconsistent source-only shipment assertions
+    manual_verdict: pass
+    evidence:
+      - Four value surfaces, +1 and +1,0 on two repeated pages, share the container temperature
+        value binding and retain their distinct numeric formatting.
+      - Four C surfaces share the corresponding temperature-unit binding.
+      - Conflicting OCR-only counts and weights are not forced into unrelated target paths; they
+        are explicitly bounded as source-only residual or auxiliary facts.
+
+  - ordinal: 10
+    document_id: doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66
+    carrier: ORIENT OVERSEAS CONTAINER LINE
+    focus: ten-container ownership and compact equipment locality
+    manual_verdict: pass
+    evidence:
+      - All ten container numbers and ten seals have distinct index-correct logical owners.
+      - Each printed compact 40HQ token is assigned to the locally associated container instead of
+        being merged merely because equipment descriptions are equal.
+      - Container 8 has no structured typeDescription; its nearby 40HQ is correctly scoped as
+        deterministic auxiliary. Container 9's printed full description remains target-backed.
+
+  - ordinal: 18
+    document_id: doc_0dcc89acef2074d1ed2ca7dee64f52771d5f59337b3d7ef426e9bb6c2fe53b86
+    carrier: OCEANIC STAR LINE
+    focus: twelve-container topology
+    manual_verdict: pass
+    evidence:
+      - All 12 container-number, seal, and type-description triples are independently indexed and
+        owned, for 36 checked target surfaces.
+      - Container-specific source-only gross weights and volumes remain distinct auxiliary values;
+        equal current values are not collapsed across mutable container scopes.
+
+  - ordinal: 22
+    document_id: doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71
+    carrier: VOLANTIS ULUSLARARASI TAŞIMACILIK VE DIŞ TİCARET LTD. ŞTİ.
+    focus: second duplicate two-letter country-code occurrence
+    manual_verdict: pass
+    evidence:
+      - Source line 55 is exactly "FOREIGN EXPORTER COUNTRY CODE: TR".
+      - The derived slot owns byte range 1058:1060, the trailing value, not TR inside COUNTRY.
+      - The current host rejected the stale wrong checkpoint span and replayed the accepted
+        transactions before obtaining a fresh independent pass.
+
+  - ordinal: 25
+    document_id: doc_92a5a2cfb70054511e7e5c1233706d57af3466121d8b30069e3b93e39a844cea
+    carrier: E GLOBAL SHIPPING LINE
+    focus: five-page repeated document
+    manual_verdict: pass
+    evidence:
+      - All five PAGE markers remain literal and unchanged.
+      - The template contains 253 physical slots, 51 bindings repeated at least four times, and 47
+        bindings with exactly five occurrences.
+      - Repeated bill number, parties, route, container, seal, cargo, customs, and carrier values
+        preserve one logical owner with all actual physical occurrences.
+
+  - ordinal: 28
+    document_id: doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170
+    carrier: TEPMARE
+    focus: dangerous goods
+    manual_verdict: pass
+    evidence:
+      - Source line 40 is "UN 2857 CL 2.2".
+      - UN number 2857 is a deterministic target-backed surface.
+      - Hazard category CL 2.2 is explicitly declared agent-required because its rendering cannot
+        be proven as a direct deterministic adapter under the current vocabulary.
+
+limitations:
+  - Manual semantic inspection is intentionally stratified, not an assertion that every one of the
+    2595 physical occurrences was visually re-read by a human.
+  - The accepted-lineage cost includes the failed v19 work later recovered by v20; the marginal
+    v20 cost alone must not be presented as the cost of extracting 30 templates from scratch.

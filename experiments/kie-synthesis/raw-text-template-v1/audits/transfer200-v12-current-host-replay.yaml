@@ -1,0 +1,94 @@
+schema_version: 1
+replayed_on: 2026-09-12
+source_run: mpci-bl-carrier-bound-template-extraction-transfer200-v12-openrouter
+source_commit_sha256: 649b71dfe7e33fec3bbe223b61524db654e12678457e49ab1ac37edcc913d4e1
+host_implementation_sha256: 06fea5344fe9abc923267be8b49ea1c24c20c3b8787c4bf49e454dc939794c32
+scope: >-
+  Offline replay of every rejected transfer case under the current deterministic host. This
+  performs no provider call and is not semantic recertification. A recovered draft state still
+  requires a fresh independent critic response before the document can certify.
+summary:
+  rejected_cases_replayed: 14
+  recovered_draft_states_requiring_fresh_critic: 7
+  compiler_repairs_still_required: 7
+  provider_requests: 0
+
+recovered_cases:
+  - ordinal: 6
+    document_id: doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec
+    draft_bindings: 193
+    next_action: fresh_critic
+  - ordinal: 7
+    document_id: doc_2f4d1db9a837beeb77e9d1a15dd788fde0487832915a868bf4bc6f735b2a9a5d
+    draft_bindings: 101
+    next_action: fresh_critic
+    deterministic_change: overlapping exact occurrences are now counted correctly
+  - ordinal: 12
+    document_id: doc_c82b915fb0208b369be29f78d0e0876f77e2d6c6ac9a4319bfee13e0b0ba38a6
+    draft_bindings: 462
+    next_action: fresh_critic
+  - ordinal: 80
+    document_id: doc_6dbba698fd2407bd9929fba74f064cf6ddad828c69c18f836d53e41f1afa0df5
+    draft_bindings: 56
+    next_action: fresh_critic
+    deterministic_change: compact equipment locality is limited to a real local row
+  - ordinal: 152
+    document_id: doc_9a55d93af2ef648108068bb8d01c83061e53ea6a44fbee761a3a2f9bedf8e375
+    draft_bindings: 170
+    next_action: fresh_critic
+  - ordinal: 181
+    document_id: doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863
+    draft_bindings: 218
+    next_action: fresh_critic
+    replay_note: prior critic passes 7 and 12 were functionally redundant and skipped
+  - ordinal: 197
+    document_id: doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6
+    draft_bindings: 109
+    next_action: fresh_critic
+    replay_note: prior critic pass 4 referenced an obsolete inventory handle and was skipped
+
+repair_cases:
+  - ordinal: 2
+    document_id: doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: 33 exact source quotations have incorrect line scopes or values
+    improved_feedback: all 33 defects are returned together with declared text and candidate lines
+  - ordinal: 5
+    document_id: doc_26ccea2924c27fc24c1225e5019237dd79f0794a3a9c3b8732a3e6f04791aa5e
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: three non-exact quotations, including omitted address text and whitespace
+  - ordinal: 33
+    document_id: doc_714ce9d36fc8605c8c8bbf27a5b6317018bb7ec8e315e9b43c83f13e633d6c74
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: four mutable identifier relationships need explicit derivation or residual mode
+  - ordinal: 79
+    document_id: doc_a96aeec03f9dadd6d916e4f0dda76ee86343667d8f80ad9c2b4d1a96e7b9988f
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: three exact quotations have incorrect spaces or line scopes
+  - ordinal: 114
+    document_id: doc_dce9af72b80b3b26ad1db31c98397c552459737ea59ce7f0fd5019c7357cb236
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: notify-party address quotation omits printed prefix text
+  - ordinal: 115
+    document_id: doc_18b554b493770b1db82077421410e98d9353960e07cccf774fbc6e3258d7e749
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: carrier quotation differs by one Turkish dotted capital I
+  - ordinal: 131
+    document_id: doc_e1724ec0485743dbc02264beae4493f618c23abd548ea6ffbe8b1bd4c6f699d7
+    next_action: compiler_repair_then_fresh_critic
+    current_failure: >-
+      repeated cargo projections and per-container receipt counts claim target paths already owned
+      by canonical target bindings
+
+offline_benchmark:
+  document_id: doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578
+  source_bytes: 25310
+  source_lines: 1091
+  occurrences_per_candidate: 358
+  repeats: 3
+  prior_milliseconds_per_candidate: 361.0078359973
+  current_milliseconds_per_candidate: 14.3444339919
+  speedup: 25.1671021806
+  latency_reduction_fraction: 0.9602655883
+  prior_peak_bytes: 489036
+  current_peak_bytes: 484556

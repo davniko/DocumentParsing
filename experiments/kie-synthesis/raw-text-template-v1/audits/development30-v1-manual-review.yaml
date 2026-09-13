@@ -1,0 +1,98 @@
+schema_version: 1
+reviewed_on: 2026-09-11
+review_scope: exact source, source label, masked template, compiler stages, critic stages
+reviewer: Codex
+conclusion: >-
+  The single certified canary template is locally sound on the inspected surfaces, but a fresh run
+  of the same document failed. All nine inspected development failures are real fail-closed
+  outcomes. Eight expose anchor ownership or missing source-only topology; none is evidence that a
+  carrier was synthesized or swapped. One long document also exceeded structured-output retries.
+
+cases:
+  - document_id: doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad
+    source_run: mpci-bl-carrier-bound-template-extraction-canary1-v2
+    observed_status: certified
+    manual_verdict: inspected_surfaces_correct_but_not_reproducibly_reliable
+    evidence:
+      - Booking number is deterministic auxiliary, not aliased to billOfLadingNumber.
+      - Consignee name and negotiability have separate bindings at their actual printed surfaces.
+      - Country fields are locations; URL excludes the closing bracket.
+      - Both equipment-receipt occurrences share one equipment_receipt derivation.
+
+  - document_id: doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - A fresh stochastic run left an inconsistent package group scope after revision.
+      - This contradicts the canary pass and proves one pass did not establish reliability.
+
+  - document_id: doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - Accepted shipper-city evidence points into an address span.
+      - The actual VERACRUZ city surface is separately present and owned as address.
+
+  - document_id: doc_09585226e5552adad580b1d71b70fdf80b3aee7a85263a49dd3b8c82909c13b1
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - The city anchor selects BERLIN inside the shipper name token BERLINER.
+      - The actual city appears later as 12681 BERLIN.
+      - Consignee and forwarding-agent EGYPT anchors also collide on one occurrence.
+
+  - document_id: doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - Identical Alexandria and Egypt text was conflated across consignee, discharge, and
+        delivery-agent roles.
+      - Dangerous-goods presence was not the terminal failure mode.
+
+  - document_id: doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - An address anchor incorrectly owns cargo package quantity.
+      - OCR prints 1542 PACKAGE and two containers while the task label exposes 21 PALLETS and one
+        container, requiring source-only topology rather than target-path guessing.
+      - Temperature presence was not the terminal failure mode.
+
+  - document_id: doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - The first pass surfaced ambiguous page-three allocation/seal anchor associations.
+      - The replacement attempt exceeded the typed-output retry budget on the 10-container source.
+
+  - document_id: doc_89f94b837d998512be770b686802d36ccaae3df27bc7be6a37ef92f5dbcdd870
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - THE MASTER OF MV SUPER ARSENAL is explicitly printed as the represented carrier principal.
+      - Rejection came from overlap between shipper name and a principal-relationship substring.
+
+  - document_id: doc_9dead588632de8f9d0f5c873fae7776f967dccc266c286e2144cc965f5507c6f
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection_with_carrier_adjudication_flag
+    evidence:
+      - Spain is exact annotated text in the phrase Agent for The Carrier - Spain - but remains an
+        unusual legal carrier identity deserving audit metadata.
+      - Terminal failure was overlapping consignee/notify address anchors, not carrier mismatch.
+      - Two printed ACID values conflict and must not be silently forced equal.
+
+  - document_id: doc_568816e0ffd6f30ef75b65df4da533798cdc47d9d7a0b5d756f37c75b6011e72
+    source_run: mpci-bl-carrier-bound-template-extraction30-v1
+    observed_status: rejected
+    manual_verdict: correct_rejection
+    evidence:
+      - MASTER OF MV AGNES is explicitly printed after AS AGENTS ONLY, FOR AND ON BEHALF OF.
+      - Terminal failure was a shipper-country substring nested inside the shipper-name anchor.

@@ -1,0 +1,88 @@
+schema_version: 1
+task: carrier_bound_raw_text_template_extraction
+phase: canary1
+run_name: mpci-bl-template-compiler-efficiency-oocl1-v21-reference-delta-luna-high
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+  current_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-maritime-v5-luna-high-resume/generation/targets.jsonl
+    sha256: ac060011e19c1f03682da0da436fc395453ea5c60e4441dd6641daefdcea5a7e
+    records: 100
+  outcome_findings:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/findings.csv
+    sha256: 322528d83b03c0b905659066a77fe97d0337d0840ca3611fb4027d3e9d00aeb9
+  outcome_invariants:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/invariant-checks.csv
+    sha256: e213bc60031e98d38368e7a0dded068b78b2d33fa4c7e0b5228da02b7e13e396
+  manual_audit:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/manual-audit.csv
+    sha256: 47585e1e0b070e4461a437c635196e2f2c1a706c00a19cda02ccba171ba13c88
+
+prompts:
+  compiler:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/compiler.md
+    sha256: d618fead95788271c99efab03335f2b0903eb850877c02137c4796030bbad998
+  critic:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic.md
+    sha256: 6344ecc3f271cb0119e330887e642702203aab670cbb788e92b11b6eee10f0d5
+
+compiler_provider: &luna
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 65536
+  store_responses: false
+  pricing:
+    currency: USD
+    effective_date: 2026-09-03
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+critic_provider:
+  <<: *luna
+  max_output_tokens: 32768
+
+workflow:
+  documents: 1
+  agent_contract_protocol: reference_compact_v3
+  max_concurrent_documents: 1
+  max_concurrent_requests: 1
+  max_compiler_passes: 12
+  max_critic_passes: 24
+  compiler_output_retries: 1
+  critic_output_retries: 1
+  additional_call_launch_threshold_usd_per_document: 0.50
+  provider_launch_authorized: false
+  certified_resume_policy: require_exact_contract
+  require_all_documents_certified: true
+  require_carrier_resolution: true
+  require_source_round_trip: true
+  require_all_risk_candidates_owned: true
+  require_final_critic_pass: true
+  require_sentinel_isolation: true
+  publish_training_records: false
+
+selection_seed: 20260911
+resume_from: null
+excluded_document_ids: []
+pinned_document_ids:
+  - doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66

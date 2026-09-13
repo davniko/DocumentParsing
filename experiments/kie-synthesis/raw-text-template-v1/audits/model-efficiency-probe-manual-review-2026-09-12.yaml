@@ -1,0 +1,155 @@
+schema_version: 1
+reviewed_on: 2026-09-12
+reviewer: Codex
+scope: >-
+  Manual paired review of the immutable one-document Luna/GLM extraction traces used by the
+  provider-neutral efficiency audit. This review evaluates contract validity, topology, residual
+  agent dependence, and where cost moved between compiler and critic. It is not a claim of
+  population-level model equivalence.
+efficiency_audit:
+  run: mpci-bl-carrier-bound-template-extraction-efficiency-audit-v4
+  commit_sha256: f2af95435c0d3e2f76e068c6b0d5047387b51421a0a31b190872855fb7cfc3f5
+  provider_requests: 0
+
+probe_receipts:
+  - name: glm_deepinfra_pre_adapter_capability_failure
+    run: mpci-bl-template-model-probe-easy-glm53-deepinfra-v1
+    commit_sha256: da70857d2d80d8becddcb7edaff2faafa35afc41a85c2d535d62a204ad165d3c
+    result: rejected_before_network
+    requests: 0
+    cost_usd: 0
+    evidence: Native structured output is not supported by this model.
+  - name: easy_glm_deepinfra
+    run: mpci-bl-template-model-probe-easy-glm53-deepinfra-v2
+    commit_sha256: 109338b1b8502173c3902212d3d33743882ec6f6d5a3e90a9176fe158567df9b
+    result: certified
+    requests: 3
+    cost_usd: 0.007526325000
+  - name: easy_glm_baseten
+    run: mpci-bl-template-model-probe-easy-glm53-baseten-v1
+    commit_sha256: 8a188211eaafb4e7fb9054442c4e30b9316325538b751c0f7bdb4420191ee269
+    result: certified
+    requests: 3
+    cost_usd: 0.013209520000
+  - name: medium_glm_baseten_compiler_luna_critic
+    run: mpci-bl-template-model-probe-medium-hybrid-glm53-baseten-luna-v1
+    commit_sha256: ec878e812ce0cabf7b910ec9e5a27394a7d5494bc4a517de4ea9122f8bfd7df5
+    result: certified
+    requests: 7
+    cost_usd: 0.098778890000
+
+cases:
+  - document_id: doc_6c962a42b102311a9499509989ebfa823df67882fa13ae0097db44b59b9a8d2f
+    complexity: easy
+    carrier: SAHAB SHIPPING S.A
+    paired_results:
+      luna_openrouter_openai:
+        certified: true
+        cost_usd: 0.015578480000
+        elapsed_seconds: 91.94094026598032
+        requests: 2
+        output_tokens: 9612
+        bindings: 30
+        occurrences: 32
+        agent_assisted_bindings: 1
+      glm_deepinfra:
+        certified: true
+        cost_usd: 0.007526325000
+        elapsed_seconds: 837.5496164950018
+        requests: 3
+        output_tokens: 21207
+        bindings: 27
+        occurrences: 29
+        agent_assisted_bindings: 2
+      glm_baseten:
+        certified: true
+        cost_usd: 0.013209520000
+        elapsed_seconds: 93.11249510702328
+        requests: 3
+        output_tokens: 19973
+        bindings: 28
+        occurrences: 30
+        agent_assisted_bindings: 4
+    manual_findings:
+      - All three completed variants passed the exact host contract and resolved the same carrier.
+      - >-
+        Luna isolated the cargo composite as the sole agent-required binding. The DeepInfra GLM
+        variant also made the complete shipment-specific carriage clause agent-required. The
+        BaseTen GLM variant made the cargo composite, CLEAN SHIPPED ON BOARD, THREE(03), and the
+        carriage clause agent-required. This raises descendant synthesis dependence from one Luna
+        binding to two and four GLM bindings respectively.
+      - >-
+        Luna explicitly owned FIRST ORIGINAL, THREE(03), As agent only, and the source-only
+        Damietta route token as deterministic auxiliary surfaces. The GLM variants made different
+        defensible static/auxiliary boundaries, but neither demonstrated equal or lower future
+        agent work on this document.
+      - >-
+        The BaseTen critic first emitted verdict=pass while also returning four existing
+        semantic-only facts as patch operations. Pydantic validation forced a second response;
+        that retry cost $0.000321685. The proposed verdict-discriminated schema removes the patch
+        surface entirely from the pass variant.
+    verdict: >-
+      DeepInfra bought a 51.69% dollar reduction but took 9.11x as long and doubled residual agent
+      dependence. BaseTen was only 15.21% cheaper, used 2.08x the output tokens, and quadrupled
+      residual agent dependence. Neither route is a drop-in quality-preserving replacement.
+
+  - document_id: doc_5996c9898213bba7ab6054f9ece8083e7d8a7440b543f14af604a3bbcb71ae59
+    complexity: medium_multi_page
+    carrier: Maersk A/S
+    paired_results:
+      luna_compiler_luna_critic:
+        certified: true
+        cost_usd: 0.088160330000
+        compiler_cost_usd: 0.062489490000
+        critic_cost_usd: 0.025670840000
+        elapsed_seconds: 363.5300151699921
+        stages: 5
+        output_tokens: 47115
+        bindings: 78
+        occurrences: 156
+        agent_assisted_bindings: 3
+        critic_revisions_before_pass: 1
+      glm_baseten_compiler_luna_critic:
+        certified: true
+        cost_usd: 0.098778890000
+        compiler_cost_usd: 0.042763990000
+        critic_cost_usd: 0.056014900000
+        elapsed_seconds: 439.71678274599253
+        stages: 7
+        output_tokens: 87711
+        bindings: 74
+        occurrences: 150
+        agent_assisted_bindings: 2
+        critic_revisions_before_pass: 3
+    manual_findings:
+      - >-
+        The GLM compiler reduced compiler cost by 31.57%, but its state needed three independent
+        Luna critic revisions rather than one. Critic cost rose 118.20%; total cost rose 12.04%
+        and wall time rose 20.96%.
+      - >-
+        The hybrid final inventory improved one topology detail: it owned only the two complete
+        FREIGHT COLLECT value surfaces at L00099 and L00221. The Luna baseline also absorbed the
+        generic Collect column headings at L00071 and L00179 into the payment-arrangement owner.
+      - >-
+        The hybrid finished with two rather than three agent-assisted realizations, so its final
+        state contains a potentially useful semantic improvement. That improvement did not offset
+        the additional critic loop cost in this trace.
+    verdict: >-
+      A cheaper compiler cannot be selected on compiler price alone. End-to-end routing must score
+      compiler cost plus the number and cost of independent critic revisions plus final residual
+      agent dependence.
+
+conclusions:
+  - Certification and semantic efficiency are separate axes; both must gate model routing.
+  - Provider endpoint choice materially changes latency and price for the same model name.
+  - A model substitution that lowers first-stage cost can raise total cost by shifting repair work
+    into the critic.
+  - The highest-confidence savings come from reducing invalid transactions and payload duplication
+    before conducting a larger paired model-routing experiment.
+
+limitations:
+  - The live comparison contains two unique documents and cannot estimate a population pass rate.
+  - Different certified templates can encode defensible static/auxiliary boundaries; only exact
+    source evidence and downstream renderer behavior can settle every semantic tie.
+  - The current GLM promotional rate is time-sensitive. The immutable audit separates current,
+    standard-rate, and cache-write sensitivity calculations from observed provider receipts.

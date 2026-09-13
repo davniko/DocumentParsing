@@ -1,0 +1,63 @@
+schema_version: 1
+task: carrier_bound_template_descendant_rendering
+run_name: mpci-bl-carrier-bound-template-descendant30-v10-typed-residual-offline-replay
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+
+inputs:
+  template_run:
+    path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-extraction30-v20-openrouter-continuation
+    commit_sha256: 079566ba30fda7c46896524969ce53e74989dfaf135a6af6be637f130ba0d91c
+    transaction_sha256: a1ed4fec64c86bedfba1c4907d18021b5724d7675e0e1765fdaa97b6641540cc
+  synthetic_target_run:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-maritime-v5-luna-high-resume
+    commit_sha256: b59f7352e000dff1df5b3197fdf8c537a987cfae3b798fff0317f7d8bfe911dc
+    transaction_sha256: ca00d84d95a1d6f0ed5f8e7fd1fc79794cfb1548caa9c7828f614ba54c7a77e8
+  synthetic_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-maritime-v5-luna-high-resume/generation/targets.jsonl
+    sha256: ac060011e19c1f03682da0da436fc395453ea5c60e4441dd6641daefdcea5a7e
+    records: 100
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+  residual_replay_run:
+    path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-descendant30-v1-luna-high
+    commit_sha256: 2a432a7ae3185aeb7162f0c519f3aaa09973de552b8793aa78baacdeabfead25
+    transaction_sha256: c9834a0cf9d3d3311e0fcb72aa60dc8c763c20a4af30a5891665bebee0733bcb
+
+prompts:
+  residual_renderer:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/descendant_renderer.md
+    sha256: 44833cd1e171642fe021bf57e8597c5c9d76f0706ebaa8d8ce5a9f5427cfcae2
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 16384
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-12
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+workflow:
+  documents: 30
+  controlled_target_seed: 20260912
+  max_concurrent_requests: 6
+  max_requests_per_document: 1
+  provider_launch_authorized: false
+  require_exact_topology: true
+  require_source_carrier: true
+  require_every_slot_bound_once: true
+  require_exact_literal_regions: true
+  require_page_markers_unchanged: true
+  require_line_endings_preserved: true
+  publish_training_records: false

@@ -1,0 +1,64 @@
+schema_version: 1
+run_name: mpci-bl-carrier-bound-template-extraction-efficiency-audit-v4
+output_dir: artifacts/kie-synthesis
+
+baseline_transfer_run:
+  path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-extraction-transfer200-v12-openrouter
+  commit_sha256: 649b71dfe7e33fec3bbe223b61524db654e12678457e49ab1ac37edcc913d4e1
+final_transfer_run:
+  path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-extraction-transfer200-v18-openai-continuation
+  commit_sha256: 65c5fb3f23c23755c03a5cc7a7dd610f19b3edceb7d47687f2ab5a7d18f291e7
+final_development_run:
+  path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-extraction30-v20-openrouter-continuation
+  commit_sha256: 079566ba30fda7c46896524969ce53e74989dfaf135a6af6be637f130ba0d91c
+carrier_audit_run:
+  path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-extraction-v14-offline-readiness-v2
+  commit_sha256: 2b96b91bad6a712c528272ba7e174ea6813d8b7c2d7ff26f79cc6d21db18f252
+
+pricing_scenarios:
+  - name: recorded_luna
+    model: openai/gpt-5.6-luna
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: "0.20"
+    cached_input_usd_per_million: "0.02"
+    cache_write_multiplier: "1.25"
+    output_usd_per_million: "1.20"
+  - name: glm_5_3_flash_current_promotional
+    model: z-ai/glm-5.3-flash
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: "0.075"
+    cached_input_usd_per_million: "0.015"
+    cache_write_multiplier: "0"
+    output_usd_per_million: "0.25"
+  - name: glm_5_3_flash_promotional_cache_write_at_input_sensitivity
+    model: z-ai/glm-5.3-flash
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: "0.075"
+    cached_input_usd_per_million: "0.015"
+    cache_write_multiplier: "1"
+    output_usd_per_million: "0.25"
+  - name: glm_5_3_flash_standard_rate_sensitivity
+    model: z-ai/glm-5.3-flash
+    source_url: https://openrouter.ai/z-ai/glm-5.3-flash
+    input_usd_per_million: "0.15"
+    cached_input_usd_per_million: "0.03"
+    cache_write_multiplier: "0"
+    output_usd_per_million: "0.50"
+
+model_probe_runs:
+  - name: glm_deepinfra_pre_adapter_capability_failure
+    run:
+      path: artifacts/kie-synthesis/mpci-bl-template-model-probe-easy-glm53-deepinfra-v1
+      commit_sha256: da70857d2d80d8becddcb7edaff2faafa35afc41a85c2d535d62a204ad165d3c
+  - name: easy_glm_deepinfra
+    run:
+      path: artifacts/kie-synthesis/mpci-bl-template-model-probe-easy-glm53-deepinfra-v2
+      commit_sha256: 109338b1b8502173c3902212d3d33743882ec6f6d5a3e90a9176fe158567df9b
+  - name: easy_glm_baseten
+    run:
+      path: artifacts/kie-synthesis/mpci-bl-template-model-probe-easy-glm53-baseten-v1
+      commit_sha256: 8a188211eaafb4e7fb9054442c4e30b9316325538b751c0f7bdb4420191ee269
+  - name: medium_glm_baseten_compiler_luna_critic
+    run:
+      path: artifacts/kie-synthesis/mpci-bl-template-model-probe-medium-hybrid-glm53-baseten-luna-v1
+      commit_sha256: ec878e812ce0cabf7b910ec9e5a27394a7d5494bc4a517de4ea9122f8bfd7df5

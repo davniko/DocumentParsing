@@ -1,0 +1,46 @@
+schema_version: 1
+reviewed_on: 2026-09-11
+review_scope: development30 OCR-only carrier candidates and negative exclusion controls
+reviewer: Codex
+conclusion: >-
+  All four selected missing-label development cases contain a master-of-vessel principal in an
+  explicit signature region and are appropriate candidates for agent resolution, but are not yet
+  certified carriers. Both negative controls contain only generic carrier language and are
+  correctly excluded pending external enrichment.
+
+selected_candidates:
+  - document_id: doc_522430384cf3277462306906f9f4dd74a391ac8de801d70db98ed011b0e20880
+    verdict: eligible_for_agent_resolution_not_certified
+    evidence:
+      - 'L00102: Signature'
+      - 'L00103-L00104: FOR AND ON BEHALF OF THE / MASTER OF MV DSM LONDON'
+
+  - document_id: doc_eef5726a4f158ba127a042572eb8b1bd64891071fdcc7dcfdd744b2da65f04cf
+    verdict: eligible_for_agent_resolution_not_certified
+    evidence:
+      - 'L00084: Signature'
+      - 'L00085-L00086: ON BEHALF OF THE MASTER OF / M/V SEASTAR TROJAN'
+      - 'L00089 identifies DALARÖ AGENCY AB separately as agent.'
+
+  - document_id: doc_383fc4b9007831108949897f63331088fc3359d0e5d83ad2e8309b273be97b9b
+    verdict: eligible_for_agent_resolution_not_certified
+    evidence:
+      - 'L00111: Signature'
+      - 'L00112-L00113: Unlimited Vista FZE FOR AND ON BEHALF / OF THE MASTER OF MV SUPER SARKAS'
+
+  - document_id: doc_affb811552cac998c5d995379436a0c32adc14543d12a273120dd3247597a773
+    verdict: eligible_for_agent_resolution_not_certified
+    evidence:
+      - 'L00068: Signature'
+      - 'L00069: Master of M/V "BARLA"'
+
+excluded_negative_controls:
+  - document_id: doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5
+    verdict: correctly_requires_external_enrichment
+    evidence:
+      - 'L00120 says As Carrier: and L00121 is blank; no principal is printed.'
+
+  - document_id: doc_4877f7e32594eca8fa113191c4348bb70351977421ab65e4c83d3c18e5cf72c6
+    verdict: correctly_requires_external_enrichment
+    evidence:
+      - 'L00094 says AS CARRIER / AGENTS FOR THE CARRIER but names no principal.'

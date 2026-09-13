@@ -1,0 +1,90 @@
+schema_version: 1
+reviewed_on: 2026-09-12
+reviewer: Codex
+run:
+  path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-descendant30-v3-offline-replay
+  commit_sha256: db158e16a0806dd77b83628a148752406b5244d23f57ca08360dbc7f8bd9f993
+  transaction_sha256: 732246f0afd9c5d6a3f61eb181ecd2a9060c14a71a64cf603ce0bb623c24723d
+selection_method: >-
+  Purposive stress sample covering the largest template, a multi-container target, dangerous
+  goods and French date formatting, a carrier-heavy multi-page form, dotted named-month dates
+  and identifier relationships, and a compact controlled target. It is not a random sample and
+  must not be treated as a population quality estimate.
+reviews:
+  - document_id: doc_92a5a2cfb70054511e7e5c1233706d57af3466121d8b30069e3b93e39a844cea
+    selection_reason: Largest template at 253 slots with five repeated page sections.
+    target_origin: controlled_source_variant
+    rendering_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    primary_surface: residual_auxiliary
+    observation: >-
+      Target-bound values and repeated identifiers are rendered consistently, and the unchanged
+      negotiability enum retains the native NON-NEGOTIABLE punctuation after host hardening.
+      Source-only residuals remain semantically unsafe: HOUSTON, TX received postal code 13002,
+      two copies of the same AL SHARQIA party received different postal codes (96725 and 65495),
+      and export status NLR was replaced by EAR even though EAR is not the same status value.
+  - document_id: doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66
+    selection_reason: Ten-container, four-page, 215-slot high-change target.
+    target_origin: existing_linguistic_target_carrier_restored
+    rendering_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    primary_surface: residual_auxiliary
+    observation: >-
+      The complex target-bound container, seal, equipment, cargo, quantity, date, and repeated
+      reference values are inserted in their document-native surfaces. The residual foreign
+      exporter country is PORTUGAL while the synthetic shipper is in CANADA, showing that an
+      unbound exporter field was not grouped with its party context.
+  - document_id: doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170
+    selection_reason: Dangerous-goods document with French named-month issue date.
+    target_origin: controlled_source_variant
+    rendering_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass_with_source_limitation
+    whole_document_coherence: pass_with_source_limitation
+    primary_surface: source_ocr
+    observation: >-
+      Dangerous-goods class, target fields, and the French date surface render correctly. A
+      source-only P/I date keeps the source's already truncated three-digit year, and the residual
+      call changes INCOTERMS 2020 to the valid but unnecessary older INCOTERMS 2010 vocabulary.
+  - document_id: doc_d422eaa8085d05e468b52d16a4c77b03715924308d50a64700bfe5f78e140440
+    selection_reason: Three-page carrier-heavy form with equipment and repeated signature blocks.
+    target_origin: existing_linguistic_target_carrier_restored
+    rendering_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    primary_surface: target_compatibility_and_residual_auxiliary
+    observation: >-
+      Carrier identity and repeated target facts remain exact. The prepared target retains the
+      source street INDUSTRIESTR. 8 22885 while changing the shipper to an Australian company and
+      city, and the independent residual exporter country becomes BELGIUM. The renderer is
+      faithful, but the composed synthetic document is not geographically coherent.
+  - document_id: doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+    selection_reason: Dotted named-month dates, reefer cargo, and embedded identifier relations.
+    target_origin: existing_linguistic_target_carrier_restored
+    rendering_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    primary_surface: residual_auxiliary
+    observation: >-
+      Both 20.APR.2025 and 19.APR.2025 validate and render correctly, and embedded ACID/tax
+      identifier relationships are reconciled. The residual foreign exporter country is GERMANY
+      while the target-bound shipper is in INDIA, again exposing absent party grouping.
+  - document_id: doc_a6f245645add0c3e179728ac07d604bd9c9550fa3fe508c06fbaba80474f3e21
+    selection_reason: Compact controlled target with adjacent OCR token boundaries.
+    target_origin: controlled_source_variant
+    rendering_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass_with_source_limitation
+    whole_document_coherence: concern
+    primary_surface: residual_auxiliary_and_source_ocr
+    observation: >-
+      Target identifiers and dates preserve their native patterns. The residual exporter country
+      changes from CHINA to INDIA while the source-bound shipper remains Chinese, and replacing
+      the country code inside the source OCR string CNTRAINER produces INTRAINER. The exact slot
+      boundary is preserved, but the flattened document remains semantically awkward.
