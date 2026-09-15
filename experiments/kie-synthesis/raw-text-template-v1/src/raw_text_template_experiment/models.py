@@ -42,6 +42,12 @@ AgentContractProtocol = Literal[
     "legacy_v1",
     "compact_discriminated_v2",
     "reference_compact_v3",
+    "staged_local_v4",
+    "faceted_staged_local_v5",
+    "partitioned_staged_local_v6",
+    "candidate_first_staged_local_v7",
+    "candidate_first_staged_local_v8",
+    "relational_reference_compact_v9",
 ]
 ValueKind = Literal[
     "organization",
@@ -256,6 +262,9 @@ class ExtractionPrompts(BaseModel):
 
     compiler: PinnedFile
     critic: PinnedFile
+    compiler_repair: PinnedFile | None = None
+    critic_audit: PinnedFile | None = None
+    critic_plan: PinnedFile | None = None
 
 
 class ExtractionWorkflow(BaseModel):
@@ -289,7 +298,13 @@ class ExtractionConfig(BaseModel):
 
     schema_version: Literal[1]
     task: Literal["carrier_bound_raw_text_template_extraction"]
-    phase: Literal["canary1", "efficiency_probe5", "development30", "transfer200"]
+    phase: Literal[
+        "canary1",
+        "efficiency_targeted3",
+        "efficiency_probe5",
+        "development30",
+        "transfer200",
+    ]
     run_name: NonEmptyText
     output_dir: NonEmptyText
     environment_file: NonEmptyText
@@ -307,6 +322,7 @@ class ExtractionConfig(BaseModel):
     def phase_count_is_exact(self) -> ExtractionConfig:
         expected = {
             "canary1": 1,
+            "efficiency_targeted3": 3,
             "efficiency_probe5": 5,
             "development30": 30,
             "transfer200": 200,
@@ -321,6 +337,34 @@ class ExtractionConfig(BaseModel):
             raise ValueError("pinned document IDs must exactly match the configured document count")
         if set(self.pinned_document_ids) & set(self.excluded_document_ids):
             raise ValueError("a document cannot be both pinned and excluded")
+        staged_prompts = (
+            self.prompts.compiler_repair,
+            self.prompts.critic_audit,
+            self.prompts.critic_plan,
+        )
+        if self.workflow.agent_contract_protocol in {
+            "staged_local_v4",
+            "faceted_staged_local_v5",
+            "partitioned_staged_local_v6",
+            "candidate_first_staged_local_v7",
+            "candidate_first_staged_local_v8",
+        }:
+            if any(prompt is None for prompt in staged_prompts):
+                raise ValueError(
+                    "staged protocols require compiler_repair, critic_audit, and critic_plan "
+                    "prompts"
+                )
+        elif any(prompt is not None for prompt in staged_prompts):
+            raise ValueError("staged prompts are valid only for staged protocols")
+        if (
+            self.workflow.agent_contract_protocol
+            in {"candidate_first_staged_local_v7", "candidate_first_staged_local_v8"}
+            and self.workflow.max_critic_passes < 2
+        ):
+            raise ValueError(
+                "candidate-first protocol requires a candidate pre-pass and a distinct final "
+                "critic pass"
+            )
         return self
 
 
@@ -349,7 +393,13 @@ class SelectionManifest(BaseModel):
     model_config = _STRICT
 
     schema_version: Literal[1]
-    phase: Literal["canary1", "efficiency_probe5", "development30", "transfer200"]
+    phase: Literal[
+        "canary1",
+        "efficiency_targeted3",
+        "efficiency_probe5",
+        "development30",
+        "transfer200",
+    ]
     selection_seed: int
     source_corpus_sha256: Sha256
     document_features_sha256: Sha256
@@ -741,6 +791,7 @@ class RiskCandidate(BaseModel):
         "long_numeric_identifier",
         "alphanumeric_identifier",
         "equipment_identifier",
+        "selected_text",
     ]
     line_id: LineId
     byte_start: Annotated[int, Field(ge=0)]

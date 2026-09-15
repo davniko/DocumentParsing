@@ -6,10 +6,12 @@ import os
 import re
 import resource
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -26,21 +28,29 @@ from .host import (
     annotated_source,
     apply_anchor_overrides,
     apply_critic_patch,
+    binding_contract_signature,
     capability_contract,
     certify_template,
+    is_token_bounded_surface_span,
     line_spans,
     load_jsonl,
     masked_source,
     materialize_semantic_only_target_facts,
-    normalize_compact_equipment_locality,
-    normalize_country_code_locality,
+    normalize_competing_auxiliary_outliers,
     normalize_deterministic_draft_semantics,
+    normalize_pinned_carrier_assessment,
+    normalize_relational_anchor_locality,
+    normalize_source_boundaries,
+    normalize_structured_row_locality,
     normalize_target_cobindings,
     numbered_source,
+    refuted_semantic_only_target_paths,
     required_target_cobindings,
+    resolve_agent_proposal_inventory,
     resolve_agent_proposals,
     risk_candidates,
     source_carrier,
+    target_binding_surface_analysis,
     target_fact_components,
     target_path_relationship,
     template_summary,
@@ -48,6 +58,7 @@ from .host import (
     validate_agent_proposal_paths,
     validate_binding_realizations,
     validate_carrier_assessment,
+    validate_mutable_token_boundaries,
     validate_repeated_binding_fact_topology,
     validate_target_binding_relationships,
     verify_file,
@@ -55,6 +66,7 @@ from .host import (
 from .models import (
     AgentContractProtocol,
     AgentStageArtifact,
+    AnchorOverride,
     CarrierAssessment,
     CertifiedSemanticTemplate,
     CompilerAgentOutput,
@@ -67,6 +79,8 @@ from .models import (
     SemanticOnlyTargetFact,
 )
 from .selection import build_selection_manifest, carrier_resolution_classification
+
+_RELATIONAL_ANCHOR_PROTOCOLS = {"relational_reference_compact_v9"}
 
 
 def project_root_from_config(config_path: Path) -> Path:
@@ -191,6 +205,9 @@ def _config_inputs(
     Path,
     str,
     str,
+    str | None,
+    str | None,
+    str | None,
 ]:
     source_path = resolve_input(project_root, config.inputs.source_corpus.path)
     feature_path = resolve_input(project_root, config.inputs.document_features.path)
@@ -201,7 +218,7 @@ def _config_inputs(
     manual_path = resolve_input(project_root, config.inputs.manual_audit.path)
     compiler_prompt_path = resolve_input(project_root, config.prompts.compiler.path)
     critic_prompt_path = resolve_input(project_root, config.prompts.critic.path)
-    for path, expected in (
+    required_files = [
         (source_path, config.inputs.source_corpus.sha256),
         (feature_path, config.inputs.document_features.sha256),
         (anchor_path, config.inputs.anchors.sha256),
@@ -211,7 +228,20 @@ def _config_inputs(
         (manual_path, config.inputs.manual_audit.sha256),
         (compiler_prompt_path, config.prompts.compiler.sha256),
         (critic_prompt_path, config.prompts.critic.sha256),
+    ]
+    staged_prompt_paths: list[Path | None] = []
+    for configured in (
+        config.prompts.compiler_repair,
+        config.prompts.critic_audit,
+        config.prompts.critic_plan,
     ):
+        if configured is None:
+            staged_prompt_paths.append(None)
+            continue
+        path = resolve_input(project_root, configured.path)
+        required_files.append((path, configured.sha256))
+        staged_prompt_paths.append(path)
+    for path, expected in required_files:
         verify_file(path, expected)
     return (
         load_jsonl(source_path, config.inputs.source_corpus.records),
@@ -223,6 +253,10 @@ def _config_inputs(
         manual_path,
         compiler_prompt_path.read_text(encoding="utf-8"),
         critic_prompt_path.read_text(encoding="utf-8"),
+        *(
+            path.read_text(encoding="utf-8") if path is not None else None
+            for path in staged_prompt_paths
+        ),
     )
 
 
@@ -234,6 +268,93 @@ def _mark_host_rejected(stage: AgentStageArtifact, error: Exception) -> AgentSta
             "error_message": str(error),
         }
     )
+
+
+def _apply_validated_critic_review(
+    *,
+    review: CriticAgentOutput,
+    raw: str,
+    drafts: Sequence[SpanDraft],
+    source_target: Mapping[str, Any],
+    assessment: CarrierAssessment,
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+) -> tuple[tuple[SpanDraft, ...], tuple[SemanticOnlyTargetFact, ...]]:
+    if review.verdict != "revise":
+        raise ValueError("critic transaction preview requires a revise decision")
+    review_semantic_only = materialize_semantic_only_target_facts(
+        proposals=review.semantic_only_target_facts,
+        source_target=source_target,
+        provenance="critic_audited_unprinted",
+    )
+    revised = normalize_source_boundaries(
+        raw=raw,
+        drafts=normalize_deterministic_draft_semantics(
+            drafts=normalize_structured_row_locality(
+                raw=raw,
+                drafts=apply_critic_patch(
+                    raw=raw,
+                    drafts=drafts,
+                    findings=review.findings,
+                    remove_inventory_binding_ids=review.remove_inventory_binding_ids,
+                    additional_bindings=review.additional_bindings,
+                    occurrence_removals=review.occurrence_removals,
+                    semantic_only_target_paths=tuple(
+                        fact.target_path for fact in review_semantic_only
+                    ),
+                    source_target=source_target,
+                ),
+                source_target=source_target,
+            ),
+            source_target=source_target,
+        ),
+    )
+    validate_carrier_assessment(
+        assessment=assessment,
+        expected=source_carrier(source_target),
+        raw=raw,
+        anchor_drafts_value=revised,
+    )
+    validate_binding_realizations(raw=raw, drafts=revised, source_target=source_target)
+    effective_semantic_only = _effective_semantic_only_target_facts(
+        facts=_merge_semantic_only_target_facts(
+            semantic_only_target_facts,
+            review_semantic_only,
+        ),
+        drafts=revised,
+    )
+    if binding_contract_signature(revised) == binding_contract_signature(drafts) and tuple(
+        effective_semantic_only
+    ) == tuple(semantic_only_target_facts):
+        raise ValueError(
+            "critic transaction is a functional no-op after complete host normalization; "
+            "do not repeat the finding or patch unless the rendering contract actually changes"
+        )
+    return revised, effective_semantic_only
+
+
+def _preview_critic_review(
+    review: CriticAgentOutput,
+    *,
+    raw: str,
+    drafts: Sequence[SpanDraft],
+    source_target: Mapping[str, Any],
+    assessment: CarrierAssessment,
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+) -> None:
+    revised, _semantic_only = _apply_validated_critic_review(
+        review=review,
+        raw=raw,
+        drafts=drafts,
+        source_target=source_target,
+        assessment=assessment,
+        semantic_only_target_facts=semantic_only_target_facts,
+    )
+    remaining = uncovered_risks(raw, risk_candidates(raw, ()), revised)
+    if remaining:
+        details = "; ".join(f"{row.risk_id} {row.line_id}={row.source_text!r}" for row in remaining)
+        raise ValueError(
+            "critic transaction leaves deterministic risk candidates unowned: " + details
+        )
 
 
 def _latest_compiler_revision_context(
@@ -269,6 +390,40 @@ def _latest_compiler_revision_context(
     return "Host rejected the compiler output: " + prior_rejection.error_message
 
 
+def _materialize_compiler_drafts(
+    *,
+    raw: str,
+    source_target: Mapping[str, Any],
+    anchors: Sequence[SpanDraft],
+    proposed: Sequence[SpanDraft],
+    anchor_overrides: Sequence[AnchorOverride],
+    semantic_only_target_paths: Sequence[str],
+) -> tuple[SpanDraft, ...]:
+    """Apply one compiler transaction through the canonical host normalization path."""
+
+    return normalize_source_boundaries(
+        raw=raw,
+        drafts=normalize_deterministic_draft_semantics(
+            drafts=normalize_structured_row_locality(
+                raw=raw,
+                drafts=normalize_target_cobindings(
+                    drafts=apply_anchor_overrides(
+                        raw=raw,
+                        source_target=source_target,
+                        anchors=anchors,
+                        proposed=proposed,
+                        overrides=anchor_overrides,
+                        semantic_only_target_paths=semantic_only_target_paths,
+                    ),
+                    source_target=source_target,
+                ),
+                source_target=source_target,
+            ),
+            source_target=source_target,
+        ),
+    )
+
+
 def _compiler_host_rejection(
     *,
     output: CompilerAgentOutput,
@@ -285,9 +440,14 @@ def _compiler_host_rejection(
     """
 
     diagnostics: list[str] = []
+    diagnostic_body_scopes: dict[str, str] = {}
 
     def add(scope: str, error: Exception) -> None:
-        diagnostic = f"{scope}: {error}"
+        body = str(error)
+        first_scope = diagnostic_body_scopes.setdefault(body, scope)
+        diagnostic = (
+            f"{scope}: {body}" if first_scope == scope else f"{scope}: same defect as {first_scope}"
+        )
         if diagnostic not in diagnostics:
             diagnostics.append(diagnostic)
 
@@ -320,35 +480,40 @@ def _compiler_host_rejection(
     except Exception as error:
         add("binding source occurrences", error)
     else:
+        materialized: tuple[SpanDraft, ...] | None = None
         if declared_semantic_only is not None:
             try:
-                apply_anchor_overrides(
+                materialized = _materialize_compiler_drafts(
                     raw=raw,
                     source_target=source_target,
                     anchors=anchors,
                     proposed=proposed,
-                    overrides=output.anchor_overrides,
+                    anchor_overrides=output.anchor_overrides,
                     semantic_only_target_paths=tuple(
                         fact.target_path for fact in declared_semantic_only
                     ),
                 )
             except Exception as error:
                 add("anchor replacement integration", error)
+        if materialized is not None:
+            try:
+                validate_mutable_token_boundaries(raw=raw, drafts=materialized)
+            except Exception as error:
+                add("binding token boundaries", error)
 
-        try:
-            validate_repeated_binding_fact_topology(
-                drafts=proposed,
-                source_target=source_target,
-            )
-        except Exception as error:
-            add("binding target topology", error)
-
+        proposal_ids = {draft.draft_id for draft in proposed}
+        diagnostic_proposals = tuple(
+            draft
+            for draft in normalize_competing_auxiliary_outliers((*anchors, *proposed))
+            if draft.draft_id in proposal_ids
+        )
         proposed_by_key: dict[str, list[SpanDraft]] = {}
-        for draft in proposed:
+        for draft in diagnostic_proposals:
             proposed_by_key.setdefault(draft.logical_key, []).append(draft)
+        normalized_proposed: list[SpanDraft] = []
         container_number_context = tuple(
             draft
-            for draft in (*anchors, *proposed)
+            for draft in (*anchors, *diagnostic_proposals)
             if any(path.endswith(".containerNumber") for path in draft.target_paths)
         )
         for logical_key, logical_drafts in proposed_by_key.items():
@@ -358,22 +523,31 @@ def _compiler_host_rejection(
                 context = {
                     draft.draft_id: draft for draft in (*container_number_context, *logical_drafts)
                 }
-                normalized_group = tuple(
-                    draft
-                    for draft in normalize_compact_equipment_locality(
-                        raw=raw,
-                        drafts=tuple(context.values()),
-                        source_target=source_target,
+                try:
+                    normalized_group = tuple(
+                        draft
+                        for draft in normalize_structured_row_locality(
+                            raw=raw,
+                            drafts=tuple(context.values()),
+                            source_target=source_target,
+                        )
+                        if (draft.char_start, draft.char_end) in original_spans
                     )
-                    if (draft.char_start, draft.char_end) in original_spans
+                except Exception as error:
+                    add(f"binding locality normalization for {logical_key}", error)
+                    normalized_group = logical_drafts
+            try:
+                normalized_group = normalize_source_boundaries(
+                    raw=raw,
+                    drafts=normalize_deterministic_draft_semantics(
+                        drafts=normalized_group,
+                        source_target=source_target,
+                    ),
                 )
-            normalized_group = normalize_country_code_locality(
-                raw=raw,
-                drafts=normalize_deterministic_draft_semantics(
-                    drafts=normalized_group,
-                    source_target=source_target,
-                ),
-            )
+            except Exception as error:
+                add(f"binding semantic normalization for {logical_key}", error)
+                normalized_group = logical_drafts
+            normalized_proposed.extend(normalized_group)
             normalized_by_key: dict[str, list[SpanDraft]] = {}
             for draft in normalized_group:
                 normalized_by_key.setdefault(draft.logical_key, []).append(draft)
@@ -387,9 +561,19 @@ def _compiler_host_rejection(
             except Exception as error:
                 add(f"binding realization for {logical_key}", error)
 
+        try:
+            validate_repeated_binding_fact_topology(
+                drafts=normalized_proposed,
+                source_target=source_target,
+            )
+        except Exception as error:
+            add("binding target topology", error)
+
         declared_paths = {fact.target_path for fact in output.semantic_only_target_facts}
         proposed_paths = {
-            path for draft in proposed for path in (*draft.target_paths, *draft.dependency_paths)
+            path
+            for draft in diagnostic_proposals
+            for path in (*draft.target_paths, *draft.dependency_paths)
         }
         semantic_conflicts = sorted(declared_paths & proposed_paths)
         if semantic_conflicts:
@@ -437,6 +621,8 @@ def _draft_inventory(
     raw: str,
     drafts: Sequence[SpanDraft],
     source_target: Mapping[str, Any],
+    *,
+    rejected_candidate: bool = False,
 ) -> list[dict[str, Any]]:
     from .host import line_range_for_chars, line_spans
 
@@ -492,25 +678,34 @@ def _draft_inventory(
     output: list[dict[str, Any]] = []
     for rows in ordered:
         first = rows[0]
-        output.append(
-            {
-                "sourceBindingIds": tuple(row.draft_id for row in rows),
-                "logicalKey": first.logical_key,
-                "renderMode": first.render_mode,
-                "valueKind": first.value_kind,
-                "groupKind": first.group_kind,
-                "groupKey": first.group_key,
-                "targetPaths": first.target_paths,
-                "targetRelationship": target_path_relationship(source_target, first.target_paths),
-                "independentTargetFactComponents": target_fact_components(
-                    source_target, first.target_paths
-                ),
-                "derivation": first.derivation,
-                "dependencyPaths": first.dependency_paths,
-                "dependencyBindings": first.dependency_bindings,
-                "occurrences": tuple(occurrence_summary(row) for row in rows),
-            }
-        )
+        target_path_error: str | None = None
+        try:
+            target_relationship = target_path_relationship(source_target, first.target_paths)
+            fact_components = target_fact_components(source_target, first.target_paths)
+        except ValueError as error:
+            if not rejected_candidate:
+                raise
+            target_relationship = "invalid_target_path"
+            fact_components = tuple((path,) for path in first.target_paths)
+            target_path_error = str(error)
+        inventory_row = {
+            "sourceBindingIds": tuple(row.draft_id for row in rows),
+            "logicalKey": first.logical_key,
+            "renderMode": first.render_mode,
+            "valueKind": first.value_kind,
+            "groupKind": first.group_kind,
+            "groupKey": first.group_key,
+            "targetPaths": first.target_paths,
+            "targetRelationship": target_relationship,
+            "independentTargetFactComponents": fact_components,
+            "derivation": first.derivation,
+            "dependencyPaths": first.dependency_paths,
+            "dependencyBindings": first.dependency_bindings,
+            "occurrences": tuple(occurrence_summary(row) for row in rows),
+        }
+        if target_path_error is not None:
+            inventory_row["targetPathValidationError"] = target_path_error
+        output.append(inventory_row)
     return output
 
 
@@ -595,12 +790,52 @@ def _addressable_target_paths(source_target: Mapping[str, Any]) -> tuple[str, ..
     return tuple(output)
 
 
+def _critic_addressable_target_paths(
+    *, source_target: Mapping[str, Any], drafts: Sequence[SpanDraft]
+) -> tuple[str, ...]:
+    """Return the semantic target vocabulary needed by an independent critic.
+
+    Object and nested-list summaries are compiler construction context, not printable facts. The
+    critic retains every scalar leaf, every path used by the current template, and the two
+    collection roots supported by count derivations. This removes no value the critic can bind or
+    use as a dependency while avoiding repeated structural rows for every indexed object.
+    """
+
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        raise ValueError("source target lacks documentPatch")
+    scalar_paths: set[str] = set()
+
+    def visit(value: Any, path: str) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                visit(child, f"{path}.{key}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                visit(child, f"{path}[{index}]")
+        else:
+            scalar_paths.add(path)
+
+    visit(patch, "documentPatch")
+    all_paths = _addressable_target_paths(source_target)
+    retained = scalar_paths | {
+        path for draft in drafts for path in (*draft.target_paths, *draft.dependency_paths)
+    }
+    retained.update(
+        path
+        for path in ("documentPatch.containers", "documentPatch.cargoPackages")
+        if path in all_paths
+    )
+    return tuple(path for path in all_paths if path in retained)
+
+
 def _compiler_occurrence_candidates(
     *,
     raw: str,
     source_target: Mapping[str, Any],
     anchors: Sequence[SpanDraft],
     risks: Sequence[Any],
+    authorized_anchor_overlap_ids: frozenset[str] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     """Build immutable exact-span handles from evidence already available to the host."""
 
@@ -632,10 +867,23 @@ def _compiler_occurrence_candidates(
         if not surface:
             continue
         for match in re.finditer(re.escape(surface), raw):
+            if not is_token_bounded_surface_span(raw, match.start(), match.end()):
+                continue
             candidates.add((match.start(), match.end(), surface))
 
     output: list[dict[str, Any]] = []
     for index, (start, end, surface) in enumerate(sorted(candidates), start=1):
+        if authorized_anchor_overlap_ids is not None and any(
+            start < anchor.char_end
+            and anchor.char_start < end
+            and (start, end) != (anchor.char_start, anchor.char_end)
+            and anchor.draft_id not in authorized_anchor_overlap_ids
+            for anchor in anchors
+        ):
+            # A partial scalar match inside a retained anchor is not an independent source
+            # occurrence. Keeping it in the provider vocabulary invited values such as package
+            # quantity ``96`` to be selected from inside container number ``TGBU9219649``.
+            continue
         start_line = next(line for line in lines if line.char_start <= start <= line.char_end)
         end_line = next(line for line in lines if line.char_start <= end - 1 <= line.char_end)
         range_text = raw[start_line.char_start : end_line.char_end]
@@ -669,6 +917,23 @@ def _compiler_payload(
     agent_contract_protocol: AgentContractProtocol,
 ) -> dict[str, Any]:
     uncovered_ids = {row.risk_id for row in uncovered_risks(raw, risks, anchors)}
+    semantic_review_ids = tuple(
+        row.draft_id
+        for row in anchors
+        if target_path_relationship(source_target, row.target_paths) == "composite_target_surface"
+    )
+    shared_equality_ids = tuple(
+        row.draft_id
+        for row in anchors
+        if target_path_relationship(source_target, row.target_paths) == "shared_value_equality"
+    )
+    cross_fact_equality_ids = tuple(
+        row.draft_id
+        for row in anchors
+        if target_path_relationship(source_target, row.target_paths) == "shared_value_equality"
+        and len(target_fact_components(source_target, row.target_paths)) > 1
+    )
+    initial_review_ids = tuple(dict.fromkeys((*semantic_review_ids, *cross_fact_equality_ids)))
     payload: dict[str, Any] = {
         "documentId": document_id,
         "expectedCarrierName": source_carrier(source_target),
@@ -693,23 +958,9 @@ def _compiler_payload(
             "temperatureSettings": feature["temperature_setting_count"],
         },
         "anchorBindings": anchor_summary(raw, anchors, source_target),
-        "anchorBindingsRequiringSemanticReview": [
-            row.draft_id
-            for row in anchors
-            if target_path_relationship(source_target, row.target_paths)
-            == "composite_target_surface"
-        ],
-        "anchorBindingsWithSharedEqualityConstraint": [
-            row.draft_id
-            for row in anchors
-            if target_path_relationship(source_target, row.target_paths) == "shared_value_equality"
-        ],
-        "anchorBindingsWithCrossFactEqualityAmbiguity": [
-            row.draft_id
-            for row in anchors
-            if target_path_relationship(source_target, row.target_paths) == "shared_value_equality"
-            and len(target_fact_components(source_target, row.target_paths)) > 1
-        ],
+        "anchorBindingsRequiringSemanticReview": list(semantic_review_ids),
+        "anchorBindingsWithSharedEqualityConstraint": list(shared_equality_ids),
+        "anchorBindingsWithCrossFactEqualityAmbiguity": list(cross_fact_equality_ids),
         "semanticOnlyTargetFacts": _semantic_only_target_facts(
             source_target=source_target, drafts=anchors
         ),
@@ -722,12 +973,27 @@ def _compiler_payload(
         ],
         "numberedSource": numbered_source(raw),
     }
-    if agent_contract_protocol == "reference_compact_v3":
+    if agent_contract_protocol in {
+        "reference_compact_v3",
+        "relational_reference_compact_v9",
+        "staged_local_v4",
+        "faceted_staged_local_v5",
+        "partitioned_staged_local_v6",
+        "candidate_first_staged_local_v7",
+        "candidate_first_staged_local_v8",
+    }:
+        if agent_contract_protocol == "candidate_first_staged_local_v8":
+            payload["anchorBindingsAuthorizedForInitialReview"] = initial_review_ids
         occurrence_candidates = _compiler_occurrence_candidates(
             raw=raw,
             source_target=source_target,
             anchors=anchors,
             risks=risks,
+            authorized_anchor_overlap_ids=(
+                frozenset(initial_review_ids)
+                if agent_contract_protocol == "candidate_first_staged_local_v8"
+                else None
+            ),
         )
         columns = (
             "occurrenceId",
@@ -752,10 +1018,211 @@ def _compiler_payload(
         payload["previousCandidateOutput"] = prior_output.model_dump(mode="json")
     if prior_drafts is not None:
         payload["previousCandidateBindingInventory"] = _draft_inventory(
-            raw, prior_drafts, source_target
+            raw,
+            prior_drafts,
+            source_target,
+            rejected_candidate=prior_error is not None,
         )
-        payload["previousCandidateMaskedTemplate"] = masked_source(raw, prior_drafts)
+        if agent_contract_protocol not in {
+            "staged_local_v4",
+            "faceted_staged_local_v5",
+            "partitioned_staged_local_v6",
+            "candidate_first_staged_local_v7",
+            "candidate_first_staged_local_v8",
+        }:
+            payload["previousCandidateMaskedTemplate"] = masked_source(raw, prior_drafts)
+    if (
+        agent_contract_protocol
+        in {
+            "partitioned_staged_local_v6",
+            "candidate_first_staged_local_v7",
+            "candidate_first_staged_local_v8",
+        }
+        and prior_output is None
+        and prior_error is None
+    ):
+        return _compact_initial_compiler_payload(payload)
     return payload
+
+
+def _compact_initial_compiler_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the immutable first-pass compiler context into indexed record tables.
+
+    The source label remains nested because it is the easiest semantic view for the compiler. The
+    duplicated full target paths, anchor object keys, occurrence keys, and risk offsets do not.
+    Local repair requests deliberately retain their verbose host slice and use a different prompt.
+    """
+
+    target_paths = payload.get("allowedTargetPaths")
+    anchor_bindings = payload.get("anchorBindings")
+    risks = payload.get("riskCandidates")
+    co_bindings = payload.get("requiredTargetCoBindings")
+    if not all(
+        isinstance(value, (tuple, list))
+        for value in (
+            target_paths,
+            anchor_bindings,
+            risks,
+            co_bindings,
+        )
+    ):
+        raise ValueError("initial compiler payload lacks compactable inventories")
+    target_paths = cast(Sequence[str], target_paths)
+    if len(set(target_paths)) != len(target_paths):
+        raise ValueError("initial compiler target paths are not unique")
+    path_indexes = {path: index for index, path in enumerate(target_paths)}
+
+    anchor_occurrence_rows: list[tuple[Any, ...]] = []
+    anchor_binding_rows: list[tuple[Any, ...]] = []
+    for binding_index, raw_binding in enumerate(cast(Sequence[Any], anchor_bindings)):
+        if not isinstance(raw_binding, Mapping):
+            raise ValueError("initial compiler anchor binding is not an object")
+        occurrence_indexes: list[int] = []
+        occurrences = raw_binding.get("occurrences")
+        if not isinstance(occurrences, (tuple, list)):
+            raise ValueError("initial compiler anchor occurrences are not a sequence")
+        for occurrence in occurrences:
+            if not isinstance(occurrence, Mapping):
+                raise ValueError("initial compiler anchor occurrence is not an object")
+            occurrence_indexes.append(len(anchor_occurrence_rows))
+            anchor_occurrence_rows.append(
+                (
+                    occurrence["anchorBindingId"],
+                    occurrence["lineStart"],
+                    occurrence["lineEnd"],
+                    occurrence["sourceText"],
+                )
+            )
+        try:
+            target_path_indexes = tuple(
+                path_indexes[path] for path in cast(Sequence[str], raw_binding["targetPaths"])
+            )
+            component_indexes = tuple(
+                tuple(path_indexes[path] for path in cast(Sequence[str], component))
+                for component in cast(
+                    Sequence[Sequence[str]], raw_binding["independentTargetFactComponents"]
+                )
+            )
+        except KeyError as error:
+            raise ValueError("anchor binding references an unknown target path") from error
+        anchor_binding_rows.append(
+            (
+                binding_index,
+                raw_binding["logicalKey"],
+                raw_binding["renderMode"],
+                raw_binding["valueKind"],
+                raw_binding["groupKind"],
+                raw_binding["groupKey"],
+                target_path_indexes,
+                raw_binding["targetRelationship"],
+                component_indexes,
+                raw_binding["renderPolicy"],
+                tuple(occurrence_indexes),
+            )
+        )
+
+    co_binding_rows: list[tuple[Any, ...]] = []
+    for index, row in enumerate(cast(Sequence[Any], co_bindings)):
+        if not isinstance(row, Mapping):
+            raise ValueError("initial compiler co-binding is not an object")
+        try:
+            indexes = tuple(path_indexes[path] for path in cast(Sequence[str], row["targetPaths"]))
+        except KeyError as error:
+            raise ValueError("co-binding references an unknown target path") from error
+        co_binding_rows.append((index, row["relationship"], indexes))
+
+    risk_rows: list[tuple[Any, ...]] = []
+    for row in cast(Sequence[Any], risks):
+        if not isinstance(row, Mapping):
+            raise ValueError("initial compiler risk candidate is not an object")
+        risk_rows.append(
+            (
+                row["risk_id"],
+                row["kind"],
+                row["line_id"],
+                row["source_text"],
+                row["currentlyOwnedByAcceptedAnchor"],
+            )
+        )
+
+    projected = {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "allowedTargetPaths",
+            "anchorBindings",
+            "requiredTargetCoBindings",
+            "riskCandidates",
+        }
+    }
+    projected.update(
+        {
+            "compilerCompactContract": {
+                "schemaVersion": 6,
+                "allExplicitIndexesAreZeroBased": True,
+            },
+            "targetPathTable": {
+                "columns": ("targetPathIndex", "targetPath"),
+                "rows": tuple((index, path) for index, path in enumerate(target_paths)),
+            },
+            "coBindingTable": {
+                "columns": ("coBindingIndex", "relationship", "targetPathIndexes"),
+                "rows": tuple(co_binding_rows),
+            },
+            "anchorBindingTable": {
+                "columns": (
+                    "anchorIndex",
+                    "logicalKey",
+                    "renderMode",
+                    "valueKind",
+                    "groupKind",
+                    "groupKey",
+                    "targetPathIndexes",
+                    "targetRelationship",
+                    "independentTargetFactComponents",
+                    "renderPolicy",
+                    "occurrenceIndexes",
+                ),
+                "rows": tuple(anchor_binding_rows),
+            },
+            "anchorOccurrenceTable": {
+                "columns": ("anchorBindingId", "lineStart", "lineEnd", "sourceText"),
+                "rows": tuple(anchor_occurrence_rows),
+            },
+            "riskCandidateTable": {
+                "columns": (
+                    "riskId",
+                    "kind",
+                    "lineId",
+                    "sourceText",
+                    "currentlyOwnedByAcceptedAnchor",
+                ),
+                "rows": tuple(risk_rows),
+            },
+        }
+    )
+    return projected
+
+
+def _prepare_anchor_rows(
+    *,
+    raw: str,
+    document_id: str,
+    anchor_rows: Sequence[Mapping[str, Any]],
+    source_target: Mapping[str, Any],
+    agent_contract_protocol: AgentContractProtocol,
+) -> tuple[tuple[Mapping[str, Any], ...], dict[str, Any] | None]:
+    rows = tuple(anchor_rows)
+    if agent_contract_protocol not in _RELATIONAL_ANCHOR_PROTOCOLS:
+        return rows, None
+    normalized, report = normalize_relational_anchor_locality(
+        raw=raw,
+        document_id=document_id,
+        anchors=rows,
+        source_target=source_target,
+    )
+    return normalized, asdict(report)
 
 
 def _preflight_summary(
@@ -767,6 +1234,9 @@ def _preflight_summary(
     anchor_rows: Sequence[Mapping[str, Any]],
     compiler_prompt: str,
     critic_prompt: str,
+    compiler_repair_prompt: str | None = None,
+    critic_audit_prompt: str | None = None,
+    critic_plan_prompt: str | None = None,
 ) -> dict[str, Any]:
     sources = {str(row["documentId"]): row for row in source_rows}
     features = {str(row["document_id"]): row for row in feature_rows}
@@ -785,11 +1255,18 @@ def _preflight_summary(
             raise ValueError(f"preflight source hash differs for {document_id}")
         source_target = cast(Mapping[str, Any], source["target"])
         carrier = source_carrier(source_target)
+        prepared_anchor_rows, locality_report = _prepare_anchor_rows(
+            raw=raw,
+            document_id=document_id,
+            anchor_rows=anchors_by_id.get(document_id, ()),
+            source_target=source_target,
+            agent_contract_protocol=config.workflow.agent_contract_protocol,
+        )
         anchors = normalize_target_cobindings(
             drafts=anchor_drafts(
                 raw=raw,
                 document_id=document_id,
-                anchors=anchors_by_id.get(document_id, ()),
+                anchors=prepared_anchor_rows,
             ),
             source_target=source_target,
         )
@@ -850,6 +1327,7 @@ def _preflight_summary(
                 "requiredTargetCoBindings": len(co_bindings),
                 "riskCandidates": len(risks),
                 "compilerRequestBytes": compiler_request_bytes,
+                "relationalAnchorLocality": locality_report,
             }
         )
     if len(cases) != config.workflow.documents:
@@ -865,6 +1343,14 @@ def _preflight_summary(
         "carrierResolutionRequired": sum(row["carrierResolutionRequired"] for row in cases),
         "compilerPromptSha256": sha256_bytes(compiler_prompt.encode("utf-8")),
         "criticPromptSha256": sha256_bytes(critic_prompt.encode("utf-8")),
+        "stagedPromptSha256s": {
+            name: sha256_bytes(prompt.encode("utf-8")) if prompt is not None else None
+            for name, prompt in (
+                ("compilerRepair", compiler_repair_prompt),
+                ("criticAudit", critic_audit_prompt),
+                ("criticPlan", critic_plan_prompt),
+            )
+        },
         "totalSourceBytes": sum(row["sourceBytes"] for row in cases),
         "totalAcceptedAnchorBindings": sum(row["acceptedAnchorBindings"] for row in cases),
         "totalSharedEqualityAnchorBindings": sum(
@@ -878,6 +1364,31 @@ def _preflight_summary(
         ),
         "totalRiskCandidates": sum(row["riskCandidates"] for row in cases),
         "totalRequiredTargetCoBindings": sum(row["requiredTargetCoBindings"] for row in cases),
+        "totalRelocatedAnchors": sum(
+            len(row["relationalAnchorLocality"]["relocated_anchor_ids"])
+            for row in cases
+            if row["relationalAnchorLocality"] is not None
+        ),
+        "totalExpandedAnchors": sum(
+            len(row["relationalAnchorLocality"]["expanded_anchor_ids"])
+            for row in cases
+            if row["relationalAnchorLocality"] is not None
+        ),
+        "totalRecoveredTopologyAnchors": sum(
+            len(row["relationalAnchorLocality"]["recovered_topology_anchor_ids"])
+            for row in cases
+            if row["relationalAnchorLocality"] is not None
+        ),
+        "totalSuppressedAnchors": sum(
+            len(row["relationalAnchorLocality"]["suppressed_anchor_ids"])
+            for row in cases
+            if row["relationalAnchorLocality"] is not None
+        ),
+        "totalDeduplicatedAnchors": sum(
+            len(row["relationalAnchorLocality"]["deduplicated_anchor_ids"])
+            for row in cases
+            if row["relationalAnchorLocality"] is not None
+        ),
         "maxCompilerRequestBytes": max(row["compilerRequestBytes"] for row in cases),
         "providerLaunchAuthorized": config.workflow.provider_launch_authorized,
         "requireAllDocumentsCertified": config.workflow.require_all_documents_certified,
@@ -977,6 +1488,7 @@ def audit_corpus_carrier_resolution(config_path: Path) -> dict[str, Any]:
         _manual_path,
         _compiler_prompt,
         _critic_prompt,
+        *_staged_prompts,
     ) = _config_inputs(config, project_root)
     return _corpus_carrier_resolution_report(
         config=config,
@@ -987,7 +1499,11 @@ def audit_corpus_carrier_resolution(config_path: Path) -> dict[str, Any]:
 
 
 def _critic_review_candidates(
-    *, raw: str, drafts: Sequence[SpanDraft]
+    *,
+    raw: str,
+    drafts: Sequence[SpanDraft],
+    source_target: Mapping[str, Any] | None = None,
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact] = (),
 ) -> tuple[dict[str, Any], ...]:
     """Expose deterministic high-recall review leads so one critic can audit them together.
 
@@ -1002,48 +1518,500 @@ def _critic_review_candidates(
     def line_id(char_start: int) -> str:
         return f"L{raw.count(chr(10), 0, char_start) + 1:05d}"
 
+    def current_and_previous_line(char_start: int) -> str:
+        current_start = raw.rfind("\n", 0, char_start) + 1
+        current_end = raw.find("\n", char_start)
+        if current_end < 0:
+            current_end = len(raw)
+        previous_end = max(0, current_start - 1)
+        previous_start = raw.rfind("\n", 0, previous_end) + 1
+        return raw[previous_start:current_end]
+
+    def current_line(char_start: int) -> str:
+        start = raw.rfind("\n", 0, char_start) + 1
+        end = raw.find("\n", char_start)
+        return raw[start : len(raw) if end < 0 else end]
+
+    def conditional_negotiability_line(value: str) -> bool:
+        return (
+            re.search(
+                r"(?i)\bIF\s+THIS\s+IS\s+(?:A\s+)?(?:NON[- ]?)?NEGOTIABLE\b",
+                value,
+            )
+            is not None
+        )
+
+    def original_bill_form_title_line(value: str) -> bool:
+        return (
+            re.fullmatch(
+                r"(?i)\s*ORIGINAL\s+BILL\s+OF\s+LADING(?:\s*\([^)]*\))?\s*",
+                value,
+            )
+            is not None
+        )
+
     grouped: dict[str, list[SpanDraft]] = {}
     for draft in drafts:
         grouped.setdefault(draft.logical_key, []).append(draft)
     candidates: list[dict[str, Any]] = []
 
+    def binding_candidate(
+        *,
+        kind: str,
+        logical_key: str,
+        rows: Sequence[SpanDraft],
+        suggested_derivations: Sequence[str],
+        relationship: str,
+    ) -> dict[str, Any]:
+        return {
+            "kind": kind,
+            "logicalKeys": (logical_key,),
+            "lineIds": tuple(sorted({line_id(row.char_start) for row in rows})),
+            "sourceTexts": tuple(sorted({row.source_text for row in rows})),
+            "details": {
+                "suggestedDerivations": tuple(suggested_derivations),
+                "relationshipToVerify": relationship,
+            },
+        }
+
     # Existing bindings can hide another exact rendering of an already mutable value. Surface
     # every uncovered repeat; the critic decides whether its context is data or generic grammar.
-    seen_repeat: set[tuple[str, int, int]] = set()
+    surface_owners: dict[str, set[str]] = {}
+    surface_owner_rows: dict[tuple[str, str], list[SpanDraft]] = {}
     for logical_key, rows in sorted(grouped.items()):
         for source_text in sorted({row.source_text for row in rows}):
-            normalized_source = normalized(source_text)
-            typed_short_integer = (
-                rows[0].value_kind == "integer"
-                and source_text.strip().isdigit()
-                and bool(normalized_source)
+            matching_rows = [row for row in rows if row.source_text == source_text]
+            surface_owners.setdefault(source_text, set()).add(logical_key)
+            surface_owner_rows[(logical_key, source_text)] = matching_rows
+    for source_text, logical_keys in sorted(surface_owners.items()):
+        normalized_source = normalized(source_text)
+        owner_rows = [
+            row
+            for logical_key in logical_keys
+            for row in surface_owner_rows[(logical_key, source_text)]
+        ]
+        typed_integer = any(row.value_kind == "integer" for row in owner_rows) and (
+            source_text.strip().isdigit() and bool(normalized_source)
+        )
+        compact_equipment_code = (
+            any(
+                row.group_kind == "equipment" and row.value_kind == "equipment"
+                for row in owner_rows
             )
-            if len(normalized_source) < 5 and not typed_short_integer:
+            and 3 <= len(normalized_source) <= 12
+            and any(character.isalpha() for character in normalized_source)
+            and any(character.isdigit() for character in normalized_source)
+        )
+        # One- and two-digit values are not self-identifying repeat candidates. They routinely
+        # recur as clause, page, and row numbers, while their genuine package/container meaning is
+        # already guarded by row-local host normalization. Longer typed quantities retain the
+        # repeat lead because their accidental-collision rate is materially lower.
+        typed_quantity_candidate = typed_integer and len(normalized_source) >= 3
+        if len(normalized_source) < 5 and not (
+            typed_quantity_candidate or compact_equipment_code
+        ):
+            continue
+        negotiability_owner = any(
+            path.endswith(".negotiability") for row in owner_rows for path in row.target_paths
+        )
+        occurrences: list[tuple[str, str]] = []
+        for match in re.finditer(re.escape(source_text), raw):
+            if (
+                source_text[0].isalnum() and match.start() > 0 and raw[match.start() - 1].isalnum()
+            ) or (
+                source_text[-1].isalnum() and match.end() < len(raw) and raw[match.end()].isalnum()
+            ):
                 continue
-            for match in re.finditer(re.escape(source_text), raw):
-                if typed_short_integer and (
-                    (match.start() > 0 and raw[match.start() - 1].isdigit())
-                    or (match.end() < len(raw) and raw[match.end()].isdigit())
+            if any(
+                match.start() < draft.char_end and draft.char_start < match.end()
+                for draft in drafts
+            ):
+                continue
+            if negotiability_owner and conditional_negotiability_line(current_line(match.start())):
+                continue
+            if normalized_source == "original" and original_bill_form_title_line(
+                current_line(match.start())
+            ):
+                continue
+            occurrences.append(
+                (
+                    line_id(match.start()),
+                    raw[max(0, match.start() - 48) : match.end() + 48],
+                )
+            )
+        if not occurrences:
+            continue
+        candidates.append(
+            {
+                "kind": "unowned_exact_repeat",
+                "logicalKeys": tuple(sorted(logical_keys)),
+                "lineIds": tuple(dict.fromkeys(line for line, _context in occurrences)),
+                "sourceTexts": (source_text,),
+                "context": tuple(dict.fromkeys(context for _line, context in occurrences)),
+                "details": {
+                    "possibleOwnerContexts": tuple(
+                        {
+                            "logicalKey": logical_key,
+                            "groupKind": rows[0].group_kind,
+                            "groupKey": rows[0].group_key,
+                            "valueKind": rows[0].value_kind,
+                            "targetPaths": rows[0].target_paths,
+                            "ownedLineIds": tuple(
+                                sorted({line_id(row.char_start) for row in rows})
+                            ),
+                        }
+                        for logical_key in sorted(logical_keys)
+                        for rows in (surface_owner_rows[(logical_key, source_text)],)
+                    ),
+                    "relationshipToVerify": (
+                        "Decide whether each equal surface is a genuine repeat of one listed "
+                        "owner or an independently mutable semantic role. Text equality alone is "
+                        "not an ownership contract; use row context to select an owner."
+                    ),
+                },
+            }
+        )
+
+    # Surface exact repeated literal phrases that have no current owner.  This is an audit lead,
+    # not an automatic binding: repeated captions are expected and the critic can mark them valid.
+    # The explicit ledger prevents a long first response from overlooking a later role-specific
+    # value (for example, the same city printed separately for consignee and notify party).
+    source_lines = line_spans(raw)
+    repeated_literal_rows: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+    for source_line in source_lines:
+        owned_intervals = sorted(
+            (
+                max(source_line.char_start, draft.char_start),
+                min(source_line.char_end, draft.char_end),
+            )
+            for draft in drafts
+            if source_line.char_start < draft.char_end and draft.char_start < source_line.char_end
+        )
+        cursor = source_line.char_start
+        unowned_intervals: list[tuple[int, int]] = []
+        for start, end in owned_intervals:
+            if cursor < start:
+                unowned_intervals.append((cursor, start))
+            cursor = max(cursor, end)
+        if cursor < source_line.char_end:
+            unowned_intervals.append((cursor, source_line.char_end))
+        for start, end in unowned_intervals:
+            surface = raw[start:end].strip(" \t|/,:;-")
+            normalized_surface = normalized(surface)
+            if (
+                len(normalized_surface) < 5
+                or not any(character.isalpha() for character in surface)
+                or len(re.findall(r"[A-Za-z0-9]+", surface)) < 2
+            ):
+                continue
+            repeated_literal_rows.setdefault(normalized_surface, []).append(
+                (source_line.line_id, surface, current_and_previous_line(start))
+            )
+
+    for normalized_surface, rows in sorted(repeated_literal_rows.items()):
+        literal_line_ids = tuple(dict.fromkeys(line for line, _surface, _context in rows))
+        if len(literal_line_ids) < 2:
+            continue
+        existing_exact_repeat = next(
+            (
+                candidate
+                for candidate in candidates
+                if candidate["kind"] == "unowned_exact_repeat"
+                and any(
+                    normalized(str(surface)) == normalized_surface
+                    for surface in candidate["sourceTexts"]
+                )
+            ),
+            None,
+        )
+        if existing_exact_repeat is not None:
+            existing_exact_repeat["lineIds"] = tuple(
+                dict.fromkeys((*existing_exact_repeat["lineIds"], *literal_line_ids))
+            )
+            existing_exact_repeat["sourceTexts"] = tuple(
+                dict.fromkeys(
+                    (
+                        *existing_exact_repeat["sourceTexts"],
+                        *(surface for _line, surface, _context in rows),
+                    )
+                )
+            )
+            existing_exact_repeat["context"] = tuple(
+                dict.fromkeys(
+                    (
+                        *existing_exact_repeat["context"],
+                        *(context for _line, _surface, context in rows),
+                    )
+                )
+            )
+            continue
+        exact_repeat_covered_lines = {
+            f"L{int(line_id_value[1:]) + offset:05d}"
+            for candidate in candidates
+            if candidate["kind"] == "unowned_exact_repeat"
+            for line_id_value in candidate["lineIds"]
+            for offset in range(
+                max(str(surface).count("\n") for surface in candidate["sourceTexts"]) + 1
+            )
+        }
+        if set(literal_line_ids) <= exact_repeat_covered_lines:
+            continue
+        normalized_owner_keys = tuple(
+            sorted(
+                {
+                    logical_key
+                    for logical_key, owned_surface in surface_owner_rows
+                    if normalized(owned_surface) == normalized_surface
+                }
+            )
+        )
+        normalized_owner_contexts = tuple(
+            {
+                "logicalKey": logical_key,
+                "groupKind": owner_rows[0].group_kind,
+                "groupKey": owner_rows[0].group_key,
+                "valueKind": owner_rows[0].value_kind,
+                "targetPaths": owner_rows[0].target_paths,
+                "ownedLineIds": tuple(sorted({line_id(owner.char_start) for owner in owner_rows})),
+            }
+            for logical_key in normalized_owner_keys
+            for matching_surfaces in (
+                tuple(
+                    surface
+                    for owner_key, surface in surface_owner_rows
+                    if owner_key == logical_key and normalized(surface) == normalized_surface
+                ),
+            )
+            for owner_rows in (
+                tuple(
+                    owner
+                    for surface in matching_surfaces
+                    for owner in surface_owner_rows[(logical_key, surface)]
+                ),
+            )
+        )
+        candidates.append(
+            {
+                "kind": "unowned_repeated_literal_surface",
+                "logicalKeys": normalized_owner_keys,
+                "lineIds": literal_line_ids,
+                "sourceTexts": tuple(dict.fromkeys(surface for _line, surface, _context in rows)),
+                "context": tuple(dict.fromkeys(context for _line, _surface, context in rows)),
+                "details": {
+                    "possibleNormalizedOwnerContexts": normalized_owner_contexts,
+                    "relationshipToVerify": (
+                        "Decide whether these normalized-equal unowned phrases are selected "
+                        "role-specific data, a formatting projection of a supplied owner, or "
+                        "repeated fixed form grammar."
+                    ),
+                },
+            }
+        )
+
+    # Standalone copy/release/status values are selected document facts often omitted by generic
+    # token risk detectors. Titles containing these words are intentionally excluded: the critic
+    # still decides whether each standalone line is selected data or fixed form grammar.
+    standalone_statuses: dict[str, list[tuple[str, str]]] = {}
+    offset = 0
+    for source_line in raw.splitlines(keepends=True):
+        line_text = source_line.rstrip("\r\n")
+        stripped = line_text.strip()
+        relative_start = line_text.find(stripped) if stripped else 0
+        start = offset + relative_start
+        end = start + len(stripped)
+        if (
+            stripped
+            and re.fullmatch(
+                r"(?i)(?:ORIGINALS?|COPY|COPIES|DUPLICATE|NEGOTIABLE|NON[- ]NEGOTIABLE|"
+                r"SURRENDERED|EXPRESS RELEASE|TELEX RELEASE)[.!]?",
+                stripped,
+            )
+            is not None
+            and not any(start < draft.char_end and draft.char_start < end for draft in drafts)
+        ):
+            standalone_statuses.setdefault(stripped, []).append((line_id(start), line_text))
+        offset += len(source_line)
+    candidates.extend(
+        {
+            "kind": "unowned_standalone_document_status",
+            "logicalKeys": (),
+            "lineIds": tuple(dict.fromkeys(line for line, _context in occurrences)),
+            "sourceTexts": (source_text,),
+            "context": tuple(dict.fromkeys(context for _line, context in occurrences)),
+            "details": {
+                "relationshipToVerify": (
+                    "Decide whether this standalone surface is a selected copy, negotiability, "
+                    "or release status; a form title or unselected option remains static grammar."
+                )
+            },
+        }
+        for source_text, occurrences in sorted(standalone_statuses.items())
+    )
+
+    # Semantic-only declarations are easy to overlook when their structured scalar is a semantic
+    # classification rather than a literal OCR substring. Retrieve narrow, domain-grounded source
+    # evidence and ask the critic to decide whether it prints the selected state. These are review
+    # leads, never automatic ownership decisions.
+    semantic_status_patterns = (
+        (
+            re.compile(r"(?:^|\.)negotiability$", re.IGNORECASE),
+            re.compile(
+                r"(?i)(?:\bnon[- ]?negotiable\b|\bnegotiable\b|"
+                r"\boriginal bills? of lading\b|\bone of which being accomplished\b|"
+                r"\bthe other\(s\) to be void\b)"
+            ),
+            "negotiability or original-bill status",
+        ),
+        (
+            re.compile(r"(?:copyType|copyStatus|documentCopy)$", re.IGNORECASE),
+            re.compile(r"(?i)\b(?:original|copy|copies|duplicate)\b"),
+            "selected document-copy status",
+        ),
+        (
+            re.compile(r"(?:releaseType|releaseStatus)$", re.IGNORECASE),
+            re.compile(r"(?i)\b(?:surrendered|telex release|express release|sea waybill)\b"),
+            "selected cargo-release status",
+        ),
+    )
+    semantic_lines = line_spans(raw)
+    for semantic_only_index, fact in enumerate(semantic_only_target_facts):
+        matches: list[tuple[str, str, str]] = []
+        source_surface = str(fact.source_value) if isinstance(fact.source_value, (str, int)) else ""
+        patterns: list[tuple[re.Pattern[str], str]] = []
+        if len(normalized(source_surface)) >= 5:
+            patterns.append((re.compile(re.escape(source_surface), re.IGNORECASE), "exact value"))
+        patterns.extend(
+            (pattern, description)
+            for path_pattern, pattern, description in semantic_status_patterns
+            if path_pattern.search(fact.target_path) is not None
+        )
+        for source_line in semantic_lines:
+            for pattern, match_kind in patterns:
+                match = pattern.search(source_line.text)
+                if match is None:
+                    continue
+                if (
+                    fact.target_path.endswith(".negotiability")
+                    and conditional_negotiability_line(source_line.text)
                 ):
                     continue
+                absolute_start = source_line.char_start + match.start()
+                absolute_end = source_line.char_start + match.end()
                 if any(
-                    match.start() < draft.char_end and draft.char_start < match.end()
+                    absolute_start < draft.char_end and draft.char_start < absolute_end
                     for draft in drafts
                 ):
                     continue
-                key = (source_text, match.start(), match.end())
-                if key in seen_repeat:
-                    continue
-                seen_repeat.add(key)
-                candidates.append(
-                    {
-                        "kind": "unowned_exact_repeat",
-                        "logicalKeys": (logical_key,),
-                        "lineIds": (line_id(match.start()),),
-                        "sourceTexts": (source_text,),
-                        "context": raw[max(0, match.start() - 48) : match.end() + 48],
-                    }
-                )
+                matches.append((source_line.line_id, source_line.text, match_kind))
+                break
+        if matches:
+            candidates.append(
+                {
+                    "kind": "semantic_only_evidence_review",
+                    "logicalKeys": (),
+                    "lineIds": tuple(dict.fromkeys(line for line, _text, _kind in matches)),
+                    "sourceTexts": tuple(dict.fromkeys(text for _line, text, _kind in matches)),
+                    "context": tuple(
+                        dict.fromkeys(
+                            current_and_previous_line(source_line.char_start)
+                            for source_line in semantic_lines
+                            if source_line.line_id in {line for line, _text, _kind in matches}
+                        )
+                    ),
+                    "details": {
+                        "semanticOnlyIndex": semantic_only_index,
+                        "targetPath": fact.target_path,
+                        "sourceValue": fact.source_value,
+                        "provenance": fact.provenance,
+                        "currentReason": fact.rationale,
+                        "evidenceMatchKinds": tuple(
+                            dict.fromkeys(kind for _line, _text, kind in matches)
+                        ),
+                        "relationshipToVerify": (
+                            "Decide whether the cited literal OCR unambiguously prints this "
+                            "selected semantic state. Retain semantic-only only when it does not."
+                        ),
+                    },
+                }
+            )
+
+    # Compact operational qualifiers, explicit identifier-type selections, and measurement units
+    # are shipment data when printed beside selected values, but generic token heuristics often
+    # rediscover them only after another edit changes masking. These remain optional semantic
+    # leads: definitions and already owned occurrences are excluded, and the critic decides if a
+    # surviving surface is selected data or fixed form vocabulary.
+    domain_patterns = (
+        (
+            "operational_status",
+            re.compile(r"(?i)(?<![A-Z0-9])(?:SHIPPED|LADEN)\s+ON\s+BOARD(?![A-Z0-9])"),
+            (
+                "Determine whether this phrase is a selected shipment status or an unselected "
+                "form caption; only a selected status requires ownership."
+            ),
+        ),
+        (
+            "operational_qualifier",
+            re.compile(r"(?i)(?<![A-Z0-9])SLAC\*(?![A-Z0-9])"),
+            (
+                "Determine whether this is selected cargo data or static definition/form "
+                "grammar; only selected data requires ownership."
+            ),
+        ),
+        (
+            "identifier_type",
+            re.compile(
+                r"(?i)(?<![A-Z0-9])TYPE\s*:\s*(?:VAT|TAX|REGISTRATION)\s+"
+                r"(?:NUMBER|ID)(?![A-Z0-9])"
+            ),
+            (
+                "Determine whether the identifier type is a selected value or only section/form "
+                "grammar; only a selected value requires ownership."
+            ),
+        ),
+        (
+            "measurement_unit",
+            re.compile(r"(?i)(?<![A-Z0-9])(?:KGM|KGS?|LBS?|MTS?|CBM|M3)(?![A-Z0-9])"),
+            (
+                "Determine whether this unit belongs to a selected measurement or only a generic "
+                "column title; only the selected unit requires ownership."
+            ),
+        ),
+    )
+    domain_surfaces: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    for semantic_hint, pattern, _relationship in domain_patterns:
+        for match in pattern.finditer(raw):
+            if semantic_hint == "operational_qualifier" and re.match(r"\s*=", raw[match.end() :]):
+                continue
+            if semantic_hint == "measurement_unit" and not any(
+                character.isdigit() for character in current_and_previous_line(match.start())
+            ):
+                continue
+            if any(
+                match.start() < draft.char_end and draft.char_start < match.end()
+                for draft in drafts
+            ):
+                continue
+            domain_surfaces.setdefault((semantic_hint, match.group()), []).append(
+                (line_id(match.start()), current_and_previous_line(match.start()))
+            )
+    candidates.extend(
+        {
+            "kind": "domain_vocabulary_surface_review",
+            "logicalKeys": (),
+            "lineIds": tuple(dict.fromkeys(line for line, _context in occurrences)),
+            "sourceTexts": (source_text,),
+            "context": tuple(dict.fromkeys(context for _line, context in occurrences)),
+            "details": {
+                "semanticHint": semantic_hint,
+                "relationshipToVerify": next(
+                    relationship
+                    for hint, _pattern, relationship in domain_patterns
+                    if hint == semantic_hint
+                ),
+            },
+        }
+        for (semantic_hint, source_text), occurrences in sorted(domain_surfaces.items())
+    )
 
     # Several bindings in one semantic scope may be format variants of one fact. Present exact
     # equality and normalized containment without guessing whether they should be joined.
@@ -1109,6 +2077,27 @@ def _critic_review_candidates(
                 }
             )
         first = rows[0]
+        if first.render_mode == "carrier_static":
+            candidates.append(
+                {
+                    "kind": "carrier_static_contract_review",
+                    "logicalKeys": (logical_key,),
+                    "lineIds": tuple(sorted({line_id(row.char_start) for row in rows})),
+                    "sourceTexts": tuple(surfaces),
+                    "targetPaths": first.target_paths,
+                    "details": {
+                        "occurrenceContexts": tuple(
+                            dict.fromkeys(current_and_previous_line(row.char_start) for row in rows)
+                        ),
+                        "relationshipToVerify": (
+                            "Verify that this is reusable public identity of the pinned carrier, "
+                            "not a shipment-appointed local issuing or signing agent. Repeated "
+                            "fixed SIGNED blocks are carrier relationships unless adjacent text "
+                            "explicitly proves appointment."
+                        ),
+                    },
+                }
+            )
         if first.render_mode == "deterministic_derived":
             candidates.append(
                 {
@@ -1122,6 +2111,354 @@ def _critic_review_candidates(
                     "dependencyBindings": first.dependency_bindings,
                 }
             )
+            continue
+
+        # These are deliberately high-recall audit leads, not host-side semantic rewrites. The
+        # complete-state auditor must either confirm the current contract or report the missing
+        # derivation in its first pass. This prevents calculated relationships from being found
+        # only after an unrelated revision changes the masking topology.
+        key_tokens = set(re.findall(r"[a-z0-9]+", logical_key.casefold()))
+        stripped_surfaces = {surface.strip() for surface in surfaces}
+        if (
+            first.render_mode == "deterministic_auxiliary"
+            and not first.target_paths
+            and {"country", "code"} <= key_tokens
+            and stripped_surfaces
+            and all(re.fullmatch(r"[A-Za-z]{2}", surface) for surface in stripped_surfaces)
+        ):
+            possible_dependency_keys = tuple(
+                key
+                for key, peer_rows in sorted(grouped.items())
+                if key != logical_key
+                and peer_rows[0].group_kind == first.group_kind
+                and peer_rows[0].group_key == first.group_key
+                and peer_rows[0].value_kind == "location"
+                and any(len(normalized(peer.source_text)) > 2 for peer in peer_rows)
+            )
+            candidate = binding_candidate(
+                kind="potential_country_code_derivation",
+                logical_key=logical_key,
+                rows=rows,
+                suggested_derivations=("country_code",),
+                relationship=(
+                    "Verify whether this two-letter source-only code is deterministically "
+                    "projected from a country binding in the same semantic group."
+                ),
+            )
+            if possible_dependency_keys:
+                dependency_rows = tuple(
+                    peer for key in possible_dependency_keys for peer in grouped[key]
+                )
+                candidate["logicalKeys"] = (logical_key, *possible_dependency_keys)
+                candidate["lineIds"] = tuple(
+                    sorted(
+                        {
+                            *(line_id(row.char_start) for row in rows),
+                            *(line_id(row.char_start) for row in dependency_rows),
+                        }
+                    )
+                )
+                candidate["sourceTexts"] = tuple(
+                    sorted(
+                        {
+                            *(row.source_text for row in rows),
+                            *(row.source_text for row in dependency_rows),
+                        }
+                    )
+                )
+                candidate["details"]["possibleDependencyLogicalKeys"] = possible_dependency_keys
+            candidates.append(candidate)
+
+        numeric_package_surface = first.value_kind == "package" and all(
+            re.match(r"^\s*[0-9]", surface) is not None for surface in surfaces
+        )
+        numeric_total = numeric_package_surface or (
+            first.value_kind in {"integer", "decimal_measurement"}
+            and (
+                "total" in key_tokens
+                or any(
+                    re.search(r"(?i)\btotal\b", current_and_previous_line(row.char_start))
+                    is not None
+                    for row in rows
+                )
+            )
+        )
+        if first.render_mode == "deterministic_auxiliary" and numeric_total:
+            candidates.append(
+                binding_candidate(
+                    kind="potential_calculated_total_derivation",
+                    logical_key=logical_key,
+                    rows=rows,
+                    suggested_derivations=(
+                        "sum_package_quantity",
+                        "sum_gross_weight",
+                        "sum_net_weight",
+                        "sum_tare_weight",
+                        "sum_volume",
+                        "sum_monetary_amounts",
+                        "sum_decimal_values",
+                        "container_count",
+                        "package_count",
+                        "container_package_count",
+                    ),
+                    relationship=(
+                        "Verify whether this numeric or package surface is a detail assertion or "
+                        "a total calculated from other owned facts; a direct structured scalar "
+                        "remains a valid target binding."
+                    ),
+                )
+            )
+
+        equipment_receipt_surface = bool(surfaces) and all(
+            re.match(r"(?i)^\s*[0-9]+\s*[x\u00d7](?=\s|[0-9]|$)", surface) is not None
+            for surface in surfaces
+        )
+        if (
+            first.render_mode in {"target_binding", "deterministic_auxiliary"}
+            and first.group_kind == "equipment"
+            and equipment_receipt_surface
+            and (
+                first.render_mode == "deterministic_auxiliary"
+                or not first.target_paths
+                or any(not path.endswith(".typeDescription") for path in first.target_paths)
+            )
+        ):
+            candidates.append(
+                binding_candidate(
+                    kind="potential_equipment_receipt_derivation",
+                    logical_key=logical_key,
+                    rows=rows,
+                    suggested_derivations=("equipment_receipt",),
+                    relationship=(
+                        "Verify whether the count-times-equipment surface is a receipt composed "
+                        "from container facts rather than one directly stored scalar."
+                    ),
+                )
+            )
+
+    if source_target is not None:
+        source_lines = line_spans(raw)
+        nearby_unowned_cache: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {}
+
+        def nearby_unowned_window(row: SpanDraft) -> tuple[str, tuple[tuple[str, str], ...]]:
+            cached = nearby_unowned_cache.get(row.draft_id)
+            if cached is not None:
+                return cached
+            row_first_line_index = next(
+                index
+                for index, source_line in enumerate(source_lines)
+                if source_line.char_start <= row.char_start <= source_line.char_end
+            )
+            row_last_character = max(row.char_start, row.char_end - 1)
+            row_last_line_index = next(
+                index
+                for index, source_line in enumerate(source_lines)
+                if source_line.char_start <= row_last_character <= source_line.char_end
+            )
+            first_line = max(0, row_first_line_index - 2)
+            last_line = min(len(source_lines) - 1, row_last_line_index + 2)
+            window_start = source_lines[first_line].char_start
+            window_end = source_lines[last_line].char_end
+            characters = list(raw[window_start:window_end])
+            for owned in drafts:
+                overlap_start = max(window_start, owned.char_start)
+                overlap_end = min(window_end, owned.char_end)
+                if overlap_start < overlap_end:
+                    characters[overlap_start - window_start : overlap_end - window_start] = " " * (
+                        overlap_end - overlap_start
+                    )
+            text = "".join(characters)
+            per_line = tuple(
+                (
+                    source_line.line_id,
+                    text[
+                        source_line.char_start - window_start : source_line.char_end - window_start
+                    ],
+                )
+                for source_line in source_lines[first_line : last_line + 1]
+            )
+            result = (text, per_line)
+            nearby_unowned_cache[row.draft_id] = result
+            return result
+
+        def nearby_unowned_text(row: SpanDraft) -> str:
+            return nearby_unowned_window(row)[0]
+
+        def omitted_evidence_line_ids(
+            row: SpanDraft, omitted_tokens: Sequence[str]
+        ) -> tuple[str, ...]:
+            omitted_surface = normalized(" ".join(omitted_tokens))
+            if not omitted_surface:
+                return ()
+            return tuple(
+                line_id_value
+                for line_id_value, unowned_line in nearby_unowned_window(row)[1]
+                if omitted_surface in normalized(unowned_line)
+            )
+
+        for logical_key, rows in sorted(grouped.items()):
+            frame_rows: list[SpanDraft] = []
+            frame_details: list[dict[str, Any]] = []
+            projection_rows: list[SpanDraft] = []
+            projection_details: list[dict[str, Any]] = []
+            if rows[0].render_mode == "agent_residual":
+                joint_original_bill_status = (
+                    rows[0].target_paths == ("documentPatch.negotiability",)
+                    and len(rows) >= 2
+                    and any(
+                        "numberoforiginal" in normalized(current_and_previous_line(row.char_start))
+                        and (
+                            "billsoflading"
+                            in normalized(current_and_previous_line(row.char_start))
+                            or "fbl" in normalized(current_and_previous_line(row.char_start))
+                        )
+                        for row in rows
+                    )
+                )
+                relationship = (
+                    "Verify this as one joint document-status contract: the populated original-"
+                    "bill value and the separate operative negotiability surface are intentionally "
+                    "heterogeneous occurrences that must remain coherent. Do not require either "
+                    "occurrence to encode the complete target alone or split the count into an "
+                    "independently generated auxiliary."
+                    if joint_original_bill_status
+                    else (
+                        "Verify that every declared target component is represented by each "
+                        "complete residual occurrence and that its boundaries exclude unrelated "
+                        "markers, punctuation, captions, and adjacent facts."
+                    )
+                )
+                candidates.append(
+                    {
+                        "kind": "agent_residual_contract_review",
+                        "logicalKeys": (logical_key,),
+                        "lineIds": tuple(sorted({line_id(row.char_start) for row in rows})),
+                        "sourceTexts": tuple(sorted({row.source_text for row in rows})),
+                        "targetPaths": rows[0].target_paths,
+                        "details": {
+                            "occurrences": tuple(
+                                {
+                                    "lineId": line_id(row.char_start),
+                                    "nearbyUnownedText": nearby_unowned_text(row).strip(),
+                                }
+                                for row in rows
+                            ),
+                            "relationshipToVerify": relationship,
+                        },
+                    }
+                )
+            for row in rows:
+                analysis = target_binding_surface_analysis(
+                    draft=row,
+                    source_target=source_target,
+                )
+                if analysis is None:
+                    continue
+                if any(
+                    character.isalnum()
+                    for character in analysis.literal_prefix + analysis.literal_suffix
+                ):
+                    frame_rows.append(row)
+                    frame_details.append(
+                        {
+                            "lineId": line_id(row.char_start),
+                            "literalPrefix": analysis.literal_prefix,
+                            "literalSuffix": analysis.literal_suffix,
+                            "nearbyUnownedText": nearby_unowned_text(row).strip(),
+                        }
+                    )
+                omitted_tokens = (
+                    analysis.omitted_target_prefix_tokens + analysis.omitted_target_suffix_tokens
+                )
+                omitted_line_ids = omitted_evidence_line_ids(row, omitted_tokens)
+                if omitted_line_ids:
+                    projection_rows.append(row)
+                    projection_details.append(
+                        {
+                            "lineId": line_id(row.char_start),
+                            "unownedLineIds": omitted_line_ids,
+                            "omittedTargetPrefixTokens": analysis.omitted_target_prefix_tokens,
+                            "omittedTargetSuffixTokens": analysis.omitted_target_suffix_tokens,
+                            "nearbyContext": current_and_previous_line(row.char_start),
+                            "nearbyUnownedText": nearby_unowned_text(row).strip(),
+                        }
+                    )
+            if frame_rows:
+                candidates.append(
+                    {
+                        "kind": "target_binding_alphanumeric_frame",
+                        "logicalKeys": (logical_key,),
+                        "lineIds": tuple(sorted({line_id(row.char_start) for row in frame_rows})),
+                        "sourceTexts": tuple(sorted({row.source_text for row in frame_rows})),
+                        "targetPaths": rows[0].target_paths,
+                        "details": {
+                            "occurrences": tuple(frame_details),
+                            "relationshipToVerify": (
+                                "The host proved the structured scalar inside this larger source "
+                                "surface. Decide whether each alphanumeric frame is selected data "
+                                "that belongs inside the binding or generic caption/format text."
+                            ),
+                        },
+                    }
+                )
+            if projection_rows:
+                candidates.append(
+                    {
+                        "kind": "nearby_omitted_target_tokens",
+                        "logicalKeys": (logical_key,),
+                        "lineIds": tuple(
+                            sorted(
+                                {
+                                    line_id_value
+                                    for details in projection_details
+                                    for line_id_value in (
+                                        details["lineId"],
+                                        *cast(Sequence[str], details["unownedLineIds"]),
+                                    )
+                                }
+                            )
+                        ),
+                        "sourceTexts": tuple(sorted({row.source_text for row in projection_rows})),
+                        "targetPaths": rows[0].target_paths,
+                        "details": {
+                            "occurrences": tuple(projection_details),
+                            "relationshipToVerify": (
+                                "The owned surface is a token projection of its target value and "
+                                "the omitted target tokens also appear unowned within one adjacent "
+                                "line. Decide whether they complete this physical value surface."
+                            ),
+                        },
+                    }
+                )
+
+            first = rows[0]
+            contexts = tuple(
+                dict.fromkeys(current_and_previous_line(row.char_start) for row in rows)
+            )
+            if (
+                len(rows) > 1
+                and len(contexts) > 1
+                and first.render_mode not in {"carrier_static", "literal_static"}
+                and first.value_kind
+                in {"date", "location", "commercial_text", "legal_text", "operational_text"}
+            ):
+                candidates.append(
+                    {
+                        "kind": "repeated_binding_context_review",
+                        "logicalKeys": (logical_key,),
+                        "lineIds": tuple(sorted({line_id(row.char_start) for row in rows})),
+                        "sourceTexts": tuple(sorted({row.source_text for row in rows})),
+                        "targetPaths": first.target_paths,
+                        "context": contexts,
+                        "details": {
+                            "relationshipToVerify": (
+                                "Compare the semantic role of every occurrence. Equal date, "
+                                "location, commercial, legal, or operational text in different "
+                                "contexts must not share one owner unless it is the same fact."
+                            )
+                        },
+                    }
+                )
 
     candidates.sort(
         key=lambda row: (
@@ -1187,7 +2524,10 @@ def _critic_payload(
         "documentId": document_id,
         "expectedCarrierName": source_carrier(source_target),
         "sourceLabel": source_target,
-        "allowedTargetPaths": _addressable_target_paths(source_target),
+        "allowedTargetPaths": _critic_addressable_target_paths(
+            source_target=source_target,
+            drafts=drafts,
+        ),
         "requiredTargetCoBindings": tuple(
             {
                 "relationship": row.relationship,
@@ -1216,7 +2556,12 @@ def _critic_payload(
         "remainingRiskCandidates": [
             row.model_dump(mode="json") for row in uncovered_risks(raw, risks, drafts)
         ],
-        "reviewCandidates": _critic_review_candidates(raw=raw, drafts=drafts),
+        "reviewCandidates": _critic_review_candidates(
+            raw=raw,
+            drafts=drafts,
+            source_target=source_target,
+            semantic_only_target_facts=effective_semantic_only,
+        ),
         "annotatedSource": annotated_source(raw, drafts),
         "maskedTemplate": current_masked_source,
     }
@@ -1314,6 +2659,22 @@ def _critic_stagnation_reason(stages: Sequence[AgentStageArtifact]) -> str | Non
     return None
 
 
+def _compiler_stagnation_reason(stages: Sequence[AgentStageArtifact]) -> str | None:
+    """Stop spending when a local compiler repair leaves the same host defect unchanged."""
+
+    if len(stages) < 2:
+        return None
+    last_two = stages[-2:]
+    if all(stage.status == "host_rejected" for stage in last_two):
+        errors = {stage.error_message for stage in last_two}
+        if len(errors) == 1:
+            return (
+                "compiler made no progress after two consecutive identical host rejections: "
+                + str(last_two[-1].error_message)
+            )
+    return None
+
+
 def _critic_feedback(output: CriticAgentOutput) -> str:
     return "Independent critic required a local binding patch:\n" + "\n".join(
         f"- {finding.finding_kind} at {','.join(finding.line_ids)}: {finding.explanation}"
@@ -1394,10 +2755,10 @@ def _restore_state_checkpoint(
             raise ValueError(
                 "state checkpoint draft no longer matches pinned OCR: " + draft.draft_id
             )
-    drafts = normalize_country_code_locality(
+    drafts = normalize_source_boundaries(
         raw=raw,
         drafts=normalize_deterministic_draft_semantics(
-            drafts=normalize_compact_equipment_locality(
+            drafts=normalize_structured_row_locality(
                 raw=raw,
                 drafts=normalize_target_cobindings(
                     drafts=raw_drafts,
@@ -1444,31 +2805,26 @@ def _validated_compiler_state(
         provenance="compiler_audited_unprinted",
     )
     proposed = resolve_agent_proposals(raw=raw, proposals=output.bindings)
-    drafts = normalize_country_code_locality(
+    drafts = _materialize_compiler_drafts(
         raw=raw,
-        drafts=normalize_deterministic_draft_semantics(
-            drafts=normalize_compact_equipment_locality(
-                raw=raw,
-                drafts=normalize_target_cobindings(
-                    drafts=apply_anchor_overrides(
-                        raw=raw,
-                        source_target=source_target,
-                        anchors=anchors,
-                        proposed=proposed,
-                        overrides=output.anchor_overrides,
-                        semantic_only_target_paths=tuple(
-                            fact.target_path for fact in declared_semantic_only
-                        ),
-                    ),
-                    source_target=source_target,
-                ),
-                source_target=source_target,
-            ),
-            source_target=source_target,
-        ),
+        source_target=source_target,
+        anchors=anchors,
+        proposed=proposed,
+        anchor_overrides=output.anchor_overrides,
+        semantic_only_target_paths=tuple(fact.target_path for fact in declared_semantic_only),
     )
+    # Overrides are transactional edits to accepted anchors. Boundary validation must inspect the
+    # materialized transaction, not the pre-edit union; otherwise a correctly removed substring
+    # anchor still rejects the replacement that made it safe.
+    validate_mutable_token_boundaries(raw=raw, drafts=drafts)
     validate_target_binding_relationships(drafts=drafts, source_target=source_target)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
+    host_refuted_semantic_only_paths = refuted_semantic_only_target_paths(drafts)
+    declared_semantic_only = tuple(
+        fact
+        for fact in declared_semantic_only
+        if fact.target_path not in host_refuted_semantic_only_paths
+    )
     declared_conflicts = sorted(
         {
             fact.target_path
@@ -1482,10 +2838,11 @@ def _validated_compiler_state(
             + ", ".join(declared_conflicts)
         )
     expected_carrier = source_carrier(source_target)
-    assessment = (
-        output.carrier.model_copy(update={"aliases": ()})
-        if expected_carrier is not None
-        else output.carrier
+    assessment = normalize_pinned_carrier_assessment(
+        assessment=output.carrier,
+        expected=expected_carrier,
+        raw=raw,
+        drafts=drafts,
     )
     validate_carrier_assessment(
         assessment=assessment,
@@ -1649,10 +3006,10 @@ def _replay_checkpoint_case(
                 source_target=source_target,
                 provenance="critic_audited_unprinted",
             )
-            drafts = normalize_country_code_locality(
+            drafts = normalize_source_boundaries(
                 raw=raw,
                 drafts=normalize_deterministic_draft_semantics(
-                    drafts=normalize_compact_equipment_locality(
+                    drafts=normalize_structured_row_locality(
                         raw=raw,
                         drafts=apply_critic_patch(
                             raw=raw,
@@ -1795,6 +3152,9 @@ async def _extract_case(
     runtime: AgentRuntime,
     compiler_prompt: str,
     critic_prompt: str,
+    compiler_repair_prompt: str | None = None,
+    critic_audit_prompt: str | None = None,
+    critic_plan_prompt: str | None = None,
     config: ExtractionConfig,
     staged: StagedArtifactRun,
     document_limiter: asyncio.Semaphore,
@@ -1832,8 +3192,21 @@ async def _extract_case(
             raise ValueError(f"source raw-text hash differs for {document_id}")
         source_target = cast(Mapping[str, Any], source["target"])
         document_anchors = [row for row in anchor_rows if row["document_id"] == document_id]
+        prepared_anchor_rows, locality_report = _prepare_anchor_rows(
+            raw=raw,
+            document_id=document_id,
+            anchor_rows=document_anchors,
+            source_target=source_target,
+            agent_contract_protocol=config.workflow.agent_contract_protocol,
+        )
+        if locality_report is not None:
+            staged.publish_json(f"{relative_root}/anchor-locality.json", locality_report)
         anchors = normalize_target_cobindings(
-            drafts=anchor_drafts(raw=raw, document_id=document_id, anchors=document_anchors),
+            drafts=anchor_drafts(
+                raw=raw,
+                document_id=document_id,
+                anchors=prepared_anchor_rows,
+            ),
             source_target=source_target,
         )
         risks = risk_candidates(raw, ())
@@ -2060,6 +3433,12 @@ async def _extract_case(
         critic_pass = max((stage.pass_number for stage in critic_stages), default=0)
         critic_attempt_calls = len(critic_stages) - resumed_prior_critic_stages
         post_threshold_confirmation_used = False
+        candidate_prepass_pending = (
+            config.workflow.agent_contract_protocol
+            in {"candidate_first_staged_local_v7", "candidate_first_staged_local_v8"}
+            and not critic_stages
+        )
+        full_critic_seen = bool(critic_stages)
 
         def spent() -> Decimal:
             return sum(
@@ -2085,6 +3464,12 @@ async def _extract_case(
 
         for compiler_pass in compiler_passes:
             if compiler_pass is not None:
+                stagnation_reason = _compiler_stagnation_reason(
+                    compiler_stages[resumed_prior_compiler_stages:]
+                )
+                if stagnation_reason is not None:
+                    reasons.append(stagnation_reason)
+                    break
                 if (
                     compiler_stages
                     and current_attempt_spent()
@@ -2096,6 +3481,24 @@ async def _extract_case(
                         f"${config.workflow.additional_call_launch_threshold_usd_per_document}"
                     )
                     break
+
+                def preview_compiler_repair(candidate: CompilerAgentOutput) -> None:
+                    try:
+                        _validated_compiler_state(
+                            output=candidate,
+                            raw=raw,
+                            source_target=source_target,
+                            anchors=anchors,
+                        )
+                    except Exception as preview_error:
+                        raise _compiler_host_rejection(
+                            output=candidate,
+                            raw=raw,
+                            source_target=source_target,
+                            anchors=anchors,
+                            primary_error=preview_error,
+                        ) from preview_error
+
                 output, stage = await runtime.compiler(
                     pass_number=compiler_pass,
                     system_prompt=compiler_prompt,
@@ -2112,6 +3515,8 @@ async def _extract_case(
                         agent_contract_protocol=config.workflow.agent_contract_protocol,
                     ),
                     retries=config.workflow.compiler_output_retries,
+                    repair_prompt=compiler_repair_prompt,
+                    preview_output=preview_compiler_repair,
                 )
                 if output is None:
                     compiler_stages.append(stage)
@@ -2138,6 +3543,27 @@ async def _extract_case(
                     )
                     compiler_stages.append(_mark_host_rejected(stage, rejection))
                     revision_context = str(rejection)
+                    try:
+                        prior_compiler_drafts = resolve_agent_proposals(
+                            raw=raw,
+                            proposals=output.bindings,
+                        )
+                    except ValueError as inventory_error:
+                        partial_inventory, rejected_occurrences = resolve_agent_proposal_inventory(
+                            raw=raw,
+                            proposals=output.bindings,
+                        )
+                        prior_compiler_drafts = partial_inventory or None
+                        if partial_inventory:
+                            revision_context += (
+                                "\n- local repair inventory excludes explicitly unresolved "
+                                f"occurrence(s): {', '.join(rejected_occurrences)}"
+                            )
+                        else:
+                            revision_context += (
+                                "\n- local repair candidate inventory unavailable: "
+                                + str(inventory_error)
+                            )
                     compiler_attempt_calls += 1
                     if compiler_attempt_calls == config.workflow.max_compiler_passes:
                         reasons.append(f"compiler host rejection: {rejection}")
@@ -2153,11 +3579,34 @@ async def _extract_case(
                 if stagnation_reason is not None:
                     reasons.append(stagnation_reason)
                     break
+                critic_payload = _critic_payload(
+                    document_id=document_id,
+                    raw=raw,
+                    source_target=source_target,
+                    feature=feature,
+                    drafts=drafts,
+                    risks=risks,
+                    prior_error=critic_revision_context,
+                    semantic_only_target_facts=semantic_only_target_facts,
+                    review_history=(
+                        ()
+                        if config.workflow.agent_contract_protocol
+                        in {"candidate_first_staged_local_v7", "candidate_first_staged_local_v8"}
+                        else critic_stages
+                    ),
+                    agent_contract_protocol=config.workflow.agent_contract_protocol,
+                )
+                candidate_only = candidate_prepass_pending
+                if candidate_only and not (
+                    critic_payload["reviewCandidates"] or critic_payload["remainingRiskCandidates"]
+                ):
+                    candidate_prepass_pending = False
+                    continue
                 launch_critic, post_threshold_confirmation_used = _critic_launch_decision(
                     spent=current_attempt_spent(),
                     threshold=(config.workflow.additional_call_launch_threshold_usd_per_document),
                     has_unconfirmed_state=(
-                        not critic_stages[resumed_prior_critic_stages:]
+                        not full_critic_seen
                         or bool(critic_outputs and critic_outputs[-1].verdict == "revise")
                     ),
                     post_threshold_confirmation_used=post_threshold_confirmation_used,
@@ -2171,22 +3620,36 @@ async def _extract_case(
                     break
                 critic_pass += 1
                 critic_attempt_calls += 1
+                candidate_prepass_pending = False
+                if not candidate_only:
+                    full_critic_seen = True
                 review, critic_stage = await runtime.critic(
                     pass_number=critic_pass,
                     system_prompt=critic_prompt,
-                    payload=_critic_payload(
-                        document_id=document_id,
-                        raw=raw,
-                        source_target=source_target,
-                        feature=feature,
-                        drafts=drafts,
-                        risks=risks,
-                        prior_error=critic_revision_context,
-                        semantic_only_target_facts=semantic_only_target_facts,
-                        review_history=critic_stages,
-                        agent_contract_protocol=config.workflow.agent_contract_protocol,
-                    ),
+                    payload=critic_payload,
                     retries=config.workflow.critic_output_retries,
+                    audit_prompt=critic_audit_prompt,
+                    plan_prompt=critic_plan_prompt,
+                    candidate_only=candidate_only,
+                    preview_review=(
+                        partial(
+                            _preview_critic_review,
+                            raw=raw,
+                            drafts=tuple(cast(Sequence[SpanDraft], drafts)),
+                            source_target=source_target,
+                            assessment=cast(CarrierAssessment, assessment),
+                            semantic_only_target_facts=tuple(semantic_only_target_facts),
+                        )
+                    )
+                    if config.workflow.agent_contract_protocol
+                    in {
+                        "staged_local_v4",
+                        "faceted_staged_local_v5",
+                        "partitioned_staged_local_v6",
+                        "candidate_first_staged_local_v7",
+                        "candidate_first_staged_local_v8",
+                    }
+                    else None,
                 )
                 if review is None:
                     critic_stages.append(critic_stage)
@@ -2194,50 +3657,13 @@ async def _extract_case(
                     break
                 if review.verdict == "revise":
                     try:
-                        review_semantic_only = materialize_semantic_only_target_facts(
-                            proposals=review.semantic_only_target_facts,
-                            source_target=source_target,
-                            provenance="critic_audited_unprinted",
-                        )
-                        drafts = normalize_country_code_locality(
+                        drafts, semantic_only_target_facts = _apply_validated_critic_review(
+                            review=review,
                             raw=raw,
-                            drafts=normalize_deterministic_draft_semantics(
-                                drafts=normalize_compact_equipment_locality(
-                                    raw=raw,
-                                    drafts=apply_critic_patch(
-                                        raw=raw,
-                                        drafts=drafts,
-                                        findings=review.findings,
-                                        remove_inventory_binding_ids=(
-                                            review.remove_inventory_binding_ids
-                                        ),
-                                        additional_bindings=review.additional_bindings,
-                                        occurrence_removals=review.occurrence_removals,
-                                        semantic_only_target_paths=tuple(
-                                            fact.target_path for fact in review_semantic_only
-                                        ),
-                                        source_target=source_target,
-                                    ),
-                                    source_target=source_target,
-                                ),
-                                source_target=source_target,
-                            ),
-                        )
-                        validate_carrier_assessment(
-                            assessment=assessment,
-                            expected=source_carrier(source_target),
-                            raw=raw,
-                            anchor_drafts_value=drafts,
-                        )
-                        validate_binding_realizations(
-                            raw=raw, drafts=drafts, source_target=source_target
-                        )
-                        semantic_only_target_facts = _effective_semantic_only_target_facts(
-                            facts=_merge_semantic_only_target_facts(
-                                semantic_only_target_facts,
-                                review_semantic_only,
-                            ),
                             drafts=drafts,
+                            source_target=source_target,
+                            assessment=assessment,
+                            semantic_only_target_facts=semantic_only_target_facts,
                         )
                     except Exception as error:
                         critic_stages.append(_mark_host_rejected(critic_stage, error))
@@ -2253,6 +3679,10 @@ async def _extract_case(
                     critic_revision_context = None
                     if critic_attempt_calls == config.workflow.max_critic_passes:
                         reasons.append("critic exhausted passes after local binding patch")
+                    continue
+                if candidate_only:
+                    critic_stages.append(critic_stage)
+                    critic_revision_context = None
                     continue
                 remaining_risks = uncovered_risks(raw, risks, drafts)
                 if remaining_risks:
@@ -2428,6 +3858,53 @@ def _usage_summary(
     return {"compiler": total(compiler), "critic": total(critic), "all": total(stages)}
 
 
+def _expected_extraction_artifacts(
+    *,
+    stage_root: Path,
+    results: Sequence[ExtractionCaseResult],
+    compiler_repair_prompt: str | None,
+    critic_audit_prompt: str | None,
+    critic_plan_prompt: str | None,
+) -> tuple[str, ...]:
+    expected = [
+        "REPORT.md",
+        "catalog.jsonl",
+        "config.json",
+        "prompts/compiler.md",
+        "prompts/critic.md",
+        "preflight.json",
+        "resume-contract.json",
+        "results.jsonl",
+        "selection-manifest.json",
+        "summary.json",
+    ]
+    expected.extend(
+        f"prompts/{name}"
+        for name, prompt in (
+            ("compiler-repair.md", compiler_repair_prompt),
+            ("critic-audit.md", critic_audit_prompt),
+            ("critic-plan.md", critic_plan_prompt),
+        )
+        if prompt is not None
+    )
+    for result in results:
+        root = f"cases/{result.document_id}"
+        expected.extend(
+            [
+                f"{root}/masked-template.txt",
+                f"{root}/result.json",
+                f"{root}/source-label.json",
+                f"{root}/source.txt",
+            ]
+        )
+        for optional_name in ("anchor-locality.json", "state-checkpoint.json"):
+            if (stage_root / root / optional_name).is_file():
+                expected.append(f"{root}/{optional_name}")
+        if result.status == "certified":
+            expected.extend([f"{root}/catalog-row.json", f"{root}/template.json"])
+    return tuple(expected)
+
+
 def _report(config: ExtractionConfig, summary: Mapping[str, Any]) -> str:
     usage = cast(Mapping[str, Any], summary["usage"])
     all_usage = cast(Mapping[str, Any], usage["all"])
@@ -2514,6 +3991,9 @@ async def run_extraction(config_path: Path) -> Path:
         manual_path,
         compiler_prompt,
         critic_prompt,
+        compiler_repair_prompt,
+        critic_audit_prompt,
+        critic_plan_prompt,
     ) = _config_inputs(config, project_root)
     manifest = build_selection_manifest(
         config=config,
@@ -2542,6 +4022,9 @@ async def run_extraction(config_path: Path) -> Path:
         anchor_rows=anchor_rows,
         compiler_prompt=compiler_prompt,
         critic_prompt=critic_prompt,
+        compiler_repair_prompt=compiler_repair_prompt,
+        critic_audit_prompt=critic_audit_prompt,
+        critic_plan_prompt=critic_plan_prompt,
     )
     preflight["resumeFromRun"] = resume_run_root.name if resume_run_root else None
     preflight["resumeCases"] = len(resume_results)
@@ -2574,6 +4057,13 @@ async def run_extraction(config_path: Path) -> Path:
     staged.publish_json("resume-contract.json", _resume_contract(config_path))
     staged.publish_bytes("prompts/compiler.md", compiler_prompt.encode("utf-8"))
     staged.publish_bytes("prompts/critic.md", critic_prompt.encode("utf-8"))
+    for name, prompt in (
+        ("compiler-repair.md", compiler_repair_prompt),
+        ("critic-audit.md", critic_audit_prompt),
+        ("critic-plan.md", critic_plan_prompt),
+    ):
+        if prompt is not None:
+            staged.publish_bytes(f"prompts/{name}", prompt.encode("utf-8"))
 
     sources = {str(row["documentId"]): row for row in source_rows}
     features = {str(row["document_id"]): row for row in feature_rows}
@@ -2601,6 +4091,9 @@ async def run_extraction(config_path: Path) -> Path:
                 runtime=runtime,
                 compiler_prompt=compiler_prompt,
                 critic_prompt=critic_prompt,
+                compiler_repair_prompt=compiler_repair_prompt,
+                critic_audit_prompt=critic_audit_prompt,
+                critic_plan_prompt=critic_plan_prompt,
                 config=config,
                 staged=staged,
                 document_limiter=document_limiter,
@@ -2671,35 +4164,14 @@ async def run_extraction(config_path: Path) -> Path:
     staged.publish_json("summary.json", summary)
     staged.publish_bytes("REPORT.md", _report(config, summary).encode("utf-8"))
 
-    expected = [
-        "REPORT.md",
-        "catalog.jsonl",
-        "config.json",
-        "prompts/compiler.md",
-        "prompts/critic.md",
-        "preflight.json",
-        "resume-contract.json",
-        "results.jsonl",
-        "selection-manifest.json",
-        "summary.json",
-    ]
-    for result in results:
-        root = f"cases/{result.document_id}"
-        expected.extend(
-            [
-                f"{root}/masked-template.txt",
-                f"{root}/result.json",
-                f"{root}/source-label.json",
-                f"{root}/source.txt",
-            ]
-        )
-        checkpoint_path = staged.stage_root / root / "state-checkpoint.json"
-        if checkpoint_path.is_file():
-            expected.append(f"{root}/state-checkpoint.json")
-        if result.status == "certified":
-            expected.extend([f"{root}/catalog-row.json", f"{root}/template.json"])
     staged.commit(
-        expected_artifacts=expected,
+        expected_artifacts=_expected_extraction_artifacts(
+            stage_root=staged.stage_root,
+            results=results,
+            compiler_repair_prompt=compiler_repair_prompt,
+            critic_audit_prompt=critic_audit_prompt,
+            critic_plan_prompt=critic_plan_prompt,
+        ),
         metadata={
             "schemaVersion": 1,
             "phase": config.phase,
@@ -2725,6 +4197,7 @@ def prepare_selection(config_path: Path) -> SelectionManifest:
         manual_path,
         _compiler_prompt,
         _critic_prompt,
+        *_staged_prompts,
     ) = _config_inputs(config, project_root)
     return build_selection_manifest(
         config=config,
@@ -2751,6 +4224,9 @@ def preflight_extraction(config_path: Path) -> dict[str, Any]:
         manual_path,
         compiler_prompt,
         critic_prompt,
+        compiler_repair_prompt,
+        critic_audit_prompt,
+        critic_plan_prompt,
     ) = _config_inputs(config, project_root)
     manifest = build_selection_manifest(
         config=config,
@@ -2778,6 +4254,9 @@ def preflight_extraction(config_path: Path) -> dict[str, Any]:
         anchor_rows=anchor_rows,
         compiler_prompt=compiler_prompt,
         critic_prompt=critic_prompt,
+        compiler_repair_prompt=compiler_repair_prompt,
+        critic_audit_prompt=critic_audit_prompt,
+        critic_plan_prompt=critic_plan_prompt,
     )
     summary["resumeFromRun"] = resume_run_root.name if resume_run_root else None
     summary["resumeCases"] = len(resume_results)
@@ -2835,6 +4314,9 @@ def publish_offline_audit(
         manual_path,
         compiler_prompt,
         critic_prompt,
+        compiler_repair_prompt,
+        critic_audit_prompt,
+        critic_plan_prompt,
     ) = _config_inputs(development_config, project_root)
     carrier_audit = _corpus_carrier_resolution_report(
         config=development_config,
@@ -2860,6 +4342,9 @@ def publish_offline_audit(
         anchor_rows=anchor_rows,
         compiler_prompt=compiler_prompt,
         critic_prompt=critic_prompt,
+        compiler_repair_prompt=compiler_repair_prompt,
+        critic_audit_prompt=critic_audit_prompt,
+        critic_plan_prompt=critic_plan_prompt,
     )
     transfer_selection = build_selection_manifest(
         config=transfer_config,
@@ -2879,6 +4364,9 @@ def publish_offline_audit(
         anchor_rows=anchor_rows,
         compiler_prompt=compiler_prompt,
         critic_prompt=critic_prompt,
+        compiler_repair_prompt=compiler_repair_prompt,
+        critic_audit_prompt=critic_audit_prompt,
+        critic_plan_prompt=critic_plan_prompt,
     )
     development_ids = {row.document_id for row in development_selection.rows}
     transfer_ids = {row.document_id for row in transfer_selection.rows}

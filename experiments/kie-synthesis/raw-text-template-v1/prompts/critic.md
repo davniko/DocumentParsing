@@ -18,6 +18,10 @@ Return `pass` only when all of the following are true:
   relationship syntax such as `AS CARRIER` are document grammar and may remain literal; do not fuse
   them into the carrier-name binding. Ordinary carrier legal boilerplate may remain literal because
   the entire template is permanently carrier-bound.
+  An identically repeated carrier-branded legal entity in `SIGNED <entity>` fixed footer blocks
+  across several pages is a carrier signature relationship unless adjacent source text explicitly
+  appoints it as agent, issuer, forwarder, or delivery party. A local legal suffix and the separate
+  printing of the carrier principal are not evidence of shipment-specific appointment.
 - When `expectedCarrierName` is null, the resolved carrier must be an explicitly printed legal
   principal—not a vessel, customer, local agent, country, or style-based guess—and its exact
   evidence must be carrier-static.
@@ -58,6 +62,14 @@ Return `pass` only when all of the following are true:
 - Derived totals and counts are declared as deterministic derivations rather than copied or
   independently generated. A single equal count printed as `N CONTAINER(S)/PACKAGE(S)` uses the
   `container_package_count` derivation over the container and cargo-package collections.
+  `package_count` is also an allowed deterministic derivation: retain it for a complete printed
+  count-plus-package-kind surface such as `1 PARCEL` when its target paths and dependencies carry
+  the host-listed quantity/type co-binding. Do not replace that valid composite with an
+  `agent_residual` merely because it renders more than one package leaf.
+  Conversely, disjoint direct quantity and package-kind bindings already cover a surface such as
+  `360 BOXES`; do not remove either correct leaf owner or combine them into `package_count` merely
+  because their spans are adjacent. `package_count` means the count of structured package records,
+  not the value of a package `quantity` leaf.
   A complete `N container(s)` surface that does not also say package(s) uses `container_count`;
   never reinterpret it as a combined receipt. `equipment_receipt` is reserved for surfaces that
   also carry equipment semantics, such as `1 X 40HC`.
@@ -80,14 +92,40 @@ Return `pass` only when all of the following are true:
   `deterministic_auxiliary` bindings sharing that `group_key`; the typed geography generator keeps
   them coherent. Do not toggle a short country name and a longer geographic expression between
   `same_as_binding` and independent ownership when their normalized semantic content differs.
+  This also applies to one-character OCR spelling variants such as `HELICOPOLIS` versus
+  `HELIOPOLIS`: the host deliberately assigns distinct `:typed_variant:` logical keys while
+  retaining one shared semantic group. Do not merge those keys or append one spelling to the
+  other's binding; doing so would turn a deterministic typed group into agent-required editing.
   When the corresponding structured container genuinely lacks a `typeDescription` path, the
   equipment token instead remains a typed `deterministic_auxiliary` scoped by exact group key
   `container:i`; never invent a target path that is absent from `allowedTargetPaths`.
+- A two-letter value under an explicit country-code caption may use `country_code` with the one
+  labeled country binding in the same semantic scope as its dependency, including when that
+  country binding is source-only. Do not require an unrelated party-country target path when the
+  same-scope dependency is complete. Likewise, a country repeated inside an explicit
+  `COMMODITIES WERE EXPORTED FROM THE <country>` statement is another occurrence of that shipment
+  country binding, not an independently generated legal country fact.
+- Identical mass-unit tokens such as `KGM` repeated in detail and total measurement rows may share
+  one deterministic auxiliary binding. They are one selected unit vocabulary, not independently
+  mutable measurements; the numeric quantities remain independently owned.
 - Audit whitespace-free compact equipment codes such as `40HQ` against the uniquely nearest printed
   container-number row. Do not fuse a compact code into another container's equal expanded
   description across an intervening container row, especially when the nearest structured
   container lacks `typeDescription`. Expanded or whitespace-containing receipt surfaces such as
   `1X40HIGH CUBE` are ordered renderings and are not governed by this nearest-number rule.
+- A bare multiplier prefix such as `1 X` immediately followed by a separately owned equipment-type
+  surface belongs to one complete `equipment_receipt` derivation for that same container; accept
+  the host-canonicalized binding spanning the multiplier and type together. It is not a
+  `container_count`: that derivation requires a complete printed count-and-`CONTAINER(S)` noun
+  surface. Do not reclassify a valid row-local multiplier merely because several page copies exist.
+- Repeated physical occurrences inside one logical dependency are repeated renderings of one
+  semantic value, not independent operands. Never list the same `logicalKey` twice in
+  `dependency_bindings` to manufacture a sum or total. Without distinct target paths or distinct
+  logical dependencies proving every operand, preserve the explicitly printed total as a
+  `deterministic_auxiliary` rather than asserting an unsupported derivation.
+- When a revision removes or reassigns segmented target ownership, account for every target token
+  exposed by the transaction in the same patch. In particular, reassign all role-local street,
+  state, and postal segments together; do not leave a short state/postal fragment for a later audit.
 - Target paths and logical equality reflect the printed scope, including individual containers,
   seals, cargo groups, packages, allocations, DG records, temperatures, parties, and route roles.
   The host canonicalizes target-backed group keys; do not reject a binding for cosmetic group-key
@@ -108,7 +146,20 @@ Return `pass` only when all of the following are true:
   non-negotiable alternatives is generic legal text, not a printed selection of document status,
   and must not be turned into a target binding or reported as missing ownership.
 - `allowedTargetPaths` and `allowedRemovalLogicalKeys` are exhaustive host-generated vocabularies.
-  Copy paths and removal logical keys exactly from them; never reconstruct an indexed path or key.
+  In compact requests these are represented by `targetPathTable` and the `logicalKey` column of
+  `bindingRows`. Copy paths and removal logical keys exactly; never reconstruct an indexed path or
+  key.
+- A populated value beneath `Number of original Bills of Lading` or an abbreviated equivalent such
+  as `Number of Original FBL's`, including `E / Express B/L` and `3/THREE`, is selected shipment
+  data and may not remain literal. If a separate explicit negotiability value prints the same
+  status, verify that one bounded residual contract updates both occurrences coherently rather than
+  approving only the literal enum surface. A positive original-FBL count paired with an operative
+  `TO ORDER` surface is this joint contract; do not split the count into an independent auxiliary
+  that could contradict negotiability.
+- Treat every `logicalKey` as an opaque edit handle. Never infer its source text, line, value, or
+  semantics from words or indexes embedded in the key. The corresponding `bindingInventory`
+  occurrence fields are the sole authority; a finding whose quoted source or line disagrees with
+  that inventory is invalid.
 - `requiredTargetCoBindings` is host-derived from structured package and allocation identity.
   Whenever any path in one component is printed, all component paths must have the same logical
   owner. Treat a one-to-one allocation quantity and its referenced cargo-package quantity as one
@@ -150,14 +201,16 @@ transaction over the current inventory:
 - For a missed literal fact, leave `remove_binding_logical_keys` unchanged and add its exact
   binding.
 - Return one complete local patch covering every finding in this response. Never remove or replace
-  an unaffected binding. A visible ownership, topology, derivation, static-classification, or
-  carrier defect cannot be repaired by an overlapping addition alone.
+  an unaffected binding. Audit the entire inventory and literal remainder before returning
+  `revise`; do not stop at the first defect or defer another visible defect to a later pass. A
+  visible ownership, topology, derivation, static-classification, or carrier defect cannot be
+  repaired by an overlapping addition alone.
 - Schema invariant: only `deterministic_derived` may declare a derivation or dependencies.
   `agent_residual` must use a null derivation and empty dependency lists even when it realizes an
   inseparable surface containing calculated values.
 - `dependency_bindings` and `remove_binding_logical_keys` must contain exact `logicalKey` values
-  from `bindingInventory`. Never put a `sourceBindingId` in either field. The response schema
-  enumerates every currently removable logical key and rejects invented keys.
+  from `bindingInventory`. Never put a `sourceBindingId` in either field. The host validates every
+  returned key against the current inventory and rejects invented keys.
 - The host canonicalizes target-backed logical keys and grouping from exact target paths, while it
   preserves an agent's audited `value_kind`. Correct a true value-kind defect with a replacement,
   but do not submit a grouping-only replacement that the host will canonicalize to the current

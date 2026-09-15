@@ -1,0 +1,191 @@
+schema_version: 1
+reviewed_on: 2026-09-14
+reviewer: Codex
+source_run: mpci-bl-template-compiler-efficiency-probe5-v89-first-defensible-average-concurrent-luna-high
+source_commit_file_sha256: 52a3af5472531d0ecda2a03fbda9d44473419ea9b49ebb444f2186c54ef66e8d
+source_transaction_sha256: 32c347dd6b57285c11832c9725b69732cc63861a12b8d359ec6bc96e06463dc6
+scope: >-
+  Manual semantic and machine-contract review of the fresh five-document stress cohort used to
+  establish the first defensible optimized compilation average. This is a quality and retry-floor
+  result for five unique documents, not yet a population estimate or a 30-document transfer gate.
+
+machine_evidence:
+  unique_documents: 5
+  certified: 5
+  rejected: 0
+  acceptance_gate_passed: true
+  compiler_stages: 5
+  critic_stages: 5
+  provider_requests: 10
+  host_rejections: 0
+  provider_or_schema_errors: 0
+  critic_verdicts:
+    pass: 5
+    revise: 0
+  critic_findings: 0
+  critic_additions: 0
+  critic_occurrence_removals: 0
+  estimated_cost_usd: 0.134893510000
+  average_cost_usd_per_document: 0.026978702000
+  cache_read_tokens: 132793
+  cache_write_tokens: 156341
+  conservative_cold_cache_write_cost_usd: 0.165435900000
+  conservative_cold_cache_write_average_usd_per_document: 0.033087180000
+  compiler_cost_usd: 0.070708460000
+  critic_cost_usd: 0.064185050000
+  pipeline_wall_seconds: 249.7650132199924
+  command_wall_seconds: 262.58
+  pipeline_peak_rss_mib: 550.1796875
+  command_peak_rss_kib: 564464
+  bindings: 346
+  occurrences: 626
+  deterministic_bindings: 335
+  agent_assisted_bindings: 11
+  agent_residual_bindings: 7
+  semantic_only_target_facts: 4
+  all_certification_booleans_true: 5
+  source_round_trip_passed: 5
+  remaining_unowned_risks: 0
+
+stochastic_replay_evidence:
+  runs: 6
+  run_versions: [84, 85, 86, 87, 88, 89]
+  unique_documents: 5
+  first_compiler_candidates_replayed: 30
+  accepted_by_current_host: 30
+  rejected_by_current_host: 0
+  note: >-
+    These are 30 independent historical compiler candidates over the same five documents. They
+    test output variability and deterministic host closure; they do not count as 30 unique source
+    documents and do not replace a future transfer cohort.
+
+cases:
+  - document_id: doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66
+    carrier: ORIENT OVERSEAS CONTAINER LINE
+    document_type: sea_waybill
+    bindings: 159
+    occurrences: 215
+    agent_required_bindings: 3
+    manual_verdict: pass
+    evidence:
+      - >-
+        The equal current values EL DEKHEILA are separated by their explicit captions: line 54
+        owns only portOfDischarge and line 56 owns only placeOfDelivery.
+      - >-
+        Package 7 owns both quantity/type repeats at lines 226 and 229. Package 8 owns the separate
+        quantity/type surface at line 236; equal current values are not merged across packages.
+      - >-
+        Container 7 owns line 226 compact 40HQ plus its full line 227 receipt. Container 8 has no
+        structured typeDescription, so line 236 40HQ is a typed deterministic auxiliary scoped to
+        container 8 rather than being borrowed by container 7.
+      - >-
+        The unprinted final package-quantity/type facts are explicitly semantic-only. Both complex
+        party address blocks and the zero-original-BL negotiability clause remain agent-required.
+
+  - document_id: doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852
+    carrier: G.C.S. Container Line Ltd.
+    document_type: sea_waybill
+    bindings: 35
+    occurrences: 36
+    agent_required_bindings: 2
+    manual_verdict: pass
+    evidence:
+      - >-
+        E / Express B/L and non negotiable are one bounded negotiability contract rather than an
+        unowned form value or two independently mutable statuses.
+      - >-
+        The nonstandard 2025-NOV-16 issue-date surface remains explicitly agent-required; the
+        compiler does not pretend it has a proven deterministic formatter.
+      - Carrier identity, source round-trip, literal regions, and all risk ownership checks pass.
+
+  - document_id: doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+    carrier: Hapag-Lloyd Aktiengesellschaft
+    document_type: sea_waybill
+    bindings: 52
+    occurrences: 78
+    agent_required_bindings: 3
+    manual_verdict: pass
+    evidence:
+      - >-
+        RIJEKA at line 111 joins the port-of-loading owner, while the separate place-of-issue
+        RIJEKA remains role-specific. AL MURABBA and 521E at line 112 join the vessel and voyage
+        owners through the complete inline label frame.
+      - >-
+        The repeated ON 21 PALLETS composite remains one bounded package residual. The two
+        30.MAY.2025 date roles remain separate agent-assisted date contracts.
+      - >-
+        SEA FREIGHT PREPAID owns only the selected PREPAID target; origin and destination port
+        charge clauses remain distinct source-only commercial facts.
+
+  - document_id: doc_92a5a2cfb70054511e7e5c1233706d57af3466121d8b30069e3b93e39a844cea
+    carrier: E GLOBAL SHIPPING LINE
+    document_type: bill_of_lading
+    bindings: 47
+    occurrences: 241
+    agent_required_bindings: 0
+    manual_verdict: pass
+    evidence:
+      - >-
+        Five-page shipper, consignee, notify, route, cargo, container, customs, and carrier repeats
+        retain role-specific logical owners; all 241 physical occurrences are deterministic.
+      - >-
+        Consignee and notify address targets each own their two exact address fragments across all
+        five repeats. Their cities and countries remain separate target bindings.
+      - >-
+        HELICOPOLIS and HELIOPOLIS variants are not collapsed. CAIRO, EG and other delivery-agent
+        details are scoped as source-only party auxiliaries rather than task targets.
+
+  - document_id: doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170
+    carrier: TEPMARE
+    document_type: bill_of_lading
+    bindings: 53
+    occurrences: 56
+    agent_required_bindings: 3
+    manual_verdict: pass
+    evidence:
+      - >-
+        Both complete 1X40HIGH CUBE surfaces are deterministic equipment receipts scoped to their
+        respective containers. Both package quantities and PARCEL types are independent,
+        deterministic target bindings.
+      - >-
+        UN 2857 is deterministic; the semantic mapping from printed class 2.2 to GASES remains
+        agent-required rather than being asserted without a registry-backed adapter.
+      - >-
+        TO THE ORDER OF and 3/THREE remain one bounded negotiability contract. PREPAID owns the
+        freight target while ON BOARD and DEPARTURE remain separate source-only commercial facts.
+
+observed_repeat_projection_from_stress_average_usd:
+  documents_30: 0.809361060000
+  documents_100: 2.697870200000
+  documents_200: 5.395740400000
+  documents_230: 6.205101460000
+  carrier_eligible_documents_1650: 44.514858300000
+  approximate_documents_2000: 53.957404000000
+  all_pinned_documents_2174: 58.651698148000
+
+conservative_cold_projection_from_stress_average_usd:
+  assumption: >-
+    Reprice every observed cache-read compiler token at the pinned provider's 1.25x cache-write
+    input rate. This is deliberately more conservative than assuming reusable prompt-prefix cache
+    reads on new documents.
+  documents_30: 0.992615400000
+  documents_100: 3.308718000000
+  documents_200: 6.617436000000
+  documents_230: 7.610051400000
+  carrier_eligible_documents_1650: 54.593847000000
+  approximate_documents_2000: 66.174360000000
+  all_pinned_documents_2174: 71.931529320000
+
+limitations:
+  - >-
+    The measured average is exact for this five-document stress cohort but has not yet been shown
+    to transfer to 30 new unique documents. Straight-line corpus projections are planning figures,
+    not confidence intervals.
+  - >-
+    Manual inspection is domain-stratified and targeted at known high-risk topology; it is not a
+    claim that every one of the 626 physical occurrences was independently reread by a human.
+  - >-
+    The observed dollar result includes cache discounts from repeating the same documents. Corpus
+    planning must use the separately reported cold-cache-write projection unless real new-document
+    cache telemetry supports a less conservative estimate. The quality result itself does not rely
+    on caching: every compiler and critic response was a fresh model response.

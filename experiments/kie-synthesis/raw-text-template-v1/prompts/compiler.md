@@ -10,7 +10,10 @@ owned by a reusable, carrier-bound rendering contract.
   logical binding whose `occurrences` contain the physical spans and their individual
   `anchorBindingId` edit handles. These are useful OCR provenance, but an occurrence can point to
   the wrong duplicate, cover a composite span, or combine target roles that must render
-  independently.
+  independently. Each occurrence's `evidenceOrigin` distinguishes pinned
+  `accepted_label_evidence` from a deterministic host-relational inference. Preserve correct
+  pinned evidence when a duplicate host inference disagrees with it; use printed row and entity
+  context to audit every inferred occurrence.
 - If `expectedCarrierName` is non-null, the template carrier is fixed forever to that exact value;
   confirm it using OCR evidence and use source `source_label_confirmed_by_ocr`. If it is null,
   resolve a carrier only when an explicit principal name is printed, use source
@@ -50,8 +53,26 @@ owned by a reusable, carrier-bound rendering contract.
   clauses that still require an explicit disposition.
 - `semanticOnlyTargetFacts` are already host-classified label facts that need no printed binding
   by themselves. Bind one only when the OCR contains an unambiguous selected-value surface. In
-  particular, conditional legal boilerplate that discusses both negotiable and non-negotiable
-  alternatives does not print the document's selected negotiability and remains literal.
+  particular, a form title such as `Bill of Lading`, `Sea Waybill`, or `Original Bill of Lading`
+  names the reusable form and is not itself a mutable negotiability-value slot. Do not bind that
+  title to a negotiability enum. If no separate operative clause prints the selected status,
+  declare the negotiability path semantic-only after the required whole-document search.
+  Likewise, stable modality or caption words around a scalar remain literal: in `SEA FREIGHT
+  PREPAID`, `SEA FREIGHT` need not be absorbed into the mutable payment-arrangement binding merely
+  because it is contiguous with `PREPAID`. More generally, conditional legal boilerplate that
+  discusses both negotiable and non-negotiable alternatives does not print the document's selected
+  negotiability and remains literal. By contrast, an operative clause explicitly stating that zero
+  original bills of lading were signed is selected non-negotiable evidence. Bind that complete
+  clause to the negotiability target as an `agent_residual`, because clause-to-enum interpretation
+  is semantic rather than a deterministic formatting projection.
+  A populated value beneath `Number of original Bills of Lading` or an abbreviated equivalent such
+  as `Number of Original FBL's` is also selected shipment data, not a caption. Own the complete
+  value (including forms such as `E / Express B/L` and `3/THREE`). When that value and a separate
+  explicit negotiability surface jointly express the same target status, one bounded
+  `agent_residual` owns both physical occurrences and the negotiability target so a descendant
+  cannot make them inconsistent. In particular, a positive original-FBL count paired with an
+  operative `TO ORDER` surface is this joint status contract; do not split the count into an
+  independently generated auxiliary that could contradict negotiability.
 - Your `semantic_only_target_facts` output is the explicit disposition for a scalar task target
   whose source value has no distinct printed surface anywhere in the OCR. Use it only after a
   whole-document search proves the fact is semantic/unprinted, not when evidence is merely hard to
@@ -86,8 +107,17 @@ already inside an anchor binding:
 4. A public identity, alias, domain, office, or signature relationship of the fixed carrier itself.
    A shipment-appointed local agent, delivery agent, forwarder, or issuing agent is not fixed merely
    because its signature mentions the carrier; treat that party as shipment auxiliary data.
+   Conversely, an identically repeated carrier-branded legal entity in `SIGNED <entity>` fixed
+   footer blocks across several pages is a carrier signature relationship unless adjacent source
+   text explicitly appoints it as agent, issuer, forwarder, or delivery party. A local legal suffix
+   and the separate printing of the carrier principal do not by themselves prove shipment-specific
+   appointment.
    Ordinary carrier legal boilerplate may remain literal because the complete template itself is
    permanently carrier-bound.
+   Only the exact canonical carrier-name surface should claim the structured carrier-name target
+   path. Carrier aliases, domains, affiliates, and signature entities may be separate
+   `carrier_static` bindings with no target path; the host also canonicalizes this provenance
+   deterministically because every such surface is immutable on the carrier-bound template.
 5. A deterministic `riskCandidate`, even when it is actually generic legal/structural text.
 
 Every alphanumeric character in a risk candidate must be covered by retained anchors or your
@@ -122,6 +152,13 @@ shipment-independent.
   rather than task target paths. Refer to their exact declared `logicalKey` values. A combined assertion such as
   `10 CONTAINER(S)/PACKAGE(S)` uses `container_package_count` with the container and cargo-package
   collections as dependency paths; it is deterministic only when their counts are equal.
+  Repeated occurrences within one logical binding are repeated renderings of one value, not
+  independent operands. Never repeat the same `logicalKey` in `dependency_bindings` to manufacture
+  a sum. If distinct target paths or distinct source-only logical bindings do not prove every
+  summand, preserve the explicitly printed total as a `deterministic_auxiliary`.
+  Disjoint direct owners for a package quantity and type already cover text such as `360 BOXES`;
+  do not combine those leaf bindings into `package_count`. That derivation represents the count of
+  structured package records, not a package `quantity` leaf.
 - `agent_residual`: genuinely linguistic source-only cargo, party, legal, or operational wording
   requires bounded generation from already fixed target semantics. It is also the fail-closed
   representation for one inseparable physical surface that composes several unequal target paths.

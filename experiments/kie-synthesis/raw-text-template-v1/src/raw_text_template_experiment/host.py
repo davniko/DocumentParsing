@@ -5,11 +5,12 @@ import json
 import re
 import unicodedata
 from collections import Counter, defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from itertools import pairwise
+from functools import lru_cache
+from itertools import combinations, pairwise
 from pathlib import Path
 from typing import Any, Literal
 
@@ -65,6 +66,15 @@ _MEASUREMENT = re.compile(
     r"cbm|m3|m\^3|cubic\s+met(?:er|re)s?|°?c|deg\.?\s*c)(?!\w)"
 )
 _PHONE = re.compile(r"(?<!\w)(?:\+?[0-9][0-9 ()/.-]{6,}[0-9])(?!\w)")
+_SELECTED_OPERATIONAL_TEXT = re.compile(r"(?i)\bSHIPPED\s+ON\s+BOARD\b")
+_SELECTED_TYPE_VALUE = re.compile(
+    r"(?i)\bTYPE\s*:\s*(?P<value>[A-Z][A-Z0-9]*(?:[ \t]+[A-Z0-9][A-Z0-9./_-]*)*)[ \t]*$"
+)
+_ORIGINAL_BILL_COUNT_CAPTION = re.compile(
+    r"(?i)^\s*(?:NUMBER|NO\.?)\s+OF\s+ORIGINAL\s+"
+    r"(?:BILLS?\s+OF\s+LADING|FBL'?S?)\s*$"
+)
+_STANDALONE_ORIGINAL = re.compile(r"^\s*ORIGINAL\s*$", re.IGNORECASE)
 _TOKEN = re.compile(r"(?<![A-Za-z0-9])[A-Za-z0-9][A-Za-z0-9./_-]{5,}(?![A-Za-z0-9])")
 _LONG_NUMBER = re.compile(r"(?<![0-9])[0-9]{5,}(?![0-9])")
 _PATH_TOKEN = re.compile(r"([^.\[\]]+)|\[([0-9]+)\]")
@@ -74,6 +84,100 @@ _TARGET_PATH = re.compile(
 )
 _CONTAINER_NUMBER_PATH = re.compile(r"^documentPatch\.containers\[([0-9]+)\]\.containerNumber$")
 _CONTAINER_TYPE_PATH = re.compile(r"^documentPatch\.containers\[([0-9]+)\]\.typeDescription$")
+_CONTAINER_OBJECT_PATH = re.compile(r"^documentPatch\.containers\[([0-9]+)\]$")
+_PARTY_ADDRESS_PATH = re.compile(
+    r"^documentPatch\.parties\.(?:[A-Za-z_][A-Za-z0-9_]*|notifyParties\[[0-9]+\])\.address$"
+)
+_CARRIER_NAME_PATH = "documentPatch.parties.carrier.name"
+_FREIGHT_PAYMENT_PATH = "documentPatch.freight.paymentArrangement"
+_PORT_OF_LOADING_PATH = "documentPatch.route.portOfLoading.name"
+_SHIPPED_ON_BOARD_DATE_PATH = "documentPatch.shippedOnBoardDate"
+_VESSEL_NAME_PATH = "documentPatch.transport.vesselName"
+_VOYAGE_NUMBER_PATH = "documentPatch.transport.voyageNumber"
+_LOADING_TERMINAL_CAPTION = "loadingpierterminal"
+_SOURCE_ONLY_FIELD_CAPTIONS: dict[str, tuple[str, str, str, str]] = {
+    "foreignexportercountry": (
+        "agent:customs:foreign_exporter_country",
+        "customs",
+        "customs:foreign_exporter",
+        "location",
+    ),
+    "freightpayableat": (
+        "agent:commercial:freight_payable_location",
+        "commercial",
+        "commercial:freight",
+        "commercial_text",
+    ),
+    "datecargoreceived": (
+        "agent:transport:cargo_received_date",
+        "transport",
+        "transport:cargo_receipt",
+        "date",
+    ),
+}
+_SHIPPER_NAME_ADDRESS_CAPTION = "shippernameaddressphone"
+_PLACE_OF_RECEIPT_PATH = "documentPatch.route.placeOfReceipt.name"
+_SHIPPER_ADDRESS_PATH = "documentPatch.parties.shipper.address"
+_SHIPPER_CITY_PATH = "documentPatch.parties.shipper.city"
+_SHIPPER_NAME_PATH = "documentPatch.parties.shipper.name"
+_BILL_OF_LADING_PATH = "documentPatch.billOfLadingNumber"
+_PARTY_LOCATION_PATH = re.compile(
+    r"^documentPatch\.parties\.(?:[A-Za-z_][A-Za-z0-9_]*|notifyParties\[[0-9]+\])\."
+    r"(?:city|country)$"
+)
+_PARTY_CITY_COUNTRY_VARIANT = re.compile(r"^\s*(?P<value>[A-Z][A-Z .'-]{1,50},[ \t]*[A-Z]{2})\s*$")
+_LABELED_AUXILIARY_ORGANIZATION = re.compile(
+    r"(?i)^(?:EGYPTIAN\s+)?IMPORTER\s+NAME\s*:\s*(?P<value>\S(?:.*\S)?)\s*$"
+)
+_LABELED_COUNTRY_VALUE = re.compile(r"(?i)^\s*COUNTRY\s*:\s*(?P<value>[A-Z][A-Z .'-]*[A-Z])\s*$")
+_LABELED_COUNTRY_CODE_VALUE = re.compile(r"(?i)^\s*COUNTRY\s+CODE\s*:\s*(?P<value>[A-Z]{2})\s*$")
+_EXPORTED_FROM_COUNTRY_CONTEXT = re.compile(
+    r"(?i)\b(?:THESE\s+)?COMMODITIES\s+WERE\s+EXPORTED\s+FROM\s+THE\s+$"
+)
+_SELECTED_MEASUREMENT_UNIT = re.compile(r"(?i)^(?:KGM|KGS|KG)$")
+_PROFORMA_INVOICE_DATE = re.compile(
+    r"(?i)\bP\s*/\s*I\s+NO\..*?\bDD\.\s*(?P<value>[0-3]?[0-9]/[01]?[0-9]/[0-9]{3,4})(?![0-9])"
+)
+_LADEN_ON_BOARD_DATE_CAPTION = re.compile(r"(?i)^\s*DATE\s+LADEN\s+ON\s+BOARD(?:\s+[O*])?\s*$")
+_FORWARDING_REFERENCE_PATH = re.compile(r"^documentPatch\.forwardingAndExportReferences\[[0-9]+\]$")
+_PORT_CHARGE_SELECTION = re.compile(
+    r"(?i)^\s*(?P<place>ORIGIN|DESTINATION)\s+PORT\s+CHARGE\s+"
+    r"(?P<payment>PREPAID|COLLECT)\s*$"
+)
+_COMBINED_BOOKING_CAPTION = re.compile(r"(?i)^\s*BOOKING\s+NO\.\s+SEA\s+WAYBILL\s+NO\.")
+_BILL_OF_LADING_NUMBER_LINE = re.compile(
+    r"(?i)^\s*B\s*/\s*L\s+NO\.?\s*:?\s*(?P<value>[A-Z0-9][A-Z0-9./_-]{5,})\s*$"
+)
+_ACID_VALUE_LINE = re.compile(r"(?i)^\s*ACID\s*:\s*(?P<value>[A-Z0-9][A-Z0-9./_-]{11,})\s*$")
+_COUNTRY_CLAUSE_HEADING = re.compile(r"^\s*(?P<country>[A-Z][A-Z ]*[A-Z])\s+CLAUSE\s*$")
+_LABELED_ROUTE_TARGETS: dict[str, str] = {
+    "portofdischarge": "documentPatch.route.portOfDischarge.name",
+    "portofloading": "documentPatch.route.portOfLoading.name",
+    "placeofdelivery": "documentPatch.route.placeOfDelivery.name",
+}
+_INLINE_LABELED_ROUTE_VALUE = re.compile(
+    r"(?i)^\s*(?P<caption>PORT\s+OF\s+(?:LOADING|DISCHARGE)|PLACE\s+OF\s+DELIVERY)"
+    r"\s*:\s*(?P<value>\S(?:.*\S)?)\s*$"
+)
+_INLINE_LABELED_VESSEL_VOYAGE = re.compile(
+    r"(?i)^\s*VESSEL\s+NAME\s*:\s*(?P<vessel>\S(?:.*?\S)?)\s+"
+    r"VOYAGE(?:\s+(?:NO\.?|NUMBER))?\s*:\s*(?P<voyage>\S(?:.*\S)?)\s*$"
+)
+_FREE_DETENTION_TERM = re.compile(
+    r"(?i)^[0-9]+\s+DAYS?\s+FREE\s+DETENTION(?:\s+AT\s+DESTINATION)?$"
+)
+_IMPORT_FREE_OUT_INSTRUCTION = re.compile(
+    r"(?i)^[A-Z][A-Z .'-]{1,40}\s+IMPORT\s+IS\s+FREE\s+OUT\s*[,;]"
+    r"\s*ALL\s+EXPENSES\b.+\bRECEIVERS?'?\s+ACCOUNT\.?$"
+)
+_RELATIONAL_COLLECTION_PATH = re.compile(
+    r"^documentPatch\.(cargoGroups|cargoPackages|cargoAllocationGroups|containers)"
+    r"\[([0-9]+)\](?:\.|$)"
+)
+_ALLOCATION_PATH = re.compile(
+    r"^documentPatch\.cargoAllocationGroups\[([0-9]+)\]\.allocations\[([0-9]+)\]"
+    r"(?:\.|$)"
+)
 _PHONE_CONTEXT = re.compile(r"(?i)\b(?:phone|telephone|tel|mobile|fax|phn|fx)\b")
 _COUNTRY_CODE_CAPTION = re.compile(
     r"(?is)\b(?:country(?:\s+of\s+origin)?|nationality)\s+code\s*[:=-]?\s*$"
@@ -81,6 +185,15 @@ _COUNTRY_CODE_CAPTION = re.compile(
 _COUNTRY_CODE_LABELED_VALUE = re.compile(
     r"(?i)\b(?:country(?:\s+of\s+origin)?|nationality)\s+code\s*[:=-]?\s*"
     r"(?P<value>[A-Z]{2})(?![A-Z0-9])"
+)
+_DANGEROUS_GOODS_CLASS_SURFACE = re.compile(r"(?i)^\s*CL(?:ASS)?\s*[0-9](?:\.[0-9]+)?\s*$")
+_EQUIPMENT_RECEIPT_PREFIX = re.compile(r"(?i)^\s*[0-9]+\s*[x\u00d7]\s*[0-9]")
+_BARE_EQUIPMENT_MULTIPLIER = re.compile(r"(?i)^\s*[0-9]+\s*[x\u00d7]\s*$")
+_TRAILING_FOOTNOTE_MARKER = re.compile(
+    r"(?s)^(?P<body>.*[A-Za-z0-9])(?P<suffix>[ \t]+[*\u2020\u2021\u2666]+)$"
+)
+_SEMANTIC_ONLY_REJECTION_RECEIPT = (
+    "Host rejected the compiler's semantic-only declaration for pinned structured evidence."
 )
 
 
@@ -119,6 +232,33 @@ class SpanDraft:
 class RequiredTargetCoBinding:
     relationship: str
     target_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TargetBindingSurfaceAnalysis:
+    """Host-proven relationship between one target binding and its structured scalar."""
+
+    literal_prefix: str
+    literal_suffix: str
+    omitted_target_prefix_tokens: tuple[str, ...]
+    omitted_target_suffix_tokens: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RelationalAnchorLocalityReport:
+    """Deterministic receipt for source-label relationship based anchor normalization."""
+
+    orientation: Literal["forward", "backward"] | None
+    forward_evidence: int
+    backward_evidence: int
+    pivot_count: int
+    cargo_block_assignments: tuple[str, ...]
+    relocated_anchor_ids: tuple[str, ...]
+    expanded_anchor_ids: tuple[str, ...]
+    recovered_topology_anchor_ids: tuple[str, ...]
+    suppressed_anchor_ids: tuple[str, ...]
+    deduplicated_anchor_ids: tuple[str, ...]
+    preserved_anchor_ids: tuple[str, ...]
 
 
 def verify_file(path: Path, expected_sha256: str) -> None:
@@ -161,6 +301,7 @@ def page_body_spans(value: str) -> dict[int, tuple[int, int]]:
     return output
 
 
+@lru_cache(maxsize=64)
 def line_spans(value: str) -> tuple[LineSpan, ...]:
     output: list[LineSpan] = []
     char_cursor = 0
@@ -400,6 +541,896 @@ def _is_renderable_anchor(row: Mapping[str, Any]) -> bool:
     return False
 
 
+def normalize_relational_anchor_locality(
+    *,
+    raw: str,
+    document_id: str,
+    anchors: Sequence[Mapping[str, Any]],
+    source_target: Mapping[str, Any],
+) -> tuple[tuple[dict[str, Any], ...], RelationalAnchorLocalityReport]:
+    """Relocate accepted anchors only when the structured row relationship proves locality.
+
+    The preparation inventory locates equal values independently, so repeated cargo and package
+    values can all point at the first textual occurrence.  This pass uses only source-label
+    ``groupId``/allocation/container relationships and exact OCR spans.  It changes an anchor only
+    when a document-level row orientation is evidenced by at least three unique facts with at
+    least 75% directional agreement.  A contradicted anchor without a provable replacement is
+    disabled rather than left as false accepted evidence.
+    """
+
+    document_patch = source_target.get("documentPatch")
+    if not isinstance(document_patch, Mapping):
+        raise ValueError("source target lacks documentPatch for relational anchor locality")
+
+    collections: dict[str, tuple[Mapping[str, Any], ...]] = {}
+    for name in (
+        "cargoGroups",
+        "cargoPackages",
+        "cargoAllocationGroups",
+        "containers",
+    ):
+        value = document_patch.get(name, ())
+        if value is None:
+            value = ()
+        if not isinstance(value, (tuple, list)) or any(
+            not isinstance(row, Mapping) for row in value
+        ):
+            raise ValueError(f"source target {name} is not a row sequence")
+        collections[name] = tuple(value)
+
+    cluster_by_collection_row: dict[tuple[str, int], str] = {}
+    for collection_name in ("cargoGroups", "cargoPackages", "cargoAllocationGroups"):
+        for index, row in enumerate(collections[collection_name]):
+            group_id = row.get("groupId")
+            if isinstance(group_id, str) and group_id:
+                cluster_by_collection_row[(collection_name, index)] = group_id
+
+    container_groups_by_number: dict[str, set[str]] = defaultdict(set)
+    for allocation_group in collections["cargoAllocationGroups"]:
+        group_id = allocation_group.get("groupId")
+        allocations = allocation_group.get("allocations", ())
+        if allocations is None:
+            allocations = ()
+        if not isinstance(allocations, (tuple, list)) or any(
+            not isinstance(row, Mapping) for row in allocations
+        ):
+            raise ValueError("cargo allocation group allocations are not a row sequence")
+        if not isinstance(group_id, str) or not group_id:
+            continue
+        for allocation in allocations:
+            container_number = allocation.get("containerNumber")
+            if isinstance(container_number, str) and container_number:
+                container_groups_by_number[container_number].add(group_id)
+
+    container_indexes_by_number: dict[str, set[int]] = defaultdict(set)
+    for index, row in enumerate(collections["containers"]):
+        container_number = row.get("containerNumber")
+        if not isinstance(container_number, str) or not container_number:
+            continue
+        container_indexes_by_number[container_number].add(index)
+        groups = container_groups_by_number.get(container_number, set())
+        if len(groups) == 1:
+            cluster_by_collection_row[("containers", index)] = next(iter(groups))
+
+    pages = page_body_spans(raw)
+
+    def anchor_id(row: Mapping[str, Any]) -> str:
+        value = row.get("anchor_id")
+        if not isinstance(value, str) or not value:
+            raise ValueError("relational anchor lacks a non-empty anchor ID")
+        return value
+
+    def absolute_span(row: Mapping[str, Any]) -> tuple[int, int] | None:
+        patchable = row.get("patchable")
+        if not isinstance(patchable, bool):
+            raise ValueError(f"anchor {anchor_id(row)} has a non-boolean patchable flag")
+        if not patchable:
+            return None
+        page_number = row.get("page_number")
+        page_start = row.get("page_start")
+        page_end = row.get("page_end")
+        if (
+            not isinstance(page_number, int)
+            or isinstance(page_number, bool)
+            or not isinstance(page_start, int)
+            or isinstance(page_start, bool)
+            or not isinstance(page_end, int)
+            or isinstance(page_end, bool)
+            or page_number not in pages
+        ):
+            raise ValueError(f"patchable anchor {anchor_id(row)} has invalid page coordinates")
+        body_start, body_end = pages[page_number]
+        start = body_start + page_start
+        end = body_start + page_end
+        surface = row.get("raw_value")
+        if (
+            not isinstance(surface, str)
+            or not surface
+            or start < body_start
+            or end > body_end
+            or raw[start:end] != surface
+        ):
+            raise ValueError(f"patchable anchor {anchor_id(row)} no longer matches pinned OCR")
+        return start, end
+
+    def parsed_collection(path: str) -> tuple[str, int] | None:
+        match = _RELATIONAL_COLLECTION_PATH.match(path)
+        if match is None:
+            return None
+        return match.group(1), int(match.group(2))
+
+    def cluster_for_path(path: str) -> str | None:
+        parsed = parsed_collection(path)
+        return cluster_by_collection_row.get(parsed) if parsed is not None else None
+
+    def container_index_for_path(path: str) -> int | None:
+        parsed = parsed_collection(path)
+        if parsed is not None and parsed[0] == "containers":
+            return parsed[1]
+        match = _ALLOCATION_PATH.match(path)
+        if match is None:
+            return None
+        group_index = int(match.group(1))
+        allocation_index = int(match.group(2))
+        allocation_groups = collections["cargoAllocationGroups"]
+        if group_index >= len(allocation_groups):
+            raise ValueError(f"allocation target path is outside source target: {path}")
+        allocations = allocation_groups[group_index].get("allocations", ())
+        if not isinstance(allocations, (tuple, list)) or allocation_index >= len(allocations):
+            raise ValueError(f"allocation target path is outside source target: {path}")
+        allocation = allocations[allocation_index]
+        if not isinstance(allocation, Mapping):
+            raise ValueError(f"allocation target path does not resolve to an object: {path}")
+        container_number = allocation.get("containerNumber")
+        if not isinstance(container_number, str):
+            return None
+        indexes = container_indexes_by_number.get(container_number, set())
+        return next(iter(indexes)) if len(indexes) == 1 else None
+
+    exact_match_cache: dict[str, tuple[tuple[int, int], ...]] = {}
+
+    def exact_matches(surface: str) -> tuple[tuple[int, int], ...]:
+        if not surface:
+            raise ValueError("relational anchor has an empty raw value")
+        cached = exact_match_cache.get(surface)
+        if cached is not None:
+            return cached
+        matches = tuple(
+            (match.start(), match.end())
+            for match in re.finditer(re.escape(surface), raw)
+            if is_token_bounded_surface_span(raw, match.start(), match.end())
+        )
+        exact_match_cache[surface] = matches
+        return matches
+
+    pivot_rows: set[tuple[int, int, str, int]] = set()
+    for row in anchors:
+        if row.get("document_id") != document_id:
+            raise ValueError("relational locality received an anchor for another document")
+        path = row.get("relation_target_path")
+        if not isinstance(path, str):
+            raise ValueError(f"anchor {anchor_id(row)} lacks a target path")
+        container_index = container_index_for_path(path)
+        span = absolute_span(row)
+        if container_index is None or span is None or not path.endswith(".containerNumber"):
+            continue
+        cluster = cluster_by_collection_row.get(("containers", container_index))
+        if cluster is not None:
+            pivot_rows.add((*span, cluster, container_index))
+    pivots = tuple(sorted(pivot_rows))
+    pivot_starts = tuple(row[0] for row in pivots)
+    pivot_container_indexes = {row[3] for row in pivots}
+
+    def previous_pivot(span: tuple[int, int]) -> tuple[int, int, str, int] | None:
+        index = bisect.bisect_right(pivot_starts, span[0]) - 1
+        return pivots[index] if index >= 0 else None
+
+    def next_pivot(span: tuple[int, int]) -> tuple[int, int, str, int] | None:
+        index = bisect.bisect_left(pivot_starts, span[1])
+        return pivots[index] if index < len(pivots) else None
+
+    forward_evidence = 0
+    backward_evidence = 0
+    for row in anchors:
+        path = str(row.get("relation_target_path", ""))
+        parsed = parsed_collection(path)
+        cluster = cluster_for_path(path)
+        span = absolute_span(row)
+        surface = row.get("raw_value")
+        if (
+            parsed is None
+            or parsed[0] not in {"cargoGroups", "cargoPackages", "cargoAllocationGroups"}
+            or path.endswith(".containerNumber")
+            or cluster is None
+            or span is None
+            or not isinstance(surface, str)
+            or len(exact_matches(surface)) != 1
+        ):
+            continue
+        preceding = previous_pivot(span)
+        following = next_pivot(span)
+        forward_match = preceding is not None and preceding[2] == cluster
+        backward_match = following is not None and following[2] == cluster
+        if forward_match and not backward_match:
+            forward_evidence += 1
+        elif backward_match and not forward_match:
+            backward_evidence += 1
+
+    directional_evidence = forward_evidence + backward_evidence
+    orientation: Literal["forward", "backward"] | None = None
+    if directional_evidence >= 3:
+        if forward_evidence * 4 >= directional_evidence * 3:
+            orientation = "forward"
+        elif backward_evidence * 4 >= directional_evidence * 3:
+            orientation = "backward"
+
+    pivot_clusters = {row[2] for row in pivots}
+
+    def group_owner(span: tuple[int, int]) -> str | None:
+        if orientation == "forward":
+            pivot = previous_pivot(span)
+            return pivot[2] if pivot is not None else None
+        if orientation == "backward":
+            pivot = next_pivot(span)
+            return pivot[2] if pivot is not None else None
+        if len(pivot_clusters) == 1:
+            return next(iter(pivot_clusters))
+        preceding = previous_pivot(span)
+        following = next_pivot(span)
+        if preceding is not None and following is not None and preceding[2] == following[2]:
+            return preceding[2]
+        return None
+
+    target_paths_by_local_surface: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    for row in anchors:
+        path = row.get("relation_target_path")
+        surface = row.get("raw_value")
+        if not isinstance(path, str) or not isinstance(surface, str):
+            continue
+        parsed = parsed_collection(path)
+        cluster = cluster_for_path(path)
+        if parsed is None or cluster is None:
+            continue
+        container_index = container_index_for_path(path)
+        container_scoped = parsed[0] == "containers" or _ALLOCATION_PATH.match(path) is not None
+        if container_scoped and container_index is not None:
+            locality_kind = "container"
+            locality_key = str(container_index)
+        else:
+            locality_kind = "group"
+            locality_key = cluster
+        target_paths_by_local_surface[(locality_kind, locality_key, surface)].add(path)
+    ambiguous_local_surfaces = {
+        key
+        for key, paths in target_paths_by_local_surface.items()
+        if len(paths) > 1 and len(target_fact_components(source_target, tuple(paths))) > 1
+    }
+
+    def nearest_container_indexes(span: tuple[int, int]) -> set[int]:
+        distances: dict[int, int] = {}
+        for start, end, _cluster, container_index in pivots:
+            distance = max(start - span[1], span[0] - end, 0)
+            prior = distances.get(container_index)
+            if prior is None or distance < prior:
+                distances[container_index] = distance
+        if not distances:
+            return set()
+        minimum = min(distances.values())
+        return {index for index, distance in distances.items() if distance == minimum}
+
+    def page_coordinates(span: tuple[int, int]) -> tuple[int, int, int] | None:
+        matches = tuple(
+            (page_number, span[0] - body_start, span[1] - body_start)
+            for page_number, (body_start, body_end) in pages.items()
+            if body_start <= span[0] and span[1] <= body_end
+        )
+        return matches[0] if len(matches) == 1 else None
+
+    relocated: list[str] = []
+    expanded: list[str] = []
+    suppressed: list[str] = []
+    deduplicated: list[str] = []
+    preserved: list[str] = []
+    normalized: list[dict[str, Any]] = []
+    emitted_relational_spans: set[tuple[str, int, int]] = set()
+    for source_row in anchors:
+        row = dict(source_row)
+        path = str(row.get("relation_target_path", ""))
+        parsed = parsed_collection(path)
+        original_span = absolute_span(row)
+        surface = row.get("raw_value")
+        if parsed is None or not isinstance(surface, str) or original_span is None:
+            normalized.append(row)
+            continue
+
+        selected_spans: tuple[tuple[int, int], ...] = (original_span,)
+        locality_key: tuple[str, str, str] | None = None
+        container_index = container_index_for_path(path)
+        container_scoped = parsed[0] == "containers" or _ALLOCATION_PATH.match(path) is not None
+        if container_scoped and not path.endswith(".containerNumber"):
+            if container_index is None:
+                normalized.append(row)
+                continue
+            if container_index not in pivot_container_indexes:
+                normalized.append(row)
+                continue
+            locality_key = ("container", str(container_index), surface)
+            selected_spans = tuple(
+                span
+                for span in exact_matches(surface)
+                if nearest_container_indexes(span) == {container_index}
+                and page_coordinates(span) is not None
+            )
+        elif parsed[0] in {
+            "cargoGroups",
+            "cargoPackages",
+            "cargoAllocationGroups",
+        } and not path.endswith(".containerNumber"):
+            cluster = cluster_for_path(path)
+            if cluster is None:
+                normalized.append(row)
+                continue
+            locality_key = ("group", cluster, surface)
+            if locality_key in ambiguous_local_surfaces:
+                selected_spans = ()
+            else:
+                matching_spans = tuple(
+                    span
+                    for span in exact_matches(surface)
+                    if group_owner(span) == cluster and page_coordinates(span) is not None
+                )
+                if parsed[0] == "cargoGroups":
+                    selected_spans = matching_spans
+                elif original_span in matching_spans:
+                    selected_spans = (original_span,)
+                elif len(matching_spans) == 1:
+                    selected_spans = matching_spans
+                else:
+                    selected_spans = ()
+        else:
+            normalized.append(row)
+            continue
+
+        current_anchor_id = anchor_id(row)
+        if not selected_spans or locality_key in ambiguous_local_surfaces:
+            row["patchable"] = False
+            row["page_start"] = None
+            row["page_end"] = None
+            suppressed.append(current_anchor_id)
+            normalized.append(row)
+            continue
+
+        unique_spans = tuple(
+            span
+            for span in dict.fromkeys(selected_spans)
+            if (path, span[0], span[1]) not in emitted_relational_spans
+        )
+        if not unique_spans:
+            deduplicated.append(current_anchor_id)
+            continue
+        primary_span = original_span if original_span in unique_spans else unique_spans[0]
+        ordered_spans = (
+            primary_span,
+            *(span for span in unique_spans if span != primary_span),
+        )
+        for index, selected_span in enumerate(ordered_spans):
+            coordinates = page_coordinates(selected_span)
+            if coordinates is None:
+                raise ValueError("relational anchor candidate is outside a page body")
+            emitted_relational_spans.add((path, selected_span[0], selected_span[1]))
+            emitted_row = row if index == 0 else dict(row)
+            emitted_row["page_number"], emitted_row["page_start"], emitted_row["page_end"] = (
+                coordinates
+            )
+            if index == 0:
+                if selected_span == original_span:
+                    preserved.append(current_anchor_id)
+                else:
+                    relocated.append(current_anchor_id)
+            else:
+                expanded_id = (
+                    "anchor_relational_"
+                    + sha256_bytes(
+                        f"{document_id}\0{path}\0{selected_span[0]}\0{selected_span[1]}".encode()
+                    )[:24]
+                )
+                emitted_row["anchor_id"] = expanded_id
+                expanded.append(expanded_id)
+            normalized.append(emitted_row)
+
+    cargo_rows_by_path: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for row in anchors:
+        path = row.get("relation_target_path")
+        parsed = parsed_collection(path) if isinstance(path, str) else None
+        if parsed is not None and parsed[0] == "cargoGroups":
+            cargo_rows_by_path[path].append(row)
+
+    # Blank-line-delimited cargo blocks provide stronger evidence than the nearest container
+    # pivot when a multi-column continuation crosses a page boundary.  In that layout the next
+    # container number can be printed before the previous container's continued cargo row.  Build
+    # a block signature from at least three distinctive target scalars, require 75% target-row
+    # coverage, and use source order only when three or more allocation/container pivots prove the
+    # cargo-group order monotonically.  Ambiguous assignments remain untouched for model review.
+    source_lines = line_spans(raw)
+    source_tokens = _surface_token_spans(raw)
+    cargo_blocks: list[tuple[int, int, int, int]] = []
+    current_block: list[LineSpan] = []
+    for line in source_lines:
+        if line.text.strip():
+            current_block.append(line)
+            continue
+        if current_block:
+            cargo_blocks.append(
+                (
+                    current_block[0].char_start,
+                    current_block[-1].char_end,
+                    current_block[0].number,
+                    current_block[-1].number,
+                )
+            )
+            current_block = []
+    if current_block:
+        cargo_blocks.append(
+            (
+                current_block[0].char_start,
+                current_block[-1].char_end,
+                current_block[0].number,
+                current_block[-1].number,
+            )
+        )
+
+    cargo_indexes_by_cluster: dict[str, set[int]] = defaultdict(set)
+    for cargo_index, cargo_group in enumerate(collections["cargoGroups"]):
+        group_id = cargo_group.get("groupId")
+        if isinstance(group_id, str) and group_id:
+            cargo_indexes_by_cluster[group_id].add(cargo_index)
+    pivot_cargo_order: list[int] = []
+    for _start, _end, cluster, _container_index in pivots:
+        indexes = cargo_indexes_by_cluster.get(cluster, set())
+        if len(indexes) != 1:
+            continue
+        cargo_index = next(iter(indexes))
+        if not pivot_cargo_order or pivot_cargo_order[-1] != cargo_index:
+            pivot_cargo_order.append(cargo_index)
+    cargo_order_proven = (
+        len(pivot_cargo_order) >= 3
+        and len(set(pivot_cargo_order)) == len(pivot_cargo_order)
+        and all(left < right for left, right in pairwise(pivot_cargo_order))
+    )
+
+    block_candidate_cache: dict[str, tuple[tuple[int, int], ...]] = {}
+
+    def block_candidate_spans(value: str) -> tuple[tuple[int, int], ...]:
+        cached = block_candidate_cache.get(value)
+        if cached is not None:
+            return cached
+        spans = {
+            (start, start + len(value))
+            for start in _exact_offsets(raw, value)
+            if is_token_bounded_surface_span(raw, start, start + len(value))
+        }
+        spans.update(_token_equivalent_offsets(source_tokens, value))
+        spans.update(_labeled_identifier_projection_offsets(source_tokens, value))
+        # Prefer the complete matching surface over a nested identifier-only projection.
+        maximal = tuple(
+            sorted(
+                span
+                for span in spans
+                if not any(
+                    other_start <= span[0]
+                    and span[1] <= other_end
+                    and (other_start, other_end) != span
+                    for other_start, other_end in spans
+                )
+            )
+        )
+        block_candidate_cache[value] = maximal
+        return maximal
+
+    def cargo_string_leaves(value: Any, path: str) -> tuple[tuple[str, str], ...]:
+        output: list[tuple[str, str]] = []
+
+        def visit(item: Any, item_path: str) -> None:
+            if isinstance(item, Mapping):
+                for key, child in item.items():
+                    if key != "groupId":
+                        visit(child, f"{item_path}.{key}")
+            elif isinstance(item, (tuple, list)):
+                for index, child in enumerate(item):
+                    visit(child, f"{item_path}[{index}]")
+            elif isinstance(item, str) and item:
+                output.append((item_path, item))
+
+        visit(value, path)
+        return tuple(output)
+
+    eligible_blocks_by_cargo: dict[int, tuple[int, ...]] = {}
+    if cargo_order_proven:
+        for cargo_index, cargo_group in enumerate(collections["cargoGroups"]):
+            leaves = cargo_string_leaves(
+                cargo_group,
+                f"documentPatch.cargoGroups[{cargo_index}]",
+            )
+            distinctive_surfaces = {
+                _normalized_surface(value)
+                for _path, value in leaves
+                if len(_normalized_surface(value)) >= 5
+            }
+            matched_surfaces_by_block: dict[int, set[str]] = defaultdict(set)
+            for _path, value in leaves:
+                normalized_surface = _normalized_surface(value)
+                if normalized_surface not in distinctive_surfaces:
+                    continue
+                for start, end in block_candidate_spans(value):
+                    for block_index, (block_start, block_end, _line_start, _line_end) in enumerate(
+                        cargo_blocks
+                    ):
+                        if block_start <= start and end <= block_end:
+                            matched_surfaces_by_block[block_index].add(normalized_surface)
+                            break
+            best_match_count = max(
+                (len(values) for values in matched_surfaces_by_block.values()),
+                default=0,
+            )
+            if best_match_count < 3 or best_match_count * 4 < len(distinctive_surfaces) * 3:
+                continue
+            eligible_blocks_by_cargo[cargo_index] = tuple(
+                sorted(
+                    block_index
+                    for block_index, values in matched_surfaces_by_block.items()
+                    if len(values) == best_match_count
+                )
+            )
+
+    assigned_blocks: dict[int, int] = {}
+    singleton_claims: dict[int, list[int]] = defaultdict(list)
+    for cargo_index, candidates in eligible_blocks_by_cargo.items():
+        if len(candidates) == 1:
+            singleton_claims[candidates[0]].append(cargo_index)
+    for block_index, cargo_indexes in singleton_claims.items():
+        if len(cargo_indexes) == 1:
+            assigned_blocks[cargo_indexes[0]] = block_index
+    if any(
+        left_block >= right_block
+        for (_left_index, left_block), (_right_index, right_block) in pairwise(
+            sorted(assigned_blocks.items())
+        )
+    ):
+        assigned_blocks = {}
+
+    def viable_blocks(cargo_index: int) -> tuple[int, ...]:
+        lower_bound = max(
+            (block for index, block in assigned_blocks.items() if index < cargo_index),
+            default=-1,
+        )
+        upper_bound = min(
+            (block for index, block in assigned_blocks.items() if index > cargo_index),
+            default=len(cargo_blocks),
+        )
+        occupied_blocks = set(assigned_blocks.values())
+        return tuple(
+            block
+            for block in eligible_blocks_by_cargo.get(cargo_index, ())
+            if lower_bound < block < upper_bound and block not in occupied_blocks
+        )
+
+    changed = True
+    while changed:
+        changed = False
+        for cargo_index in sorted(eligible_blocks_by_cargo):
+            if cargo_index in assigned_blocks:
+                continue
+            candidates = viable_blocks(cargo_index)
+            if len(candidates) == 1:
+                assigned_blocks[cargo_index] = candidates[0]
+                changed = True
+        if changed:
+            continue
+        equal_candidate_groups: dict[tuple[int, ...], list[int]] = defaultdict(list)
+        for cargo_index in sorted(eligible_blocks_by_cargo):
+            if cargo_index not in assigned_blocks:
+                equal_candidate_groups[viable_blocks(cargo_index)].append(cargo_index)
+        for candidates, cargo_indexes in equal_candidate_groups.items():
+            if len(candidates) <= 1 or len(candidates) != len(cargo_indexes):
+                continue
+            for cargo_index, block_index in zip(cargo_indexes, candidates, strict=True):
+                assigned_blocks[cargo_index] = block_index
+            changed = True
+
+    cargo_block_assignments = tuple(
+        f"cargoGroups[{cargo_index}]:L{cargo_blocks[block_index][2]:05d}-"
+        f"L{cargo_blocks[block_index][3]:05d}"
+        for cargo_index, block_index in sorted(assigned_blocks.items())
+    )
+    block_recovered: list[str] = []
+    if assigned_blocks:
+        rows_by_cargo_path: dict[tuple[int, str], list[Mapping[str, Any]]] = defaultdict(list)
+        for path, rows in cargo_rows_by_path.items():
+            parsed = parsed_collection(path)
+            if parsed is not None:
+                rows_by_cargo_path[(parsed[1], path)].extend(rows)
+
+        candidate_spans_by_cargo_path: dict[tuple[int, str], tuple[tuple[int, int], ...]] = {}
+
+        def repeated_description_component_spans(
+            *,
+            target_value: str,
+            complete_spans: Sequence[tuple[int, int]],
+            block_start: int,
+            block_end: int,
+        ) -> tuple[tuple[int, int], ...]:
+            """Find a separately printed prefix/suffix already present in a full description."""
+
+            target_tokens = tuple(
+                token for token, _start, _end in _surface_token_spans(target_value)
+            )
+            if len(target_tokens) < 3 or not complete_spans:
+                return ()
+            block_tokens = tuple(
+                (token, start, end)
+                for token, start, end in source_tokens
+                if block_start <= start and end <= block_end
+            )
+            output: set[tuple[int, int]] = set()
+            for token_start in range(len(block_tokens)):
+                maximum_width = min(
+                    len(target_tokens) - 1,
+                    len(block_tokens) - token_start,
+                )
+                for width in range(2, maximum_width + 1):
+                    candidate_tokens = tuple(
+                        token
+                        for token, _start, _end in block_tokens[token_start : token_start + width]
+                    )
+                    if len("".join(candidate_tokens)) < 8 or not (
+                        target_tokens[:width] == candidate_tokens
+                        or target_tokens[-width:] == candidate_tokens
+                    ):
+                        continue
+                    start = block_tokens[token_start][1]
+                    end = block_tokens[token_start + width - 1][2]
+                    if any(
+                        complete_start <= start and end <= complete_end
+                        for complete_start, complete_end in complete_spans
+                    ):
+                        continue
+                    output.add((start, end))
+            return tuple(sorted(output))
+
+        for (cargo_index, path), rows in rows_by_cargo_path.items():
+            block_index = assigned_blocks.get(cargo_index)
+            if block_index is None:
+                continue
+            block_start, block_end, _line_start, _line_end = cargo_blocks[block_index]
+            target_value = _resolve_target_path(source_target, path)
+            if not isinstance(target_value, str) or not target_value:
+                continue
+            surfaces = tuple(
+                dict.fromkeys(
+                    (
+                        target_value,
+                        *(
+                            str(row["raw_value"])
+                            for row in rows
+                            if isinstance(row.get("raw_value"), str)
+                            and _normalized_surface(str(row["raw_value"]))
+                            == _normalized_surface(target_value)
+                        ),
+                    )
+                )
+            )
+            candidates = {
+                span
+                for surface in surfaces
+                for span in block_candidate_spans(surface)
+                if block_start <= span[0] and span[1] <= block_end
+            }
+            if path.endswith(".description"):
+                candidates.update(
+                    repeated_description_component_spans(
+                        target_value=target_value,
+                        complete_spans=tuple(candidates),
+                        block_start=block_start,
+                        block_end=block_end,
+                    )
+                )
+            maximal_candidates = tuple(
+                sorted(
+                    span
+                    for span in candidates
+                    if not any(
+                        other_start <= span[0]
+                        and span[1] <= other_end
+                        and (other_start, other_end) != span
+                        for other_start, other_end in candidates
+                    )
+                )
+            )
+            if maximal_candidates:
+                candidate_spans_by_cargo_path[(cargo_index, path)] = maximal_candidates
+
+        paths_by_candidate_span: dict[tuple[int, int, int], set[str]] = defaultdict(set)
+        for (cargo_index, path), candidates in candidate_spans_by_cargo_path.items():
+            for start, end in candidates:
+                paths_by_candidate_span[(cargo_index, start, end)].add(path)
+        candidate_spans_by_cargo_path = {
+            key: tuple(
+                (start, end)
+                for start, end in candidates
+                if len(paths_by_candidate_span[(key[0], start, end)]) == 1
+            )
+            for key, candidates in candidate_spans_by_cargo_path.items()
+        }
+
+        current_spans_by_cargo_path: dict[tuple[int, str], set[tuple[int, int]]] = defaultdict(set)
+        for row in normalized:
+            path = row.get("relation_target_path")
+            parsed = parsed_collection(path) if isinstance(path, str) else None
+            span = absolute_span(row)
+            if parsed is not None and parsed[0] == "cargoGroups" and span is not None:
+                current_spans_by_cargo_path[(parsed[1], path)].add(span)
+        affected_cargo_indexes = {
+            cargo_index
+            for (cargo_index, path), candidates in candidate_spans_by_cargo_path.items()
+            if candidates
+            and set(candidates) != current_spans_by_cargo_path.get((cargo_index, path), set())
+        }
+
+        for row in normalized:
+            path = row.get("relation_target_path")
+            parsed = parsed_collection(path) if isinstance(path, str) else None
+            if (
+                parsed is None
+                or parsed[0] != "cargoGroups"
+                or parsed[1] not in affected_cargo_indexes
+            ):
+                continue
+            candidates = candidate_spans_by_cargo_path.get((parsed[1], path), ())
+            span = absolute_span(row)
+            if span is None or not candidates or span in candidates:
+                continue
+            row["patchable"] = False
+            row["page_start"] = None
+            row["page_end"] = None
+            current_anchor_id = anchor_id(row)
+            if current_anchor_id not in suppressed:
+                suppressed.append(current_anchor_id)
+
+        existing_spans = {
+            (str(row.get("relation_target_path")), span[0], span[1])
+            for row in normalized
+            if (span := absolute_span(row)) is not None
+        }
+        for (cargo_index, path), candidates in sorted(candidate_spans_by_cargo_path.items()):
+            if cargo_index not in affected_cargo_indexes:
+                continue
+            source_rows = rows_by_cargo_path[(cargo_index, path)]
+            for start, end in candidates:
+                if (path, start, end) in existing_spans:
+                    continue
+                coordinates = page_coordinates((start, end))
+                if coordinates is None:
+                    raise ValueError("relational cargo-block candidate is outside a page body")
+                recovered_id = (
+                    "anchor_relational_block_"
+                    + sha256_bytes(f"{document_id}\0{path}\0{start}\0{end}".encode())[:24]
+                )
+                recovered_row = dict(source_rows[0])
+                recovered_row.update(
+                    {
+                        "anchor_id": recovered_id,
+                        "patchable": True,
+                        "page_number": coordinates[0],
+                        "page_start": coordinates[1],
+                        "page_end": coordinates[2],
+                        "raw_value": raw[start:end],
+                        "location_status": "host_relational_cargo_block_unique",
+                        "normalization_rule": (
+                            "recovered exact target projection from ordered cargo-block signature"
+                        ),
+                    }
+                )
+                normalized.append(recovered_row)
+                existing_spans.add((path, start, end))
+                block_recovered.append(recovered_id)
+
+    provisional_drafts = normalize_target_cobindings(
+        drafts=anchor_drafts(raw=raw, document_id=document_id, anchors=normalized),
+        source_target=source_target,
+    )
+    topology_candidates: list[SpanDraft] = []
+    for path, source_rows in sorted(cargo_rows_by_path.items()):
+        parsed = parsed_collection(path)
+        if parsed is not None and parsed[1] in assigned_blocks:
+            # The stronger block-signature pass already enumerated every unambiguous occurrence
+            # for this cargo entity. Re-running the document-wide bracket search is redundant and
+            # was the dominant CPU cost of the added deterministic preprocessing.
+            continue
+        cluster = cluster_for_path(path)
+        if cluster is None:
+            continue
+        candidates = _repair_uniquely_bracketed_target_paths(
+            raw=raw,
+            missing_paths=(path,),
+            occupied=provisional_drafts,
+            source_target=source_target,
+            source_hints={
+                path: tuple(
+                    dict.fromkeys(
+                        str(row["raw_value"])
+                        for row in source_rows
+                        if isinstance(row.get("raw_value"), str) and row["raw_value"]
+                    )
+                )
+            },
+            candidate_span_filter=(
+                lambda _path, start, end, expected_cluster=cluster: (
+                    group_owner((start, end)) == expected_cluster
+                )
+            ),
+        )
+        topology_candidates.extend(
+            candidate
+            for candidate in candidates
+            if group_owner((candidate.char_start, candidate.char_end)) == cluster
+        )
+    safe_topology_candidates = tuple(
+        candidate
+        for index, candidate in enumerate(topology_candidates)
+        if not any(
+            index != other_index
+            and candidate.target_paths != other.target_paths
+            and candidate.char_start < other.char_end
+            and other.char_start < candidate.char_end
+            for other_index, other in enumerate(topology_candidates)
+        )
+    )
+    recovered_topology: list[str] = list(block_recovered)
+    for candidate in safe_topology_candidates:
+        path = candidate.target_paths[0]
+        source_row = dict(cargo_rows_by_path[path][0])
+        coordinates = page_coordinates((candidate.char_start, candidate.char_end))
+        if coordinates is None:
+            raise ValueError("relational topology candidate is outside a page body")
+        recovered_id = (
+            "anchor_relational_topology_"
+            + sha256_bytes(
+                f"{document_id}\0{path}\0{candidate.char_start}\0{candidate.char_end}".encode()
+            )[:24]
+        )
+        source_row.update(
+            {
+                "anchor_id": recovered_id,
+                "patchable": True,
+                "page_number": coordinates[0],
+                "page_start": coordinates[1],
+                "page_end": coordinates[2],
+                "raw_value": candidate.source_text,
+                "location_status": "host_relational_topology_unique",
+                "normalization_rule": (
+                    "recovered exact target projection from unique same-group topology"
+                ),
+            }
+        )
+        normalized.append(source_row)
+        recovered_topology.append(recovered_id)
+
+    report = RelationalAnchorLocalityReport(
+        orientation=orientation,
+        forward_evidence=forward_evidence,
+        backward_evidence=backward_evidence,
+        pivot_count=len(pivots),
+        cargo_block_assignments=cargo_block_assignments,
+        relocated_anchor_ids=tuple(relocated),
+        expanded_anchor_ids=tuple(expanded),
+        recovered_topology_anchor_ids=tuple(recovered_topology),
+        suppressed_anchor_ids=tuple(suppressed),
+        deduplicated_anchor_ids=tuple(deduplicated),
+        preserved_anchor_ids=tuple(preserved),
+    )
+    return tuple(normalized), report
+
+
 def anchor_drafts(
     *, raw: str, document_id: str, anchors: Sequence[Mapping[str, Any]]
 ) -> tuple[SpanDraft, ...]:
@@ -437,6 +1468,17 @@ def anchor_drafts(
         start = min(item[0] for item in group)
         end = max(item[1] for item in group)
         rows = [item[2] for item in group]
+        row_anchor_ids = tuple(str(row["anchor_id"]) for row in rows)
+        host_inferred = any(
+            anchor_id.startswith(
+                (
+                    "anchor_relational_",
+                    "anchor_relational_block_",
+                    "anchor_relational_topology_",
+                )
+            )
+            for anchor_id in row_anchor_ids
+        )
         paths = tuple(sorted({str(row["relation_target_path"]) for row in rows}))
         policy = _render_policy(rows)
         carrier = any(path.startswith("documentPatch.parties.carrier") for path in paths)
@@ -456,9 +1498,17 @@ def anchor_drafts(
                 char_start=start,
                 char_end=end,
                 source_text=raw[start:end],
-                evidence_origin="accepted_label_evidence",
+                evidence_origin=(
+                    "host_verified_agent_proposal"
+                    if host_inferred
+                    else "accepted_label_evidence"
+                ),
                 render_policy=policy,
-                rationale=f"Pinned accepted-label evidence group {ordinal}.",
+                rationale=(
+                    f"Host-inferred relational evidence group {ordinal}."
+                    if host_inferred
+                    else f"Pinned accepted-label evidence group {ordinal}."
+                ),
             )
         )
     return tuple(drafts)
@@ -470,26 +1520,29 @@ def _overlaps(start: int, end: int, spans: Sequence[SpanDraft]) -> bool:
 
 def risk_candidates(raw: str, owned: Sequence[SpanDraft]) -> tuple[RiskCandidate, ...]:
     candidates: list[tuple[int, int, str, str, str]] = []
-    patterns: tuple[tuple[str, re.Pattern[str]], ...] = (
-        ("email", _EMAIL),
-        ("url_or_domain", _URL),
-        ("equipment_identifier", _EQUIPMENT),
-        ("date", _DATE),
-        ("measurement", _MEASUREMENT),
-        ("phone", _PHONE),
-        ("alphanumeric_identifier", _TOKEN),
-        ("long_numeric_identifier", _LONG_NUMBER),
+    patterns: tuple[tuple[str, re.Pattern[str], int | str], ...] = (
+        ("selected_text", _SELECTED_OPERATIONAL_TEXT, 0),
+        ("selected_text", _SELECTED_TYPE_VALUE, "value"),
+        ("email", _EMAIL, 0),
+        ("url_or_domain", _URL, 0),
+        ("equipment_identifier", _EQUIPMENT, 0),
+        ("date", _DATE, 0),
+        ("measurement", _MEASUREMENT, 0),
+        ("phone", _PHONE, 0),
+        ("alphanumeric_identifier", _TOKEN, 0),
+        ("long_numeric_identifier", _LONG_NUMBER, 0),
     )
-    for line in line_spans(raw):
+    source_lines = line_spans(raw)
+    for line in source_lines:
         if not line.text.strip() or _PAGE_HEADER.fullmatch(line.text):
             continue
         accepted_on_line: list[tuple[int, int]] = []
-        for kind, pattern in patterns:
+        for kind, pattern, capture in patterns:
             for match in pattern.finditer(line.text):
-                text = match.group(0).rstrip(".,;:)]}")
+                text = match.group(capture).rstrip(".,;:)]}")
                 if not text:
                     continue
-                local_start = match.start()
+                local_start = match.start(capture)
                 local_end = local_start + len(text)
                 if kind == "phone" and sum(character.isdigit() for character in text) < 7:
                     continue
@@ -513,6 +1566,38 @@ def risk_candidates(raw: str, owned: Sequence[SpanDraft]) -> tuple[RiskCandidate
                     continue
                 accepted_on_line.append((start, end))
                 candidates.append((start, end, kind, line.line_id, raw[start:end]))
+
+    # A selected value under this caption is operational document data even when it contains no
+    # generic identifier/date token (for example ``E / Express B/L``). Keep it in the mandatory
+    # ownership inventory so neither compiler nor critic can silently leave the value literal.
+    existing_spans = {(start, end) for start, end, _kind, _line_id, _text in candidates}
+    for caption_index, caption in enumerate(source_lines[:-1]):
+        if _ORIGINAL_BILL_COUNT_CAPTION.fullmatch(caption.text) is None:
+            continue
+        value_line = next(
+            (
+                candidate
+                for candidate in source_lines[caption_index + 1 : caption_index + 4]
+                if candidate.text.strip()
+            ),
+            None,
+        )
+        if value_line is None:
+            continue
+        leading = len(value_line.text) - len(value_line.text.lstrip())
+        trailing = len(value_line.text.rstrip())
+        start = value_line.char_start + leading
+        end = value_line.char_start + trailing
+        if (
+            start >= end
+            or end - start > 80
+            or not any(character.isalnum() for character in raw[start:end])
+            or _overlaps(start, end, owned)
+            or (start, end) in existing_spans
+        ):
+            continue
+        candidates.append((start, end, "selected_text", value_line.line_id, raw[start:end]))
+        existing_spans.add((start, end))
     candidates.sort(key=lambda row: (row[0], row[1], row[2]))
     return tuple(
         RiskCandidate.model_validate(
@@ -549,6 +1634,7 @@ def anchor_summary(
             "lineStart": line_start,
             "lineEnd": line_end,
             "sourceText": occurrence.source_text,
+            "evidenceOrigin": occurrence.evidence_origin,
         }
 
     grouped: dict[str, list[SpanDraft]] = defaultdict(list)
@@ -596,6 +1682,16 @@ def _exact_offsets(value: str, needle: str) -> tuple[int, ...]:
         # ``C.C.C.`` and the second occurrence is the only non-overlapping
         # source span when the first ``C`` is already a temperature-unit slot.
         cursor = found + 1
+
+
+def is_token_bounded_surface_span(raw: str, start: int, end: int) -> bool:
+    """Return whether a candidate is not embedded in a larger alphanumeric token."""
+
+    if not 0 <= start < end <= len(raw):
+        raise ValueError("candidate surface span is outside source bounds")
+    starts_inside_token = start > 0 and raw[start - 1].isalnum() and raw[start].isalnum()
+    ends_inside_token = end < len(raw) and raw[end - 1].isalnum() and raw[end].isalnum()
+    return not (starts_inside_token or ends_inside_token)
 
 
 def _occurrence_resolution_error(
@@ -739,6 +1835,47 @@ def _resolve_unique_local_phone_typo(
     return candidates[0] if len(candidates) == 1 else None
 
 
+def _resolve_unique_labeled_auxiliary_organization_typo(
+    *,
+    raw: str,
+    proposal: AgentBindingProposal,
+    occurrence: AgentOccurrence,
+    lines: Sequence[LineSpan],
+) -> tuple[int, int] | None:
+    """Recover one copied organization-character error from an exact labeled line."""
+
+    if (
+        proposal.render_mode != "deterministic_auxiliary"
+        or proposal.value_kind != "organization"
+        or proposal.target_paths
+        or proposal.dependency_paths
+        or proposal.dependency_bindings
+        or occurrence.occurrence_index != 0
+        or occurrence.line_start != occurrence.line_end
+    ):
+        return None
+    line_number = int(occurrence.line_start[1:])
+    line = next((row for row in lines if row.number == line_number), None)
+    if line is None:
+        return None
+    match = _LABELED_AUXILIARY_ORGANIZATION.fullmatch(line.text)
+    if match is None:
+        return None
+    candidate = match.group("value")
+    candidate_normalized = _normalized_surface(candidate)
+    proposed_normalized = _normalized_surface(occurrence.source_text.strip())
+    if (
+        len(candidate_normalized) < 5
+        or candidate_normalized == proposed_normalized
+        or not _edit_distance_at_most_one(candidate_normalized, proposed_normalized)
+    ):
+        return None
+    return (
+        line.char_start + match.start("value"),
+        line.char_start + match.end("value"),
+    )
+
+
 def _is_redundant_unresolved_equipment_projection(
     *,
     proposal: AgentBindingProposal,
@@ -802,6 +1939,13 @@ def resolve_agent_proposals(
                     occurrence=occurrence,
                     lines=lines,
                 )
+                if recovered is None:
+                    recovered = _resolve_unique_labeled_auxiliary_organization_typo(
+                        raw=raw,
+                        proposal=proposal,
+                        occurrence=occurrence,
+                        lines=lines,
+                    )
                 if recovered is None:
                     proposal_errors.append((occurrence, error))
                     continue
@@ -897,8 +2041,13 @@ def resolve_agent_proposals(
                 rationale=(
                     proposal.rationale
                     + (
-                        " Host localized a one-character phone transcription error to the "
-                        "unique typed value in its declared source line."
+                        (
+                            " Host localized a one-character phone transcription error to the "
+                            "unique typed value in its declared source line."
+                            if proposal.value_kind == "phone"
+                            else " Host localized a one-character labeled organization "
+                            "transcription error to the unique value in its declared source line."
+                        )
                         if resolved_source_text != occurrence.source_text
                         else ""
                     )
@@ -906,6 +2055,30 @@ def resolve_agent_proposals(
             )
         )
     return tuple(drafts)
+
+
+def resolve_agent_proposal_inventory(
+    *, raw: str, proposals: Sequence[AgentBindingProposal]
+) -> tuple[tuple[SpanDraft, ...], tuple[str, ...]]:
+    """Resolve every valid occurrence while explicitly inventorying rejected edit handles.
+
+    This is diagnostic state for a local repair, never an accepted compiler state. Resolving each
+    occurrence independently preserves the valid ownership context of a partially malformed
+    binding without suppressing or accepting any invalid occurrence.
+    """
+
+    resolved: list[SpanDraft] = []
+    rejected: list[str] = []
+    for proposal in proposals:
+        for occurrence in proposal.occurrences:
+            singleton = proposal.model_copy(update={"occurrences": (occurrence,)})
+            try:
+                resolved.extend(resolve_agent_proposals(raw=raw, proposals=(singleton,)))
+            except ValueError:
+                rejected.append(
+                    f"{proposal.logical_key} {occurrence.line_start}-{occurrence.line_end}"
+                )
+    return tuple(resolved), tuple(rejected)
 
 
 def _resolve_target_path(source_target: Mapping[str, Any], path: str) -> Any:
@@ -1213,7 +2386,8 @@ def normalize_target_cobindings(
 
 
 _CONTAINER_COUNT_SURFACE = re.compile(
-    r"(?i)^\s*(?:[0-9][0-9,]*|[a-z]+(?:[ -][a-z]+)*)\s+container(?:\(s\)|s)?\s*$"
+    r"(?i)^\s*(?:[0-9][0-9,]*|[a-z]+(?:[ -][a-z]+)*)\s+"
+    r"(?:container(?:\(s\)|s)?|cont\.)\s*$"
 )
 _TEMPERATURE_TARGET_PATH = re.compile(
     r"^(?P<base>documentPatch\.containers\[[0-9]+\]\.temperatureSetpoint)\."
@@ -1271,21 +2445,33 @@ def _normalize_temperature_setpoints(
             draft.render_mode == "target_binding"
             and draft.value_kind == "temperature"
             and len(draft.target_paths) == 1
-            and draft.target_paths[0].endswith(".temperatureSetpoint")
         ):
-            base = draft.target_paths[0]
-            value = _resolve_target_path(source_target, base)
-            if isinstance(value, Mapping) and {"unit", "value"} <= set(value):
-                expanded = replace(
-                    draft,
-                    target_paths=(base + ".unit", base + ".value"),
+            path = draft.target_paths[0]
+            leaf_match = _TEMPERATURE_TARGET_PATH.fullmatch(path)
+            base = (
+                path
+                if path.endswith(".temperatureSetpoint")
+                else leaf_match.group("base")
+                if (
+                    leaf_match is not None
+                    and leaf_match.group("field") == "value"
+                    and _TEMPERATURE_SURFACE.fullmatch(draft.source_text) is not None
                 )
+                else None
+            )
+            if base is not None:
+                value = _resolve_target_path(source_target, base)
+                if isinstance(value, Mapping) and {"unit", "value"} <= set(value):
+                    expanded = replace(
+                        draft,
+                        target_paths=(base + ".unit", base + ".value"),
+                    )
         grouped[expanded.logical_key].append(expanded)
     output: list[SpanDraft] = []
     for rows in grouped.values():
         first = rows[0]
         can_derive = (
-            first.render_mode == "target_binding"
+            first.render_mode in {"target_binding", "agent_residual"}
             and first.value_kind == "temperature"
             and _temperature_target_pair(first.target_paths) is not None
             and all(
@@ -1338,6 +2524,81 @@ def _edit_distance_at_most_one(left: str, right: str) -> bool:
             return False
         long_index += 1
     return True
+
+
+def _canonicalize_near_ocr_source_only_keys(
+    drafts: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Give near-OCR source-only locality variants one deterministic key namespace.
+
+    The values remain separate typed variants; this only prevents spelling noise from inventing
+    unrelated semantic owners. Complete-link clustering prevents a chain of one-edit variants
+    from collapsing endpoints that differ by more than one edit. Exact equal values under distinct
+    keys are intentionally left alone because equality can be a coincidence between semantic roles.
+    """
+
+    by_scope: dict[tuple[str, str, str], dict[str, list[SpanDraft]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for draft in drafts:
+        if (
+            draft.render_mode == "deterministic_auxiliary"
+            and draft.value_kind in {"address", "location"}
+            and not draft.target_paths
+            and not draft.dependency_paths
+            and not draft.dependency_bindings
+        ):
+            by_scope[(draft.group_kind, draft.group_key, draft.value_kind)][
+                draft.logical_key
+            ].append(draft)
+
+    canonical_key: dict[str, str] = {}
+    for keys in by_scope.values():
+        normalized_by_key = {
+            key: {_normalized_surface(row.source_text) for row in rows}
+            for key, rows in keys.items()
+        }
+        eligible = {
+            key: values
+            for key, values in normalized_by_key.items()
+            if values and all(len(value) >= 5 for value in values)
+        }
+        clusters: list[list[str]] = []
+        for key in sorted(eligible):
+            placed = False
+            for cluster in clusters:
+                combined_values = set(eligible[key])
+                combined_values.update(value for member in cluster for value in eligible[member])
+                if len(combined_values) > 1 and all(
+                    _edit_distance_at_most_one(left, right)
+                    for left, right in combinations(sorted(combined_values), 2)
+                ):
+                    cluster.append(key)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([key])
+        for cluster in clusters:
+            combined_values = {value for key in cluster for value in eligible[key]}
+            if len(cluster) < 2 or len(combined_values) < 2:
+                continue
+            base_key = min(cluster)
+            canonical_key.update({key: base_key for key in cluster})
+
+    return tuple(
+        replace(
+            draft,
+            logical_key=canonical_key[draft.logical_key],
+            rationale=(
+                draft.rationale
+                + " Host placed same-scope one-edit OCR locality variants in one typed key "
+                "namespace without asserting equal rendered values."
+            ),
+        )
+        if draft.logical_key in canonical_key
+        else draft
+        for draft in drafts
+    )
 
 
 def _split_exact_composite_target_surfaces(
@@ -1420,6 +2681,149 @@ def _split_exact_composite_target_surfaces(
     return merge_drafts(output)
 
 
+def _split_exact_isolated_residual_occurrences(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Separate an exact scalar occurrence from a multi-occurrence residual contract.
+
+    A residual can legitimately own an inseparable composite. It cannot use separate physical
+    occurrences as segments of different independently mutable facts. When one occurrence is the
+    complete normalized surface of exactly one structured fact component, and no other occurrence
+    in the same logical binding has that exact value, the host can isolate it without semantic
+    inference. Schema-proven co-bound paths are treated as one component and remain together.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    output: list[SpanDraft] = []
+    for rows in grouped.values():
+        first = rows[0]
+        if first.render_mode != "agent_residual" or len(rows) < 2 or len(first.target_paths) < 2:
+            output.extend(rows)
+            continue
+        components = target_fact_components(source_target, first.target_paths)
+        normalized_components: dict[tuple[str, ...], str] = {}
+        for component in components:
+            surfaces = tuple(
+                _scalar_surface(_resolve_target_path(source_target, path)) for path in component
+            )
+            normalized_surfaces = {
+                _normalized_surface(surface) for surface in surfaces if surface is not None
+            }
+            if len(normalized_surfaces) == 1 and all(surface is not None for surface in surfaces):
+                normalized_components[component] = next(iter(normalized_surfaces))
+        exact_components_by_row = {
+            row.draft_id: tuple(
+                component
+                for component, normalized_target in normalized_components.items()
+                if normalized_target and _normalized_surface(row.source_text) == normalized_target
+            )
+            for row in rows
+        }
+        exact_row_count_by_component = Counter(
+            component
+            for matching_components in exact_components_by_row.values()
+            for component in matching_components
+        )
+        isolated = {
+            row.draft_id: matching_components[0]
+            for row in rows
+            if len(matching_components := exact_components_by_row[row.draft_id]) == 1
+            and exact_row_count_by_component[matching_components[0]] == 1
+        }
+        remaining_rows = [row for row in rows if row.draft_id not in isolated]
+        isolated_paths = {path for component in isolated.values() for path in component}
+        remaining_paths = tuple(path for path in first.target_paths if path not in isolated_paths)
+        if not isolated or bool(remaining_rows) != bool(remaining_paths):
+            output.extend(rows)
+            continue
+        for row in rows:
+            isolated_path = isolated.get(row.draft_id)
+            if isolated_path is None:
+                value_kind = _value_kind(remaining_paths, "natural_text")
+                group_kind, group_key = _canonical_target_group(remaining_paths)
+                output.append(
+                    replace(
+                        row,
+                        logical_key=(
+                            "agent:residual:"
+                            + sha256_bytes("|".join(remaining_paths).encode())[:16]
+                        ),
+                        value_kind=value_kind,
+                        group_kind=group_kind,
+                        group_key=group_key,
+                        target_paths=remaining_paths,
+                        rationale=(
+                            row.rationale
+                            + " Host removed separately printed exact scalar components from "
+                            "this bounded residual."
+                        ),
+                    )
+                )
+                continue
+            value_kind = _value_kind(isolated_path, "natural_text")
+            group_kind, group_key = _canonical_target_group(isolated_path)
+            output.append(
+                replace(
+                    row,
+                    draft_id=(
+                        "normalized_isolated_residual_"
+                        + sha256_bytes(f"{row.draft_id}\0{'|'.join(isolated_path)}".encode())[:16]
+                    ),
+                    logical_key="anchor:" + "|".join(isolated_path),
+                    render_mode="target_binding",
+                    value_kind=value_kind,
+                    group_kind=group_kind,
+                    group_key=group_key,
+                    target_paths=isolated_path,
+                    render_policy=_render_policy_for_value_kind(value_kind, "target_binding"),
+                    rationale=(
+                        row.rationale
+                        + " Host isolated a complete exact scalar occurrence from a segmented "
+                        "residual contract."
+                    ),
+                )
+            )
+    duplicate_residuals: dict[tuple[int, int, tuple[str, ...]], list[SpanDraft]] = defaultdict(list)
+    for row in output:
+        if row.render_mode == "agent_residual":
+            key = (row.char_start, row.char_end, tuple(sorted(row.target_paths)))
+            duplicate_residuals[key].append(row)
+    duplicate_ids: set[str] = set()
+    replacements: dict[str, SpanDraft] = {}
+    for (_start, _end, paths), rows in duplicate_residuals.items():
+        if len(rows) < 2:
+            continue
+        value_kind = _value_kind(paths, "natural_text")
+        group_kind, group_key = _canonical_target_group(paths)
+        canonical_key = "agent:residual:" + sha256_bytes("|".join(paths).encode())[:16]
+        replacements[rows[0].draft_id] = replace(
+            rows[0],
+            logical_key=canonical_key,
+            value_kind=value_kind,
+            group_kind=group_kind,
+            group_key=group_key,
+            target_paths=paths,
+            rationale=(
+                rows[0].rationale
+                + " Host consolidated duplicate exact residual ownership for the same target "
+                "contract."
+            ),
+        )
+        duplicate_ids.update(row.draft_id for row in rows[1:])
+    output = [
+        replacements.get(row.draft_id, row) for row in output if row.draft_id not in duplicate_ids
+    ]
+    # This normalizer also runs before overlap reconciliation. Do not invoke
+    # ``merge_drafts`` here: overlaps such as a residual address ending in an
+    # independently owned country are inputs for the later ownership passes,
+    # not invalid final state. Exact duplicate residual contracts were
+    # already consolidated above; the enclosing pipeline performs the final
+    # overlap and logical-contract validation.
+    return tuple(output)
+
+
 def _split_exact_repeated_line_target_surfaces(
     *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
@@ -1476,6 +2880,207 @@ def _split_exact_repeated_line_target_surfaces(
     return merge_drafts(output)
 
 
+def _normalize_exact_single_target_residuals(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Turn a residual that exactly prints one scalar target into a direct binding.
+
+    A residual is justified only when semantic composition remains. If its complete token stream
+    is exactly the token stream of one scalar target, replacement is already a deterministic
+    projection. This includes punctuation variants such as ``NON-NEGOTIABLE`` for a structured
+    ``NON_NEGOTIABLE`` enum, while excluding abbreviations, reordered dates, and framed text.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    convertible: dict[str, str] = {}
+    for logical_key, rows in grouped.items():
+        first = rows[0]
+        if not (
+            first.render_mode == "agent_residual"
+            and len(first.target_paths) == 1
+            and first.derivation is None
+            and not first.dependency_paths
+            and not first.dependency_bindings
+        ):
+            continue
+        path = first.target_paths[0]
+        target_surface = _scalar_surface(_resolve_target_path(source_target, path))
+        if target_surface is not None and all(
+            _matching_token_projection(row.source_text, target_surface) == ((), ()) for row in rows
+        ):
+            convertible[logical_key] = path
+
+    output: list[SpanDraft] = []
+    for draft in drafts:
+        path = convertible.get(draft.logical_key)
+        if path is None:
+            output.append(draft)
+            continue
+        value_kind = _value_kind((path,), "natural_text")
+        group_kind, group_key = _canonical_target_group((path,))
+        output.append(
+            replace(
+                draft,
+                logical_key="anchor:" + path,
+                render_mode="target_binding",
+                value_kind=value_kind,
+                group_kind=group_kind,
+                group_key=group_key,
+                evidence_origin="host_verified_agent_proposal",
+                render_policy=_render_policy_for_value_kind(value_kind, "target_binding"),
+                rationale=(
+                    draft.rationale
+                    + " Host converted this exact one-scalar token projection from residual "
+                    "editing to a direct deterministic target binding."
+                ),
+            )
+        )
+    return merge_drafts(output)
+
+
+def _normalize_package_count_residuals(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Convert an exact linked quantity-and-kind residual into ``package_count``.
+
+    The conversion is structural rather than lexical guesswork: one package quantity, its linked
+    allocation quantity, and that package's category must be the exhaustive target set; both
+    quantities must agree; and every physical surface must print exactly that quantity followed by
+    an accepted inflection of the category.
+    """
+
+    patch = source_target.get("documentPatch")
+    packages = patch.get("cargoPackages") if isinstance(patch, Mapping) else None
+    allocation_groups = (
+        patch.get("cargoAllocationGroups") if isinstance(patch, Mapping) else None
+    )
+    if not isinstance(packages, list) or not isinstance(allocation_groups, list):
+        return tuple(drafts)
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    convertible: set[str] = set()
+    for logical_key, rows in grouped.items():
+        first = rows[0]
+        if not (
+            first.render_mode == "agent_residual"
+            and first.value_kind == "package"
+            and first.derivation is None
+            and not first.dependency_paths
+            and not first.dependency_bindings
+            and all(
+                row.render_mode == first.render_mode
+                and row.value_kind == first.value_kind
+                and row.target_paths == first.target_paths
+                and row.derivation is None
+                and not row.dependency_paths
+                and not row.dependency_bindings
+                for row in rows
+            )
+        ):
+            continue
+        package_quantity_matches = tuple(
+            match
+            for path in first.target_paths
+            if (match := _PACKAGE_QUANTITY_PATH.fullmatch(path)) is not None
+        )
+        package_type_matches = tuple(
+            match
+            for path in first.target_paths
+            if (match := _PACKAGE_TYPE_PATH.fullmatch(path)) is not None
+        )
+        allocation_matches = tuple(
+            match
+            for path in first.target_paths
+            if (match := _ALLOCATION_PACKAGE_QUANTITY_PATH.fullmatch(path)) is not None
+        )
+        if not (
+            len(first.target_paths) == 3
+            and len(package_quantity_matches) == 1
+            and len(package_type_matches) == 1
+            and len(allocation_matches) == 1
+        ):
+            continue
+        package_index = int(package_quantity_matches[0].group(1))
+        if int(package_type_matches[0].group(1)) != package_index or package_index >= len(packages):
+            continue
+        group_index = int(allocation_matches[0].group(1))
+        allocation_index = int(allocation_matches[0].group(2))
+        package = packages[package_index]
+        allocation_group = (
+            allocation_groups[group_index] if group_index < len(allocation_groups) else None
+        )
+        allocations = (
+            allocation_group.get("allocations")
+            if isinstance(allocation_group, Mapping)
+            else None
+        )
+        allocation = (
+            allocations[allocation_index]
+            if isinstance(allocations, list) and allocation_index < len(allocations)
+            else None
+        )
+        if not (
+            isinstance(package, Mapping)
+            and isinstance(allocation_group, Mapping)
+            and isinstance(allocation, Mapping)
+            and package.get("packageId") == allocation.get("packageId")
+            and package.get("groupId") == allocation_group.get("groupId")
+            and canonical_json_bytes(package.get("quantity"))
+            == canonical_json_bytes(allocation.get("packageQuantity"))
+        ):
+            continue
+        quantity_surface = _scalar_surface(package.get("quantity"))
+        category_surface = _package_category_surface(package.get("typeCategory"))
+        quantity_tokens = tuple(
+            token for token, _start, _end in _surface_token_spans(quantity_surface or "")
+        )
+        category_inflections = _package_inflections(category_surface or "")
+        if not quantity_tokens or not category_surface:
+            continue
+
+        def prints_count_and_kind(
+            row: SpanDraft,
+            *,
+            expected_quantity_tokens: tuple[str, ...] = quantity_tokens,
+            expected_category_inflections: frozenset[str] = category_inflections,
+        ) -> bool:
+            source_tokens = tuple(
+                token for token, _start, _end in _surface_token_spans(row.source_text)
+            )
+            return (
+                source_tokens[: len(expected_quantity_tokens)] == expected_quantity_tokens
+                and "".join(source_tokens[len(expected_quantity_tokens) :])
+                in expected_category_inflections
+            )
+
+        if all(prints_count_and_kind(row) for row in rows):
+            convertible.add(logical_key)
+
+    return merge_drafts(
+        replace(
+            draft,
+            render_mode="deterministic_derived",
+            derivation="package_count",
+            dependency_paths=draft.target_paths,
+            dependency_bindings=(),
+            evidence_origin="derived_operational_fact",
+            render_policy="derived_surface",
+            rationale=(
+                draft.rationale
+                + " Host proved this linked quantity-and-package-kind surface is the supported "
+                "deterministic package_count derivation."
+            ),
+        )
+        if draft.logical_key in convertible
+        else draft
+        for draft in drafts
+    )
+
+
 def normalize_deterministic_draft_semantics(
     *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
@@ -1496,8 +3101,20 @@ def normalize_deterministic_draft_semantics(
         )
         for draft in drafts
     )
-    composite_normalized = _split_exact_composite_target_surfaces(
+    package_count_normalized = _normalize_package_count_residuals(
         drafts=policy_normalized,
+        source_target=source_target,
+    )
+    exact_residual_normalized = _normalize_exact_single_target_residuals(
+        drafts=package_count_normalized,
+        source_target=source_target,
+    )
+    isolated_residual_normalized = _split_exact_isolated_residual_occurrences(
+        drafts=exact_residual_normalized,
+        source_target=source_target,
+    )
+    composite_normalized = _split_exact_composite_target_surfaces(
+        drafts=isolated_residual_normalized,
         source_target=source_target,
     )
     repeated_line_normalized = _split_exact_repeated_line_target_surfaces(
@@ -1507,8 +3124,84 @@ def normalize_deterministic_draft_semantics(
     temperature_normalized = _normalize_temperature_setpoints(
         drafts=repeated_line_normalized, source_target=source_target
     )
-    count_normalized: list[SpanDraft] = []
+    dependency_normalized: list[SpanDraft] = []
     for draft in temperature_normalized:
+        duplicated_source_dependencies = (
+            draft.render_mode == "deterministic_derived"
+            and draft.derivation
+            in {
+                "sum_package_quantity",
+                "sum_gross_weight",
+                "sum_net_weight",
+                "sum_tare_weight",
+                "sum_volume",
+                "package_count",
+                "sum_monetary_amounts",
+                "sum_decimal_values",
+            }
+            and not draft.target_paths
+            and not draft.dependency_paths
+            and bool(draft.dependency_bindings)
+            and len(set(draft.dependency_bindings)) < len(draft.dependency_bindings)
+        )
+        if not duplicated_source_dependencies:
+            dependency_normalized.append(draft)
+            continue
+        dependency_normalized.append(
+            replace(
+                draft,
+                render_mode="deterministic_auxiliary",
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                evidence_origin="host_verified_agent_proposal",
+                render_policy=_render_policy_for_value_kind(
+                    draft.value_kind, "deterministic_auxiliary"
+                ),
+                rationale=(
+                    draft.rationale
+                    + " Host preserved this printed source-only total as an auxiliary because "
+                    "repeating one logical dependency does not prove independent summands."
+                ),
+            )
+        )
+    regulatory_semantics_normalized: list[SpanDraft] = []
+    for draft in dependency_normalized:
+        is_hazard_category = len(draft.target_paths) == 1 and draft.target_paths[0].endswith(
+            ".hazardCategory"
+        )
+        target_surface = (
+            _scalar_surface(_resolve_target_path(source_target, draft.target_paths[0]))
+            if is_hazard_category
+            else None
+        )
+        if (
+            draft.render_mode in {"target_binding", "deterministic_derived"}
+            and is_hazard_category
+            and _DANGEROUS_GOODS_CLASS_SURFACE.fullmatch(draft.source_text) is not None
+            and target_surface is not None
+            and _normalized_surface(draft.source_text) != _normalized_surface(target_surface)
+        ):
+            regulatory_semantics_normalized.append(
+                replace(
+                    draft,
+                    render_mode="agent_residual",
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    render_policy=_render_policy_for_value_kind(draft.value_kind, "agent_residual"),
+                    rationale=(
+                        draft.rationale
+                        + " Host bounded an unsupported dangerous-goods category-to-regulatory-"
+                        "class conversion as agent residual; no authoritative classification "
+                        "registry is available to prove a deterministic derivation."
+                    ),
+                )
+            )
+        else:
+            regulatory_semantics_normalized.append(draft)
+    count_normalized: list[SpanDraft] = []
+    for draft in regulatory_semantics_normalized:
         if (
             has_container_collection
             and draft.render_mode == "deterministic_derived"
@@ -1518,6 +3211,20 @@ def normalize_deterministic_draft_semantics(
                 or _CONTAINER_COUNT_SURFACE.fullmatch(draft.source_text) is not None
             )
         ):
+            canonical = (
+                draft.logical_key == "agent:container_count:documentPatch.containers"
+                and draft.value_kind == "integer"
+                and draft.group_kind == "equipment"
+                and draft.group_key == "equipment:all"
+                and draft.derivation == "container_count"
+                and draft.target_paths == (containers_path,)
+                and draft.dependency_paths == (containers_path,)
+                and not draft.dependency_bindings
+                and draft.render_policy == "derived_surface"
+            )
+            if canonical:
+                count_normalized.append(draft)
+                continue
             count_normalized.append(
                 replace(
                     draft,
@@ -1541,8 +3248,10 @@ def normalize_deterministic_draft_semantics(
         else:
             count_normalized.append(draft)
 
+    key_normalized = _canonicalize_near_ocr_source_only_keys(count_normalized)
+
     grouped: dict[str, list[SpanDraft]] = defaultdict(list)
-    for draft in count_normalized:
+    for draft in key_normalized:
         grouped[draft.logical_key].append(draft)
     output: list[SpanDraft] = []
     for logical_key, rows in grouped.items():
@@ -1551,6 +3260,48 @@ def normalize_deterministic_draft_semantics(
         for row in rows:
             surfaces[_normalized_surface(row.source_text)].append(row)
         normalized_values = tuple(value for value in surfaces if value)
+        distinct_source_only_dates = False
+        if (
+            first.render_mode in {"deterministic_auxiliary", "agent_residual"}
+            and first.value_kind == "date"
+            and not first.target_paths
+            and len(normalized_values) > 1
+        ):
+            parsed_dates = {
+                normalized_value: frozenset(
+                    candidate
+                    for row in variant_rows
+                    for candidate in _date_candidates(row.source_text)
+                )
+                for normalized_value, variant_rows in surfaces.items()
+            }
+            distinct_source_only_dates = all(
+                parsed_dates[value] for value in normalized_values
+            ) and all(
+                parsed_dates[left].isdisjoint(parsed_dates[right])
+                for left, right in combinations(normalized_values, 2)
+            )
+        if distinct_source_only_dates:
+            for normalized_value, variant_rows in sorted(surfaces.items()):
+                suffix = sha256_bytes(normalized_value.encode())[:12]
+                output.extend(
+                    replace(
+                        row,
+                        logical_key=f"{logical_key}:typed_date:{suffix}",
+                        render_mode="deterministic_auxiliary",
+                        group_key=f"{first.group_key}:date:{suffix}",
+                        derivation=None,
+                        dependency_paths=(),
+                        dependency_bindings=(),
+                        rationale=(
+                            row.rationale
+                            + " Host split source-only occurrences that parse to disjoint "
+                            "calendar dates into independent typed deterministic bindings."
+                        ),
+                    )
+                    for row in variant_rows
+                )
+            continue
         location_variant_group = (
             first.render_mode == "agent_residual"
             and first.value_kind == "location"
@@ -1684,14 +3435,23 @@ def validate_repeated_binding_fact_topology(
     aggregation_errors: list[str] = []
     for logical_key, occurrences in grouped_drafts.items():
         first = occurrences[0]
-        if (
-            len(occurrences) < 2
-            or len(first.target_paths) < 2
-            or first.render_mode in {"agent_residual", "deterministic_derived"}
-        ):
+        if len(occurrences) < 2 or len(first.target_paths) < 2:
             continue
         independent_components = target_fact_components(source_target, first.target_paths)
-        if len(independent_components) > 1:
+        if len(independent_components) <= 1 or first.render_mode == "deterministic_derived":
+            continue
+        if first.render_mode == "agent_residual":
+            normalized_occurrences = {
+                _normalized_surface(occurrence.source_text) for occurrence in occurrences
+            }
+            if len(normalized_occurrences) == 1:
+                continue
+            aggregation_errors.append(
+                f"{logical_key} agent residual owns {len(first.target_paths)} target paths from "
+                f"{len(independent_components)} independent facts, but its "
+                f"{len(occurrences)} occurrences are not the same complete composite"
+            )
+        else:
             aggregation_errors.append(
                 f"{logical_key} owns {len(first.target_paths)} target paths from "
                 f"{len(independent_components)} independent facts across "
@@ -2006,6 +3766,316 @@ def _normalize_required_cobinding_dominance(
     return tuple(normalized)
 
 
+def _trim_residual_edges_owned_by_exact_targets(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Remove a separately owned leading or trailing target from one residual surface.
+
+    The inner target must be wholly contained at an alphanumeric-free edge and its target paths
+    must already be declared by the residual. Middle-of-surface values and ambiguous containment
+    remain unchanged. This preserves one contiguous residual instead of turning address fragments
+    into artificial repeated agent occurrences.
+    """
+
+    output: list[SpanDraft] = []
+    for outer in drafts:
+        if outer.render_mode != "agent_residual" or not outer.target_paths:
+            output.append(outer)
+            continue
+        inners = tuple(
+            inner
+            for inner in drafts
+            if inner is not outer
+            and inner.render_mode == "target_binding"
+            and inner.target_paths
+            and set(inner.target_paths) <= set(outer.target_paths)
+            and outer.char_start <= inner.char_start
+            and inner.char_end <= outer.char_end
+            and (outer.char_start, outer.char_end) != (inner.char_start, inner.char_end)
+        )
+        if not inners:
+            output.append(outer)
+            continue
+        new_start = outer.char_start
+        new_end = outer.char_end
+        removed_paths: set[str] = set()
+        changed = True
+        while changed:
+            changed = False
+            leading = [
+                inner
+                for inner in inners
+                if inner.char_start >= new_start
+                and inner.char_end <= new_end
+                and not any(character.isalnum() for character in raw[new_start : inner.char_start])
+            ]
+            if leading:
+                winner = max(leading, key=lambda row: row.char_end)
+                new_start = winner.char_end
+                removed_paths.update(winner.target_paths)
+                changed = True
+            trailing = [
+                inner
+                for inner in inners
+                if inner.char_start >= new_start
+                and inner.char_end <= new_end
+                and not any(character.isalnum() for character in raw[inner.char_end : new_end])
+            ]
+            if trailing:
+                winner = min(trailing, key=lambda row: row.char_start)
+                new_end = winner.char_start
+                removed_paths.update(winner.target_paths)
+                changed = True
+        while new_start < new_end and raw[new_start].isspace():
+            new_start += 1
+        while new_end > new_start and raw[new_end - 1].isspace():
+            new_end -= 1
+        remaining_paths = tuple(path for path in outer.target_paths if path not in removed_paths)
+        if (
+            not removed_paths
+            or not remaining_paths
+            or new_start >= new_end
+            or not any(character.isalnum() for character in raw[new_start:new_end])
+        ):
+            output.append(outer)
+            continue
+        output.append(
+            replace(
+                outer,
+                draft_id=(
+                    "trimmed_residual_"
+                    + sha256_bytes(f"{outer.draft_id}\0{new_start}\0{new_end}".encode())[:16]
+                ),
+                target_paths=remaining_paths,
+                char_start=new_start,
+                char_end=new_end,
+                source_text=raw[new_start:new_end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    outer.rationale
+                    + " Host trimmed a residual edge already owned by a disjoint exact target "
+                    "binding and removed that target path from the residual contract."
+                ),
+            )
+        )
+    return tuple(output)
+
+
+def _trim_targeted_residual_trailing_footnote_markers(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Exclude a separated trailing footnote marker from a target-backed residual.
+
+    A marker separated from the last alphanumeric character by horizontal whitespace is layout
+    syntax, not part of the modeled value.  This rule deliberately does not touch attached
+    punctuation (for example ``S.A.E.``) or source-only residuals.
+    """
+
+    output: list[SpanDraft] = []
+    for draft in drafts:
+        match = (
+            _TRAILING_FOOTNOTE_MARKER.fullmatch(draft.source_text)
+            if draft.render_mode == "agent_residual" and draft.target_paths
+            else None
+        )
+        if match is None:
+            output.append(draft)
+            continue
+        body = match.group("body")
+        new_end = draft.char_start + len(body)
+        if raw[draft.char_start : new_end] != body:
+            raise ValueError("target-backed residual footnote trim lost source alignment")
+        output.append(
+            replace(
+                draft,
+                draft_id=(
+                    "trimmed_target_residual_footnote_"
+                    + sha256_bytes(f"{draft.draft_id}\0{draft.char_start}\0{new_end}".encode())[:16]
+                ),
+                char_end=new_end,
+                source_text=body,
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    draft.rationale
+                    + " Host excluded a whitespace-separated trailing footnote marker from "
+                    "the target-backed residual boundary."
+                ),
+            )
+        )
+    return tuple(output)
+
+
+def _trim_targetless_residual_edges_owned_by_auxiliaries(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Keep a deterministic source-only edge separate from its containing residual clause."""
+
+    output: list[SpanDraft] = []
+    for outer in drafts:
+        if (
+            (
+                outer.render_mode != "agent_residual"
+                and not (
+                    outer.render_mode == "deterministic_auxiliary"
+                    and outer.value_kind == "operational_text"
+                )
+            )
+            or outer.target_paths
+            or outer.dependency_paths
+            or outer.dependency_bindings
+        ):
+            output.append(outer)
+            continue
+        inners = tuple(
+            inner
+            for inner in drafts
+            if inner is not outer
+            and inner.render_mode == "deterministic_auxiliary"
+            and not inner.target_paths
+            and not inner.dependency_paths
+            and not inner.dependency_bindings
+            and outer.char_start <= inner.char_start
+            and inner.char_end <= outer.char_end
+            and (outer.char_start, outer.char_end) != (inner.char_start, inner.char_end)
+        )
+        new_start = outer.char_start
+        new_end = outer.char_end
+        trimmed_inner_ids: list[str] = []
+        changed = True
+        while changed:
+            changed = False
+            leading = tuple(
+                inner
+                for inner in inners
+                if inner.char_start >= new_start
+                and inner.char_end <= new_end
+                and not any(character.isalnum() for character in raw[new_start : inner.char_start])
+            )
+            if len(leading) == 1:
+                new_start = leading[0].char_end
+                trimmed_inner_ids.append(leading[0].draft_id)
+                changed = True
+            trailing = tuple(
+                inner
+                for inner in inners
+                if inner.char_start >= new_start
+                and inner.char_end <= new_end
+                and not any(character.isalnum() for character in raw[inner.char_end : new_end])
+            )
+            if len(trailing) == 1:
+                new_end = trailing[0].char_start
+                trimmed_inner_ids.append(trailing[0].draft_id)
+                changed = True
+        while new_start < new_end and raw[new_start].isspace():
+            new_start += 1
+        while new_end > new_start and raw[new_end - 1].isspace():
+            new_end -= 1
+        if (
+            not trimmed_inner_ids
+            or new_start >= new_end
+            or not any(character.isalnum() for character in raw[new_start:new_end])
+        ):
+            output.append(outer)
+            continue
+        output.append(
+            replace(
+                outer,
+                draft_id=(
+                    "trimmed_source_residual_"
+                    + sha256_bytes(f"{outer.draft_id}\0{new_start}\0{new_end}".encode())[:16]
+                ),
+                char_start=new_start,
+                char_end=new_end,
+                source_text=raw[new_start:new_end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    outer.rationale
+                    + " Host trimmed deterministic source-only edge owner(s) "
+                    + ", ".join(sorted(set(trimmed_inner_ids)))
+                    + " from this residual clause."
+                ),
+            )
+        )
+    return tuple(output)
+
+
+def _merge_adjacent_agent_residual_segments(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Rejoin one local residual split only around literal punctuation or line layout.
+
+    A repair can legitimately express one composite address or cargo phrase as adjacent pieces
+    after excluding a separately owned nested value.  Treating those pieces as repeated semantic
+    appearances makes the topology validator reject a faithful repair.  The merge is allowed only
+    across a same-line or immediately adjacent-line gap with no alphanumeric content and no other
+    binding in the widened span.  Anything less local remains unchanged and fails closed later.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    replacements: dict[str, SpanDraft] = {}
+    discarded_ids: set[str] = set()
+    for rows in grouped.values():
+        if (
+            len(rows) < 2
+            or rows[0].render_mode != "agent_residual"
+            or len({_semantic_signature(row) for row in rows}) != 1
+        ):
+            continue
+        ordered = sorted(rows, key=lambda row: (row.char_start, row.char_end))
+        clusters: list[list[SpanDraft]] = [[ordered[0]]]
+        for row in ordered[1:]:
+            previous = clusters[-1][-1]
+            gap = raw[previous.char_end : row.char_start]
+            if (
+                previous.char_end <= row.char_start
+                and not any(character.isalnum() for character in gap)
+                and gap.count("\n") <= 1
+            ):
+                clusters[-1].append(row)
+            else:
+                clusters.append([row])
+        for cluster in clusters:
+            if len(cluster) < 2:
+                continue
+            char_start = cluster[0].char_start
+            char_end = cluster[-1].char_end
+            cluster_ids = {row.draft_id for row in cluster}
+            if any(
+                other.draft_id not in cluster_ids
+                and other.char_start < char_end
+                and char_start < other.char_end
+                for other in drafts
+            ):
+                continue
+            merged = replace(
+                cluster[0],
+                draft_id=(
+                    "reconciled_residual_"
+                    + sha256_bytes(f"{cluster[0].logical_key}\0{char_start}\0{char_end}".encode())[
+                        :16
+                    ]
+                ),
+                char_start=char_start,
+                char_end=char_end,
+                source_text=raw[char_start:char_end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    cluster[0].rationale
+                    + " Host rejoined adjacent residual segments separated only by literal "
+                    "punctuation or line layout."
+                ),
+            )
+            replacements[cluster[0].draft_id] = merged
+            discarded_ids.update(row.draft_id for row in cluster[1:])
+    return tuple(
+        replacements.get(draft.draft_id, draft)
+        for draft in drafts
+        if draft.draft_id not in discarded_ids
+    )
+
+
 def _normalize_derived_dependency_containment(
     drafts: Sequence[SpanDraft],
 ) -> tuple[SpanDraft, ...]:
@@ -2040,6 +4110,90 @@ def _normalize_derived_dependency_containment(
         if len(candidates) == 1:
             discarded_keys.add(inner_key)
     return tuple(draft for draft in drafts if draft.logical_key not in discarded_keys)
+
+
+def _expand_equipment_receipt_dependency_overlaps(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Complete a receipt surface across its overlapping structured type dependency.
+
+    Risk extraction can expose the alphanumeric receipt prefix while an accepted target anchor
+    owns the overlapping equipment-type suffix. Their union is mechanically one contiguous
+    count-times-equipment surface when both bindings share row scope and the target path is an
+    explicit receipt dependency. Expanding the derived owner lets the existing dependency-
+    containment rule remove the now-redundant inner owner before overlap validation.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    replacements: dict[str, SpanDraft] = {}
+    for outer_key, outer_rows in grouped.items():
+        outer = outer_rows[0]
+        if (
+            outer.render_mode != "deterministic_derived"
+            or outer.derivation != "equipment_receipt"
+            or _EQUIPMENT_RECEIPT_PREFIX.match(outer.source_text) is None
+        ):
+            continue
+        candidate_inner_groups = [
+            inner_rows
+            for inner_key, inner_rows in grouped.items()
+            if inner_key != outer_key
+            and inner_rows[0].render_mode == "target_binding"
+            and inner_rows[0].group_kind == outer.group_kind
+            and inner_rows[0].group_key == outer.group_key
+            and bool(inner_rows[0].target_paths)
+            and set(inner_rows[0].target_paths) <= set(outer.dependency_paths)
+        ]
+        if len(candidate_inner_groups) != 1:
+            continue
+        inner_rows = candidate_inner_groups[0]
+        if len(inner_rows) != len(outer_rows):
+            continue
+        pairings: dict[str, SpanDraft] = {}
+        pairing_is_unique = True
+        for outer_row in outer_rows:
+            matches = [
+                inner_row
+                for inner_row in inner_rows
+                if outer_row.char_start < inner_row.char_end
+                and inner_row.char_start < outer_row.char_end
+            ]
+            if len(matches) != 1 or matches[0].draft_id in {
+                row.draft_id for row in pairings.values()
+            }:
+                pairing_is_unique = False
+                break
+            pairings[outer_row.draft_id] = matches[0]
+        if not pairing_is_unique or len(pairings) != len(inner_rows):
+            continue
+        expanded: list[SpanDraft] = []
+        for outer_row in outer_rows:
+            inner_row = pairings[outer_row.draft_id]
+            char_start = min(outer_row.char_start, inner_row.char_start)
+            char_end = max(outer_row.char_end, inner_row.char_end)
+            source_text = raw[char_start:char_end]
+            if _EQUIPMENT_RECEIPT_PREFIX.match(source_text) is None:
+                expanded = []
+                break
+            expanded.append(
+                replace(
+                    outer_row,
+                    char_start=char_start,
+                    char_end=char_end,
+                    source_text=source_text,
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        outer_row.rationale
+                        + " Host completed the contiguous equipment receipt across its "
+                        "overlapping structured type dependency."
+                    ),
+                )
+            )
+        if expanded:
+            replacements.update({row.draft_id: row for row in expanded})
+    return tuple(replacements.get(draft.draft_id, draft) for draft in drafts)
 
 
 def _has_fmc_carrier_identifier_prefix(
@@ -2091,6 +4245,512 @@ def _normalize_fmc_carrier_duplicate_ownership(
     return tuple(draft for draft in drafts if draft.logical_key not in discarded_keys)
 
 
+def _normalize_carrier_static_target_ownership(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Keep carrier aliases static while assigning each target path one provenance owner.
+
+    Carrier-bound aliases, domains, and signature entities never change during descendant
+    rendering. They may therefore remain distinct typed static bindings, but only one logical
+    owner may retain a structured carrier path. Prefer exact canonical target evidence and then
+    accepted label evidence; the choice changes provenance only, never rendered text.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    owners: dict[str, set[str]] = defaultdict(set)
+    for logical_key, rows in grouped.items():
+        if rows[0].render_mode != "carrier_static":
+            continue
+        for path in rows[0].target_paths:
+            owners[path].add(logical_key)
+    winners: dict[str, str] = {}
+    for path, logical_keys in owners.items():
+        if len(logical_keys) < 2:
+            continue
+        target_surface = _scalar_surface(_resolve_target_path(source_target, path))
+        normalized_target = _normalized_surface(target_surface or "")
+
+        def priority(
+            logical_key: str, target_value: str = normalized_target
+        ) -> tuple[int, int, str]:
+            rows = grouped[logical_key]
+            exact = bool(target_value) and any(
+                _normalized_surface(row.source_text) == target_value for row in rows
+            )
+            accepted = any(row.evidence_origin == "accepted_label_evidence" for row in rows)
+            return (0 if exact else 1, 0 if accepted else 1, logical_key)
+
+        winners[path] = min(logical_keys, key=priority)
+    if not winners:
+        return tuple(drafts)
+    output: list[SpanDraft] = []
+    for draft in drafts:
+        if draft.render_mode != "carrier_static":
+            output.append(draft)
+            continue
+        retained_paths = tuple(
+            path
+            for path in draft.target_paths
+            if path not in winners or winners[path] == draft.logical_key
+        )
+        output.append(
+            replace(
+                draft,
+                target_paths=retained_paths,
+                rationale=(
+                    draft.rationale
+                    + " Host retained this carrier-bound static surface while assigning shared "
+                    "structured provenance to one canonical owner."
+                    if retained_paths != draft.target_paths
+                    else draft.rationale
+                ),
+            )
+        )
+    return tuple(output)
+
+
+_MEASUREMENT_COMPONENT_PATH = re.compile(
+    r"^(?P<base>.+\.(?:temperatureSetpoint|grossWeight|netWeight|tareWeight|volume))\."
+    r"(?P<field>unit|value)$"
+)
+
+
+def _narrow_overlapping_numeric_measurement_values(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Narrow a numeric value that accidentally includes its separately owned unit.
+
+    A model can select ``+1,0 C`` for the numeric value and the nested ``C`` for the unit.  The
+    structured value proves the unique numeric subspan, while the same structured measurement
+    base proves that the nested unit is not unrelated text.  No correction is made without both
+    facts, so ambiguous or non-measurement overlaps continue to fail closed.
+    """
+
+    units_by_base: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        if draft.render_mode != "target_binding" or len(draft.target_paths) != 1:
+            continue
+        match = _MEASUREMENT_COMPONENT_PATH.fullmatch(draft.target_paths[0])
+        if match is not None and match.group("field") == "unit":
+            units_by_base[match.group("base")].append(draft)
+
+    output: list[SpanDraft] = []
+    for draft in drafts:
+        if draft.render_mode != "target_binding" or len(draft.target_paths) != 1:
+            output.append(draft)
+            continue
+        match = _MEASUREMENT_COMPONENT_PATH.fullmatch(draft.target_paths[0])
+        if match is None or match.group("field") != "value":
+            output.append(draft)
+            continue
+        nested_units = tuple(
+            unit
+            for unit in units_by_base.get(match.group("base"), ())
+            if draft.char_start <= unit.char_start
+            and unit.char_end <= draft.char_end
+            and (draft.char_start, draft.char_end) != (unit.char_start, unit.char_end)
+        )
+        if len(nested_units) != 1:
+            output.append(draft)
+            continue
+        target_value = _resolve_target_path(source_target, draft.target_paths[0])
+        numeric_span = _matching_numeric_span(
+            draft.source_text,
+            target_value,
+            integer=draft.value_kind == "integer",
+        )
+        if numeric_span is None:
+            output.append(draft)
+            continue
+        char_start = draft.char_start + numeric_span[0]
+        char_end = draft.char_start + numeric_span[1]
+        unit = nested_units[0]
+        if char_start < unit.char_end and unit.char_start < char_end:
+            output.append(draft)
+            continue
+        output.append(
+            replace(
+                draft,
+                char_start=char_start,
+                char_end=char_end,
+                source_text=draft.source_text[numeric_span[0] : numeric_span[1]],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    draft.rationale
+                    + " Host narrowed the numeric measurement component around its separately "
+                    "owned structured unit."
+                ),
+            )
+        )
+    return tuple(output)
+
+
+def _remove_redundant_identifier_containment(
+    drafts: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Remove only a nested auxiliary identifier occurrence already owned by a wider identifier.
+
+    The shorter logical identifier must retain another physical occurrence, and exactly one wider
+    source-only identifier must cover the nested bytes.  This preserves both logical values and
+    leaves ambiguous containment untouched for ordinary overlap rejection.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    discarded_ids: set[str] = set()
+    absorption_receipts: dict[str, list[str]] = defaultdict(list)
+    for logical_key, rows in grouped.items():
+        first = rows[0]
+        if (
+            first.render_mode != "deterministic_auxiliary"
+            or first.value_kind != "identifier"
+            or first.target_paths
+            or len(rows) < 2
+        ):
+            continue
+        for row in rows:
+            outers = tuple(
+                other
+                for other_key, other_rows in grouped.items()
+                for other in other_rows
+                if other_key != logical_key
+                and other.render_mode == "deterministic_auxiliary"
+                and other.value_kind == "identifier"
+                and not other.target_paths
+                and other.char_start <= row.char_start
+                and row.char_end <= other.char_end
+                and (other.char_start, other.char_end) != (row.char_start, row.char_end)
+                and _normalized_surface(row.source_text) in _normalized_surface(other.source_text)
+            )
+            if len(outers) != 1:
+                continue
+            if not any(
+                sibling.draft_id != row.draft_id
+                and not (
+                    outers[0].char_start <= sibling.char_start
+                    and sibling.char_end <= outers[0].char_end
+                )
+                for sibling in rows
+            ):
+                continue
+            discarded_ids.add(row.draft_id)
+            absorption_receipts[outers[0].draft_id].append(
+                f"{row.logical_key} [{row.char_start},{row.char_end})"
+            )
+    return tuple(
+        replace(
+            draft,
+            rationale=(
+                draft.rationale
+                + " Host removed redundant nested auxiliary identifier occurrence(s) "
+                + ", ".join(sorted(absorption_receipts[draft.draft_id]))
+                + "; each shorter logical identifier retains a separate physical occurrence."
+            ),
+        )
+        if draft.draft_id in absorption_receipts
+        else draft
+        for draft in drafts
+        if draft.draft_id not in discarded_ids
+    )
+
+
+def _remove_unbounded_auxiliary_fragments(
+    drafts: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Reject sub-token auxiliary fragments in favor of their complete mutable owner.
+
+    A substring such as the first ``1`` inside postal code ``01122`` is not an independently
+    renderable source value. Neither is a single alphanumeric token nested inside a complete
+    mutable phone/identifier surface, even when OCR whitespace makes it token-bounded. When
+    exactly one non-auxiliary mutable binding owns the complete surface, discard only that
+    malformed proposal occurrence. Every target-backed proposal remains outside this rule.
+    """
+
+    discarded_ids: set[str] = set()
+    rejection_receipts: dict[str, list[str]] = defaultdict(list)
+    for inner in drafts:
+        if inner.render_mode != "deterministic_auxiliary" or inner.target_paths:
+            continue
+        containing = tuple(
+            outer
+            for outer in drafts
+            if outer.logical_key != inner.logical_key
+            and outer.render_mode in {"target_binding", "deterministic_derived", "agent_residual"}
+            and outer.char_start <= inner.char_start
+            and inner.char_end <= outer.char_end
+            and (outer.char_start, outer.char_end) != (inner.char_start, inner.char_end)
+        )
+        if len(containing) != 1:
+            continue
+        outer = containing[0]
+        relative_start = inner.char_start - outer.char_start
+        relative_end = inner.char_end - outer.char_start
+        left_is_token = relative_start > 0 and outer.source_text[relative_start - 1].isalnum()
+        right_is_token = (
+            relative_end < len(outer.source_text) and outer.source_text[relative_end].isalnum()
+        )
+        if left_is_token or right_is_token or len(_normalized_surface(inner.source_text)) <= 1:
+            discarded_ids.add(inner.draft_id)
+            rejection_receipts[outer.draft_id].append(
+                f"{inner.logical_key} [{inner.char_start},{inner.char_end})"
+            )
+    return tuple(
+        replace(
+            draft,
+            rationale=(
+                draft.rationale
+                + " Host rejected malformed sub-token auxiliary proposal occurrence(s) "
+                + ", ".join(sorted(rejection_receipts[draft.draft_id]))
+                + "; this complete mutable binding owns the containing token."
+            ),
+        )
+        if draft.draft_id in rejection_receipts
+        else draft
+        for draft in drafts
+        if draft.draft_id not in discarded_ids
+    )
+
+
+def validate_mutable_token_boundaries(*, raw: str, drafts: Sequence[SpanDraft]) -> None:
+    """Reject a mutable slot carved from inside another owned alphanumeric token."""
+
+    violations: list[str] = []
+    for inner in drafts:
+        if inner.render_mode not in {"target_binding", "agent_residual"}:
+            continue
+        outers = tuple(
+            outer
+            for outer in drafts
+            if outer.logical_key != inner.logical_key
+            and outer.render_mode in {"target_binding", "carrier_static", "agent_residual"}
+            and outer.char_start <= inner.char_start
+            and inner.char_end <= outer.char_end
+            and (outer.char_start, outer.char_end) != (inner.char_start, inner.char_end)
+        )
+        if not outers:
+            continue
+        left_is_token = inner.char_start > 0 and raw[inner.char_start - 1].isalnum()
+        right_is_token = inner.char_end < len(raw) and raw[inner.char_end].isalnum()
+        if left_is_token or right_is_token:
+            violations.append(
+                f"{inner.logical_key} [{inner.char_start},{inner.char_end})={inner.source_text!r} "
+                "is an alphanumeric substring of "
+                + ", ".join(
+                    f"{outer.logical_key} [{outer.char_start},{outer.char_end})" for outer in outers
+                )
+            )
+    if violations:
+        raise ValueError(
+            "mutable bindings cannot select a substring inside another owned alphanumeric "
+            "token: " + "; ".join(violations)
+        )
+
+
+def normalize_competing_auxiliary_outliers(
+    drafts: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Remove a non-modal auxiliary occurrence already owned by one complete binding.
+
+    One deterministic auxiliary key renders one generated value into all of its slots.  When a
+    unique repeated surface proves that value, a different surface cannot belong to that key. If
+    exactly one other mutable binding already owns the complete outlier span, retaining both is
+    neither necessary nor renderable. Ambiguous, uncovered, and tied surface clusters remain
+    untouched and therefore continue to fail closed.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    discarded_ids: set[str] = set()
+    ownership_receipts: dict[str, list[str]] = defaultdict(list)
+    for logical_key, rows in grouped.items():
+        first = rows[0]
+        if first.render_mode != "deterministic_auxiliary" or first.target_paths or len(rows) < 3:
+            continue
+        surface_counts = Counter(_normalized_surface(row.source_text) for row in rows)
+        ranked = surface_counts.most_common()
+        if (
+            not ranked
+            or not ranked[0][0]
+            or ranked[0][1] < 2
+            or (len(ranked) > 1 and ranked[0][1] == ranked[1][1])
+        ):
+            continue
+        dominant_surface = ranked[0][0]
+        for row in rows:
+            if _normalized_surface(row.source_text) == dominant_surface:
+                continue
+            owners = tuple(
+                other
+                for other in drafts
+                if other.logical_key != logical_key
+                and other.render_mode
+                in {
+                    "target_binding",
+                    "deterministic_derived",
+                    "deterministic_auxiliary",
+                    "agent_residual",
+                }
+                and other.char_start <= row.char_start
+                and row.char_end <= other.char_end
+            )
+            if len(owners) != 1:
+                continue
+            owner = owners[0]
+            discarded_ids.add(row.draft_id)
+            ownership_receipts[owner.draft_id].append(
+                f"{logical_key} [{row.char_start},{row.char_end})"
+            )
+    return tuple(
+        replace(
+            draft,
+            rationale=(
+                draft.rationale
+                + " Host discarded non-modal auxiliary duplicate occurrence(s) "
+                + ", ".join(sorted(ownership_receipts[draft.draft_id]))
+                + "; this complete mutable binding retains the source bytes."
+            ),
+        )
+        if draft.draft_id in ownership_receipts
+        else draft
+        for draft in drafts
+        if draft.draft_id not in discarded_ids
+    )
+
+
+def _remove_redundant_multitarget_occurrences(
+    drafts: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Discard an overlapping equality owner after every component has a singleton owner.
+
+    Equal current values do not justify retaining two render contracts over the same bytes.  The
+    removal is safe only when every path in the multi-target occurrence already has its own direct
+    singleton owner and one of those singleton owners occupies the exact same span.  This preserves
+    all structured ownership while removing only the redundant, non-renderable equality claim.
+    """
+
+    singleton_paths = {
+        draft.target_paths[0]
+        for draft in drafts
+        if draft.render_mode == "target_binding" and len(draft.target_paths) == 1
+    }
+    discarded_ids: set[str] = set()
+    receipts: dict[str, list[str]] = defaultdict(list)
+    for draft in drafts:
+        if (
+            draft.render_mode != "target_binding"
+            or len(draft.target_paths) < 2
+            or not set(draft.target_paths) <= singleton_paths
+        ):
+            continue
+        exact_singletons = tuple(
+            other
+            for other in drafts
+            if other.draft_id != draft.draft_id
+            and other.render_mode == "target_binding"
+            and len(other.target_paths) == 1
+            and other.target_paths[0] in draft.target_paths
+            and (other.char_start, other.char_end) == (draft.char_start, draft.char_end)
+        )
+        if len(exact_singletons) != 1:
+            continue
+        owner = exact_singletons[0]
+        discarded_ids.add(draft.draft_id)
+        receipts[owner.draft_id].append(
+            f"{draft.logical_key} [{draft.char_start},{draft.char_end})"
+        )
+    return tuple(
+        replace(
+            draft,
+            rationale=(
+                draft.rationale
+                + " Host discarded redundant multi-target occurrence(s) "
+                + ", ".join(sorted(receipts[draft.draft_id]))
+                + "; every equality component retains an independent singleton owner."
+            ),
+        )
+        if draft.draft_id in receipts
+        else draft
+        for draft in drafts
+        if draft.draft_id not in discarded_ids
+    )
+
+
+def _remove_auxiliaries_contained_by_same_scope_vessel_targets(
+    drafts: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Discard a source-only vessel token wholly contained by its vessel-name binding.
+
+    This handles a compiler proposing a repeated suffix (for example ``EXPRESS``) as an auxiliary
+    even though every occurrence is already a whole-token subset of the repeated target surface
+    (for example ``LONDON EXPRESS``).  Scope equality, strict containment, complete occurrence
+    coverage, the exact vessel target, and a single owner are all required; other target kinds and
+    ambiguous or partial groups fail closed.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    discarded_keys: set[str] = set()
+    receipts: dict[str, list[str]] = defaultdict(list)
+    for auxiliary_key, auxiliary_rows in grouped.items():
+        auxiliary = auxiliary_rows[0]
+        if not (
+            auxiliary.render_mode == "deterministic_auxiliary"
+            and not auxiliary.target_paths
+            and not auxiliary.dependency_paths
+            and not auxiliary.dependency_bindings
+        ):
+            continue
+        target_owners_by_row: list[tuple[SpanDraft, ...]] = []
+        for row in auxiliary_rows:
+            owners = tuple(
+                candidate
+                for candidate in drafts
+                if candidate.logical_key != auxiliary_key
+                and candidate.render_mode == "target_binding"
+                and candidate.target_paths == (_VESSEL_NAME_PATH,)
+                and candidate.group_kind == row.group_kind
+                and candidate.group_key == row.group_key
+                and candidate.char_start <= row.char_start
+                and row.char_end <= candidate.char_end
+                and (candidate.char_start, candidate.char_end) != (row.char_start, row.char_end)
+                and _matching_token_projection(row.source_text, candidate.source_text) is not None
+            )
+            if len(owners) != 1:
+                target_owners_by_row = []
+                break
+            target_owners_by_row.append(owners)
+        if not target_owners_by_row:
+            continue
+        owner_keys = {owner.logical_key for owners in target_owners_by_row for owner in owners}
+        if len(owner_keys) != 1:
+            continue
+        discarded_keys.add(auxiliary_key)
+        for row, owners in zip(auxiliary_rows, target_owners_by_row, strict=True):
+            receipts[owners[0].draft_id].append(
+                f"{auxiliary_key} [{row.char_start},{row.char_end})"
+            )
+    return tuple(
+        replace(
+            draft,
+            rationale=(
+                draft.rationale
+                + " Host discarded same-scope auxiliary token projection(s) "
+                + ", ".join(sorted(receipts[draft.draft_id]))
+                + "; this complete target owner retains every source byte."
+            ),
+        )
+        if draft.draft_id in receipts
+        else draft
+        for draft in drafts
+        if draft.logical_key not in discarded_keys
+    )
+
+
 def reconcile_draft_overlaps(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
@@ -2103,17 +4763,41 @@ def reconcile_draft_overlaps(
     All other overlaps remain hard errors.
     """
 
-    current = list(
-        _normalize_derived_dependency_containment(
-            _normalize_required_cobinding_dominance(
-                drafts=_normalize_fmc_carrier_duplicate_ownership(
-                    raw=raw,
-                    drafts=drafts,
-                ),
-                source_target=source_target,
-            )
-        )
+    normalized = _split_exact_isolated_residual_occurrences(
+        drafts=drafts,
+        source_target=source_target,
     )
+    normalized = _narrow_overlapping_numeric_measurement_values(
+        drafts=normalized,
+        source_target=source_target,
+    )
+    normalized = normalize_competing_auxiliary_outliers(normalized)
+    normalized = _remove_redundant_multitarget_occurrences(normalized)
+    normalized = _remove_auxiliaries_contained_by_same_scope_vessel_targets(normalized)
+    normalized = _remove_redundant_identifier_containment(normalized)
+    normalized = _remove_unbounded_auxiliary_fragments(normalized)
+    normalized = _normalize_carrier_static_target_ownership(
+        drafts=normalized,
+        source_target=source_target,
+    )
+    normalized = _normalize_fmc_carrier_duplicate_ownership(raw=raw, drafts=normalized)
+    normalized = _normalize_required_cobinding_dominance(
+        drafts=normalized,
+        source_target=source_target,
+    )
+    normalized = _trim_residual_edges_owned_by_exact_targets(raw=raw, drafts=normalized)
+    normalized = _trim_targeted_residual_trailing_footnote_markers(
+        raw=raw,
+        drafts=normalized,
+    )
+    normalized = _trim_targetless_residual_edges_owned_by_auxiliaries(
+        raw=raw,
+        drafts=normalized,
+    )
+    normalized = _expand_equipment_receipt_dependency_overlaps(raw=raw, drafts=normalized)
+    normalized = _normalize_derived_dependency_containment(normalized)
+    normalized = _merge_adjacent_agent_residual_segments(raw=raw, drafts=normalized)
+    current = list(normalized)
     retained_anchor_ids = {
         draft.draft_id for draft in current if draft.evidence_origin == "accepted_label_evidence"
     }
@@ -2129,6 +4813,52 @@ def reconcile_draft_overlaps(
             for anchor in current
         )
     }
+    accepted_conflict_receipts: dict[str, list[str]] = defaultdict(list)
+    for proposal in current:
+        if (
+            proposal.evidence_origin == "accepted_label_evidence"
+            or proposal.render_mode != "target_binding"
+            or not proposal.target_paths
+            or proposal.dependency_paths
+            or proposal.dependency_bindings
+        ):
+            continue
+        exact_accepted_conflicts = tuple(
+            anchor
+            for anchor in current
+            if anchor.draft_id in retained_anchor_ids
+            and anchor.char_start == proposal.char_start
+            and anchor.char_end == proposal.char_end
+            and _semantic_signature(anchor) != _semantic_signature(proposal)
+        )
+        if not exact_accepted_conflicts:
+            continue
+        represented_elsewhere = _represented_target_inputs(
+            tuple(row for row in current if row.draft_id != proposal.draft_id)
+        )
+        if not set(proposal.target_paths) <= represented_elsewhere:
+            continue
+        redundant_proposal_ids.add(proposal.draft_id)
+        for anchor in exact_accepted_conflicts:
+            accepted_conflict_receipts[anchor.draft_id].append(
+                proposal.logical_key
+            )
+    if accepted_conflict_receipts:
+        current = [
+            replace(
+                draft,
+                rationale=(
+                    draft.rationale
+                    + " Host retained pinned occurrence ownership over equal-valued competing "
+                    "target proposal(s) already represented at another source occurrence: "
+                    + ", ".join(sorted(set(accepted_conflict_receipts[draft.draft_id])))
+                    + "."
+                ),
+            )
+            if draft.draft_id in accepted_conflict_receipts
+            else draft
+            for draft in current
+        ]
     current = [draft for draft in current if draft.draft_id not in redundant_proposal_ids]
     by_span: dict[tuple[int, int], list[SpanDraft]] = defaultdict(list)
     for draft in current:
@@ -2337,6 +5067,54 @@ def _topology_target_draft(*, raw: str, path: str, start: int, end: int) -> Span
     )
 
 
+def _token_equivalent_offsets(
+    source_tokens: Sequence[tuple[str, int, int]], surface: str
+) -> tuple[tuple[int, int], ...]:
+    """Locate contiguous token-identical surfaces across OCR whitespace and punctuation."""
+
+    target_tokens = tuple(token for token, _start, _end in _surface_token_spans(surface))
+    if not target_tokens:
+        return ()
+    width = len(target_tokens)
+    return tuple(
+        (source_tokens[index][1], source_tokens[index + width - 1][2])
+        for index in range(len(source_tokens) - width + 1)
+        if tuple(token for token, _start, _end in source_tokens[index : index + width])
+        == target_tokens
+    )
+
+
+def _labeled_identifier_projection_offsets(
+    source_tokens: Sequence[tuple[str, int, int]], surface: str
+) -> tuple[tuple[int, int], ...]:
+    """Locate a distinctive identifier printed without its alphabetic field caption."""
+
+    target_tokens = tuple(token for token, _start, _end in _surface_token_spans(surface))
+    first_identifier = next(
+        (
+            index
+            for index, token in enumerate(target_tokens)
+            if any(char.isdigit() for char in token)
+        ),
+        None,
+    )
+    if (
+        first_identifier is None
+        or first_identifier == 0
+        or not all(token.isalpha() for token in target_tokens[:first_identifier])
+    ):
+        return ()
+    projected = target_tokens[first_identifier:]
+    if len("".join(projected)) < 5:
+        return ()
+    width = len(projected)
+    return tuple(
+        (source_tokens[index][1], source_tokens[index + width - 1][2])
+        for index in range(len(source_tokens) - width + 1)
+        if tuple(token for token, _start, _end in source_tokens[index : index + width]) == projected
+    )
+
+
 def _repair_uniquely_bracketed_target_paths(
     *,
     raw: str,
@@ -2344,10 +5122,12 @@ def _repair_uniquely_bracketed_target_paths(
     occupied: Sequence[SpanDraft],
     source_target: Mapping[str, Any],
     source_hints: Mapping[str, Sequence[str]] | None = None,
+    candidate_span_filter: Callable[[str, int, int], bool] | None = None,
 ) -> tuple[SpanDraft, ...]:
     """Recover exact scalar slots only when same-entity row topology proves one span."""
 
     pages = page_body_spans(raw)
+    source_tokens = _surface_token_spans(raw)
     contexts_by_path: dict[str, tuple[SpanDraft, ...]] = {}
     ranked_by_path: dict[str, tuple[tuple[tuple[int, int, int], int, int], ...]] = {}
     values_by_path: dict[str, str] = {}
@@ -2369,19 +5149,66 @@ def _repair_uniquely_bracketed_target_paths(
         contexts_by_path[path] = contexts
         values_by_path[path] = value
         ranked: list[tuple[tuple[int, int, int], int, int]] = []
-        candidate_surfaces = tuple(dict.fromkeys((value, *((source_hints or {}).get(path, ())))))
+        target_surface = _normalized_surface(value)
+        compatible_hints = tuple(
+            hint
+            for hint in (source_hints or {}).get(path, ())
+            if _normalized_surface(hint) == target_surface
+        )
+        candidate_surfaces = tuple(dict.fromkeys((value, *compatible_hints)))
         seen_spans: set[tuple[int, int]] = set()
         for surface in candidate_surfaces:
             for start in _exact_offsets(raw, surface):
                 end = start + len(surface)
-                if (start, end) in seen_spans or any(
-                    start < draft.char_end and draft.char_start < end for draft in occupied
+                if (
+                    (
+                        candidate_span_filter is not None
+                        and not candidate_span_filter(path, start, end)
+                    )
+                    or not is_token_bounded_surface_span(raw, start, end)
+                    or (start, end) in seen_spans
+                    or any(start < draft.char_end and draft.char_start < end for draft in occupied)
                 ):
                     continue
                 seen_spans.add((start, end))
                 score = _bracketed_context_score(pages, start, end, contexts)
                 if score is not None:
                     ranked.append((score, start, end))
+        for start, end in _token_equivalent_offsets(source_tokens, value):
+            if (
+                (candidate_span_filter is not None and not candidate_span_filter(path, start, end))
+                or (start, end) in seen_spans
+                or any(start < draft.char_end and draft.char_start < end for draft in occupied)
+            ):
+                continue
+            seen_spans.add((start, end))
+            score = _bracketed_context_score(pages, start, end, contexts)
+            if score is not None:
+                ranked.append((score, start, end))
+        for start, end in _labeled_identifier_projection_offsets(source_tokens, value):
+            if (
+                (candidate_span_filter is not None and not candidate_span_filter(path, start, end))
+                or (start, end) in seen_spans
+                or any(start < draft.char_end and draft.char_start < end for draft in occupied)
+            ):
+                continue
+            seen_spans.add((start, end))
+            score = _bracketed_context_score(pages, start, end, contexts)
+            if score is not None:
+                ranked.append((score, start, end))
+        # A labeled-identifier fallback can be nested inside the complete token-equivalent value
+        # found for the same path. Keeping both manufactures an artificial assignment ambiguity;
+        # the complete surface is strictly more informative and owns the nested bytes already.
+        ranked = [
+            row
+            for row in ranked
+            if not any(
+                other_start <= row[1]
+                and row[2] <= other_end
+                and (other_start, other_end) != (row[1], row[2])
+                for _other_score, other_start, other_end in ranked
+            )
+        ]
         ranked.sort()
         if ranked:
             ranked_by_path[path] = tuple(ranked)
@@ -2423,7 +5250,21 @@ def _repair_uniquely_bracketed_target_paths(
             assigned_paths.add(path)
 
     for path, ranked in ranked_by_path.items():
-        if path in assigned_paths or (len(ranked) > 1 and ranked[0][0] == ranked[1][0]):
+        if path in assigned_paths:
+            continue
+        tied_best = tuple((start, end) for score, start, end in ranked if score == ranked[0][0])
+        if len(tied_best) > 1:
+            ordered_ties = tuple(sorted(tied_best))
+            repeated_surface = (
+                len({_normalized_surface(raw[start:end]) for start, end in ordered_ties}) == 1
+            )
+            contiguous = all(
+                not any(character.isalnum() for character in raw[left_end:right_start])
+                for (_left_start, left_end), (right_start, _right_end) in pairwise(ordered_ties)
+            )
+            if repeated_surface and contiguous:
+                proposals.extend((path, start, end) for start, end in ordered_ties)
+                assigned_paths.add(path)
             continue
         _score, start, end = ranked[0]
         proposals.append((path, start, end))
@@ -2492,6 +5333,1080 @@ def _derived_replacement_preserves_structural_target(
     return True
 
 
+def _retarget_unique_unmatched_proposal_occurrences(
+    *,
+    proposed: Sequence[SpanDraft],
+    candidate_paths: Sequence[str],
+    source_target: Mapping[str, Any],
+) -> tuple[SpanDraft, ...]:
+    """Reassign only a source projection that uniquely matches one displaced target fact.
+
+    Compiler outputs occasionally attach one occurrence from a repeated binding to the adjacent
+    equal-looking row. The host may correct that occurrence only when it does not project to its
+    declared scalar and does project either to exactly one displaced target path globally or to
+    exactly one within the same indexed entity. Equal-valued paths within one entity and every
+    other ambiguity remain untouched.
+    """
+
+    target_surfaces = {
+        path: surface
+        for path in candidate_paths
+        if (surface := _scalar_surface(_resolve_target_path(source_target, path))) is not None
+    }
+    if not target_surfaces:
+        return tuple(proposed)
+    output: list[SpanDraft] = []
+    for draft in proposed:
+        if draft.render_mode != "target_binding" or len(draft.target_paths) != 1:
+            output.append(draft)
+            continue
+        current_path = draft.target_paths[0]
+        current_surface = _scalar_surface(_resolve_target_path(source_target, current_path))
+        if (
+            current_surface is not None
+            and _matching_token_projection(draft.source_text, current_surface) is not None
+        ):
+            output.append(draft)
+            continue
+        matches = tuple(
+            path
+            for path, surface in target_surfaces.items()
+            if path != current_path
+            and _matching_token_projection(draft.source_text, surface) is not None
+        )
+        current_entity = _indexed_target_entity(current_path)
+        same_entity_matches = tuple(
+            path for path in matches if _indexed_target_entity(path) == current_entity
+        )
+        selected_matches = same_entity_matches if len(same_entity_matches) == 1 else matches
+        if len(selected_matches) != 1:
+            output.append(draft)
+            continue
+        target_path = selected_matches[0]
+        value_kind = _value_kind((target_path,), "natural_text")
+        group_kind, group_key = _canonical_target_group((target_path,))
+        output.append(
+            replace(
+                draft,
+                draft_id=(
+                    "retargeted_proposal_"
+                    + sha256_bytes(f"{draft.draft_id}\0{target_path}".encode())[:16]
+                ),
+                logical_key="anchor:" + target_path,
+                value_kind=value_kind,
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=(target_path,),
+                render_policy=_render_policy_for_value_kind(value_kind, "target_binding"),
+                rationale=(
+                    draft.rationale
+                    + " Host reassigned this unmatched occurrence to the unique displaced "
+                    "target scalar that contains its complete token projection."
+                ),
+            )
+        )
+    return tuple(output)
+
+
+def _expand_unique_containing_target_occurrences(
+    *, raw: str, proposed: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Expand a truncated direct proposal to its unique complete target token.
+
+    This is deliberately narrower than fuzzy quote recovery. The proposal must already name one
+    direct scalar target, its selected bytes must be strictly contained by an exact occurrence of
+    that target scalar, the complete occurrence must have alphanumeric token boundaries, and that
+    containing occurrence must be unique. Expansion is refused when it would cross another
+    proposed owner. A numeric substring inside an unrelated identifier therefore remains invalid.
+    """
+
+    output: list[SpanDraft] = []
+    for draft in proposed:
+        if draft.render_mode != "target_binding" or len(draft.target_paths) != 1:
+            output.append(draft)
+            continue
+        target_surface = _scalar_surface(_resolve_target_path(source_target, draft.target_paths[0]))
+        if target_surface is None or len(target_surface) <= len(draft.source_text):
+            output.append(draft)
+            continue
+        candidates: list[tuple[int, int]] = []
+        for char_start in _exact_offsets(raw, target_surface):
+            char_end = char_start + len(target_surface)
+            if not (
+                char_start <= draft.char_start
+                and draft.char_end <= char_end
+                and (char_start, char_end) != (draft.char_start, draft.char_end)
+            ):
+                continue
+            if (char_start > 0 and raw[char_start - 1].isalnum()) or (
+                char_end < len(raw) and raw[char_end].isalnum()
+            ):
+                continue
+            if any(
+                other.draft_id != draft.draft_id
+                and char_start < other.char_end
+                and other.char_start < char_end
+                for other in proposed
+            ):
+                continue
+            candidates.append((char_start, char_end))
+        if len(candidates) != 1:
+            output.append(draft)
+            continue
+        char_start, char_end = candidates[0]
+        output.append(
+            replace(
+                draft,
+                draft_id=(
+                    "expanded_target_occurrence_"
+                    + sha256_bytes(f"{draft.draft_id}\0{char_start}\0{char_end}".encode())[:16]
+                ),
+                char_start=char_start,
+                char_end=char_end,
+                source_text=raw[char_start:char_end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    draft.rationale
+                    + " Host expanded the selected substring to the unique enclosing exact "
+                    "target token with valid boundaries."
+                ),
+            )
+        )
+    return tuple(output)
+
+
+def _relocate_competing_indexed_target_occurrences(
+    *,
+    raw: str,
+    proposed: Sequence[SpanDraft],
+    contexts: Sequence[SpanDraft],
+    source_target: Mapping[str, Any],
+) -> tuple[SpanDraft, ...]:
+    """Resolve exact-span target collisions through one unique row-topology assignment."""
+
+    by_span: dict[tuple[int, int], list[SpanDraft]] = defaultdict(list)
+    for draft in proposed:
+        by_span[(draft.char_start, draft.char_end)].append(draft)
+    conflicting_ids: set[str] = set()
+    conflicting_paths: list[str] = []
+    source_hints: dict[str, tuple[str, ...]] = {}
+    for same_span in by_span.values():
+        if len(same_span) < 2:
+            continue
+        if any(
+            draft.render_mode != "target_binding"
+            or len(draft.target_paths) != 1
+            or _indexed_target_entity(draft.target_paths[0]) is None
+            for draft in same_span
+        ):
+            continue
+        paths = tuple(draft.target_paths[0] for draft in same_span)
+        if len(set(paths)) != len(paths):
+            continue
+        components = target_fact_components(source_target, paths)
+        if len(components) != len(paths):
+            continue
+        conflicting_ids.update(draft.draft_id for draft in same_span)
+        conflicting_paths.extend(paths)
+        for draft in same_span:
+            source_hints[draft.target_paths[0]] = (draft.source_text,)
+    if not conflicting_ids:
+        return tuple(proposed)
+    retained = tuple(draft for draft in proposed if draft.draft_id not in conflicting_ids)
+    occupied = tuple(
+        draft for draft in (*contexts, *retained) if draft.draft_id not in conflicting_ids
+    )
+    repairs = _repair_uniquely_bracketed_target_paths(
+        raw=raw,
+        missing_paths=tuple(dict.fromkeys(conflicting_paths)),
+        occupied=occupied,
+        source_target=source_target,
+        source_hints=source_hints,
+    )
+    repaired_paths = _represented_target_inputs(repairs)
+    if repaired_paths != set(conflicting_paths):
+        return tuple(proposed)
+    repaired = tuple(
+        replace(
+            draft,
+            rationale=(
+                draft.rationale
+                + " Host relocated colliding equal-valued target facts through a complete "
+                "unique same-entity topology assignment."
+            ),
+        )
+        for draft in repairs
+    )
+    return (*retained, *repaired)
+
+
+_PACKAGE_QUANTITY_PATH = re.compile(r"^documentPatch\.cargoPackages\[([0-9]+)\]\.quantity$")
+_PACKAGE_TYPE_PATH = re.compile(r"^documentPatch\.cargoPackages\[([0-9]+)\]\.typeCategory$")
+_CARGO_DESCRIPTION_PATH = re.compile(r"^documentPatch\.cargoGroups\[([0-9]+)\]\.description$")
+_ALLOCATION_PACKAGE_QUANTITY_PATH = re.compile(
+    r"^documentPatch\.cargoAllocationGroups\[([0-9]+)\]\.allocations\[([0-9]+)\]"
+    r"\.packageQuantity$"
+)
+
+
+def normalize_package_quantity_row_locality(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Remove short package-quantity repeats that lack any package-field context.
+
+    A short integer is not self-identifying. When one logical package quantity has a proven
+    occurrence beside its package-category owner, other equal numerals remain occurrences only if
+    they have the same row relationship or an explicit package-count caption. This prevents clause
+    numbers and page-local legal numerals from entering the quantity binding.
+    """
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    type_lines: dict[int, set[int]] = defaultdict(set)
+    for row in drafts:
+        grouped[row.logical_key].append(row)
+        for path in row.target_paths:
+            match = _PACKAGE_TYPE_PATH.fullmatch(path)
+            if match is not None:
+                type_lines[int(match.group(1))].add(line_number_for_char(lines, row.char_start))
+    discarded: set[str] = set()
+    for rows in grouped.values():
+        first = rows[0]
+        package_indexes = {
+            int(match.group(1))
+            for path in first.target_paths
+            if (match := _PACKAGE_QUANTITY_PATH.fullmatch(path)) is not None
+        }
+        if (
+            first.render_mode != "target_binding"
+            or not package_indexes
+            or any(not row.source_text.strip().isdigit() for row in rows)
+        ):
+            continue
+
+        def has_package_context(
+            row: SpanDraft, package_indexes: frozenset[int] = frozenset(package_indexes)
+        ) -> bool:
+            line_number = line_number_for_char(lines, row.char_start)
+            if any(line_number in type_lines[index] for index in package_indexes):
+                return True
+            current = _normalized_surface(lines[line_number - 1].text)
+            previous = _normalized_surface(lines[line_number - 2].text) if line_number >= 2 else ""
+            context = current + previous
+            return any(
+                marker in context
+                for marker in (
+                    "numberandkindofpackages",
+                    "numberofpackages",
+                    "noofpkgs",
+                    "packagesreceived",
+                )
+            )
+
+        contextual = tuple(row for row in rows if has_package_context(row))
+        if not contextual or len(contextual) == len(rows):
+            continue
+        discarded.update(row.draft_id for row in rows if row not in contextual)
+    return merge_drafts(row for row in drafts if row.draft_id not in discarded)
+
+
+def normalize_package_quantity_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Append an exact quantity repeated immediately beside its package-type owner."""
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    type_rows_by_index: dict[int, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        grouped[row.logical_key].append(row)
+        indexes = {
+            int(match.group(1))
+            for path in row.target_paths
+            if (match := _PACKAGE_TYPE_PATH.fullmatch(path)) is not None
+        }
+        if len(indexes) == 1:
+            type_rows_by_index[next(iter(indexes))].append(row)
+
+    additions: list[SpanDraft] = []
+    for rows in grouped.values():
+        first = rows[0]
+        package_indexes = {
+            int(match.group(1))
+            for path in first.target_paths
+            if (match := _PACKAGE_QUANTITY_PATH.fullmatch(path)) is not None
+        }
+        if (
+            len(package_indexes) != 1
+            or any(
+                row.render_mode != "target_binding"
+                or row.target_paths != first.target_paths
+                or row.source_text != first.source_text
+                for row in rows
+            )
+            or target_path_relationship(source_target, first.target_paths)
+            not in {"single_target", "shared_value_equality"}
+        ):
+            continue
+        package_index = next(iter(package_indexes))
+        for type_row in type_rows_by_index.get(package_index, ()):
+            line_number = line_number_for_char(lines, type_row.char_start)
+            line = lines[line_number - 1]
+            matches = _line_token_sequence_spans(line, first.source_text)
+            adjacent = tuple(
+                (start, end)
+                for start, end in matches
+                if (
+                    (end <= type_row.char_start and not raw[end : type_row.char_start].strip())
+                    or (type_row.char_end <= start and not raw[type_row.char_end : start].strip())
+                )
+            )
+            if len(adjacent) != 1:
+                continue
+            start, end = adjacent[0]
+            if any(start < row.char_end and row.char_start < end for row in drafts):
+                continue
+            additions.append(
+                replace(
+                    first,
+                    draft_id=(
+                        "host_package_quantity_repeat_"
+                        + sha256_bytes(f"{first.logical_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        first.rationale
+                        + " Host appended this exact quantity from its immediate same-row "
+                        "package-category owner."
+                    ),
+                )
+            )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_cargo_description_linked_package_prefixes(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Assign an inline ``quantity + package type`` prefix to its cargo group.
+
+    Repeated package values cannot identify their structured row by value.  A prefix immediately
+    adjacent to a directly owned cargo description can: ``groupId`` joins that description to one
+    package and its required allocation/package quantity co-binding.  This pass changes ownership
+    only when the join is unique, both prefix tokens exactly realize the joined target values, and
+    every competing owner covers precisely the same token with an equal-valued package target.
+    """
+
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return tuple(drafts)
+    cargo_groups = patch.get("cargoGroups")
+    packages = patch.get("cargoPackages")
+    if not isinstance(cargo_groups, list) or not isinstance(packages, list):
+        return tuple(drafts)
+
+    package_indexes_by_group: dict[str, list[int]] = defaultdict(list)
+    for package_index, package in enumerate(packages):
+        if not isinstance(package, Mapping):
+            continue
+        group_id = package.get("groupId")
+        if isinstance(group_id, str) and group_id:
+            package_indexes_by_group[group_id].append(package_index)
+
+    quantity_paths_by_package: dict[int, tuple[str, ...]] = {}
+    requirements = required_target_cobindings(source_target)
+    for package_index in range(len(packages)):
+        package_path = f"documentPatch.cargoPackages[{package_index}].quantity"
+        matches = tuple(
+            tuple(sorted(requirement.target_paths))
+            for requirement in requirements
+            if package_path in requirement.target_paths
+        )
+        if len(matches) == 1:
+            quantity_paths_by_package[package_index] = matches[0]
+
+    lines = line_spans(raw)
+    planned: dict[tuple[int, int], tuple[tuple[str, ...], str, str]] = {}
+    for description_owner in drafts:
+        description_matches = tuple(
+            _CARGO_DESCRIPTION_PATH.fullmatch(path)
+            for path in description_owner.target_paths
+            if _CARGO_DESCRIPTION_PATH.fullmatch(path) is not None
+        )
+        if description_owner.render_mode != "target_binding" or len(description_matches) != 1:
+            continue
+        description_match = description_matches[0]
+        if description_match is None:
+            continue
+        cargo_index = int(description_match.group(1))
+        if cargo_index >= len(cargo_groups) or not isinstance(cargo_groups[cargo_index], Mapping):
+            continue
+        group_id = cargo_groups[cargo_index].get("groupId")
+        if not isinstance(group_id, str):
+            continue
+        package_indexes = package_indexes_by_group.get(group_id, ())
+        if len(package_indexes) != 1:
+            continue
+        package_index = package_indexes[0]
+        package = packages[package_index]
+        if not isinstance(package, Mapping):
+            continue
+        quantity_paths = quantity_paths_by_package.get(package_index)
+        type_path = f"documentPatch.cargoPackages[{package_index}].typeCategory"
+        quantity_surface = (
+            _scalar_surface(_resolve_target_path(source_target, quantity_paths[0]))
+            if quantity_paths
+            else None
+        )
+        category_surface = (
+            _package_category_surface(_resolve_target_path(source_target, type_path))
+            if "typeCategory" in package
+            else None
+        )
+        if quantity_paths is None or quantity_surface is None or category_surface is None:
+            continue
+
+        line_number = line_number_for_char(lines, description_owner.char_start)
+        line = lines[line_number - 1]
+        category_candidates = tuple(
+            (line.char_start + start, line.char_start + end)
+            for token, start, end in _surface_token_spans(line.text)
+            if token in _package_inflections(category_surface)
+            and line.char_start + end <= description_owner.char_start
+            and not raw[line.char_start + end : description_owner.char_start].strip()
+        )
+        pairs = tuple(
+            (quantity_span, category_span)
+            for category_span in category_candidates
+            for quantity_span in _line_token_sequence_spans(line, quantity_surface)
+            if quantity_span[1] <= category_span[0]
+            and not raw[quantity_span[1] : category_span[0]].strip()
+        )
+        if len(pairs) != 1:
+            continue
+        quantity_span, category_span = pairs[0]
+        candidate_rows = (
+            (quantity_span, quantity_paths, "integer", "numeric_surface"),
+            (category_span, (type_path,), "package", "categorical_surface"),
+        )
+        if any(
+            span in planned and planned[span][0] != target_paths
+            for span, target_paths, _value_kind_name, _render_policy_name in candidate_rows
+        ):
+            continue
+        for span, target_paths, value_kind_name, render_policy_name in candidate_rows:
+            planned[span] = (target_paths, value_kind_name, render_policy_name)
+
+    if not planned:
+        return tuple(drafts)
+
+    discarded: set[str] = set()
+    retained_spans: set[tuple[int, int]] = set()
+    accepted_plans: dict[tuple[int, int], tuple[tuple[str, ...], str, str]] = {}
+    for span, plan in sorted(planned.items()):
+        target_paths, value_kind_name, _render_policy_name = plan
+        start, end = span
+        overlaps = tuple(
+            row for row in drafts if start < row.char_end and row.char_start < end
+        )
+        exact_correct = tuple(
+            row
+            for row in overlaps
+            if row.char_start == start
+            and row.char_end == end
+            and row.render_mode == "target_binding"
+            and set(row.target_paths) == set(target_paths)
+        )
+        if exact_correct and len(exact_correct) == len(overlaps):
+            retained_spans.add(span)
+            accepted_plans[span] = plan
+            continue
+
+        def equal_valued_package_owner(
+            row: SpanDraft,
+            *,
+            expected_start: int = start,
+            expected_end: int = end,
+            expected_value_kind: str = value_kind_name,
+        ) -> bool:
+            if (
+                row.char_start != expected_start
+                or row.char_end != expected_end
+                or row.render_mode != "target_binding"
+                or not row.target_paths
+            ):
+                return False
+            if expected_value_kind == "integer":
+                if not all(
+                    path.endswith(".packageQuantity")
+                    or _PACKAGE_QUANTITY_PATH.fullmatch(path) is not None
+                    for path in row.target_paths
+                ):
+                    return False
+                return all(
+                    _normalized_surface(row.source_text)
+                    == _normalized_surface(
+                        _scalar_surface(_resolve_target_path(source_target, path)) or ""
+                    )
+                    for path in row.target_paths
+                )
+            if not all(_PACKAGE_TYPE_PATH.fullmatch(path) is not None for path in row.target_paths):
+                return False
+            return all(
+                _normalized_surface(row.source_text)
+                in _package_inflections(
+                    _package_category_surface(_resolve_target_path(source_target, path)) or ""
+                )
+                for path in row.target_paths
+            )
+
+        if overlaps and not all(equal_valued_package_owner(row) for row in overlaps):
+            continue
+        discarded.update(row.draft_id for row in overlaps)
+        accepted_plans[span] = plan
+
+    additions: list[SpanDraft] = []
+    for (start, end), (target_paths, value_kind_name, render_policy_name) in sorted(
+        accepted_plans.items()
+    ):
+        if (start, end) in retained_spans:
+            continue
+        group_kind, group_key = _canonical_target_group(target_paths)
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_cargo_linked_package_prefix_"
+                    + sha256_bytes(f"{'|'.join(target_paths)}\0{start}\0{end}".encode())[:16]
+                ),
+                logical_key="anchor:" + "|".join(target_paths),
+                render_mode="target_binding",
+                value_kind=value_kind_name,
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=target_paths,
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy=render_policy_name,
+                rationale=(
+                    "Host assigned this inline quantity/package-category prefix through the "
+                    "unique cargo-description groupId join."
+                ),
+            )
+        )
+    return merge_drafts(
+        (row for row in drafts if row.draft_id not in discarded),
+        additions,
+    )
+
+
+def normalize_container_linked_package_rows(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own ``quantity + package type`` beside a uniquely linked container-type slot."""
+
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return tuple(drafts)
+    containers = patch.get("containers")
+    allocation_groups = patch.get("cargoAllocationGroups")
+    packages = patch.get("cargoPackages")
+    if not all(isinstance(value, list) for value in (containers, allocation_groups, packages)):
+        return tuple(drafts)
+    assert isinstance(containers, list)
+    assert isinstance(allocation_groups, list)
+    assert isinstance(packages, list)
+    container_indexes = {
+        container.get("containerNumber"): index
+        for index, container in enumerate(containers)
+        if isinstance(container, Mapping) and isinstance(container.get("containerNumber"), str)
+    }
+    package_indexes = {
+        package.get("packageId"): index
+        for index, package in enumerate(packages)
+        if isinstance(package, Mapping) and isinstance(package.get("packageId"), str)
+    }
+    required_sets = {
+        frozenset(requirement.target_paths)
+        for requirement in required_target_cobindings(source_target)
+    }
+    links: dict[int, list[tuple[tuple[str, ...], str]]] = defaultdict(list)
+    for group_index, group in enumerate(allocation_groups):
+        if not isinstance(group, Mapping):
+            continue
+        allocations = group.get("allocations")
+        if not isinstance(allocations, list):
+            continue
+        for allocation_index, allocation in enumerate(allocations):
+            if not isinstance(allocation, Mapping):
+                continue
+            container_index = container_indexes.get(allocation.get("containerNumber"))
+            package_index = package_indexes.get(allocation.get("packageId"))
+            if container_index is None or package_index is None:
+                continue
+            package = packages[package_index]
+            if not isinstance(package, Mapping) or package.get("groupId") != group.get("groupId"):
+                continue
+            quantity_paths = (
+                "documentPatch.cargoAllocationGroups"
+                f"[{group_index}].allocations[{allocation_index}].packageQuantity",
+                f"documentPatch.cargoPackages[{package_index}].quantity",
+            )
+            type_path = f"documentPatch.cargoPackages[{package_index}].typeCategory"
+            if frozenset(quantity_paths) not in required_sets or "typeCategory" not in package:
+                continue
+            links[container_index].append((quantity_paths, type_path))
+
+    lines = line_spans(raw)
+    additions: list[SpanDraft] = []
+    seen: set[tuple[tuple[str, ...], int, int]] = set()
+    for row in drafts:
+        container_indexes_for_row = {
+            int(match.group(1))
+            for path in (*row.target_paths, *row.dependency_paths)
+            if (match := _CONTAINER_TYPE_PATH.fullmatch(path)) is not None
+        }
+        if len(container_indexes_for_row) != 1:
+            continue
+        container_index = next(iter(container_indexes_for_row))
+        if len(links.get(container_index, ())) != 1:
+            continue
+        quantity_paths, type_path = links[container_index][0]
+        line_number = line_number_for_char(lines, row.char_start)
+        if line_number != line_number_for_char(lines, row.char_end - 1):
+            continue
+        line = lines[line_number - 1]
+        quantity_surface = _scalar_surface(_resolve_target_path(source_target, quantity_paths[0]))
+        type_surface = _package_category_surface(_resolve_target_path(source_target, type_path))
+        if quantity_surface is None or type_surface is None:
+            continue
+        quantity_spans = _line_token_sequence_spans(line, quantity_surface)
+        type_spans = tuple(
+            (line.char_start + start, line.char_start + end)
+            for token, start, end in _surface_token_spans(line.text)
+            if token in _package_inflections(type_surface)
+        )
+        pairs = tuple(
+            (quantity_span, type_span)
+            for quantity_span in quantity_spans
+            for type_span in type_spans
+            if (
+                quantity_span[1] <= type_span[0]
+                and not raw[quantity_span[1] : type_span[0]].strip()
+            )
+        )
+        if len(pairs) != 1:
+            continue
+        for target_paths, span, value_kind, render_policy in (
+            (quantity_paths, pairs[0][0], "integer", "numeric_surface"),
+            ((type_path,), pairs[0][1], "package", "categorical_surface"),
+        ):
+            start, end = span
+            identity = (target_paths, start, end)
+            if identity in seen:
+                continue
+            overlaps = tuple(
+                other for other in drafts if start < other.char_end and other.char_start < end
+            )
+            if overlaps:
+                if all(
+                    other.render_mode == "target_binding"
+                    and other.target_paths == target_paths
+                    and other.char_start == start
+                    and other.char_end == end
+                    for other in overlaps
+                ):
+                    seen.add(identity)
+                continue
+            group_kind, group_key = _canonical_target_group(target_paths)
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_container_linked_package_"
+                        + sha256_bytes(f"{'|'.join(target_paths)}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key="anchor:" + "|".join(target_paths),
+                    render_mode="target_binding",
+                    value_kind=value_kind,
+                    group_kind=group_kind,
+                    group_key=group_key,
+                    target_paths=target_paths,
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy=render_policy,
+                    rationale=(
+                        "Host assigned this exact quantity/package-category pair from the "
+                        "same row as a uniquely linked structured container type."
+                    ),
+                )
+            )
+            seen.add(identity)
+    return merge_drafts(drafts, additions)
+
+
+def normalize_package_type_row_locality(
+    *,
+    raw: str,
+    proposed: Sequence[SpanDraft],
+    contexts: Sequence[SpanDraft],
+    candidate_paths: Sequence[str],
+    source_target: Mapping[str, Any],
+) -> tuple[SpanDraft, ...]:
+    """Bind a package-category token to its uniquely co-printed package quantity row.
+
+    Repeated ``CARTONS``-style tokens carry no identity by themselves. A package quantity target
+    does: when one package's quantity binding and exactly one inflected category token share a
+    source line, that row proves the category occurrence's package index. Rows that contain
+    multiple quantities or category candidates remain untouched.
+    """
+
+    eligible_indexes = {
+        int(match.group(1))
+        for path in candidate_paths
+        if (match := _PACKAGE_TYPE_PATH.fullmatch(path)) is not None
+    } | {
+        int(match.group(1))
+        for draft in proposed
+        for path in draft.target_paths
+        if (match := _PACKAGE_TYPE_PATH.fullmatch(path)) is not None
+    }
+    if not eligible_indexes:
+        return tuple(proposed)
+    lines = line_spans(raw)
+    line_by_id = {line.line_id: line for line in lines}
+    assignments: dict[tuple[int, int], set[int]] = defaultdict(set)
+    for context in contexts:
+        package_indexes = {
+            int(match.group(1))
+            for path in context.target_paths
+            if (match := _PACKAGE_QUANTITY_PATH.fullmatch(path)) is not None
+            and int(match.group(1)) in eligible_indexes
+        }
+        if len(package_indexes) != 1:
+            continue
+        line_start, line_end = line_range_for_chars(lines, context.char_start, context.char_end)
+        if line_start != line_end:
+            continue
+        package_index = next(iter(package_indexes))
+        type_path = f"documentPatch.cargoPackages[{package_index}].typeCategory"
+        category = _package_category_surface(_resolve_target_path(source_target, type_path))
+        if category is None:
+            continue
+        accepted = _package_inflections(category)
+        line = line_by_id[line_start]
+        matches = tuple(
+            (line.char_start + start, line.char_start + end)
+            for token, start, end in _surface_token_spans(raw[line.char_start : line.char_end])
+            if token in accepted
+        )
+        if len(matches) == 1:
+            assignments[matches[0]].add(package_index)
+    proven_assignments = {
+        span: next(iter(indexes)) for span, indexes in assignments.items() if len(indexes) == 1
+    }
+    if not proven_assignments:
+        return tuple(proposed)
+
+    output: list[SpanDraft] = []
+    occupied_assignments: set[tuple[int, int]] = set()
+    for draft in proposed:
+        type_paths = tuple(
+            path for path in draft.target_paths if _PACKAGE_TYPE_PATH.fullmatch(path) is not None
+        )
+        package_index = proven_assignments.get((draft.char_start, draft.char_end))
+        retargetable_source_only = (
+            not draft.target_paths
+            and not draft.dependency_paths
+            and not draft.dependency_bindings
+            and draft.render_mode in {"agent_residual", "deterministic_auxiliary", "literal_static"}
+        )
+        if package_index is None or not (
+            (draft.render_mode == "target_binding" and len(type_paths) == 1)
+            or retargetable_source_only
+        ):
+            output.append(draft)
+            continue
+        target_path = f"documentPatch.cargoPackages[{package_index}].typeCategory"
+        group_kind, group_key = _canonical_target_group((target_path,))
+        occupied_assignments.add((draft.char_start, draft.char_end))
+        if (
+            draft.render_mode == "target_binding"
+            and draft.logical_key == "anchor:" + target_path
+            and draft.value_kind == "package"
+            and draft.group_kind == group_kind
+            and draft.group_key == group_key
+            and draft.target_paths == (target_path,)
+            and draft.render_policy == "categorical_surface"
+        ):
+            output.append(draft)
+            continue
+        output.append(
+            replace(
+                draft,
+                logical_key="anchor:" + target_path,
+                value_kind="package",
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=(target_path,),
+                render_policy="categorical_surface",
+                rationale=(
+                    draft.rationale
+                    + " Host assigned this repeated package category to the unique package "
+                    "quantity printed on the same source line."
+                ),
+            )
+        )
+    owners_by_path: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in output:
+        for path in draft.target_paths:
+            owners_by_path[path].append(draft)
+    for (start, end), package_index in sorted(proven_assignments.items()):
+        if (start, end) in occupied_assignments:
+            continue
+        target_path = f"documentPatch.cargoPackages[{package_index}].typeCategory"
+        existing_owners = owners_by_path.get(target_path, [])
+        if any(
+            owner.render_mode == "target_binding"
+            and owner.target_paths == (target_path,)
+            and owner.char_start <= start
+            and end <= owner.char_end
+            for owner in existing_owners
+        ):
+            # OCR inflection can make the token scan find ``Pallet`` inside the already owned
+            # complete value ``Pallet(s)``.  The wider target owner is authoritative; adding the
+            # contained token would create overlapping ownership for the same fact.
+            occupied_assignments.add((start, end))
+            continue
+        if existing_owners and not (
+            len({owner.logical_key for owner in existing_owners}) == 1
+            and all(
+                owner.render_mode == "target_binding" and owner.target_paths == (target_path,)
+                for owner in existing_owners
+            )
+        ):
+            # A composite or residual owner already realizes this categorical fact.  Creating a
+            # second direct owner would violate the one-owner invariant, so leave it unchanged.
+            continue
+        if existing_owners:
+            owner = existing_owners[0]
+            added = replace(
+                owner,
+                draft_id=(
+                    "package_type_locality_"
+                    + sha256_bytes(f"{target_path}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    owner.rationale
+                    + " Host appended the unique package-category token co-printed with this "
+                    "package's quantity as another occurrence of the same target owner."
+                ),
+            )
+        else:
+            group_kind, group_key = _canonical_target_group((target_path,))
+            added = SpanDraft(
+                draft_id=(
+                    "package_type_locality_"
+                    + sha256_bytes(f"{target_path}\0{start}\0{end}".encode())[:16]
+                ),
+                logical_key="anchor:" + target_path,
+                render_mode="target_binding",
+                value_kind="package",
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=(target_path,),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="categorical_surface",
+                rationale=(
+                    "Host bound the unique package-category token co-printed with this "
+                    "package's quantity."
+                ),
+            )
+        output.append(added)
+        owners_by_path[target_path].append(added)
+    return tuple(output)
+
+
+def _drop_exact_source_only_duplicates(
+    *, retained: Sequence[SpanDraft], proposed: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Discard a targetless proposal that duplicates one exact target-owned byte span.
+
+    One physical span cannot simultaneously be an independently generated source-only value and
+    the printed realization of a structured target.  This correction is deliberately exact: the
+    spans must be identical, the accepted owner must be target-backed, and the proposal may not
+    declare any target or dependency.  Containment and unequal spans remain review work.
+    """
+
+    target_owned_spans = {
+        (row.char_start, row.char_end)
+        for row in retained
+        if row.target_paths and row.render_mode in {"target_binding", "carrier_static"}
+    }
+    return tuple(
+        row
+        for row in proposed
+        if not (
+            (row.char_start, row.char_end) in target_owned_spans
+            and not row.target_paths
+            and not row.dependency_paths
+            and not row.dependency_bindings
+            and row.render_mode in {"deterministic_auxiliary", "agent_residual", "literal_static"}
+        )
+    )
+
+
+def _resolve_exact_target_source_only_conflicts(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Choose the uniquely target-compatible owner of an exact duplicate span.
+
+    This handles model proposals that assign one byte span both to a direct target and to a
+    source-only field. A target wins only when its printed surface is a normalized projection of
+    the structured scalar. Otherwise it is removed only when that target path remains represented
+    by another physical occurrence and the competing source-only contract is unique.
+    """
+
+    by_span: dict[tuple[int, int], list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        by_span[(row.char_start, row.char_end)].append(row)
+    discarded: set[str] = set()
+    for rows in by_span.values():
+        targets = tuple(
+            row
+            for row in rows
+            if row.render_mode == "target_binding" and len(row.target_paths) == 1
+        )
+        auxiliaries = tuple(
+            row
+            for row in rows
+            if row.render_mode in {"deterministic_auxiliary", "agent_residual"}
+            and not row.target_paths
+            and not row.dependency_paths
+            and not row.dependency_bindings
+        )
+        if not targets or not auxiliaries or len({row.logical_key for row in auxiliaries}) != 1:
+            continue
+        compatible: list[SpanDraft] = []
+        for row in targets:
+            target_value = _resolve_target_path(source_target, row.target_paths[0])
+            target_surface = (
+                _package_category_surface(target_value)
+                if row.target_paths[0].endswith(".typeCategory")
+                else _scalar_surface(target_value)
+            )
+            if target_surface is not None and (
+                _normalized_surface(row.source_text) in _normalized_surface(target_surface)
+                or _normalized_surface(target_surface) in _normalized_surface(row.source_text)
+            ):
+                compatible.append(row)
+        if len(compatible) == 1:
+            discarded.update(row.draft_id for row in auxiliaries)
+            discarded.update(row.draft_id for row in targets if row is not compatible[0])
+            continue
+        if compatible:
+            continue
+        target_paths = {row.target_paths[0] for row in targets}
+        if all(
+            any(path in other.target_paths and other not in rows for other in drafts)
+            for path in target_paths
+        ):
+            discarded.update(row.draft_id for row in targets)
+    return tuple(row for row in drafts if row.draft_id not in discarded)
+
+
+def _repair_overridden_freight_payment(
+    *,
+    raw: str,
+    source_target: Mapping[str, Any],
+    removed: Sequence[SpanDraft],
+    occupied: Sequence[SpanDraft],
+) -> tuple[SpanDraft, ...]:
+    """Recover the selected token from an overridden ``FREIGHT <value>`` surface.
+
+    This is deliberately narrower than general substring recovery: the structured value must be
+    PREPAID or COLLECT, every removed owner must have one semantic contract, and the selected token
+    must immediately follow FREIGHT without the opposite option on that same owned surface.
+    """
+
+    candidates = tuple(row for row in removed if _FREIGHT_PAYMENT_PATH in row.target_paths)
+    if not candidates:
+        return ()
+    if (
+        len({row.logical_key for row in candidates}) != 1
+        or len({_semantic_signature(row) for row in candidates}) != 1
+    ):
+        return ()
+    try:
+        value = _resolve_target_path(source_target, _FREIGHT_PAYMENT_PATH)
+    except ValueError:
+        return ()
+    surface = _scalar_surface(value)
+    if surface is None:
+        return ()
+    selected = _normalized_surface(surface)
+    if selected not in {"prepaid", "collect"}:
+        return ()
+    opposite = "collect" if selected == "prepaid" else "prepaid"
+    repairs: list[SpanDraft] = []
+    for row in candidates:
+        tokens = _surface_token_spans(row.source_text)
+        selected_tokens = tuple(
+            (token_start, token_end)
+            for index, (token, token_start, token_end) in enumerate(tokens)
+            if token == selected
+            and index > 0
+            and tokens[index - 1][0] == "freight"
+            and opposite not in {candidate for candidate, _start, _end in tokens}
+        )
+        if len(selected_tokens) != 1:
+            return ()
+        relative_start, relative_end = selected_tokens[0]
+        start = row.char_start + relative_start
+        end = row.char_start + relative_end
+        if any(start < other.char_end and other.char_start < end for other in occupied):
+            return ()
+        repairs.append(
+            replace(
+                row,
+                draft_id=(
+                    "host_overridden_freight_payment_"
+                    + sha256_bytes(f"{row.logical_key}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    row.rationale
+                    + " Host retained only the selected payment token from the explicitly "
+                    "overridden FREIGHT caption surface."
+                ),
+            )
+        )
+    return merge_drafts(repairs)
+
+
 def apply_anchor_overrides(
     *,
     raw: str,
@@ -2510,14 +6425,169 @@ def apply_anchor_overrides(
     unknown = sorted(set(override_ids) - set(by_id))
     if unknown:
         raise ValueError("compiler referenced unknown anchor overrides: " + ", ".join(unknown))
+    proposed = _remove_unbounded_auxiliary_fragments(proposed)
+    proposed = _trim_targetless_residual_edges_owned_by_auxiliaries(
+        raw=raw,
+        drafts=proposed,
+    )
+    proposal_ids = {row.draft_id for row in proposed}
+    early_reconciled = _remove_redundant_multitarget_occurrences((*anchors, *proposed))
+    early_reconciled = _remove_auxiliaries_contained_by_same_scope_vessel_targets(early_reconciled)
+    proposed = tuple(row for row in early_reconciled if row.draft_id in proposal_ids)
+    explicitly_overridden = set(override_ids)
+    represented_by_proposals = _represented_target_inputs(proposed) | set(
+        semantic_only_target_paths
+    )
+    implicitly_overridden: list[str] = []
+    for anchor in anchors:
+        if anchor.draft_id in explicitly_overridden or not set(anchor.target_paths) <= (
+            represented_by_proposals
+        ):
+            continue
+        has_conflicting_replacement = any(
+            proposal.logical_key != anchor.logical_key
+            and _semantic_signature(proposal) != _semantic_signature(anchor)
+            and proposal.char_start < anchor.char_end
+            and anchor.char_start < proposal.char_end
+            for proposal in proposed
+        )
+        if has_conflicting_replacement:
+            implicitly_overridden.append(anchor.draft_id)
+    override_ids = (*override_ids, *implicitly_overridden)
+    if implicitly_overridden:
+        implicit_paths = {
+            path for anchor_id in implicitly_overridden for path in by_id[anchor_id].target_paths
+        }
+        proposed = tuple(
+            replace(
+                proposal,
+                rationale=(
+                    proposal.rationale
+                    + " Host inferred removal of a conflicting accepted anchor only after the "
+                    "candidate transaction supplied complete replacement ownership for all of "
+                    "that anchor's target paths."
+                ),
+            )
+            if implicit_paths.intersection((*proposal.target_paths, *proposal.dependency_paths))
+            else proposal
+            for proposal in proposed
+        )
+    represented_after_override = _represented_target_inputs(
+        tuple(anchor for anchor in anchors if anchor.draft_id not in override_ids)
+    ) | _represented_target_inputs(proposed)
+    required_cobindings = {
+        frozenset(requirement.target_paths)
+        for requirement in required_target_cobindings(source_target)
+    }
+    all_overridden_ids = frozenset(override_ids)
+    restored_ids: set[str] = set()
+    semantic_contradiction_ids: set[str] = set()
+    for anchor in anchors:
+        anchor_paths = frozenset(anchor.target_paths)
+        contradicts_semantic_only = bool(anchor_paths.intersection(semantic_only_target_paths))
+        lacks_replacement = not (
+            anchor_paths.intersection(represented_after_override)
+            or any(
+                anchor_paths.intersection((*proposal.target_paths, *proposal.dependency_paths))
+                or (proposal.char_start < anchor.char_end and anchor.char_start < proposal.char_end)
+                for proposal in proposed
+            )
+        )
+        if (
+            anchor.draft_id not in all_overridden_ids
+            or anchor.evidence_origin != "accepted_label_evidence"
+            or anchor.render_mode != "target_binding"
+            or anchor_paths not in required_cobindings
+            or target_path_relationship(source_target, anchor.target_paths)
+            != "shared_value_equality"
+            or not (contradicts_semantic_only or lacks_replacement)
+            or any(
+                _surface_match(
+                    source=anchor.source_text,
+                    target=_resolve_target_path(source_target, path),
+                    adapter=_surface_adapter(anchor),
+                    value_kind=anchor.value_kind,
+                )
+                is None
+                for path in anchor.target_paths
+            )
+        ):
+            continue
+        restored_ids.add(anchor.draft_id)
+        if contradicts_semantic_only:
+            semantic_contradiction_ids.add(anchor.draft_id)
+    if restored_ids:
+        anchors = tuple(
+            replace(
+                anchor,
+                rationale=(
+                    anchor.rationale
+                    + (
+                        " Host retained this accepted required co-binding and rejected the "
+                        "compiler's semantic-only declaration because the pinned source span "
+                        "still exactly realizes every equal structured target. "
+                        + _SEMANTIC_ONLY_REJECTION_RECEIPT
+                        if anchor.draft_id in semantic_contradiction_ids
+                        else " Host retained this accepted required co-binding because the "
+                        "explicit override supplied neither contradictory ownership nor a "
+                        "replacement, and the source still exactly realizes every equal "
+                        "structured target."
+                    )
+                ),
+            )
+            if anchor.draft_id in restored_ids
+            else anchor
+            for anchor in anchors
+        )
+        by_id = {anchor.draft_id: anchor for anchor in anchors}
+        override_ids = tuple(
+            anchor_id for anchor_id in override_ids if anchor_id not in restored_ids
+        )
     removed = tuple(by_id[anchor_id] for anchor_id in override_ids)
     retained = tuple(anchor for anchor in anchors if anchor.draft_id not in override_ids)
-    proposed_paths = _represented_target_inputs(proposed)
-    missing_paths = sorted(
+    # Overrides address physical anchor occurrences, not an entire logical target.  A repeated
+    # target remains completely owned when another accepted occurrence survives the transaction;
+    # requiring the provider to re-propose that retained occurrence creates a duplicate edit with
+    # no semantic effect.  Only paths that truly lose all accepted ownership require replacement.
+    displaced_paths = sorted(
         {path for draft in removed for path in draft.target_paths}
-        - proposed_paths
+        - _represented_target_inputs(retained)
         - set(semantic_only_target_paths)
     )
+    proposed = _expand_unique_containing_target_occurrences(
+        raw=raw,
+        proposed=proposed,
+        source_target=source_target,
+    )
+    proposed = _retarget_unique_unmatched_proposal_occurrences(
+        proposed=proposed,
+        candidate_paths=displaced_paths,
+        source_target=source_target,
+    )
+    proposed = normalize_package_type_row_locality(
+        raw=raw,
+        proposed=proposed,
+        contexts=(*retained, *proposed),
+        candidate_paths=displaced_paths,
+        source_target=source_target,
+    )
+    proposed = _relocate_competing_indexed_target_occurrences(
+        raw=raw,
+        proposed=proposed,
+        contexts=(*retained, *proposed),
+        source_target=source_target,
+    )
+    proposed_paths = _represented_target_inputs(proposed)
+    missing_paths = sorted(set(displaced_paths) - proposed_paths)
+    if _FREIGHT_PAYMENT_PATH in missing_paths:
+        freight_repairs = _repair_overridden_freight_payment(
+            raw=raw,
+            source_target=source_target,
+            removed=removed,
+            occupied=(*retained, *proposed),
+        )
+        proposed = (*proposed, *freight_repairs)
+        missing_paths = sorted(set(missing_paths) - _represented_target_inputs(freight_repairs))
     if missing_paths:
         source_hints = {
             path: tuple(
@@ -2546,7 +6616,9 @@ def apply_anchor_overrides(
             for source_value in source_values:
                 for start in _exact_offsets(raw, source_value):
                     end = start + len(source_value)
-                    if any(start < draft.char_end and draft.char_start < end for draft in occupied):
+                    if not is_token_bounded_surface_span(raw, start, end) or any(
+                        start < draft.char_end and draft.char_start < end for draft in occupied
+                    ):
                         continue
                     line_start, line_end = line_range_for_chars(lines, start, end)
                     location = line_start if line_start == line_end else f"{line_start}-{line_end}"
@@ -2561,20 +6633,80 @@ def apply_anchor_overrides(
             + "; evidence hints: "
             + "; ".join(hints)
         )
-    # A compiler-added repeat joins the retained anchor's logical binding. Changing the semantic
-    # value kind requires overriding that complete binding; the critic can later do so atomically.
-    retained_semantics = {draft.logical_key: draft.value_kind for draft in retained}
-    harmonized_proposals = tuple(
-        replace(
-            draft,
-            value_kind=retained_semantics.get(draft.logical_key, draft.value_kind),
+    # A compiler-added repeat that explicitly joins an accepted anchor inherits that binding's
+    # complete rendering contract.  Preserving only ``value_kind`` leaves one logical binding with
+    # contradictory render/group/derivation semantics and forces a needless model repair.  Exact
+    # target-path equality keeps this normalization narrow: proposals that redefine or repartition
+    # an anchor must still use the explicit atomic override path above.
+    retained_by_key: dict[str, SpanDraft] = {}
+    for draft in retained:
+        prior = retained_by_key.setdefault(draft.logical_key, draft)
+        if (
+            _semantic_signature(prior) != _semantic_signature(draft)
+            or prior.render_policy != draft.render_policy
+        ):
+            raise ValueError(
+                f"retained logical binding has inconsistent semantics: {draft.logical_key}"
+            )
+
+    harmonized_proposals: list[SpanDraft] = []
+    for draft in proposed:
+        retained_draft = retained_by_key.get(draft.logical_key)
+        if retained_draft is None or draft.target_paths != retained_draft.target_paths:
+            harmonized_proposals.append(draft)
+            continue
+        harmonized_proposals.append(
+            replace(
+                draft,
+                render_mode=retained_draft.render_mode,
+                value_kind=retained_draft.value_kind,
+                group_kind=retained_draft.group_kind,
+                group_key=retained_draft.group_key,
+                target_paths=retained_draft.target_paths,
+                derivation=retained_draft.derivation,
+                dependency_paths=retained_draft.dependency_paths,
+                dependency_bindings=retained_draft.dependency_bindings,
+                render_policy=retained_draft.render_policy,
+                rationale=(
+                    draft.rationale
+                    + " Host inherited the complete accepted-anchor contract for this exact "
+                    "repeated target occurrence."
+                ),
+            )
         )
-        for draft in proposed
+    harmonized_proposals = list(
+        _drop_exact_source_only_duplicates(
+            retained=retained,
+            proposed=harmonized_proposals,
+        )
+    )
+    deduplicated = _resolve_exact_target_source_only_conflicts(
+        drafts=(*retained, *harmonized_proposals),
+        source_target=source_target,
+    )
+    deduplicated = _remove_redundant_multitarget_occurrences(deduplicated)
+    deduplicated = _remove_auxiliaries_contained_by_same_scope_vessel_targets(deduplicated)
+    caption_local = normalize_labeled_shipper_and_receipt_locality(
+        raw=raw,
+        drafts=deduplicated,
+        source_target=source_target,
     )
     return reconcile_draft_overlaps(
         raw=raw,
-        drafts=(*retained, *harmonized_proposals),
+        drafts=caption_local,
         source_target=source_target,
+    )
+
+
+def refuted_semantic_only_target_paths(drafts: Sequence[SpanDraft]) -> frozenset[str]:
+    """Return semantic-only declarations disproved by retained pinned source evidence."""
+
+    return frozenset(
+        path
+        for draft in drafts
+        if draft.evidence_origin == "accepted_label_evidence"
+        and _SEMANTIC_ONLY_REJECTION_RECEIPT in draft.rationale
+        for path in draft.target_paths
     )
 
 
@@ -2597,13 +6729,16 @@ def apply_critic_patch(
 ) -> tuple[SpanDraft, ...]:
     """Apply one critic revision without permitting unrelated binding churn.
 
-    Every proposed logical binding must touch a source line cited by a finding. Existing edits are
-    addressed either at logical-binding granularity or by exact occurrence. Partial occurrence
-    removal preserves the existing semantic contract and is permitted only for cited source spans;
-    it cannot empty the binding. An entirely uncited group may be removed only when an in-scope
-    replacement covers all of its exact physical spans. Target ownership removed by the patch must
-    still exist afterwards. The next independent critic pass remains responsible for semantic
-    acceptance of the repaired inventory.
+    Every newly claimed physical occurrence must touch a source line cited by a finding. An
+    occurrence outside those lines is permitted only when it is the exact physical span of a
+    binding removed by the same atomic transaction; this lets a valid split/rekey preserve prior
+    ownership without licensing unrelated source edits. Existing edits are addressed either at
+    logical-binding granularity or by exact occurrence. Partial occurrence removal preserves the
+    existing semantic contract and is permitted only for cited source spans; it cannot empty the
+    binding. An entirely uncited group may be removed only when a replacement covers all of its
+    exact physical spans. Target ownership removed by the patch must still exist afterwards. The
+    next independent critic pass remains responsible for semantic acceptance of the repaired
+    inventory.
     """
 
     if not remove_inventory_binding_ids and not occurrence_removals and not additional_bindings:
@@ -2638,6 +6773,7 @@ def apply_critic_patch(
             "critic referenced unknown inventory binding removals: " + ", ".join(unknown)
         )
     full_removal_keys = {inventory_keys[binding_id] for binding_id in removal_ids}
+    removal_groups = tuple(grouped[binding_id] for binding_id in removal_ids)
     occurrence_removal_keys = tuple(row.logical_key for row in occurrence_removals)
     if len(set(occurrence_removal_keys)) != len(occurrence_removal_keys):
         raise ValueError("critic occurrence-removal logical keys must be unique")
@@ -2690,38 +6826,45 @@ def apply_critic_patch(
                 "critic occurrence removal cannot empty a binding; use full removal: "
                 + removal.logical_key
             )
+    removed_physical_spans = {
+        (draft.char_start, draft.char_end)
+        for logical_drafts in removal_groups
+        for draft in logical_drafts
+    } | {(char_start, char_end) for _logical_key, char_start, char_end in partial_removal_spans}
     validate_agent_proposal_paths(proposals=additional_bindings, source_target=source_target)
     additions = resolve_agent_proposals(raw=raw, proposals=additional_bindings)
+    scoped_additions: list[SpanDraft] = []
+    for draft in additions:
+        start_line, end_line = line_range_for_chars(lines, draft.char_start, draft.char_end)
+        occupied_lines = set(range(int(start_line[1:]), int(end_line[1:]) + 1))
+        if occupied_lines & cited_line_numbers:
+            scoped_additions.append(draft)
+            continue
+        if (draft.char_start, draft.char_end) in removed_physical_spans:
+            scoped_additions.append(
+                replace(
+                    draft,
+                    rationale=(
+                        draft.rationale
+                        + " Host preserved an exact physical occurrence from a binding removed "
+                        "by this atomic transaction."
+                    ),
+                )
+            )
+            continue
+        raise ValueError(
+            "critic logical addition is outside its cited findings and is not an exact "
+            f"carried replacement span: {draft.logical_key} {start_line}-{end_line}"
+        )
+    additions = tuple(scoped_additions)
     additions_by_key: dict[str, list[SpanDraft]] = defaultdict(list)
     for draft in additions:
         additions_by_key[draft.logical_key].append(draft)
-    in_scope_additions: set[str] = set()
-    for logical_key, logical_drafts in additions_by_key.items():
-        if any(
-            set(
-                range(
-                    int(line_range_for_chars(lines, draft.char_start, draft.char_end)[0][1:]),
-                    int(line_range_for_chars(lines, draft.char_start, draft.char_end)[1][1:]) + 1,
-                )
-            )
-            & cited_line_numbers
-            for draft in logical_drafts
-        ):
-            in_scope_additions.add(logical_key)
-        else:
-            first = logical_drafts[0]
-            start_line, end_line = line_range_for_chars(lines, first.char_start, first.char_end)
-            raise ValueError(
-                "critic logical addition is outside its cited findings: "
-                f"{logical_key} {start_line}-{end_line}"
-            )
     replacement_spans = {
         (draft.char_start, draft.char_end)
-        for logical_key, logical_drafts in additions_by_key.items()
-        if logical_key in in_scope_additions
+        for logical_drafts in additions_by_key.values()
         for draft in logical_drafts
     }
-    removal_groups = tuple(grouped[binding_id] for binding_id in removal_ids)
     for binding_id, logical_drafts in zip(removal_ids, removal_groups, strict=True):
         occupied: set[int] = set()
         line_ranges: list[str] = []
@@ -2898,6 +7041,67 @@ def source_carrier(source_target: Mapping[str, Any]) -> str | None:
     return value.strip()
 
 
+def normalize_pinned_carrier_assessment(
+    *,
+    assessment: CarrierAssessment,
+    expected: str | None,
+    raw: str,
+    drafts: Sequence[SpanDraft],
+) -> CarrierAssessment:
+    """Derive pinned-carrier evidence from the validated target owner.
+
+    When the source label already pins a carrier, the agent has no carrier-resolution decision to
+    make. The exact carrier-static draft owning that target is stronger evidence than a second,
+    fallible line citation in the model output. Missing target ownership still fails closed in
+    ``validate_carrier_assessment``; only the redundant evidence pointer is replaced.
+    """
+
+    if expected is None:
+        return assessment
+    evidence_drafts = tuple(
+        sorted(
+            {
+                (draft.char_start, draft.char_end): draft
+                for draft in drafts
+                if draft.render_mode == "carrier_static"
+                and _CARRIER_NAME_PATH in draft.target_paths
+            }.values(),
+            key=lambda draft: (draft.char_start, draft.char_end),
+        )
+    )
+    if not evidence_drafts:
+        raise ValueError("pinned source carrier lacks carrier-static target evidence")
+    lines = line_spans(raw)
+    by_number = {line.number: line for line in lines}
+    evidence: list[AgentOccurrence] = []
+    for draft in evidence_drafts:
+        line_start, line_end = line_range_for_chars(lines, draft.char_start, draft.char_end)
+        range_start = by_number[int(line_start[1:])].char_start
+        range_end = by_number[int(line_end[1:])].char_end
+        offsets = _exact_offsets(raw[range_start:range_end], draft.source_text)
+        relative_start = draft.char_start - range_start
+        if relative_start not in offsets:
+            raise ValueError("carrier-static target draft cannot be reconstructed as exact OCR")
+        evidence.append(
+            AgentOccurrence(
+                line_start=line_start,
+                line_end=line_end,
+                source_text=draft.source_text,
+                occurrence_index=offsets.index(relative_start),
+            )
+        )
+    return CarrierAssessment(
+        canonical_name=expected,
+        aliases=(),
+        evidence_occurrences=tuple(evidence),
+        source="source_label_confirmed_by_ocr",
+        rationale=(
+            "The pinned source-label carrier is confirmed by exact carrier-static ownership of "
+            "the structured carrier-name target."
+        ),
+    )
+
+
 def validate_carrier_assessment(
     *,
     assessment: CarrierAssessment,
@@ -3031,6 +7235,7 @@ def _template_slots(raw: str, drafts: Sequence[SpanDraft]) -> tuple[TemplateSlot
     return tuple(slots)
 
 
+@lru_cache(maxsize=4096)
 def _surface_token_spans(value: str) -> tuple[tuple[str, int, int], ...]:
     """Return Unicode alphanumeric tokens with offsets into the original surface."""
 
@@ -3285,6 +7490,47 @@ def _surface_adapter(draft: SpanDraft) -> str:
         "categorical_surface": "categorical",
         "natural_text": "natural_text",
     }.get(draft.render_policy, "natural_text")
+
+
+def target_binding_surface_analysis(
+    *, draft: SpanDraft, source_target: Mapping[str, Any]
+) -> TargetBindingSurfaceAnalysis | None:
+    """Describe a direct target surface without assigning semantics to surrounding text.
+
+    This exposes the same mechanically proved formatting and token-projection relationships used
+    by the realization compiler.  It intentionally returns no result for unequal multi-path
+    values or non-target bindings; those cases require their existing semantic contracts.
+    """
+
+    if draft.render_mode != "target_binding" or not draft.target_paths:
+        return None
+    target_values = tuple(_resolve_target_path(source_target, path) for path in draft.target_paths)
+    if len({canonical_json_bytes(value) for value in target_values}) != 1:
+        return None
+    target_value = target_values[0]
+    adapter = _surface_adapter(draft)
+    surface_match = _surface_match(
+        source=draft.source_text,
+        target=target_value,
+        adapter=adapter,
+        value_kind=draft.value_kind,
+    )
+    target_surface = (
+        _package_category_surface(target_value)
+        if adapter == "package_category"
+        else _scalar_surface(target_value)
+    )
+    token_projection = (
+        _matching_token_projection(draft.source_text, target_surface)
+        if surface_match is None and adapter == "natural_text" and target_surface is not None
+        else None
+    )
+    return TargetBindingSurfaceAnalysis(
+        literal_prefix=surface_match[0] if surface_match is not None else "",
+        literal_suffix=surface_match[1] if surface_match is not None else "",
+        omitted_target_prefix_tokens=token_projection[0] if token_projection is not None else (),
+        omitted_target_suffix_tokens=token_projection[1] if token_projection is not None else (),
+    )
 
 
 def _slot_realization(
@@ -3639,18 +7885,22 @@ def _short_equipment_token(draft: SpanDraft) -> bool:
 
 
 def _nearest_container_number_index(
-    *, raw: str, draft: SpanDraft, number_drafts: Mapping[int, Sequence[SpanDraft]]
+    *,
+    raw: str,
+    draft: SpanDraft,
+    number_drafts: Mapping[int, Sequence[SpanDraft]],
+    page_spans: Mapping[int, tuple[int, int]],
+    lines: Sequence[LineSpan],
 ) -> int | None:
     """Return a uniquely local container row, never merely the nearest row on a page.
 
     OCR layouts commonly print a complete container-number list followed by cargo blocks.  Raw
     character distance across that layout is not row evidence: it incorrectly attaches the first
     cargo-block type to the last number in the preceding list.  A row association is mechanically
-    defensible only when both spans share a source line, or when nothing but whitespace separates
-    them (the common two-line ``number\n40HQ`` layout).
+    defensible only when both spans share a source line, or when no alphanumeric content separates
+    them (the common ``number\n40HQ`` and ``/40HQ/\n\nnumber`` layouts).
     """
 
-    page_spans = page_body_spans(raw)
     page_number = next(
         (
             number
@@ -3662,7 +7912,6 @@ def _nearest_container_number_index(
     if page_number is None:
         return None
     page_start, page_end = page_spans[page_number]
-    lines = line_spans(raw)
     draft_line_start, draft_line_end = line_range_for_chars(lines, draft.char_start, draft.char_end)
     draft_line_numbers = set(range(int(draft_line_start[1:]), int(draft_line_end[1:]) + 1))
 
@@ -3674,7 +7923,7 @@ def _nearest_container_number_index(
         return 0
 
     same_line: list[tuple[int, int]] = []
-    whitespace_adjacent: list[tuple[int, int]] = []
+    separator_adjacent: list[tuple[int, int]] = []
     for index, numbers in number_drafts.items():
         for number in numbers:
             if not (page_start <= number.char_start and number.char_end <= page_end):
@@ -3691,10 +7940,12 @@ def _nearest_container_number_index(
                 continue
             between_start = min(draft.char_end, number.char_end)
             between_end = max(draft.char_start, number.char_start)
-            if between_start <= between_end and not raw[between_start:between_end].strip():
-                whitespace_adjacent.append(candidate)
+            if between_start <= between_end and not any(
+                character.isalnum() for character in raw[between_start:between_end]
+            ):
+                separator_adjacent.append(candidate)
 
-    local_candidates = same_line or whitespace_adjacent
+    local_candidates = same_line or separator_adjacent
     distance_by_index: dict[int, int] = {}
     for candidate_distance, index in local_candidates:
         distance_by_index[index] = min(
@@ -3707,6 +7958,245 @@ def _nearest_container_number_index(
     if not distances or (len(distances) > 1 and distances[0][0] == distances[1][0]):
         return None
     return distances[0][1]
+
+
+def _adjacent_equipment_receipt_owner(
+    *,
+    raw: str,
+    char_start: int,
+    char_end: int,
+    source_text: str,
+    drafts: Sequence[SpanDraft],
+    source_target: Mapping[str, Any],
+    page_spans: Mapping[int, tuple[int, int]],
+) -> SpanDraft | None:
+    """Resolve a compact type projection to one physically adjacent equipment owner.
+
+    The relationship is accepted only when the compact token projects to an explicit equipment
+    target and no alphanumeric content separates it from either a direct type owner or a derived
+    receipt owner on the same page. This covers the common ``/.../40HQ/\n1X40'HQ CONTAINER``
+    layout without inferring ownership from document order or equal type values elsewhere.
+    """
+
+    projected_paths = set(_projected_equipment_type_paths(source_text, source_target))
+    if not projected_paths:
+        return None
+    token_page = next(
+        (
+            page_number
+            for page_number, (page_start, page_end) in page_spans.items()
+            if page_start <= char_start and char_end <= page_end
+        ),
+        None,
+    )
+    if token_page is None:
+        return None
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        derived_receipt = (
+            row.render_mode == "deterministic_derived"
+            and row.derivation == "equipment_receipt"
+            and row.group_kind == "equipment"
+            and projected_paths.intersection(row.dependency_paths)
+        )
+        direct_type = (
+            row.render_mode == "target_binding"
+            and row.group_kind == "equipment"
+            and projected_paths.intersection(row.target_paths)
+            and any(_CONTAINER_TYPE_PATH.fullmatch(path) is not None for path in row.target_paths)
+        )
+        if derived_receipt or direct_type:
+            grouped[row.logical_key].append(row)
+
+    candidates: list[tuple[int, str, SpanDraft]] = []
+    page_start, page_end = page_spans[token_page]
+    for logical_key, rows in grouped.items():
+        distances: list[int] = []
+        for row in rows:
+            if not (page_start <= row.char_start and row.char_end <= page_end):
+                continue
+            between_start = min(char_end, row.char_end)
+            between_end = max(char_start, row.char_start)
+            if between_start > between_end or any(
+                character.isalnum() for character in raw[between_start:between_end]
+            ):
+                continue
+            distances.append(between_end - between_start)
+        if distances:
+            candidates.append((min(distances), logical_key, rows[0]))
+    candidates.sort(key=lambda row: (row[0], row[1]))
+    if not candidates or (len(candidates) > 1 and candidates[0][0] == candidates[1][0]):
+        return None
+    return candidates[0][2]
+
+
+def _host_discovered_compact_equipment(
+    *,
+    raw: str,
+    drafts: Sequence[SpanDraft],
+    source_target: Mapping[str, Any],
+    page_spans: Mapping[int, tuple[int, int]],
+    lines: Sequence[LineSpan],
+) -> tuple[SpanDraft, ...]:
+    """Materialize only mechanically localized, currently unowned equipment projections."""
+
+    number_drafts: dict[int, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        index = _container_index_for_path(draft.target_paths, _CONTAINER_NUMBER_PATH)
+        if index is not None:
+            number_drafts[index].append(draft)
+    patch = source_target.get("documentPatch")
+    containers = patch.get("containers") if isinstance(patch, Mapping) else None
+    if containers is None:
+        return ()
+    if not isinstance(containers, list):
+        raise ValueError("documentPatch.containers must be a list")
+
+    direct_owners: dict[str, dict[str, SpanDraft]] = defaultdict(dict)
+    for draft in drafts:
+        if draft.render_mode != "target_binding":
+            continue
+        for path in draft.target_paths:
+            if _CONTAINER_TYPE_PATH.fullmatch(path) is not None:
+                direct_owners[path].setdefault(draft.logical_key, draft)
+
+    output: list[SpanDraft] = []
+    for token, char_start, char_end in _surface_token_spans(raw):
+        if (
+            not 4 <= len(token) <= 12
+            or not any(character.isalpha() for character in token)
+            or not any(character.isdigit() for character in token)
+            or any(char_start < draft.char_end and draft.char_start < char_end for draft in drafts)
+        ):
+            continue
+        source_text = raw[char_start:char_end]
+        projected_paths = set(_projected_equipment_type_paths(source_text, source_target))
+        if not projected_paths:
+            continue
+        receipt_owner = _adjacent_equipment_receipt_owner(
+            raw=raw,
+            char_start=char_start,
+            char_end=char_end,
+            source_text=source_text,
+            drafts=drafts,
+            source_target=source_target,
+            page_spans=page_spans,
+        )
+        if receipt_owner is not None:
+            output.append(
+                replace(
+                    receipt_owner,
+                    draft_id=(
+                        "host_equipment_receipt_projection_"
+                        + sha256_bytes(f"{char_start}:{char_end}".encode())[:16]
+                    ),
+                    char_start=char_start,
+                    char_end=char_end,
+                    source_text=source_text,
+                    evidence_origin="derived_operational_fact",
+                    rationale=(
+                        "Host attached this unowned compact equipment projection to the unique "
+                        "physically adjacent direct or derived equipment owner."
+                    ),
+                )
+            )
+            continue
+
+        probe = SpanDraft(
+            draft_id="host_equipment_locality_probe",
+            logical_key="host:equipment_locality_probe",
+            render_mode="deterministic_auxiliary",
+            value_kind="equipment",
+            group_kind="equipment",
+            group_key="host:equipment_locality_probe",
+            target_paths=(),
+            derivation=None,
+            dependency_paths=(),
+            dependency_bindings=(),
+            char_start=char_start,
+            char_end=char_end,
+            source_text=source_text,
+            evidence_origin="derived_operational_fact",
+            render_policy="opaque_identifier",
+            rationale="Host equipment locality probe.",
+        )
+        nearest_index = _nearest_container_number_index(
+            raw=raw,
+            draft=probe,
+            number_drafts=number_drafts,
+            page_spans=page_spans,
+            lines=lines,
+        )
+        if nearest_index is None or nearest_index >= len(containers):
+            continue
+        container = containers[nearest_index]
+        if not isinstance(container, Mapping):
+            raise ValueError(f"documentPatch.containers[{nearest_index}] must be an object")
+        target_path = f"documentPatch.containers[{nearest_index}].typeDescription"
+        if "typeDescription" not in container:
+            output.append(
+                replace(
+                    probe,
+                    draft_id=(
+                        "host_equipment_auxiliary_"
+                        + sha256_bytes(f"{nearest_index}:{char_start}:{char_end}".encode())[:16]
+                    ),
+                    logical_key=f"agent:host_localized_container_{nearest_index}_type_token",
+                    group_key=f"container:{nearest_index}",
+                    rationale=(
+                        "Host localized this unowned compact equipment token to the unique "
+                        f"container:{nearest_index} row; that structured container has no "
+                        "typeDescription field."
+                    ),
+                )
+            )
+            continue
+        if target_path not in projected_paths:
+            continue
+        owners = direct_owners.get(target_path, {})
+        if len(owners) > 1:
+            raise ValueError(f"equipment type target has multiple direct owners: {target_path}")
+        if owners:
+            owner = next(iter(owners.values()))
+            output.append(
+                replace(
+                    owner,
+                    draft_id=(
+                        "host_equipment_target_projection_"
+                        + sha256_bytes(f"{nearest_index}:{char_start}:{char_end}".encode())[:16]
+                    ),
+                    char_start=char_start,
+                    char_end=char_end,
+                    source_text=source_text,
+                    evidence_origin="derived_operational_fact",
+                    rationale=(
+                        "Host appended this unowned compact equipment projection to the unique "
+                        f"existing owner of {target_path}."
+                    ),
+                )
+            )
+            continue
+        group_kind, group_key = _canonical_target_group((target_path,))
+        output.append(
+            replace(
+                probe,
+                draft_id=(
+                    "host_equipment_target_projection_"
+                    + sha256_bytes(f"{nearest_index}:{char_start}:{char_end}".encode())[:16]
+                ),
+                logical_key="anchor:" + target_path,
+                render_mode="target_binding",
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=(target_path,),
+                rationale=(
+                    "Host target-bound this unowned compact equipment projection to the unique "
+                    f"local container:{nearest_index} typeDescription."
+                ),
+            )
+        )
+    return tuple(output)
 
 
 def _localized_equipment_target_draft(*, draft: SpanDraft, container_index: int) -> SpanDraft:
@@ -3734,7 +8224,20 @@ def _localized_equipment_target_draft(*, draft: SpanDraft, container_index: int)
 def normalize_compact_equipment_locality(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
-    """Safely detach a compact type token from the wrong neighboring container binding."""
+    """Canonicalize only host-proven compact equipment projections and row locality."""
+
+    page_spans = page_body_spans(raw)
+    lines = line_spans(raw)
+    drafts = (
+        *drafts,
+        *_host_discovered_compact_equipment(
+            raw=raw,
+            drafts=drafts,
+            source_target=source_target,
+            page_spans=page_spans,
+            lines=lines,
+        ),
+    )
 
     number_drafts: dict[int, list[SpanDraft]] = defaultdict(list)
     for draft in drafts:
@@ -3755,6 +8258,48 @@ def normalize_compact_equipment_locality(
             and draft.value_kind == "equipment"
             and not draft.target_paths
         ):
+            receipt_owner = _adjacent_equipment_receipt_owner(
+                raw=raw,
+                char_start=draft.char_start,
+                char_end=draft.char_end,
+                source_text=draft.source_text,
+                drafts=drafts,
+                source_target=source_target,
+                page_spans=page_spans,
+            )
+            if receipt_owner is not None:
+                if (
+                    draft.group_kind != receipt_owner.group_kind
+                    or draft.group_key != receipt_owner.group_key
+                ):
+                    raise ValueError(
+                        f"{draft.logical_key} declares {draft.group_kind}:{draft.group_key} but "
+                        "its compact equipment token is physically adjacent to "
+                        f"{receipt_owner.logical_key} in {receipt_owner.group_kind}:"
+                        f"{receipt_owner.group_key}"
+                    )
+                output.append(
+                    replace(
+                        draft,
+                        logical_key=receipt_owner.logical_key,
+                        render_mode=receipt_owner.render_mode,
+                        value_kind=receipt_owner.value_kind,
+                        group_kind=receipt_owner.group_kind,
+                        group_key=receipt_owner.group_key,
+                        target_paths=receipt_owner.target_paths,
+                        derivation=receipt_owner.derivation,
+                        dependency_paths=receipt_owner.dependency_paths,
+                        dependency_bindings=receipt_owner.dependency_bindings,
+                        evidence_origin="derived_operational_fact",
+                        render_policy=receipt_owner.render_policy,
+                        rationale=(
+                            draft.rationale
+                            + " Host canonicalized this compact projection as another occurrence "
+                            f"of the unique adjacent receipt owner {receipt_owner.logical_key}."
+                        ),
+                    )
+                )
+                continue
             scoped_type_paths = {
                 path
                 for other in drafts
@@ -3764,7 +8309,11 @@ def normalize_compact_equipment_locality(
             }
             scoped_target = next(iter(scoped_type_paths)) if len(scoped_type_paths) == 1 else None
             nearest_index = _nearest_container_number_index(
-                raw=raw, draft=draft, number_drafts=number_drafts
+                raw=raw,
+                draft=draft,
+                number_drafts=number_drafts,
+                page_spans=page_spans,
+                lines=lines,
             )
             nearest_container = (
                 containers[nearest_index]
@@ -3815,19 +8364,38 @@ def normalize_compact_equipment_locality(
             output.append(draft)
             continue
         nearest_index = _nearest_container_number_index(
-            raw=raw, draft=draft, number_drafts=number_drafts
+            raw=raw,
+            draft=draft,
+            number_drafts=number_drafts,
+            page_spans=page_spans,
+            lines=lines,
         )
         if nearest_index is None or nearest_index == target_index:
             output.append(draft)
             continue
         nearest_container = containers[nearest_index] if nearest_index < len(containers) else None
+        target_path = f"documentPatch.containers[{target_index}].typeDescription"
         siblings = tuple(
             row
             for row in drafts
-            if row.logical_key == draft.logical_key and row.draft_id != draft.draft_id
+            if row.draft_id != draft.draft_id
+            and (
+                target_path in row.target_paths
+                or (
+                    row.render_mode == "deterministic_derived"
+                    and target_path in row.dependency_paths
+                )
+            )
         )
-        target_has_local_sibling = any(
-            _nearest_container_number_index(raw=raw, draft=sibling, number_drafts=number_drafts)
+        target_has_stable_sibling = any(
+            not _short_equipment_token(sibling)
+            or _nearest_container_number_index(
+                raw=raw,
+                draft=sibling,
+                number_drafts=number_drafts,
+                page_spans=page_spans,
+                lines=lines,
+            )
             == target_index
             for sibling in siblings
         )
@@ -3839,7 +8407,7 @@ def normalize_compact_equipment_locality(
                 _localized_equipment_target_draft(draft=draft, container_index=nearest_index)
             )
             continue
-        if not target_has_local_sibling:
+        if not target_has_stable_sibling:
             output.append(draft)
             continue
         output.append(
@@ -3874,11 +8442,3879 @@ def normalize_compact_equipment_locality(
     return merge_drafts((), tuple(output))
 
 
+def normalize_party_address_suffix_locality(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Complete a target address only from its uniquely local printed suffix.
+
+    Party labels commonly exclude a postal suffix from the accepted address anchor because the
+    suffix is co-printed with the separately owned city or country on the following line.  A suffix
+    is added only when the existing address tokens are a strict prefix of the target address, the
+    remaining target tokens occur exactly once on the immediately following line, and another
+    target-backed field for the same party owns text on that line.  These conditions make the join
+    role-local and prevent equal postal codes elsewhere in the document from being borrowed.
+    """
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    additions: list[SpanDraft] = []
+    for rows in grouped.values():
+        ordered = sorted(rows, key=lambda row: (row.char_start, row.char_end))
+        first = ordered[0]
+        if not (
+            first.render_mode == "target_binding"
+            and first.value_kind == "address"
+            and first.group_kind == "party"
+            and len(first.target_paths) == 1
+            and _PARTY_ADDRESS_PATH.fullmatch(first.target_paths[0]) is not None
+            and all(_semantic_signature(row) == _semantic_signature(first) for row in ordered)
+        ):
+            continue
+        target_surface = _scalar_surface(_resolve_target_path(source_target, first.target_paths[0]))
+        if target_surface is None:
+            continue
+        target_tokens = tuple(token for token, _start, _end in _surface_token_spans(target_surface))
+        owned_tokens = tuple(
+            token
+            for row in ordered
+            for token, _start, _end in _surface_token_spans(row.source_text)
+        )
+        if (
+            not owned_tokens
+            or len(owned_tokens) >= len(target_tokens)
+            or target_tokens[: len(owned_tokens)] != owned_tokens
+        ):
+            continue
+        missing_tokens = target_tokens[len(owned_tokens) :]
+        last_line_number = line_number_for_char(lines, max(row.char_end for row in ordered) - 1)
+        candidate_line = next(
+            (line for line in lines if line.number == last_line_number + 1),
+            None,
+        )
+        if candidate_line is None:
+            continue
+        same_party_context = any(
+            row.logical_key != first.logical_key
+            and row.render_mode == "target_binding"
+            and row.group_kind == "party"
+            and row.group_key == first.group_key
+            and row.char_start < candidate_line.char_end
+            and candidate_line.char_start < row.char_end
+            for row in drafts
+        )
+        if not same_party_context:
+            continue
+        line_tokens = _surface_token_spans(candidate_line.text)
+        candidates: list[tuple[int, int]] = []
+        for index in range(len(line_tokens) - len(missing_tokens) + 1):
+            window = line_tokens[index : index + len(missing_tokens)]
+            if tuple(token for token, _start, _end in window) != missing_tokens:
+                continue
+            char_start = candidate_line.char_start + window[0][1]
+            char_end = candidate_line.char_start + window[-1][2]
+            if any(char_start < other.char_end and other.char_start < char_end for other in drafts):
+                continue
+            candidates.append((char_start, char_end))
+        if len(candidates) != 1:
+            continue
+        char_start, char_end = candidates[0]
+        additions.append(
+            replace(
+                first,
+                draft_id=(
+                    "host_party_address_suffix_"
+                    + sha256_bytes(f"{first.logical_key}\0{char_start}\0{char_end}".encode())[:16]
+                ),
+                char_start=char_start,
+                char_end=char_end,
+                source_text=raw[char_start:char_end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    first.rationale
+                    + " Host appended the unique remaining target-address suffix from the "
+                    "immediately following line owned by the same party."
+                ),
+            )
+        )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_segmented_party_address_targets(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Promote a complete set of party-scoped source-only address segments.
+
+    Some labels model an address without a city even though OCR interleaves the city between two
+    address lines.  Exact source-only address fragments can therefore be the complete deterministic
+    realization of one target without ever forming a contiguous accepted anchor.  Promotion is
+    allowed only when every address fragment in that party scope maps to one unique, disjoint
+    target-token interval and the distinct intervals cover the target exactly in order.
+    """
+
+    patch = source_target.get("documentPatch")
+    parties = patch.get("parties") if isinstance(patch, Mapping) else None
+    if not isinstance(parties, Mapping):
+        return tuple(drafts)
+
+    address_targets: list[tuple[str, str, str]] = []
+    for role, party in parties.items():
+        if role == "notifyParties":
+            if not isinstance(party, list):
+                continue
+            for index, notify_party in enumerate(party):
+                if not isinstance(notify_party, Mapping) or not isinstance(
+                    notify_party.get("address"), str
+                ):
+                    continue
+                path = f"documentPatch.parties.notifyParties[{index}].address"
+                _group_kind, group_key = _canonical_target_group((path,))
+                address_targets.append((path, group_key, str(notify_party["address"])))
+            continue
+        if not isinstance(party, Mapping) or not isinstance(party.get("address"), str):
+            continue
+        path = f"documentPatch.parties.{role}.address"
+        _group_kind, group_key = _canonical_target_group((path,))
+        address_targets.append((path, group_key, str(party["address"])))
+
+    represented_paths = _represented_target_inputs(drafts)
+    promotions: dict[str, str] = {}
+    for target_path, group_key, target_surface in address_targets:
+        if target_path in represented_paths:
+            continue
+        candidates = tuple(
+            row
+            for row in drafts
+            if row.render_mode in {"deterministic_auxiliary", "agent_residual"}
+            and row.value_kind == "address"
+            and row.group_kind == "party"
+            and row.group_key == group_key
+            and not row.target_paths
+            and not row.dependency_paths
+            and not row.dependency_bindings
+        )
+        if not candidates:
+            continue
+        target_tokens = tuple(token for token, _start, _end in _surface_token_spans(target_surface))
+        source_token_groups = {
+            tuple(token for token, _start, _end in _surface_token_spans(row.source_text))
+            for row in candidates
+        }
+        if not target_tokens or () in source_token_groups:
+            continue
+        intervals: list[tuple[int, int]] = []
+        valid = True
+        for source_tokens in source_token_groups:
+            starts = tuple(
+                index
+                for index in range(len(target_tokens) - len(source_tokens) + 1)
+                if target_tokens[index : index + len(source_tokens)] == source_tokens
+            )
+            if len(starts) != 1:
+                valid = False
+                break
+            intervals.append((starts[0], starts[0] + len(source_tokens)))
+        ordered = sorted(intervals)
+        if not valid or not ordered or ordered[0][0] != 0 or ordered[-1][1] != len(target_tokens):
+            continue
+        if any(
+            left_end != right_start
+            for (_left_start, left_end), (right_start, _right_end) in pairwise(ordered)
+        ):
+            continue
+        if len(set(ordered)) != len(ordered):
+            continue
+        for row in candidates:
+            prior = promotions.setdefault(row.draft_id, target_path)
+            if prior != target_path:
+                raise ValueError(
+                    f"party address fragment has competing exact target promotions: {row.draft_id}"
+                )
+
+    output: list[SpanDraft] = []
+    for row in drafts:
+        target_path = promotions.get(row.draft_id)
+        if target_path is None:
+            output.append(row)
+            continue
+        group_kind, group_key = _canonical_target_group((target_path,))
+        output.append(
+            replace(
+                row,
+                logical_key="anchor:" + target_path,
+                render_mode="target_binding",
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=(target_path,),
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    row.rationale
+                    + " Host promoted the party-scoped address fragments because their unique "
+                    "ordered token projections cover the structured address exactly."
+                ),
+            )
+        )
+    return merge_drafts(output)
+
+
+def normalize_party_address_inline_segments(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Complete target-address tokens immediately adjacent to an owned same-line fragment.
+
+    Repeated forms sometimes split one structured address into several physical slots and omit a
+    middle token run. The host expands only along an exact, uniquely positioned target-token
+    sequence on the same source line. It therefore cannot borrow a matching location from another
+    party or infer address text from vocabulary.
+    """
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    seen: set[tuple[str, int, int]] = set()
+    for rows in grouped.values():
+        first = rows[0]
+        if not (
+            first.render_mode == "target_binding"
+            and first.value_kind == "address"
+            and first.group_kind == "party"
+            and len(first.target_paths) == 1
+            and _PARTY_ADDRESS_PATH.fullmatch(first.target_paths[0]) is not None
+            and all(_semantic_signature(row) == _semantic_signature(first) for row in rows)
+        ):
+            continue
+        target_surface = _scalar_surface(_resolve_target_path(source_target, first.target_paths[0]))
+        target_tokens = (
+            tuple(token for token, _start, _end in _surface_token_spans(target_surface))
+            if target_surface is not None
+            else ()
+        )
+        if not target_tokens:
+            continue
+        for owner in rows:
+            line_number = line_number_for_char(lines, owner.char_start)
+            if line_number != line_number_for_char(lines, owner.char_end - 1):
+                continue
+            line = lines[line_number - 1]
+            owner_tokens = tuple(
+                token for token, _start, _end in _surface_token_spans(owner.source_text)
+            )
+            if not owner_tokens:
+                continue
+            target_indexes = tuple(
+                index
+                for index in range(len(target_tokens) - len(owner_tokens) + 1)
+                if target_tokens[index : index + len(owner_tokens)] == owner_tokens
+            )
+            source_tokens = _surface_token_spans(line.text)
+            source_indexes = tuple(
+                index
+                for index in range(len(source_tokens) - len(owner_tokens) + 1)
+                if tuple(
+                    token
+                    for token, _start, _end in source_tokens[index : index + len(owner_tokens)]
+                )
+                == owner_tokens
+                and line.char_start + source_tokens[index][1] >= owner.char_start
+                and line.char_start + source_tokens[index + len(owner_tokens) - 1][2]
+                <= owner.char_end
+            )
+            if len(target_indexes) != 1 or len(source_indexes) != 1:
+                continue
+            target_start = target_indexes[0]
+            source_start = source_indexes[0]
+            target_end = target_start + len(owner_tokens)
+            source_end = source_start + len(owner_tokens)
+            while (
+                target_start > 0
+                and source_start > 0
+                and target_tokens[target_start - 1] == source_tokens[source_start - 1][0]
+            ):
+                target_start -= 1
+                source_start -= 1
+            while (
+                target_end < len(target_tokens)
+                and source_end < len(source_tokens)
+                and target_tokens[target_end] == source_tokens[source_end][0]
+            ):
+                target_end += 1
+                source_end += 1
+            candidate_ranges: list[tuple[int, int]] = []
+            if source_start < source_indexes[0]:
+                candidate_ranges.append(
+                    (
+                        line.char_start + source_tokens[source_start][1],
+                        line.char_start + source_tokens[source_indexes[0] - 1][2],
+                    )
+                )
+            owner_source_end = source_indexes[0] + len(owner_tokens)
+            if source_end > owner_source_end:
+                candidate_ranges.append(
+                    (
+                        line.char_start + source_tokens[owner_source_end][1],
+                        line.char_start + source_tokens[source_end - 1][2],
+                    )
+                )
+            for start, end in candidate_ranges:
+                identity = (first.target_paths[0], start, end)
+                if identity in seen:
+                    continue
+                overlaps = tuple(
+                    row for row in drafts if start < row.char_end and row.char_start < end
+                )
+                replaceable = bool(overlaps) and all(
+                    not row.target_paths
+                    and not row.dependency_paths
+                    and not row.dependency_bindings
+                    and row.render_mode in {"deterministic_auxiliary", "agent_residual"}
+                    for row in overlaps
+                )
+                if overlaps and not replaceable:
+                    continue
+                if replaceable:
+                    discarded_ids.update(row.draft_id for row in overlaps)
+                seen.add(identity)
+                additions.append(
+                    replace(
+                        owner,
+                        draft_id=(
+                            "host_party_address_inline_"
+                            + sha256_bytes(f"{first.target_paths[0]}\0{start}\0{end}".encode())[:16]
+                        ),
+                        char_start=start,
+                        char_end=end,
+                        source_text=raw[start:end],
+                        evidence_origin="host_verified_agent_proposal",
+                        rationale=(
+                            owner.rationale
+                            + " Host appended this uniquely adjacent same-line target-address "
+                            "token segment."
+                        ),
+                    )
+                )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_canonical_carrier_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Unify exact canonical-carrier repeats under the proven target owner.
+
+    The structured carrier name and an existing carrier-static target binding prove the semantic
+    owner.  The host expands only byte-identical, token-bounded repeats of that owner's source
+    surface.  A separate source-only carrier-static binding may be merged only when it owns the
+    exact same span and normalizes to the canonical target; aliases and overlapping wider carrier
+    phrases remain untouched.
+    """
+
+    carrier = source_carrier(source_target)
+    if carrier is None:
+        return tuple(drafts)
+    normalized_carrier = _normalized_surface(carrier)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    owner_groups = tuple(
+        rows
+        for rows in grouped.values()
+        if rows[0].render_mode == "carrier_static"
+        and _CARRIER_NAME_PATH in rows[0].target_paths
+        and all(_normalized_surface(row.source_text) == normalized_carrier for row in rows)
+    )
+    if len(owner_groups) != 1:
+        return tuple(drafts)
+    owner_rows = owner_groups[0]
+    owner = owner_rows[0]
+    candidate_spans = {
+        (start, start + len(surface))
+        for surface in {row.source_text for row in owner_rows}
+        for start in _exact_offsets(raw, surface)
+        if is_token_bounded_surface_span(raw, start, start + len(surface))
+    }
+    discarded_ids: set[str] = set()
+    additions: list[SpanDraft] = []
+    for start, end in sorted(candidate_spans):
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if any(
+            row.logical_key == owner.logical_key and row.char_start == start and row.char_end == end
+            for row in overlaps
+        ):
+            continue
+        mergeable = tuple(
+            row
+            for row in overlaps
+            if row.char_start == start
+            and row.char_end == end
+            and row.render_mode == "carrier_static"
+            and not row.target_paths
+            and _normalized_surface(row.source_text) == normalized_carrier
+        )
+        if overlaps and len(mergeable) != len(overlaps):
+            continue
+        discarded_ids.update(row.draft_id for row in mergeable)
+        additions.append(
+            replace(
+                owner,
+                draft_id=(
+                    "host_canonical_carrier_repeat_"
+                    + sha256_bytes(f"{owner.logical_key}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    owner.rationale
+                    + " Host attached this byte-identical canonical-carrier repeat to the "
+                    "unique structured carrier-name owner."
+                ),
+            )
+        )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_canonical_carrier_initialism(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own an unbound canonical-carrier initialism only in explicit carrier context.
+
+    The initialism is derived from the structured carrier name rather than guessed from a model.
+    Each added occurrence must be uppercase, token bounded, and locally identified by carrier
+    relationship, tariff, terms, or signature language.  Occurrences already contained in a
+    carrier name, domain, or affiliate binding remain with that wider owner.
+    """
+
+    carrier = source_carrier(source_target)
+    if carrier is None:
+        return tuple(drafts)
+    words = tuple(re.findall(r"[A-Za-z0-9]+", carrier))
+    initialism = "".join(word[0] for word in words).upper()
+    if not 3 <= len(initialism) <= 8 or not initialism.isalpha():
+        return tuple(drafts)
+    if not any(
+        row.render_mode == "carrier_static" and _CARRIER_NAME_PATH in row.target_paths
+        for row in drafts
+    ):
+        return tuple(drafts)
+
+    lines = line_spans(raw)
+    additions: list[SpanDraft] = []
+    for start in _exact_offsets(raw, initialism):
+        end = start + len(initialism)
+        if not is_token_bounded_surface_span(raw, start, end) or any(
+            start < row.char_end and row.char_start < end for row in drafts
+        ):
+            continue
+        line_number = line_number_for_char(lines, start)
+        line = lines[line_number - 1]
+        line_tokens = tuple(token for token, _start, _end in _surface_token_spans(line.text))
+        local_suffix = raw[end : min(line.char_end, end + 3)]
+        carrier_context = (
+            bool(re.match(r"(?:['\u2019]s)\b", local_suffix, flags=re.IGNORECASE))
+            or any(token.startswith("tariff") for token in line_tokens)
+            or any(token in {"carrier", "signed", "signature", "terms"} for token in line_tokens)
+        )
+        if not carrier_context:
+            continue
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_carrier_initialism_"
+                    + sha256_bytes(f"{initialism}\0{start}\0{end}".encode())[:16]
+                ),
+                logical_key=f"agent:carrier:canonical_initialism:{initialism.casefold()}",
+                render_mode="carrier_static",
+                value_kind="organization",
+                group_kind="carrier",
+                group_key="carrier:principal",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host derived this uppercase initialism from the canonical carrier name and "
+                    "classified the occurrence as carrier-static from its explicit local "
+                    "carrier, tariff, terms, or signature context."
+                ),
+            )
+        )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_labeled_source_only_fields(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own complete next-line values for exact source-only field captions."""
+
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    for caption in lines:
+        contract = _SOURCE_ONLY_FIELD_CAPTIONS.get(_normalized_surface(caption.text))
+        if contract is None:
+            continue
+        value_line = line_by_number.get(caption.number + 1)
+        if value_line is None:
+            continue
+        left_trim = len(value_line.text) - len(value_line.text.lstrip())
+        right_trim = len(value_line.text.rstrip())
+        if right_trim <= left_trim:
+            continue
+        start = value_line.char_start + left_trim
+        end = value_line.char_start + right_trim
+        source_text = raw[start:end]
+        if not any(character.isalpha() for character in source_text):
+            continue
+        logical_key, group_kind, group_key, value_kind = contract
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if overlaps:
+            already_owned = all(
+                row.char_start == start
+                and row.char_end == end
+                and row.logical_key == logical_key
+                and row.render_mode == "deterministic_auxiliary"
+                and row.value_kind == value_kind
+                and not row.target_paths
+                for row in overlaps
+            )
+            if already_owned:
+                continue
+            literal_rows = tuple(
+                row
+                for row in overlaps
+                if row.char_start == start
+                and row.char_end == end
+                and row.render_mode == "literal_static"
+            )
+            if len(literal_rows) != len(overlaps):
+                continue
+            discarded_ids.update(row.draft_id for row in literal_rows)
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_labeled_source_location_"
+                    + sha256_bytes(f"{logical_key}\0{start}\0{end}".encode())[:16]
+                ),
+                logical_key=logical_key,
+                render_mode="deterministic_auxiliary",
+                value_kind=value_kind,
+                group_kind=group_kind,
+                group_key=group_key,
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=source_text,
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host owned the complete next-line value under the exact source-only "
+                    f"{caption.text.strip()} caption."
+                ),
+            )
+        )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_labeled_movement_type_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Append an omitted movement-type repeat only inside a proven structured cargo row.
+
+    A labeled ``TYPE OF MOVEMENT`` value establishes the source-only field.  To avoid treating text
+    equality as semantics, automatic expansion additionally requires at least two already owned
+    repeats between package and equipment owners on one line.  A new occurrence must have the same
+    normalized surface, occupy that same package-before/equipment-after frame, and be separated by
+    slash delimiters.  Repeated prose or captions therefore remain outside this rule.
+    """
+
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+
+    def source_line(row: SpanDraft) -> LineSpan | None:
+        start = line_number_for_char(lines, row.char_start)
+        end = line_number_for_char(lines, row.char_end - 1)
+        return line_by_number[start] if start == end else None
+
+    def has_structured_row_frame(start: int, end: int, line: LineSpan) -> bool:
+        package_before = any(
+            row.group_kind == "package"
+            and line.char_start <= row.char_start
+            and row.char_end <= start
+            for row in drafts
+        )
+        equipment_after = any(
+            row.group_kind == "equipment"
+            and end <= row.char_start
+            and row.char_end <= line.char_end
+            for row in drafts
+        )
+        before = raw[line.char_start : start].rstrip()
+        after = raw[end : line.char_end].lstrip()
+        return package_before and equipment_after and before.endswith("/") and after.startswith("/")
+
+    additions: list[SpanDraft] = []
+    for rows in grouped.values():
+        ordered = sorted(rows, key=lambda row: (row.char_start, row.char_end))
+        first = ordered[0]
+        if not (
+            first.render_mode == "deterministic_auxiliary"
+            and first.value_kind == "operational_text"
+            and first.group_kind == "transport"
+            and not first.target_paths
+        ):
+            continue
+        normalized_surfaces = {_normalized_surface(row.source_text) for row in ordered}
+        if len(normalized_surfaces) != 1 or not next(iter(normalized_surfaces)):
+            continue
+        normalized_value = next(iter(normalized_surfaces))
+        owned_label = any(
+            (line := source_line(row)) is not None
+            and (caption := line_by_number.get(line.number - 1)) is not None
+            and _normalized_surface(caption.text).startswith("typeofmovement")
+            for row in ordered
+        )
+        labeled_spans: set[tuple[int, int]] = set()
+        for caption in lines:
+            if not _normalized_surface(caption.text).startswith("typeofmovement"):
+                continue
+            value_line = line_by_number.get(caption.number + 1)
+            if value_line is None:
+                continue
+            left_trim = len(value_line.text) - len(value_line.text.lstrip())
+            right_trim = len(value_line.text.rstrip())
+            if right_trim <= left_trim:
+                continue
+            start = value_line.char_start + left_trim
+            end = value_line.char_start + right_trim
+            if _normalized_surface(raw[start:end]) == normalized_value:
+                labeled_spans.add((start, end))
+        structured_rows = sum(
+            1
+            for row in ordered
+            if (line := source_line(row)) is not None
+            and has_structured_row_frame(row.char_start, row.char_end, line)
+        )
+        if not (owned_label or labeled_spans) or structured_rows < 2:
+            continue
+
+        candidate_spans: set[tuple[int, int]] = set(labeled_spans)
+        for surface in dict.fromkeys(row.source_text for row in ordered):
+            candidate_spans.update(
+                (start, start + len(surface)) for start in _exact_offsets(raw, surface)
+            )
+        for start, end in sorted(candidate_spans):
+            if any(start < row.char_end and row.char_start < end for row in drafts):
+                continue
+            line_number = line_number_for_char(lines, start)
+            line = line_by_number[line_number]
+            if line_number_for_char(lines, end - 1) != line_number:
+                continue
+            if (start, end) not in labeled_spans and not has_structured_row_frame(start, end, line):
+                continue
+            additions.append(
+                replace(
+                    first,
+                    draft_id=(
+                        "host_movement_type_repeat_"
+                        + sha256_bytes(f"{first.logical_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        first.rationale
+                        + (
+                            " Host attached the complete value below the exact TYPE OF MOVEMENT "
+                            "caption to the proven repeated movement binding."
+                            if (start, end) in labeled_spans
+                            else " Host appended this exact movement-type repeat from the proven "
+                            "package-before/equipment-after cargo-row frame."
+                        )
+                    ),
+                )
+            )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_explicit_loading_terminal_locality(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own the complete value immediately below an explicit terminal-only caption.
+
+    A mis-owned port target is detached only when another occurrence retains port-of-loading
+    ownership.  An entirely unowned value line is materialized directly.  A sole ambiguous port
+    occurrence or any partially owned line remains unchanged for semantic review.
+    """
+
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    replacements: dict[str, SpanDraft] = {}
+    for rows in grouped.values():
+        first = rows[0]
+        if not (
+            first.render_mode == "target_binding"
+            and first.target_paths == (_PORT_OF_LOADING_PATH,)
+            and first.value_kind == "location"
+        ):
+            continue
+        terminal_rows: list[SpanDraft] = []
+        for row in rows:
+            start_line = line_number_for_char(lines, row.char_start)
+            end_line = line_number_for_char(lines, row.char_end - 1)
+            caption = line_by_number.get(start_line - 1)
+            if (
+                start_line == end_line
+                and caption is not None
+                and _normalized_surface(caption.text) == _LOADING_TERMINAL_CAPTION
+            ):
+                terminal_rows.append(row)
+        if not terminal_rows or len(terminal_rows) == len(rows):
+            continue
+        for row in terminal_rows:
+            surface_key = sha256_bytes(_normalized_surface(row.source_text).encode("utf-8"))[:12]
+            replacements[row.draft_id] = SpanDraft(
+                draft_id=(
+                    "host_loading_terminal_"
+                    + sha256_bytes(f"{row.char_start}\0{row.char_end}".encode())[:16]
+                ),
+                logical_key=f"agent:route:loading_terminal:{surface_key}",
+                render_mode="deterministic_auxiliary",
+                value_kind="location",
+                group_kind="route",
+                group_key="route:loading_terminal",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=row.char_start,
+                char_end=row.char_end,
+                source_text=row.source_text,
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host reclassified this location as a source-only loading terminal because its "
+                    "immediately preceding line is the explicit LOADING PIER/TERMINAL caption and "
+                    "another occurrence retains the structured port-of-loading target."
+                ),
+            )
+    working = tuple(replacements.get(row.draft_id, row) for row in drafts)
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    for caption in lines:
+        if _normalized_surface(caption.text) != _LOADING_TERMINAL_CAPTION:
+            continue
+        value_line = line_by_number.get(caption.number + 1)
+        if value_line is None:
+            continue
+        left_trim = len(value_line.text) - len(value_line.text.lstrip())
+        right_trim = len(value_line.text.rstrip())
+        if right_trim <= left_trim:
+            continue
+        start = value_line.char_start + left_trim
+        end = value_line.char_start + right_trim
+        source_text = raw[start:end]
+        if not any(character.isalnum() for character in source_text):
+            continue
+        overlaps = tuple(row for row in working if start < row.char_end and row.char_start < end)
+        if overlaps:
+            already_owned = all(
+                row.char_start == start
+                and row.char_end == end
+                and row.render_mode == "deterministic_auxiliary"
+                and row.value_kind == "location"
+                and row.group_kind == "route"
+                and row.group_key == "route:loading_terminal"
+                and not row.target_paths
+                for row in overlaps
+            )
+            if already_owned:
+                continue
+            literal_rows = tuple(
+                row
+                for row in overlaps
+                if row.char_start == start
+                and row.char_end == end
+                and row.render_mode == "literal_static"
+            )
+            if len(literal_rows) != len(overlaps):
+                continue
+            discarded_ids.update(row.draft_id for row in literal_rows)
+        surface_key = sha256_bytes(_normalized_surface(source_text).encode("utf-8"))[:12]
+        additions.append(
+            SpanDraft(
+                draft_id=("host_loading_terminal_" + sha256_bytes(f"{start}\0{end}".encode())[:16]),
+                logical_key=f"agent:route:loading_terminal:{surface_key}",
+                render_mode="deterministic_auxiliary",
+                value_kind="location",
+                group_kind="route",
+                group_key="route:loading_terminal",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=source_text,
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host classified the complete value line as a source-only loading terminal "
+                    "because its immediately preceding line is the exact LOADING PIER/TERMINAL "
+                    "caption."
+                ),
+            )
+        )
+    retained = tuple(row for row in working if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_selected_operational_terms(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own two exact selected-commercial line grammars without semantic extrapolation.
+
+    A free-detention term has a deterministic numeric vocabulary realization.  A country-prefixed
+    free-out instruction is intentionally agent residual: preserving the source country while
+    other shipment geography changes would be incorrect, and no structured destination-country
+    relationship is proven here.  Partial ownership or any non-literal overlap stays untouched.
+    """
+
+    working = tuple(drafts)
+    discarded_ids: set[str] = set()
+    additions: list[SpanDraft] = []
+    for line in line_spans(raw):
+        left_trim = len(line.text) - len(line.text.lstrip())
+        right_trim = len(line.text.rstrip())
+        if right_trim <= left_trim:
+            continue
+        start = line.char_start + left_trim
+        end = line.char_start + right_trim
+        source_text = raw[start:end]
+        if _FREE_DETENTION_TERM.fullmatch(source_text) is not None:
+            logical_key = "agent:commercial:free_detention"
+            render_mode = "deterministic_auxiliary"
+            rationale = (
+                "Host classified the complete line as a selected numeric free-detention term "
+                "using the exact supported line grammar."
+            )
+        elif _IMPORT_FREE_OUT_INSTRUCTION.fullmatch(source_text) is not None:
+            logical_key = "agent:commercial:import_free_out_instruction"
+            render_mode = "agent_residual"
+            rationale = (
+                "Host classified the complete country-prefixed free-out instruction as bounded "
+                "linguistic residual because no structured destination-country relationship is "
+                "proven by the source label."
+            )
+        else:
+            continue
+        overlaps = tuple(row for row in working if start < row.char_end and row.char_start < end)
+        if overlaps:
+            already_owned = all(
+                row.char_start == start
+                and row.char_end == end
+                and row.render_mode == render_mode
+                and row.logical_key == logical_key
+                for row in overlaps
+            )
+            if already_owned:
+                continue
+            literal_rows = tuple(
+                row
+                for row in overlaps
+                if row.char_start == start
+                and row.char_end == end
+                and row.render_mode == "literal_static"
+            )
+            if len(literal_rows) != len(overlaps):
+                continue
+            discarded_ids.update(row.draft_id for row in literal_rows)
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_selected_operational_term_"
+                    + sha256_bytes(f"{logical_key}\0{start}\0{end}".encode())[:16]
+                ),
+                logical_key=logical_key,
+                render_mode=render_mode,
+                value_kind="commercial_text",
+                group_kind="transport",
+                group_key="transport:commercial_terms",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=source_text,
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=rationale,
+            )
+        )
+    retained = tuple(row for row in working if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_selected_freight_payment_locality(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Move freight payment ownership from an option header to selected-value lines.
+
+    ``PREPAID COLLECT`` in one heading is a mutually exclusive option vocabulary, not a selected
+    value.  When the structured value is either option and the source also has an unambiguous
+    ``FREIGHT <selected>`` line without the opposite option, the host makes the header occurrence
+    literal-static and attaches the selected token to the existing target owner.  Without that
+    replacement evidence the accepted anchor remains unchanged for semantic review.
+    """
+
+    try:
+        payment_value = _resolve_target_path(source_target, _FREIGHT_PAYMENT_PATH)
+    except ValueError:
+        return tuple(drafts)
+    payment_surface = _scalar_surface(payment_value)
+    if payment_surface is None:
+        return tuple(drafts)
+    selected = _normalized_surface(payment_surface)
+    if selected not in {"prepaid", "collect"}:
+        return tuple(drafts)
+    opposite = "collect" if selected == "prepaid" else "prepaid"
+
+    narrowed: list[SpanDraft] = []
+    lines = line_spans(raw)
+    for row in drafts:
+        if (
+            row.render_mode != "target_binding"
+            or row.target_paths != (_FREIGHT_PAYMENT_PATH,)
+            or _normalized_surface(row.source_text) == selected
+        ):
+            narrowed.append(row)
+            continue
+        start_line = line_number_for_char(lines, row.char_start)
+        end_line = line_number_for_char(lines, row.char_end - 1)
+        tokens = _surface_token_spans(row.source_text)
+        selected_tokens = tuple(
+            (index, token_start, token_end)
+            for index, (token, token_start, token_end) in enumerate(tokens)
+            if token == selected
+            and index > 0
+            and tokens[index - 1][0] == "freight"
+            and opposite not in {value for value, _start, _end in tokens}
+        )
+        if start_line != end_line or len(selected_tokens) != 1:
+            narrowed.append(row)
+            continue
+        _index, relative_start, relative_end = selected_tokens[0]
+        narrowed.append(
+            replace(
+                row,
+                draft_id=(
+                    "host_narrowed_freight_payment_"
+                    + sha256_bytes(f"{row.draft_id}\0{relative_start}\0{relative_end}".encode())[
+                        :16
+                    ]
+                ),
+                char_start=row.char_start + relative_start,
+                char_end=row.char_start + relative_end,
+                source_text=row.source_text[relative_start:relative_end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    row.rationale
+                    + " Host narrowed the direct payment target from its FREIGHT caption prefix "
+                    "to the selected PREPAID/COLLECT value token."
+                ),
+            )
+        )
+    drafts = merge_drafts(narrowed)
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        if _FREIGHT_PAYMENT_PATH in draft.target_paths:
+            grouped[draft.logical_key].append(draft)
+    if len(grouped) != 1:
+        return tuple(drafts)
+    owner_rows = next(iter(grouped.values()))
+    owner = owner_rows[0]
+    if owner.render_mode != "target_binding":
+        return tuple(drafts)
+
+    caption_ids: set[str] = set()
+    for row in owner_rows:
+        start_line = line_number_for_char(lines, row.char_start)
+        end_line = line_number_for_char(lines, row.char_end - 1)
+        if start_line != end_line or _normalized_surface(row.source_text) != selected:
+            continue
+        line = lines[start_line - 1]
+        tokens = tuple(token for token, _start, _end in _surface_token_spans(line.text))
+        if (
+            selected in tokens
+            and opposite in tokens
+            and any(token.startswith("freight") for token in tokens)
+        ):
+            caption_ids.add(row.draft_id)
+    if not caption_ids:
+        return tuple(drafts)
+
+    selected_spans: list[tuple[int, int]] = []
+    for line in lines:
+        tokens = _surface_token_spans(line.text)
+        normalized_tokens = tuple(token for token, _start, _end in tokens)
+        if opposite in normalized_tokens:
+            continue
+        for index, (token, token_start, token_end) in enumerate(tokens):
+            if token != selected or index == 0 or tokens[index - 1][0] != "freight":
+                continue
+            selected_spans.append((line.char_start + token_start, line.char_start + token_end))
+    if not selected_spans:
+        return tuple(drafts)
+
+    additions: list[SpanDraft] = []
+    retained_selected = False
+    for start, end in selected_spans:
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if overlaps:
+            if all(
+                row.logical_key == owner.logical_key
+                and row.char_start == start
+                and row.char_end == end
+                for row in overlaps
+            ):
+                retained_selected = True
+            continue
+        additions.append(
+            replace(
+                owner,
+                draft_id=(
+                    "host_selected_freight_payment_"
+                    + sha256_bytes(f"{owner.logical_key}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    owner.rationale
+                    + " Host moved ownership from the mutually exclusive PREPAID/COLLECT "
+                    "header to this explicit FREIGHT selected-value occurrence."
+                ),
+            )
+        )
+    if not additions and not retained_selected:
+        return tuple(drafts)
+    retained = tuple(row for row in drafts if row.draft_id not in caption_ids)
+    literal_headers = tuple(
+        replace(
+            row,
+            draft_id=(
+                "host_literal_freight_payment_option_"
+                + sha256_bytes(f"{row.char_start}\0{row.char_end}".encode())[:16]
+            ),
+            logical_key="agent:literal:freight_payment_option_header",
+            render_mode="literal_static",
+            value_kind="commercial_text",
+            group_kind="document",
+            group_key="document:freight_payment_options",
+            target_paths=(),
+            derivation=None,
+            dependency_paths=(),
+            dependency_bindings=(),
+            evidence_origin="host_verified_agent_proposal",
+            render_policy="categorical_surface",
+            rationale=(
+                "Host classified this token as fixed option vocabulary because its line prints "
+                "both mutually exclusive PREPAID and COLLECT choices and a separate FREIGHT "
+                "line prints the selected structured value."
+            ),
+        )
+        for row in owner_rows
+        if row.draft_id in caption_ids
+    )
+    return merge_drafts(retained, literal_headers, additions)
+
+
+def _target_rows_on_line(
+    *, line: LineSpan, drafts: Sequence[SpanDraft], target_path: str
+) -> tuple[SpanDraft, ...]:
+    return tuple(
+        row
+        for row in drafts
+        if row.render_mode == "target_binding"
+        and target_path in row.target_paths
+        and row.char_start < line.char_end
+        and line.char_start < row.char_end
+    )
+
+
+def _at_location_on_frame(*, line: LineSpan, target_surface: str) -> tuple[int, int] | None:
+    """Return the unique target-token window in an explicit ``AT <location> ON`` frame."""
+
+    line_tokens = _surface_token_spans(line.text)
+    target_tokens = tuple(token for token, _start, _end in _surface_token_spans(target_surface))
+    if not target_tokens:
+        return None
+    matches: list[tuple[int, int]] = []
+    for index in range(1, len(line_tokens) - len(target_tokens)):
+        window = line_tokens[index : index + len(target_tokens)]
+        if (
+            tuple(token for token, _start, _end in window) == target_tokens
+            and line_tokens[index - 1][0] == "at"
+            and line_tokens[index + len(target_tokens)][0] == "on"
+        ):
+            matches.append(
+                (
+                    line.char_start + window[0][1],
+                    line.char_start + window[-1][2],
+                )
+            )
+    return matches[0] if len(matches) == 1 else None
+
+
+def normalize_shipped_on_board_summary_locality(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own selected on-board status and its explicitly framed loading-port repeat.
+
+    ``SHIPPED ON BOARD`` is treated as selected status only when the same source line already owns
+    both a vessel name and an on-board date in that order.  A loading-port repeat is added only from
+    the unique ``AT <target port> ON`` token frame on that proven summary line.
+    """
+
+    working = tuple(drafts)
+    discarded: set[str] = set()
+    additions: list[SpanDraft] = []
+    for line in line_spans(raw):
+        status_matches = tuple(_SELECTED_OPERATIONAL_TEXT.finditer(line.text))
+        if len(status_matches) != 1:
+            continue
+        vessel_rows = _target_rows_on_line(line=line, drafts=working, target_path=_VESSEL_NAME_PATH)
+        date_rows = _target_rows_on_line(
+            line=line, drafts=working, target_path=_SHIPPED_ON_BOARD_DATE_PATH
+        )
+        if len(vessel_rows) != 1 or len(date_rows) != 1:
+            continue
+        status_match = status_matches[0]
+        status_start = line.char_start + status_match.start()
+        status_end = line.char_start + status_match.end()
+        vessel = vessel_rows[0]
+        date_row = date_rows[0]
+        if not (status_end <= vessel.char_start < vessel.char_end <= date_row.char_start):
+            continue
+        status_owners = tuple(
+            row for row in working if status_start < row.char_end and row.char_start < status_end
+        )
+        status_is_selected = False
+        if not status_owners:
+            status_is_selected = True
+        elif (
+            len(status_owners) == 1
+            and status_owners[0].char_start == status_start
+            and status_owners[0].char_end == status_end
+            and status_owners[0].render_mode == "literal_static"
+        ):
+            discarded.add(status_owners[0].draft_id)
+            status_is_selected = True
+        elif (
+            len(status_owners) == 1
+            and status_owners[0].char_start == status_start
+            and status_owners[0].char_end == status_end
+            and status_owners[0].render_mode == "deterministic_auxiliary"
+            and status_owners[0].value_kind == "operational_text"
+            and not status_owners[0].target_paths
+        ):
+            status_is_selected = True
+        if not status_is_selected:
+            continue
+        if not status_owners or status_owners[0].render_mode == "literal_static":
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_shipped_on_board_status_"
+                        + sha256_bytes(f"{status_start}\0{status_end}".encode())[:16]
+                    ),
+                    logical_key="agent:operational:shipped_on_board_status",
+                    render_mode="deterministic_auxiliary",
+                    value_kind="operational_text",
+                    group_kind="transport",
+                    group_key="transport:shipped_on_board_status",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=status_start,
+                    char_end=status_end,
+                    source_text=raw[status_start:status_end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        "Host classified this phrase as selected operational status because the "
+                        "same populated summary line owns a vessel name followed by an on-board "
+                        "date."
+                    ),
+                )
+            )
+
+        port_owners = tuple(row for row in working if _PORT_OF_LOADING_PATH in row.target_paths)
+        port_logical_keys = {row.logical_key for row in port_owners}
+        if not port_owners or len(port_logical_keys) != 1:
+            continue
+        port_value = _scalar_surface(_resolve_target_path(source_target, _PORT_OF_LOADING_PATH))
+        if port_value is None:
+            continue
+        port_span = _at_location_on_frame(line=line, target_surface=port_value)
+        if port_span is None or not (
+            vessel.char_end <= port_span[0] < port_span[1] <= date_row.char_start
+        ):
+            continue
+        overlaps = tuple(
+            row for row in working if port_span[0] < row.char_end and row.char_start < port_span[1]
+        )
+        if overlaps:
+            if not all(
+                row.logical_key in port_logical_keys
+                and row.char_start == port_span[0]
+                and row.char_end == port_span[1]
+                for row in overlaps
+            ):
+                continue
+            continue
+        owner = port_owners[0]
+        additions.append(
+            replace(
+                owner,
+                draft_id=(
+                    "host_shipped_on_board_port_"
+                    + sha256_bytes(f"{port_span[0]}\0{port_span[1]}".encode())[:16]
+                ),
+                char_start=port_span[0],
+                char_end=port_span[1],
+                source_text=raw[port_span[0] : port_span[1]],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    owner.rationale
+                    + " Host appended the unique AT <port-of-loading> ON occurrence from a "
+                    "populated shipped-on-board summary."
+                ),
+            )
+        )
+    retained = tuple(row for row in working if row.draft_id not in discarded)
+    return merge_drafts(retained, additions)
+
+
+def _trimmed_line_span(line: LineSpan) -> tuple[int, int] | None:
+    left = len(line.text) - len(line.text.lstrip())
+    right = len(line.text.rstrip())
+    if right <= left:
+        return None
+    return line.char_start + left, line.char_start + right
+
+
+def _line_token_sequence_spans(line: LineSpan, target_surface: str) -> tuple[tuple[int, int], ...]:
+    target_tokens = tuple(token for token, _start, _end in _surface_token_spans(target_surface))
+    source_tokens = _surface_token_spans(line.text)
+    if not target_tokens or len(target_tokens) > len(source_tokens):
+        return ()
+    spans: list[tuple[int, int]] = []
+    for index in range(len(source_tokens) - len(target_tokens) + 1):
+        if (
+            tuple(row[0] for row in source_tokens[index : index + len(target_tokens)])
+            != target_tokens
+        ):
+            continue
+        spans.append(
+            (
+                line.char_start + source_tokens[index][1],
+                line.char_start + source_tokens[index + len(target_tokens) - 1][2],
+            )
+        )
+    return tuple(spans)
+
+
+def normalize_page_header_ownership(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Remove source-only mutable claims from synthetic ``--- PAGE n ---`` wrappers."""
+
+    headers = tuple((match.start(), match.end()) for match in _PAGE_HEADER.finditer(raw))
+    return tuple(
+        row
+        for row in drafts
+        if not (
+            row.render_mode
+            in {
+                "deterministic_auxiliary",
+                "agent_residual",
+                "literal_static",
+            }
+            and not row.target_paths
+            and not row.dependency_paths
+            and not row.dependency_bindings
+            and any(start <= row.char_start and row.char_end <= end for start, end in headers)
+        )
+    )
+
+
+def _unique_target_owner(*, drafts: Sequence[SpanDraft], target_path: str) -> SpanDraft | None:
+    owners = tuple(
+        row
+        for row in drafts
+        if row.render_mode == "target_binding" and row.target_paths == (target_path,)
+    )
+    if not owners or len({row.logical_key for row in owners}) != 1:
+        return None
+    return owners[0]
+
+
+def _address_segments_in_lines(
+    *, lines: Sequence[LineSpan], target_surface: str
+) -> tuple[tuple[int, int], ...]:
+    """Return a unique complete token partition of one address across contiguous lines."""
+
+    target_tokens = tuple(token for token, _start, _end in _surface_token_spans(target_surface))
+    if not target_tokens:
+        return ()
+    candidates: list[tuple[frozenset[int], tuple[int, int]]] = []
+    for line in lines:
+        source_tokens = _surface_token_spans(line.text)
+        for source_index, (source_token, _start, _end) in enumerate(source_tokens):
+            for target_index, target_token in enumerate(target_tokens):
+                if source_token != target_token:
+                    continue
+                length = 0
+                while (
+                    source_index + length < len(source_tokens)
+                    and target_index + length < len(target_tokens)
+                    and source_tokens[source_index + length][0]
+                    == target_tokens[target_index + length]
+                ):
+                    length += 1
+                if not length:
+                    continue
+                can_extend_left = (
+                    source_index > 0
+                    and target_index > 0
+                    and source_tokens[source_index - 1][0] == target_tokens[target_index - 1]
+                )
+                can_extend_right = (
+                    source_index + length < len(source_tokens)
+                    and target_index + length < len(target_tokens)
+                    and source_tokens[source_index + length][0]
+                    == target_tokens[target_index + length]
+                )
+                if can_extend_left or can_extend_right:
+                    continue
+                candidates.append(
+                    (
+                        frozenset(range(target_index, target_index + length)),
+                        (
+                            line.char_start + source_tokens[source_index][1],
+                            line.char_start + source_tokens[source_index + length - 1][2],
+                        ),
+                    )
+                )
+    # Keep only maximal target-token runs. A complete address is accepted only when every target
+    # token belongs to exactly one such run, making the physical partition unique.
+    maximal = tuple(
+        candidate
+        for candidate in candidates
+        if not any(
+            candidate[0] < other[0]
+            and candidate[1][0] >= other[1][0]
+            and candidate[1][1] <= other[1][1]
+            for other in candidates
+        )
+    )
+    owners_by_token: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for token_indexes, span in maximal:
+        for token_index in token_indexes:
+            owners_by_token[token_index].append(span)
+    if set(owners_by_token) != set(range(len(target_tokens))) or any(
+        len(set(spans)) != 1 for spans in owners_by_token.values()
+    ):
+        return ()
+    selected = tuple(sorted({spans[0] for spans in owners_by_token.values()}))
+    if any(left[1] > right[0] for left, right in pairwise(selected)):
+        return ()
+    return selected
+
+
+def normalize_labeled_shipper_and_receipt_locality(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Reconstruct exact shipper-address and place-of-receipt roles under their captions.
+
+    This handles repeated forms where equal city/state/postal tokens were anchored to the wrong
+    role.  A rewrite is made only when the structured target has one existing direct owner and the
+    caption-local OCR supplies a unique complete token partition (shipper address) or an exact
+    whole value (place of receipt). Cross-boundary owners make the candidate ineligible.
+    """
+
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    assignments: list[tuple[int, int, str, SpanDraft]] = []
+
+    address_owner = _unique_target_owner(drafts=drafts, target_path=_SHIPPER_ADDRESS_PATH)
+    try:
+        address_target = _scalar_surface(_resolve_target_path(source_target, _SHIPPER_ADDRESS_PATH))
+    except ValueError:
+        address_target = None
+    if address_owner is not None and address_target:
+        for caption in lines:
+            if not _normalized_surface(caption.text).startswith(_SHIPPER_NAME_ADDRESS_CAPTION):
+                continue
+            block: list[LineSpan] = []
+            cursor = caption.number + 1
+            while (line := line_by_number.get(cursor)) is not None and line.text.strip():
+                if _PAGE_HEADER.fullmatch(line.text):
+                    break
+                block.append(line)
+                cursor += 1
+            for start, end in _address_segments_in_lines(
+                lines=block,
+                target_surface=address_target,
+            ):
+                assignments.append((start, end, _SHIPPER_ADDRESS_PATH, address_owner))
+
+    city_owner = _unique_target_owner(drafts=drafts, target_path=_SHIPPER_CITY_PATH)
+    try:
+        city_target = _scalar_surface(_resolve_target_path(source_target, _SHIPPER_CITY_PATH))
+    except ValueError:
+        city_target = None
+    if city_owner is not None and city_target:
+        for caption in lines:
+            if not _normalized_surface(caption.text).startswith(_SHIPPER_NAME_ADDRESS_CAPTION):
+                continue
+            cursor = caption.number + 1
+            while (line := line_by_number.get(cursor)) is not None and line.text.strip():
+                for start, end in _line_token_sequence_spans(line, city_target):
+                    assignments.append((start, end, _SHIPPER_CITY_PATH, city_owner))
+                cursor += 1
+
+    name_owner = _unique_target_owner(drafts=drafts, target_path=_SHIPPER_NAME_PATH)
+    try:
+        name_target = _scalar_surface(_resolve_target_path(source_target, _SHIPPER_NAME_PATH))
+    except ValueError:
+        name_target = None
+    if name_owner is not None and name_target:
+        normalized_name = _normalized_surface(name_target)
+        for caption in lines:
+            if not _normalized_surface(caption.text).startswith(_SHIPPER_NAME_ADDRESS_CAPTION):
+                continue
+            value_line = line_by_number.get(caption.number + 1)
+            span = _trimmed_line_span(value_line) if value_line is not None else None
+            if span is not None and _normalized_surface(raw[span[0] : span[1]]) == normalized_name:
+                assignments.append((span[0], span[1], _SHIPPER_NAME_PATH, name_owner))
+
+    receipt_owner = _unique_target_owner(drafts=drafts, target_path=_PLACE_OF_RECEIPT_PATH)
+    try:
+        receipt_target = _scalar_surface(
+            _resolve_target_path(source_target, _PLACE_OF_RECEIPT_PATH)
+        )
+    except ValueError:
+        receipt_target = None
+    if receipt_owner is not None and receipt_target:
+        normalized_target = _normalized_surface(receipt_target)
+        for caption in lines:
+            caption_surface = _normalized_surface(caption.text)
+            if not (
+                caption_surface.startswith("placeofreceipt")
+                and "combinedtransport" in caption_surface
+            ):
+                continue
+            value_line = line_by_number.get(caption.number + 1)
+            span = _trimmed_line_span(value_line) if value_line is not None else None
+            if (
+                span is not None
+                and _normalized_surface(raw[span[0] : span[1]]) == normalized_target
+            ):
+                assignments.append((span[0], span[1], _PLACE_OF_RECEIPT_PATH, receipt_owner))
+
+    if not assignments:
+        return tuple(drafts)
+    assignments = sorted(set(assignments), key=lambda row: (row[0], row[1], row[2]))
+    accepted: list[tuple[int, int, str, SpanDraft]] = []
+    for start, end, target_path, owner in assignments:
+        if any(start < prior_end and prior_start < end for prior_start, prior_end, *_ in accepted):
+            continue
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if len(overlaps) == 1 and (
+            overlaps[0].char_start,
+            overlaps[0].char_end,
+            overlaps[0].render_mode,
+            overlaps[0].target_paths,
+            overlaps[0].logical_key,
+        ) == (start, end, "target_binding", (target_path,), owner.logical_key):
+            continue
+        accepted.append((start, end, target_path, owner))
+    if not accepted:
+        return tuple(drafts)
+
+    def row_tokens_are_reassigned(row: SpanDraft) -> bool:
+        token_spans = tuple(
+            (row.char_start + token_start, row.char_start + token_end)
+            for _token, token_start, token_end in _surface_token_spans(row.source_text)
+        )
+        return bool(token_spans) and all(
+            any(start <= token_start and token_end <= end for start, end, *_ in accepted)
+            for token_start, token_end in token_spans
+        )
+
+    unsafe_assignments = {
+        (start, end, target_path)
+        for start, end, target_path, _owner in accepted
+        if any(
+            start < row.char_end
+            and row.char_start < end
+            and not (start <= row.char_start and row.char_end <= end)
+            and not row_tokens_are_reassigned(row)
+            for row in drafts
+        )
+    }
+    accepted = [row for row in accepted if (row[0], row[1], row[2]) not in unsafe_assignments]
+    if not accepted:
+        return tuple(drafts)
+
+    discarded = {
+        row.draft_id
+        for row in drafts
+        if row_tokens_are_reassigned(row)
+        or any(
+            start <= row.char_start and row.char_end <= end
+            for start, end, _target_path, _owner in accepted
+        )
+    }
+    additions = tuple(
+        replace(
+            owner,
+            draft_id=(
+                "host_caption_local_target_"
+                + sha256_bytes(f"{target_path}\0{start}\0{end}".encode())[:16]
+            ),
+            char_start=start,
+            char_end=end,
+            source_text=raw[start:end],
+            evidence_origin="host_verified_agent_proposal",
+            rationale=(
+                owner.rationale
+                + " Host reassigned this exact value segment from the explicit local field "
+                "caption and complete structured-target token coverage."
+            ),
+        )
+        for start, end, target_path, owner in accepted
+    )
+    return reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(*tuple(row for row in drafts if row.draft_id not in discarded), *additions),
+        source_target=source_target,
+    )
+
+
+def normalize_party_location_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Append a party city/country repeat only beside another field of the same party."""
+
+    lines = line_spans(raw)
+    additions: list[SpanDraft] = []
+    owners_by_path: dict[str, list[SpanDraft]] = defaultdict(list)
+    party_contexts: dict[tuple[str, int], set[str]] = defaultdict(set)
+    for row in drafts:
+        if row.group_kind == "party" and (
+            row.target_paths
+            or (
+                row.render_mode == "deterministic_auxiliary"
+                and row.value_kind == "identifier"
+                and not row.dependency_paths
+                and not row.dependency_bindings
+            )
+        ):
+            start_line = line_number_for_char(lines, row.char_start)
+            end_line = line_number_for_char(lines, row.char_end - 1)
+            for line_number in range(start_line, end_line + 1):
+                party_contexts[(row.group_key, line_number)].add(row.logical_key)
+        for path in row.target_paths:
+            if _PARTY_LOCATION_PATH.fullmatch(path):
+                owners_by_path[path].append(row)
+    for path, owners in owners_by_path.items():
+        if len({row.logical_key for row in owners}) != 1 or any(
+            row.render_mode != "target_binding" or row.target_paths != (path,) for row in owners
+        ):
+            continue
+        target_surface = _scalar_surface(_resolve_target_path(source_target, path))
+        if not target_surface:
+            continue
+        owner = owners[0]
+        for line in lines:
+            same_party_context = bool(
+                party_contexts.get((owner.group_key, line.number), set()) - {owner.logical_key}
+            )
+            if not same_party_context:
+                continue
+            for start, end in _line_token_sequence_spans(line, target_surface):
+                if any(start < row.char_end and row.char_start < end for row in drafts):
+                    continue
+                additions.append(
+                    replace(
+                        owner,
+                        draft_id=(
+                            "host_party_location_repeat_"
+                            + sha256_bytes(f"{path}\0{start}\0{end}".encode())[:16]
+                        ),
+                        char_start=start,
+                        char_end=end,
+                        source_text=raw[start:end],
+                        evidence_origin="host_verified_agent_proposal",
+                        rationale=(
+                            owner.rationale
+                            + " Host appended this city/country repeat from a line already "
+                            "scoped by another target-backed field of the same party."
+                        ),
+                    )
+                )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_repeated_party_location_variants(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own repeated ``CITY, CC`` lines bracketed by the same proven party scope."""
+
+    lines = line_spans(raw)
+    party_groups_by_line: dict[int, set[str]] = defaultdict(set)
+    for row in drafts:
+        if row.group_kind != "party":
+            continue
+        start_line = line_number_for_char(lines, row.char_start)
+        end_line = line_number_for_char(lines, row.char_end - 1)
+        for line_number in range(start_line, end_line + 1):
+            party_groups_by_line[line_number].add(row.group_key)
+
+    candidates: dict[tuple[str, str], list[tuple[int, int]]] = defaultdict(list)
+    for line in lines:
+        match = _PARTY_CITY_COUNTRY_VARIANT.fullmatch(line.text)
+        if match is None:
+            continue
+        start = line.char_start + match.start("value")
+        end = line.char_start + match.end("value")
+        if any(start < row.char_end and row.char_start < end for row in drafts):
+            continue
+        bracketing_groups = party_groups_by_line.get(line.number - 1, set()).intersection(
+            party_groups_by_line.get(line.number + 1, set())
+        )
+        if len(bracketing_groups) != 1:
+            continue
+        group_key = next(iter(bracketing_groups))
+        candidates[(_normalized_surface(raw[start:end]), group_key)].append((start, end))
+
+    additions: list[SpanDraft] = []
+    for (surface, group_key), spans in candidates.items():
+        if len(spans) < 2:
+            continue
+        logical_key = (
+            "agent:party:location_variant:" + sha256_bytes(f"{group_key}\0{surface}".encode())[:16]
+        )
+        for start, end in spans:
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_party_location_variant_"
+                        + sha256_bytes(f"{group_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind="location",
+                    group_kind="party",
+                    group_key=group_key,
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        "Host owned this repeated CITY, country-code location line only after "
+                        "the immediately preceding and following rows proved one party scope."
+                    ),
+                )
+            )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_exported_country_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Attach country repeats in explicit ``commodities were exported from`` statements."""
+
+    lines = line_spans(raw)
+    labeled_by_surface: dict[str, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        if not (
+            row.render_mode == "deterministic_auxiliary"
+            and row.value_kind == "location"
+            and not row.target_paths
+        ):
+            continue
+        line = lines[line_number_for_char(lines, row.char_start) - 1]
+        match = _LABELED_COUNTRY_VALUE.fullmatch(line.text)
+        if match is not None and _normalized_surface(match.group("value")) == _normalized_surface(
+            row.source_text
+        ):
+            labeled_by_surface[_normalized_surface(row.source_text)].append(row)
+    additions: list[SpanDraft] = []
+    for normalized_country, owners in labeled_by_surface.items():
+        if len({row.logical_key for row in owners}) != 1:
+            continue
+        owner = owners[0]
+        for line in lines:
+            for start, end in _line_token_sequence_spans(line, owner.source_text):
+                prefix = raw[line.char_start : start]
+                if not _EXPORTED_FROM_COUNTRY_CONTEXT.search(prefix):
+                    continue
+                if _normalized_surface(raw[start:end]) != normalized_country or any(
+                    start < row.char_end and row.char_start < end for row in drafts
+                ):
+                    continue
+                additions.append(
+                    replace(
+                        owner,
+                        draft_id=(
+                            "host_export_country_repeat_"
+                            + sha256_bytes(f"{owner.logical_key}\0{start}\0{end}".encode())[:16]
+                        ),
+                        char_start=start,
+                        char_end=end,
+                        source_text=raw[start:end],
+                        evidence_origin="host_verified_agent_proposal",
+                        rationale=(
+                            owner.rationale
+                            + " Host appended this country repeat from the explicit commodities-"
+                            "exported-from statement."
+                        ),
+                    )
+                )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_labeled_country_code_derivations(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Derive labeled two-letter country codes from one same-scope country value."""
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        grouped[row.logical_key].append(row)
+    country_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    country_paths: dict[tuple[str, str], list[str]] = defaultdict(list)
+    code_keys: list[str] = []
+    for logical_key, rows in grouped.items():
+        first = rows[0]
+        scope = (first.group_kind, first.group_key)
+        direct_country_paths = tuple(
+            path for path in first.target_paths if path.endswith(".country")
+        )
+        if (
+            first.render_mode in {"target_binding", "carrier_static"}
+            and len(first.target_paths) == 1
+            and len(direct_country_paths) == 1
+        ):
+            country_paths[scope].append(direct_country_paths[0])
+        if not (
+            first.render_mode == "deterministic_auxiliary"
+            and not first.target_paths
+            and not first.dependency_paths
+            and not first.dependency_bindings
+        ):
+            continue
+        every_country = all(
+            (
+                (
+                    match := _LABELED_COUNTRY_VALUE.fullmatch(
+                        lines[line_number_for_char(lines, row.char_start) - 1].text
+                    )
+                )
+                is not None
+                and _normalized_surface(match.group("value"))
+                == _normalized_surface(row.source_text)
+            )
+            for row in rows
+        )
+        every_code = all(
+            (
+                (
+                    match := _LABELED_COUNTRY_CODE_VALUE.fullmatch(
+                        lines[line_number_for_char(lines, row.char_start) - 1].text
+                    )
+                )
+                is not None
+                and match.group("value").casefold() == row.source_text.casefold()
+            )
+            for row in rows
+        )
+        if every_country and first.value_kind == "location":
+            country_groups[scope].append(logical_key)
+        if every_code:
+            code_keys.append(logical_key)
+
+    replacements: dict[str, SpanDraft] = {}
+    for code_key in code_keys:
+        rows = grouped[code_key]
+        first = rows[0]
+        scope = (first.group_kind, first.group_key)
+        binding_dependencies = tuple(dict.fromkeys(country_groups.get(scope, [])))
+        path_dependencies = tuple(dict.fromkeys(country_paths.get(scope, [])))
+        if len(binding_dependencies) + len(path_dependencies) != 1:
+            continue
+        for row in rows:
+            replacements[row.draft_id] = replace(
+                row,
+                render_mode="deterministic_derived",
+                value_kind="identifier",
+                derivation="country_code",
+                dependency_paths=path_dependencies,
+                dependency_bindings=binding_dependencies,
+                render_policy="derived_surface",
+                rationale=(
+                    row.rationale
+                    + " Host derived this explicitly labeled two-letter country code from the "
+                    "single country dependency in the same semantic scope."
+                ),
+            )
+    return merge_drafts(replacements.get(row.draft_id, row) for row in drafts)
+
+
+def normalize_selected_measurement_units(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own repeated standalone mass units in one deterministic unit-vocabulary binding."""
+
+    lines = line_spans(raw)
+    candidates: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for line in lines:
+        for token, relative_start, relative_end in _surface_token_spans(line.text):
+            surface = line.text[relative_start:relative_end]
+            if _SELECTED_MEASUREMENT_UNIT.fullmatch(surface) is None:
+                continue
+            prefix = line.text[:relative_start]
+            if not (
+                re.search(r"(?i)\bAS\s+PER\s*$", prefix)
+                or re.search(r"(?i)\bPACKAGES?\s*$", prefix)
+            ):
+                continue
+            start = line.char_start + relative_start
+            end = line.char_start + relative_end
+            candidates[token].append((start, end))
+    additions: list[SpanDraft] = []
+    replaced_ids: set[str] = set()
+    for unit, spans in sorted(candidates.items()):
+        if len(spans) < 2:
+            continue
+        logical_key = f"agent:cargo:measurement_unit:{unit}"
+        existing_by_span: dict[tuple[int, int], SpanDraft | None] = {}
+        compatible = True
+        for start, end in spans:
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if not overlaps:
+                existing_by_span[(start, end)] = None
+                continue
+            if not (
+                len(overlaps) == 1
+                and overlaps[0].char_start == start
+                and overlaps[0].char_end == end
+                and overlaps[0].render_mode == "deterministic_auxiliary"
+                and overlaps[0].derivation is None
+                and not overlaps[0].target_paths
+                and not overlaps[0].dependency_paths
+                and not overlaps[0].dependency_bindings
+            ):
+                compatible = False
+                break
+            existing_by_span[(start, end)] = overlaps[0]
+        if not compatible:
+            continue
+        for start, end in spans:
+            existing = existing_by_span[(start, end)]
+            if existing is not None:
+                replaced_ids.add(existing.draft_id)
+                canonical = (
+                    existing.logical_key == logical_key
+                    and existing.value_kind == "other_text"
+                    and existing.group_kind == "cargo"
+                    and existing.group_key == "cargo:measurement_unit"
+                    and existing.render_policy == "natural_text"
+                )
+                additions.append(
+                    existing
+                    if canonical
+                    else replace(
+                        existing,
+                        logical_key=logical_key,
+                        value_kind="other_text",
+                        group_kind="cargo",
+                        group_key="cargo:measurement_unit",
+                        render_policy="natural_text",
+                        rationale=(
+                            existing.rationale
+                            + " Host joined identical selected mass-unit tokens into one "
+                            "deterministic vocabulary binding across detail and total rows."
+                        ),
+                    )
+                )
+                continue
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_measurement_unit_"
+                        + sha256_bytes(f"{logical_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind="other_text",
+                    group_kind="cargo",
+                    group_key="cargo:measurement_unit",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        "Host owned this repeated standalone measurement unit from explicit "
+                        "AS PER or package-measurement context."
+                    ),
+                )
+            )
+    retained = tuple(row for row in drafts if row.draft_id not in replaced_ids)
+    return merge_drafts(retained, additions)
+
+
+def _split_labeled_route_equality_bindings(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Split equal-valued route facts only when explicit captions prove every owner.
+
+    Value-oriented anchors can legitimately begin with one occurrence owning several currently
+    equal route fields.  If a compiler then appends each separately printed value to that shared
+    owner, descendant values would remain incorrectly coupled.  The host may separate the facts
+    without semantic inference only when every physical occurrence in the shared owner is the
+    exact next-line value of an explicit supported route caption, every target fact has at least
+    one such occurrence, and the caption-derived occurrence sets are disjoint and exhaustive.
+    Any missing, ambiguous, or extra occurrence leaves the binding untouched for agent review.
+    """
+
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    captions_by_path: dict[str, tuple[str, ...]] = defaultdict(tuple)
+    for caption_prefix, target_path in _LABELED_ROUTE_TARGETS.items():
+        captions_by_path[target_path] = (*captions_by_path[target_path], caption_prefix)
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+
+    replaced_keys: set[str] = set()
+    replacements: list[SpanDraft] = []
+    for logical_key, rows in grouped.items():
+        first = rows[0]
+        target_paths = first.target_paths
+        if not (
+            len(rows) >= 2
+            and first.render_mode == "target_binding"
+            and first.value_kind == "location"
+            and first.group_kind == "route"
+            and len(target_paths) >= 2
+            and all(row.target_paths == target_paths for row in rows)
+            and all(path in captions_by_path for path in target_paths)
+            and not first.dependency_paths
+            and not first.dependency_bindings
+            and first.derivation is None
+        ):
+            continue
+        components = target_fact_components(source_target, target_paths)
+        if len(components) != len(target_paths) or any(
+            len(component) != 1 for component in components
+        ):
+            continue
+        if any(
+            row.logical_key != logical_key
+            and set(row.target_paths).intersection(target_paths)
+            for row in drafts
+        ):
+            continue
+
+        current_by_span = {(row.char_start, row.char_end): row for row in rows}
+        if len(current_by_span) != len(rows):
+            continue
+        spans_by_path: dict[str, set[tuple[int, int]]] = {}
+        for target_path in target_paths:
+            try:
+                target_surface = _scalar_surface(
+                    _resolve_target_path(source_target, target_path)
+                )
+            except ValueError:
+                break
+            normalized_target = _normalized_surface(target_surface)
+            if not normalized_target:
+                break
+            matching_spans: set[tuple[int, int]] = set()
+            for caption in lines:
+                normalized_caption = _normalized_surface(caption.text)
+                if not any(
+                    normalized_caption.startswith(prefix)
+                    for prefix in captions_by_path[target_path]
+                ):
+                    continue
+                value_line = line_by_number.get(caption.number + 1)
+                span = _trimmed_line_span(value_line) if value_line is not None else None
+                if (
+                    span is not None
+                    and _normalized_surface(raw[span[0] : span[1]]) == normalized_target
+                ):
+                    matching_spans.add(span)
+            if not matching_spans:
+                break
+            spans_by_path[target_path] = matching_spans
+        if len(spans_by_path) != len(target_paths):
+            continue
+        all_caption_spans = set().union(*spans_by_path.values())
+        if (
+            any(
+                left_path != right_path and left_spans.intersection(right_spans)
+                for left_path, left_spans in spans_by_path.items()
+                for right_path, right_spans in spans_by_path.items()
+            )
+            or all_caption_spans != set(current_by_span)
+        ):
+            continue
+
+        replaced_keys.add(logical_key)
+        for target_path, spans in spans_by_path.items():
+            group_kind, group_key = _canonical_target_group((target_path,))
+            for start, end in sorted(spans):
+                source_row = current_by_span[(start, end)]
+                replacements.append(
+                    replace(
+                        source_row,
+                        draft_id=(
+                            "host_labeled_route_split_"
+                            + sha256_bytes(
+                                f"{target_path}\0{start}\0{end}".encode()
+                            )[:16]
+                        ),
+                        logical_key="anchor:" + target_path,
+                        group_kind=group_kind,
+                        group_key=group_key,
+                        target_paths=(target_path,),
+                        rationale=(
+                            source_row.rationale
+                            + " Host separated the shared equal-valued route owner because "
+                            "explicit local captions provide a disjoint and exhaustive physical "
+                            f"occurrence set for {target_path}."
+                        ),
+                    )
+                )
+    retained = tuple(row for row in drafts if row.logical_key not in replaced_keys)
+    return merge_drafts(retained, replacements)
+
+
+def normalize_labeled_route_target_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Append exact next-line route values under explicit route-field captions."""
+
+    drafts = _split_labeled_route_equality_bindings(
+        raw=raw,
+        drafts=drafts,
+        source_target=source_target,
+    )
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    additions: list[SpanDraft] = []
+    for caption_prefix, target_path in _LABELED_ROUTE_TARGETS.items():
+        owner = _unique_target_owner(drafts=drafts, target_path=target_path)
+        if owner is None:
+            continue
+        try:
+            target_surface = _scalar_surface(_resolve_target_path(source_target, target_path))
+        except ValueError:
+            continue
+        if not target_surface:
+            continue
+        normalized_target = _normalized_surface(target_surface)
+        for caption in lines:
+            if not _normalized_surface(caption.text).startswith(caption_prefix):
+                continue
+            value_line = line_by_number.get(caption.number + 1)
+            span = _trimmed_line_span(value_line) if value_line is not None else None
+            if (
+                span is None
+                or _normalized_surface(raw[span[0] : span[1]]) != normalized_target
+                or any(span[0] < row.char_end and row.char_start < span[1] for row in drafts)
+            ):
+                continue
+            additions.append(
+                replace(
+                    owner,
+                    draft_id=(
+                        "host_labeled_route_repeat_"
+                        + sha256_bytes(f"{target_path}\0{span[0]}\0{span[1]}".encode())[:16]
+                    ),
+                    char_start=span[0],
+                    char_end=span[1],
+                    source_text=raw[span[0] : span[1]],
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        owner.rationale
+                        + " Host appended this exact target value from the explicit local route "
+                        "field caption."
+                    ),
+                )
+            )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_inline_labeled_transport_repeats(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Append exact route and transport repeats from closed inline label grammars.
+
+    The line must match a complete supported label frame and each captured value must equal its
+    structured target.  This prevents an equal string in prose or another role from being adopted
+    merely because it appears near a transport word.
+    """
+
+    candidates: list[tuple[str, tuple[int, int], str]] = []
+    for line in line_spans(raw):
+        route_match = _INLINE_LABELED_ROUTE_VALUE.fullmatch(line.text)
+        if route_match is not None:
+            caption = _normalized_surface(route_match.group("caption"))
+            target_path = _LABELED_ROUTE_TARGETS.get(caption)
+            if target_path is not None:
+                try:
+                    target_surface = _scalar_surface(
+                        _resolve_target_path(source_target, target_path)
+                    )
+                except ValueError:
+                    target_surface = None
+                if (
+                    target_surface
+                    and _normalized_surface(route_match.group("value"))
+                    == _normalized_surface(target_surface)
+                ):
+                    candidates.append(
+                        (
+                            target_path,
+                            (
+                                line.char_start + route_match.start("value"),
+                                line.char_start + route_match.end("value"),
+                            ),
+                            "inline route",
+                        )
+                    )
+
+        transport_match = _INLINE_LABELED_VESSEL_VOYAGE.fullmatch(line.text)
+        if transport_match is None:
+            continue
+        captured = (
+            (_VESSEL_NAME_PATH, "vessel", "inline vessel"),
+            (_VOYAGE_NUMBER_PATH, "voyage", "inline voyage"),
+        )
+        resolved: list[tuple[str, tuple[int, int], str]] = []
+        for target_path, group_name, receipt_label in captured:
+            try:
+                target_surface = _scalar_surface(
+                    _resolve_target_path(source_target, target_path)
+                )
+            except ValueError:
+                break
+            if (
+                not target_surface
+                or _normalized_surface(transport_match.group(group_name))
+                != _normalized_surface(target_surface)
+            ):
+                break
+            resolved.append(
+                (
+                    target_path,
+                    (
+                        line.char_start + transport_match.start(group_name),
+                        line.char_start + transport_match.end(group_name),
+                    ),
+                    receipt_label,
+                )
+            )
+        if len(resolved) == len(captured):
+            candidates.extend(resolved)
+
+    additions: list[SpanDraft] = []
+    for target_path, (start, end), receipt_label in candidates:
+        owner = _unique_target_owner(drafts=drafts, target_path=target_path)
+        if owner is None:
+            continue
+        overlaps = tuple(
+            row for row in drafts if start < row.char_end and row.char_start < end
+        )
+        if overlaps:
+            if all(
+                row.logical_key == owner.logical_key
+                and row.char_start == start
+                and row.char_end == end
+                for row in overlaps
+            ):
+                continue
+            continue
+        additions.append(
+            replace(
+                owner,
+                draft_id=(
+                    "host_inline_transport_repeat_"
+                    + sha256_bytes(f"{target_path}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    owner.rationale
+                    + f" Host appended this exact target value from the complete {receipt_label} "
+                    "label frame."
+                ),
+            )
+        )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_selected_commercial_dates_and_charges(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own exact inline proforma dates and selected origin/destination charge terms."""
+
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    shipped_date_owners = tuple(
+        row
+        for row in drafts
+        if row.render_mode == "target_binding"
+        and row.target_paths == (_SHIPPED_ON_BOARD_DATE_PATH,)
+    )
+    shipped_date_owner = (
+        shipped_date_owners[0]
+        if shipped_date_owners and len({row.logical_key for row in shipped_date_owners}) == 1
+        else None
+    )
+    try:
+        shipped_date_target = _resolve_target_path(source_target, _SHIPPED_ON_BOARD_DATE_PATH)
+    except ValueError:
+        shipped_date_target = None
+    shipped_date_candidates = (
+        _date_candidates(shipped_date_target)
+        if isinstance(shipped_date_target, str)
+        else frozenset()
+    )
+    if shipped_date_owner is not None and shipped_date_candidates:
+        for caption in lines:
+            if _LADEN_ON_BOARD_DATE_CAPTION.fullmatch(caption.text) is None:
+                continue
+            value_line = line_by_number.get(caption.number + 1)
+            span = _trimmed_line_span(value_line) if value_line is not None else None
+            if span is None or not (
+                shipped_date_candidates & _date_candidates(raw[span[0] : span[1]])
+            ):
+                continue
+            start, end = span
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if len(overlaps) == 1 and (
+                overlaps[0].logical_key,
+                overlaps[0].target_paths,
+                overlaps[0].char_start,
+                overlaps[0].char_end,
+            ) == (
+                shipped_date_owner.logical_key,
+                (_SHIPPED_ON_BOARD_DATE_PATH,),
+                start,
+                end,
+            ):
+                continue
+            replaceable = all(
+                not row.target_paths
+                and not row.dependency_paths
+                and not row.dependency_bindings
+                and row.render_mode
+                in {
+                    "deterministic_auxiliary",
+                    "agent_residual",
+                    "literal_static",
+                }
+                for row in overlaps
+            )
+            if overlaps and not replaceable:
+                continue
+            discarded_ids.update(row.draft_id for row in overlaps)
+            additions.append(
+                replace(
+                    shipped_date_owner,
+                    draft_id=(
+                        "host_laden_on_board_date_" + sha256_bytes(f"{start}\0{end}".encode())[:16]
+                    ),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        shipped_date_owner.rationale
+                        + " Host assigned this exact date beneath the explicit DATE LADEN ON "
+                        "BOARD caption to the structured shipped-on-board date."
+                    ),
+                )
+            )
+    for caption in lines:
+        if _normalized_surface(caption.text) != "date":
+            continue
+        value_line = line_by_number.get(caption.number + 1)
+        span = _trimmed_line_span(value_line) if value_line is not None else None
+        if span is None or _DATE.fullmatch(raw[span[0] : span[1]]) is None:
+            continue
+        start, end = span
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if any(
+            row.logical_key == "agent:document:generic_date"
+            and row.render_mode == "deterministic_auxiliary"
+            and row.char_start == start
+            and row.char_end == end
+            for row in overlaps
+        ):
+            continue
+        replaceable_shipped_date = (
+            bool(overlaps)
+            and all(
+                row.render_mode == "target_binding"
+                and row.target_paths == (_SHIPPED_ON_BOARD_DATE_PATH,)
+                and row.char_start == start
+                and row.char_end == end
+                for row in overlaps
+            )
+            and any(
+                row.render_mode == "target_binding"
+                and row.target_paths == (_SHIPPED_ON_BOARD_DATE_PATH,)
+                and row not in overlaps
+                for row in drafts
+            )
+        )
+        if overlaps and not replaceable_shipped_date:
+            continue
+        if replaceable_shipped_date:
+            discarded_ids.update(row.draft_id for row in overlaps)
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_generic_document_date_" + sha256_bytes(f"{start}\0{end}".encode())[:16]
+                ),
+                logical_key="agent:document:generic_date",
+                render_mode="deterministic_auxiliary",
+                value_kind="date",
+                group_kind="document",
+                group_key="document:date",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="date_surface",
+                rationale=(
+                    "Host separated this source-only date under the exact generic DATE caption "
+                    "from a retained role-specific shipped-on-board date."
+                ),
+            )
+        )
+    for match in _PROFORMA_INVOICE_DATE.finditer(raw):
+        start, end = match.span("value")
+        if any(start < row.char_end and row.char_start < end for row in drafts):
+            continue
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_proforma_invoice_date_" + sha256_bytes(f"{start}\0{end}".encode())[:16]
+                ),
+                logical_key="agent:commercial:proforma_invoice_date",
+                render_mode="deterministic_auxiliary",
+                value_kind="date",
+                group_kind="commercial",
+                group_key="commercial:invoice",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="date_surface",
+                rationale=(
+                    "Host owned the exact date selected by the inline P/I NO. ... DD. caption."
+                ),
+            )
+        )
+
+    for line in lines:
+        match = _PORT_CHARGE_SELECTION.fullmatch(line.text)
+        if match is None:
+            continue
+        role = match.group("place").casefold()
+        for field, value_kind in (("place", "location"), ("payment", "commercial_text")):
+            start = line.char_start + match.start(field)
+            end = line.char_start + match.end(field)
+            logical_key = f"agent:commercial:{role}_port_charge_{field}"
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if any(
+                row.logical_key == logical_key
+                and row.render_mode == "deterministic_auxiliary"
+                and row.char_start == start
+                and row.char_end == end
+                for row in overlaps
+            ):
+                continue
+            replaceable_freight_payment = (
+                field == "payment"
+                and bool(overlaps)
+                and all(
+                    row.render_mode == "target_binding"
+                    and row.target_paths == (_FREIGHT_PAYMENT_PATH,)
+                    and row.char_start == start
+                    and row.char_end == end
+                    for row in overlaps
+                )
+                and any(
+                    row.render_mode == "target_binding"
+                    and row.target_paths == (_FREIGHT_PAYMENT_PATH,)
+                    and row not in overlaps
+                    for row in drafts
+                )
+            )
+            if overlaps and not replaceable_freight_payment:
+                continue
+            if replaceable_freight_payment:
+                discarded_ids.update(row.draft_id for row in overlaps)
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_port_charge_term_"
+                        + sha256_bytes(f"{role}\0{field}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind=value_kind,
+                    group_kind="commercial",
+                    group_key="commercial:port_charges",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        "Host owned this selected place/payment token from the exact "
+                        "ORIGIN/DESTINATION PORT CHARGE line grammar."
+                    ),
+                )
+            )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_repeated_forwarding_references(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Append exact high-entropy repeats of one structured forwarding/export reference."""
+
+    owners_by_path: dict[str, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        if row.render_mode != "target_binding" or len(row.target_paths) != 1:
+            continue
+        path = row.target_paths[0]
+        if _FORWARDING_REFERENCE_PATH.fullmatch(path) is not None:
+            owners_by_path[path].append(row)
+    additions: list[SpanDraft] = []
+    for path, owners in owners_by_path.items():
+        if len({row.logical_key for row in owners}) != 1:
+            continue
+        target = _resolve_target_path(source_target, path)
+        if not isinstance(target, str):
+            continue
+        normalized_target = _normalized_surface(target)
+        if (
+            len(normalized_target) < 8
+            or not any(character.isalpha() for character in normalized_target)
+            or not any(character.isdigit() for character in normalized_target)
+        ):
+            continue
+        source_surfaces = {
+            row.source_text
+            for row in owners
+            if _normalized_surface(row.source_text) == normalized_target
+        }
+        if len(source_surfaces) != 1:
+            continue
+        source_surface = next(iter(source_surfaces))
+        owner = owners[0]
+        for start in _exact_offsets(raw, source_surface):
+            end = start + len(source_surface)
+            if not is_token_bounded_surface_span(raw, start, end) or any(
+                start < row.char_end and row.char_start < end for row in drafts
+            ):
+                continue
+            additions.append(
+                replace(
+                    owner,
+                    draft_id=(
+                        "host_forwarding_reference_repeat_"
+                        + sha256_bytes(f"{path}\0{start}\0{end}".encode())[:16]
+                    ),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        owner.rationale
+                        + " Host appended this exact high-entropy forwarding/export reference "
+                        "repeat."
+                    ),
+                )
+            )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_labeled_identifiers_and_operational_facts(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own exact repeated document IDs and narrowly selected operational source facts."""
+
+    lines = line_spans(raw)
+    line_by_number = {line.number: line for line in lines}
+    additions: list[SpanDraft] = []
+    replaced_ids: set[str] = set()
+
+    bol_owner = _unique_target_owner(drafts=drafts, target_path=_BILL_OF_LADING_PATH)
+    try:
+        bol_target = _scalar_surface(_resolve_target_path(source_target, _BILL_OF_LADING_PATH))
+    except ValueError:
+        bol_target = None
+    if bol_owner is not None and bol_target:
+        normalized_bol = _normalized_surface(bol_target)
+        for line in lines:
+            match = _BILL_OF_LADING_NUMBER_LINE.fullmatch(line.text)
+            if match is None or _normalized_surface(match.group("value")) != normalized_bol:
+                continue
+            start = line.char_start + match.start("value")
+            end = line.char_start + match.end("value")
+            if any(start < row.char_end and row.char_start < end for row in drafts):
+                continue
+            additions.append(
+                replace(
+                    bol_owner,
+                    draft_id=(
+                        "host_labeled_bol_repeat_" + sha256_bytes(f"{start}\0{end}".encode())[:16]
+                    ),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    rationale=(
+                        bol_owner.rationale
+                        + " Host appended the exact value under the explicit B/L NO. label."
+                    ),
+                )
+            )
+
+        for caption in lines:
+            if _COMBINED_BOOKING_CAPTION.fullmatch(caption.text) is None:
+                continue
+            value_line = line_by_number.get(caption.number + 1)
+            if value_line is None:
+                continue
+            tokens = _surface_token_spans(value_line.text)
+            bol_indexes = tuple(
+                index
+                for index, (token, _start, _end) in enumerate(tokens)
+                if token == normalized_bol
+            )
+            if len(bol_indexes) != 1 or bol_indexes[0] == 0:
+                continue
+            booking_candidates = tuple(
+                (token, start, end)
+                for token, start, end in tokens[: bol_indexes[0]]
+                if len(token) >= 6 and any(character.isdigit() for character in token)
+            )
+            if len(booking_candidates) != 1:
+                continue
+            _token, relative_start, relative_end = booking_candidates[0]
+            start = value_line.char_start + relative_start
+            end = value_line.char_start + relative_end
+            if any(start < row.char_end and row.char_start < end for row in drafts):
+                continue
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_combined_caption_booking_"
+                        + sha256_bytes(f"{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key="agent:commercial:booking_number",
+                    render_mode="deterministic_auxiliary",
+                    value_kind="identifier",
+                    group_kind="commercial",
+                    group_key="commercial:booking",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="opaque_identifier",
+                    rationale=(
+                        "Host owned the unique booking identifier printed before the structured "
+                        "waybill value under the combined BOOKING NO./SEA WAYBILL NO. caption."
+                    ),
+                )
+            )
+
+    acid_surfaces: dict[str, str] = {}
+    for line in lines:
+        match = _ACID_VALUE_LINE.fullmatch(line.text)
+        if match is None:
+            continue
+        surface = match.group("value")
+        normalized = _normalized_surface(surface)
+        prior = acid_surfaces.setdefault(normalized, surface)
+        if prior != surface:
+            acid_surfaces.pop(normalized, None)
+    multiple_acid_values = len(acid_surfaces) > 1
+    for normalized, surface in sorted(acid_surfaces.items()):
+        spans = tuple(span for line in lines for span in _line_token_sequence_spans(line, surface))
+        if len(spans) < 2:
+            continue
+        existing_by_span: dict[tuple[int, int], SpanDraft | None] = {}
+        compatible = True
+        for start, end in spans:
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if not overlaps:
+                existing_by_span[(start, end)] = None
+                continue
+            if not (
+                len(overlaps) == 1
+                and overlaps[0].char_start == start
+                and overlaps[0].char_end == end
+                and overlaps[0].render_mode == "deterministic_auxiliary"
+                and overlaps[0].value_kind == "identifier"
+                and overlaps[0].derivation is None
+                and not overlaps[0].target_paths
+                and not overlaps[0].dependency_paths
+                and not overlaps[0].dependency_bindings
+            ):
+                compatible = False
+                break
+            existing_by_span[(start, end)] = overlaps[0]
+        if not compatible:
+            continue
+        suffix = ":" + sha256_bytes(normalized.encode())[:12] if multiple_acid_values else ""
+        logical_key = "agent:customs:acid_reference" + suffix
+        group_key = "customs:acid" + suffix
+        for start, end in spans:
+            existing = existing_by_span[(start, end)]
+            if existing is not None:
+                replaced_ids.add(existing.draft_id)
+                canonical = (
+                    existing.logical_key == logical_key
+                    and existing.group_kind == "customs"
+                    and existing.group_key == group_key
+                    and existing.render_policy == "opaque_identifier"
+                )
+                additions.append(
+                    existing
+                    if canonical
+                    else replace(
+                        existing,
+                        logical_key=logical_key,
+                        group_kind="customs",
+                        group_key=group_key,
+                        render_policy="opaque_identifier",
+                        rationale=(
+                            existing.rationale
+                            + " Host joined this exact long identifier to its explicit ACID "
+                            "occurrences under one customs-reference binding."
+                        ),
+                    )
+                )
+                continue
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_acid_reference_"
+                        + sha256_bytes(f"{logical_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind="identifier",
+                    group_kind="customs",
+                    group_key=group_key,
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="opaque_identifier",
+                    rationale=(
+                        "Host owned this exact long identifier as a repeated ACID customs "
+                        "reference after an explicit labeled occurrence proved its type."
+                    ),
+                )
+            )
+
+    slac_spans: list[tuple[int, int]] = []
+    for line in lines:
+        tokens = _surface_token_spans(line.text)
+        token_values = {token for token, _start, _end in tokens}
+        if "container" not in token_values:
+            continue
+        slac_spans.extend(
+            (line.char_start + start, line.char_start + end)
+            for token, start, end in tokens
+            if token == "slac"
+            and not any(
+                line.char_start + start < row.char_end and row.char_start < line.char_start + end
+                for row in drafts
+            )
+        )
+    if len(slac_spans) >= 2:
+        additions.extend(
+            SpanDraft(
+                draft_id=("host_slac_operational_" + sha256_bytes(f"{start}\0{end}".encode())[:16]),
+                logical_key="agent:cargo:slac_qualifier",
+                render_mode="deterministic_auxiliary",
+                value_kind="operational_text",
+                group_kind="cargo",
+                group_key="cargo:operational_qualifiers",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host owned this repeated SLAC operational qualifier in an explicit "
+                    "container-description row."
+                ),
+            )
+            for start, end in slac_spans
+        )
+
+    country_surfaces = {
+        _normalized_surface(surface)
+        for row in drafts
+        for path in row.target_paths
+        if path.endswith(".country")
+        and (surface := _scalar_surface(_resolve_target_path(source_target, path))) is not None
+    }
+    for line in lines:
+        match = _COUNTRY_CLAUSE_HEADING.fullmatch(line.text)
+        if match is None or _normalized_surface(match.group("country")) not in country_surfaces:
+            continue
+        span = _trimmed_line_span(line)
+        if span is None or any(
+            span[0] < row.char_end and row.char_start < span[1] for row in drafts
+        ):
+            continue
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_country_clause_heading_"
+                    + sha256_bytes(f"{span[0]}\0{span[1]}".encode())[:16]
+                ),
+                logical_key="agent:legal:country_clause_heading",
+                render_mode="deterministic_auxiliary",
+                value_kind="legal_text",
+                group_kind="legal",
+                group_key="legal:country_clause",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=span[0],
+                char_end=span[1],
+                source_text=raw[span[0] : span[1]],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host owned this selected country-clause heading after matching its country "
+                    "to an exact structured party-country value."
+                ),
+            )
+        )
+    retained = tuple(row for row in drafts if row.draft_id not in replaced_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_dangerous_goods_class_locality(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Relocate a hazard-category owner to its unique explicit ``UN ... CL`` value.
+
+    Accepted character-level evidence can select the first digit of a decimal class and then
+    repeat that digit into unrelated numbered text.  The correction is safe only when the indexed
+    dangerous-goods record has a unique UN number in the structured target and every matching OCR
+    line prints one equivalent class value.
+    """
+
+    patch = source_target.get("documentPatch")
+    cargo_groups = patch.get("cargoGroups") if isinstance(patch, Mapping) else None
+    if not isinstance(cargo_groups, list):
+        return tuple(drafts)
+    records: list[tuple[str, str]] = []
+    for cargo_index, cargo_group in enumerate(cargo_groups):
+        dangerous_goods = (
+            cargo_group.get("dangerousGoods") if isinstance(cargo_group, Mapping) else None
+        )
+        if not isinstance(dangerous_goods, list):
+            continue
+        for dangerous_index, dangerous_good in enumerate(dangerous_goods):
+            if not isinstance(dangerous_good, Mapping) or not {
+                "hazardCategory",
+                "unNumber",
+            } <= set(dangerous_good):
+                continue
+            un_surface = _scalar_surface(dangerous_good["unNumber"])
+            if un_surface is None:
+                continue
+            records.append(
+                (
+                    f"documentPatch.cargoGroups[{cargo_index}].dangerousGoods"
+                    f"[{dangerous_index}].hazardCategory",
+                    un_surface,
+                )
+            )
+    un_counts = Counter(_normalized_surface(un_surface) for _path, un_surface in records)
+    lines = line_spans(raw)
+    replaced_ids: set[str] = set()
+    additions: list[SpanDraft] = []
+    for hazard_path, un_surface in records:
+        if un_counts[_normalized_surface(un_surface)] != 1:
+            continue
+        owners = tuple(row for row in drafts if hazard_path in row.target_paths)
+        if (
+            not owners
+            or len({row.logical_key for row in owners}) != 1
+            or any(row.target_paths != (hazard_path,) for row in owners)
+        ):
+            continue
+        pattern = re.compile(
+            r"(?i)(?<![A-Z0-9])UN[\s:#-]*"
+            + re.escape(un_surface)
+            + r"(?![A-Z0-9]).*?\bCL(?:ASS)?[\s:#-]*(?P<value>[0-9](?:\.[0-9]+)?)"
+        )
+        candidates = tuple(
+            (
+                line.char_start + match.start("value"),
+                line.char_start + match.end("value"),
+            )
+            for line in lines
+            for match in pattern.finditer(line.text)
+        )
+        candidate_surfaces = {_normalized_surface(raw[start:end]) for start, end in candidates}
+        if not candidates or len(candidate_surfaces) != 1:
+            continue
+        owner_ids = {row.draft_id for row in owners}
+        if any(
+            start < row.char_end and row.char_start < end and row.draft_id not in owner_ids
+            for start, end in candidates
+            for row in drafts
+        ):
+            continue
+        first = owners[0]
+        group_kind, group_key = _canonical_target_group((hazard_path,))
+        replaced_ids.update(owner_ids)
+        for start, end in candidates:
+            existing = next(
+                (row for row in owners if row.char_start == start and row.char_end == end),
+                None,
+            )
+            canonical = (
+                existing is not None
+                and existing.render_mode == "agent_residual"
+                and existing.value_kind == "dangerous_goods"
+                and existing.group_kind == group_kind
+                and existing.group_key == group_key
+                and existing.target_paths == (hazard_path,)
+                and existing.derivation is None
+                and not existing.dependency_paths
+                and not existing.dependency_bindings
+                and existing.render_policy == "natural_text"
+            )
+            if canonical and existing is not None:
+                additions.append(existing)
+                continue
+            additions.append(
+                replace(
+                    first,
+                    draft_id=(
+                        "host_dangerous_goods_class_"
+                        + sha256_bytes(f"{hazard_path}\0{start}\0{end}".encode())[:16]
+                    ),
+                    render_mode="agent_residual",
+                    value_kind="dangerous_goods",
+                    group_kind=group_kind,
+                    group_key=group_key,
+                    target_paths=(hazard_path,),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        first.rationale
+                        + " Host relocated the category owner to the complete class value on the "
+                        f"unique explicit UN {un_surface} / CL row; category-to-class conversion "
+                        "remains agent-bounded."
+                    ),
+                )
+            )
+    retained = tuple(row for row in drafts if row.draft_id not in replaced_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_labeled_dangerous_goods_descriptions(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own a unique free-text DG description following an indexed ``UN <number>`` value.
+
+    The rule does not infer a description from arbitrary cargo prose. It activates only for a
+    uniquely indexed structured UN number that already has target ownership, on a line beginning
+    with that explicit UN label, and only when the complete remaining text is currently unowned.
+    """
+
+    patch = source_target.get("documentPatch")
+    cargo_groups = patch.get("cargoGroups") if isinstance(patch, Mapping) else None
+    if not isinstance(cargo_groups, list):
+        return tuple(drafts)
+    records: list[tuple[int, int, str, str]] = []
+    for cargo_index, cargo_group in enumerate(cargo_groups):
+        dangerous_goods = (
+            cargo_group.get("dangerousGoods") if isinstance(cargo_group, Mapping) else None
+        )
+        if not isinstance(dangerous_goods, list):
+            continue
+        for dangerous_index, dangerous_good in enumerate(dangerous_goods):
+            if not isinstance(dangerous_good, Mapping) or "unNumber" not in dangerous_good:
+                continue
+            un_surface = _scalar_surface(dangerous_good["unNumber"])
+            if un_surface is None:
+                continue
+            records.append(
+                (
+                    cargo_index,
+                    dangerous_index,
+                    f"documentPatch.cargoGroups[{cargo_index}].dangerousGoods"
+                    f"[{dangerous_index}].unNumber",
+                    un_surface,
+                )
+            )
+    un_counts = Counter(_normalized_surface(row[3]) for row in records)
+    lines = line_spans(raw)
+    additions: list[SpanDraft] = []
+    for cargo_index, dangerous_index, un_path, un_surface in records:
+        if un_counts[_normalized_surface(un_surface)] != 1:
+            continue
+        owners = tuple(
+            row
+            for row in drafts
+            if un_path in row.target_paths
+            and row.render_mode in {"target_binding", "agent_residual"}
+        )
+        if not owners:
+            continue
+        pattern = re.compile(
+            r"(?i)^\s*UN[\s:#-]*"
+            + re.escape(un_surface)
+            + r"(?![A-Z0-9])\s+(?P<description>\S(?:.*\S)?)\s*$"
+        )
+        candidates: list[tuple[int, int]] = []
+        for line in lines:
+            if not any(line.char_start <= owner.char_start < line.char_end for owner in owners):
+                continue
+            match = pattern.fullmatch(line.text)
+            if match is None:
+                continue
+            description = match.group("description")
+            words = re.findall(r"[A-Za-z]+", description)
+            if len(words) < 3 or words[0].casefold() in {
+                "cl",
+                "class",
+                "pg",
+                "packing",
+                "flash",
+            }:
+                continue
+            start = line.char_start + match.start("description")
+            end = line.char_start + match.end("description")
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if overlaps:
+                if all(
+                    row.char_start == start
+                    and row.char_end == end
+                    and row.render_mode == "deterministic_auxiliary"
+                    and row.value_kind == "dangerous_goods"
+                    for row in overlaps
+                ):
+                    continue
+                candidates = []
+                break
+            candidates.append((start, end))
+        if not candidates:
+            continue
+        surfaces = {_normalized_surface(raw[start:end]) for start, end in candidates}
+        if len(surfaces) != 1:
+            continue
+        for start, end in candidates:
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_dangerous_goods_description_"
+                        + sha256_bytes(f"{un_path}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=(
+                        f"agent:dangerous_goods:{cargo_index}:{dangerous_index}:description"
+                    ),
+                    render_mode="deterministic_auxiliary",
+                    value_kind="dangerous_goods",
+                    group_kind="dangerous_goods",
+                    group_key=f"dangerous_goods:{cargo_index}:{dangerous_index}",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        "Host owned this free-text dangerous-goods description because it is the "
+                        f"complete unowned suffix of the uniquely indexed UN {un_surface} line."
+                    ),
+                )
+            )
+    return merge_drafts(drafts, additions)
+
+
+def normalize_bare_equipment_multipliers(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Complete a row-local ``N X <type>`` equipment receipt deterministically.
+
+    A type-only receipt proposal and a separately owned bare multiplier describe one contiguous
+    render surface.  The host joins them only when every occurrence of the logical type/receipt
+    binding has one immediate same-line multiplier and all intervening ownership is a compatible
+    multiplier for the same container.  Partial or ambiguous groups remain unchanged for review.
+    """
+
+    patch = source_target.get("documentPatch")
+    containers = patch.get("containers") if isinstance(patch, Mapping) else None
+    if not isinstance(containers, list):
+        return tuple(drafts)
+
+    def container_index(row: SpanDraft) -> int | None:
+        direct = _container_index_for_path(row.target_paths, _CONTAINER_TYPE_PATH)
+        if row.render_mode == "target_binding" and direct is not None:
+            return direct
+        if not (
+            row.render_mode == "deterministic_derived" and row.derivation == "equipment_receipt"
+        ):
+            return None
+        object_matches = tuple(
+            match
+            for path in row.target_paths
+            if (match := _CONTAINER_OBJECT_PATH.fullmatch(path)) is not None
+        )
+        if len(object_matches) != 1:
+            return None
+        index = int(object_matches[0].group(1))
+        container_path = f"documentPatch.containers[{index}]"
+        type_path = f"documentPatch.containers[{index}].typeDescription"
+        if any(path not in {container_path, type_path} for path in row.target_paths):
+            return None
+        return index if type_path in {*row.target_paths, *row.dependency_paths} else None
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        grouped[row.logical_key].append(row)
+    eligible_groups: dict[int, list[tuple[list[SpanDraft], list[int], set[str]]]] = defaultdict(
+        list
+    )
+    for rows in grouped.values():
+        indexes = {container_index(row) for row in rows}
+        if len(indexes) != 1 or None in indexes:
+            continue
+        index = next(iter(indexes))
+        assert index is not None
+        if index >= len(containers) or not isinstance(containers[index], Mapping):
+            continue
+        type_path = f"documentPatch.containers[{index}].typeDescription"
+        if "typeDescription" not in containers[index]:
+            continue
+        starts: list[int] = []
+        compatible_prefix_ids: set[str] = set()
+        valid = True
+        for row in rows:
+            line_number = line_number_for_char(lines, row.char_start)
+            line = lines[line_number - 1]
+            prefix = raw[line.char_start : row.char_start]
+            match = re.search(r"(?i)(?P<value>[0-9]+\s*[x\u00d7])\s*$", prefix)
+            if match is None:
+                valid = False
+                break
+            start = line.char_start + match.start("value")
+            full_surface = raw[start : row.char_end]
+            if _EQUIPMENT_RECEIPT_PREFIX.match(full_surface) is None:
+                valid = False
+                break
+            overlaps = tuple(
+                other
+                for other in drafts
+                if other.draft_id != row.draft_id
+                and start < other.char_end
+                and other.char_start < row.char_start
+            )
+            compatible = tuple(
+                other
+                for other in overlaps
+                if other.char_start == start
+                and other.char_end <= row.char_start
+                and other.render_mode == "deterministic_derived"
+                and other.derivation == "equipment_receipt"
+                and other.target_paths == (f"documentPatch.containers[{index}]",)
+                and _BARE_EQUIPMENT_MULTIPLIER.fullmatch(other.source_text) is not None
+            )
+            if len(compatible) != len(overlaps):
+                valid = False
+                break
+            starts.append(start)
+            compatible_prefix_ids.update(other.draft_id for other in compatible)
+        if valid:
+            eligible_groups[index].append((rows, starts, compatible_prefix_ids))
+
+    additions: list[SpanDraft] = []
+    replaced_ids: set[str] = set()
+    for index, candidates in eligible_groups.items():
+        if len(candidates) != 1:
+            continue
+        rows, starts, prefix_ids = candidates[0]
+        container_path = f"documentPatch.containers[{index}]"
+        type_path = container_path + ".typeDescription"
+        logical_key = f"agent:equipment:container_receipt:{index}"
+        replaced_ids.update(row.draft_id for row in rows)
+        replaced_ids.update(prefix_ids)
+        for row, start in zip(rows, starts, strict=True):
+            additions.append(
+                replace(
+                    row,
+                    logical_key=logical_key,
+                    render_mode="deterministic_derived",
+                    value_kind="equipment",
+                    group_kind="equipment",
+                    group_key=f"container:{index}",
+                    target_paths=(container_path,),
+                    derivation="equipment_receipt",
+                    dependency_paths=(type_path,),
+                    dependency_bindings=(),
+                    char_start=start,
+                    source_text=raw[start : row.char_end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="derived_surface",
+                    rationale=(
+                        row.rationale
+                        + " Host completed the immediate row-local multiplier and equipment type "
+                        "as one deterministic equipment-receipt surface."
+                    ),
+                )
+            )
+    retained = tuple(row for row in drafts if row.draft_id not in replaced_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_complete_equipment_receipt_surfaces(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Expand a derived equipment receipt through its complete exact type surface.
+
+    A model may stop at ``1X40HIGH`` even when the linked structured type and the same source line
+    continue with ``CUBE``.  The extension is deterministic only when stripping the printed
+    multiplier from exactly one token-bounded prefix yields the complete normalized target type,
+    and no other binding owns the added bytes.
+    """
+
+    lines = line_spans(raw)
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    replacement_ends: dict[str, int] = {}
+    for _logical_key, rows in grouped.items():
+        if not all(
+            row.render_mode == "deterministic_derived"
+            and row.derivation == "equipment_receipt"
+            for row in rows
+        ):
+            continue
+        planned: dict[str, int] = {}
+        valid = True
+        for row in rows:
+            type_paths = tuple(
+                path
+                for path in (*row.target_paths, *row.dependency_paths)
+                if _CONTAINER_TYPE_PATH.fullmatch(path) is not None
+            )
+            if len(set(type_paths)) != 1:
+                valid = False
+                break
+            type_surface = _scalar_surface(_resolve_target_path(source_target, type_paths[0]))
+            if type_surface is None:
+                valid = False
+                break
+            line_number = line_number_for_char(lines, row.char_start)
+            line = lines[line_number - 1]
+            if line_number != line_number_for_char(lines, row.char_end - 1):
+                valid = False
+                break
+            candidate_ends: list[int] = []
+            for _token, _start, relative_end in _surface_token_spans(
+                raw[row.char_start : line.char_end]
+            ):
+                end = row.char_start + relative_end
+                surface = raw[row.char_start:end]
+                multiplier = re.match(r"(?i)^\s*[0-9]+\s*[x\u00d7]\s*", surface)
+                if multiplier is None:
+                    continue
+                if _normalized_surface(surface[multiplier.end() :]) == _normalized_surface(
+                    type_surface
+                ):
+                    candidate_ends.append(end)
+            if len(candidate_ends) != 1:
+                valid = False
+                break
+            end = candidate_ends[0]
+            if end > row.char_end and any(
+                row.char_end < other.char_end
+                and other.char_start < end
+                and other.draft_id != row.draft_id
+                for other in drafts
+            ):
+                valid = False
+                break
+            planned[row.draft_id] = end
+        if valid and any(planned[row.draft_id] != row.char_end for row in rows):
+            replacement_ends.update(planned)
+
+    return merge_drafts(
+        replace(
+            row,
+            char_end=replacement_ends[row.draft_id],
+            source_text=raw[row.char_start : replacement_ends[row.draft_id]],
+            evidence_origin="derived_operational_fact",
+            rationale=(
+                row.rationale
+                + " Host expanded the row-local equipment receipt through the complete exact "
+                "structured type surface."
+            ),
+        )
+        if row.draft_id in replacement_ends and replacement_ends[row.draft_id] != row.char_end
+        else row
+        for row in drafts
+    )
+
+
+def normalize_abbreviated_container_counts(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Own ``N CONT.`` immediately preceding a structured container type.
+
+    The abbreviation is accepted only when its printed number equals the pinned structured
+    container-list length and the same line continues with a direct type owner.  This distinguishes
+    a complete container-count noun surface from a bare equipment multiplier and from arbitrary
+    prose abbreviations.
+    """
+
+    patch = source_target.get("documentPatch")
+    containers = patch.get("containers") if isinstance(patch, Mapping) else None
+    if not isinstance(containers, list) or not containers:
+        return tuple(drafts)
+    expected_count = len(containers)
+    lines = line_spans(raw)
+    candidates: list[tuple[int, int]] = []
+    for row in drafts:
+        index = _container_index_for_path(row.target_paths, _CONTAINER_TYPE_PATH)
+        if row.render_mode != "target_binding" or index is None:
+            continue
+        line_number = line_number_for_char(lines, row.char_start)
+        line = lines[line_number - 1]
+        prefix = raw[line.char_start : row.char_start]
+        match = re.search(r"(?i)(?P<surface>(?P<count>[0-9][0-9,]*)\s+CONT\.)\s*$", prefix)
+        if match is None or int(match.group("count").replace(",", "")) != expected_count:
+            continue
+        start = line.char_start + match.start("surface")
+        end = line.char_start + match.end("surface")
+        candidates.append((start, end))
+    if not candidates:
+        return tuple(drafts)
+
+    logical_key = "agent:container_count:documentPatch.containers"
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    for start, end in sorted(set(candidates)):
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if overlaps:
+            already_owned = all(
+                row.char_start == start
+                and row.char_end == end
+                and row.render_mode == "deterministic_derived"
+                and row.derivation == "container_count"
+                and "documentPatch.containers" in {*row.target_paths, *row.dependency_paths}
+                for row in overlaps
+            )
+            if already_owned:
+                continue
+            literal_rows = tuple(
+                row
+                for row in overlaps
+                if row.char_start == start
+                and row.char_end == end
+                and row.render_mode == "literal_static"
+            )
+            if len(literal_rows) != len(overlaps):
+                continue
+            discarded_ids.update(row.draft_id for row in literal_rows)
+        additions.append(
+            SpanDraft(
+                draft_id=(
+                    "host_abbreviated_container_count_"
+                    + sha256_bytes(f"{start}\0{end}".encode())[:16]
+                ),
+                logical_key=logical_key,
+                render_mode="deterministic_derived",
+                value_kind="integer",
+                group_kind="equipment",
+                group_key="equipment:all",
+                target_paths=("documentPatch.containers",),
+                derivation="container_count",
+                dependency_paths=("documentPatch.containers",),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="derived_operational_fact",
+                render_policy="derived_surface",
+                rationale=(
+                    "Host derived this complete abbreviated container-count surface from the "
+                    "pinned container collection and its immediate structured type row."
+                ),
+            )
+        )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_source_only_package_nouns(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own a package noun immediately following a source-only numeric value."""
+
+    lines = line_spans(raw)
+    candidates: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for row in drafts:
+        if not (
+            row.render_mode in {"deterministic_auxiliary", "deterministic_derived"}
+            and row.value_kind == "integer"
+            and not row.target_paths
+            and not row.dependency_paths
+            and _decimal_candidates(row.source_text, integer=True)
+        ):
+            continue
+        line_number = line_number_for_char(lines, row.char_end - 1)
+        line = lines[line_number - 1]
+        suffix = raw[row.char_end : line.char_end]
+        match = re.match(r"\s+(?P<noun>PACKAGES?)\b", suffix, re.IGNORECASE)
+        if match is None:
+            continue
+        start = row.char_end + match.start("noun")
+        end = row.char_end + match.end("noun")
+        candidates[_normalized_surface(raw[start:end])].append((start, end))
+    if not candidates:
+        return tuple(drafts)
+
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    for normalized_noun, spans in sorted(candidates.items()):
+        accepted: list[tuple[int, int]] = []
+        for start, end in sorted(set(spans)):
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if overlaps:
+                already_owned = all(
+                    row.char_start == start
+                    and row.char_end == end
+                    and row.render_mode == "deterministic_auxiliary"
+                    and row.value_kind == "package"
+                    and not row.target_paths
+                    for row in overlaps
+                )
+                if already_owned:
+                    continue
+                literal_rows = tuple(
+                    row
+                    for row in overlaps
+                    if row.char_start == start
+                    and row.char_end == end
+                    and row.render_mode == "literal_static"
+                )
+                if len(literal_rows) != len(overlaps):
+                    continue
+                discarded_ids.update(row.draft_id for row in literal_rows)
+            accepted.append((start, end))
+        logical_key = f"agent:package:source_only_kind:{normalized_noun}"
+        for start, end in accepted:
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_source_only_package_noun_"
+                        + sha256_bytes(f"{logical_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind="package",
+                    group_kind="package",
+                    group_key="package:source_only_kind",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="natural_text",
+                    rationale=(
+                        "Host owned this package-kind noun because it immediately completes an "
+                        "independently owned source-only numeric package surface."
+                    ),
+                )
+            )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_foreign_exporter_registration_types(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own the selected value in ``FOREIGN EXPORTER REGISTRATION`` / ``TYPE: ...`` rows."""
+
+    lines = line_spans(raw)
+    previous_nonempty: LineSpan | None = None
+    candidates: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for line in lines:
+        match = re.fullmatch(
+            r"\s*TYPE\s*:\s*(?P<value>[A-Z][A-Z0-9]*(?:[ \t]+[A-Z0-9][A-Z0-9./_-]*)*)\s*",
+            line.text,
+            re.IGNORECASE,
+        )
+        if (
+            match is not None
+            and previous_nonempty is not None
+            and _normalized_surface(previous_nonempty.text) == "foreignexporterregistration"
+        ):
+            start = line.char_start + match.start("value")
+            end = line.char_start + match.end("value")
+            candidates[_normalized_surface(raw[start:end])].append((start, end))
+        if line.text.strip():
+            previous_nonempty = line
+    if not candidates:
+        return tuple(drafts)
+
+    additions: list[SpanDraft] = []
+    discarded_ids: set[str] = set()
+    for normalized_value, spans in sorted(candidates.items()):
+        logical_key = "agent:customs:foreign_exporter_registration_type"
+        if len(candidates) > 1:
+            logical_key += ":" + sha256_bytes(normalized_value.encode())[:12]
+        for start, end in sorted(set(spans)):
+            overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+            if overlaps:
+                already_owned = all(
+                    row.char_start == start
+                    and row.char_end == end
+                    and row.logical_key == logical_key
+                    and row.render_mode == "deterministic_auxiliary"
+                    and not row.target_paths
+                    for row in overlaps
+                )
+                if already_owned:
+                    continue
+                literal_rows = tuple(
+                    row
+                    for row in overlaps
+                    if row.char_start == start
+                    and row.char_end == end
+                    and row.render_mode == "literal_static"
+                )
+                if len(literal_rows) != len(overlaps):
+                    continue
+                discarded_ids.update(row.draft_id for row in literal_rows)
+            additions.append(
+                SpanDraft(
+                    draft_id=(
+                        "host_foreign_exporter_registration_type_"
+                        + sha256_bytes(f"{logical_key}\0{start}\0{end}".encode())[:16]
+                    ),
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind="identifier",
+                    group_kind="customs",
+                    group_key="customs:foreign_exporter",
+                    target_paths=(),
+                    derivation=None,
+                    dependency_paths=(),
+                    dependency_bindings=(),
+                    char_start=start,
+                    char_end=end,
+                    source_text=raw[start:end],
+                    evidence_origin="host_verified_agent_proposal",
+                    render_policy="opaque_identifier",
+                    rationale=(
+                        "Host owned this selected foreign-exporter registration-type value under "
+                        "its exact registration and TYPE captions."
+                    ),
+                )
+            )
+    retained = tuple(row for row in drafts if row.draft_id not in discarded_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_repeated_original_status_marks(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Own repeated standalone ``ORIGINAL`` marks without absorbing form-title grammar."""
+
+    if re.search(r"(?im)^\s*ORIGINAL\s+BILL\s+OF\s+LADING(?:\s*\([^)]*\))?\s*$", raw) is None:
+        return tuple(drafts)
+    spans = tuple(
+        span
+        for line in line_spans(raw)
+        if _STANDALONE_ORIGINAL.fullmatch(line.text) is not None
+        and (span := _trimmed_line_span(line)) is not None
+        and raw[span[0] : span[1]] == "ORIGINAL"
+    )
+    if len(spans) < 2:
+        return tuple(drafts)
+    existing_by_span: dict[tuple[int, int], SpanDraft | None] = {}
+    for start, end in spans:
+        overlaps = tuple(row for row in drafts if start < row.char_end and row.char_start < end)
+        if not overlaps:
+            existing_by_span[(start, end)] = None
+            continue
+        if not (
+            len(overlaps) == 1
+            and overlaps[0].char_start == start
+            and overlaps[0].char_end == end
+            and overlaps[0].render_mode in {"deterministic_auxiliary", "literal_static"}
+            and not overlaps[0].target_paths
+            and not overlaps[0].dependency_paths
+            and not overlaps[0].dependency_bindings
+        ):
+            return tuple(drafts)
+        existing_by_span[(start, end)] = overlaps[0]
+
+    logical_key = "agent:document:original_mark"
+    additions: list[SpanDraft] = []
+    replaced_ids: set[str] = set()
+    for start, end in spans:
+        existing = existing_by_span[(start, end)]
+        if existing is not None:
+            replaced_ids.add(existing.draft_id)
+            additions.append(
+                replace(
+                    existing,
+                    logical_key=logical_key,
+                    render_mode="deterministic_auxiliary",
+                    value_kind="other_text",
+                    group_kind="document",
+                    group_key="document:original_status",
+                    derivation=None,
+                    render_policy="natural_text",
+                )
+            )
+            continue
+        additions.append(
+            SpanDraft(
+                draft_id=("host_original_status_" + sha256_bytes(f"{start}\0{end}".encode())[:16]),
+                logical_key=logical_key,
+                render_mode="deterministic_auxiliary",
+                value_kind="other_text",
+                group_kind="document",
+                group_key="document:original_status",
+                target_paths=(),
+                derivation=None,
+                dependency_paths=(),
+                dependency_bindings=(),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                render_policy="natural_text",
+                rationale=(
+                    "Host owned this repeated standalone ORIGINAL status mark independently of "
+                    "the literal ORIGINAL BILL OF LADING form title."
+                ),
+            )
+        )
+    retained = tuple(row for row in drafts if row.draft_id not in replaced_ids)
+    return merge_drafts(retained, additions)
+
+
+def normalize_structured_row_locality(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Apply exact structured and caption-local joins to source ownership."""
+
+    patch = source_target.get("documentPatch")
+    packages = patch.get("cargoPackages") if isinstance(patch, Mapping) else None
+    type_paths = (
+        tuple(
+            f"documentPatch.cargoPackages[{index}].typeCategory"
+            for index, package in enumerate(packages)
+            if isinstance(package, Mapping) and "typeCategory" in package
+        )
+        if isinstance(packages, list)
+        else ()
+    )
+    page_normalized = normalize_page_header_ownership(raw=raw, drafts=drafts)
+    quantity_normalized = normalize_package_quantity_row_locality(
+        raw=raw,
+        drafts=page_normalized,
+    )
+    package_normalized = normalize_package_type_row_locality(
+        raw=raw,
+        proposed=quantity_normalized,
+        contexts=quantity_normalized,
+        candidate_paths=type_paths,
+        source_target=source_target,
+    )
+    package_quantity_normalized = normalize_package_quantity_repeats(
+        raw=raw,
+        drafts=package_normalized,
+        source_target=source_target,
+    )
+    cargo_linked_package_normalized = normalize_cargo_description_linked_package_prefixes(
+        raw=raw,
+        drafts=package_quantity_normalized,
+        source_target=source_target,
+    )
+    package_noun_normalized = normalize_source_only_package_nouns(
+        raw=raw,
+        drafts=cargo_linked_package_normalized,
+    )
+    equipment_normalized = normalize_compact_equipment_locality(
+        raw=raw,
+        drafts=package_noun_normalized,
+        source_target=source_target,
+    )
+    container_package_normalized = normalize_container_linked_package_rows(
+        raw=raw,
+        drafts=equipment_normalized,
+        source_target=source_target,
+    )
+    equipment_receipt_normalized = normalize_bare_equipment_multipliers(
+        raw=raw,
+        drafts=container_package_normalized,
+        source_target=source_target,
+    )
+    complete_equipment_receipt_normalized = normalize_complete_equipment_receipt_surfaces(
+        raw=raw,
+        drafts=equipment_receipt_normalized,
+        source_target=source_target,
+    )
+    container_count_normalized = normalize_abbreviated_container_counts(
+        raw=raw,
+        drafts=complete_equipment_receipt_normalized,
+        source_target=source_target,
+    )
+    dangerous_goods_normalized = normalize_dangerous_goods_class_locality(
+        raw=raw,
+        drafts=container_count_normalized,
+        source_target=source_target,
+    )
+    dangerous_goods_description_normalized = normalize_labeled_dangerous_goods_descriptions(
+        raw=raw,
+        drafts=dangerous_goods_normalized,
+        source_target=source_target,
+    )
+    movement_normalized = normalize_labeled_movement_type_repeats(
+        raw=raw,
+        drafts=dangerous_goods_description_normalized,
+    )
+    caption_local_normalized = normalize_labeled_shipper_and_receipt_locality(
+        raw=raw,
+        drafts=movement_normalized,
+        source_target=source_target,
+    )
+    segmented_address_normalized = normalize_segmented_party_address_targets(
+        drafts=caption_local_normalized,
+        source_target=source_target,
+    )
+    address_normalized = normalize_party_address_suffix_locality(
+        raw=raw,
+        drafts=segmented_address_normalized,
+        source_target=source_target,
+    )
+    inline_address_normalized = normalize_party_address_inline_segments(
+        raw=raw,
+        drafts=address_normalized,
+        source_target=source_target,
+    )
+    party_location_normalized = normalize_party_location_repeats(
+        raw=raw,
+        drafts=inline_address_normalized,
+        source_target=source_target,
+    )
+    party_location_variant_normalized = normalize_repeated_party_location_variants(
+        raw=raw,
+        drafts=party_location_normalized,
+    )
+    carrier_normalized = normalize_canonical_carrier_repeats(
+        raw=raw,
+        drafts=party_location_variant_normalized,
+        source_target=source_target,
+    )
+    carrier_alias_normalized = normalize_canonical_carrier_initialism(
+        raw=raw,
+        drafts=carrier_normalized,
+        source_target=source_target,
+    )
+    source_field_normalized = normalize_labeled_source_only_fields(
+        raw=raw,
+        drafts=carrier_alias_normalized,
+    )
+    registration_type_normalized = normalize_foreign_exporter_registration_types(
+        raw=raw,
+        drafts=source_field_normalized,
+    )
+    country_code_normalized = normalize_labeled_country_code_derivations(
+        raw=raw,
+        drafts=registration_type_normalized,
+    )
+    export_country_normalized = normalize_exported_country_repeats(
+        raw=raw,
+        drafts=country_code_normalized,
+    )
+    measurement_normalized = normalize_selected_measurement_units(
+        raw=raw,
+        drafts=export_country_normalized,
+    )
+    route_normalized = normalize_labeled_route_target_repeats(
+        raw=raw,
+        drafts=measurement_normalized,
+        source_target=source_target,
+    )
+    inline_transport_normalized = normalize_inline_labeled_transport_repeats(
+        raw=raw,
+        drafts=route_normalized,
+        source_target=source_target,
+    )
+    commercial_normalized = normalize_selected_commercial_dates_and_charges(
+        raw=raw,
+        drafts=inline_transport_normalized,
+        source_target=source_target,
+    )
+    labeled_fact_normalized = normalize_labeled_identifiers_and_operational_facts(
+        raw=raw,
+        drafts=commercial_normalized,
+        source_target=source_target,
+    )
+    forwarding_reference_normalized = normalize_repeated_forwarding_references(
+        raw=raw,
+        drafts=labeled_fact_normalized,
+        source_target=source_target,
+    )
+    original_status_normalized = normalize_repeated_original_status_marks(
+        raw=raw,
+        drafts=forwarding_reference_normalized,
+    )
+    terminal_normalized = normalize_explicit_loading_terminal_locality(
+        raw=raw,
+        drafts=original_status_normalized,
+    )
+    onboard_normalized = normalize_shipped_on_board_summary_locality(
+        raw=raw,
+        drafts=terminal_normalized,
+        source_target=source_target,
+    )
+    operational_normalized = normalize_selected_operational_terms(
+        raw=raw, drafts=onboard_normalized
+    )
+    return normalize_selected_freight_payment_locality(
+        raw=raw,
+        drafts=operational_normalized,
+        source_target=source_target,
+    )
+
+
 def validate_compact_equipment_locality(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> None:
     """Reject a short equipment surface assigned away from its unique local container row."""
 
+    page_spans = page_body_spans(raw)
+    lines = line_spans(raw)
     number_drafts: dict[int, list[SpanDraft]] = defaultdict(list)
     for draft in drafts:
         index = _container_index_for_path(draft.target_paths, _CONTAINER_NUMBER_PATH)
@@ -3902,7 +12338,11 @@ def validate_compact_equipment_locality(
         if declared_index is None:
             continue
         nearest_index = _nearest_container_number_index(
-            raw=raw, draft=draft, number_drafts=number_drafts
+            raw=raw,
+            draft=draft,
+            number_drafts=number_drafts,
+            page_spans=page_spans,
+            lines=lines,
         )
         if nearest_index is not None and nearest_index != declared_index:
             errors.append(
@@ -3912,6 +12352,135 @@ def validate_compact_equipment_locality(
             )
     if errors:
         raise ValueError("compact equipment locality violations: " + "; ".join(errors))
+
+
+_HYPHENATED_NUMERIC_IDENTIFIER = re.compile(
+    r"(?<![A-Za-z0-9])(?P<value>[0-9]{4,}(?:-[0-9]+)+)(?![A-Za-z0-9])"
+)
+_DECIMAL_MEASUREMENT_SUFFIX = re.compile(r"(?P<suffix>[,.][0-9]+)(?![A-Za-z0-9])")
+
+
+def normalize_decimal_measurement_boundaries(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Expand a digit-only decimal measurement to its adjacent fractional suffix.
+
+    The correction is deliberately limited to typed decimal measurements whose selected surface
+    is only digits and whose immediately adjacent suffix is one unambiguous comma/dot fraction.
+    It cannot cross another owner. This covers OCR totals such as ``43956,000`` without guessing
+    about identifiers, addresses, or separated units.
+    """
+
+    output: list[SpanDraft] = []
+    for draft in drafts:
+        if draft.value_kind != "decimal_measurement" or not draft.source_text.isdigit():
+            output.append(draft)
+            continue
+        suffix = _DECIMAL_MEASUREMENT_SUFFIX.match(raw, draft.char_end)
+        if suffix is None:
+            output.append(draft)
+            continue
+        end = suffix.end("suffix")
+        if any(
+            other.logical_key != draft.logical_key
+            and draft.char_start < other.char_end
+            and other.char_start < end
+            for other in drafts
+        ):
+            output.append(draft)
+            continue
+        output.append(
+            replace(
+                draft,
+                draft_id=(
+                    "expanded_decimal_measurement_"
+                    + sha256_bytes(f"{draft.draft_id}\0{draft.char_start}\0{end}".encode())[:16]
+                ),
+                char_end=end,
+                source_text=raw[draft.char_start : end],
+                rationale=(
+                    draft.rationale
+                    + " Host expanded the digit-only decimal measurement to its immediately "
+                    "adjacent fractional suffix."
+                ),
+            )
+        )
+    return merge_drafts(output)
+
+
+def normalize_auxiliary_identifier_boundaries(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Expand a repeated numeric auxiliary prefix to one proven complete hyphenated token.
+
+    Source-only identifiers have no target scalar against which the host can validate their
+    surface. Expansion is therefore intentionally narrow: every occurrence in the logical binding
+    must be the same digit-only prefix, each must sit inside exactly one hyphenated numeric token,
+    every complete token must be byte-identical, and the expanded spans must remain disjoint from
+    every other owner. Anything else remains unchanged for semantic review.
+    """
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    replacements: dict[str, SpanDraft] = {}
+    for rows in grouped.values():
+        first = rows[0]
+        if not (
+            first.render_mode == "deterministic_auxiliary"
+            and first.value_kind == "identifier"
+            and len(first.source_text) >= 4
+            and first.source_text.isdigit()
+            and all(
+                row.render_mode == first.render_mode
+                and row.value_kind == first.value_kind
+                and row.source_text == first.source_text
+                for row in rows
+            )
+        ):
+            continue
+        expansions: list[tuple[int, int, str]] = []
+        for row in rows:
+            candidates = tuple(
+                (match.start("value"), match.end("value"), match.group("value"))
+                for match in _HYPHENATED_NUMERIC_IDENTIFIER.finditer(raw)
+                if match.start("value") <= row.char_start
+                and row.char_end <= match.end("value")
+                and (match.start("value"), match.end("value")) != (row.char_start, row.char_end)
+            )
+            if len(candidates) != 1:
+                expansions = []
+                break
+            expansions.append(candidates[0])
+        if not expansions or len({surface for _start, _end, surface in expansions}) != 1:
+            continue
+        if any(
+            any(
+                other.logical_key != first.logical_key
+                and start < other.char_end
+                and other.char_start < end
+                for other in drafts
+            )
+            for start, end, _surface in expansions
+        ):
+            continue
+        for row, (start, end, surface) in zip(rows, expansions, strict=True):
+            replacements[row.draft_id] = replace(
+                row,
+                draft_id=(
+                    "expanded_auxiliary_identifier_"
+                    + sha256_bytes(f"{row.draft_id}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=surface,
+                rationale=(
+                    row.rationale
+                    + " Host expanded the repeated numeric auxiliary prefix to its identical "
+                    "complete hyphenated identifier token."
+                ),
+            )
+    return merge_drafts(replacements.get(draft.draft_id, draft) for draft in drafts)
 
 
 def normalize_country_code_locality(
@@ -3973,6 +12542,69 @@ def normalize_country_code_locality(
     return merge_drafts(output)
 
 
+def normalize_labeled_auxiliary_organization_boundaries(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Trim an exact importer-name caption from a source-only organization binding."""
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        grouped[row.logical_key].append(row)
+    replacements: dict[str, SpanDraft] = {}
+    for rows in grouped.values():
+        first = rows[0]
+        if not (
+            first.render_mode in {"deterministic_auxiliary", "agent_residual"}
+            and first.value_kind == "organization"
+            and not first.target_paths
+            and not first.dependency_paths
+            and not first.dependency_bindings
+        ):
+            continue
+        matches = tuple(_LABELED_AUXILIARY_ORGANIZATION.fullmatch(row.source_text) for row in rows)
+        if any(match is None for match in matches):
+            continue
+        typed_matches = tuple(match for match in matches if match is not None)
+        values = tuple(match.group("value") for match in typed_matches)
+        if len({_normalized_surface(value) for value in values}) != 1:
+            continue
+        for row, match in zip(rows, typed_matches, strict=True):
+            start = row.char_start + match.start("value")
+            end = row.char_start + match.end("value")
+            replacements[row.draft_id] = replace(
+                row,
+                draft_id=(
+                    "host_labeled_auxiliary_value_"
+                    + sha256_bytes(f"{row.draft_id}\0{start}\0{end}".encode())[:16]
+                ),
+                char_start=start,
+                char_end=end,
+                source_text=raw[start:end],
+                evidence_origin="host_verified_agent_proposal",
+                rationale=(
+                    row.rationale
+                    + " Host narrowed this source-only organization to the value after its "
+                    "exact importer-name caption."
+                ),
+            )
+    return merge_drafts(replacements.get(row.draft_id, row) for row in drafts)
+
+
+def normalize_source_boundaries(*, raw: str, drafts: Sequence[SpanDraft]) -> tuple[SpanDraft, ...]:
+    """Apply every host-proven source-boundary correction in canonical order."""
+
+    return normalize_country_code_locality(
+        raw=raw,
+        drafts=normalize_labeled_auxiliary_organization_boundaries(
+            raw=raw,
+            drafts=normalize_auxiliary_identifier_boundaries(
+                raw=raw,
+                drafts=normalize_decimal_measurement_boundaries(raw=raw, drafts=drafts),
+            ),
+        ),
+    )
+
+
 def validate_binding_realizations(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> None:
@@ -3986,6 +12618,14 @@ def validate_binding_realizations(
     errors: list[str] = []
     for logical_key, rows in grouped.items():
         first = rows[0][0]
+        if first.derivation == "container_count":
+            for draft, _slot in rows:
+                if _BARE_EQUIPMENT_MULTIPLIER.fullmatch(draft.source_text) is not None:
+                    errors.append(
+                        f"{logical_key} container_count selects bare equipment multiplier "
+                        f"{draft.source_text!r} at chars [{draft.char_start},{draft.char_end}); "
+                        "use the row-local equipment_receipt derivation"
+                    )
         if first.derivation == "country_code":
             for draft, _slot in rows:
                 left_is_boundary = draft.char_start == 0 or not raw[draft.char_start - 1].isalnum()

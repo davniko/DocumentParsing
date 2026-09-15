@@ -155,7 +155,7 @@ def test_discriminated_compiler_round_trip_preserves_host_contract() -> None:
     assert restored.bindings == (binding,)
 
 
-def test_discriminated_compiler_rejects_duplicate_proposed_target_owners() -> None:
+def test_discriminated_compiler_defers_duplicate_target_owners_to_host() -> None:
     first = discriminate_binding(_legacy_binding(logical_key="owner:first"))
     second = discriminate_binding(_legacy_binding(logical_key="owner:second"))
     payload = {
@@ -182,8 +182,48 @@ def test_discriminated_compiler_rejects_duplicate_proposed_target_owners() -> No
         "semantic_only_target_facts": (),
     }
 
-    with pytest.raises(ValidationError, match="one proposed logical owner"):
-        DiscriminatedCompilerAgentOutput.model_validate(payload)
+    output = DiscriminatedCompilerAgentOutput.model_validate(payload)
+
+    assert tuple(binding.logical_key for binding in output.bindings) == (
+        "owner:first",
+        "owner:second",
+    )
+
+
+def test_discriminated_compiler_defers_carrier_static_provenance_to_host() -> None:
+    first = discriminate_binding(
+        _legacy_binding(logical_key="carrier:name", render_mode="carrier_static")
+    )
+    second = discriminate_binding(
+        _legacy_binding(logical_key="carrier:domain", render_mode="carrier_static")
+    )
+    payload = {
+        "carrier": {
+            "canonical_name": "Example Carrier Ltd",
+            "aliases": (),
+            "evidence_occurrences": (
+                {
+                    "line_start": "L00002",
+                    "line_end": "L00002",
+                    "source_text": "Example Carrier Ltd",
+                    "occurrence_index": 0,
+                },
+            ),
+            "source": "source_label_confirmed_by_ocr",
+            "rationale": "Exact printed principal.",
+        },
+        "anchor_overrides": (),
+        "bindings": (
+            first.model_dump(mode="python"),
+            second.model_dump(mode="python"),
+        ),
+        "unresolved": (),
+        "semantic_only_target_facts": (),
+    }
+
+    output = DiscriminatedCompilerAgentOutput.model_validate(payload)
+
+    assert len(output.bindings) == 2
 
 
 def test_discriminated_critic_pass_has_no_patch_surface() -> None:

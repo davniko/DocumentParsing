@@ -161,7 +161,12 @@ def restore_legacy_binding(
 
 
 class DiscriminatedCompilerAgentOutput(BaseModel):
-    """Compiler result whose binding modes cannot express illegal field combinations."""
+    """Compiler result whose binding modes cannot express illegal field combinations.
+
+    Cross-binding semantic ownership is deliberately validated by the independent host after
+    exact occurrence resolution. Keeping that rule out of the provider schema lets a retained
+    candidate take the bounded local-repair path instead of regenerating the complete response.
+    """
 
     model_config = _STRICT
 
@@ -170,39 +175,6 @@ class DiscriminatedCompilerAgentOutput(BaseModel):
     bindings: tuple[DiscriminatedBindingProposal, ...]
     unresolved: tuple[NonEmptyText, ...]
     semantic_only_target_facts: tuple[SemanticOnlyTargetFactProposal, ...] = ()
-
-    @model_validator(mode="after")
-    def target_owners_are_unique(self) -> DiscriminatedCompilerAgentOutput:
-        owners: dict[str, set[str]] = {}
-        for binding in self.bindings:
-            rendering = binding.rendering
-            if not isinstance(
-                rendering,
-                (
-                    TargetBindingRendering,
-                    DeterministicDerivedRendering,
-                    AgentResidualRendering,
-                    CarrierStaticRendering,
-                ),
-            ):
-                continue
-            for path in rendering.target_paths:
-                owners.setdefault(path, set()).add(binding.logical_key)
-        duplicates = {
-            path: sorted(logical_keys)
-            for path, logical_keys in owners.items()
-            if len(logical_keys) > 1
-        }
-        if duplicates:
-            details = "; ".join(
-                f"{path}: {', '.join(logical_keys)}"
-                for path, logical_keys in sorted(duplicates.items())
-            )
-            raise ValueError(
-                "target paths must have one proposed logical owner; consolidate repeated "
-                "occurrences or remove redundant target ownership: " + details
-            )
-        return self
 
 
 def restore_legacy_compiler(
