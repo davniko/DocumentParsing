@@ -48,6 +48,60 @@ _ACCEPTANCE_COLUMNS = (
     "source_relationships_valid",
     "semantic_coherence_valid",
 )
+_ROUTE_COLUMNS = (
+    "document_id",
+    "binding_id",
+    "logical_key",
+    "group_kind",
+    "group_key",
+    "value_kind",
+    "render_mode",
+    "compiled_mode",
+    "runtime_route",
+    "route_reason",
+    "slot_count",
+)
+_ADAPTATION_COLUMNS = (
+    "document_id",
+    "target_origin",
+    "target_path",
+    "target_family",
+    "category",
+    "reason",
+    "source_value",
+    "proposed_value",
+    "adapted_value",
+)
+_TARGET_CHANGE_COLUMNS = (
+    "document_id",
+    "target_path",
+    "family",
+    "source_value",
+    "target_value",
+)
+_COUNTRY_SCREEN_COLUMNS = (
+    "document_id",
+    "relationship",
+    "target_party_path",
+    "expected_country",
+    "expected_country_code",
+    "exporter_country_surfaces",
+    "exporter_country_codes",
+    "comparable",
+    "consistent",
+    "target_origin",
+    "compilation_lineage",
+)
+_NUMBER_CONTRADICTION_COLUMNS = (
+    "document_id",
+    "line_number",
+    "kind",
+    "surface",
+    "left_value",
+    "right_value",
+    "target_origin",
+    "compilation_lineage",
+)
 _ORIGIN_LABELS = {
     "existing_linguistic_target_carrier_restored": "Existing full target",
     "controlled_source_variant": "Controlled source variant",
@@ -339,7 +393,7 @@ def _number_contradictions(document_id: str, text: str) -> list[dict[str, Any]]:
         for match in _SEQUENCE_OF_TOTAL.finditer(line):
             sequence = int(match.group(1))
             total = _NUMBER_WORDS[match.group(2).upper()]
-            if total == 0 or sequence > total:
+            if sequence > total or (total == 0 and sequence != 0):
                 rows.append(
                     {
                         "document_id": document_id,
@@ -390,24 +444,65 @@ def _exporter_country_surfaces(text: str) -> tuple[str, ...]:
 
 
 def _country_screen_row(
-    *, document_id: str, text: str, target: Mapping[str, Any], registry: CountryRegistry
+    *,
+    document_id: str,
+    text: str,
+    target: Mapping[str, Any],
+    template: Mapping[str, Any],
+    registry: CountryRegistry,
 ) -> dict[str, Any] | None:
     surfaces = _exporter_country_surfaces(text)
     if not surfaces:
         return None
-    patch = target.get("documentPatch")
-    parties = patch.get("parties") if isinstance(patch, Mapping) else None
-    shipper = parties.get("shipper") if isinstance(parties, Mapping) else None
-    shipper_country = shipper.get("country") if isinstance(shipper, Mapping) else None
-    shipper_code = registry.resolve(shipper_country) if isinstance(shipper_country, str) else None
+    plan = template.get("auxiliary_semantic_plan")
+    entities = plan.get("entities") if isinstance(plan, Mapping) else None
+    exporter_entities = tuple(
+        row
+        for row in entities or ()
+        if isinstance(row, Mapping)
+        and str(row.get("role", "")).split(":", maxsplit=1)[0] in {"exporter", "foreign_exporter"}
+    )
+    if len(exporter_entities) != 1:
+        raise ValueError(
+            f"exporter country surface lacks one canonical exporter entity: {document_id}"
+        )
+    entity = exporter_entities[0]
+    relationship = entity.get("relationship")
+    target_party_path = entity.get("target_party_path")
+    expected_country: str | None = None
+    if relationship == "same_as_target_party":
+        if not isinstance(target_party_path, str):
+            raise ValueError(f"target-linked exporter has no party path: {document_id}")
+        current: Any = target
+        for name, index_text in re.findall(r"([A-Za-z0-9_]+)(?:\[([0-9]+)\])?", target_party_path):
+            if not isinstance(current, Mapping) or name not in current:
+                raise ValueError(f"exporter target party path is absent: {document_id}")
+            current = current[name]
+            if index_text:
+                if not isinstance(current, Sequence) or isinstance(current, (str, bytes)):
+                    raise ValueError(f"exporter target party index is invalid: {document_id}")
+                current = current[int(index_text)]
+        if isinstance(current, Mapping) and isinstance(current.get("country"), str):
+            expected_country = cast(str, current["country"])
+    elif relationship != "independent":
+        raise ValueError(f"unsupported exporter relationship: {document_id}")
+    expected_code = registry.resolve(expected_country) if expected_country is not None else None
     resolved = tuple(_country_prefix(registry, value) for value in surfaces)
     exporter_codes = tuple(sorted({code for code, _ in resolved if code is not None}))
-    comparable = shipper_code is not None and bool(exporter_codes)
-    consistent = comparable and exporter_codes == (shipper_code,)
+    comparable = bool(exporter_codes) and all(code is not None for code, _ in resolved)
+    consistent = (
+        exporter_codes == (expected_code,)
+        if comparable and expected_code is not None
+        else len(exporter_codes) == 1
+        if comparable
+        else None
+    )
     return {
         "document_id": document_id,
-        "shipper_country": shipper_country,
-        "shipper_country_code": shipper_code,
+        "relationship": relationship,
+        "target_party_path": target_party_path,
+        "expected_country": expected_country,
+        "expected_country_code": expected_code,
         "exporter_country_surfaces": " | ".join(surfaces),
         "exporter_country_codes": " | ".join(exporter_codes),
         "comparable": comparable,
@@ -416,6 +511,10 @@ def _country_screen_row(
 
 
 def _adaptation_category(reason: str) -> str:
+    if reason.startswith(
+        ("atomic party representability constraint;", "atomic party auxiliary-facet constraint;")
+    ):
+        return "atomic party retention"
     if reason.startswith("compiled descendant compatibility constraint:"):
         return "certified format constraint"
     if reason.startswith("compiled inclusive-range coherence contract"):
@@ -431,6 +530,19 @@ def _list_length(value: Any) -> int:
     return len(value) if isinstance(value, list) else int(value is not None)
 
 
+def _rows_frame(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    columns: Sequence[str],
+    sort_by: Sequence[str] = (),
+) -> pd.DataFrame:
+    """Materialize an analysis table without losing its schema when it has no rows."""
+    frame = pd.DataFrame.from_records(rows, columns=columns)
+    if not frame.empty and sort_by:
+        frame = frame.sort_values(list(sort_by)).reset_index(drop=True)
+    return frame
+
+
 def _build_frames(
     *,
     run_root: Path,
@@ -439,8 +551,7 @@ def _build_frames(
     registry: CountryRegistry,
 ) -> dict[str, pd.DataFrame]:
     catalog_rows = {
-        cast(str, row["documentId"]): row
-        for row in _jsonl(catalog_root / "catalog.jsonl")
+        cast(str, row["documentId"]): row for row in _jsonl(catalog_root / "catalog.jsonl")
     }
     documents: list[dict[str, Any]] = []
     routes: list[dict[str, Any]] = []
@@ -537,6 +648,7 @@ def _build_frames(
             document_id=document_id,
             text=rendered_text,
             target=target,
+            template=template,
             registry=registry,
         )
         if country_row is not None:
@@ -615,27 +727,31 @@ def _build_frames(
         )
 
     document_frame = pd.DataFrame(documents).sort_values("document_id").reset_index(drop=True)
-    route_frame = pd.DataFrame(routes).sort_values(["document_id", "binding_id"]).reset_index(
-        drop=True
+    route_frame = _rows_frame(
+        routes,
+        columns=_ROUTE_COLUMNS,
+        sort_by=("document_id", "binding_id"),
     )
-    adaptation_frame = pd.DataFrame(adaptations)
-    if not adaptation_frame.empty:
-        adaptation_frame = adaptation_frame.sort_values(
-            ["document_id", "target_path"]
-        ).reset_index(drop=True)
-    target_change_frame = pd.DataFrame(target_changes)
-    if not target_change_frame.empty:
-        target_change_frame = target_change_frame.sort_values(
-            ["document_id", "target_path"]
-        ).reset_index(drop=True)
-    country_frame = pd.DataFrame(country_rows)
-    if not country_frame.empty:
-        country_frame = country_frame.sort_values("document_id").reset_index(drop=True)
-    contradiction_frame = pd.DataFrame(contradiction_rows)
-    if not contradiction_frame.empty:
-        contradiction_frame = contradiction_frame.sort_values(
-            ["document_id", "line_number", "kind"]
-        ).reset_index(drop=True)
+    adaptation_frame = _rows_frame(
+        adaptations,
+        columns=_ADAPTATION_COLUMNS,
+        sort_by=("document_id", "target_path"),
+    )
+    target_change_frame = _rows_frame(
+        target_changes,
+        columns=_TARGET_CHANGE_COLUMNS,
+        sort_by=("document_id", "target_path"),
+    )
+    country_frame = _rows_frame(
+        country_rows,
+        columns=_COUNTRY_SCREEN_COLUMNS,
+        sort_by=("document_id",),
+    )
+    contradiction_frame = _rows_frame(
+        contradiction_rows,
+        columns=_NUMBER_CONTRADICTION_COLUMNS,
+        sort_by=("document_id", "line_number", "kind"),
+    )
     return {
         "documents": document_frame,
         "routes": route_frame,
@@ -694,9 +810,7 @@ def _plots(
     target_changes = frames["target_changes"]
     country_screen = frames["country_screen"]
     contradictions = frames["number_contradictions"]
-    origin_palette = {
-        label: _PALETTE[label] for label in documents["target_origin_label"].unique()
-    }
+    origin_palette = {label: _PALETTE[label] for label in documents["target_origin_label"].unique()}
     output: dict[str, bytes] = {}
 
     invariants = {
@@ -846,9 +960,9 @@ def _plots(
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
     sns.histplot(residual["agent_slot_count"], bins=14, color=_PALETTE["agent"], ax=axes[0])
     axes[0].set(title="Current residual scope in historically paid documents", xlabel="Agent slots")
-    cumulative = residual["source_provider_cost_usd"].cumsum() / residual[
-        "source_provider_cost_usd"
-    ].sum()
+    cumulative = (
+        residual["source_provider_cost_usd"].cumsum() / residual["source_provider_cost_usd"].sum()
+    )
     axes[1].plot(range(1, len(residual) + 1), cumulative * 100, color=_PALETTE["agent"])
     axes[1].axhline(80, linestyle="--", color="#455A64")
     axes[1].set(
@@ -927,7 +1041,7 @@ def _plots(
 
     efficiency = cast(Mapping[str, Any], summary["efficiency"])
     figure, axes = plt.subplots(1, 2, figsize=(11, 5))
-    labels = ["Paid lineage", "Corrected fresh route"]
+    labels = ["Replay-attributed route", "Current planned route"]
     calls = [int(efficiency["realizedProviderRequests"]), int(efficiency["plannedFreshRequests"])]
     bars = axes[0].bar(labels, calls, color=["#90A4AE", _PALETTE["agent"]])
     axes[0].bar_label(bars)
@@ -939,7 +1053,7 @@ def _plots(
     bars = axes[1].bar(labels, costs, color=["#90A4AE", _PALETTE["agent"]])
     axes[1].bar_label(bars, fmt="$%.5f")
     axes[1].set(title="Residual-rendering cost", ylabel="USD")
-    figure.suptitle("Host hardening retired six complete calls; fresh cost is a conservative proxy")
+    figure.suptitle("Current residual route and conservative historical-cost proxy")
     output["plots/13_cost_efficiency.png"] = _figure_bytes(figure)
 
     comparable = country_screen[country_screen["comparable"] == True]  # noqa: E712
@@ -957,19 +1071,27 @@ def _plots(
         color=[_PALETTE["pass"], _PALETTE["concern"], "#90A4AE"],
     )
     axes[0].bar_label(bars)
-    axes[0].set(title="Exporter-country vs structured shipper-country screen", ylabel="Documents")
-    mismatch_origin = comparable[comparable["consistent"] == False][  # noqa: E712
-        "target_origin"
-    ].map(_ORIGIN_LABELS).value_counts()
-    axes[1].bar(
-        mismatch_origin.index,
-        mismatch_origin.values,
-        color=[origin_palette[x] for x in mismatch_origin.index],
+    axes[0].set(title="Exporter-country semantic relationship screen", ylabel="Documents")
+    mismatch_origin = (
+        comparable[comparable["consistent"] == False][  # noqa: E712
+            "target_origin"
+        ]
+        .map(_ORIGIN_LABELS)
+        .value_counts()
     )
-    axes[1].bar_label(axes[1].containers[0])
+    if mismatch_origin.empty:
+        axes[1].text(0.5, 0.5, "No mismatches", ha="center", va="center", fontsize=14)
+        axes[1].set_xticks([])
+    else:
+        axes[1].bar(
+            mismatch_origin.index,
+            mismatch_origin.values,
+            color=[origin_palette[x] for x in mismatch_origin.index],
+        )
+        axes[1].bar_label(axes[1].containers[0])
     axes[1].set(title="Country mismatches by target origin", ylabel="Documents")
     axes[1].tick_params(axis="x", rotation=15)
-    figure.suptitle("A deterministic screen exposes missing cross-field dependency metadata")
+    figure.suptitle("Exporter countries are checked against their compiled entity relationship")
     output["plots/14_country_consistency_screen.png"] = _figure_bytes(figure)
 
     contradiction_docs = contradictions.drop_duplicates("document_id")
@@ -998,7 +1120,12 @@ def _plots(
             "sequence_exceeds_total": "Sequence exceeds total",
         }
     )
-    axes[1].barh(kind.index, kind.values, color=_PALETTE["concern"])
+    if kind.empty:
+        axes[1].text(0.5, 0.5, "No flagged occurrences", ha="center", va="center", fontsize=14)
+        axes[1].set_xticks([])
+        axes[1].set_yticks([])
+    else:
+        axes[1].barh(kind.index, kind.values, color=_PALETTE["concern"])
     axes[1].set(title="Flagged occurrences by rule", xlabel="Occurrences")
     figure.suptitle("Host-local format validity does not imply phrase-level semantic agreement")
     output["plots/15_number_consistency_screen.png"] = _figure_bytes(figure)
@@ -1091,12 +1218,22 @@ def _summary(
         (documents["status"] == "passed").all()
         and all(bool(documents[column].all()) for column in _ACCEPTANCE_COLUMNS)
     )
+    scale_ready = bool(
+        all_invariants
+        and country_mismatches == 0
+        and contradiction_documents == 0
+        and concern_count == 0
+    )
     per_document_proxy = fresh_proxy_cost / document_count
     return {
         "schemaVersion": 1,
         "status": "complete",
-        "decision": "mechanical_insertion_validated_content_coherence_requires_hardening",
-        "scaleReady": False,
+        "decision": (
+            "compiled_semantic_insertion_validated"
+            if scale_ready
+            else "semantic_acceptance_gate_not_met"
+        ),
+        "scaleReady": scale_ready,
         "documents": document_count,
         "passedDocuments": int((documents["status"] == "passed").sum()),
         "allMachineAcceptanceInvariantsPassed": all_invariants,
@@ -1132,9 +1269,7 @@ def _summary(
         },
         "changeScope": {
             "changedSlots": int(documents["changed_slot_count"].sum()),
-            "changedSlotFraction": float(
-                documents["changed_slot_count"].sum() / template_slots
-            ),
+            "changedSlotFraction": float(documents["changed_slot_count"].sum() / template_slots),
             "proposedChangedTargetLeaves": int(documents["changed_target_leaf_count"].sum()),
             "finalChangedTargetLeaves": len(target_changes),
             "finalChangeFamilies": {
@@ -1169,18 +1304,18 @@ def _summary(
         },
         "deterministicQualityScreens": {
             "documentsWithExporterCountrySurface": len(country_screen),
-            "comparableExporterShipperCountryDocuments": len(comparable),
-            "consistentExporterShipperCountryDocuments": country_matches,
-            "mismatchedExporterShipperCountryDocuments": country_mismatches,
+            "relationshipComparableExporterCountryDocuments": len(comparable),
+            "relationshipConsistentExporterCountryDocuments": country_matches,
+            "relationshipMismatchedExporterCountryDocuments": country_mismatches,
             "mismatchFractionAmongComparable": (
                 country_mismatches / len(comparable) if len(comparable) else 0.0
             ),
             "clearNumberContradictionDocuments": contradiction_documents,
             "clearNumberContradictionOccurrences": len(contradictions),
             "interpretation": (
-                "These are conservative warning screens, not complete semantic certification. "
-                "A shipper and customs exporter can differ in unusual valid documents, but the "
-                "concentration and reviewed examples show missing dependency metadata."
+                "Exporter countries are compared with the target party only when compilation "
+                "declares the same entity; independent exporters are checked for internal "
+                "country consistency instead. Count screens remain conservative lexical guards."
             ),
         },
         "manualReview": {
@@ -1206,7 +1341,11 @@ def _summary(
             "historicalResidualCostUsd": _describe(documents["source_provider_cost_usd"]),
         },
         "trainingRecordsPresent": int(run_summary["trainingRecords"]),
-        "recommendedUse": "test_only_do_not_promote_until_global_coherence_is_hardened",
+        "recommendedUse": (
+            "validated_for_configured_compiled_template_synthesis"
+            if scale_ready
+            else "test_only_until_semantic_acceptance_gate_passes"
+        ),
     }
 
 
@@ -1216,9 +1355,14 @@ def _report(summary: Mapping[str, Any]) -> str:
     screens = cast(Mapping[str, Any], summary["deterministicQualityScreens"])
     manual = cast(Mapping[str, Any], summary["manualReview"])
     changes = cast(Mapping[str, Any], summary["changeScope"])
+    target_origins = cast(Mapping[str, Any], summary["targetOrigins"])
+    existing_target_count = int(
+        target_origins.get("existing_linguistic_target_carrier_restored", 0)
+    )
+    controlled_variant_count = int(target_origins.get("controlled_source_variant", 0))
     return "\n".join(
         (
-            "# Compiled-template 150-document synthesis EDA",
+            f"# Compiled-template {summary['documents']}-document synthesis EDA",
             "",
             "## Outcome",
             "",
@@ -1242,8 +1386,9 @@ def _report(summary: Mapping[str, Any]) -> str:
             "## Cost and throughput interpretation",
             "",
             (
-                f"- The paid lineage used **{efficiency['realizedProviderRequests']} calls** and "
-                f"**${efficiency['realizedResidualCostUsd']}**. The corrected route requires "
+                "- The replay-attributed route contains "
+                f"**{efficiency['realizedProviderRequests']} calls** and "
+                f"**${efficiency['realizedResidualCostUsd']}**. The current route requires "
                 f"**{efficiency['plannedFreshRequests']} calls**."
             ),
             (
@@ -1259,23 +1404,25 @@ def _report(summary: Mapping[str, Any]) -> str:
             ),
             (
                 "- Scope caveat: those figures exclude one-time template compilation and any "
-                "separate model-based full-target synthesis. This cohort used 20 pre-existing "
-                "full linguistic targets and 130 deterministic controlled source variants."
+                "separate model-based full-target synthesis. This cohort used "
+                f"{existing_target_count} pre-existing full linguistic targets and "
+                f"{controlled_variant_count} deterministic controlled source variants."
             ),
             "",
             "## Deep quality finding",
             "",
             (
-                "The insertion engine is mechanically reliable, but the present compiler "
-                "contract does not yet guarantee whole-document semantic coherence for "
-                "source-only auxiliary fields."
+                "The schema-v6 compiler contract and renderer passed the configured global "
+                "semantic acceptance gates."
+                if summary["scaleReady"]
+                else "One or more configured global semantic acceptance gates did not pass."
             ),
             (
                 "- Exporter-country text was found in "
                 f"**{screens['documentsWithExporterCountrySurface']} "
-                f"documents**. Of **{screens['comparableExporterShipperCountryDocuments']}** with "
-                "resolvable structured shipper and rendered exporter countries, "
-                f"**{screens['mismatchedExporterShipperCountryDocuments']} disagreed** "
+                f"documents**. Of **{screens['relationshipComparableExporterCountryDocuments']}** "
+                "with resolvable compiled relationships and rendered exporter countries, "
+                f"**{screens['relationshipMismatchedExporterCountryDocuments']} disagreed** "
                 f"({screens['mismatchFractionAmongComparable']:.1%})."
             ),
             (
@@ -1295,12 +1442,10 @@ def _report(summary: Mapping[str, Any]) -> str:
             "## Decision",
             "",
             (
-                "**Keep the compiled insertion mechanism as the validated baseline, but do not "
-                "promote these 150 test records or scale generation yet.** The next correction "
-                "should make customs exporter identity, original-count phrases, and source-only "
-                "party/marking fields target-bound or dependency-derived, then rerun the same "
-                "screens and purposive review. More LLM calls will not fix missing compiler "
-                "dependencies."
+                "The scale-readiness decision above is computed from machine invariants, "
+                "relationship-aware exporter checks, count/sequence contradictions, and the "
+                "pinned purposive manual review. Failed or review-required cases remain excluded "
+                "from training publication."
             ),
             "",
             "## Artifact map",
@@ -1309,9 +1454,9 @@ def _report(summary: Mapping[str, Any]) -> str:
             "- `data/routes.csv`: every compiled binding and runtime route.",
             "- `data/target-changes.csv`: every final structured-label change.",
             "- `data/adaptations.csv`: every target compatibility adaptation.",
-            "- `data/country-consistency-screen.csv`: deterministic exporter/shipper screen.",
+            "- `data/country-consistency-screen.csv`: relationship-aware exporter screen.",
             "- `data/number-contradictions.csv`: conservative phrase-level count screen.",
-            "- `data/manual-review.csv`: ten purposive manual reviews with evidence lines.",
+            "- `data/manual-review.csv`: pinned purposive manual reviews with evidence lines.",
             "- `data/outliers.csv`: top-five documents across eleven stress dimensions.",
             "- `plots/`: seventeen deterministic PNG figures.",
             "",
@@ -1461,7 +1606,7 @@ def analyze_descendant_run(*, project_root: Path, config_path: Path) -> Path:
             "documents": config.expected_documents,
             "passedDocuments": summary["passedDocuments"],
             "decision": summary["decision"],
-            "scaleReady": False,
+            "scaleReady": summary["scaleReady"],
         },
     )
     return staged.final_root

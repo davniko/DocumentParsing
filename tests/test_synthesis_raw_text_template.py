@@ -12,6 +12,7 @@ from document_ocr.synthesis.raw_text_template import (
     printed_topology_mismatches,
     render_compiled_template,
     sentinel_bindings,
+    validate_slot_replacements,
 )
 
 
@@ -186,6 +187,34 @@ def test_template_refuses_line_case_and_edge_whitespace_drift() -> None:
                 template=template,
                 bindings={slot.slot_id: replacement},
             )
+
+
+def test_partial_slot_validation_uses_the_renderers_exact_format_contract() -> None:
+    source = b"--- PAGE 1 ---\n  OLD PARTY  \nREFERENCE: AB-123/ZX\n"
+    party = _slot(source, "  OLD PARTY  ", slot_id="slot_0001")
+    reference = _slot(
+        source,
+        "AB-123/ZX",
+        slot_id="slot_0002",
+        render_policy="opaque_identifier",
+    )
+    template = compile_raw_text_template(
+        document_id="doc_test",
+        source=source,
+        slots=(party, reference),
+    )
+
+    validate_slot_replacements(
+        template=template,
+        replacements={party.slot_id: "  NEW PARTY  "},
+    )
+    with pytest.raises(ValueError, match="identifier shape"):
+        validate_slot_replacements(
+            template=template,
+            replacements={reference.slot_id: "CD987-QP"},
+        )
+    with pytest.raises(ValueError, match="unknown template slots"):
+        validate_slot_replacements(template=template, replacements={"slot_9999": "VALUE"})
 
 
 def test_sentinel_render_changes_only_slots() -> None:

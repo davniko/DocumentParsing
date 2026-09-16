@@ -12,6 +12,7 @@ from document_ocr.synthesis.template_compiler.descendant_eda import (
     _change_family,
     _exporter_country_surfaces,
     _number_contradictions,
+    _rows_frame,
 )
 
 
@@ -108,6 +109,21 @@ def test_number_contradiction_screen_handles_words_and_sequences() -> None:
     ]
 
 
+def test_number_contradiction_screen_accepts_zero_of_zero() -> None:
+    assert _number_contradictions("doc_a", "0 Of Zero") == []
+
+
+def test_empty_analysis_rows_retain_their_declared_table_schema() -> None:
+    frame = _rows_frame(
+        [],
+        columns=("document_id", "line_number", "kind"),
+        sort_by=("document_id", "line_number"),
+    )
+
+    assert frame.empty
+    assert tuple(frame.columns) == ("document_id", "line_number", "kind")
+
+
 def test_exporter_country_surface_supports_inline_and_split_layouts() -> None:
     text = "\n".join(
         (
@@ -124,10 +140,7 @@ def test_exporter_country_surface_supports_inline_and_split_layouts() -> None:
 
 
 def test_exporter_country_surface_keeps_country_when_code_shares_ocr_line() -> None:
-    text = (
-        "FOREIGN EXPORTER COUNTRY: CANADA Foreign Exporter Country Code: CA "
-        "FREIGHT PREPAID"
-    )
+    text = "FOREIGN EXPORTER COUNTRY: CANADA Foreign Exporter Country Code: CA FREIGHT PREPAID"
 
     assert _exporter_country_surfaces(text) == (
         "CANADA Foreign Exporter Country Code: CA FREIGHT PREPAID",

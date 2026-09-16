@@ -1,0 +1,16 @@
+schema_version: 1
+task: bill_of_lading_template_semantic_recertification_v1
+run_name: mpci-bl-compiled-template-catalog230-semantic-v4
+output_dir: artifacts/kie-synthesis
+
+source_catalog:
+  path: artifacts/kie-synthesis/mpci-bl-compiled-template-catalog230-v1
+  commit_sha256: 6a0c18afbbb6f2b5247dcbc124b7269c5fe102a92ed66e2216d8cc16104b303e
+  transaction_sha256: 51664391ef7cec0c0a5691662736fcc0f3e806f7f7c0a9a5ae12baea22fdcd59
+
+expected_source_outcomes: 230
+expected_source_certified: 226
+expected_source_review_required: 4
+expected_recertified: 226
+expected_review_required: 4
+require_no_rejected_outcomes: true

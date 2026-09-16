@@ -33,6 +33,10 @@ CoherenceConstraintId = Annotated[
     str,
     StringConstraints(pattern=r"^coherence_constraint_[0-9a-f]{16}$"),
 ]
+AuxiliarySemanticId = Annotated[
+    str,
+    StringConstraints(pattern=r"^aux_(?:entity|number|sequence)_[0-9a-f]{16}$"),
+]
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 
 RenderMode = Literal[
@@ -954,14 +958,196 @@ class TemplateCertification(BaseModel):
     final_critic_pass: Literal[True]
     all_bindings_realization_planned: Literal[True]
     all_unprinted_target_facts_classified: Literal[True]
+    auxiliary_semantic_plan_valid: Literal[True]
     semantic_coherence_valid: Literal[True]
+
+
+AuxiliaryEntityField = Literal[
+    "name",
+    "address",
+    "city",
+    "region",
+    "postal_code",
+    "country",
+    "country_code",
+    "contact_name",
+    "email",
+    "phone",
+    "phone_extension",
+    "registration_identifier",
+    "tax_identifier",
+    "registration_type",
+    "other_identifier",
+    "other",
+]
+AuxiliaryDisposition = Literal[
+    "entity_member",
+    "composite_number",
+    "document_sequence",
+    "declared_relationship",
+    "stable_vocabulary",
+    "independent_fact",
+]
+
+
+class AuxiliaryEntityMember(BaseModel):
+    model_config = _STRICT
+
+    logical_key: NonEmptyText
+    field: AuxiliaryEntityField
+
+
+class AuxiliaryEntity(BaseModel):
+    model_config = _STRICT
+
+    entity_id: AuxiliarySemanticId
+    role: NonEmptyText
+    relationship: Literal["independent", "same_as_target_party"]
+    target_party_path: NonEmptyText | None
+    members: Annotated[tuple[AuxiliaryEntityMember, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def relationship_has_the_required_target(self) -> AuxiliaryEntity:
+        if (self.relationship == "same_as_target_party") != (self.target_party_path is not None):
+            raise ValueError("only same-as-target auxiliary entities require a target party path")
+        keys = tuple(row.logical_key for row in self.members)
+        if len(set(keys)) != len(keys):
+            raise ValueError("auxiliary entity members must be unique")
+        return self
+
+
+class CompositeNumberFact(BaseModel):
+    model_config = _STRICT
+
+    fact_id: AuxiliarySemanticId
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    value: Annotated[int, Field(ge=0)]
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def members_are_unique(self) -> CompositeNumberFact:
+        if len(set(self.member_logical_keys)) != len(self.member_logical_keys):
+            raise ValueError("composite-number members must be unique")
+        return self
+
+
+class DocumentSequenceMember(BaseModel):
+    model_config = _STRICT
+
+    logical_key: NonEmptyText
+    index: Annotated[int, Field(ge=0)]
+
+
+class DocumentSequenceFact(BaseModel):
+    model_config = _STRICT
+
+    fact_id: AuxiliarySemanticId
+    total: Annotated[int, Field(ge=0)]
+    members: Annotated[tuple[DocumentSequenceMember, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def sequence_is_bounded_and_unique(self) -> DocumentSequenceFact:
+        keys = tuple(row.logical_key for row in self.members)
+        if len(set(keys)) != len(keys):
+            raise ValueError("document-sequence members must be unique")
+        if any(row.index > self.total for row in self.members):
+            raise ValueError("document-sequence index exceeds its total")
+        if self.total == 0 and any(row.index != 0 for row in self.members):
+            raise ValueError("a zero-total document sequence may only print index zero")
+        return self
+
+
+class AuxiliaryBindingDisposition(BaseModel):
+    model_config = _STRICT
+
+    logical_key: NonEmptyText
+    disposition: AuxiliaryDisposition
+    semantic_id: AuxiliarySemanticId | None
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def semantic_reference_matches_disposition(self) -> AuxiliaryBindingDisposition:
+        requires_id = self.disposition in {
+            "entity_member",
+            "composite_number",
+            "document_sequence",
+        }
+        if requires_id != (self.semantic_id is not None):
+            raise ValueError("only grouped auxiliary dispositions require a semantic ID")
+        return self
+
+
+class AuxiliarySemanticPlan(BaseModel):
+    """Compilation-only facts needed to render a coherent document.
+
+    These facts are deliberately outside the published training-label target.  They classify
+    every mutable source-only binding and make relationships executable by the renderer.
+    """
+
+    model_config = _STRICT
+
+    schema_version: Literal[1]
+    entities: tuple[AuxiliaryEntity, ...]
+    composite_numbers: tuple[CompositeNumberFact, ...]
+    document_sequences: tuple[DocumentSequenceFact, ...]
+    dispositions: tuple[AuxiliaryBindingDisposition, ...]
+
+    @model_validator(mode="after")
+    def references_are_closed_and_unique(self) -> AuxiliarySemanticPlan:
+        semantic_ids = (
+            tuple(row.entity_id for row in self.entities)
+            + tuple(row.fact_id for row in self.composite_numbers)
+            + tuple(row.fact_id for row in self.document_sequences)
+        )
+        if len(set(semantic_ids)) != len(semantic_ids):
+            raise ValueError("auxiliary semantic IDs must be unique")
+        disposition_keys = tuple(row.logical_key for row in self.dispositions)
+        if len(set(disposition_keys)) != len(disposition_keys):
+            raise ValueError("auxiliary binding dispositions must be unique")
+        known_ids = set(semantic_ids)
+        unknown_ids = sorted(
+            {
+                row.semantic_id
+                for row in self.dispositions
+                if row.semantic_id is not None and row.semantic_id not in known_ids
+            }
+        )
+        if unknown_ids:
+            raise ValueError(
+                "auxiliary dispositions reference unknown semantic facts: " + ", ".join(unknown_ids)
+            )
+        referenced_members = {
+            (row.logical_key, entity.entity_id, "entity_member")
+            for entity in self.entities
+            for row in entity.members
+        }
+        referenced_members.update(
+            (key, fact.fact_id, "composite_number")
+            for fact in self.composite_numbers
+            for key in fact.member_logical_keys
+        )
+        referenced_members.update(
+            (row.logical_key, fact.fact_id, "document_sequence")
+            for fact in self.document_sequences
+            for row in fact.members
+        )
+        declared_members = {
+            (row.logical_key, row.semantic_id, row.disposition)
+            for row in self.dispositions
+            if row.semantic_id is not None
+        }
+        if referenced_members != declared_members:
+            raise ValueError("grouped auxiliary facts differ from binding dispositions")
+        return self
 
 
 class CertifiedSemanticTemplate(BaseModel):
     model_config = _STRICT
 
-    schema_version: Literal[5]
-    compiler: Literal["carrier_bound_semantic_template_v5"]
+    schema_version: Literal[6]
+    compiler: Literal["carrier_bound_semantic_template_v6"]
     document_id: NonEmptyText
     source_sha256: Sha256
     source_size_bytes: Annotated[int, Field(gt=0)]
@@ -969,6 +1155,7 @@ class CertifiedSemanticTemplate(BaseModel):
     capability: CapabilityContract
     semantic_only_target_facts: tuple[SemanticOnlyTargetFact, ...]
     coherence_constraints: tuple[CoherenceConstraint, ...]
+    auxiliary_semantic_plan: AuxiliarySemanticPlan
     bindings: Annotated[tuple[SemanticBinding, ...], Field(min_length=1)]
     byte_template: CompiledRawTextTemplate
     literal_certification: LiteralCertification
@@ -1018,6 +1205,24 @@ class CertifiedSemanticTemplate(BaseModel):
         if unknown_members:
             raise ValueError(
                 "coherence constraints reference unknown bindings: " + ", ".join(unknown_members)
+            )
+        required_auxiliary_keys = {
+            binding.logical_key
+            for binding in self.bindings
+            if binding.render_mode in {"deterministic_auxiliary", "agent_residual"}
+            and not binding.target_paths
+            and not binding.dependency_paths
+            and not binding.dependency_bindings
+        }
+        planned_auxiliary_keys = {
+            row.logical_key for row in self.auxiliary_semantic_plan.dispositions
+        }
+        if planned_auxiliary_keys != required_auxiliary_keys:
+            missing = sorted(required_auxiliary_keys - planned_auxiliary_keys)
+            extra = sorted(planned_auxiliary_keys - required_auxiliary_keys)
+            raise ValueError(
+                "auxiliary semantic plan does not exactly cover mutable source-only bindings; "
+                f"missing={missing}; extra={extra}"
             )
         for binding in self.bindings:
             if tuple(slot.slot_id for slot in binding.occurrences) != tuple(

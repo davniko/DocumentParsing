@@ -366,6 +366,27 @@ def _validate_format(slot: TemplateSlot, replacement: str) -> None:
         raise ValueError(f"slot {slot.slot_id} replacement changes identifier shape")
 
 
+def validate_slot_replacements(
+    *,
+    template: CompiledRawTextTemplate,
+    replacements: Mapping[str, str],
+) -> None:
+    """Validate a partial set of replacements against their compiled slot envelopes.
+
+    Planning validates one semantic binding at a time.  Rendering the complete document for
+    every binding repeats identical source, literal-region, and unchanged-slot work.  This
+    focused contract rejects unknown slots and applies the exact same format validation only to
+    the replacements under consideration; the final render still proves the complete template.
+    """
+
+    slots = {slot.slot_id: slot for slot in template.slots}
+    unknown = sorted(set(replacements) - set(slots))
+    if unknown:
+        raise ValueError(f"replacement references unknown template slots: {unknown}")
+    for slot_id, replacement in replacements.items():
+        _validate_format(slots[slot_id], replacement)
+
+
 def render_compiled_template(
     *,
     source: bytes,

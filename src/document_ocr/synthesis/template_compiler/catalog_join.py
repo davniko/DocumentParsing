@@ -253,7 +253,7 @@ def join_template_catalogs(*, project_root: Path, config_path: Path) -> Path:
         "reviewRequired": statuses.get("review_required", 0),
         "rejected": statuses.get("rejected", 0),
         "duplicateDocuments": 0,
-        "currentTemplateSchemaVersion": 5,
+        "currentTemplateSchemaVersion": 6,
         "reportedSourceLineageEstimatedCostUsd": str(reported_cost),
     }
     report = "\n".join(

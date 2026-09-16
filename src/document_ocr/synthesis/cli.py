@@ -108,6 +108,12 @@ def main() -> None:
         "compile-raw-text-templates",
         "validate-template-catalog-join-config",
         "join-template-compilation-catalogs",
+        "validate-template-recertification-config",
+        "preflight-template-recertification",
+        "recertify-template-catalog",
+        "validate-compiled-raw-text-pipeline-config",
+        "preflight-compiled-raw-text-pipeline",
+        "run-compiled-raw-text-pipeline",
         "validate-compiled-descendant-eda-config",
         "analyze-compiled-descendant-run",
     ):
@@ -144,6 +150,26 @@ def main() -> None:
             from document_ocr.synthesis.template_compiler.catalog_join import load_join_config
 
             template_catalog_join_config = load_join_config(config_path)
+        elif arguments.command in {
+            "validate-template-recertification-config",
+            "preflight-template-recertification",
+            "recertify-template-catalog",
+        }:
+            from document_ocr.synthesis.template_compiler.recertification import (
+                load_recertification_config,
+            )
+
+            template_recertification_config = load_recertification_config(config_path)
+        elif arguments.command in {
+            "validate-compiled-raw-text-pipeline-config",
+            "preflight-compiled-raw-text-pipeline",
+            "run-compiled-raw-text-pipeline",
+        }:
+            from document_ocr.synthesis.template_compiler.descendant import (
+                load_descendant_config,
+            )
+
+            compiled_raw_text_config = load_descendant_config(config_path)
         elif arguments.command in {
             "validate-compiled-descendant-eda-config",
             "analyze-compiled-descendant-run",
@@ -300,7 +326,87 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-compiled-descendant-eda-config":
+        if arguments.command == "validate-template-recertification-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": template_recertification_config.run_name,
+                "source_outcomes": (template_recertification_config.expected_source_outcomes),
+                "expected_recertified": (template_recertification_config.expected_recertified),
+            }
+        elif arguments.command == "preflight-template-recertification":
+            from document_ocr.synthesis.template_compiler.recertification import (
+                preflight_template_recertification,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_template_recertification(
+                    project_root=project_root,
+                    config_path=config_path,
+                ),
+            }
+        elif arguments.command == "recertify-template-catalog":
+            from document_ocr.synthesis.template_compiler.recertification import (
+                recertify_template_catalog,
+            )
+
+            artifact_root = recertify_template_catalog(
+                project_root=project_root,
+                config_path=config_path,
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("template recertification summary must be an object")
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(artifact_root),
+                "recertified_templates": summary["recertifiedTemplates"],
+                "review_required": summary["reviewRequired"],
+                "provider_requests": summary["providerRequests"],
+            }
+        elif arguments.command == "validate-compiled-raw-text-pipeline-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": compiled_raw_text_config.run_name,
+                "documents": compiled_raw_text_config.workflow.documents,
+                "provider_launch_authorized": (
+                    compiled_raw_text_config.workflow.provider_launch_authorized
+                ),
+            }
+        elif arguments.command == "preflight-compiled-raw-text-pipeline":
+            from document_ocr.synthesis.template_compiler.descendant import (
+                preflight_descendants,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_descendants(config_path),
+            }
+        elif arguments.command == "run-compiled-raw-text-pipeline":
+            from document_ocr.synthesis.template_compiler.descendant import run_descendants
+
+            artifact_root = asyncio.run(run_descendants(config_path))
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("compiled raw-text summary must be an object")
+            completed = summary.get("status") == "passed"
+            exit_code = 0 if completed else _EXIT_INCOMPLETE
+            result = {
+                "command": arguments.command,
+                "status": "complete" if completed else "incomplete",
+                "artifact": str(artifact_root),
+                "documents": summary["documents"],
+                "passed_documents": summary["passedDocuments"],
+                "host_rejected_documents": summary["hostRejectedDocuments"],
+                "provider_error_documents": summary["providerErrorDocuments"],
+                "training_records_published": summary["trainingRecordsPublished"],
+            }
+        elif arguments.command == "validate-compiled-descendant-eda-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
@@ -336,9 +442,7 @@ def main() -> None:
                 "status": "valid",
                 "run_name": template_catalog_join_config.run_name,
                 "source_runs": len(template_catalog_join_config.sources),
-                "expected_source_outcomes": (
-                    template_catalog_join_config.expected_source_outcomes
-                ),
+                "expected_source_outcomes": (template_catalog_join_config.expected_source_outcomes),
                 "expected_certified_templates": (
                     template_catalog_join_config.expected_certified_templates
                 ),

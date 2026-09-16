@@ -49,6 +49,7 @@ from document_ocr.synthesis.raw_text_template import (
     TemplateSlot,
     printed_topology_mismatches,
     render_compiled_template,
+    validate_slot_replacements,
 )
 from document_ocr.synthesis.rendering import render_number_surface
 from document_ocr.synthesis.run_safety import StagedArtifactRun
@@ -74,6 +75,8 @@ from .descendant_models import (
 )
 from .models import (
     AggregateRangeConstraint,
+    AuxiliaryEntity,
+    AuxiliaryEntityMember,
     CertifiedSemanticTemplate,
     CoherenceConstraint,
     InclusiveRangeConstraint,
@@ -82,10 +85,18 @@ from .models import (
     SemanticBinding,
 )
 from .pipeline import project_root_from_config, resolve_input
+from .semantic_plan import (
+    disposition_by_binding,
+    entity_members_by_binding,
+    validate_auxiliary_render,
+)
 from .synthetic_values import DeterministicValueFactory
 
 _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 _MODEL_PATH = Path(__file__).with_name("descendant_models.py").resolve(strict=True)
+_SEMANTIC_PLAN_PATH = Path(__file__).with_name("semantic_plan.py").resolve(strict=True)
+_SYNTHETIC_VALUES_PATH = Path(__file__).with_name("synthetic_values.py").resolve(strict=True)
+_COHERENCE_PATH = Path(__file__).with_name("coherence.py").resolve(strict=True)
 _STRICT_DYNAMIC = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 _TOKEN = re.compile(r"[A-Za-z0-9]+")
 _ALNUM = re.compile(r"[A-Za-z0-9]")
@@ -304,11 +315,13 @@ def _validate_committed_run(project_root: Path, configured: PinnedCommittedRun) 
     commit_path = root / "_COMMIT.json"
     if sha256_file(commit_path) != configured.commit_sha256:
         raise ValueError(f"committed-run receipt differs: {configured.path}")
-    StagedArtifactRun(
+    run = StagedArtifactRun(
         output_parent=root.parent,
         run_name=root.name,
         transaction_sha256=configured.transaction_sha256,
-    ).validate_committed_run()
+    )
+    if not run.completed:
+        raise ValueError(f"configured run is not committed: {configured.path}")
     return root
 
 
@@ -1017,6 +1030,48 @@ def _render_generated_auxiliary(
     return _preserved_source_output(binding)
 
 
+def _render_entity_auxiliary(
+    binding: SemanticBinding,
+    *,
+    entity_member: tuple[AuxiliaryEntity, AuxiliaryEntityMember],
+    stream: DeterministicStream,
+    values: DeterministicValueFactory,
+    country_codes: Mapping[str, str],
+) -> BindingOutput:
+    entity, member = entity_member
+    if member.field == "registration_type":
+        return _preserved_source_output(binding)
+    typed = values.entity_textual(
+        entity=entity,
+        member=member,
+        country_codes=country_codes,
+    )
+    if typed is not None:
+        return _render_text_candidate(binding, typed)
+    if entity.relationship == "same_as_target_party" and member.field in {
+        "name",
+        "address",
+        "city",
+        "region",
+        "postal_code",
+        "country",
+        "country_code",
+        "phone_extension",
+        "other",
+    }:
+        # Target schemas do not represent every printed party facet.  Target preparation has
+        # already restored the whole source party whenever one of these facets cannot be
+        # projected, so retaining its certified surface is coherent and avoids inventing data.
+        return _preserved_source_output(binding)
+    if binding.value_kind in {"identifier", "email", "phone"}:
+        return _render_direct_auxiliary(binding, stream)
+    if entity.relationship == "same_as_target_party":
+        raise ValueError(
+            f"target party does not expose auxiliary field {member.field}: {binding.logical_key}"
+        )
+    return _render_generated_auxiliary(binding, stream=stream, values=values)
+
+
 _ENGLISH_MONTHS = (
     "January",
     "February",
@@ -1162,6 +1217,12 @@ def _render_certified_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
         unassigned.remove(year_index)
         day_candidates = tuple(index for index in unassigned if int(tokens[index]) == old.day)
         month_candidates = tuple(index for index in unassigned if int(tokens[index]) == old.month)
+        if old.day == old.month and day_candidates == month_candidates and len(day_candidates) == 2:
+            # The original surface cannot distinguish DD/MM from MM/DD when both values are
+            # equal.  Use the compiler's documented numeric-date convention (day first) so the
+            # descendant remains representable and round-trips to one unambiguous new date.
+            day_candidates = (min(day_candidates),)
+            month_candidates = (max(month_candidates),)
         if (
             len(day_candidates) != 1
             or len(month_candidates) != 1
@@ -2010,9 +2071,21 @@ def _build_initial_plan(
         document_id=case.document_id,
         target=case.target,
     )
+    auxiliary_dispositions = disposition_by_binding(case.template.auxiliary_semantic_plan)
+    auxiliary_entities = entity_members_by_binding(case.template.auxiliary_semantic_plan)
+    binding_value_kinds = {
+        candidate.logical_key: candidate.value_kind for candidate in case.template.bindings
+    }
+    shape_sensitive_relationship_dependencies = {
+        dependency
+        for candidate in case.template.bindings
+        for dependency in candidate.dependency_bindings
+        if binding_value_kinds[dependency] == "phone"
+    }
     for binding in case.template.bindings:
         route, reason = _binding_route(binding, case.target)
         eager_output: BindingOutput | None = None
+        auxiliary_disposition = auxiliary_dispositions.get(binding.logical_key)
         unchanged_output = _unchanged_target_output(binding, case.target)
         if unchanged_output is not None and not _binding_dependencies_unchanged(
             binding,
@@ -2034,6 +2107,48 @@ def _build_initial_plan(
             eager_output = _preserved_source_output(binding)
             route = "deterministic"
             reason = "coherence dependencies are unchanged from the certified source surface"
+        elif auxiliary_disposition is not None and auxiliary_disposition.disposition in {
+            "composite_number",
+            "document_sequence",
+            "stable_vocabulary",
+        }:
+            eager_output = _preserved_source_output(binding)
+            route = "deterministic"
+            reason = (
+                "compiled auxiliary semantic plan preserves the atomic "
+                f"{auxiliary_disposition.disposition} fact"
+            )
+        elif auxiliary_disposition is not None and (
+            auxiliary_disposition.disposition == "entity_member"
+        ):
+            try:
+                candidate_output = (
+                    _render_direct_auxiliary(binding, stream)
+                    if binding.logical_key in shape_sensitive_relationship_dependencies
+                    else _render_entity_auxiliary(
+                        binding,
+                        entity_member=auxiliary_entities[binding.logical_key],
+                        stream=stream,
+                        values=values,
+                        country_codes=country_codes,
+                    )
+                )
+                _validate_binding_format(
+                    source=case.source,
+                    template=case.template.byte_template,
+                    output=candidate_output,
+                )
+            except ValueError as error:
+                route = "agent"
+                reason = f"canonical auxiliary entity execution is unavailable: {error}"
+            else:
+                eager_output = candidate_output
+                route = "deterministic"
+                reason = (
+                    "shape-sensitive relationship dependency rendered deterministically"
+                    if binding.logical_key in shape_sensitive_relationship_dependencies
+                    else "canonical auxiliary entity field rendered deterministically"
+                )
         elif (
             binding.realization.mode == "deterministic_derivation"
             and binding.derivation == "equipment_receipt"
@@ -2174,9 +2289,94 @@ def _build_initial_plan(
 def _validate_binding_format(
     *, source: bytes, template: CompiledRawTextTemplate, output: BindingOutput
 ) -> None:
-    bindings = {slot.slot_id: slot.source_text for slot in template.slots}
-    bindings.update(output.replacements)
-    render_compiled_template(source=source, template=template, bindings=bindings)
+    if len(source) != template.source_size_bytes or sha256_bytes(source) != template.source_sha256:
+        raise ValueError("template source payload differs from the pinned source")
+    validate_slot_replacements(template=template, replacements=output.replacements)
+
+
+def _party_object_path(path: str) -> str | None:
+    match = re.match(
+        r"^(documentPatch\.parties\.(?:[A-Za-z][A-Za-z0-9]*|"
+        r"notifyParties\[[0-9]+\]))(?:\.|$)",
+        path,
+    )
+    return match.group(1) if match is not None else None
+
+
+def _party_exposes_auxiliary_field(party: Mapping[str, Any], field: str) -> bool:
+    direct = {
+        "name": "name",
+        "address": "address",
+        "city": "city",
+        "country": "country",
+    }
+    if field in direct:
+        value = party.get(direct[field])
+        return isinstance(value, str) and bool(value.strip())
+    if field == "country_code":
+        value = party.get("country")
+        return isinstance(value, str) and bool(value.strip())
+    return False
+
+
+def _adapt_unrepresented_party_facets(
+    *,
+    source_target: Mapping[str, Any],
+    target: dict[str, Any],
+    template: CertifiedSemanticTemplate,
+) -> tuple[TargetAdaptation, ...]:
+    """Prevent a source-only party facet from being attached to a new target identity."""
+
+    contextual_fields = {
+        "name",
+        "address",
+        "city",
+        "region",
+        "postal_code",
+        "country",
+        "country_code",
+        "phone_extension",
+        "other",
+    }
+    adaptations: list[TargetAdaptation] = []
+    restored_paths: set[str] = set()
+    for entity in template.auxiliary_semantic_plan.entities:
+        party_path = entity.target_party_path
+        if party_path is None or party_path in restored_paths:
+            continue
+        proposed_party = deepcopy(_resolve_path(target, party_path))
+        if not isinstance(proposed_party, Mapping):
+            raise ValueError(f"auxiliary target party is not an object: {party_path}")
+        missing = tuple(
+            member
+            for member in entity.members
+            if member.field in contextual_fields
+            and not _party_exposes_auxiliary_field(proposed_party, member.field)
+        )
+        if not missing:
+            continue
+        source_party = deepcopy(_resolve_path(source_target, party_path))
+        if canonical_json_bytes(source_party) == canonical_json_bytes(proposed_party):
+            continue
+        _set_path(target, party_path, source_party)
+        restored_paths.add(party_path)
+        adaptations.append(
+            TargetAdaptation.model_validate(
+                {
+                    "target_path": party_path,
+                    "reason": (
+                        "atomic party auxiliary-facet constraint; the compiled template prints "
+                        "identity context absent from the target schema, so retaining the full "
+                        "source party prevents a hybrid identity: "
+                        + ", ".join(sorted(member.logical_key for member in missing))
+                    ),
+                    "source_value": source_party,
+                    "proposed_value": proposed_party,
+                    "adapted_value": source_party,
+                }
+            )
+        )
+    return tuple(adaptations)
 
 
 def _adapt_target_compatibility(
@@ -2186,7 +2386,13 @@ def _adapt_target_compatibility(
     target: dict[str, Any],
     template: CertifiedSemanticTemplate,
 ) -> tuple[TargetAdaptation, ...]:
-    adaptations: list[TargetAdaptation] = []
+    adaptations = list(
+        _adapt_unrepresented_party_facets(
+            source_target=source_target,
+            target=target,
+            template=template,
+        )
+    )
     deterministic_modes = {
         "single_surface",
         "repeated_surface",
@@ -2223,8 +2429,7 @@ def _adapt_target_compatibility(
             except (KeyError, TypeError, ValueError) as error:
                 source_containers = cast(
                     Sequence[Mapping[str, Any]],
-                    cast(Mapping[str, Any], source_target["documentPatch"]).get("containers")
-                    or (),
+                    cast(Mapping[str, Any], source_target["documentPatch"]).get("containers") or (),
                 )
                 target_containers = cast(
                     Sequence[dict[str, Any]],
@@ -2304,6 +2509,60 @@ def _adapt_target_compatibility(
             )
             _validate_binding_format(source=source, template=template.byte_template, output=output)
         except (KeyError, TypeError, ValueError) as error:
+            party_paths = {
+                root
+                for snapshot in binding.realization.target_values
+                if (root := _party_object_path(snapshot.target_path)) is not None
+            }
+            non_party_paths = {
+                snapshot.target_path
+                for snapshot in binding.realization.target_values
+                if _party_object_path(snapshot.target_path) is None
+            }
+            if party_paths:
+                if len(party_paths) != 1 or non_party_paths:
+                    raise ValueError(
+                        "one unrenderable binding spans multiple semantic party objects"
+                    ) from error
+                party_path = next(iter(party_paths))
+                source_party = deepcopy(_resolve_path(source_target, party_path))
+                proposed_party = deepcopy(_resolve_path(target, party_path))
+                if canonical_json_bytes(source_party) == canonical_json_bytes(proposed_party):
+                    raise ValueError(
+                        f"source party is not renderable under its certified plan: "
+                        f"{binding.logical_key}: {error}"
+                    ) from error
+                _set_path(target, party_path, source_party)
+                adaptations.append(
+                    TargetAdaptation.model_validate(
+                        {
+                            "target_path": party_path,
+                            "reason": (
+                                "atomic party representability constraint; restoring the full "
+                                "source party prevents a hybrid identity after one compiled "
+                                f"surface rejected the proposal: {type(error).__name__}: {error}"
+                            ),
+                            "source_value": source_party,
+                            "proposed_value": proposed_party,
+                            "adapted_value": source_party,
+                        }
+                    )
+                )
+                output = (
+                    _render_agent_target_binding(
+                        binding,
+                        source_target=source_target,
+                        target=target,
+                    )
+                    if typed_identifier and binding.realization.requires_agent
+                    else _render_target_binding(binding, target)
+                )
+                _validate_binding_format(
+                    source=source,
+                    template=template.byte_template,
+                    output=output,
+                )
+                continue
             for snapshot in binding.realization.target_values:
                 try:
                     proposed = _resolve_path(target, snapshot.target_path)
@@ -3594,16 +3853,24 @@ def _render_same_as_binding(
         replacements = {}
         for slot in binding.occurrences:
             source = _alphanumeric(slot.source_text)
-            offsets = tuple(
+            dependency_inside_surface = tuple(
                 match.start()
                 for match in re.finditer(re.escape(dependency_source.casefold()), source.casefold())
             )
-            if len(offsets) != 1:
-                raise ValueError("same-as identifier dependency is not uniquely embedded")
-            offset = offsets[0]
-            candidate = (
-                source[:offset] + dependency_target + source[offset + len(dependency_source) :]
+            surface_inside_dependency = tuple(
+                match.start()
+                for match in re.finditer(re.escape(source.casefold()), dependency_source.casefold())
             )
+            if len(dependency_inside_surface) == 1:
+                offset = dependency_inside_surface[0]
+                candidate = (
+                    source[:offset] + dependency_target + source[offset + len(dependency_source) :]
+                )
+            elif len(surface_inside_dependency) == 1:
+                offset = surface_inside_dependency[0]
+                candidate = dependency_target[offset : offset + len(source)]
+            else:
+                raise ValueError("same-as identifier dependency is not uniquely embedded")
             replacements[slot.slot_id] = _shape_alphanumeric_like_source(
                 slot.source_text, candidate
             )
@@ -3611,6 +3878,13 @@ def _render_same_as_binding(
             replacements=replacements,
             canonical_value=replacements[binding.occurrences[0].slot_id],
         )
+
+    if binding.value_kind == "location":
+        # A compiler-declared same-as edge is the semantic evidence.  Geographic aliases can
+        # differ lexically (for example TAIWAN vs TAIWAN, PROVINCE OF CHINA), so render every
+        # projection from the one new canonical dependency instead of requiring source text
+        # equality.
+        return _render_same_value(binding, dependency_output.canonical_value)
 
     source_value = dependency.occurrences[0].source_text
     if any(
@@ -4349,6 +4623,27 @@ def _validate_replay_case_inputs(
             raise ValueError(f"replay {name} differs for {case.document_id}")
 
 
+def _replay_stage_path(*, prefix: Path, document_id: str) -> Path:
+    """Resolve one committed provider stage, including an explicitly proven replay chain."""
+
+    provider_stage = prefix / "agent-stage.json"
+    replayed_stage = prefix / "source-agent-stage.json"
+    present = tuple(path for path in (provider_stage, replayed_stage) if path.is_file())
+    if len(present) != 1:
+        raise ValueError(
+            f"replay must contain exactly one agent stage for {document_id}; found {len(present)}"
+        )
+    stage_path = present[0]
+    if stage_path == replayed_stage:
+        receipt_path = prefix / "replay-receipt.json"
+        receipt = ResidualReplayReceipt.model_validate_json(read_regular_file_bytes(receipt_path))
+        if receipt.document_id != document_id:
+            raise ValueError(f"replay-chain receipt document differs for {document_id}")
+        if sha256_file(stage_path) != receipt.source_agent_stage_sha256:
+            raise ValueError(f"replay-chain agent-stage hash differs for {document_id}")
+    return stage_path
+
+
 def _load_replayed_stage(
     *,
     replay_root: Path,
@@ -4368,7 +4663,7 @@ def _load_replayed_stage(
         reuses_residual_output=bool(expected_slots),
     )
 
-    stage_path = prefix / "agent-stage.json"
+    stage_path = _replay_stage_path(prefix=prefix, document_id=case.document_id)
     source_stage = ResidualStageReceipt.model_validate_json(read_regular_file_bytes(stage_path))
     if source_stage.document_id != case.document_id:
         raise ValueError(f"replay agent-stage document differs for {case.document_id}")
@@ -4426,7 +4721,15 @@ def _load_replayed_stage(
             "new_provider_requests": 0,
         }
     )
-    return projected, source_stage, receipt
+    effective_stage = (
+        source_stage
+        if expected_slots
+        else _not_required_stage(
+            document_id=case.document_id,
+            system_prompt_sha256=expected_system_prompt_sha256,
+        )
+    )
+    return projected, effective_stage, receipt
 
 
 def _materialize_case(
@@ -4445,6 +4748,13 @@ def _materialize_case(
         _render_derivations(case=case, outputs=outputs, country_codes=country_codes)
         if set(outputs) != {binding.logical_key for binding in case.template.bindings}:
             raise ValueError("binding outputs do not cover the semantic template exactly")
+        validate_auxiliary_render(
+            plan=case.template.auxiliary_semantic_plan,
+            bindings=case.template.bindings,
+            outputs=outputs,
+            target=case.target,
+            country_codes=country_codes,
+        )
         validate_render_coherence(
             bindings=case.template.bindings,
             constraints=case.template.coherence_constraints,
@@ -4700,12 +5010,39 @@ def preflight_descendants(config_path: Path) -> dict[str, Any]:
         )
         for case in cases
     )
-    return _preflight_payload(
+    payload = _preflight_payload(
         cases,
         plans,
         country_codes=countries,
         system_prompt_sha256=config.prompts.residual_renderer.sha256,
     )
+    replay_pin = config.inputs.residual_replay_run
+    if replay_pin is not None:
+        replay_root = _validate_committed_run(project_root, replay_pin)
+        replay_failures: list[str] = []
+        for case, plan in zip(cases, plans, strict=True):
+            try:
+                _load_replayed_stage(
+                    replay_root=replay_root,
+                    replay_commit_sha256=replay_pin.commit_sha256,
+                    replay_transaction_sha256=replay_pin.transaction_sha256,
+                    expected_system_prompt_sha256=config.prompts.residual_renderer.sha256,
+                    case=case,
+                    plan=plan,
+                )
+            except ValueError as error:
+                replay_failures.append(f"{case.document_id}: {type(error).__name__}: {error}")
+        if replay_failures:
+            raise ValueError(
+                f"replay validation failed for {len(replay_failures)} documents:\n"
+                + "\n".join(replay_failures)
+            )
+        payload["replayValidatedDocuments"] = len(cases)
+        payload["replayRunCommitSha256"] = replay_pin.commit_sha256
+    else:
+        payload["replayValidatedDocuments"] = 0
+        payload["replayRunCommitSha256"] = None
+    return payload
 
 
 def _jsonl_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
@@ -4990,6 +5327,16 @@ async def run_descendants(config_path: Path) -> Path:
         ),
         "implementationSha256": sha256_file(_IMPLEMENTATION_PATH),
         "modelsSha256": sha256_file(_MODEL_PATH),
+        "runtimeComponentSha256": {
+            path.name: sha256_file(path)
+            for path in (
+                _IMPLEMENTATION_PATH,
+                _MODEL_PATH,
+                _SEMANTIC_PLAN_PATH,
+                _SYNTHETIC_VALUES_PATH,
+                _COHERENCE_PATH,
+            )
+        },
         "documentIds": [case.document_id for case in cases],
         "preparedTargetSha256": [case.target_receipt.prepared_target_sha256 for case in cases],
         "runtime": {
@@ -5009,7 +5356,6 @@ async def run_descendants(config_path: Path) -> Path:
         transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
     )
     if stage.completed:
-        stage.validate_committed_run()
         return stage.final_root
     stage.recover_interrupted_temporary_files()
     stage.publish_bytes("config.yaml", read_regular_file_bytes(config_path))
@@ -5138,7 +5484,7 @@ async def run_descendants(config_path: Path) -> Path:
     summary["wallTimeSeconds"] = time.perf_counter() - started
     stage.publish_json("summary.json", summary)
     stage.publish_bytes("REPORT.md", _report(summary).encode("utf-8"))
-    commit = stage.commit(
+    stage.commit(
         expected_artifacts=_artifact_inventory(stage),
         metadata={
             "status": cast(JsonValue, summary["status"]),
@@ -5151,6 +5497,4 @@ async def run_descendants(config_path: Path) -> Path:
             "trainingRecordsPublished": training_records_published,
         },
     )
-    if not commit.created:
-        stage.validate_committed_run()
     return stage.final_root

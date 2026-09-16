@@ -1,0 +1,20 @@
+schema_version: 1
+task: bill_of_lading_compiled_descendant_eda_v1
+run_name: mpci-bl-compiled-raw-text-pipeline150-semantic-v7-eda
+output_dir: artifacts/kie-synthesis
+descendant_run:
+  path: artifacts/kie-synthesis/mpci-bl-compiled-raw-text-pipeline150-semantic-v7-offline-replay
+  commit_sha256: b66074ac159c7f639bbef9d9b5ab745ff81793d1177cd16b348c9d49463a99c5
+  transaction_sha256: c70a763cb2797289e5d6315a171b8b4df5d8df252929c2b737b5d9db7ba5c1b9
+template_catalog:
+  path: artifacts/kie-synthesis/mpci-bl-compiled-template-catalog230-semantic-v4
+  commit_sha256: 61c5e1ced535352c4395ca6d4eb6bc9d5e2a05ab7f211d6ca1a7d24a2e415e8e
+  transaction_sha256: e92bd190a5ad449b98a95757a05f3b60afecd21dd2f0e6cbab74b49184e0649a
+iso3166_snapshot:
+  path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+  sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+manual_review:
+  path: audits/synthesis/mpci_bl_compiled_raw_text_pipeline150_manual_review_v2.yaml
+  sha256: 6403519f7ca0d36a68a69af6140fada30348e5d401d412d416972c939df359cd
+expected_documents: 150
+expected_manual_reviews: 12

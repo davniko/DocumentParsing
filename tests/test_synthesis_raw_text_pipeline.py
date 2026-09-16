@@ -49,6 +49,7 @@ from document_ocr.synthesis.template_compiler.host import (
 from document_ocr.synthesis.template_compiler.models import (
     AgentStageArtifact,
     AggregateRangeConstraint,
+    AuxiliarySemanticPlan,
     CompilerAgentOutput,
     CriticAgentOutput,
     ExtractionConfig,
@@ -78,6 +79,13 @@ _PIPELINE_CONFIG = (
     _PROJECT_ROOT / "configs/synthesis/mpci_bl_compiled_raw_text_pipeline30_validation_v1.yaml"
 )
 _QUANTITY = "documentPatch.cargoPackages[0].quantity"
+_EMPTY_AUXILIARY_PLAN = AuxiliarySemanticPlan(
+    schema_version=1,
+    entities=(),
+    composite_numbers=(),
+    document_sequences=(),
+    dispositions=(),
+)
 
 
 def test_aggregate_range_target_adaptation_preserves_members_and_exact_total() -> None:
@@ -178,9 +186,7 @@ def test_identifier_renderer_transfers_a_unique_certified_ocr_omission() -> None
             )
         ),
     )
-    source_target = {
-        "documentPatch": {"transport": {"voyageNumber": "01INFRW1MA"}}
-    }
+    source_target = {"documentPatch": {"transport": {"voyageNumber": "01INFRW1MA"}}}
     target = {"documentPatch": {"transport": {"voyageNumber": "62RBJTY9TN"}}}
 
     output = descendant._render_agent_target_binding(
@@ -370,9 +376,7 @@ def test_legacy_equipment_surface_retains_reviewed_semantics_when_target_does_no
         }
     }
 
-    def render_when_compatible(
-        _binding: Any, *, source_target: Any, target: Any
-    ) -> BindingOutput:
+    def render_when_compatible(_binding: Any, *, source_target: Any, target: Any) -> BindingOutput:
         del source_target
         equipment = descendant._semantic_equipment_value(target, path)
         if equipment != {
@@ -389,7 +393,11 @@ def test_legacy_equipment_surface_retains_reviewed_semantics_when_target_does_no
         source=b"20' Dry Heavy Duty",
         source_target=source_target,
         target=target,
-        template=SimpleNamespace(bindings=(binding,), byte_template=SimpleNamespace()),
+        template=SimpleNamespace(
+            bindings=(binding,),
+            byte_template=SimpleNamespace(),
+            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
+        ),
     )
 
     assert target["documentPatch"]["containers"][0] == {
@@ -433,7 +441,11 @@ def test_unrenderable_ocr_variant_identifier_reverts_to_certified_value(
         source=b"0NV18N1MA",
         source_target=source_target,
         target=target,
-        template=SimpleNamespace(bindings=(binding,), byte_template=SimpleNamespace()),
+        template=SimpleNamespace(
+            bindings=(binding,),
+            byte_template=SimpleNamespace(),
+            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
+        ),
     )
 
     assert target["documentPatch"]["transport"]["voyageNumber"] == source_value
@@ -450,9 +462,7 @@ def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
     (prefix / "source.txt").write_bytes(b"source")
     (prefix / "source-target.json").write_text(json.dumps(source_target), encoding="utf-8")
     (prefix / "target.json").write_text(json.dumps({"old": "target"}), encoding="utf-8")
-    (prefix / "target-receipt.json").write_text(
-        json.dumps({"old": "receipt"}), encoding="utf-8"
-    )
+    (prefix / "target-receipt.json").write_text(json.dumps({"old": "receipt"}), encoding="utf-8")
     case = SimpleNamespace(
         document_id="doc_test",
         source=b"source",
@@ -472,6 +482,62 @@ def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
             case=case,
             reuses_residual_output=True,
         )
+
+
+def test_replay_chain_is_explicitly_proven_and_provider_free_when_no_slot_is_reused(
+    tmp_path: Path,
+) -> None:
+    document_id = "doc_test"
+    prefix = tmp_path / "cases" / document_id
+    prefix.mkdir(parents=True)
+    source_target = {"documentPatch": {"billOfLadingNumber": "SOURCE"}}
+    (prefix / "source.txt").write_bytes(b"source")
+    (prefix / "source-target.json").write_text(json.dumps(source_target), encoding="utf-8")
+    stage = descendant._not_required_stage(
+        document_id=document_id,
+        system_prompt_sha256="a" * 64,
+    )
+    stage_path = prefix / "source-agent-stage.json"
+    stage_path.write_text(stage.model_dump_json(), encoding="utf-8")
+    (prefix / "replay-receipt.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "document_id": document_id,
+                "source_run_commit_sha256": "b" * 64,
+                "source_run_transaction_sha256": "c" * 64,
+                "source_agent_stage_sha256": sha256_file(stage_path),
+                "source_status": "not_required",
+                "source_output_slot_count": 0,
+                "replayed_output_slot_count": 0,
+                "dropped_output_slot_count": 0,
+                "dropped_slot_ids": [],
+                "new_provider_requests": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    case = SimpleNamespace(
+        document_id=document_id,
+        source=b"source",
+        source_target=source_target,
+        target={"new": "target"},
+        target_receipt=SimpleNamespace(model_dump=lambda **_kwargs: {"new": "receipt"}),
+    )
+
+    output, effective_stage, receipt = descendant._load_replayed_stage(
+        replay_root=tmp_path,
+        replay_commit_sha256="d" * 64,
+        replay_transaction_sha256="e" * 64,
+        expected_system_prompt_sha256="a" * 64,
+        case=case,
+        plan=SimpleNamespace(residual_bindings=()),
+    )
+
+    assert output == {}
+    assert effective_stage.status == "not_required"
+    assert effective_stage.usage["requests"] == 0
+    assert receipt.source_agent_stage_sha256 == sha256_file(stage_path)
 
 
 def test_source_only_date_renderer_preserves_mixed_numeric_separators() -> None:
@@ -496,6 +562,50 @@ def test_source_only_date_renderer_preserves_mixed_numeric_separators() -> None:
     assert rendered[2] == "."
     assert rendered[5] == "/"
     assert (rendered[:2] + rendered[3:5] + rendered[6:]).isdigit()
+
+
+def test_same_as_identifier_projects_a_unique_dependency_suffix() -> None:
+    binding = SimpleNamespace(
+        value_kind="identifier",
+        occurrences=(SimpleNamespace(slot_id="slot_booking", source_text="4114749850"),),
+    )
+    dependency = SimpleNamespace(
+        occurrences=(SimpleNamespace(source_text="OOLU4114749850"),),
+    )
+
+    output = descendant._render_same_as_binding(
+        binding,
+        dependency,
+        BindingOutput({"slot_bol": "BEZP9387315057"}, "BEZP9387315057"),
+    )
+
+    assert output.replacements == {"slot_booking": "9387315057"}
+    assert output.canonical_value == "9387315057"
+
+
+def test_same_as_location_projects_one_country_across_source_aliases() -> None:
+    binding = SimpleNamespace(
+        value_kind="location",
+        occurrences=(
+            SimpleNamespace(
+                slot_id="slot_country_expanded",
+                source_text="TAIWAN, PROVINCE OF CHINA",
+                render_policy="natural_text",
+            ),
+        ),
+    )
+    dependency = SimpleNamespace(
+        occurrences=(SimpleNamespace(source_text="TAIWAN"),),
+    )
+
+    output = descendant._render_same_as_binding(
+        binding,
+        dependency,
+        BindingOutput({"slot_country": "GERMANY"}, "Germany"),
+    )
+
+    assert output.replacements == {"slot_country_expanded": "GERMANY"}
+    assert output.canonical_value == "Germany"
 
 
 def test_production_resume_contract_is_json_round_trip_stable() -> None:
@@ -699,14 +809,13 @@ def test_production_configs_expose_only_the_compiled_template_path() -> None:
     assert pipeline.inputs.residual_replay_run is None
 
 
-def test_promoted_compiler_host_matches_the_validated_experiment_host() -> None:
-    experiment_host = (
-        _PROJECT_ROOT
-        / "experiments/kie-synthesis/raw-text-template-v1/src/raw_text_template_experiment/host.py"
-    )
-    production_host = _PROJECT_ROOT / "src/document_ocr/synthesis/template_compiler/host.py"
+def test_compiler_resume_contract_covers_the_promoted_semantic_runtime() -> None:
+    contract = _resume_contract(_PROJECT_ROOT)
+    paths = {row["path"] for row in contract["files"]}
 
-    assert experiment_host.read_bytes() == production_host.read_bytes()
+    assert "src/document_ocr/synthesis/template_compiler/host.py" in paths
+    assert "src/document_ocr/synthesis/template_compiler/semantic_plan.py" in paths
+    assert "src/document_ocr/synthesis/template_compiler/synthetic_values.py" in paths
 
 
 def test_production_compiler_detects_multiline_relational_package_range() -> None:
@@ -1213,6 +1322,7 @@ def test_changed_coherence_member_stays_on_the_joint_residual_route() -> None:
             bindings=(binding,),
             coherence_constraints=(_range_constraint(),),
             byte_template=SimpleNamespace(slots=binding.occurrences),
+            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
         ),
     )
 
@@ -1236,6 +1346,7 @@ def test_unchanged_coherence_member_preserves_the_certified_source(
             bindings=(binding,),
             coherence_constraints=(_range_constraint(),),
             byte_template=SimpleNamespace(slots=binding.occurrences),
+            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
         ),
     )
     monkeypatch.setattr(descendant, "_validate_binding_format", lambda **_kwargs: None)
@@ -1256,9 +1367,11 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
     binding = SimpleNamespace(
         binding_id="binding_voyage",
         logical_key="anchor:documentPatch.transport.voyageNumber",
+        value_kind="identifier",
         realization=SimpleNamespace(requires_agent=True, mode="agent_required"),
         target_paths=("documentPatch.transport.voyageNumber",),
         derivation=None,
+        dependency_bindings=(),
         occurrences=(slot,),
         source_relationships=(),
     )
@@ -1271,6 +1384,7 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
             bindings=(binding,),
             coherence_constraints=(),
             byte_template=SimpleNamespace(slots=(slot,)),
+            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
         ),
     )
     monkeypatch.setattr(descendant, "validate_render_coherence", lambda **_kwargs: None)
@@ -1306,6 +1420,7 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
         bindings=(binding,),
         coherence_constraints=(_range_constraint(),),
         byte_template=SimpleNamespace(slots=(slot,)),
+        auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
     )
     case = SimpleNamespace(
         document_id="doc_test",

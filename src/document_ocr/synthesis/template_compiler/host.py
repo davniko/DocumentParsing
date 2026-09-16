@@ -53,6 +53,7 @@ from .models import (
     TargetValueSnapshot,
     TemplateCertification,
 )
+from .semantic_plan import build_auxiliary_semantic_plan
 
 _PAGE_HEADER = re.compile(r"(?m)^--- PAGE ([1-9][0-9]*) ---$")
 _EMAIL = re.compile(r"(?i)(?<![\w.+-])[\w.+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+")
@@ -17196,11 +17197,16 @@ def certify_template(
 
     for logical_key in graph:
         visit(logical_key)
+    auxiliary_semantic_plan = build_auxiliary_semantic_plan(
+        raw=raw,
+        bindings=bindings,
+        source_target=source_target,
+    )
     masked = masked_source(raw, drafts)
     return CertifiedSemanticTemplate.model_validate(
         {
-            "schema_version": 5,
-            "compiler": "carrier_bound_semantic_template_v5",
+            "schema_version": 6,
+            "compiler": "carrier_bound_semantic_template_v6",
             "document_id": document_id,
             "source_sha256": sha256_bytes(raw.encode("utf-8")),
             "source_size_bytes": len(raw.encode("utf-8")),
@@ -17220,6 +17226,7 @@ def certify_template(
             "capability": capability_contract(feature, source_target),
             "semantic_only_target_facts": tuple(semantic_only_target_facts),
             "coherence_constraints": tuple(coherence_constraints),
+            "auxiliary_semantic_plan": auxiliary_semantic_plan,
             "bindings": tuple(bindings),
             "byte_template": byte_template,
             "literal_certification": LiteralCertification.model_validate(
@@ -17249,6 +17256,7 @@ def certify_template(
                     "final_critic_pass": True,
                     "all_bindings_realization_planned": True,
                     "all_unprinted_target_facts_classified": True,
+                    "auxiliary_semantic_plan_valid": True,
                     "semantic_coherence_valid": True,
                 }
             ),
@@ -17295,6 +17303,10 @@ def template_summary(template: CertifiedSemanticTemplate) -> dict[str, Any]:
                 for logical_key in constraint.member_logical_keys
             }
         ),
+        "auxiliaryEntities": len(template.auxiliary_semantic_plan.entities),
+        "auxiliaryCompositeNumbers": len(template.auxiliary_semantic_plan.composite_numbers),
+        "auxiliaryDocumentSequences": len(template.auxiliary_semantic_plan.document_sequences),
+        "auxiliaryBindingDispositions": len(template.auxiliary_semantic_plan.dispositions),
         "compiler": template.compiler,
         "certified": True,
     }

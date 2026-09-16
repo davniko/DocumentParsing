@@ -7,7 +7,7 @@ from typing import Any
 
 from document_ocr.synthesis.generators import DeterministicStream
 
-from .models import SemanticBinding
+from .models import AuxiliaryEntity, AuxiliaryEntityMember, SemanticBinding
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +124,22 @@ def _target_party(target: Mapping[str, Any], binding: SemanticBinding) -> Mappin
     return None
 
 
+def _resolve_mapping_path(target: Mapping[str, Any], path: str) -> Mapping[str, Any] | None:
+    current: Any = target
+    for name, index_text in re.findall(r"([A-Za-z0-9_]+)(?:\[([0-9]+)\])?", path):
+        if not isinstance(current, Mapping) or name not in current:
+            return None
+        current = current[name]
+        if index_text:
+            if not isinstance(current, Sequence) or isinstance(current, (str, bytes)):
+                return None
+            index = int(index_text)
+            if index >= len(current):
+                return None
+            current = current[index]
+    return current if isinstance(current, Mapping) else None
+
+
 class DeterministicValueFactory:
     """Create typed, schedule-independent auxiliary values for one descendant.
 
@@ -144,18 +160,27 @@ class DeterministicValueFactory:
         return values[stream.randbelow(len(values), counter=counter)]
 
     def geography(self, binding: SemanticBinding) -> GeoProfile:
-        identity = "geo:" + binding.group_key
+        return self.geography_for_identity(binding.group_key)
+
+    def geography_for_identity(self, identity: str) -> GeoProfile:
+        identity = "geo:" + identity
         index = self._stream.derive(identity).randbelow(len(_GEOGRAPHIES))
         return _GEOGRAPHIES[index]
 
     def organization(self, binding: SemanticBinding) -> str:
-        identity = "organization:" + binding.group_key
+        return self.organization_for_identity(binding.group_key)
+
+    def organization_for_identity(self, identity: str) -> str:
+        identity = "organization:" + identity
         prefix = self._select(_ORGANIZATION_PREFIXES, identity + ":prefix")
         noun = self._select(_ORGANIZATION_NOUNS, identity + ":noun")
         return f"{prefix} {noun} Ltd."
 
     def person(self, binding: SemanticBinding) -> str:
-        identity = "person:" + binding.group_key
+        return self.person_for_identity(binding.group_key)
+
+    def person_for_identity(self, identity: str) -> str:
+        identity = "person:" + identity
         first = self._select(_PERSON_FIRST_NAMES, identity + ":first")
         last = self._select(_PERSON_LAST_NAMES, identity + ":last")
         return f"{first} {last}"
@@ -169,6 +194,12 @@ class DeterministicValueFactory:
         geo = self.geography(binding)
         number = 10 + self._stream.derive("address:" + binding.group_key).randbelow(890)
         street = self._select(_STREET_NAMES, "street:" + binding.group_key)
+        return f"{number} {street}, {geo.postal_code} {geo.city}"
+
+    def address_for_identity(self, identity: str) -> str:
+        geo = self.geography_for_identity(identity)
+        number = 10 + self._stream.derive("address:" + identity).randbelow(890)
+        street = self._select(_STREET_NAMES, "street:" + identity)
         return f"{number} {street}, {geo.postal_code} {geo.city}"
 
     def location(self, binding: SemanticBinding) -> str:
@@ -212,4 +243,80 @@ class DeterministicValueFactory:
             return self.address(binding)
         if binding.value_kind == "location":
             return self.location(binding)
+        return None
+
+    def entity_textual(
+        self,
+        *,
+        entity: AuxiliaryEntity,
+        member: AuxiliaryEntityMember,
+        country_codes: Mapping[str, str],
+    ) -> str | None:
+        """Return one field from a canonical auxiliary entity.
+
+        A target-linked entity projects the already synthesized target party.  An independent
+        entity draws every geographic and identity field from one entity-keyed record, so two
+        bindings can no longer invent mutually inconsistent countries or organizations.
+        """
+
+        party = (
+            _resolve_mapping_path(self._target, entity.target_party_path)
+            if entity.target_party_path is not None
+            else None
+        )
+        field = member.field
+        direct_party_fields = {
+            "name": "name",
+            "address": "address",
+            "city": "city",
+            "country": "country",
+        }
+        if party is not None and field in direct_party_fields:
+            value = party.get(direct_party_fields[field])
+            if isinstance(value, str) and value.strip():
+                return value
+        contact = party.get("contactDetails") if party is not None else None
+        if isinstance(contact, Mapping):
+            if field == "contact_name":
+                value = contact.get("contactName")
+                if isinstance(value, str) and value.strip():
+                    return value
+            if field in {"phone", "email"}:
+                collection_name = "phoneNumbers" if field == "phone" else "emailAddresses"
+                values = contact.get(collection_name)
+                if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+                    value = next(
+                        (row for row in values if isinstance(row, str) and row.strip()),
+                        None,
+                    )
+                    if value is not None:
+                        return value
+        if party is not None and field == "country_code":
+            country = party.get("country")
+            if isinstance(country, str):
+                normalized = _normalized(country)
+                code = country_codes.get(normalized)
+                if code is not None:
+                    return code
+        if party is not None:
+            return self.person_for_identity(entity.entity_id) if field == "contact_name" else None
+
+        identity = entity.entity_id
+        geo = self.geography_for_identity(identity)
+        if field == "name":
+            return self.organization_for_identity(identity)
+        if field == "address":
+            return self.address_for_identity(identity)
+        if field == "city":
+            return geo.city
+        if field == "region":
+            return geo.region
+        if field == "postal_code":
+            return geo.postal_code
+        if field == "country":
+            return geo.country
+        if field == "country_code":
+            return geo.country_code
+        if field == "contact_name":
+            return self.person_for_identity(identity)
         return None
