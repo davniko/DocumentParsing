@@ -106,6 +106,10 @@ def main() -> None:
         "validate-template-compilation-config",
         "preflight-template-compilation",
         "compile-raw-text-templates",
+        "validate-template-catalog-join-config",
+        "join-template-compilation-catalogs",
+        "validate-compiled-descendant-eda-config",
+        "analyze-compiled-descendant-run",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -133,6 +137,20 @@ def main() -> None:
             from document_ocr.synthesis.template_compiler.pipeline import load_config
 
             template_compilation_config = load_config(config_path)
+        elif arguments.command in {
+            "validate-template-catalog-join-config",
+            "join-template-compilation-catalogs",
+        }:
+            from document_ocr.synthesis.template_compiler.catalog_join import load_join_config
+
+            template_catalog_join_config = load_join_config(config_path)
+        elif arguments.command in {
+            "validate-compiled-descendant-eda-config",
+            "analyze-compiled-descendant-run",
+        }:
+            from document_ocr.synthesis.template_compiler.descendant_eda import load_eda_config
+
+            descendant_eda_config = load_eda_config(config_path)
         elif arguments.command in {
             "validate-raw-text-pipeline-config",
             "preflight-raw-text-pipeline",
@@ -282,7 +300,70 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "audit-template-compilation-readiness":
+        if arguments.command == "validate-compiled-descendant-eda-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": descendant_eda_config.run_name,
+                "documents": descendant_eda_config.expected_documents,
+                "manual_reviews": descendant_eda_config.expected_manual_reviews,
+                "descendant_run": descendant_eda_config.descendant_run.path,
+            }
+        elif arguments.command == "analyze-compiled-descendant-run":
+            from document_ocr.synthesis.template_compiler.descendant_eda import (
+                analyze_descendant_run,
+            )
+
+            artifact_root = analyze_descendant_run(
+                project_root=project_root,
+                config_path=config_path,
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("compiled descendant EDA summary must be an object")
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(artifact_root),
+                "documents": summary["documents"],
+                "passed_documents": summary["passedDocuments"],
+                "decision": summary["decision"],
+                "scale_ready": summary["scaleReady"],
+            }
+        elif arguments.command == "validate-template-catalog-join-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": template_catalog_join_config.run_name,
+                "source_runs": len(template_catalog_join_config.sources),
+                "expected_source_outcomes": (
+                    template_catalog_join_config.expected_source_outcomes
+                ),
+                "expected_certified_templates": (
+                    template_catalog_join_config.expected_certified_templates
+                ),
+            }
+        elif arguments.command == "join-template-compilation-catalogs":
+            from document_ocr.synthesis.template_compiler.catalog_join import (
+                join_template_catalogs,
+            )
+
+            artifact_root = join_template_catalogs(
+                project_root=project_root,
+                config_path=config_path,
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("template catalog join summary must be an object")
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(artifact_root),
+                "source_outcomes": summary["sourceOutcomes"],
+                "certified_templates": summary["certifiedTemplates"],
+                "review_required": summary["reviewRequired"],
+            }
+        elif arguments.command == "audit-template-compilation-readiness":
             from document_ocr.synthesis.template_compiler.readiness import (
                 preflight_corpus_readiness,
             )

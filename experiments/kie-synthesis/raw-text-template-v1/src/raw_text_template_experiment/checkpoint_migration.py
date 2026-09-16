@@ -56,7 +56,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 _LEGACY_TASK = "carrier_bound_raw_text_template_extraction"
-_LEGACY_PHASE = "transfer200"
+_LEGACY_PHASES = frozenset({"development30", "transfer200"})
 
 
 class LegacyExtractionStateCheckpointV1(BaseModel):
@@ -86,7 +86,7 @@ class LegacySelectionManifestV1(BaseModel):
     model_config = _STRICT
 
     schema_version: Literal[1]
-    phase: Literal["transfer200"]
+    phase: Literal["development30", "transfer200"]
     selection_seed: int
     source_corpus_sha256: str
     document_features_sha256: str
@@ -188,8 +188,9 @@ def _validate_legacy_lineage(
     legacy_config = json.loads(read_regular_file_bytes(legacy_root / "config.json"))
     if not isinstance(legacy_config, Mapping):
         raise ValueError("legacy config is not an object")
-    if legacy_config.get("task") != _LEGACY_TASK or legacy_config.get("phase") != _LEGACY_PHASE:
-        raise ValueError("legacy run is not the pinned transfer200 compilation lineage")
+    legacy_phase = legacy_config.get("phase")
+    if legacy_config.get("task") != _LEGACY_TASK or legacy_phase not in _LEGACY_PHASES:
+        raise ValueError("legacy run is not a supported pinned compilation lineage")
     if legacy_config.get("selection_seed") != config.selection_seed:
         raise ValueError("legacy selection seed differs from the current compilation")
     legacy_inputs = legacy_config.get("inputs")
@@ -203,6 +204,8 @@ def _validate_legacy_lineage(
     legacy_manifest = LegacySelectionManifestV1.model_validate_json(
         read_regular_file_bytes(legacy_root / "selection-manifest.json"), strict=True
     )
+    if legacy_manifest.phase != legacy_phase:
+        raise ValueError("legacy config and selection manifest phases differ")
     if legacy_manifest.selection_seed != manifest.selection_seed:
         raise ValueError("legacy selection manifest seed differs")
     if legacy_manifest.source_corpus_sha256 != manifest.source_corpus_sha256:

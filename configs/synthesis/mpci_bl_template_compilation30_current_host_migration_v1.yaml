@@ -1,0 +1,111 @@
+schema_version: 1
+task: bill_of_lading_raw_text_template_compilation_v1
+phase: template_compilation
+run_name: mpci-bl-template-compilation30-current-host-migration-v1
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+
+prompts:
+  compiler:
+    path: src/document_ocr/synthesis/template_compiler/prompts/compiler.md
+    sha256: bff9d2d94708a307290357ec2c0451ecb697f6bb870372ba1da600f42dbe3462
+  critic:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic.md
+    sha256: 030a7e7bf443bd56c0830cdd51f2c2fc5bd42900109d8c36a7bf4a97cf239f3b
+  critic_audit:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-audit-v4.md
+    sha256: fbaac17804901fc07a3243bb6a59317b76a85804708e120a709ffc6d01e51f71
+  critic_plan:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-plan-v4.md
+    sha256: 5cac8cfb3dfcb0e9ad397de2bda0dab799ae20af84370b32b7be4a58e4337bdc
+
+compiler_provider: &luna
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 65536
+  store_responses: false
+  pricing:
+    currency: USD
+    effective_date: 2026-09-03
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+critic_provider:
+  <<: *luna
+  max_output_tokens: 32768
+
+workflow:
+  documents: 30
+  agent_contract_protocol: hybrid_reference_partitioned_v10
+  max_concurrent_documents: 8
+  max_concurrent_requests: 8
+  max_compiler_passes: 4
+  max_critic_passes: 4
+  compiler_output_retries: 1
+  critic_output_retries: 1
+  partition_critic_above_request_bytes: 200000
+  additional_call_launch_threshold_usd_per_document: 0.15
+  provider_launch_authorized: false
+  certified_resume_policy: current_host_recertify
+  require_no_rejected_documents: true
+  require_carrier_resolution: true
+  require_source_round_trip: true
+  require_all_risk_candidates_owned: true
+  require_final_critic_pass: true
+  require_sentinel_isolation: true
+  publish_training_records: false
+
+selection_seed: 20260911
+resume_from: null
+excluded_document_ids: []
+pinned_document_ids:
+  - doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad
+  - doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff
+  - doc_09585226e5552adad580b1d71b70fdf80b3aee7a85263a49dd3b8c82909c13b1
+  - doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf
+  - doc_d422eaa8085d05e468b52d16a4c77b03715924308d50a64700bfe5f78e140440
+  - doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e
+  - doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+  - doc_2d393b7327a4eb7b645ee1bfca916f7a3561d60057c47e9e19faf6ba18821cea
+  - doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852
+  - doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66
+  - doc_52bede31b871bcc9166df9638a93fd6e9105f0dbef48addd7b2e78f8e010b2dc
+  - doc_1249175a6240081bbc038acab925f1b703431a9c359fdfbcad5249d8ea96cc61
+  - doc_1ef7b32470b560db76a791d921523d6af49d6c14781157aed2d16f3d2c5d671e
+  - doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110
+  - doc_4f5e2355ffb08501fcd4a881fbc69296eee6c07ec4086367285e8cf67947186b
+  - doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c
+  - doc_19f564dad81401b03004a6eb1f6370af31a805bd8950f960791821280def70ea
+  - doc_0dcc89acef2074d1ed2ca7dee64f52771d5f59337b3d7ef426e9bb6c2fe53b86
+  - doc_a3622f8d068d57a741da61f825b2bac0bfebf21c59baa18c9dcaa7abe84d330d
+  - doc_8c58655a0a0ed73202ccd3096f47740ce2a274d0a802f5fdf073855c14bcc5fe
+  - doc_c45592141d0203ed86e0b8f8746c2237ca0d302cb2632604c7d5e26bec6d5f1a
+  - doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71
+  - doc_c4c086eb9a209e259807d2b245b7140c09487a9229aa7cd7a68cf92177766561
+  - doc_c1e6ed0bb95c39558349c1aa65d0f34347dabfadc15a86f39f99a8fe0291c204
+  - doc_92a5a2cfb70054511e7e5c1233706d57af3466121d8b30069e3b93e39a844cea
+  - doc_a6f245645add0c3e179728ac07d604bd9c9550fa3fe508c06fbaba80474f3e21
+  - doc_ec080407fe9a57ca3d995902fc0207ea769ec534eebe4825172d05ab2cb87913
+  - doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170
+  - doc_7e0657d1c16a39390d2a8c05715b1a2c3779f66bf582805256474bd61dec91e7
+  - doc_d29b0e2a05fdd4ffaacf80dbc3ad8a679f23acf7de0ce0d3bbc4157361459216

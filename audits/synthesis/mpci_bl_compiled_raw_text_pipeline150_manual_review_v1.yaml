@@ -1,0 +1,178 @@
+schema_version: 1
+run:
+  path: artifacts/kie-synthesis/mpci-bl-compiled-raw-text-pipeline150-production-validation-v2-offline-replay
+  commit_sha256: 0b4c74bc6631b285ed8cc4341d14bdb3fac48e89dabfaf495feb7f753d340b53
+  transaction_sha256: 64b0f8f656ddf89c5ef44ea90e9ad4a88e41c9833752d6ed31dff4fe7b6fb0c3
+template_catalog:
+  path: artifacts/kie-synthesis/mpci-bl-compiled-template-catalog230-v1
+  commit_sha256: 6a0c18afbbb6f2b5247dcbc124b7269c5fe102a92ed66e2216d8cc16104b303e
+  transaction_sha256: 51664391ef7cec0c0a5691662736fcc0f3e806f7f7c0a9a5ae12baea22fdcd59
+selection_method: >-
+  Purposive stress review spanning both compilation lineages, both target origins,
+  maximum template and change scope, maximum residual-agent scope and cost, formal
+  range/equipment/identifier adaptations, multi-cargo structure, and a low-change
+  hardened-replay control. This is not a random population estimate.
+reviews:
+  - document_id: doc_35e61f6ef64fcdc70df090f7d7208353b331da86b6744f1406e5841ec77e0c66
+    target_origin: existing_linguistic_target_carrier_restored
+    compilation_lineage: mpci-bl-template-compilation30-current-host-v2-luna-high
+    selection_reason: Maximum final target-change scope; 216 of 217 slots deterministic.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: customs exporter identity
+    evidence_lines: [3, 6, 290, 291]
+    observation: >-
+      The rendered shipper is Canadian while the generated foreign-exporter country is
+      New Zealand. Formatting and target-bound values are exact, but the auxiliary
+      customs identity is not grouped with the shipper identity.
+  - document_id: doc_0dcc89acef2074d1ed2ca7dee64f52771d5f59337b3d7ef426e9bb6c2fe53b86
+    target_origin: existing_linguistic_target_carrier_restored
+    compilation_lineage: mpci-bl-template-compilation30-current-host-v2-luna-high
+    selection_reason: Twelve-container and twelve-package topology with no residual-agent slots.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: party and customs dependencies
+    evidence_lines: [7, 9, 27, 30, 89, 90]
+    observation: >-
+      The Portuguese shipper is paired with Brazil as foreign-exporter country, and a
+      newly French delivery-agent block retains Egyptian telephone fragments. The
+      template renders cleanly, but related source-only party fields are not updated as
+      one semantic unit.
+  - document_id: doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a
+    target_origin: existing_linguistic_target_carrier_restored
+    compilation_lineage: mpci-bl-template-compilation30-current-host-v2-luna-high
+    selection_reason: Inclusive-range reconciliation and eight compatibility adaptations.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: range coherence versus exporter identity
+    evidence_lines: [8, 10, 74, 79, 163, 166]
+    observation: >-
+      The four printed carton intervals were correctly repartitioned to the structured
+      total of 2,495, proving the new formal range adapter. However, the Chinese shipper
+      is paired with Canada as foreign-exporter country, so global identity coherence
+      remains incomplete.
+  - document_id: doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110
+    target_origin: existing_linguistic_target_carrier_restored
+    compilation_lineage: mpci-bl-template-compilation30-current-host-v2-luna-high
+    selection_reason: Legacy equipment semantics retained after an unrepresentable target proposal.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: cargo marking parties
+    evidence_lines: [5, 8, 17, 20, 114, 123]
+    observation: >-
+      The 20-foot equipment wording and target semantics remain aligned, but the marking
+      block independently invents supplier, exporter, and importer organizations in New
+      Zealand, the United States, and Brazil that do not match the principal Indian and
+      US parties.
+  - document_id: doc_ffa8239ae2c829363f8fcdea1433113991282f3e5999d1f81ff85d016d89eb78
+    target_origin: controlled_source_variant
+    compilation_lineage: mpci-bl-template-compilation200-production-v4-luna-high
+    selection_reason: OCR-confused repeated voyage surface and identifier-shape adaptation.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: original-count and exporter-country auxiliaries
+    evidence_lines: [2, 6, 40, 84, 85, 132, 205]
+    observation: >-
+      Repeated bill and tax identifiers remain exact across pages and the incompatible
+      OCR voyage variant is safely retained. Yet all three pages say ZERO (2), and the
+      Turkish shipper is paired with Singapore as foreign-exporter country.
+  - document_id: doc_069457bb570f4254f7684443aee87069491f0716570301dbe54d949cb8d8e0c6
+    target_origin: controlled_source_variant
+    compilation_lineage: mpci-bl-template-compilation200-production-v4-luna-high
+    selection_reason: Maximum residual-agent scope at 40 slots in a 493-slot template.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: customs exporter identity
+    evidence_lines: [8, 12, 95, 101]
+    observation: >-
+      Agent-rendered cargo fragments fit every certified slot and repeated facts remain
+      stable, but the same Chinese shipment names New Zealand and Sao Paulo as exporter
+      registration countries. The residual call does not repair the missing dependency.
+  - document_id: doc_8208e99109bc3347998b843e9427badd3f1173c7d7efe9ebee3e4e16aad3224a
+    target_origin: controlled_source_variant
+    compilation_lineage: mpci-bl-template-compilation200-production-v4-luna-high
+    selection_reason: Largest template at 495 slots and 947 lines; fully deterministic route.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: original-count and exporter-country auxiliaries
+    evidence_lines: [9, 12, 16, 147, 148, 175, 339]
+    observation: >-
+      A twelve-page, 495-slot document renders without layout drift or an LLM call.
+      Nevertheless, sequence values such as 8 Of Three and 6 Of Three are impossible,
+      and the Spanish shipper is paired with Germany as foreign-exporter country.
+  - document_id: doc_07590a35a6abd4a2dcd51e4b11dca6e59240e0fde47b96a9ee718443c98a4fa8
+    target_origin: controlled_source_variant
+    compilation_lineage: mpci-bl-template-compilation200-production-v4-luna-high
+    selection_reason: Highest historical residual cost and 28 current residual-agent slots.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: pass_with_source_limitation
+    quality_decision: pass_with_source_limitation
+    primary_surface: electronic bill audit metadata
+    evidence_lines: [9, 17, 35, 49, 59, 70, 81, 91]
+    observation: >-
+      The generated eBL ownership and surrender audit has consistent actors, hashes, and
+      chronological timestamps across repeated pages. The embedded source bill remains a
+      sparse prototype with placeholders, but synthesis did not introduce that limitation.
+  - document_id: doc_8d2216eb27719c40e1e546d4a97bd2f7eecaa03984ef06d1281086d8c0146325
+    target_origin: controlled_source_variant
+    compilation_lineage: mpci-bl-template-compilation200-production-v4-luna-high
+    selection_reason: Eleven cargo groups and packages with container-level derived totals.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: concern
+    quality_decision: review_required
+    primary_surface: cargo totals versus customs identity
+    evidence_lines: [10, 14, 40, 57, 90, 97, 108, 109]
+    observation: >-
+      The eleven printed bundle quantities sum exactly to the 90-bundle total and the two
+      container totals are preserved, but the Turkish shipper is paired with South Korea
+      as foreign-exporter country.
+  - document_id: doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27
+    target_origin: controlled_source_variant
+    compilation_lineage: mpci-bl-template-compilation200-production-v4-luna-high
+    selection_reason: Low-change control exercising hardened partial replay and date retention.
+    mechanical_fidelity: pass
+    target_binding_fidelity: pass
+    carrier_preservation: pass
+    layout_preservation: pass
+    whole_document_coherence: pass
+    quality_decision: pass
+    primary_surface: party, route, cargo, and customs identity
+    evidence_lines: [3, 6, 42, 51, 76, 85]
+    observation: >-
+      The compact two-page output remains internally aligned: Chinese shipper and exporter
+      identity agree, repeated dates agree, package count and words agree, and the target
+      identifier changes preserve the certified surfaces.

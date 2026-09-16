@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,8 +32,10 @@ from document_ocr.synthesis.template_compiler.coherence import (
 from document_ocr.synthesis.template_compiler.descendant import (
     BindingOutput,
     RenderPlan,
+    _adapt_target_coherence_ranges,
     _build_initial_plan,
     _materialize_case,
+    _positive_proportional_partition,
 )
 from document_ocr.synthesis.template_compiler.descendant_models import (
     DescendantConfig,
@@ -46,6 +48,7 @@ from document_ocr.synthesis.template_compiler.host import (
 )
 from document_ocr.synthesis.template_compiler.models import (
     AgentStageArtifact,
+    AggregateRangeConstraint,
     CompilerAgentOutput,
     CriticAgentOutput,
     ExtractionConfig,
@@ -75,6 +78,70 @@ _PIPELINE_CONFIG = (
     _PROJECT_ROOT / "configs/synthesis/mpci_bl_compiled_raw_text_pipeline30_validation_v1.yaml"
 )
 _QUANTITY = "documentPatch.cargoPackages[0].quantity"
+
+
+def test_aggregate_range_target_adaptation_preserves_members_and_exact_total() -> None:
+    paths = tuple(f"documentPatch.cargoGroups[0].marksAndNumbers[{index}]" for index in range(4))
+    source_values = ("A100 - A102", "B200 - B202", "C300 - C302", "D400 - D402")
+    target_values = ("Q500 - Q502", "R600 - R602", "S700 - S702", "T800 - T802")
+    source_target = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": list(source_values)}],
+            "cargoPackages": [{"quantity": 17}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": list(target_values)}],
+            "cargoPackages": [{"quantity": 17}],
+        }
+    }
+    logical_keys = tuple(f"marks:{index}" for index in range(4))
+    template = SimpleNamespace(
+        bindings=tuple(
+            SimpleNamespace(logical_key=key, target_paths=(path,))
+            for key, path in zip(logical_keys, paths, strict=True)
+        ),
+        coherence_constraints=(
+            AggregateRangeConstraint(
+                constraint_id="coherence_constraint_0123456789abcdef",
+                candidate_fingerprint="0" * 64,
+                kind="aggregate_inclusive_range_cardinality",
+                member_logical_keys=logical_keys,
+                dependency_paths=(_QUANTITY,),
+                rationale="Four printed ranges jointly encode the package quantity.",
+            ),
+        ),
+    )
+
+    adaptations = _adapt_target_coherence_ranges(
+        source_target=source_target,
+        target=target,
+        template=template,
+    )
+
+    adapted_values = target["documentPatch"]["cargoGroups"][0]["marksAndNumbers"]
+    cardinalities = tuple(
+        cardinality
+        for value in adapted_values
+        for cardinality in inclusive_range_cardinalities(value)
+    )
+    assert cardinalities == (5, 4, 4, 4)
+    assert sum(cardinalities) == 17
+    assert tuple(value.split()[0] for value in adapted_values) == (
+        "Q500",
+        "R600",
+        "S700",
+        "T800",
+    )
+    assert tuple(row.target_path for row in adaptations) == paths
+    assert tuple(row.source_value for row in adaptations) == source_values
+    assert tuple(row.proposed_value for row in adaptations) == target_values
+
+
+def test_aggregate_range_partition_rejects_impossible_positive_cardinality() -> None:
+    with pytest.raises(ValueError, match="cannot preserve every positive interval"):
+        _positive_proportional_partition(3, (5, 5, 5, 5))
 
 
 def test_numeric_derivation_filter_excludes_non_numeric_package_fields() -> None:
@@ -229,6 +296,182 @@ def test_country_code_vocabulary_covers_common_document_aliases() -> None:
 
     assert countries["uae"] == "AE"
     assert countries["prchina"] == "CN"
+
+
+@pytest.mark.parametrize(
+    ("surface", "expected"),
+    (
+        ("Aug-06-2024", date(2024, 8, 6)),
+        ("MAY.16.2024", date(2024, 5, 16)),
+        ("NOV. 06,2024", date(2024, 11, 6)),
+    ),
+)
+def test_document_native_month_first_dates_are_typed_deterministically(
+    surface: str, expected: date
+) -> None:
+    assert descendant._date_candidates(surface) == frozenset({expected})
+
+
+def test_direct_derivation_path_overrides_composite_dependency_value() -> None:
+    binding = SimpleNamespace(
+        logical_key="agent:customs:foreign_exporter_country_code",
+        dependency_bindings=("anchor:shipper",),
+        dependency_paths=("documentPatch.parties.shipper.country",),
+    )
+    target = {
+        "documentPatch": {
+            "parties": {
+                "shipper": {
+                    "name": "Exporter Ltd.",
+                    "address": "Port Road",
+                    "country": "China",
+                }
+            }
+        }
+    }
+    outputs = {
+        "anchor:shipper": BindingOutput(
+            {"slot_shipper": "Exporter Ltd. Port Road China"},
+            ["Exporter Ltd.", "Port Road", "China"],
+        )
+    }
+
+    assert descendant._dependency_canonical(binding, outputs, target) == "China"
+
+
+def test_legacy_equipment_surface_retains_reviewed_semantics_when_target_does_not_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = "documentPatch.containers[0].typeDescription"
+    binding = SimpleNamespace(
+        logical_key="anchor:documentPatch.containers[0].typeDescription",
+        value_kind="equipment",
+        target_paths=(path,),
+        occurrences=(SimpleNamespace(slot_id="slot_equipment"),),
+        realization=SimpleNamespace(
+            mode="single_surface",
+            requires_agent=False,
+            target_values=(SimpleNamespace(target_path=path, source_value="20' Dry Heavy Duty"),),
+        ),
+    )
+    source_target = {
+        "documentPatch": {
+            "containers": [{"typeDescription": "20' Dry Heavy Duty"}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                    "typeCategory": "GENERAL_PURPOSE",
+                }
+            ],
+        }
+    }
+
+    def render_when_compatible(
+        _binding: Any, *, source_target: Any, target: Any
+    ) -> BindingOutput:
+        del source_target
+        equipment = descendant._semantic_equipment_value(target, path)
+        if equipment != {
+            "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+            "typeCategory": "GENERAL_PURPOSE",
+        }:
+            raise ValueError("semantic equipment wording does not fit")
+        return BindingOutput({"slot_equipment": "20' Dry Heavy Duty"}, equipment)
+
+    monkeypatch.setattr(descendant, "_render_agent_target_binding", render_when_compatible)
+    monkeypatch.setattr(descendant, "_validate_binding_format", lambda **_kwargs: None)
+
+    adaptations = descendant._adapt_target_compatibility(
+        source=b"20' Dry Heavy Duty",
+        source_target=source_target,
+        target=target,
+        template=SimpleNamespace(bindings=(binding,), byte_template=SimpleNamespace()),
+    )
+
+    assert target["documentPatch"]["containers"][0] == {
+        "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+        "typeCategory": "GENERAL_PURPOSE",
+    }
+    assert {row.target_path for row in adaptations} == {
+        "documentPatch.containers[0].sizeCategory",
+        "documentPatch.containers[0].typeCategory",
+    }
+
+
+def test_unrenderable_ocr_variant_identifier_reverts_to_certified_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = "documentPatch.transport.voyageNumber"
+    source_value = "0NVI8N1MA"
+    binding = SimpleNamespace(
+        logical_key="anchor:documentPatch.transport.voyageNumber",
+        value_kind="identifier",
+        target_paths=(path,),
+        occurrences=(SimpleNamespace(slot_id="slot_voyage", source_text="0NV18N1MA"),),
+        realization=SimpleNamespace(
+            mode="agent_required",
+            requires_agent=True,
+            target_values=(SimpleNamespace(target_path=path, source_value=source_value),),
+        ),
+    )
+    source_target = {"documentPatch": {"transport": {"voyageNumber": source_value}}}
+    target = {"documentPatch": {"transport": {"voyageNumber": "7OZL4Q4EP"}}}
+    monkeypatch.setattr(
+        descendant,
+        "_render_agent_target_binding",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("slot replacement changes identifier shape")
+        ),
+    )
+    monkeypatch.setattr(descendant, "_validate_binding_format", lambda **_kwargs: None)
+
+    adaptations = descendant._adapt_target_compatibility(
+        source=b"0NV18N1MA",
+        source_target=source_target,
+        target=target,
+        template=SimpleNamespace(bindings=(binding,), byte_template=SimpleNamespace()),
+    )
+
+    assert target["documentPatch"]["transport"]["voyageNumber"] == source_value
+    assert len(adaptations) == 1
+    assert adaptations[0].target_path == path
+
+
+def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "cases" / "doc_test"
+    prefix.mkdir(parents=True)
+    source_target = {"documentPatch": {"billOfLadingNumber": "SOURCE"}}
+    (prefix / "source.txt").write_bytes(b"source")
+    (prefix / "source-target.json").write_text(json.dumps(source_target), encoding="utf-8")
+    (prefix / "target.json").write_text(json.dumps({"old": "target"}), encoding="utf-8")
+    (prefix / "target-receipt.json").write_text(
+        json.dumps({"old": "receipt"}), encoding="utf-8"
+    )
+    case = SimpleNamespace(
+        document_id="doc_test",
+        source=b"source",
+        source_target=source_target,
+        target={"new": "target"},
+        target_receipt=SimpleNamespace(model_dump=lambda **_kwargs: {"new": "receipt"}),
+    )
+
+    descendant._validate_replay_case_inputs(
+        prefix=prefix,
+        case=case,
+        reuses_residual_output=False,
+    )
+    with pytest.raises(ValueError, match=r"replay target\.json differs"):
+        descendant._validate_replay_case_inputs(
+            prefix=prefix,
+            case=case,
+            reuses_residual_output=True,
+        )
 
 
 def test_source_only_date_renderer_preserves_mixed_numeric_separators() -> None:
@@ -879,6 +1122,56 @@ def test_source_only_range_is_checked_against_the_final_agent_surface() -> None:
             target=_target(9),
             outputs={binding.logical_key: BindingOutput({"slot_range": "PACKAGE 1-7"}, "1-7")},
         )
+
+
+def test_target_backed_segmented_range_uses_the_logical_canonical_surface() -> None:
+    marks_path = "documentPatch.cargoGroups[0].marksAndNumbers[0]"
+    binding = SimpleNamespace(
+        logical_key="marks:0",
+        render_mode="target_binding",
+        value_kind="cargo_text",
+        group_kind="cargo",
+        group_key="cargo:0",
+        target_paths=(marks_path,),
+        dependency_paths=(),
+        occurrences=(
+            SimpleNamespace(slot_id="slot_start", source_text="A100"),
+            SimpleNamespace(slot_id="slot_end", source_text="A106"),
+        ),
+    )
+    constraint = InclusiveRangeConstraint(
+        constraint_id="coherence_constraint_0123456789abcdef",
+        candidate_fingerprint="1" * 64,
+        kind="inclusive_range_cardinality",
+        member_logical_keys=(binding.logical_key,),
+        dependency_paths=(_QUANTITY,),
+        rationale="The split logical range encodes the package quantity.",
+    )
+    source_target = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": ["A100 - A106"]}],
+            "cargoPackages": [{"quantity": 7}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": ["Q500 - Q508"]}],
+            "cargoPackages": [{"quantity": 9}],
+        }
+    }
+
+    validate_render_coherence(
+        bindings=(binding,),
+        constraints=(constraint,),
+        source_target=source_target,
+        target=target,
+        outputs={
+            binding.logical_key: BindingOutput(
+                {"slot_start": "Q500", "slot_end": "Q508"},
+                "Q500 - Q508",
+            )
+        },
+    )
 
 
 def test_coherence_gate_runs_before_descendant_routing(monkeypatch: pytest.MonkeyPatch) -> None:

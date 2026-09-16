@@ -1192,6 +1192,14 @@ def _texts_from_target(binding: _GroupedBinding, target: Mapping[str, Any]) -> t
 
 
 def _texts_from_output(binding: _GroupedBinding, output: Any) -> tuple[str, ...]:
+    canonical = getattr(output, "canonical_value", None)
+    if binding.target_paths:
+        if isinstance(canonical, str):
+            return (canonical,)
+        if isinstance(canonical, Sequence) and not isinstance(canonical, (str, bytes)):
+            canonical_texts = tuple(value for value in canonical if isinstance(value, str))
+            if canonical_texts:
+                return tuple(dict.fromkeys(canonical_texts))
     replacements = getattr(output, "replacements", None)
     if not isinstance(replacements, Mapping):
         raise ValueError(f"binding output lacks replacements: {binding.logical_key}")

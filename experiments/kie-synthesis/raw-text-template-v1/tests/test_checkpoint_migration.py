@@ -74,3 +74,21 @@ def test_legacy_checkpoint_translation_rejects_unrecognized_fields() -> None:
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         LegacyExtractionStateCheckpointV1.model_validate_json(json.dumps(payload), strict=True)
+
+
+@pytest.mark.parametrize("phase", ["development30", "transfer200"])
+def test_legacy_selection_accepts_both_paid_compilation_cohorts(phase: str) -> None:
+    from raw_text_template_experiment.checkpoint_migration import LegacySelectionManifestV1
+
+    manifest = LegacySelectionManifestV1.model_validate(
+        {
+            "schema_version": 1,
+            "phase": phase,
+            "selection_seed": 7,
+            "source_corpus_sha256": "a" * 64,
+            "document_features_sha256": "b" * 64,
+            "rows": (),
+        }
+    )
+
+    assert manifest.phase == phase

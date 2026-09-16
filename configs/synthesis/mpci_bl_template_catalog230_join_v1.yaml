@@ -1,0 +1,15 @@
+schema_version: 1
+task: bill_of_lading_compiled_template_catalog_join_v1
+run_name: mpci-bl-compiled-template-catalog230-v1
+output_dir: artifacts/kie-synthesis
+sources:
+  - path: artifacts/kie-synthesis/mpci-bl-template-compilation30-current-host-v2-luna-high
+    commit_sha256: a52afd5055a7ddb4b4190063a5c617b0dcaccbe94c28f8a3a6cbba7837a93c12
+    transaction_sha256: 095dd5c191b6f04bb9255d0848cf0b32433d7cf5db38c8050b726b502cabb78e
+  - path: artifacts/kie-synthesis/mpci-bl-template-compilation200-production-v4-luna-high
+    commit_sha256: 5b35f5a35f94634c0a8d2ee0ea84e40092b30cf41df393e62d3133e5f320a5d6
+    transaction_sha256: 846a1c84b24ed23b0b40cddf521cc5514c5a24710d208164f56d56bd59406cae
+expected_source_outcomes: 230
+expected_certified_templates: 226
+expected_review_required: 4
+require_no_rejected_outcomes: true

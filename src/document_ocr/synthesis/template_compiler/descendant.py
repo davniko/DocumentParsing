@@ -29,6 +29,7 @@ from pydantic_ai.usage import UsageLimits
 
 from document_ocr.atomic import read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
+from document_ocr.synthesis.container_semantics import review_source_equipment_surface
 from document_ocr.synthesis.generators import (
     DeterministicStream,
     generate_container_number,
@@ -57,6 +58,7 @@ from document_ocr.training.tasks import get_training_task
 from .coherence import (
     coherence_dependency_paths,
     inclusive_range_cardinalities,
+    inclusive_range_surfaces,
     validate_render_coherence,
     whole_inclusive_range_surface,
 )
@@ -71,8 +73,10 @@ from .descendant_models import (
     TargetAdaptation,
 )
 from .models import (
+    AggregateRangeConstraint,
     CertifiedSemanticTemplate,
     CoherenceConstraint,
+    InclusiveRangeConstraint,
     OpenRouterProviderConfig,
     ProviderConfig,
     SemanticBinding,
@@ -104,6 +108,12 @@ _DATE_FORMATS = (
     "%m.%d.%Y",
     "%d.%b.%Y",
     "%d.%B.%Y",
+    "%b.%d.%Y",
+    "%B.%d.%Y",
+    "%b-%d-%Y",
+    "%B-%d-%Y",
+    "%b. %d,%Y",
+    "%B. %d,%Y",
     "%d/%m/%y",
     "%m/%d/%y",
     "%d-%m-%y",
@@ -2185,18 +2195,113 @@ def _adapt_target_compatibility(
         "normalized_projected_surface",
     }
     for binding in template.bindings:
-        if binding.realization.mode not in deterministic_modes:
+        typed_identifier = binding.value_kind == "identifier" and bool(binding.target_paths)
+        if binding.realization.mode not in deterministic_modes and not typed_identifier:
             continue
-        if any(
-            not _path_exists(target, path) and _semantic_equipment_value(target, path) is not None
+        semantic_equipment_paths = tuple(
+            path
             for path in binding.target_paths
-        ):
+            if not _path_exists(target, path)
+            and _semantic_equipment_value(target, path) is not None
+        )
+        if semantic_equipment_paths:
             # V5 removes the legacy printed description when semantic categories are present.
-            # The grouped residual renderer receives those categories directly; the canonical
-            # V5 target must not be contaminated with the mutually exclusive legacy field.
+            # First test whether those categories fit the certified legacy surface. If they do
+            # not, retain the source equipment semantics rather than asking a model to violate an
+            # immutable document-native format contract.
+            try:
+                output = _render_agent_target_binding(
+                    binding,
+                    source_target=source_target,
+                    target=target,
+                )
+                _validate_binding_format(
+                    source=source,
+                    template=template.byte_template,
+                    output=output,
+                )
+            except (KeyError, TypeError, ValueError) as error:
+                source_containers = cast(
+                    Sequence[Mapping[str, Any]],
+                    cast(Mapping[str, Any], source_target["documentPatch"]).get("containers")
+                    or (),
+                )
+                target_containers = cast(
+                    Sequence[dict[str, Any]],
+                    cast(dict[str, Any], target["documentPatch"]).get("containers") or (),
+                )
+                indexes: set[int] = set()
+                for path in semantic_equipment_paths:
+                    match = re.fullmatch(
+                        r"documentPatch\.containers\[([0-9]+)\]\.typeDescription", path
+                    )
+                    if match is None:
+                        raise ValueError(
+                            f"invalid semantic equipment compatibility path: {path}"
+                        ) from error
+                    indexes.add(int(match.group(1)))
+                for index in sorted(indexes):
+                    if index >= len(source_containers) or index >= len(target_containers):
+                        raise ValueError(
+                            "semantic equipment compatibility index is absent"
+                        ) from error
+                    source_container = source_containers[index]
+                    target_container = target_containers[index]
+                    description = source_container.get("typeDescription")
+                    if not isinstance(description, str):
+                        raise ValueError("source semantic equipment surface is absent") from error
+                    reviewed = review_source_equipment_surface(
+                        description,
+                        temperature_present=source_container.get("temperatureSetpoint") is not None,
+                    )
+                    if reviewed.size_category is None or reviewed.type_category is None:
+                        raise ValueError(
+                            "source semantic equipment surface is not registry-resolved"
+                        ) from error
+                    for field, adapted in (
+                        ("sizeCategory", reviewed.size_category),
+                        ("typeCategory", reviewed.type_category),
+                    ):
+                        path = f"documentPatch.containers[{index}].{field}"
+                        proposed = target_container.get(field)
+                        target_container[field] = adapted
+                        adaptations.append(
+                            TargetAdaptation.model_validate(
+                                {
+                                    "target_path": path,
+                                    "reason": (
+                                        "compiled legacy equipment surface cannot realize the "
+                                        "proposed semantic category; retained its reviewed source "
+                                        f"semantics ({reviewed.review_rule}): "
+                                        f"{type(error).__name__}: {error}"
+                                    ),
+                                    "source_value": adapted,
+                                    "proposed_value": proposed,
+                                    "adapted_value": adapted,
+                                }
+                            )
+                        )
+                output = _render_agent_target_binding(
+                    binding,
+                    source_target=source_target,
+                    target=target,
+                )
+                _validate_binding_format(
+                    source=source,
+                    template=template.byte_template,
+                    output=output,
+                )
             continue
         try:
-            output = _render_target_binding(binding, target)
+            output = (
+                _render_agent_target_binding(
+                    binding,
+                    source_target=source_target,
+                    target=target,
+                )
+                if typed_identifier and binding.realization.requires_agent
+                else _render_target_binding(binding, target)
+            )
             _validate_binding_format(source=source, template=template.byte_template, output=output)
         except (KeyError, TypeError, ValueError) as error:
             for snapshot in binding.realization.target_values:
@@ -2224,8 +2329,150 @@ def _adapt_target_compatibility(
                         }
                     )
                 )
-            output = _render_target_binding(binding, target)
+            if typed_identifier and binding.realization.requires_agent:
+                unchanged_output = _unchanged_target_output(binding, target)
+                if unchanged_output is None:
+                    raise ValueError(
+                        f"adapted identifier did not restore its certified source value: "
+                        f"{binding.logical_key}"
+                    ) from error
+                output = unchanged_output
+            else:
+                output = _render_target_binding(binding, target)
             _validate_binding_format(source=source, template=template.byte_template, output=output)
+    return tuple(adaptations)
+
+
+def _positive_proportional_partition(total: int, weights: Sequence[int]) -> tuple[int, ...]:
+    """Partition a positive total without dropping any formal interval.
+
+    Aggregate serial ranges carry one independently printed interval per source member.  Every
+    interval must therefore retain cardinality of at least one.  The remaining cardinality is
+    distributed in exact integer arithmetic using largest remainders, with source order as the
+    deterministic tie-breaker.
+    """
+
+    if total < len(weights) or not weights or any(weight <= 0 for weight in weights):
+        raise ValueError("aggregate range total cannot preserve every positive interval")
+    remaining = total - len(weights)
+    weight_total = sum(weights)
+    quotients = tuple(divmod(remaining * weight, weight_total) for weight in weights)
+    allocated = [1 + quotient for quotient, _ in quotients]
+    remainder = total - sum(allocated)
+    order = sorted(range(len(weights)), key=lambda index: (-quotients[index][1], index))
+    for index in order[:remainder]:
+        allocated[index] += 1
+    if sum(allocated) != total or any(value <= 0 for value in allocated):
+        raise ValueError("aggregate range partition failed its exact-total contract")
+    return tuple(allocated)
+
+
+def _render_range_cardinality(value: str, cardinalities: Sequence[int]) -> str:
+    surfaces = inclusive_range_surfaces(value)
+    if len(surfaces) != len(cardinalities):
+        raise ValueError("formal range surface count changed during adaptation")
+    rendered = value
+    for surface, cardinality in reversed(tuple(zip(surfaces, cardinalities, strict=True))):
+        if cardinality <= 0:
+            raise ValueError("formal range cardinality must remain positive")
+        direction = 1 if surface.end >= surface.start else -1
+        new_end = surface.start + direction * (cardinality - 1)
+        rendered_end = render_number_surface(
+            value[surface.end_start : surface.end_end],
+            surface.end,
+            new_end,
+        )
+        rendered = surface.replace_end(rendered, rendered_end)
+    if tuple(inclusive_range_cardinalities(rendered)) != tuple(cardinalities):
+        raise ValueError("adapted formal ranges do not realize their assigned cardinalities")
+    return rendered
+
+
+def _adapt_target_coherence_ranges(
+    *,
+    source_target: Mapping[str, Any],
+    target: dict[str, Any],
+    template: CertifiedSemanticTemplate,
+) -> tuple[TargetAdaptation, ...]:
+    """Reconcile formal printed ranges with changed structured quantities.
+
+    A linguistic target may legitimately change a package quantity while retaining the source
+    number of printed serial ranges.  The compiled coherence contract proves which range members
+    jointly encode that quantity, allowing this reconciliation to be deterministic rather than
+    delegated to an editor model.
+    """
+
+    by_key = {binding.logical_key: binding for binding in template.bindings}
+    adaptations: list[TargetAdaptation] = []
+    for constraint in template.coherence_constraints:
+        if not isinstance(constraint, (InclusiveRangeConstraint, AggregateRangeConstraint)):
+            continue
+        expected_total = 0
+        for path in constraint.dependency_paths:
+            value = _resolve_path(target, path)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"coherence range dependency is not a positive integer: {path}")
+            expected_total += value
+
+        ordered_paths: list[str] = []
+        target_backed = True
+        for logical_key in constraint.member_logical_keys:
+            binding = by_key.get(logical_key)
+            if binding is None:
+                raise ValueError(f"coherence range member has no binding: {logical_key}")
+            if not binding.target_paths:
+                target_backed = False
+            ordered_paths.extend(binding.target_paths)
+        if not target_backed:
+            # Source-only range members are one joint residual-rendering problem. Their exact
+            # values do not exist in the structured target and are reconciled by that typed route.
+            continue
+        ordered_paths = list(dict.fromkeys(ordered_paths))
+        if not ordered_paths:
+            raise ValueError("coherence range contract has no target-backed member")
+
+        values: dict[str, str] = {}
+        weights: list[int] = []
+        surface_counts: dict[str, int] = {}
+        for path in ordered_paths:
+            value = _resolve_path(target, path)
+            if not isinstance(value, str):
+                raise ValueError(f"coherence range member is not textual: {path}")
+            cardinalities = inclusive_range_cardinalities(value)
+            if not cardinalities:
+                raise ValueError(f"coherence range member has no formal interval: {path}")
+            values[path] = value
+            surface_counts[path] = len(cardinalities)
+            weights.extend(cardinalities)
+        if sum(weights) == expected_total:
+            continue
+
+        assigned = _positive_proportional_partition(expected_total, weights)
+        cursor = 0
+        for path in ordered_paths:
+            count = surface_counts[path]
+            path_cardinalities = assigned[cursor : cursor + count]
+            cursor += count
+            proposed = values[path]
+            adapted = _render_range_cardinality(proposed, path_cardinalities)
+            _set_path(target, path, adapted)
+            adaptations.append(
+                TargetAdaptation.model_validate(
+                    {
+                        "target_path": path,
+                        "reason": (
+                            "compiled inclusive-range coherence contract reconciled "
+                            f"{len(weights)} printed interval(s) to structured total "
+                            f"{expected_total}"
+                        ),
+                        "source_value": _resolve_path(source_target, path),
+                        "proposed_value": proposed,
+                        "adapted_value": adapted,
+                    }
+                )
+            )
+        if cursor != len(assigned):
+            raise ValueError("coherence range adaptation did not consume every interval")
     return tuple(adaptations)
 
 
@@ -2311,6 +2558,13 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         carrier_adaptation = _restore_carrier(source_target=source_target, target=target)
         if carrier_adaptation is not None:
             adaptations.append(carrier_adaptation)
+        adaptations.extend(
+            _adapt_target_coherence_ranges(
+                source_target=source_target,
+                target=target,
+                template=template,
+            )
+        )
         adaptations.extend(
             _adapt_target_compatibility(
                 source=source,
@@ -3269,12 +3523,17 @@ def _dependency_canonical(
     binding: SemanticBinding, outputs: Mapping[str, BindingOutput], target: Mapping[str, Any]
 ) -> JsonValue:
     values: list[JsonValue] = []
-    for key in binding.dependency_bindings:
-        if key not in outputs:
-            raise KeyError(key)
-        values.append(outputs[key].canonical_value)
-    for path in binding.dependency_paths:
-        values.append(cast(JsonValue, _resolve_path(target, path)))
+    if binding.dependency_paths:
+        # A direct semantic path is more precise than a composite dependency binding. The latter
+        # still establishes graph order, but its canonical value may contain an entire party or
+        # address while the derivation names only that party's country.
+        for path in binding.dependency_paths:
+            values.append(cast(JsonValue, _resolve_path(target, path)))
+    else:
+        for key in binding.dependency_bindings:
+            if key not in outputs:
+                raise KeyError(key)
+            values.append(outputs[key].canonical_value)
     if not values:
         raise ValueError(f"derived binding has no dependency value: {binding.logical_key}")
     first = values[0]
@@ -3402,6 +3661,8 @@ def _render_one_derivation(
 ) -> BindingOutput:
     derivation = binding.derivation
     if derivation == "same_as_binding":
+        if binding.dependency_paths:
+            return _render_same_value(binding, _dependency_canonical(binding, outputs, case.target))
         if len(binding.dependency_bindings) == 1:
             key = binding.dependency_bindings[0]
             return _render_same_as_binding(binding, bindings[key], outputs[key])
@@ -4068,6 +4329,26 @@ class ExecutedCase:
     relationship_failures: tuple[str, ...]
 
 
+def _validate_replay_case_inputs(
+    *, prefix: Path, case: PreparedCase, reuses_residual_output: bool
+) -> None:
+    if read_regular_file_bytes(prefix / "source.txt") != case.source:
+        raise ValueError(f"replay source bytes differ for {case.document_id}")
+    expected_json: tuple[tuple[str, Any], ...] = (("source-target.json", case.source_target),)
+    if reuses_residual_output:
+        # A residual response was conditioned on the complete prepared target and receipt. Exact
+        # identity is mandatory whenever even one of its slots is reused. If the current plan is
+        # fully deterministic, the old response is provenance-only and cannot influence output.
+        expected_json += (
+            ("target.json", case.target),
+            ("target-receipt.json", case.target_receipt.model_dump(mode="json")),
+        )
+    for name, expected in expected_json:
+        actual = json.loads(read_regular_file_bytes(prefix / name))
+        if actual != expected:
+            raise ValueError(f"replay {name} differs for {case.document_id}")
+
+
 def _load_replayed_stage(
     *,
     replay_root: Path,
@@ -4078,17 +4359,14 @@ def _load_replayed_stage(
     plan: RenderPlan,
 ) -> tuple[Mapping[str, str], ResidualStageReceipt, ResidualReplayReceipt]:
     prefix = replay_root / "cases" / case.document_id
-    if read_regular_file_bytes(prefix / "source.txt") != case.source:
-        raise ValueError(f"replay source bytes differ for {case.document_id}")
-    expected_json = (
-        ("source-target.json", case.source_target),
-        ("target.json", case.target),
-        ("target-receipt.json", case.target_receipt.model_dump(mode="json")),
+    expected_slots = {
+        slot.slot_id for binding in plan.residual_bindings for slot in binding.occurrences
+    }
+    _validate_replay_case_inputs(
+        prefix=prefix,
+        case=case,
+        reuses_residual_output=bool(expected_slots),
     )
-    for name, expected in expected_json:
-        actual = json.loads(read_regular_file_bytes(prefix / name))
-        if actual != expected:
-            raise ValueError(f"replay {name} differs for {case.document_id}")
 
     stage_path = prefix / "agent-stage.json"
     source_stage = ResidualStageReceipt.model_validate_json(read_regular_file_bytes(stage_path))
@@ -4097,9 +4375,6 @@ def _load_replayed_stage(
     if source_stage.system_prompt_sha256 != expected_system_prompt_sha256:
         raise ValueError(f"replay system prompt differs for {case.document_id}")
 
-    expected_slots = {
-        slot.slot_id for binding in plan.residual_bindings for slot in binding.occurrences
-    }
     if expected_slots:
         if source_stage.status != "success" or not isinstance(source_stage.output, Mapping):
             raise ValueError(f"replay has no successful residual output for {case.document_id}")
