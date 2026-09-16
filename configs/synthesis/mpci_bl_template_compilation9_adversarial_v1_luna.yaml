@@ -1,0 +1,90 @@
+schema_version: 1
+task: bill_of_lading_raw_text_template_compilation_v1
+phase: template_compilation
+run_name: mpci-bl-template-compilation9-adversarial-v1-luna-high
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+
+prompts:
+  compiler:
+    path: src/document_ocr/synthesis/template_compiler/prompts/compiler.md
+    sha256: bff9d2d94708a307290357ec2c0451ecb697f6bb870372ba1da600f42dbe3462
+  critic:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic.md
+    sha256: 030a7e7bf443bd56c0830cdd51f2c2fc5bd42900109d8c36a7bf4a97cf239f3b
+  critic_audit:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-audit-v4.md
+    sha256: fbaac17804901fc07a3243bb6a59317b76a85804708e120a709ffc6d01e51f71
+  critic_plan:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-plan-v4.md
+    sha256: 5cac8cfb3dfcb0e9ad397de2bda0dab799ae20af84370b32b7be4a58e4337bdc
+
+compiler_provider: &luna
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 65536
+  store_responses: false
+  pricing:
+    currency: USD
+    effective_date: 2026-09-03
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+critic_provider:
+  <<: *luna
+  max_output_tokens: 32768
+
+workflow:
+  documents: 9
+  agent_contract_protocol: hybrid_reference_partitioned_v10
+  max_concurrent_documents: 8
+  max_concurrent_requests: 8
+  max_compiler_passes: 4
+  max_critic_passes: 4
+  compiler_output_retries: 1
+  critic_output_retries: 1
+  partition_critic_above_request_bytes: 200000
+  additional_call_launch_threshold_usd_per_document: 0.15
+  provider_launch_authorized: false
+  certified_resume_policy: current_host_recertify
+  require_no_rejected_documents: true
+  require_carrier_resolution: true
+  require_source_round_trip: true
+  require_all_risk_candidates_owned: true
+  require_final_critic_pass: true
+  require_sentinel_isolation: true
+  publish_training_records: false
+
+selection_seed: 20260915
+resume_from: null
+excluded_document_ids: []
+pinned_document_ids:
+  - doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec
+  - doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1
+  - doc_71e3f8e3ea81654a59e06b85bfc6d376276e620478ef65e005917caf02bd002c
+  - doc_6037ca53cf6a7ab4ea185ebe4bd01399b43cbccb625e0b9ab54c69b8a1bdf832
+  - doc_49e600f728488dcf755975fc37ca4fbb4a14ed52c8959b34c03fb3ef64fde933
+  - doc_910f8b9a17a807169e62f850061a8ded0ca4bec250f37972857d6e84a23a513b
+  - doc_5747d7a300f15657a262a8ead6389e8f69ff1af6737064ed38b6e979c4d81ed4
+  - doc_05e3713646484151f61a426781d0b4f959060b678fe342da379f3118fa50d07d
+  - doc_05b97047048ebbd8b4d213b0cd58a5ad78b4e5ce26a1ed6af037723211ff1b85

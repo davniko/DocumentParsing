@@ -166,7 +166,11 @@ def _group_digits(value: str, separator: str | None) -> str:
     return sign + separator.join(reversed(chunks))
 
 
-def render_number_surface(raw: str, old_value: int | float, new_value: int | float) -> str:
+def render_number_surface(
+    raw: str,
+    old_value: int | float | Decimal,
+    new_value: int | float | Decimal,
+) -> str:
     old = Decimal(str(old_value))
     matches: list[tuple[re.Match[str], str | None, str | None, int]] = []
     for match in _NUMBER.finditer(raw):

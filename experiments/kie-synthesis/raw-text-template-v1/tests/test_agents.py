@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
+import raw_text_template_experiment.agents as agents_module
 from raw_text_template_experiment.agents import (
     AgentRuntime,
     _apply_compiler_repair,
     _compact_inventory_occurrence_lookup,
+    _compiler_repair_addable_anchor_ids,
+    _compiler_repair_allowed_anchor_ids,
     _compiler_repair_allowed_paths,
     _compiler_repair_error_intersects_scope,
     _critic_output_with_inventory_ids,
     _critic_provider_payload,
+    _critic_provider_request_bytes,
     _fixed_reference_compiler_output_type,
     _openrouter_profile,
     _restore_reference_compact_critic,
@@ -23,15 +29,24 @@ from raw_text_template_experiment.agents import (
     _scoped_critic_output_type,
     _scoped_initial_compiler_output_type,
     _scoped_reference_compiler_output_type,
+    _scoped_staged_plan_output_type,
     _settings,
     _structured_output_retry_message,
+    _uses_partitioned_critic,
     _validate_compiler_repair_scope,
 )
 from raw_text_template_experiment.host import inventory_binding_id
 from raw_text_template_experiment.models import (
+    AgentStageArtifact,
     AnchorOverride,
     CompilerAgentOutput,
+    CriticAgentOutput,
     OpenRouterProviderConfig,
+)
+from raw_text_template_experiment.staged_contract import (
+    StagedAuditOutput,
+    StagedCriticPlanOutput,
+    StagedFacetAuditOutput,
 )
 
 
@@ -295,12 +310,110 @@ def test_compiler_repair_rejects_rationale_only_anchor_override_replacement() ->
         )
 
 
+def test_local_compiler_repair_schema_enumerates_only_exposed_anchor_ids() -> None:
+    allowed = ("anchor_binding_0006", "anchor_binding_0029")
+    output_type = _scoped_compiler_repair_output_type(
+        _compiler_candidate(),
+        addable_anchor_ids=allowed,
+    )
+    schema_text = json.dumps(output_type.model_json_schema(mode="validation"))
+    assert all(anchor_id in schema_text for anchor_id in allowed)
+    assert "anchor_binding_3821" not in schema_text
+
+    parsed = output_type.model_validate(
+        {
+            "additional_anchor_overrides": (
+                {
+                    "anchor_binding_id": allowed[0],
+                    "rationale": "Relocate the exact accepted anchor supplied by the host.",
+                },
+            ),
+            "rationale": "Use only the exposed accepted-anchor edit handle.",
+        }
+    )
+    assert parsed.additional_anchor_overrides[0].anchor_binding_id == allowed[0]
+    with pytest.raises(ValidationError, match="anchor_binding_0006"):
+        output_type.model_validate(
+            {
+                "additional_anchor_overrides": (
+                    {
+                        "anchor_binding_id": "anchor_binding_3821",
+                        "rationale": "A diagnostic binding ID is not an anchor edit handle.",
+                    },
+                ),
+                "rationale": "Invalid fabricated anchor handle.",
+            }
+        )
+
+    payload = {
+        "anchorBindings": (
+            {
+                "occurrences": (
+                    {"anchorBindingId": allowed[0]},
+                    {"anchorBindingId": allowed[1]},
+                )
+            },
+        )
+    }
+    assert _compiler_repair_allowed_anchor_ids(payload) == allowed
+
+
+def test_local_compiler_repair_does_not_offer_existing_override_as_an_addition() -> None:
+    existing, addable = "anchor_binding_0006", "anchor_binding_0029"
+    prior = _compiler_candidate().model_copy(
+        update={
+            "anchor_overrides": (
+                AnchorOverride(
+                    anchor_binding_id=existing,
+                    rationale="The accepted anchor is already suppressed.",
+                ),
+            )
+        }
+    )
+    payload = {
+        "anchorBindings": (
+            {
+                "occurrences": (
+                    {"anchorBindingId": existing},
+                    {"anchorBindingId": addable},
+                )
+            },
+        )
+    }
+
+    authorized = _compiler_repair_addable_anchor_ids(payload, prior)
+    assert authorized == (addable,)
+    output_type = _scoped_compiler_repair_output_type(
+        prior,
+        addable_anchor_ids=authorized,
+    )
+    with pytest.raises(ValidationError, match=addable):
+        output_type.model_validate(
+            {
+                "additional_anchor_overrides": (
+                    {
+                        "anchor_binding_id": existing,
+                        "rationale": "Re-adding an existing override cannot change ownership.",
+                    },
+                ),
+                "rationale": "Attempt an operationally empty addition.",
+            }
+        )
+
+
 def test_compiler_repair_preview_retries_only_defects_inside_current_transaction() -> None:
     payload = {
         "candidateSlice": {
             "removableBindingKeys": ("hs_code_8_0",),
             "removableAnchorOverrideIds": ("anchor_binding_0040",),
             "removableSemanticOnlyTargetPaths": (),
+            "bindings": (
+                {
+                    "logical_key": "hs_code_8_0",
+                    "target_paths": ("documentPatch.cargoGroups[4].hsCodes[1]",),
+                    "dependency_paths": (),
+                },
+            ),
         },
         "targetFacts": (
             {"targetPath": "documentPatch.cargoGroups[4].hsCodes[1]"},
@@ -313,6 +426,92 @@ def test_compiler_repair_preview_retries_only_defects_inside_current_transaction
     )
     assert not _compiler_repair_error_intersects_scope(
         ValueError("latent overlap for documentPatch.cargoPackages[9].quantity"), payload
+    )
+    assert not _compiler_repair_error_intersects_scope(
+        ValueError(
+            "selected path documentPatch.cargoGroups[4].hsCodes[1] now exposes latent "
+            "documentPatch.cargoPackages[9].quantity"
+        ),
+        payload,
+    )
+    assert not _compiler_repair_error_intersects_scope(
+        ValueError(
+            "selected path documentPatch.cargoGroups[4].hsCodes[1] overlaps "
+            "agent_binding_deadbeefdeadbeef"
+        ),
+        payload,
+    )
+
+
+def test_compiler_repair_preview_does_not_retry_incidental_target_context() -> None:
+    selected_path = "documentPatch.cargoGroups[4].hsCodes[1]"
+    latent_path = "documentPatch.containers[0].sealNumbers[0]"
+    payload = {
+        "candidateSlice": {
+            "removableBindingKeys": ("hs_code_4_1",),
+            "removableAnchorOverrideIds": (),
+            "removableSemanticOnlyTargetPaths": (),
+            "bindings": (
+                {
+                    "logical_key": "hs_code_4_1",
+                    "target_paths": (selected_path,),
+                    "dependency_paths": (),
+                },
+            ),
+        },
+        # Context is readable but does not grant authority to replace its existing owner.
+        "targetFacts": (
+            {"targetPath": selected_path},
+            {"targetPath": latent_path},
+        ),
+    }
+    repair_type = _scoped_compiler_repair_output_type(
+        _compiler_candidate(), removable_binding_keys=()
+    )
+    repair = repair_type.model_validate(
+        {
+            "additional_semantic_only_target_facts": (
+                {
+                    "target_path": selected_path,
+                    "rationale": "The selected fact has no source surface.",
+                },
+            ),
+            "rationale": "Repair only the selected transaction.",
+        }
+    )
+
+    assert _compiler_repair_error_intersects_scope(
+        ValueError(f"selected repair remains invalid: {selected_path}"), payload, repair
+    )
+    assert not _compiler_repair_error_intersects_scope(
+        ValueError(f"unrelated latent binding is invalid: {latent_path}"), payload, repair
+    )
+
+
+def test_compiler_repair_scope_does_not_expand_object_path_to_descendants() -> None:
+    object_path = "documentPatch.containers[0]"
+    payload = {
+        "candidateSlice": {
+            "removableBindingKeys": ("container_count:0",),
+            "removableAnchorOverrideIds": (),
+            "removableSemanticOnlyTargetPaths": (),
+            "bindings": (
+                {
+                    "logical_key": "container_count:0",
+                    "target_paths": (object_path,),
+                    "dependency_paths": (object_path,),
+                },
+            ),
+        },
+        "targetFacts": ({"targetPath": object_path},),
+    }
+
+    assert _compiler_repair_error_intersects_scope(
+        ValueError(f"invalid exact structural path: {object_path}"), payload
+    )
+    assert not _compiler_repair_error_intersects_scope(
+        ValueError("latent leaf is invalid: documentPatch.containers[0].containerNumber"),
+        payload,
     )
 
 
@@ -339,7 +538,7 @@ def test_compiler_repair_scope_rejects_target_fact_outside_local_vocabulary() ->
         _validate_compiler_repair_scope(repair, payload)
 
 
-def test_compiler_repair_scope_uses_full_protocol_allowed_target_paths() -> None:
+def test_compiler_repair_scope_distinguishes_vocabulary_from_actual_edit() -> None:
     prior = _compiler_candidate()
     output_type = _scoped_compiler_repair_output_type(prior)
     target_path = "documentPatch.cargoGroups[6].hsCodes[0]"
@@ -377,8 +576,11 @@ def test_compiler_repair_scope_uses_full_protocol_allowed_target_paths() -> None
     _validate_compiler_repair_scope(repair, payload)
 
     assert _compiler_repair_allowed_paths(payload) == frozenset((target_path,))
-    assert _compiler_repair_error_intersects_scope(
+    assert not _compiler_repair_error_intersects_scope(
         ValueError(f"overlap still involves {target_path}"), payload
+    )
+    assert _compiler_repair_error_intersects_scope(
+        ValueError(f"overlap still involves {target_path}"), payload, repair
     )
 
 
@@ -559,6 +761,91 @@ def test_compact_critic_schema_discriminates_pass_from_revision() -> None:
         )
 
 
+def test_compact_critic_pass_requires_exact_coherence_dispositions() -> None:
+    candidate_id = "review_candidate_0001"
+    output_type = _scoped_compact_critic_output_type(
+        ("anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]",),
+        (candidate_id,),
+        (),
+        ("L00001",),
+        coherence_candidate_ids=(candidate_id,),
+    )
+    coverage = {
+        "literal_completeness_checked": True,
+        "target_ownership_checked": True,
+        "topology_and_grouping_checked": True,
+        "derivations_checked": True,
+        "carrier_boundary_checked": True,
+        "identifier_relationships_checked": True,
+        "candidate_receipt": ("valid_existing_contract",),
+        "literal_line_count": 1,
+    }
+    decision = {
+        "candidate_id": candidate_id,
+        "disposition": "apply_suggestion",
+        "suggestion_index": 0,
+        "rationale": "The inclusive interval is the package quantity for this cargo group.",
+    }
+
+    parsed = output_type.model_validate(
+        {
+            "decision": {
+                "verdict": "pass",
+                "coverage": coverage,
+                "coherence_decisions": (decision,),
+                "rationale": "The template and arithmetic relationship are complete.",
+            }
+        }
+    )
+    assert parsed.decision.coherence_decisions[0].candidate_id == candidate_id
+
+    with pytest.raises(ValidationError, match="Field required"):
+        output_type.model_validate(
+            {
+                "decision": {
+                    "verdict": "pass",
+                    "coverage": coverage,
+                    "rationale": "The required semantic decision was omitted.",
+                }
+            }
+        )
+    revised = output_type.model_validate(
+        {
+            "decision": {
+                "verdict": "revise",
+                "coverage": {
+                    **coverage,
+                    "candidate_receipt": ("defect_requires_revision",),
+                },
+                "findings": (
+                    {
+                        "finding_kind": "incorrect_semantic_owner",
+                        "line_ids": ("L00001",),
+                        "evidence": "PACKAGE 1-7",
+                        "explanation": "Fixture structural finding.",
+                    },
+                ),
+                "coherence_decisions": (decision,),
+                "rationale": "The receipt is an audit judgment; the decision remains explicit.",
+            }
+        }
+    )
+    assert revised.decision.coverage.candidate_receipt == ("defect_requires_revision",)
+
+    wrong_id = {**decision, "candidate_id": "cross_field_0001"}
+    with pytest.raises(ValidationError, match="review_candidate_0001"):
+        output_type.model_validate(
+            {
+                "decision": {
+                    "verdict": "pass",
+                    "coverage": coverage,
+                    "coherence_decisions": (wrong_id,),
+                    "rationale": "A renamed coherence handle is invalid at the schema boundary.",
+                }
+            }
+        )
+
+
 def test_compact_critic_revision_requires_exact_literal_line_count() -> None:
     output_type = _scoped_compact_critic_output_type(
         ("anchor:documentPatch.billOfLadingNumber",),
@@ -642,7 +929,533 @@ def test_critic_provider_view_uses_one_annotated_source_and_omits_host_provenanc
         _critic_provider_payload({"maskedTemplate": "L00001 | literal"})
 
 
-def test_compact_critic_requires_every_remaining_risk_to_be_revised() -> None:
+def test_hybrid_critic_routes_only_requests_strictly_above_measured_threshold() -> None:
+    compact = {
+        "annotatedSource": "L00001 | A ⟦binding_0000⟧VALUE⟦/binding⟧ B",
+        "maskedTemplate": "L00001 | A ⟦binding_0000⟧ B",
+        "allowedRemovalLogicalKeys": ("agent:value",),
+        "sourceBindingIdTable": ("source_binding_verbose_id",),
+        "compactContract": {
+            "bindingColumns": ("sourceBindingIds", "logicalKey"),
+            "occurrenceColumns": ("sourceBindingId", "sourceText"),
+            "sourceBindingIdEncoding": "zero-based index into sourceBindingIdTable",
+        },
+        "bindingRows": (((0,), "agent:value"),),
+        "occurrenceRows": ((0, "VALUE"),),
+    }
+    measured = _critic_provider_request_bytes(compact)
+
+    assert not _uses_partitioned_critic(
+        protocol="hybrid_reference_partitioned_v10",
+        compact_payload=compact,
+        threshold_bytes=measured,
+    )
+    assert _uses_partitioned_critic(
+        protocol="hybrid_reference_partitioned_v10",
+        compact_payload=compact,
+        threshold_bytes=measured - 1,
+    )
+    assert not _uses_partitioned_critic(
+        protocol="relational_reference_compact_v9",
+        compact_payload=compact,
+        threshold_bytes=None,
+    )
+    with pytest.raises(ValueError, match="non-hybrid"):
+        _uses_partitioned_critic(
+            protocol="relational_reference_compact_v9",
+            compact_payload=compact,
+            threshold_bytes=measured,
+        )
+
+
+@pytest.mark.asyncio
+async def test_hybrid_compact_critic_previews_revision_before_acceptance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FixtureCompactOutput(BaseModel):
+        value: str
+
+    runtime = object.__new__(AgentRuntime)
+    runtime._agent_contract_protocol = "hybrid_reference_partitioned_v10"
+    runtime._partition_critic_above_request_bytes = 1_000_000
+    runtime._providers = {}
+    runtime._critic_substage_cache = {}
+    compact_payload = {
+        "reviewCandidates": (),
+        "remainingRiskCandidates": (),
+        "literalLineReviewIds": ("L00001",),
+    }
+    translated = CriticAgentOutput.model_validate(
+        {
+            "verdict": "revise",
+            "findings": (
+                {
+                    "finding_kind": "unowned_shipment_fact",
+                    "line_ids": ("L00001",),
+                    "evidence": "VALUE",
+                    "explanation": "The fixture requires host preview.",
+                },
+            ),
+            "additional_bindings": (),
+            "rationale": "Preview the compact transaction.",
+        }
+    )
+    previewed: list[CriticAgentOutput] = []
+    validator_was_present = False
+
+    monkeypatch.setattr(agents_module, "compact_critic_payload", lambda _payload: compact_payload)
+    monkeypatch.setattr(agents_module, "_critic_provider_payload", lambda _payload: {})
+    monkeypatch.setattr(agents_module, "_reference_occurrence_rows", lambda _payload: ())
+    monkeypatch.setattr(
+        agents_module,
+        "_compact_inventory_occurrence_lookup",
+        lambda _payload: {},
+    )
+    monkeypatch.setattr(
+        agents_module,
+        "_scoped_compact_critic_output_type",
+        lambda *_args, **_kwargs: FixtureCompactOutput,
+    )
+    monkeypatch.setattr(
+        agents_module,
+        "_restore_reference_compact_critic",
+        lambda *_args, **_kwargs: translated,
+    )
+
+    async def fake_call(**kwargs: object) -> tuple[BaseModel, AgentStageArtifact]:
+        nonlocal validator_was_present
+        output = FixtureCompactOutput(value="fixture")
+        validator = kwargs.get("output_validator")
+        validator_was_present = validator is not None
+        assert callable(validator)
+        assert validator(output) == output
+        timestamp = datetime.now(UTC)
+        stage = AgentStageArtifact.model_validate(
+            {
+                "role": "critic",
+                "pass_number": 1,
+                "started_at": timestamp,
+                "completed_at": timestamp,
+                "duration_seconds": 0.0,
+                "system_prompt_sha256": "a" * 64,
+                "user_prompt_sha256": "b" * 64,
+                "output_schema_sha256": "c" * 64,
+                "status": "success",
+                "output": output.model_dump(mode="json"),
+                "error_type": None,
+                "error_message": None,
+                "messages": [],
+                "usage": agents_module.empty_usage(),
+            }
+        )
+        return output, stage
+
+    monkeypatch.setattr(runtime, "_call", fake_call)
+    output, _stage = await runtime.critic(
+        pass_number=1,
+        system_prompt="critic",
+        payload={"allowedRemovalLogicalKeys": ("agent:value",)},
+        retries=1,
+        preview_review=previewed.append,
+    )
+
+    assert validator_was_present is True
+    assert previewed == [translated]
+    assert output == translated
+
+
+@pytest.mark.asyncio
+async def test_partitioned_critic_reuses_successful_facets_only_for_exact_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = object.__new__(AgentRuntime)
+    runtime._agent_contract_protocol = "hybrid_reference_partitioned_v10"
+    runtime._partition_critic_above_request_bytes = 1
+    runtime._providers = {
+        "critic": SimpleNamespace(
+            model_dump=lambda **_kwargs: {"kind": "fixture", "model": "fixture-model"}
+        )
+    }
+    runtime._critic_substage_cache = {}
+    calls: list[str] = []
+    cargo_failures = 0
+
+    def usage(requests: int):
+        return agents_module.empty_usage().model_copy(
+            update={"requests": requests, "finishReasons": ("stop",) * requests}
+        )
+
+    def stage(*, output: object | None, status: str = "success") -> AgentStageArtifact:
+        now = datetime.now(UTC)
+        return AgentStageArtifact.model_validate(
+            {
+                "role": "critic",
+                "pass_number": 1,
+                "started_at": now,
+                "completed_at": now,
+                "duration_seconds": 0.0,
+                "system_prompt_sha256": "a" * 64,
+                "user_prompt_sha256": "b" * 64,
+                "output_schema_sha256": "c" * 64,
+                "status": status,
+                "output": output.model_dump(mode="json") if output is not None else None,
+                "error_type": "FixtureFailure" if output is None else None,
+                "error_message": "fixture cargo failure" if output is None else None,
+                "messages": [],
+                "usage": usage(1),
+            }
+        )
+
+    facet_coverage = {
+        "assigned_bindings_checked": True,
+        "assigned_candidates_checked": True,
+        "assigned_literal_lines_checked": True,
+        "assigned_target_relationships_checked": True,
+    }
+
+    async def fake_call(**kwargs: object):
+        nonlocal cargo_failures
+        output_type = kwargs["output_type"]
+        payload = kwargs["payload"]
+        validator = kwargs.get("output_validator")
+        if output_type is StagedFacetAuditOutput:
+            name = payload["auditFacet"]["name"]
+            calls.append(name)
+            if name == "cargo_topology" and cargo_failures == 0:
+                cargo_failures += 1
+                return None, stage(output=None, status="provider_error")
+            output = StagedFacetAuditOutput.model_validate(
+                {
+                    "facet": name,
+                    "verdict": "pass",
+                    "findings": (),
+                    "candidate_dispositions": (),
+                    "coverage": facet_coverage,
+                    "rationale": f"{name} passed.",
+                }
+            )
+        else:
+            calls.append("plan")
+            output = StagedCriticPlanOutput.model_validate(
+                {
+                    "remove_binding_logical_keys": ("fixture_owner",),
+                    "rationale": "Apply the fixture audit transaction.",
+                }
+            )
+        if validator is not None:
+            output = validator(output)
+        return output, stage(output=output)
+
+    monkeypatch.setattr(agents_module, "compact_critic_payload", lambda payload: payload)
+    monkeypatch.setattr(agents_module, "_uses_partitioned_critic", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        agents_module,
+        "build_staged_audit_payload",
+        lambda payload: {"stateRevision": payload["stateRevision"]},
+    )
+    monkeypatch.setattr(
+        agents_module,
+        "build_staged_audit_facet_payloads",
+        lambda payload, **_kwargs: tuple(
+            {
+                "stateRevision": payload["stateRevision"],
+                "auditFacet": {"name": name},
+            }
+            for name in (
+                "surface_completeness",
+                "cargo_topology",
+                "document_topology",
+            )
+        ),
+    )
+    monkeypatch.setattr(agents_module, "compact_staged_audit_request", lambda payload: payload)
+    monkeypatch.setattr(
+        agents_module,
+        "normalize_staged_facet_audit",
+        lambda output, _payload: output,
+    )
+    audit = StagedAuditOutput.model_validate(
+        {
+            "verdict": "revise",
+            "findings": (
+                {
+                    "finding_kind": "unowned_shipment_fact",
+                    "line_ids": ("L00001",),
+                    "evidence": "fixture",
+                    "explanation": "The fixture requires one transaction.",
+                },
+            ),
+            "coverage": {
+                "literal_completeness_checked": True,
+                "target_ownership_checked": True,
+                "topology_and_grouping_checked": True,
+                "derivations_checked": True,
+                "carrier_boundary_checked": True,
+                "identifier_relationships_checked": True,
+            },
+            "rationale": "Merged fixture audit.",
+        }
+    )
+    monkeypatch.setattr(agents_module, "merge_staged_facet_audits", lambda **_kwargs: audit)
+    monkeypatch.setattr(
+        agents_module,
+        "build_staged_plan_payload",
+        lambda **_kwargs: {
+            "stateRevision": _kwargs["audit_payload"]["stateRevision"],
+            "allowedRemovalLogicalKeys": ("fixture_owner",),
+        },
+    )
+    monkeypatch.setattr(agents_module, "compact_staged_plan_request", lambda payload: payload)
+    monkeypatch.setattr(
+        agents_module,
+        "_scoped_staged_plan_output_type",
+        lambda _payload: StagedCriticPlanOutput,
+    )
+    translated = CriticAgentOutput.model_validate(
+        {
+            "verdict": "revise",
+            "findings": (
+                {
+                    "finding_kind": "unowned_shipment_fact",
+                    "line_ids": ("L00001",),
+                    "evidence": "fixture",
+                    "explanation": "The fixture requires one transaction.",
+                },
+            ),
+            "additional_bindings": (),
+            "rationale": "Translated fixture transaction.",
+        }
+    )
+    monkeypatch.setattr(agents_module, "restore_staged_plan", lambda **_kwargs: translated)
+    runtime._call = fake_call
+
+    common = {
+        "system_prompt": "critic",
+        "retries": 1,
+        "audit_prompt": "audit",
+        "plan_prompt": "plan",
+        "preview_review": lambda _review: None,
+    }
+    first, first_stage = await runtime.critic(
+        pass_number=1,
+        payload={"allowedRemovalLogicalKeys": (), "stateRevision": "state-a"},
+        **common,
+    )
+    second, second_stage = await runtime.critic(
+        pass_number=2,
+        payload={"allowedRemovalLogicalKeys": (), "stateRevision": "state-a"},
+        **common,
+    )
+    third, third_stage = await runtime.critic(
+        pass_number=3,
+        payload={"allowedRemovalLogicalKeys": (), "stateRevision": "state-b"},
+        **common,
+    )
+
+    assert first is None
+    assert first_stage.usage.requests == 3
+    assert second == translated
+    assert second_stage.usage.requests == 2
+    assert third == translated
+    assert third_stage.usage.requests == 4
+    assert calls == [
+        "surface_completeness",
+        "cargo_topology",
+        "document_topology",
+        "cargo_topology",
+        "plan",
+        "surface_completeness",
+        "cargo_topology",
+        "document_topology",
+        "plan",
+    ]
+
+
+def test_staged_plan_schema_uses_exact_request_scoped_candidate_handles() -> None:
+    occurrence_id = "cand_L00123_00456"
+    output_type = _scoped_staged_plan_output_type(
+        {
+            "occurrenceCandidates": ({"occurrenceId": occurrence_id},),
+            "candidateRows": (),
+        }
+    )
+    candidate = {
+        "occurrence_appends": (
+            {
+                "logical_key": "agent:reference",
+                "occurrences": ({"occurrence_id": occurrence_id},),
+                "rationale": "Append the exact host-enumerated repeated surface.",
+            },
+        ),
+        "rationale": "Apply the cited occurrence repair.",
+    }
+
+    parsed = output_type.model_validate(candidate)
+
+    assert parsed.occurrence_appends[0].occurrences[0].occurrence_id == occurrence_id
+    schema = json.dumps(output_type.model_json_schema(mode="validation"), sort_keys=True)
+    assert occurrence_id in schema
+    assert "compiler_occurrence_" not in schema
+    candidate["occurrence_appends"][0]["occurrences"] = (
+        {"occurrence_id": "compiler_occurrence_00456"},
+    )
+    with pytest.raises(ValidationError, match="cand_L00123_00456"):
+        output_type.model_validate(candidate)
+
+
+def test_staged_plan_schema_requires_exact_host_coherence_candidate_ids() -> None:
+    candidate_id = "review_candidate_0042"
+    output_type = _scoped_staged_plan_output_type(
+        {
+            "occurrenceCandidates": (),
+            "candidateRows": (
+                {
+                    "candidateId": candidate_id,
+                    "kind": "cross_field_semantic_relation",
+                    "requiredRevision": True,
+                },
+                {
+                    "candidateId": "review_candidate_0043",
+                    "kind": "unowned_exact_repeat",
+                    "requiredRevision": True,
+                },
+            ),
+        }
+    )
+    decision = {
+        "candidate_id": candidate_id,
+        "disposition": "reviewed_independent",
+        "rationale": "The two values are independently mutable facts.",
+    }
+    parsed = output_type.model_validate(
+        {"coherence_decisions": (decision,), "rationale": "Resolve the cited relation."}
+    )
+
+    assert parsed.coherence_decisions[0].candidate_id == candidate_id
+    schema = json.dumps(output_type.model_json_schema(mode="validation"), sort_keys=True)
+    assert candidate_id in schema
+    assert "candidate_N" not in schema
+    with pytest.raises(ValidationError, match=candidate_id):
+        output_type.model_validate(
+            {
+                "coherence_decisions": ({**decision, "candidate_id": "candidate_42"},),
+                "rationale": "An invented shorthand is invalid.",
+            }
+        )
+    with pytest.raises(ValidationError, match="Field required"):
+        output_type.model_validate({"rationale": "The required decision was omitted."})
+
+
+def test_staged_plan_schema_materializes_unambiguous_audited_coherence() -> None:
+    candidate_id = "review_candidate_0014"
+    candidate_row = {
+        "candidateIndex": 0,
+        "candidateId": candidate_id,
+        "kind": "cross_field_semantic_relation",
+        "requiredRevision": True,
+        "details": {
+            "suggestedContracts": (
+                {
+                    "kind": "summed_numeric_value",
+                    "memberLogicalKeys": ("agent:tare_weight:3",),
+                    "dependencyPaths": (
+                        "documentPatch.cargoAllocationGroups[3].allocations[0]"
+                        ".packageQuantity",
+                    ),
+                },
+            ),
+            "ambiguousAlternatives": False,
+        },
+    }
+    output_type = _scoped_staged_plan_output_type(
+        {
+            "occurrenceCandidates": (),
+            "candidateRows": (candidate_row,),
+            "findings": (
+                {
+                    "finding_kind": "missing_coherence_dependency",
+                    "candidate_indexes": (0,),
+                },
+            ),
+        }
+    )
+
+    parsed = output_type.model_validate(
+        {
+            "coherence_decisions": (),
+            "rationale": "The host already proved the only valid repair.",
+        }
+    )
+
+    assert len(parsed.coherence_decisions) == 1
+    assert parsed.coherence_decisions[0].candidate_id == candidate_id
+    assert parsed.coherence_decisions[0].disposition == "apply_suggestion"
+    assert parsed.coherence_decisions[0].suggestion_index == 0
+    parsed_wire_json = output_type.model_validate_json(
+        json.dumps(
+            {
+                "coherence_decisions": [
+                    {
+                        "candidate_id": candidate_id,
+                        "disposition": "apply_suggestion",
+                        "suggestion_index": 0,
+                        "rationale": "The provider independently selected the same repair.",
+                    }
+                ],
+                "rationale": "Accept the exact JSON wire representation.",
+            }
+        )
+    )
+    assert parsed_wire_json.coherence_decisions[0].candidate_id == candidate_id
+    with pytest.raises(ValidationError, match="contradicts audit-proved"):
+        output_type.model_validate(
+            {
+                "coherence_decisions": (
+                    {
+                        "candidate_id": candidate_id,
+                        "disposition": "reviewed_independent",
+                        "rationale": "Contradict the unique host-proved repair.",
+                    },
+                ),
+                "rationale": "This transaction must be rejected.",
+            }
+        )
+
+
+def test_staged_plan_schema_keeps_ambiguous_audited_coherence_provider_required() -> None:
+    candidate_id = "review_candidate_0015"
+    output_type = _scoped_staged_plan_output_type(
+        {
+            "occurrenceCandidates": (),
+            "candidateRows": (
+                {
+                    "candidateIndex": 0,
+                    "candidateId": candidate_id,
+                    "kind": "cross_field_semantic_relation",
+                    "requiredRevision": True,
+                    "details": {
+                        "suggestedContracts": (
+                            {"kind": "numeric_values", "memberLogicalKeys": ("first",)},
+                            {"kind": "numeric_values", "memberLogicalKeys": ("second",)},
+                        ),
+                        "ambiguousAlternatives": True,
+                    },
+                },
+            ),
+            "findings": (
+                {
+                    "finding_kind": "missing_coherence_dependency",
+                    "candidate_indexes": (0,),
+                },
+            ),
+        }
+    )
+
+    with pytest.raises(ValidationError, match="Field required"):
+        output_type.model_validate({"rationale": "No decision was supplied."})
+
+
+def test_compact_critic_defers_required_risk_truth_to_the_host_gate() -> None:
     output_type = _scoped_compact_critic_output_type(
         ("anchor:documentPatch.billOfLadingNumber",),
         (),
@@ -658,19 +1471,27 @@ def test_compact_critic_requires_every_remaining_risk_to_be_revised() -> None:
         "identifier_relationships_checked": True,
         "literal_line_count": 1,
     }
-    with pytest.raises(ValidationError, match="require revision dispositions"):
-        output_type.model_validate(
-            {
-                "decision": {
-                    "verdict": "pass",
-                    "coverage": {
-                        **base_coverage,
-                        "candidate_receipt": ("valid_existing_contract",),
+    parsed = output_type.model_validate(
+        {
+            "decision": {
+                "verdict": "revise",
+                "coverage": {
+                    **base_coverage,
+                    "candidate_receipt": ("valid_existing_contract",),
+                },
+                "findings": (
+                    {
+                        "finding_kind": "unowned_shipment_fact",
+                        "line_ids": ("L00001",),
+                        "evidence": "REFERENCE 12345",
+                        "explanation": "The repair can now reach deterministic host validation.",
                     },
-                    "rationale": "Incorrect pass.",
-                }
+                ),
+                "rationale": "The host, not a repeated model token, proves residual risk state.",
             }
-        )
+        }
+    )
+    assert parsed.decision.coverage.candidate_receipt == ("valid_existing_contract",)
     with pytest.raises(ValidationError, match="pass cannot retain"):
         output_type.model_validate(
             {
@@ -687,7 +1508,7 @@ def test_compact_critic_requires_every_remaining_risk_to_be_revised() -> None:
 
 
 def test_compact_critic_materializes_only_enumerated_occurrence_handles() -> None:
-    occurrence_id = "compiler_occurrence_00001"
+    occurrence_id = "cand_L00001_00001"
     output_type = _scoped_compact_critic_output_type(
         ("anchor:documentPatch.billOfLadingNumber",),
         (),
@@ -695,6 +1516,9 @@ def test_compact_critic_materializes_only_enumerated_occurrence_handles() -> Non
         ("L00001",),
         (occurrence_id,),
     )
+    schema_text = json.dumps(output_type.model_json_schema(mode="validation"))
+    assert occurrence_id in schema_text
+    assert "compiler_occurrence_" not in schema_text
     payload = {
         "occurrenceCandidates": {
             "columns": (
@@ -760,16 +1584,16 @@ def test_compact_critic_materializes_only_enumerated_occurrence_handles() -> Non
     assert restored.additional_bindings[0].occurrences[0].source_text == "NEW123"
     assert restored.additional_bindings[0].occurrences[0].line_start == "L00001"
     candidate["decision"]["occurrence_appends"][0]["occurrences"] = (
-        {"occurrence_id": "compiler_occurrence_99999"},
+        {"occurrence_id": "cand_L99999_99999"},
     )
-    with pytest.raises(ValidationError, match="unknown occurrence ID"):
+    with pytest.raises(ValidationError, match="cand_L00001_00001"):
         output_type.model_validate(candidate)
 
 
 def test_compact_critic_scopes_and_materializes_partial_occurrence_removals() -> None:
     logical_key = "anchor:documentPatch.billOfLadingNumber"
     other_key = "agent:booking_reference"
-    append_occurrence_id = "compiler_occurrence_00003"
+    append_occurrence_id = "cand_L00005_00003"
     compact_payload = {
         "compactContract": {
             "bindingColumns": (

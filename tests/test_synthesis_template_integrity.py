@@ -17,6 +17,23 @@ def test_carrier_receipt_container_count_accepts_same_and_following_line_grammar
     assert explicit_carrier_receipt_container_counts(raw) == (5, 3)
 
 
+def test_carrier_receipt_container_count_accepts_words_parentheses_and_suffixes() -> None:
+    raw = (
+        "CARRIER'S RECEIPT: Total number of containers received\n"
+        "(FOUR) CONTAINER(S) ONLY\n"
+        "CARRIER'S RECEIPT: TWENTY-ONE CONTAINERS\n"
+        "CARRIER'S RECEIPT: Total number of containers or packages received\n"
+    )
+
+    assert explicit_carrier_receipt_container_counts(raw) == (4, 21)
+
+
+def test_carrier_receipt_container_count_rejects_invalid_word_sequences() -> None:
+    raw = "CARRIER'S RECEIPT\nONE ONE CONTAINERS\n"
+
+    assert explicit_carrier_receipt_container_counts(raw) == ()
+
+
 def test_source_template_integrity_rejects_only_a_proven_count_contradiction() -> None:
     target = {
         "documentPatch": {
@@ -28,12 +45,11 @@ def test_source_template_integrity_rejects_only_a_proven_count_contradiction() -
         }
     }
 
-    assert source_template_integrity_issues(
-        "CARRIER'S RECEIPT\n5 CNTRS\n", target
-    ) == (
+    assert source_template_integrity_issues("CARRIER'S RECEIPT\n5 CNTRS\n", target) == (
         "explicit_carrier_receipt_container_count_differs_from_labeled_containers:5_vs_3",
     )
-    assert source_template_integrity_issues(
-        "CARRIER'S RECEIPT\n3 CNTRS\n", target
-    ) == ()
+    assert source_template_integrity_issues("CARRIER'S RECEIPT\n3 CNTRS\n", target) == ()
     assert source_template_integrity_issues("Cargo contains 5 containers\n", target) == ()
+    assert source_template_integrity_issues(
+        "CARRIER'S RECEIPT\n(FOUR) CONTAINER(S) ONLY\n", target
+    ) == ("explicit_carrier_receipt_container_count_differs_from_labeled_containers:4_vs_3",)

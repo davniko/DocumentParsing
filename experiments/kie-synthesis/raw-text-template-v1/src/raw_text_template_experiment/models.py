@@ -4,12 +4,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from document_ocr.synthesis.linguistic_probe_runtime import LinguisticUsageReceipt
 from document_ocr.synthesis.raw_text_template import (
     CompiledRawTextTemplate,
     SlotId,
     TemplateSlot,
 )
+from document_ocr.synthesis.usage_receipt import LinguisticUsageReceipt
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -27,6 +27,10 @@ BindingId = Annotated[str, StringConstraints(pattern=r"^binding_[0-9]{4}$")]
 InventoryBindingId = Annotated[
     str,
     StringConstraints(pattern=r"^inventory_binding_[0-9a-f]{16}$"),
+]
+CoherenceConstraintId = Annotated[
+    str,
+    StringConstraints(pattern=r"^coherence_constraint_[0-9a-f]{16}$"),
 ]
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 
@@ -48,6 +52,7 @@ AgentContractProtocol = Literal[
     "candidate_first_staged_local_v7",
     "candidate_first_staged_local_v8",
     "relational_reference_compact_v9",
+    "hybrid_reference_partitioned_v10",
 ]
 ValueKind = Literal[
     "organization",
@@ -141,6 +146,7 @@ Derivation = Literal[
     "number_to_words",
     "equipment_receipt",
     "container_package_count",
+    "inclusive_range_cardinality",
     "country_code",
     "temperature_setpoint",
     "sum_monetary_amounts",
@@ -278,6 +284,7 @@ class ExtractionWorkflow(BaseModel):
     max_critic_passes: Annotated[int, Field(ge=1, le=64)]
     compiler_output_retries: Annotated[int, Field(ge=0, le=3)]
     critic_output_retries: Annotated[int, Field(ge=0, le=3)]
+    partition_critic_above_request_bytes: Annotated[int, Field(gt=0)] | None = None
     additional_call_launch_threshold_usd_per_document: Annotated[Decimal, Field(gt=0)]
     provider_launch_authorized: bool
     certified_resume_policy: Literal[
@@ -354,8 +361,29 @@ class ExtractionConfig(BaseModel):
                     "staged protocols require compiler_repair, critic_audit, and critic_plan "
                     "prompts"
                 )
+            if self.workflow.partition_critic_above_request_bytes is not None:
+                raise ValueError(
+                    "always-staged protocols cannot declare a hybrid critic partition threshold"
+                )
+        elif self.workflow.agent_contract_protocol == "hybrid_reference_partitioned_v10":
+            if self.prompts.compiler_repair is not None:
+                raise ValueError(
+                    "hybrid reference compilation uses the canonical integrated repair contract"
+                )
+            if self.prompts.critic_audit is None or self.prompts.critic_plan is None:
+                raise ValueError(
+                    "hybrid reference protocol requires critic_audit and critic_plan prompts"
+                )
+            if self.workflow.partition_critic_above_request_bytes is None:
+                raise ValueError(
+                    "hybrid reference protocol requires a critic request-byte threshold"
+                )
         elif any(prompt is not None for prompt in staged_prompts):
             raise ValueError("staged prompts are valid only for staged protocols")
+        elif self.workflow.partition_critic_above_request_bytes is not None:
+            raise ValueError(
+                "critic request-byte threshold is valid only for the hybrid reference protocol"
+            )
         if (
             self.workflow.agent_contract_protocol
             in {"candidate_first_staged_local_v7", "candidate_first_staged_local_v8"}
@@ -427,6 +455,125 @@ class AgentOccurrence(BaseModel):
     def line_order_is_valid(self) -> AgentOccurrence:
         if int(self.line_end[1:]) < int(self.line_start[1:]):
             raise ValueError("occurrence line_end precedes line_start")
+        return self
+
+
+class NumericValuesConstraint(BaseModel):
+    model_config = _STRICT
+
+    constraint_id: CoherenceConstraintId
+    candidate_fingerprint: Sha256
+    kind: Literal["numeric_values"]
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    dependency_paths: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def members_and_dependencies_are_unique(self) -> NumericValuesConstraint:
+        if len(set(self.member_logical_keys)) != len(self.member_logical_keys):
+            raise ValueError("coherence constraint members must be unique")
+        if len(set(self.dependency_paths)) != len(self.dependency_paths):
+            raise ValueError("coherence dependency paths must be unique")
+        return self
+
+
+class NumericSumConstraint(BaseModel):
+    model_config = _STRICT
+
+    constraint_id: CoherenceConstraintId
+    candidate_fingerprint: Sha256
+    kind: Literal["summed_numeric_value"]
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    dependency_paths: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def members_and_dependencies_are_unique(self) -> NumericSumConstraint:
+        if len(set(self.member_logical_keys)) != len(self.member_logical_keys):
+            raise ValueError("coherence constraint members must be unique")
+        if len(set(self.dependency_paths)) != len(self.dependency_paths):
+            raise ValueError("coherence dependency paths must be unique")
+        return self
+
+
+class InclusiveRangeConstraint(BaseModel):
+    model_config = _STRICT
+
+    constraint_id: CoherenceConstraintId
+    candidate_fingerprint: Sha256
+    kind: Literal["inclusive_range_cardinality"]
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1, max_length=1)]
+    dependency_paths: Annotated[tuple[NonEmptyText, ...], Field(min_length=1, max_length=1)]
+    rationale: NonEmptyText
+
+
+class AggregateRangeConstraint(BaseModel):
+    model_config = _STRICT
+
+    constraint_id: CoherenceConstraintId
+    candidate_fingerprint: Sha256
+    kind: Literal["aggregate_inclusive_range_cardinality"]
+    # A single logical binding may print more than one interval (for example,
+    # two package-number ranges on one marks line), so aggregation is over
+    # interval cardinalities rather than requiring multiple bindings.
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    dependency_paths: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def members_are_unique(self) -> AggregateRangeConstraint:
+        if len(set(self.member_logical_keys)) != len(self.member_logical_keys):
+            raise ValueError("aggregate coherence members must be unique")
+        return self
+
+
+class ReviewedIndependentConstraint(BaseModel):
+    model_config = _STRICT
+
+    constraint_id: CoherenceConstraintId
+    candidate_fingerprint: Sha256
+    kind: Literal["reviewed_independent"]
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+
+class ReviewRequiredConstraint(BaseModel):
+    model_config = _STRICT
+
+    constraint_id: CoherenceConstraintId
+    candidate_fingerprint: Sha256
+    kind: Literal["review_required"]
+    member_logical_keys: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    rationale: NonEmptyText
+
+
+CoherenceConstraint = Annotated[
+    NumericValuesConstraint
+    | NumericSumConstraint
+    | InclusiveRangeConstraint
+    | AggregateRangeConstraint
+    | ReviewedIndependentConstraint
+    | ReviewRequiredConstraint,
+    Field(discriminator="kind"),
+]
+
+
+class CoherenceCandidateDecision(BaseModel):
+    model_config = _STRICT
+
+    candidate_id: NonEmptyText
+    disposition: Literal[
+        "apply_suggestion",
+        "reviewed_independent",
+        "review_required",
+    ]
+    suggestion_index: Annotated[int, Field(ge=0)] | None = None
+    rationale: NonEmptyText
+
+    @model_validator(mode="after")
+    def suggestion_matches_disposition(self) -> CoherenceCandidateDecision:
+        if (self.disposition == "apply_suggestion") != (self.suggestion_index is not None):
+            raise ValueError("only apply_suggestion requires one suggestion_index")
         return self
 
 
@@ -528,6 +675,7 @@ class CriticFinding(BaseModel):
         "incorrect_static_classification",
         "incorrect_semantic_owner",
         "missing_derivation",
+        "missing_coherence_dependency",
         "carrier_binding_error",
         "topology_or_grouping_error",
     ]
@@ -555,6 +703,8 @@ class CriticAgentOutput(BaseModel):
     occurrence_removals: tuple[CriticOccurrenceRemoval, ...] = ()
     additional_bindings: tuple[AgentBindingProposal, ...]
     semantic_only_target_facts: tuple[SemanticOnlyTargetFactProposal, ...] = ()
+    coherence_decisions: tuple[CoherenceCandidateDecision, ...] = ()
+    exhaustive_audit_receipt: bool = False
     rationale: NonEmptyText
 
     @model_validator(mode="after")
@@ -566,7 +716,7 @@ class CriticAgentOutput(BaseModel):
             or self.additional_bindings
             or self.semantic_only_target_facts
         ):
-            raise ValueError("pass requires zero findings and zero patch operations")
+            raise ValueError("pass requires zero findings and zero structural patch operations")
         if self.verdict == "revise" and not self.findings:
             raise ValueError("revise requires at least one finding")
         if len(set(self.remove_inventory_binding_ids)) != len(self.remove_inventory_binding_ids):
@@ -574,6 +724,9 @@ class CriticAgentOutput(BaseModel):
         removal_keys = tuple(row.logical_key for row in self.occurrence_removals)
         if len(set(removal_keys)) != len(removal_keys):
             raise ValueError("critic occurrence-removal logical keys must be unique")
+        decision_ids = tuple(row.candidate_id for row in self.coherence_decisions)
+        if len(set(decision_ids)) != len(decision_ids):
+            raise ValueError("critic coherence decision candidate IDs must be unique")
         return self
 
 
@@ -792,6 +945,7 @@ class RiskCandidate(BaseModel):
         "alphanumeric_identifier",
         "equipment_identifier",
         "selected_text",
+        "relational_numeric_range",
     ]
     line_id: LineId
     byte_start: Annotated[int, Field(ge=0)]
@@ -824,19 +978,21 @@ class TemplateCertification(BaseModel):
     final_critic_pass: Literal[True]
     all_bindings_realization_planned: Literal[True]
     all_unprinted_target_facts_classified: Literal[True]
+    semantic_coherence_valid: Literal[True]
 
 
 class CertifiedSemanticTemplate(BaseModel):
     model_config = _STRICT
 
-    schema_version: Literal[4]
-    compiler: Literal["carrier_bound_semantic_template_v4"]
+    schema_version: Literal[5]
+    compiler: Literal["carrier_bound_semantic_template_v5"]
     document_id: NonEmptyText
     source_sha256: Sha256
     source_size_bytes: Annotated[int, Field(gt=0)]
     carrier: CarrierBinding
     capability: CapabilityContract
     semantic_only_target_facts: tuple[SemanticOnlyTargetFact, ...]
+    coherence_constraints: tuple[CoherenceConstraint, ...]
     bindings: Annotated[tuple[SemanticBinding, ...], Field(min_length=1)]
     byte_template: CompiledRawTextTemplate
     literal_certification: LiteralCertification
@@ -867,6 +1023,25 @@ class CertifiedSemanticTemplate(BaseModel):
         if overlap:
             raise ValueError(
                 "semantic-only target paths also have source bindings: " + ", ".join(overlap)
+            )
+        constraint_ids = tuple(row.constraint_id for row in self.coherence_constraints)
+        if len(set(constraint_ids)) != len(constraint_ids):
+            raise ValueError("coherence constraint IDs must be unique")
+        fingerprints = tuple(row.candidate_fingerprint for row in self.coherence_constraints)
+        if len(set(fingerprints)) != len(fingerprints):
+            raise ValueError("coherence candidate fingerprints must be unique")
+        known_keys = {binding.logical_key for binding in self.bindings}
+        unknown_members = sorted(
+            {
+                key
+                for constraint in self.coherence_constraints
+                for key in constraint.member_logical_keys
+                if key not in known_keys
+            }
+        )
+        if unknown_members:
+            raise ValueError(
+                "coherence constraints reference unknown bindings: " + ", ".join(unknown_members)
             )
         for binding in self.bindings:
             if tuple(slot.slot_id for slot in binding.occurrences) != tuple(
@@ -929,11 +1104,12 @@ class DraftCheckpointRow(BaseModel):
 class ExtractionStateCheckpoint(BaseModel):
     model_config = _STRICT
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     document_id: NonEmptyText
     source_sha256: Sha256
     source_label_sha256: Sha256
     drafts: Annotated[tuple[DraftCheckpointRow, ...], Field(min_length=1)]
+    coherence_constraints: tuple[CoherenceConstraint, ...]
     carrier_assessment: CarrierAssessment
     semantic_only_target_facts: tuple[SemanticOnlyTargetFact, ...]
     applied_critic_revisions: tuple[CriticAgentOutput, ...]
@@ -949,7 +1125,7 @@ class ExtractionCaseResult(BaseModel):
     model_config = _STRICT
 
     document_id: NonEmptyText
-    status: Literal["certified", "rejected"]
+    status: Literal["certified", "review_required", "rejected"]
     rejection_reasons: tuple[NonEmptyText, ...]
     template_sha256: Sha256 | None
     compiler_stages: tuple[AgentStageArtifact, ...]
@@ -968,4 +1144,5 @@ class ExtractionCaseResult(BaseModel):
         "exact_contract_reuse",
         "current_host_recertification",
         "continued_with_provider",
+        "source_integrity_review",
     ] = "none"

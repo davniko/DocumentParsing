@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Hashable
 from datetime import date
 from pathlib import Path, PurePath
@@ -21,6 +22,9 @@ from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode
 
 from document_ocr.label_schemas.bill_of_lading_v3 import HazardCategory
+from document_ocr.synthesis.template_compiler.descendant_models import (
+    DescendantConfig as SynthesisRawTextPipelineConfig,
+)
 from document_ocr.training.config import (
     DatasetFieldsConfig,
     DatasetFileConfig,
@@ -2308,186 +2312,6 @@ class SynthesisRawTextCertifiedPublicationConfig(_StrictModel):
         return self
 
 
-class RawTextPipelineCertificationConfig(_StrictModel):
-    """Template and bounds for dynamically sharded independent certification runs."""
-
-    environment_file: NonEmptyString
-    # See SynthesisRawTextCertificationConfig.audit_contract_version.  The default is needed to
-    # replay immutable pipeline ancestors, while generated current children serialize it.
-    audit_contract_version: Literal[1, 2, 3] = 1
-    invariant_inputs: RawTextCertificationInvariantInputsConfig | None = None
-    shard_size: Annotated[int, Field(ge=1, le=50)]
-    max_attempts_per_candidate: Annotated[int, Field(ge=1, le=4)]
-    prompt: PinnedFileConfig
-    provider: RawTextRewriteProviderConfig
-    workflow: RawTextCertificationWorkflowConfig
-
-    @field_validator("environment_file")
-    @classmethod
-    def safe_environment_file(cls, value: str) -> str:
-        return _safe_path(value)
-
-    @model_validator(mode="after")
-    def template_matches_shard_capacity(self) -> RawTextPipelineCertificationConfig:
-        if self.workflow.documents != self.shard_size:
-            raise ValueError("pipeline certification template documents must equal shard_size")
-        if self.audit_contract_version in {1, 2} and self.invariant_inputs is not None:
-            raise ValueError("pipeline certification v1/v2 cannot configure v3 invariant inputs")
-        if self.audit_contract_version == 3 and self.invariant_inputs is None:
-            raise ValueError("pipeline certification v3 requires pinned invariant inputs")
-        if self.audit_contract_version == 1:
-            if (
-                self.workflow.semantic_audit_passes != 1
-                or self.workflow.evaluation_only
-                or self.workflow.require_complete_dimension_coverage
-                or self.workflow.require_unanimous_clean
-            ):
-                raise ValueError(
-                    "legacy pipeline certification requires its original finding contract"
-                )
-        else:
-            if self.provider.kind != "openrouter":
-                raise ValueError("pipeline certification v2/v3 requires OpenRouter")
-            if self.provider.model != "z-ai/glm-5.3-flash":
-                raise ValueError("pipeline certification v2/v3 requires the evaluated GLM model")
-            if (
-                not self.provider.allow_fallbacks
-                or self.provider.provider_order is None
-                or len(self.provider.provider_order) < 2
-            ):
-                raise ValueError(
-                    "pipeline certification v2/v3 requires at least two fallback routes"
-                )
-            if not set(self.provider.provider_order).issubset(
-                {
-                    "deepinfra/fp4",
-                    "coreweave/fp8",
-                    "fireworks",
-                    "nextbit/fp8",
-                }
-            ):
-                raise ValueError("pipeline certification v2/v3 has an unevaluated provider route")
-            if self.provider.max_output_tokens != 12288:
-                raise ValueError(
-                    "pipeline certification contract v2/v3 requires its measured bounded "
-                    "output allowance"
-                )
-            if not (
-                self.workflow.require_complete_dimension_coverage
-                and self.workflow.require_unanimous_clean
-                and not self.workflow.evaluation_only
-            ):
-                raise ValueError(
-                    "pipeline certification contract v2/v3 requires complete coverage and "
-                    "unanimous clean"
-                )
-            if not (
-                self.workflow.semantic_audit_passes == 2 and self.provider.reasoning_effort == "low"
-            ):
-                raise ValueError(
-                    "pipeline certification v2/v3 requires a native low/high two-pass cascade"
-                )
-        return self
-
-
-class RawTextPipelineCorrectionConfig(_StrictModel):
-    """Template and bounds for exact-evidence correction/recertification cycles."""
-
-    environment_file: NonEmptyString
-    shard_size: Annotated[int, Field(ge=1, le=50)]
-    max_rounds_per_document: Annotated[int, Field(ge=1, le=6)]
-    max_attempts_per_round: Annotated[int, Field(ge=1, le=4)] = 1
-    prompt: PinnedFileConfig
-    provider: RawTextRewriteProviderConfig
-    workflow: RawTextCertifiedCorrectionWorkflowConfig
-
-    @field_validator("environment_file")
-    @classmethod
-    def safe_environment_file(cls, value: str) -> str:
-        return _safe_path(value)
-
-    @model_validator(mode="after")
-    def template_matches_shard_capacity(self) -> RawTextPipelineCorrectionConfig:
-        if self.workflow.documents != self.shard_size:
-            raise ValueError("pipeline correction template documents must equal shard_size")
-        return self
-
-
-class RawTextPipelineWorkflowConfig(_StrictModel):
-    """Fail-closed bounds for one complete rendered/certified publication cohort."""
-
-    documents: Annotated[int, Field(ge=1, le=100_000)]
-    max_inventory_rounds: Annotated[int, Field(ge=1, le=4)]
-    require_every_inventory_case_training_ready: Literal[True]
-    require_every_case_independently_certified: Literal[True]
-    require_complete_cohort_publication: Literal[True]
-
-
-class SynthesisRawTextPipelineConfig(_StrictModel):
-    """One configurable inventory -> certify -> correct -> publish production workflow."""
-
-    # Schema v1 is retained solely to decode and replay the immutable contract-v1/v2
-    # pipeline lineage.  Contract-v3 production runs have a distinct top-level schema so
-    # selecting the old semantic authority cannot be mistaken for the current launch path.
-    schema_version: Literal[1, 2]
-    task: Literal[
-        "bill_of_lading_synthetic_raw_text_pipeline_v1",
-        "bill_of_lading_synthetic_raw_text_pipeline_v2",
-    ]
-    run: SynthesisRunConfig
-    inventory_config: PinnedFileConfig
-    inventory_resume_run: CommittedArtifactDirectoryConfig | None = None
-    pipeline_resume_run: CommittedArtifactDirectoryConfig | None = None
-    certification: RawTextPipelineCertificationConfig
-    correction: RawTextPipelineCorrectionConfig
-    publication: RawTextCertifiedPublicationWorkflowConfig
-    workflow: RawTextPipelineWorkflowConfig
-
-    @model_validator(mode="after")
-    def pipeline_contract_is_consistent(self) -> SynthesisRawTextPipelineConfig:
-        if self.certification.audit_contract_version == 3:
-            if (
-                self.schema_version != 2
-                or self.task != "bill_of_lading_synthetic_raw_text_pipeline_v2"
-            ):
-                raise ValueError(
-                    "contract-v3 pipeline certification requires top-level schema/task v2"
-                )
-        elif (
-            self.schema_version != 1 or self.task != "bill_of_lading_synthetic_raw_text_pipeline_v1"
-        ):
-            raise ValueError(
-                "legacy pipeline certification requires its original top-level schema/task v1"
-            )
-        if self.publication.documents != self.workflow.documents:
-            raise ValueError("pipeline publication count differs from workflow.documents")
-        if self.inventory_resume_run is not None and self.pipeline_resume_run is not None:
-            raise ValueError("inventory_resume_run and pipeline_resume_run are mutually exclusive")
-        if self.certification.audit_contract_version in {2, 3} and (
-            self.correction.workflow.required_audit_contract_version
-            != self.certification.audit_contract_version
-            or self.publication.required_audit_contract_version
-            != self.certification.audit_contract_version
-        ):
-            raise ValueError(
-                "pipeline certification requires matching correction/publication audit contracts"
-            )
-        if self.certification.audit_contract_version == 3 and (
-            self.correction.max_rounds_per_document != 1
-            or self.correction.max_attempts_per_round != 1
-            or self.correction.workflow.max_provider_route_rounds != 1
-            or self.correction.workflow.max_successful_model_responses_per_document != 1
-        ):
-            raise ValueError(
-                "contract-v3 deterministic correction requires exactly one round and one "
-                "attempt; provider retry/response bounds are inactive and must be one"
-            )
-        # Generated child run IDs append bounded stage/round/shard suffixes.
-        if len(self.run.run_id) > 96:
-            raise ValueError("pipeline run_id is too long for deterministic child run IDs")
-        return self
-
-
 class LinguisticProbeAnalysisInputConfig(_StrictModel):
     run: CommittedArtifactDirectoryConfig
     results: DatasetFileConfig
@@ -2800,7 +2624,9 @@ def load_synthesis_raw_text_pipeline_config(path: Path) -> SynthesisRawTextPipel
         raise ValueError("synthesis configuration is not valid UTF-8") from error
     if not isinstance(value, dict):
         raise ValueError("synthesis configuration root must be a mapping")
-    return SynthesisRawTextPipelineConfig.model_validate(value, strict=True)
+    return SynthesisRawTextPipelineConfig.model_validate_json(
+        json.dumps(value, ensure_ascii=False, default=str)
+    )
 
 
 def load_synthesis_package_compatibility_catalog_config(

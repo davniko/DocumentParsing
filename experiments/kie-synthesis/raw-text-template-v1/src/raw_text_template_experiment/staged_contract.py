@@ -12,15 +12,19 @@ from .compact_contract import BINDING_COLUMNS, OCCURRENCE_COLUMNS
 from .models import (
     AgentBindingProposal,
     AgentOccurrence,
+    CoherenceCandidateDecision,
     CompilerAgentOutput,
     CriticAgentOutput,
     CriticFinding,
     CriticOccurrenceRemoval,
+    GroupKind,
     LineId,
     NonEmptyText,
     SemanticOnlyTargetFactProposal,
+    ValueKind,
 )
 from .optimization_contract import (
+    BindingRendering,
     CompilerOccurrenceReference,
     DiscriminatedBindingProposal,
     restore_legacy_binding,
@@ -29,11 +33,11 @@ from .optimization_contract import (
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 _BINDING_ID = re.compile(r"^binding_(?P<index>[0-9]{4})$")
 _PATH_ID = re.compile(r"^path_(?P<index>[0-9]{4})$")
-_OCCURRENCE_ID = re.compile(r"^occurrence_(?P<index>[0-9]{5})$")
+_OCCURRENCE_ID = re.compile(r"^occ_L(?P<line>[0-9]{5})_(?P<index>[0-9]{5})$")
 _NUMBERED_LINE = re.compile(r"^L(?P<number>[0-9]{5}) \| ")
 _CurrentOccurrenceId = Annotated[
     str,
-    StringConstraints(pattern=r"^occurrence_[0-9]{5}$"),
+    StringConstraints(pattern=r"^occ_L[0-9]{5}_[0-9]{5}$"),
 ]
 
 _TARGET_FACT_COLUMNS = ("targetPathIndex", "targetPath", "sourceValue")
@@ -64,6 +68,7 @@ _OCCURRENCE_COLUMNS = (
 )
 _CANDIDATE_COLUMNS = (
     "candidateIndex",
+    "candidateId",
     "kind",
     "requiredRevision",
     "bindingIndexes",
@@ -121,6 +126,7 @@ class StagedAuditFinding(BaseModel):
         "incorrect_static_classification",
         "incorrect_semantic_owner",
         "missing_derivation",
+        "missing_coherence_dependency",
         "carrier_binding_error",
         "topology_or_grouping_error",
     ]
@@ -147,6 +153,7 @@ class StagedAuditFinding(BaseModel):
                 "incorrect_static_classification",
                 "incorrect_semantic_owner",
                 "missing_derivation",
+                "missing_coherence_dependency",
                 "carrier_binding_error",
                 "topology_or_grouping_error",
             }
@@ -235,13 +242,19 @@ class StagedFacetAuditOutput(BaseModel):
         return self
 
 
-class StagedPlanBindingProposal(DiscriminatedBindingProposal):
+class StagedPlanBindingProposal(BaseModel):
     model_config = _STRICT
 
+    logical_key: NonEmptyText
+    value_kind: ValueKind
+    group_kind: GroupKind
+    group_key: NonEmptyText
+    rendering: BindingRendering
     occurrences: Annotated[
         tuple[CompilerOccurrenceReference | AgentOccurrence, ...],
         Field(min_length=1),
     ]
+    rationale: NonEmptyText
 
 
 class StagedPlanOccurrenceAppend(BaseModel):
@@ -276,6 +289,7 @@ class StagedCriticPlanOutput(BaseModel):
     occurrence_appends: tuple[StagedPlanOccurrenceAppend, ...] = ()
     occurrence_removals: tuple[StagedPlanOccurrenceRemoval, ...] = ()
     semantic_only_target_facts: tuple[SemanticOnlyTargetFactProposal, ...] = ()
+    coherence_decisions: tuple[CoherenceCandidateDecision, ...] = ()
     rationale: NonEmptyText
 
     @model_validator(mode="after")
@@ -287,6 +301,7 @@ class StagedCriticPlanOutput(BaseModel):
                 self.occurrence_appends,
                 self.occurrence_removals,
                 self.semantic_only_target_facts,
+                self.coherence_decisions,
             )
         ):
             raise ValueError("critic plan must contain at least one operation")
@@ -302,6 +317,9 @@ class StagedCriticPlanOutput(BaseModel):
         replacement_keys = tuple(row.logical_key for row in self.additional_bindings)
         if len(set(replacement_keys)) != len(replacement_keys):
             raise ValueError("critic plan replacement keys must be unique")
+        decision_ids = tuple(row.candidate_id for row in self.coherence_decisions)
+        if len(set(decision_ids)) != len(decision_ids):
+            raise ValueError("critic plan coherence decision candidate IDs must be unique")
         mutated = set(self.remove_binding_logical_keys) | set(replacement_keys)
         local_edits = {
             *(row.logical_key for row in self.occurrence_appends),
@@ -511,7 +529,14 @@ def build_staged_audit_payload(compact_payload: Mapping[str, Any]) -> dict[str, 
             raise ValueError("staged occurrence row is invalid")
         materialized = dict(zip(OCCURRENCE_COLUMNS, row, strict=True))
         occurrence_id = materialized["occurrenceId"]
-        if occurrence_id != f"occurrence_{expected_index:05d}":
+        if not isinstance(occurrence_id, str):
+            raise ValueError("staged occurrence ID is invalid")
+        occurrence_match = _OCCURRENCE_ID.fullmatch(occurrence_id)
+        if (
+            occurrence_match is None
+            or int(occurrence_match.group("index")) != expected_index
+            or int(occurrence_match.group("line")) != materialized["lineStartNumber"]
+        ):
             raise ValueError("staged occurrence table is not contiguous")
         slim_occurrences.append(
             {
@@ -608,6 +633,9 @@ def build_staged_audit_payload(compact_payload: Mapping[str, Any]) -> dict[str, 
         for row in rows:
             if not isinstance(row, Mapping):
                 raise ValueError("staged candidate row is invalid")
+            candidate_id = row.get("risk_id") if required else row.get("candidateId")
+            if not isinstance(candidate_id, str) or not candidate_id:
+                raise ValueError("staged candidate row lacks its exact host-issued ID")
             logical_keys = row.get("logicalKeys", ())
             compacted_fields = {
                 "candidateId",
@@ -641,11 +669,13 @@ def build_staged_audit_payload(compact_payload: Mapping[str, Any]) -> dict[str, 
                     for key in possible_dependencies
                     if isinstance(key, str) and key in logical_key_indexes
                 )
+            effective_required = required or row.get("requiredRevision") is True
             candidate_rows.append(
                 {
                     "candidateIndex": len(candidate_rows),
+                    "candidateId": candidate_id,
                     "kind": row.get("kind"),
-                    "requiredRevision": required,
+                    "requiredRevision": effective_required,
                     "bindingIndexes": binding_indexes,
                     "lineIds": row.get("lineIds", (row.get("line_id"),)),
                     "sourceTexts": row.get("sourceTexts", (row.get("source_text"),)),
@@ -702,6 +732,9 @@ def build_staged_audit_payload(compact_payload: Mapping[str, Any]) -> dict[str, 
         candidate["candidateIndex"] = len(merged_candidates)
         merged_candidates.append(candidate)
     candidate_rows = merged_candidates
+    candidate_ids = tuple(cast(str, row["candidateId"]) for row in candidate_rows)
+    if len(set(candidate_ids)) != len(candidate_ids):
+        raise ValueError("staged candidate IDs are not unique")
 
     required_cobindings: list[dict[str, Any]] = []
     for co_binding_index, row in enumerate(
@@ -995,8 +1028,11 @@ def _audit_facet_slice(
     if any(line_id not in set(all_literal_line_ids) for line_id in selected_literal_line_ids):
         raise ValueError("facet literal assignment is outside the full review ledger")
     source_context_line_ids: set[str] = set(selected_literal_line_ids)
+    raw_annotated_source = payload.get("annotatedSource")
+    if not isinstance(raw_annotated_source, str):
+        raise ValueError("critic payload annotated source must be text")
     if crop_annotated_source:
-        source_lines = _annotated_lines(cast(str, payload.get("annotatedSource")))
+        source_lines = _annotated_lines(raw_annotated_source)
         context_numbers = {
             line
             for occurrence_index in selected_occurrence_indexes
@@ -1024,7 +1060,7 @@ def _audit_facet_slice(
             source_lines[int(line_id[1:])] for line_id in sorted(source_context_line_ids)
         )
     else:
-        annotated_source = payload.get("annotatedSource")
+        annotated_source = raw_annotated_source
     contract = dict(cast(Mapping[str, Any], payload.get("contract", {})))
     contract["schemaVersion"] = 6 if candidate_only else 5
     output = {
@@ -1531,6 +1567,125 @@ def validate_staged_facet_audit(
     return output
 
 
+def normalize_staged_facet_audit(
+    output: StagedFacetAuditOutput, payload: Mapping[str, Any]
+) -> StagedFacetAuditOutput:
+    """Canonicalize the facet's redundant candidate receipt without losing defects.
+
+    Detailed findings are the auditable semantic decision. ``candidate_dispositions`` is a compact
+    completeness receipt for the same decision and models occasionally transcribe the two lists
+    inconsistently. The host therefore derives that redundant receipt from findings, while
+    materializing every deterministic ``requiredRevision`` candidate as a finding if the model
+    omitted it. Optional disposition-only flags cannot invent an unsupported defect.
+    """
+
+    candidates_by_index = _indexed_rows(
+        payload.get("candidateRows"), index_key="candidateIndex", kind="candidate"
+    )
+    supplied_disposition_indexes = {row.candidate_index for row in output.candidate_dispositions}
+    extra_dispositions = supplied_disposition_indexes - set(candidates_by_index)
+    if extra_dispositions:
+        raise ValueError(
+            "facet candidate dispositions reference candidates outside the facet: "
+            + ", ".join(str(index) for index in sorted(extra_dispositions))
+        )
+    finding_candidates = {
+        index for finding in output.findings for index in finding.candidate_indexes
+    }
+    extra_finding_candidates = finding_candidates - set(candidates_by_index)
+    if extra_finding_candidates:
+        raise ValueError(
+            "facet findings reference candidates outside the facet: "
+            + ", ".join(str(index) for index in sorted(extra_finding_candidates))
+        )
+
+    findings = list(output.findings)
+    required_candidates = {
+        index for index, row in candidates_by_index.items() if row.get("requiredRevision") is True
+    }
+    for candidate_index in sorted(required_candidates - finding_candidates):
+        candidate = candidates_by_index[candidate_index]
+        line_ids = tuple(
+            line_id
+            for line_id in cast(Sequence[Any], candidate.get("lineIds", ()))
+            if isinstance(line_id, str)
+        )
+        if not line_ids:
+            raise ValueError(f"host-required candidate {candidate_index} has no evidence line IDs")
+        source_texts = tuple(
+            source_text
+            for source_text in cast(Sequence[Any], candidate.get("sourceTexts", ()))
+            if isinstance(source_text, str) and source_text.strip()
+        )
+        binding_indexes = tuple(
+            index
+            for index in cast(Sequence[Any], candidate.get("bindingIndexes", ()))
+            if isinstance(index, int) and not isinstance(index, bool)
+        )
+        repeated = candidate.get("kind") == "unowned_exact_repeat" and bool(binding_indexes)
+        if repeated:
+            bindings_by_index = _indexed_rows(
+                payload.get("bindings"), index_key="bindingIndex", kind="binding"
+            )
+            occurrences_by_index = _indexed_rows(
+                payload.get("occurrences"),
+                index_key="occurrenceRowIndex",
+                kind="occurrence",
+            )
+            owner_line_ids = {
+                f"L{line:05d}"
+                for binding_index in binding_indexes
+                for occurrence_index in cast(
+                    Sequence[int],
+                    bindings_by_index[binding_index].get("occurrenceIndexes", ()),
+                )
+                for line in range(
+                    cast(int, occurrences_by_index[occurrence_index]["lineStart"]),
+                    cast(int, occurrences_by_index[occurrence_index]["lineEnd"]) + 1,
+                )
+            }
+            line_ids = tuple(
+                sorted(set(line_ids) | owner_line_ids, key=lambda value: int(value[1:]))
+            )
+        candidate_id = candidate.get("candidateId")
+        findings.append(
+            StagedAuditFinding(
+                finding_kind=("unowned_repeated_fact" if repeated else "unowned_shipment_fact"),
+                line_ids=line_ids,
+                evidence=" | ".join(source_texts) if source_texts else str(candidate_id),
+                explanation=(
+                    f"Host-proven required candidate {candidate_id} remains unowned; the repair "
+                    "plan must resolve its supplied source evidence."
+                ),
+                binding_indexes=binding_indexes if repeated else (),
+                candidate_indexes=(candidate_index,),
+            )
+        )
+    normalized_finding_candidates = {
+        index for finding in findings for index in finding.candidate_indexes
+    }
+    normalized_dispositions = tuple(
+        StagedFacetCandidateDisposition(
+            candidate_index=index,
+            conclusion=(
+                "defect_requires_revision"
+                if index in normalized_finding_candidates
+                else "valid_current_state"
+            ),
+        )
+        for index in candidates_by_index
+    )
+    normalized_verdict = "revise" if findings else "pass"
+    normalized = output.model_copy(
+        update={
+            "verdict": normalized_verdict,
+            "findings": tuple(findings),
+            "candidate_dispositions": normalized_dispositions,
+        }
+    )
+    return validate_staged_facet_audit(normalized, payload)
+
+
 def merge_staged_facet_audits(
     *,
     outputs: Sequence[StagedFacetAuditOutput],
@@ -1592,6 +1747,8 @@ def staged_audit_pass(output: StagedAuditOutput) -> CriticAgentOutput:
         occurrence_removals=(),
         additional_bindings=(),
         semantic_only_target_facts=(),
+        coherence_decisions=(),
+        exhaustive_audit_receipt=True,
         rationale=output.rationale,
     )
 
@@ -1736,8 +1893,8 @@ def build_staged_plan_payload(
     changed = True
     while changed:
         changed = False
-        for row in required:
-            component = set(cast(Sequence[int], row["targetPathIndexes"]))
+        for required_row in required:
+            component = set(cast(Sequence[int], required_row["targetPathIndexes"]))
             if component & target_indexes and not component <= target_indexes:
                 target_indexes.update(component)
                 changed = True
@@ -1760,8 +1917,8 @@ def build_staged_plan_payload(
             )
             exact_owners[identity].add(logical_key)
     named_occurrence_candidates = []
-    for row in candidate_occurrences:
-        candidate = dict(zip(columns, row, strict=True))
+    for candidate_row in candidate_occurrences:
+        candidate = dict(zip(columns, candidate_row, strict=True))
         identity = (
             int(cast(str, candidate["lineStart"])[1:]),
             int(cast(str, candidate["lineEnd"])[1:]),
@@ -1951,6 +2108,100 @@ def _augment_proven_repeat_appends(
     return plan.model_copy(update={"occurrence_appends": (*plan.occurrence_appends, *additions)})
 
 
+def _augment_unambiguous_coherence_decisions(
+    *,
+    plan: StagedCriticPlanOutput,
+    audit: StagedAuditOutput,
+    plan_payload: Mapping[str, Any],
+) -> StagedCriticPlanOutput:
+    """Complete a coherence operation already decided by the semantic audit.
+
+    The host still requires the critic to decide whether a numeric coincidence is meaningful.
+    Once a ``missing_coherence_dependency`` finding makes that semantic decision and its cited
+    candidate has exactly one host-proved contract, asking the transaction planner to transcribe
+    the only possible suggestion is redundant and caused valid audits to fail closed.
+    """
+
+    existing_ids = {decision.candidate_id for decision in plan.coherence_decisions}
+    additions = tuple(
+        decision
+        for decision in host_completable_coherence_decisions(
+            findings=audit.findings,
+            candidate_rows=cast(Sequence[Mapping[str, Any]], plan_payload.get("candidateRows", ())),
+        )
+        if decision.candidate_id not in existing_ids
+    )
+    if not additions:
+        return plan
+    return plan.model_copy(update={"coherence_decisions": (*plan.coherence_decisions, *additions)})
+
+
+def host_completable_coherence_decisions(
+    *,
+    findings: Sequence[StagedAuditFinding | Mapping[str, Any]],
+    candidate_rows: Sequence[Mapping[str, Any]],
+) -> tuple[CoherenceCandidateDecision, ...]:
+    """Return unique host operations for relations the semantic audit already proved."""
+
+    candidates_by_index = _indexed_rows(
+        candidate_rows, index_key="candidateIndex", kind="candidate"
+    )
+    decisions: dict[str, CoherenceCandidateDecision] = {}
+    for finding_index, finding in enumerate(findings):
+        if isinstance(finding, StagedAuditFinding):
+            normalized_finding_kind: str | None = finding.finding_kind
+            candidate_indexes = finding.candidate_indexes
+        else:
+            raw_finding_kind = finding.get("finding_kind")
+            normalized_finding_kind = (
+                raw_finding_kind if isinstance(raw_finding_kind, str) else None
+            )
+            raw_indexes = finding.get("candidate_indexes", ())
+            candidate_indexes = tuple(raw_indexes) if isinstance(raw_indexes, (tuple, list)) else ()
+        if normalized_finding_kind != "missing_coherence_dependency":
+            continue
+        for candidate_index in candidate_indexes:
+            if not isinstance(candidate_index, int) or isinstance(candidate_index, bool):
+                continue
+            candidate = candidates_by_index.get(candidate_index)
+            if (
+                candidate is None
+                or candidate.get("kind") != "cross_field_semantic_relation"
+                or candidate.get("requiredRevision") is not True
+            ):
+                continue
+            candidate_id = candidate.get("candidateId")
+            details = candidate.get("details")
+            suggestions = (
+                details.get("suggestedContracts", ()) if isinstance(details, Mapping) else ()
+            )
+            ambiguous = (
+                details.get("ambiguousAlternatives") if isinstance(details, Mapping) else None
+            )
+            if (
+                not isinstance(candidate_id, str)
+                or ambiguous is not False
+                or not isinstance(suggestions, (tuple, list))
+                or len(suggestions) != 1
+                or not isinstance(suggestions[0], Mapping)
+            ):
+                continue
+            decisions.setdefault(
+                candidate_id,
+                CoherenceCandidateDecision(
+                    candidate_id=candidate_id,
+                    disposition="apply_suggestion",
+                    suggestion_index=0,
+                    rationale=(
+                        f"Host completed audit finding {finding_index}: the critic identified a "
+                        "missing coherence dependency and the evidence exposes exactly one "
+                        "unambiguous host-proved contract."
+                    ),
+                ),
+            )
+    return tuple(decisions.values())
+
+
 def restore_staged_plan(
     *,
     plan: StagedCriticPlanOutput,
@@ -1961,6 +2212,11 @@ def restore_staged_plan(
 ) -> CriticAgentOutput:
     from .host import inventory_binding_id
 
+    plan = _augment_unambiguous_coherence_decisions(
+        plan=plan,
+        audit=audit,
+        plan_payload=plan_payload,
+    )
     plan = _augment_proven_repeat_appends(plan=plan, audit=audit, plan_payload=plan_payload)
     allowed = set(cast(Sequence[str], plan_payload.get("allowedRemovalLogicalKeys")))
     plan_bindings = plan_payload.get("bindings")
@@ -1985,7 +2241,7 @@ def restore_staged_plan(
         ]
         return candidates[0] if len(candidates) == 1 else logical_key
 
-    normalized_remove_keys = tuple(
+    normalized_remove_keys = list(
         dict.fromkeys(canonical_existing_key(key) for key in plan.remove_binding_logical_keys)
     )
     edit_keys = {
@@ -2017,6 +2273,61 @@ def restore_staged_plan(
         if logical_key in inventory_by_key:
             raise ValueError("critic plan source inventory has duplicate logical keys")
         inventory_by_key[logical_key] = row
+
+    occurrence_edit_keys = {
+        *(canonical_existing_key(row.logical_key) for row in plan.occurrence_appends),
+        *(canonical_existing_key(row.logical_key) for row in plan.occurrence_removals),
+    }
+    for binding_index, restored_binding in enumerate(restored_bindings):
+        logical_key = canonical_existing_key(restored_binding.logical_key)
+        current = inventory_by_key.get(logical_key)
+        if current is None or logical_key in normalized_remove_keys:
+            continue
+        if logical_key in occurrence_edit_keys:
+            raise ValueError(
+                "critic plan cannot combine a same-key replacement with occurrence edits: "
+                + logical_key
+            )
+        current_occurrences = current.get("occurrences")
+        if not isinstance(current_occurrences, (tuple, list)) or any(
+            not isinstance(occurrence, Mapping) for occurrence in current_occurrences
+        ):
+            raise ValueError("critic plan source inventory has invalid occurrences")
+        current_identities = {
+            (
+                occurrence.get("lineStart"),
+                occurrence.get("lineEnd"),
+                occurrence.get("sourceText"),
+                occurrence.get("occurrenceIndex"),
+            )
+            for occurrence in cast(Sequence[Mapping[str, Any]], current_occurrences)
+        }
+        proposed_identities = {
+            (
+                occurrence.line_start,
+                occurrence.line_end,
+                occurrence.source_text,
+                occurrence.occurrence_index,
+            )
+            for occurrence in restored_binding.occurrences
+        }
+        missing = current_identities - proposed_identities
+        if missing:
+            raise ValueError(
+                "critic same-key replacement omits current occurrences; use an occurrence append "
+                f"or carry the complete binding: {logical_key}; missing={len(missing)}"
+            )
+        normalized_remove_keys.append(logical_key)
+        restored_bindings[binding_index] = restored_binding.model_copy(
+            update={
+                "logical_key": logical_key,
+                "rationale": (
+                    restored_binding.rationale
+                    + " Host normalized the complete same-key proposal to an atomic full "
+                    "replacement."
+                ),
+            }
+        )
 
     binding_index_by_key = {
         cast(str, row["logicalKey"]): cast(int, row["bindingIndex"]) for row in plan_bindings
@@ -2174,39 +2485,39 @@ def restore_staged_plan(
             )
         )
 
-    current_occurrences: dict[str, tuple[str, AgentOccurrence]] = {}
+    current_occurrences_by_id: dict[str, tuple[str, AgentOccurrence]] = {}
     occurrence_rows = cast(Sequence[Sequence[Any]], compact_payload.get("occurrenceRows"))
     binding_rows = cast(Sequence[Sequence[Any]], compact_payload.get("bindingRows"))
     occurrence_models: dict[str, AgentOccurrence] = {}
-    for row in occurrence_rows:
-        materialized = dict(zip(OCCURRENCE_COLUMNS, row, strict=True))
-        occurrence_models[materialized["occurrenceId"]] = AgentOccurrence(
-            line_start=f"L{materialized['lineStartNumber']:05d}",
-            line_end=f"L{materialized['lineEndNumber']:05d}",
-            source_text=materialized["sourceText"],
-            occurrence_index=materialized["occurrenceIndex"],
+    for occurrence_row in occurrence_rows:
+        occurrence_data = dict(zip(OCCURRENCE_COLUMNS, occurrence_row, strict=True))
+        occurrence_models[occurrence_data["occurrenceId"]] = AgentOccurrence(
+            line_start=f"L{occurrence_data['lineStartNumber']:05d}",
+            line_end=f"L{occurrence_data['lineEndNumber']:05d}",
+            source_text=occurrence_data["sourceText"],
+            occurrence_index=occurrence_data["occurrenceIndex"],
         )
-    for row in binding_rows:
-        materialized = dict(zip(BINDING_COLUMNS, row, strict=True))
-        for occurrence_id in materialized["occurrenceIds"]:
-            current_occurrences[occurrence_id] = (
-                materialized["logicalKey"],
+    for binding_row in binding_rows:
+        binding_data = dict(zip(BINDING_COLUMNS, binding_row, strict=True))
+        for occurrence_id in binding_data["occurrenceIds"]:
+            current_occurrences_by_id[occurrence_id] = (
+                binding_data["logicalKey"],
                 occurrence_models[occurrence_id],
             )
     occurrence_ids_by_key: dict[str, set[str]] = {}
-    for occurrence_id, (logical_key, _occurrence) in current_occurrences.items():
+    for occurrence_id, (logical_key, _occurrence) in current_occurrences_by_id.items():
         occurrence_ids_by_key.setdefault(logical_key, set()).add(occurrence_id)
     normalized_full_removal_keys = list(normalized_remove_keys)
     removals: list[CriticOccurrenceRemoval] = []
     for removal in plan.occurrence_removals:
         removal_logical_key = canonical_existing_key(removal.logical_key)
-        materialized: list[AgentOccurrence] = []
+        removed_occurrences: list[AgentOccurrence] = []
         selected_occurrence_ids: list[str] = []
         retargeted = False
         for occurrence_id in removal.occurrence_ids:
-            if occurrence_id not in current_occurrences:
+            if occurrence_id not in current_occurrences_by_id:
                 raise ValueError("critic plan removes an unknown current occurrence")
-            owner, occurrence = current_occurrences[occurrence_id]
+            owner, occurrence = current_occurrences_by_id[occurrence_id]
             if owner != removal_logical_key:
                 cited_lines = finding_lines_by_key.get(removal_logical_key, set())
                 alternatives = tuple(
@@ -2215,18 +2526,18 @@ def restore_staged_plan(
                     if any(
                         line in cited_lines
                         for line in range(
-                            int(current_occurrences[candidate_id][1].line_start[1:]),
-                            int(current_occurrences[candidate_id][1].line_end[1:]) + 1,
+                            int(current_occurrences_by_id[candidate_id][1].line_start[1:]),
+                            int(current_occurrences_by_id[candidate_id][1].line_end[1:]) + 1,
                         )
                     )
                 )
                 if len(alternatives) != 1:
                     raise ValueError("critic plan occurrence removal has the wrong owner")
                 occurrence_id = alternatives[0]
-                owner, occurrence = current_occurrences[occurrence_id]
+                owner, occurrence = current_occurrences_by_id[occurrence_id]
                 retargeted = True
             selected_occurrence_ids.append(occurrence_id)
-            materialized.append(occurrence)
+            removed_occurrences.append(occurrence)
         selected_ids = set(selected_occurrence_ids)
         if len(selected_ids) != len(selected_occurrence_ids):
             raise ValueError("critic plan occurrence removal resolves to a duplicate occurrence")
@@ -2236,7 +2547,7 @@ def restore_staged_plan(
             removals.append(
                 CriticOccurrenceRemoval(
                     logical_key=removal_logical_key,
-                    occurrences=tuple(materialized),
+                    occurrences=tuple(removed_occurrences),
                     rationale=(
                         removal.rationale
                         + (
@@ -2258,6 +2569,8 @@ def restore_staged_plan(
         occurrence_removals=tuple(removals),
         additional_bindings=tuple(restored_bindings),
         semantic_only_target_facts=plan.semantic_only_target_facts,
+        coherence_decisions=plan.coherence_decisions,
+        exhaustive_audit_receipt=True,
         rationale=plan.rationale,
     )
 
@@ -2360,6 +2673,12 @@ def build_local_compiler_repair_payload(
     prior_declared_paths = {
         path for binding, _occurrence_lines, paths in binding_scopes for path in paths
     } | {row.target_path for row in prior.semantic_only_target_facts}
+    allowed_path_set = {path for path in allowed_paths if isinstance(path, str)}
+    invalid_prior_semantic_paths = {
+        row.target_path
+        for row in prior.semantic_only_target_facts
+        if row.target_path not in allowed_path_set
+    }
     explicit_prior_paths = {
         path
         for path in prior_declared_paths
@@ -2419,8 +2738,15 @@ def build_local_compiler_repair_payload(
         referenced_lines.update(binding_scopes[index][1])
     for index in selected_anchor_indexes:
         referenced_lines.update(anchor_scopes[index][1])
+    # Invalid prior declarations are absent from the valid target vocabulary by definition, but
+    # they must remain inside the transaction's removal vocabulary. Omitting them gave the model
+    # a host error it had no schema-valid way to repair.
     selected_semantic = tuple(
-        row for row in prior.semantic_only_target_facts if row.target_path in context_paths
+        row
+        for row in prior.semantic_only_target_facts
+        if row.target_path in context_paths
+        or row.target_path in explicit_prior_paths
+        or row.target_path in invalid_prior_semantic_paths
     )
     selected_anchor_ids = {
         str(occurrence.get("anchorBindingId"))
@@ -2446,7 +2772,13 @@ def build_local_compiler_repair_payload(
             or set(cast(Sequence[str], row.get("targetPaths", ()))) & context_paths
         )
     )
-    if not (referenced_lines or referenced_paths or referenced_anchor_ids or selected_keys):
+    if not (
+        referenced_lines
+        or referenced_paths
+        or referenced_anchor_ids
+        or selected_keys
+        or selected_semantic
+    ):
         raise ValueError("host rejection cannot be safely projected onto a local repair slice")
     initially_scoped_lines = {
         line
@@ -2454,7 +2786,10 @@ def build_local_compiler_repair_payload(
         for line in range(referenced - halo_lines, referenced + halo_lines + 1)
         if line in source_lines
     }
-    if not initially_scoped_lines:
+    invalid_prior_paths = (explicit_prior_paths - allowed_path_set) | invalid_prior_semantic_paths
+    if not initially_scoped_lines and not any(
+        row.target_path in invalid_prior_paths for row in selected_semantic
+    ):
         raise ValueError("local compiler repair has no source window")
 
     source_label = payload.get("sourceLabel")
@@ -2756,9 +3091,7 @@ def build_local_compiler_repair_payload(
         "occurrenceCandidates": scoped_occurrence_candidates,
         "targetFacts": target_facts,
         "targetContexts": target_contexts,
-        "invalidPriorTargetPaths": tuple(
-            sorted(explicit_prior_paths - set(cast(Sequence[str], allowed_paths)))
-        ),
+        "invalidPriorTargetPaths": tuple(sorted(invalid_prior_paths)),
         "requiredTargetCoBindings": selected_co_bindings,
         "candidateSlice": {
             "carrier": prior.carrier.model_dump(mode="json") if carrier_selected else None,

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 from pathlib import Path
 
+from document_ocr.atomic import atomic_publish_json, read_regular_file_bytes
 from document_ocr.synthesis.config import (
     load_synthesis_cargo_language_probe_config,
     load_synthesis_controlled_pilot_config,
@@ -37,6 +39,8 @@ from document_ocr.synthesis.config import (
 )
 from document_ocr.synthesis.pipeline import prepare_synthesis_foundation
 from document_ocr.synthesis.preparation import prepare_synthesis_corpus
+
+_EXIT_INCOMPLETE = 5
 
 
 def main() -> None:
@@ -99,11 +103,20 @@ def main() -> None:
         "validate-raw-text-pipeline-config",
         "preflight-raw-text-pipeline",
         "run-raw-text-pipeline",
+        "validate-template-compilation-config",
+        "preflight-template-compilation",
+        "compile-raw-text-templates",
     ):
         command = commands.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
         command.add_argument("--project-root", type=Path, default=Path.cwd())
+    readiness = commands.add_parser("audit-template-compilation-readiness")
+    readiness.add_argument("--config", required=True, type=Path)
+    readiness.add_argument("--project-root", type=Path, default=Path.cwd())
+    readiness.add_argument("--checkpoint-root", action="append", type=Path, default=[])
+    readiness.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args()
+    exit_code = 0
     try:
         project_root = arguments.project_root.resolve(strict=True)
         if arguments.config.is_symlink():
@@ -112,6 +125,15 @@ def main() -> None:
         if not config_path.is_file():
             raise ValueError("configuration must be a real file")
         if arguments.command in {
+            "validate-template-compilation-config",
+            "preflight-template-compilation",
+            "compile-raw-text-templates",
+            "audit-template-compilation-readiness",
+        }:
+            from document_ocr.synthesis.template_compiler.pipeline import load_config
+
+            template_compilation_config = load_config(config_path)
+        elif arguments.command in {
             "validate-raw-text-pipeline-config",
             "preflight-raw-text-pipeline",
             "run-raw-text-pipeline",
@@ -260,32 +282,103 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-raw-text-pipeline-config":
+        if arguments.command == "audit-template-compilation-readiness":
+            from document_ocr.synthesis.template_compiler.readiness import (
+                preflight_corpus_readiness,
+            )
+
+            if arguments.output.is_symlink():
+                raise ValueError("readiness output must not be a symbolic link")
+            output = (
+                arguments.output
+                if arguments.output.is_absolute()
+                else project_root / arguments.output
+            )
+            output_parent = output.parent.resolve(strict=True)
+            try:
+                output_parent.relative_to(project_root)
+            except ValueError as error:
+                raise ValueError("readiness output escapes the project root") from error
+            output = output_parent / output.name
+            readiness_report = preflight_corpus_readiness(
+                project_root=project_root,
+                config_path=config_path,
+                checkpoint_roots=tuple(arguments.checkpoint_root),
+            )
+            atomic_publish_json(output, readiness_report)
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(output),
+                "offline_gate_passed": readiness_report["offlineGatePassed"],
+                "documents": readiness_report["deterministicallyPreflightedDocuments"],
+                "checkpoint_replay": readiness_report["checkpointReplay"],
+            }
+        elif arguments.command == "validate-template-compilation-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",
-                "run_id": raw_text_pipeline_config.run.run_id,
+                "run_name": template_compilation_config.run_name,
+                "documents": template_compilation_config.workflow.documents,
+                "model": template_compilation_config.compiler_provider.model,
+                "max_concurrent_documents": (
+                    template_compilation_config.workflow.max_concurrent_documents
+                ),
+                "max_concurrent_requests": (
+                    template_compilation_config.workflow.max_concurrent_requests
+                ),
+            }
+        elif arguments.command == "preflight-template-compilation":
+            from document_ocr.synthesis.template_compiler.pipeline import preflight_extraction
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_extraction(
+                    project_root=project_root,
+                    config_path=config_path,
+                ),
+            }
+        elif arguments.command == "compile-raw-text-templates":
+            from document_ocr.synthesis.template_compiler.pipeline import run_extraction
+
+            artifact_root = asyncio.run(
+                run_extraction(
+                    project_root=project_root,
+                    config_path=config_path,
+                )
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("template compilation summary must be an object")
+            acceptance_gate_passed = summary.get("acceptanceGatePassed")
+            if not isinstance(acceptance_gate_passed, bool):
+                raise ValueError(
+                    "template compilation summary acceptanceGatePassed must be a boolean"
+                )
+            status_counts = summary.get("statusCounts")
+            if not isinstance(status_counts, dict):
+                raise ValueError("template compilation summary statusCounts must be an object")
+            exit_code = 0 if acceptance_gate_passed else _EXIT_INCOMPLETE
+            result = {
+                "command": arguments.command,
+                "status": "complete" if acceptance_gate_passed else "incomplete",
+                "artifact": str(artifact_root),
+                "acceptance_gate_passed": acceptance_gate_passed,
+                "status_counts": status_counts,
+            }
+        elif arguments.command == "validate-raw-text-pipeline-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": raw_text_pipeline_config.run_name,
                 "documents": raw_text_pipeline_config.workflow.documents,
-                "inventory_rounds": (
-                    raw_text_pipeline_config.workflow.max_inventory_rounds
+                "template_run": raw_text_pipeline_config.inputs.template_run.path,
+                "max_requests_per_document": (
+                    raw_text_pipeline_config.workflow.max_requests_per_document
                 ),
-                "certification_shard_size": (
-                    raw_text_pipeline_config.certification.shard_size
-                ),
-                "correction_rounds": (
-                    raw_text_pipeline_config.correction.max_rounds_per_document
-                ),
-                "correction_attempts_per_round": (
-                    raw_text_pipeline_config.correction.max_attempts_per_round
-                ),
-                "resume_mode": (
-                    "pipeline"
-                    if raw_text_pipeline_config.pipeline_resume_run is not None
-                    else (
-                        "inventory"
-                        if raw_text_pipeline_config.inventory_resume_run is not None
-                        else "fresh"
-                    )
+                "publishes_training_records": (
+                    raw_text_pipeline_config.workflow.publish_training_records
                 ),
             }
         elif arguments.command == "preflight-raw-text-pipeline":
@@ -303,14 +396,19 @@ def main() -> None:
         elif arguments.command == "run-raw-text-pipeline":
             from document_ocr.synthesis.raw_text_pipeline import run_raw_text_pipeline
 
+            pipeline_result = run_raw_text_pipeline(
+                project_root=project_root,
+                config_path=config_path,
+                config=raw_text_pipeline_config,
+            )
+            pipeline_status = pipeline_result.get("status")
+            if pipeline_status not in {"passed", "failed"}:
+                raise ValueError("raw-text pipeline summary status must be passed or failed")
+            exit_code = 0 if pipeline_status == "passed" else _EXIT_INCOMPLETE
             result = {
                 "command": arguments.command,
-                "status": "complete",
-                "result": run_raw_text_pipeline(
-                    project_root=project_root,
-                    config_path=config_path,
-                    config=raw_text_pipeline_config,
-                ),
+                "status": "complete" if pipeline_status == "passed" else "incomplete",
+                "result": pipeline_result,
             }
         elif arguments.command == "validate-raw-text-certified-publication-config":
             result = {
@@ -953,7 +1051,7 @@ def main() -> None:
         )
         raise SystemExit(4) from None
     print(json.dumps(result, allow_nan=False, sort_keys=True))
-    raise SystemExit(0)
+    raise SystemExit(exit_code)
 
 
 if __name__ == "__main__":

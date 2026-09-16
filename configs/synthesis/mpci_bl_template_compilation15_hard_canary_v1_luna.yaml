@@ -1,0 +1,98 @@
+schema_version: 1
+task: bill_of_lading_raw_text_template_compilation_v1
+phase: template_compilation
+run_name: mpci-bl-template-compilation15-hard-canary-v1-luna-high
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+
+prompts:
+  compiler:
+    path: src/document_ocr/synthesis/template_compiler/prompts/compiler.md
+    sha256: bff9d2d94708a307290357ec2c0451ecb697f6bb870372ba1da600f42dbe3462
+  critic:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic.md
+    sha256: 030a7e7bf443bd56c0830cdd51f2c2fc5bd42900109d8c36a7bf4a97cf239f3b
+  critic_audit:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-audit-v4.md
+    sha256: fbaac17804901fc07a3243bb6a59317b76a85804708e120a709ffc6d01e51f71
+  critic_plan:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-plan-v4.md
+    sha256: 5cac8cfb3dfcb0e9ad397de2bda0dab799ae20af84370b32b7be4a58e4337bdc
+
+compiler_provider: &luna
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 65536
+  store_responses: false
+  pricing:
+    currency: USD
+    effective_date: 2026-09-03
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+critic_provider:
+  <<: *luna
+  max_output_tokens: 32768
+
+workflow:
+  documents: 15
+  agent_contract_protocol: hybrid_reference_partitioned_v10
+  max_concurrent_documents: 8
+  max_concurrent_requests: 8
+  max_compiler_passes: 4
+  max_critic_passes: 4
+  compiler_output_retries: 1
+  critic_output_retries: 1
+  partition_critic_above_request_bytes: 200000
+  additional_call_launch_threshold_usd_per_document: 0.15
+  provider_launch_authorized: false
+  certified_resume_policy: current_host_recertify
+  require_no_rejected_documents: true
+  require_carrier_resolution: true
+  require_source_round_trip: true
+  require_all_risk_candidates_owned: true
+  require_final_critic_pass: true
+  require_sentinel_isolation: true
+  publish_training_records: false
+
+selection_seed: 20260912
+resume_from:
+  path: artifacts/kie-synthesis/mpci-bl-template-compilation5-production-canary-v1-luna-high
+  commit_sha256: d8ceae6db1b2e98c08655006b5c7d26488534a1fad9f11027fe83c0c45e8873e
+  allow_prompt_change: false
+pinned_document_ids:
+  - doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37
+  - doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578
+  - doc_951024129bf38a16234b6b31e924e0bf72ec56207be8d68bb9af51927447a358
+  - doc_3973440c769a905e8ad788afd47c91a6481f301bc8d0bb48103d78f5913c80c8
+  - doc_26ccea2924c27fc24c1225e5019237dd79f0794a3a9c3b8732a3e6f04791aa5e
+  - doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec
+  - doc_2f4d1db9a837beeb77e9d1a15dd788fde0487832915a868bf4bc6f735b2a9a5d
+  - doc_8add9a5cdafb88471b8e2d7b3b9329989fd5406bcb09bf1e63466a742b3abe01
+  - doc_1b350db11b729c1d750e57cb4067fe0bf1e6d9601b7c79d0c7adc57f1cbb4209
+  - doc_fdbc7d941b71f98dcc86796e2999a8ba48e8833aea2bd6fab484fc4a3ebc1584
+  - doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1
+  - doc_c82b915fb0208b369be29f78d0e0876f77e2d6c6ac9a4319bfee13e0b0ba38a6
+  - doc_49e600f728488dcf755975fc37ca4fbb4a14ed52c8959b34c03fb3ef64fde933
+  - doc_882f29b6f33b4c1645bd0e9dd607c31c526d5d16be1cb6521de680d7ba2d0f38
+  - doc_9184af53353a119908f54974f522dd2ec5695c426c16c6ab48cb21d178ceca51

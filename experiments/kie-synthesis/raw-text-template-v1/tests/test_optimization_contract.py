@@ -243,6 +243,7 @@ def test_discriminated_critic_pass_has_no_patch_surface() -> None:
     assert isinstance(translated, CriticPassOutput)
     assert translated.model_dump(mode="json") == {
         "verdict": "pass",
+        "coherence_decisions": [],
         "rationale": "No defect remains.",
     }
 

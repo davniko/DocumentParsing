@@ -5,7 +5,7 @@ import hashlib
 import re
 import unicodedata
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -240,7 +240,7 @@ def _assert_development_coverage(
 def _preselect_transfer_risks(
     *, candidates: Sequence[str], features: Mapping[str, Mapping[str, Any]], seed: int
 ) -> list[str]:
-    requirements = {
+    requirements: dict[str, tuple[int, Callable[[Mapping[str, Any]], bool]]] = {
         "dangerous_goods": (12, lambda row: bool(row["dangerous_goods_present"])),
         "temperature": (20, lambda row: bool(row["temperature_present"])),
         "multi_goods": (24, lambda row: bool(row["multi_goods"])),
@@ -315,6 +315,7 @@ def build_selection_manifest(
             else "carrier_requires_ocr_resolution"
         )
 
+    basis_by_id: dict[str, tuple[str, ...]]
     if config.pinned_document_ids:
         missing = sorted(set(config.pinned_document_ids) - eligible)
         if missing:
@@ -384,7 +385,7 @@ def build_selection_manifest(
             initial_tags=initial,
         )
         ordered = sorted(_FALSE_PASSES) + sorted(clean) + hard_additional + fresh
-        basis_by_id: dict[str, tuple[str, ...]] = {}
+        basis_by_id = {}
         for document_id in _FALSE_PASSES:
             basis_by_id[document_id] = (
                 "known_machine_false_positive",

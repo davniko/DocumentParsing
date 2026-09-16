@@ -11,14 +11,117 @@ _CARRIER_RECEIPT_HEADING = re.compile(
     re.IGNORECASE,
 )
 _SAME_LINE_CONTAINER_COUNT = re.compile(
-    r"\b(?P<count>[0-9][0-9,]*)[ \t]+(?:CNTRS?|CONTAINER\(S\)|CONTAINERS?)\b",
+    r"(?:\(|\b)(?P<count>[0-9][0-9,]*|"
+    r"(?:ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|"
+    r"THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|"
+    r"THIRTY|FORTY|FIFTY|SIXTY|SEVENTY|EIGHTY|NINETY|HUNDRED|THOUSAND|AND)"
+    r"(?:[ -]+(?:ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|"
+    r"TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|"
+    r"TWENTY|THIRTY|FORTY|FIFTY|SIXTY|SEVENTY|EIGHTY|NINETY|HUNDRED|THOUSAND|"
+    r"AND))*)\)?[ \t]+(?:CNTRS?|CONTAINER\(S\)|CONTAINERS?)\b",
     re.IGNORECASE,
 )
-_STANDALONE_CONTAINER_COUNT = re.compile(
-    r"^[ \t]*(?P<count>[0-9][0-9,]*)[ \t]+"
-    r"(?:CNTRS?|CONTAINER\(S\)|CONTAINERS?)[ \t]*$",
-    re.IGNORECASE,
-)
+
+_SMALL_CARDINALS = {
+    word: value
+    for value, word in enumerate(
+        (
+            "ZERO",
+            "ONE",
+            "TWO",
+            "THREE",
+            "FOUR",
+            "FIVE",
+            "SIX",
+            "SEVEN",
+            "EIGHT",
+            "NINE",
+            "TEN",
+            "ELEVEN",
+            "TWELVE",
+            "THIRTEEN",
+            "FOURTEEN",
+            "FIFTEEN",
+            "SIXTEEN",
+            "SEVENTEEN",
+            "EIGHTEEN",
+            "NINETEEN",
+        )
+    )
+}
+_TENS_CARDINALS = {
+    "TWENTY": 20,
+    "THIRTY": 30,
+    "FORTY": 40,
+    "FIFTY": 50,
+    "SIXTY": 60,
+    "SEVENTY": 70,
+    "EIGHTY": 80,
+    "NINETY": 90,
+}
+
+
+def _english_cardinal(value: str) -> int | None:
+    compact = value.replace(",", "").strip()
+    if compact.isdigit():
+        return int(compact)
+    tokens = compact.upper().replace("-", " ").split()
+    if not tokens:
+        return None
+    total = 0
+    group = 0
+    previous = "start"
+    seen_hundred = False
+    seen_thousand = False
+    for token in tokens:
+        if token == "AND":
+            if previous in {"start", "and"}:
+                return None
+            previous = "and"
+            continue
+        if token in _SMALL_CARDINALS:
+            value_part = _SMALL_CARDINALS[token]
+            if previous in {"small", "hundred"} and not (previous == "hundred" and value_part < 20):
+                return None
+            if previous == "tens" and value_part >= 10:
+                return None
+            group += value_part
+            previous = "small"
+            continue
+        if token in _TENS_CARDINALS:
+            if previous in {"small", "tens"}:
+                return None
+            group += _TENS_CARDINALS[token]
+            previous = "tens"
+            continue
+        if token == "HUNDRED":
+            if seen_hundred or previous != "small" or not 1 <= group <= 9:
+                return None
+            group *= 100
+            seen_hundred = True
+            previous = "hundred"
+            continue
+        if token == "THOUSAND":
+            if seen_thousand or group <= 0 or previous == "and":
+                return None
+            total += group * 1000
+            group = 0
+            seen_hundred = False
+            seen_thousand = True
+            previous = "thousand"
+            continue
+        return None
+    if previous == "and":
+        return None
+    return total + group
+
+
+def _container_count_in(value: str) -> int | None:
+    for match in _SAME_LINE_CONTAINER_COUNT.finditer(value):
+        parsed = _english_cardinal(match.group("count"))
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def explicit_carrier_receipt_container_counts(raw_text: str) -> tuple[int, ...]:
@@ -36,16 +139,16 @@ def explicit_carrier_receipt_container_counts(raw_text: str) -> tuple[int, ...]:
         heading = _CARRIER_RECEIPT_HEADING.search(line)
         if heading is None:
             continue
-        same_line = _SAME_LINE_CONTAINER_COUNT.search(line[heading.end() :])
+        same_line = _container_count_in(line[heading.end() :])
         if same_line is not None:
-            counts.append(int(same_line.group("count").replace(",", "")))
+            counts.append(same_line)
             continue
         for following in lines[index + 1 : index + 4]:
             if not following.strip():
                 continue
-            match = _STANDALONE_CONTAINER_COUNT.fullmatch(following)
-            if match is not None:
-                counts.append(int(match.group("count").replace(",", "")))
+            following_count = _container_count_in(following)
+            if following_count is not None:
+                counts.append(following_count)
             break
     return tuple(counts)
 

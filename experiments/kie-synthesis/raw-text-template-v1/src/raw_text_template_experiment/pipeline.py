@@ -8,6 +8,7 @@ import resource
 import time
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import asdict
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -19,10 +20,19 @@ import yaml
 from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.run_safety import StagedArtifactRun
+from document_ocr.synthesis.template_integrity import source_template_integrity_issues
 
 from .agents import AgentRuntime
+from .coherence import (
+    CoherenceReviewRequired,
+    coherence_review_candidates,
+    materialize_coherence_decisions,
+    reconcile_coherence_constraints_after_binding_revision,
+    validate_coherence_contracts,
+)
 from .host import (
     SpanDraft,
+    all_risk_candidates,
     anchor_drafts,
     anchor_summary,
     annotated_source,
@@ -44,11 +54,11 @@ from .host import (
     normalize_structured_row_locality,
     normalize_target_cobindings,
     numbered_source,
+    reconcile_draft_overlaps,
     refuted_semantic_only_target_paths,
     required_target_cobindings,
     resolve_agent_proposal_inventory,
     resolve_agent_proposals,
-    risk_candidates,
     source_carrier,
     target_binding_surface_analysis,
     target_fact_components,
@@ -69,6 +79,7 @@ from .models import (
     AnchorOverride,
     CarrierAssessment,
     CertifiedSemanticTemplate,
+    CoherenceConstraint,
     CompilerAgentOutput,
     CriticAgentOutput,
     DraftCheckpointRow,
@@ -80,7 +91,10 @@ from .models import (
 )
 from .selection import build_selection_manifest, carrier_resolution_classification
 
-_RELATIONAL_ANCHOR_PROTOCOLS = {"relational_reference_compact_v9"}
+_RELATIONAL_ANCHOR_PROTOCOLS = {
+    "relational_reference_compact_v9",
+    "hybrid_reference_partitioned_v10",
+}
 
 
 def project_root_from_config(config_path: Path) -> Path:
@@ -106,6 +120,23 @@ def load_config(path: Path) -> ExtractionConfig:
     return ExtractionConfig.model_validate_json(
         json.dumps(payload, ensure_ascii=False, default=str)
     )
+
+
+def _require_exact_resume_prefix(
+    *,
+    prior_identity: tuple[tuple[int, str, str], ...],
+    current_identity: tuple[tuple[int, str, str], ...],
+) -> None:
+    """Require a non-empty prior selection to be the exact current prefix."""
+
+    if (
+        not prior_identity
+        or len(prior_identity) > len(current_identity)
+        or prior_identity != current_identity[: len(prior_identity)]
+    ):
+        raise ValueError(
+            "resume selection identity is not an exact prefix of the current pinned selection"
+        )
 
 
 def _load_resume_run(
@@ -176,20 +207,22 @@ def _load_resume_run(
     prior_identity = tuple(
         (row.ordinal, row.document_id, row.source_sha256) for row in prior_manifest.rows
     )
-    if prior_identity != current_identity:
-        raise ValueError("resume selection identity differs from the current pinned selection")
+    _require_exact_resume_prefix(
+        prior_identity=prior_identity,
+        current_identity=current_identity,
+    )
     results = {
         row.document_id: row
         for row in (
             ExtractionCaseResult.model_validate_json(
                 json.dumps(item, ensure_ascii=False, separators=(",", ":"))
             )
-            for item in load_jsonl(prior_results_path, len(manifest.rows))
+            for item in load_jsonl(prior_results_path, len(prior_manifest.rows))
         )
     }
-    expected_ids = {row.document_id for row in manifest.rows}
-    if set(results) != expected_ids or len(results) != len(manifest.rows):
-        raise ValueError("resume results do not cover the current selection exactly once")
+    expected_ids = {row.document_id for row in prior_manifest.rows}
+    if set(results) != expected_ids or len(results) != len(prior_manifest.rows):
+        raise ValueError("resume results do not cover the prior selection exactly once")
     return run_root, results, prompt_changed, contract_matched
 
 
@@ -253,9 +286,20 @@ def _config_inputs(
         manual_path,
         compiler_prompt_path.read_text(encoding="utf-8"),
         critic_prompt_path.read_text(encoding="utf-8"),
-        *(
-            path.read_text(encoding="utf-8") if path is not None else None
-            for path in staged_prompt_paths
+        (
+            staged_prompt_paths[0].read_text(encoding="utf-8")
+            if staged_prompt_paths[0] is not None
+            else None
+        ),
+        (
+            staged_prompt_paths[1].read_text(encoding="utf-8")
+            if staged_prompt_paths[1] is not None
+            else None
+        ),
+        (
+            staged_prompt_paths[2].read_text(encoding="utf-8")
+            if staged_prompt_paths[2] is not None
+            else None
         ),
     )
 
@@ -278,9 +322,33 @@ def _apply_validated_critic_review(
     source_target: Mapping[str, Any],
     assessment: CarrierAssessment,
     semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
-) -> tuple[tuple[SpanDraft, ...], tuple[SemanticOnlyTargetFact, ...]]:
+    coherence_constraints: Sequence[CoherenceConstraint] = (),
+    review_candidates: Sequence[Mapping[str, Any]] | None = None,
+) -> tuple[
+    tuple[SpanDraft, ...],
+    tuple[SemanticOnlyTargetFact, ...],
+    tuple[CoherenceConstraint, ...],
+]:
     if review.verdict != "revise":
         raise ValueError("critic transaction preview requires a revise decision")
+    candidate_rows = (
+        tuple(review_candidates)
+        if review_candidates is not None
+        else (
+            _critic_review_candidates(
+                raw=raw,
+                drafts=drafts,
+                source_target=source_target,
+                semantic_only_target_facts=semantic_only_target_facts,
+                coherence_constraints=coherence_constraints,
+            )
+        )
+    )
+    revised_constraints = materialize_coherence_decisions(
+        candidates=candidate_rows,
+        constraints=coherence_constraints,
+        decisions=review.coherence_decisions,
+    )
     review_semantic_only = materialize_semantic_only_target_facts(
         proposals=review.semantic_only_target_facts,
         source_target=source_target,
@@ -289,6 +357,7 @@ def _apply_validated_critic_review(
     revised = normalize_source_boundaries(
         raw=raw,
         drafts=normalize_deterministic_draft_semantics(
+            raw=raw,
             drafts=normalize_structured_row_locality(
                 raw=raw,
                 drafts=apply_critic_patch(
@@ -322,14 +391,30 @@ def _apply_validated_critic_review(
         ),
         drafts=revised,
     )
-    if binding_contract_signature(revised) == binding_contract_signature(drafts) and tuple(
-        effective_semantic_only
-    ) == tuple(semantic_only_target_facts):
+    revised_constraints = reconcile_coherence_constraints_after_binding_revision(
+        raw=raw,
+        bindings=revised,
+        source_target=source_target,
+        constraints=revised_constraints,
+    )
+    with suppress(CoherenceReviewRequired):
+        validate_coherence_contracts(
+            raw=raw,
+            bindings=revised,
+            source_target=source_target,
+            constraints=revised_constraints,
+            require_complete=False,
+        )
+    if (
+        binding_contract_signature(revised) == binding_contract_signature(drafts)
+        and tuple(effective_semantic_only) == tuple(semantic_only_target_facts)
+        and revised_constraints == tuple(coherence_constraints)
+    ):
         raise ValueError(
             "critic transaction is a functional no-op after complete host normalization; "
             "do not repeat the finding or patch unless the rendering contract actually changes"
         )
-    return revised, effective_semantic_only
+    return revised, effective_semantic_only, revised_constraints
 
 
 def _preview_critic_review(
@@ -340,16 +425,18 @@ def _preview_critic_review(
     source_target: Mapping[str, Any],
     assessment: CarrierAssessment,
     semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+    coherence_constraints: Sequence[CoherenceConstraint] = (),
 ) -> None:
-    revised, _semantic_only = _apply_validated_critic_review(
+    revised, _semantic_only, _constraints = _apply_validated_critic_review(
         review=review,
         raw=raw,
         drafts=drafts,
         source_target=source_target,
         assessment=assessment,
         semantic_only_target_facts=semantic_only_target_facts,
+        coherence_constraints=coherence_constraints,
     )
-    remaining = uncovered_risks(raw, risk_candidates(raw, ()), revised)
+    remaining = uncovered_risks(raw, all_risk_candidates(raw, (), source_target), revised)
     if remaining:
         details = "; ".join(f"{row.risk_id} {row.line_id}={row.source_text!r}" for row in remaining)
         raise ValueError(
@@ -387,6 +474,7 @@ def _latest_compiler_revision_context(
         raise ValueError(
             "compiler lineage retains an invalid candidate without an actionable host rejection"
         )
+    assert prior_rejection.error_message is not None
     return "Host rejected the compiler output: " + prior_rejection.error_message
 
 
@@ -401,9 +489,10 @@ def _materialize_compiler_drafts(
 ) -> tuple[SpanDraft, ...]:
     """Apply one compiler transaction through the canonical host normalization path."""
 
-    return normalize_source_boundaries(
+    materialized = normalize_source_boundaries(
         raw=raw,
         drafts=normalize_deterministic_draft_semantics(
+            raw=raw,
             drafts=normalize_structured_row_locality(
                 raw=raw,
                 drafts=normalize_target_cobindings(
@@ -422,6 +511,7 @@ def _materialize_compiler_drafts(
             source_target=source_target,
         ),
     )
+    return materialized
 
 
 def _compiler_host_rejection(
@@ -518,6 +608,15 @@ def _compiler_host_rejection(
         )
         for logical_key, logical_drafts in proposed_by_key.items():
             normalized_group: Sequence[SpanDraft] = logical_drafts
+            try:
+                normalized_group = reconcile_draft_overlaps(
+                    raw=raw,
+                    drafts=normalized_group,
+                    source_target=source_target,
+                )
+            except Exception as error:
+                add(f"binding overlap normalization for {logical_key}", error)
+                normalized_group = logical_drafts
             if logical_drafts[0].value_kind == "equipment":
                 original_spans = {(draft.char_start, draft.char_end) for draft in logical_drafts}
                 context = {
@@ -540,6 +639,7 @@ def _compiler_host_rejection(
                 normalized_group = normalize_source_boundaries(
                     raw=raw,
                     drafts=normalize_deterministic_draft_semantics(
+                        raw=raw,
                         drafts=normalized_group,
                         source_target=source_target,
                     ),
@@ -617,6 +717,19 @@ def _jsonl_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
     return b"".join(canonical_json_bytes(row) + b"\n" for row in rows)
 
 
+def _overlapping_literal_offsets(value: str, surface: str) -> tuple[int, ...]:
+    if not surface:
+        raise ValueError("literal occurrence surface must not be empty")
+    offsets: list[int] = []
+    cursor = 0
+    while True:
+        found = value.find(surface, cursor)
+        if found < 0:
+            return tuple(offsets)
+        offsets.append(found)
+        cursor = found + 1
+
+
 def _draft_inventory(
     raw: str,
     drafts: Sequence[SpanDraft],
@@ -638,14 +751,9 @@ def _draft_inventory(
         range_start = line_by_id[line_start].char_start
         range_end = line_by_id[line_end].char_end
         region = raw[range_start:range_end]
-        offsets: list[int] = []
-        cursor = 0
-        while True:
-            found = region.find(row.source_text, cursor)
-            if found < 0:
-                break
-            offsets.append(found)
-            cursor = found + max(1, len(row.source_text))
+        # Match the compiler occurrence resolver exactly: literal occurrences can overlap. For
+        # example, ``C.C.`` occurs twice in ``C.C.C.`` and either span can be an edit handle.
+        offsets = _overlapping_literal_offsets(region, row.source_text)
         exact_offset = row.char_start - range_start
         if exact_offset not in offsets:
             raise ValueError(
@@ -866,10 +974,11 @@ def _compiler_occurrence_candidates(
     for surface in surfaces:
         if not surface:
             continue
-        for match in re.finditer(re.escape(surface), raw):
-            if not is_token_bounded_surface_span(raw, match.start(), match.end()):
+        for start in _overlapping_literal_offsets(raw, surface):
+            end = start + len(surface)
+            if not is_token_bounded_surface_span(raw, start, end):
                 continue
-            candidates.add((match.start(), match.end(), surface))
+            candidates.add((start, end, surface))
 
     output: list[dict[str, Any]] = []
     for index, (start, end, surface) in enumerate(sorted(candidates), start=1):
@@ -889,11 +998,13 @@ def _compiler_occurrence_candidates(
         range_text = raw[start_line.char_start : end_line.char_end]
         relative_start = start - start_line.char_start
         occurrence_index = sum(
-            match.start() < relative_start for match in re.finditer(re.escape(surface), range_text)
+            offset < relative_start for offset in _overlapping_literal_offsets(range_text, surface)
         )
         output.append(
             {
-                "occurrenceId": f"compiler_occurrence_{index:05d}",
+                # This hot loop's percent formatter benchmarks materially faster than an f-string.
+                "occurrenceId": "cand_%s_%05d"  # noqa: UP031
+                % (start_line.line_id, index),
                 "lineStart": start_line.line_id,
                 "lineEnd": end_line.line_id,
                 "sourceText": surface,
@@ -976,6 +1087,7 @@ def _compiler_payload(
     if agent_contract_protocol in {
         "reference_compact_v3",
         "relational_reference_compact_v9",
+        "hybrid_reference_partitioned_v10",
         "staged_local_v4",
         "faceted_staged_local_v5",
         "partitioned_staged_local_v6",
@@ -1098,7 +1210,7 @@ def _compact_initial_compiler_payload(payload: Mapping[str, Any]) -> dict[str, A
                 path_indexes[path] for path in cast(Sequence[str], raw_binding["targetPaths"])
             )
             component_indexes = tuple(
-                tuple(path_indexes[path] for path in cast(Sequence[str], component))
+                tuple(path_indexes[path] for path in component)
                 for component in cast(
                     Sequence[Sequence[str]], raw_binding["independentTargetFactComponents"]
                 )
@@ -1254,6 +1366,7 @@ def _preflight_summary(
         if source_sha != source["joinedRawTextSha256"] or source_sha != selected.source_sha256:
             raise ValueError(f"preflight source hash differs for {document_id}")
         source_target = cast(Mapping[str, Any], source["target"])
+        integrity_issues = source_template_integrity_issues(raw, source_target)
         carrier = source_carrier(source_target)
         prepared_anchor_rows, locality_report = _prepare_anchor_rows(
             raw=raw,
@@ -1288,7 +1401,7 @@ def _preflight_summary(
             if target_path_relationship(source_target, row.target_paths)
             == "composite_target_surface"
         )
-        risks = risk_candidates(raw, ())
+        risks = all_risk_candidates(raw, (), source_target)
         capability_contract(feature, source_target)
         compiler_payload = _compiler_payload(
             document_id=document_id,
@@ -1327,6 +1440,8 @@ def _preflight_summary(
                 "requiredTargetCoBindings": len(co_bindings),
                 "riskCandidates": len(risks),
                 "compilerRequestBytes": compiler_request_bytes,
+                "sourceTemplateIntegrityIssues": integrity_issues,
+                "providerEligible": not integrity_issues,
                 "relationalAnchorLocality": locality_report,
             }
         )
@@ -1341,6 +1456,8 @@ def _preflight_summary(
         "sourceLabelCarrierPresent": sum(row["sourceLabelCarrierPresent"] for row in cases),
         "sourceLabelCarrierOcrAnchored": sum(row["sourceLabelCarrierOcrAnchored"] for row in cases),
         "carrierResolutionRequired": sum(row["carrierResolutionRequired"] for row in cases),
+        "sourceTemplateIntegrityReviewRequired": sum(not row["providerEligible"] for row in cases),
+        "providerEligibleDocuments": sum(row["providerEligible"] for row in cases),
         "compilerPromptSha256": sha256_bytes(compiler_prompt.encode("utf-8")),
         "criticPromptSha256": sha256_bytes(critic_prompt.encode("utf-8")),
         "stagedPromptSha256s": {
@@ -1504,6 +1621,7 @@ def _critic_review_candidates(
     drafts: Sequence[SpanDraft],
     source_target: Mapping[str, Any] | None = None,
     semantic_only_target_facts: Sequence[SemanticOnlyTargetFact] = (),
+    coherence_constraints: Sequence[CoherenceConstraint] = (),
 ) -> tuple[dict[str, Any], ...]:
     """Expose deterministic high-recall review leads so one critic can audit them together.
 
@@ -1607,36 +1725,30 @@ def _critic_review_candidates(
         # already guarded by row-local host normalization. Longer typed quantities retain the
         # repeat lead because their accidental-collision rate is materially lower.
         typed_quantity_candidate = typed_integer and len(normalized_source) >= 3
-        if len(normalized_source) < 5 and not (
-            typed_quantity_candidate or compact_equipment_code
-        ):
+        if len(normalized_source) < 5 and not (typed_quantity_candidate or compact_equipment_code):
             continue
         negotiability_owner = any(
             path.endswith(".negotiability") for row in owner_rows for path in row.target_paths
         )
         occurrences: list[tuple[str, str]] = []
-        for match in re.finditer(re.escape(source_text), raw):
-            if (
-                source_text[0].isalnum() and match.start() > 0 and raw[match.start() - 1].isalnum()
-            ) or (
-                source_text[-1].isalnum() and match.end() < len(raw) and raw[match.end()].isalnum()
+        for start in _overlapping_literal_offsets(raw, source_text):
+            end = start + len(source_text)
+            if (source_text[0].isalnum() and start > 0 and raw[start - 1].isalnum()) or (
+                source_text[-1].isalnum() and end < len(raw) and raw[end].isalnum()
             ):
                 continue
-            if any(
-                match.start() < draft.char_end and draft.char_start < match.end()
-                for draft in drafts
-            ):
+            if any(start < draft.char_end and draft.char_start < end for draft in drafts):
                 continue
-            if negotiability_owner and conditional_negotiability_line(current_line(match.start())):
+            if negotiability_owner and conditional_negotiability_line(current_line(start)):
                 continue
             if normalized_source == "original" and original_bill_form_title_line(
-                current_line(match.start())
+                current_line(start)
             ):
                 continue
             occurrences.append(
                 (
-                    line_id(match.start()),
-                    raw[max(0, match.start() - 48) : match.end() + 48],
+                    line_id(start),
+                    raw[max(0, start - 48) : end + 48],
                 )
             )
         if not occurrences:
@@ -1708,8 +1820,8 @@ def _critic_review_candidates(
                 (source_line.line_id, surface, current_and_previous_line(start))
             )
 
-    for normalized_surface, rows in sorted(repeated_literal_rows.items()):
-        literal_line_ids = tuple(dict.fromkeys(line for line, _surface, _context in rows))
+    for normalized_surface, literal_rows in sorted(repeated_literal_rows.items()):
+        literal_line_ids = tuple(dict.fromkeys(line for line, _surface, _context in literal_rows))
         if len(literal_line_ids) < 2:
             continue
         existing_exact_repeat = next(
@@ -1732,7 +1844,7 @@ def _critic_review_candidates(
                 dict.fromkeys(
                     (
                         *existing_exact_repeat["sourceTexts"],
-                        *(surface for _line, surface, _context in rows),
+                        *(surface for _line, surface, _context in literal_rows),
                     )
                 )
             )
@@ -1740,7 +1852,7 @@ def _critic_review_candidates(
                 dict.fromkeys(
                     (
                         *existing_exact_repeat["context"],
-                        *(context for _line, _surface, context in rows),
+                        *(context for _line, _surface, context in literal_rows),
                     )
                 )
             )
@@ -1795,8 +1907,12 @@ def _critic_review_candidates(
                 "kind": "unowned_repeated_literal_surface",
                 "logicalKeys": normalized_owner_keys,
                 "lineIds": literal_line_ids,
-                "sourceTexts": tuple(dict.fromkeys(surface for _line, surface, _context in rows)),
-                "context": tuple(dict.fromkeys(context for _line, _surface, context in rows)),
+                "sourceTexts": tuple(
+                    dict.fromkeys(surface for _line, surface, _context in literal_rows)
+                ),
+                "context": tuple(
+                    dict.fromkeys(context for _line, _surface, context in literal_rows)
+                ),
                 "details": {
                     "possibleNormalizedOwnerContexts": normalized_owner_contexts,
                     "relationshipToVerify": (
@@ -1813,8 +1929,8 @@ def _critic_review_candidates(
     # still decides whether each standalone line is selected data or fixed form grammar.
     standalone_statuses: dict[str, list[tuple[str, str]]] = {}
     offset = 0
-    for source_line in raw.splitlines(keepends=True):
-        line_text = source_line.rstrip("\r\n")
+    for raw_line in raw.splitlines(keepends=True):
+        line_text = raw_line.rstrip("\r\n")
         stripped = line_text.strip()
         relative_start = line_text.find(stripped) if stripped else 0
         start = offset + relative_start
@@ -1830,7 +1946,7 @@ def _critic_review_candidates(
             and not any(start < draft.char_end and draft.char_start < end for draft in drafts)
         ):
             standalone_statuses.setdefault(stripped, []).append((line_id(start), line_text))
-        offset += len(source_line)
+        offset += len(raw_line)
     candidates.extend(
         {
             "kind": "unowned_standalone_document_status",
@@ -1890,9 +2006,8 @@ def _critic_review_candidates(
                 match = pattern.search(source_line.text)
                 if match is None:
                     continue
-                if (
-                    fact.target_path.endswith(".negotiability")
-                    and conditional_negotiability_line(source_line.text)
+                if fact.target_path.endswith(".negotiability") and conditional_negotiability_line(
+                    source_line.text
                 ):
                     continue
                 absolute_start = source_line.char_start + match.start()
@@ -2023,10 +2138,10 @@ def _critic_review_candidates(
         scope_groups.setdefault((first.group_kind, first.group_key, first.value_kind), []).append(
             logical_key
         )
-    for scope, logical_keys in sorted(scope_groups.items()):
-        for left_index, left_key in enumerate(sorted(logical_keys)):
+    for scope, scope_logical_keys in sorted(scope_groups.items()):
+        for left_index, left_key in enumerate(sorted(scope_logical_keys)):
             left_values = {row.source_text for row in grouped[left_key]}
-            for right_key in sorted(logical_keys)[left_index + 1 :]:
+            for right_key in sorted(scope_logical_keys)[left_index + 1 :]:
                 right_values = {row.source_text for row in grouped[right_key]}
                 relationships = {
                     (left, right)
@@ -2308,8 +2423,7 @@ def _critic_review_candidates(
                     and any(
                         "numberoforiginal" in normalized(current_and_previous_line(row.char_start))
                         and (
-                            "billsoflading"
-                            in normalized(current_and_previous_line(row.char_start))
+                            "billsoflading" in normalized(current_and_previous_line(row.char_start))
                             or "fbl" in normalized(current_and_previous_line(row.char_start))
                         )
                         for row in rows
@@ -2460,6 +2574,16 @@ def _critic_review_candidates(
                     }
                 )
 
+    if source_target is not None:
+        candidates.extend(
+            coherence_review_candidates(
+                raw=raw,
+                bindings=drafts,
+                source_target=source_target,
+                constraints=coherence_constraints,
+            )
+        )
+
     candidates.sort(
         key=lambda row: (
             row["kind"],
@@ -2508,6 +2632,7 @@ def _critic_payload(
     risks: Sequence[Any],
     prior_error: str | None,
     semantic_only_target_facts: Sequence[SemanticOnlyTargetFact] = (),
+    coherence_constraints: Sequence[CoherenceConstraint] = (),
     review_history: Sequence[AgentStageArtifact] = (),
     agent_contract_protocol: AgentContractProtocol = "compact_discriminated_v2",
 ) -> dict[str, Any]:
@@ -2561,6 +2686,7 @@ def _critic_payload(
             drafts=drafts,
             source_target=source_target,
             semantic_only_target_facts=effective_semantic_only,
+            coherence_constraints=coherence_constraints,
         ),
         "annotatedSource": annotated_source(raw, drafts),
         "maskedTemplate": current_masked_source,
@@ -2690,11 +2816,12 @@ def _state_checkpoint(
     drafts: Sequence[SpanDraft],
     assessment: CarrierAssessment,
     semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+    coherence_constraints: Sequence[CoherenceConstraint],
     critic_outputs: Sequence[CriticAgentOutput],
 ) -> ExtractionStateCheckpoint:
     return ExtractionStateCheckpoint.model_validate(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "document_id": document_id,
             "source_sha256": sha256_bytes(raw.encode("utf-8")),
             "source_label_sha256": sha256_bytes(canonical_json_bytes(source_target)),
@@ -2721,6 +2848,7 @@ def _state_checkpoint(
                 )
                 for draft in drafts
             ),
+            "coherence_constraints": tuple(coherence_constraints),
             "carrier_assessment": assessment,
             "semantic_only_target_facts": tuple(semantic_only_target_facts),
             "applied_critic_revisions": tuple(
@@ -2740,6 +2868,7 @@ def _restore_state_checkpoint(
     tuple[SpanDraft, ...],
     CarrierAssessment,
     tuple[SemanticOnlyTargetFact, ...],
+    tuple[CoherenceConstraint, ...],
     list[CriticAgentOutput],
 ]:
     checkpoint = ExtractionStateCheckpoint.model_validate_json(checkpoint_payload, strict=True)
@@ -2758,6 +2887,7 @@ def _restore_state_checkpoint(
     drafts = normalize_source_boundaries(
         raw=raw,
         drafts=normalize_deterministic_draft_semantics(
+            raw=raw,
             drafts=normalize_structured_row_locality(
                 raw=raw,
                 drafts=normalize_target_cobindings(
@@ -2771,6 +2901,14 @@ def _restore_state_checkpoint(
     )
     validate_target_binding_relationships(drafts=drafts, source_target=source_target)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
+    with suppress(CoherenceReviewRequired):
+        validate_coherence_contracts(
+            raw=raw,
+            bindings=drafts,
+            source_target=source_target,
+            constraints=checkpoint.coherence_constraints,
+            require_complete=False,
+        )
     validate_carrier_assessment(
         assessment=checkpoint.carrier_assessment,
         expected=source_carrier(source_target),
@@ -2785,6 +2923,7 @@ def _restore_state_checkpoint(
         drafts,
         checkpoint.carrier_assessment,
         semantic_only,
+        checkpoint.coherence_constraints,
         list(checkpoint.applied_critic_revisions),
     )
 
@@ -2868,6 +3007,7 @@ def _replay_checkpoint_case(
     tuple[SpanDraft, ...] | None,
     Any,
     tuple[SemanticOnlyTargetFact, ...],
+    tuple[CoherenceConstraint, ...],
     list[CriticAgentOutput],
     str | None,
 ]:
@@ -2904,7 +3044,7 @@ def _replay_checkpoint_case(
             None,
         )
         if latest_candidate is None:
-            return None, None, (), [], warning()
+            return None, None, (), (), [], warning()
         candidate = CompilerAgentOutput.model_validate_json(
             json.dumps(
                 latest_candidate.output,
@@ -2924,6 +3064,7 @@ def _replay_checkpoint_case(
                 None,
                 None,
                 (),
+                (),
                 [],
                 warning(
                     "Current host replay of the latest compiler candidate rejected it: "
@@ -2934,6 +3075,7 @@ def _replay_checkpoint_case(
             drafts,
             assessment,
             semantic_only,
+            (),
             [],
             warning(
                 "Current host accepted the latest previously host-rejected compiler candidate "
@@ -2959,11 +3101,13 @@ def _replay_checkpoint_case(
             None,
             None,
             (),
+            (),
             [],
             warning(
                 "Current host rejected the prior successful compiler checkpoint: " + str(error)
             ),
         )
+    coherence_constraints: tuple[CoherenceConstraint, ...] = ()
     critic_outputs: list[CriticAgentOutput] = []
     candidate_reviews: list[tuple[AgentStageArtifact, CriticAgentOutput]] = []
     for critic_stage in result.critic_stages:
@@ -2993,48 +3137,48 @@ def _replay_checkpoint_case(
         raise ValueError("certified resume case lacks a final successful critic pass")
     if result.status == "rejected" and final_is_successful_pass:
         raise ValueError("rejected resume case ends in a successful critic pass")
+    if result.status == "review_required" and not final_is_successful_pass:
+        raise ValueError("review-required resume case lacks its final successful critic pass")
     newly_accepted_prior_rejections: list[int] = []
     for critic_stage, review in candidate_reviews:
         if review.verdict == "pass":
+            if review.coherence_decisions:
+                candidates = _critic_review_candidates(
+                    raw=raw,
+                    drafts=drafts,
+                    source_target=source_target,
+                    semantic_only_target_facts=semantic_only,
+                    coherence_constraints=coherence_constraints,
+                )
+                coherence_constraints = materialize_coherence_decisions(
+                    candidates=candidates,
+                    constraints=coherence_constraints,
+                    decisions=review.coherence_decisions,
+                )
             # A prior pass is evidence only for the prior prompt and host contract. When this
             # function is used, the current run must obtain its own independent final pass.
             continue
         drafts_before_review = drafts
+        semantic_before_review = semantic_only
+        constraints_before_review = coherence_constraints
         try:
-            review_semantic_only = materialize_semantic_only_target_facts(
-                proposals=review.semantic_only_target_facts,
+            candidates = _critic_review_candidates(
+                raw=raw,
+                drafts=drafts,
                 source_target=source_target,
-                provenance="critic_audited_unprinted",
+                semantic_only_target_facts=semantic_only,
+                coherence_constraints=coherence_constraints,
             )
-            drafts = normalize_source_boundaries(
+            drafts, semantic_only, coherence_constraints = _apply_validated_critic_review(
+                review=review,
                 raw=raw,
-                drafts=normalize_deterministic_draft_semantics(
-                    drafts=normalize_structured_row_locality(
-                        raw=raw,
-                        drafts=apply_critic_patch(
-                            raw=raw,
-                            drafts=drafts,
-                            findings=review.findings,
-                            remove_inventory_binding_ids=review.remove_inventory_binding_ids,
-                            additional_bindings=review.additional_bindings,
-                            occurrence_removals=review.occurrence_removals,
-                            semantic_only_target_paths=tuple(
-                                fact.target_path for fact in review_semantic_only
-                            ),
-                            source_target=source_target,
-                        ),
-                        source_target=source_target,
-                    ),
-                    source_target=source_target,
-                ),
-            )
-            validate_carrier_assessment(
+                drafts=drafts,
+                source_target=source_target,
                 assessment=assessment,
-                expected=source_carrier(source_target),
-                raw=raw,
-                anchor_drafts_value=drafts,
+                semantic_only_target_facts=semantic_only,
+                coherence_constraints=coherence_constraints,
+                review_candidates=candidates,
             )
-            validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
         except Exception as error:
             if str(error).startswith(
                 "critic transaction is a functional no-op after host canonicalization"
@@ -3042,18 +3186,13 @@ def _replay_checkpoint_case(
                 skipped_noop_passes.append(critic_stage.pass_number)
                 continue
             drafts = drafts_before_review
+            semantic_only = semantic_before_review
+            coherence_constraints = constraints_before_review
             replay_warnings.append(
                 "Current host skipped incompatible prior critic pass "
                 f"{critic_stage.pass_number}: {error}"
             )
             continue
-        semantic_only = _effective_semantic_only_target_facts(
-            facts=_merge_semantic_only_target_facts(
-                semantic_only,
-                review_semantic_only,
-            ),
-            drafts=drafts,
-        )
         if critic_stage.status == "host_rejected":
             newly_accepted_prior_rejections.append(critic_stage.pass_number)
         critic_outputs.append(review)
@@ -3063,7 +3202,14 @@ def _replay_checkpoint_case(
         if newly_accepted_prior_rejections
         else None
     )
-    return drafts, assessment, semantic_only, critic_outputs, warning(replay_note)
+    return (
+        drafts,
+        assessment,
+        semantic_only,
+        coherence_constraints,
+        critic_outputs,
+        warning(replay_note),
+    )
 
 
 def _restore_or_replay_resume_state(
@@ -3080,6 +3226,7 @@ def _restore_or_replay_resume_state(
     tuple[SpanDraft, ...] | None,
     CarrierAssessment | None,
     tuple[SemanticOnlyTargetFact, ...],
+    tuple[CoherenceConstraint, ...],
     list[CriticAgentOutput],
     str | None,
 ]:
@@ -3089,6 +3236,7 @@ def _restore_or_replay_resume_state(
             tuple[SpanDraft, ...],
             CarrierAssessment,
             tuple[SemanticOnlyTargetFact, ...],
+            tuple[CoherenceConstraint, ...],
             list[CriticAgentOutput],
         ]
         | None
@@ -3104,10 +3252,30 @@ def _restore_or_replay_resume_state(
         except Exception as error:
             checkpoint_error = error
         if checkpoint_state is not None and resume_contract_match:
-            drafts, assessment, semantic_only, critic_outputs = checkpoint_state
-            return drafts, assessment, semantic_only, critic_outputs, None
+            (
+                checkpoint_drafts,
+                checkpoint_assessment,
+                checkpoint_semantic_only,
+                checkpoint_constraints,
+                checkpoint_critic_outputs,
+            ) = checkpoint_state
+            return (
+                checkpoint_drafts,
+                checkpoint_assessment,
+                checkpoint_semantic_only,
+                checkpoint_constraints,
+                checkpoint_critic_outputs,
+                None,
+            )
 
-    drafts, assessment, semantic_only, critic_outputs, replay_warning = _replay_checkpoint_case(
+    (
+        drafts,
+        assessment,
+        semantic_only,
+        constraints,
+        critic_outputs,
+        replay_warning,
+    ) = _replay_checkpoint_case(
         result=result,
         raw=raw,
         source_target=source_target,
@@ -3123,7 +3291,7 @@ def _restore_or_replay_resume_state(
     if replay_warning is not None:
         warnings.append(replay_warning)
     if drafts is None and checkpoint_state is not None:
-        drafts, assessment, semantic_only, critic_outputs = checkpoint_state
+        drafts, assessment, semantic_only, constraints, critic_outputs = checkpoint_state
         warnings.append(
             "Current-host transaction replay did not recover a compiler state; retained the "
             "separately revalidated exact prior checkpoint"
@@ -3137,6 +3305,7 @@ def _restore_or_replay_resume_state(
         drafts,
         assessment,
         semantic_only,
+        constraints,
         critic_outputs,
         "; ".join(warnings) if warnings else None,
     )
@@ -3168,10 +3337,10 @@ async def _extract_case(
         result = ExtractionCaseResult.model_validate_json(
             read_regular_file_bytes(existing_result_path), strict=True
         )
-        template: CertifiedSemanticTemplate | None = None
+        existing_template: CertifiedSemanticTemplate | None = None
         masked = ""
         if result.status == "certified":
-            template = CertifiedSemanticTemplate.model_validate_json(
+            existing_template = CertifiedSemanticTemplate.model_validate_json(
                 read_regular_file_bytes(staged.stage_root / relative_root / "template.json"),
                 strict=True,
             )
@@ -3183,7 +3352,7 @@ async def _extract_case(
             f"{document_id} {result.status}",
             flush=True,
         )
-        return result, template, masked
+        return result, existing_template, masked
 
     async with document_limiter:
         started = time.perf_counter()
@@ -3191,6 +3360,61 @@ async def _extract_case(
         if sha256_bytes(raw.encode("utf-8")) != source["joinedRawTextSha256"]:
             raise ValueError(f"source raw-text hash differs for {document_id}")
         source_target = cast(Mapping[str, Any], source["target"])
+        resumed_from_run = resume_run_root.name if resume_run_root is not None else None
+        prior_elapsed_seconds = resume_result.elapsed_seconds if resume_result is not None else 0.0
+        if resume_result is not None and resume_result.document_id != document_id:
+            raise ValueError("resume case document identity differs")
+        integrity_issues = source_template_integrity_issues(raw, source_target)
+        if integrity_issues:
+            prior_compiler_stages = (
+                tuple(resume_result.compiler_stages) if resume_result is not None else ()
+            )
+            prior_critic_stages = (
+                tuple(resume_result.critic_stages) if resume_result is not None else ()
+            )
+            prior_cost = sum(
+                (
+                    stage.usage.estimatedCostUsd
+                    for stage in (*prior_compiler_stages, *prior_critic_stages)
+                ),
+                Decimal(0),
+            )
+            risks = all_risk_candidates(raw, (), source_target)
+            result = ExtractionCaseResult.model_validate(
+                {
+                    "document_id": document_id,
+                    "status": "review_required",
+                    "rejection_reasons": tuple(
+                        "source template integrity requires review: " + issue
+                        for issue in integrity_issues
+                    ),
+                    "template_sha256": None,
+                    "compiler_stages": prior_compiler_stages,
+                    "critic_stages": prior_critic_stages,
+                    "risk_candidates": risks,
+                    "elapsed_seconds": prior_elapsed_seconds + time.perf_counter() - started,
+                    "resumed_from_run": resumed_from_run,
+                    "resumed_prior_elapsed_seconds": prior_elapsed_seconds,
+                    "resumed_prior_compiler_stages": len(prior_compiler_stages),
+                    "resumed_prior_critic_stages": len(prior_critic_stages),
+                    "resumed_prior_estimated_cost_usd": prior_cost,
+                    "resume_contract_match": (
+                        resume_contract_match if resume_result is not None else None
+                    ),
+                    "resume_replay_warning": None,
+                    "resume_mode": "source_integrity_review",
+                }
+            )
+            staged.publish_bytes(f"{relative_root}/source.txt", raw.encode("utf-8"))
+            staged.publish_json(f"{relative_root}/source-label.json", source_target)
+            staged.publish_bytes(f"{relative_root}/masked-template.txt", raw.encode("utf-8"))
+            staged.publish_json(f"{relative_root}/result.json", result.model_dump(mode="json"))
+            print(
+                f"[{ordinal:03d}/{config.workflow.documents:03d}] source_integrity_review "
+                f"{document_id} new_provider_calls=0",
+                flush=True,
+            )
+            return result, None, raw
         document_anchors = [row for row in anchor_rows if row["document_id"] == document_id]
         prepared_anchor_rows, locality_report = _prepare_anchor_rows(
             raw=raw,
@@ -3209,11 +3433,7 @@ async def _extract_case(
             ),
             source_target=source_target,
         )
-        risks = risk_candidates(raw, ())
-        resumed_from_run = resume_run_root.name if resume_run_root is not None else None
-        prior_elapsed_seconds = resume_result.elapsed_seconds if resume_result is not None else 0.0
-        if resume_result is not None and resume_result.document_id != document_id:
-            raise ValueError("resume case document identity differs")
+        risks = all_risk_candidates(raw, (), source_target)
         certified_resume_mode = (
             "exact_contract_reuse"
             if resume_contract_match
@@ -3262,14 +3482,20 @@ async def _extract_case(
                     raw=raw,
                     source_target=source_target,
                 )
-                template = prior_template
-                template_payload = prior_template_payload
+                resumed_template = prior_template
+                resumed_template_payload = prior_template_payload
                 masked_payload = read_regular_file_bytes(prior_case_root / "masked-template.txt")
                 catalog_payload = read_regular_file_bytes(prior_case_root / "catalog-row.json")
                 checkpoint_payload = prior_checkpoint_payload
                 replay_note = None
             else:
-                drafts, assessment, semantic_only, applied_revisions = _restore_state_checkpoint(
+                (
+                    certified_drafts,
+                    certified_assessment,
+                    certified_semantic_only,
+                    certified_coherence_constraints,
+                    certified_applied_revisions,
+                ) = _restore_state_checkpoint(
                     checkpoint_payload=prior_checkpoint_payload,
                     document_id=document_id,
                     raw=raw,
@@ -3295,30 +3521,35 @@ async def _extract_case(
                 )
                 if final_review.verdict != "pass":
                     raise ValueError("current-host recertification requires a final critic pass")
-                template = certify_template(
+                certified_template = certify_template(
                     raw=raw,
                     document_id=document_id,
                     feature=feature,
                     source_target=source_target,
-                    assessment=assessment,
-                    drafts=drafts,
+                    assessment=certified_assessment,
+                    drafts=certified_drafts,
                     risks=risks,
-                    critic_outputs=(*applied_revisions, final_review),
-                    semantic_only_target_facts=semantic_only,
+                    critic_outputs=(*certified_applied_revisions, final_review),
+                    semantic_only_target_facts=certified_semantic_only,
+                    coherence_constraints=certified_coherence_constraints,
                 )
-                template_payload = json_artifact_bytes(template.model_dump(mode="json"))
-                masked_payload = masked_source(raw, drafts).encode("utf-8")
-                catalog_payload = json_artifact_bytes(template_summary(template))
+                resumed_template_payload = json_artifact_bytes(
+                    certified_template.model_dump(mode="json")
+                )
+                masked_payload = masked_source(raw, certified_drafts).encode("utf-8")
+                catalog_payload = json_artifact_bytes(template_summary(certified_template))
                 current_checkpoint = _state_checkpoint(
                     document_id=document_id,
                     raw=raw,
                     source_target=source_target,
-                    drafts=drafts,
-                    assessment=assessment,
-                    semantic_only_target_facts=semantic_only,
-                    critic_outputs=applied_revisions,
+                    drafts=certified_drafts,
+                    assessment=certified_assessment,
+                    semantic_only_target_facts=certified_semantic_only,
+                    coherence_constraints=certified_coherence_constraints,
+                    critic_outputs=certified_applied_revisions,
                 )
                 checkpoint_payload = json_artifact_bytes(current_checkpoint.model_dump(mode="json"))
+                resumed_template = certified_template
                 replay_note = (
                     "Recompiled and recertified the exact prior state and final critic receipt "
                     "under the current host contract without a provider request; the prior "
@@ -3326,7 +3557,7 @@ async def _extract_case(
                 )
             reused_result = resume_result.model_copy(
                 update={
-                    "template_sha256": sha256_bytes(template_payload),
+                    "template_sha256": sha256_bytes(resumed_template_payload),
                     "risk_candidates": tuple(risks),
                     "elapsed_seconds": prior_elapsed_seconds + time.perf_counter() - started,
                     "resumed_from_run": resumed_from_run,
@@ -3351,7 +3582,7 @@ async def _extract_case(
             staged.publish_bytes(f"{relative_root}/source.txt", prior_source)
             staged.publish_json(f"{relative_root}/source-label.json", source_target)
             staged.publish_bytes(f"{relative_root}/masked-template.txt", masked_payload)
-            staged.publish_bytes(f"{relative_root}/template.json", template_payload)
+            staged.publish_bytes(f"{relative_root}/template.json", resumed_template_payload)
             staged.publish_bytes(f"{relative_root}/catalog-row.json", catalog_payload)
             staged.publish_bytes(f"{relative_root}/state-checkpoint.json", checkpoint_payload)
             staged.publish_json(
@@ -3363,7 +3594,7 @@ async def _extract_case(
                 f"{document_id} from {resumed_from_run}",
                 flush=True,
             )
-            return reused_result, template, masked_payload.decode("utf-8")
+            return reused_result, resumed_template, masked_payload.decode("utf-8")
 
         compiler_stages: list[AgentStageArtifact] = (
             list(resume_result.compiler_stages) if resume_result is not None else []
@@ -3377,6 +3608,12 @@ async def _extract_case(
             (stage.usage.estimatedCostUsd for stage in (*compiler_stages, *critic_stages)),
             Decimal(0),
         )
+        drafts: tuple[SpanDraft, ...] | None
+        assessment: CarrierAssessment | None
+        semantic_only_target_facts: tuple[SemanticOnlyTargetFact, ...]
+        coherence_constraints: tuple[CoherenceConstraint, ...]
+        critic_outputs: list[CriticAgentOutput]
+        resume_replay_warning: str | None
         if resume_result is not None:
             if resume_run_root is None:
                 raise ValueError("resume case lacks its run root")
@@ -3385,6 +3622,7 @@ async def _extract_case(
                 drafts,
                 assessment,
                 semantic_only_target_facts,
+                coherence_constraints,
                 critic_outputs,
                 resume_replay_warning,
             ) = _restore_or_replay_resume_state(
@@ -3402,9 +3640,11 @@ async def _extract_case(
         else:
             drafts, assessment = None, None
             semantic_only_target_facts = ()
+            coherence_constraints = ()
             critic_outputs = []
             resume_replay_warning = None
         reasons: list[str] = []
+        review_required = False
         template: CertifiedSemanticTemplate | None = None
         prior_compiler_output: CompilerAgentOutput | None = next(
             (
@@ -3432,6 +3672,7 @@ async def _extract_case(
         )
         critic_pass = max((stage.pass_number for stage in critic_stages), default=0)
         critic_attempt_calls = len(critic_stages) - resumed_prior_critic_stages
+        terminal_confirmation_pending = False
         post_threshold_confirmation_used = False
         candidate_prepass_pending = (
             config.workflow.agent_contract_protocol
@@ -3518,10 +3759,12 @@ async def _extract_case(
                     repair_prompt=compiler_repair_prompt,
                     preview_output=preview_compiler_repair,
                 )
+                compiler_attempt_calls += 1
                 if output is None:
                     compiler_stages.append(stage)
-                    reasons.append(stage.error_message or "compiler provider failed")
-                    break
+                    if compiler_attempt_calls >= config.workflow.max_compiler_passes:
+                        reasons.append(stage.error_message or "compiler provider failed")
+                    continue
                 prior_compiler_output = output
                 try:
                     drafts, assessment, semantic_only_target_facts = _validated_compiler_state(
@@ -3564,7 +3807,6 @@ async def _extract_case(
                                 "\n- local repair candidate inventory unavailable: "
                                 + str(inventory_error)
                             )
-                    compiler_attempt_calls += 1
                     if compiler_attempt_calls == config.workflow.max_compiler_passes:
                         reasons.append(f"compiler host rejection: {rejection}")
                     continue
@@ -3572,7 +3814,12 @@ async def _extract_case(
             if drafts is None or assessment is None:
                 raise AssertionError("critic phase entered without a validated compiler checkpoint")
 
-            while critic_attempt_calls < config.workflow.max_critic_passes:
+            while (
+                critic_attempt_calls < config.workflow.max_critic_passes
+                or terminal_confirmation_pending
+            ):
+                is_terminal_confirmation = terminal_confirmation_pending
+                terminal_confirmation_pending = False
                 stagnation_reason = _critic_stagnation_reason(
                     critic_stages[resumed_prior_critic_stages:]
                 )
@@ -3588,6 +3835,7 @@ async def _extract_case(
                     risks=risks,
                     prior_error=critic_revision_context,
                     semantic_only_target_facts=semantic_only_target_facts,
+                    coherence_constraints=coherence_constraints,
                     review_history=(
                         ()
                         if config.workflow.agent_contract_protocol
@@ -3637,8 +3885,9 @@ async def _extract_case(
                             raw=raw,
                             drafts=tuple(cast(Sequence[SpanDraft], drafts)),
                             source_target=source_target,
-                            assessment=cast(CarrierAssessment, assessment),
+                            assessment=assessment,
                             semantic_only_target_facts=tuple(semantic_only_target_facts),
+                            coherence_constraints=tuple(coherence_constraints),
                         )
                     )
                     if config.workflow.agent_contract_protocol
@@ -3648,27 +3897,44 @@ async def _extract_case(
                         "partitioned_staged_local_v6",
                         "candidate_first_staged_local_v7",
                         "candidate_first_staged_local_v8",
+                        "hybrid_reference_partitioned_v10",
                     }
                     else None,
                 )
                 if review is None:
                     critic_stages.append(critic_stage)
-                    reasons.append(critic_stage.error_message or "critic provider failed")
-                    break
+                    if (
+                        is_terminal_confirmation
+                        or critic_attempt_calls >= config.workflow.max_critic_passes
+                    ):
+                        reasons.append(critic_stage.error_message or "critic provider failed")
+                    continue
                 if review.verdict == "revise":
                     try:
-                        drafts, semantic_only_target_facts = _apply_validated_critic_review(
+                        (
+                            drafts,
+                            semantic_only_target_facts,
+                            coherence_constraints,
+                        ) = _apply_validated_critic_review(
                             review=review,
                             raw=raw,
                             drafts=drafts,
                             source_target=source_target,
                             assessment=assessment,
                             semantic_only_target_facts=semantic_only_target_facts,
+                            coherence_constraints=coherence_constraints,
+                            review_candidates=cast(
+                                Sequence[Mapping[str, Any]],
+                                critic_payload["reviewCandidates"],
+                            ),
                         )
                     except Exception as error:
                         critic_stages.append(_mark_host_rejected(critic_stage, error))
                         critic_revision_context = f"Host rejected critic patch: {error}"
-                        if critic_attempt_calls == config.workflow.max_critic_passes:
+                        if (
+                            is_terminal_confirmation
+                            or critic_attempt_calls >= config.workflow.max_critic_passes
+                        ):
                             reasons.append(
                                 f"critic exhausted passes after host-rejected patch: {error}"
                             )
@@ -3677,12 +3943,41 @@ async def _extract_case(
                     critic_outputs.append(review)
                     critic_stages.append(critic_stage)
                     critic_revision_context = None
-                    if critic_attempt_calls == config.workflow.max_critic_passes:
-                        reasons.append("critic exhausted passes after local binding patch")
+                    if is_terminal_confirmation:
+                        reasons.append(
+                            "terminal critic confirmation revised the state; no independently "
+                            "confirmed template was published"
+                        )
+                    elif critic_attempt_calls == config.workflow.max_critic_passes:
+                        terminal_confirmation_pending = True
                     continue
                 if candidate_only:
                     critic_stages.append(critic_stage)
                     critic_revision_context = None
+                    if critic_attempt_calls == config.workflow.max_critic_passes:
+                        terminal_confirmation_pending = True
+                    continue
+                try:
+                    prospective_coherence_constraints = materialize_coherence_decisions(
+                        candidates=cast(
+                            Sequence[Mapping[str, Any]],
+                            critic_payload["reviewCandidates"],
+                        ),
+                        constraints=coherence_constraints,
+                        decisions=review.coherence_decisions,
+                    )
+                except Exception as error:
+                    critic_stages.append(_mark_host_rejected(critic_stage, error))
+                    critic_revision_context = f"Host rejected critic coherence decisions: {error}"
+                    if (
+                        is_terminal_confirmation
+                        or critic_attempt_calls >= config.workflow.max_critic_passes
+                    ):
+                        reasons.append(
+                            "critic exhausted passes after invalid coherence decisions: "
+                            + str(error)
+                        )
+                        break
                     continue
                 remaining_risks = uncovered_risks(raw, risks, drafts)
                 if remaining_risks:
@@ -3690,13 +3985,16 @@ async def _extract_case(
                         f"{row.risk_id} {row.line_id}={row.source_text!r}"
                         for row in remaining_risks
                     )
-                    error = ValueError(
+                    false_pass_error = ValueError(
                         "critic passed while deterministic risk candidates remained unowned: "
                         + details
                     )
-                    critic_stages.append(_mark_host_rejected(critic_stage, error))
-                    critic_revision_context = f"Host rejected critic pass: {error}"
-                    if critic_attempt_calls == config.workflow.max_critic_passes:
+                    critic_stages.append(_mark_host_rejected(critic_stage, false_pass_error))
+                    critic_revision_context = f"Host rejected critic pass: {false_pass_error}"
+                    if (
+                        is_terminal_confirmation
+                        or critic_attempt_calls >= config.workflow.max_critic_passes
+                    ):
                         reasons.append(
                             "critic exhausted passes after false pass with unowned risks: "
                             + details
@@ -3704,7 +4002,7 @@ async def _extract_case(
                         break
                     continue
                 try:
-                    critic_outputs.append(review)
+                    prospective_critic_outputs = (*critic_outputs, review)
                     template = certify_template(
                         raw=raw,
                         document_id=document_id,
@@ -3713,15 +4011,28 @@ async def _extract_case(
                         assessment=assessment,
                         drafts=drafts,
                         risks=risks,
-                        critic_outputs=critic_outputs,
+                        critic_outputs=prospective_critic_outputs,
                         semantic_only_target_facts=semantic_only_target_facts,
+                        coherence_constraints=prospective_coherence_constraints,
                     )
+                    coherence_constraints = prospective_coherence_constraints
+                    critic_outputs.append(review)
                     critic_stages.append(critic_stage)
+                    break
+                except CoherenceReviewRequired as error:
+                    coherence_constraints = prospective_coherence_constraints
+                    critic_outputs.append(review)
+                    critic_stages.append(critic_stage)
+                    reasons.append(f"semantic coherence requires review: {error}")
+                    review_required = True
                     break
                 except Exception as error:
                     critic_stages.append(_mark_host_rejected(critic_stage, error))
                     critic_revision_context = f"Host rejected critic pass or certification: {error}"
-                    if critic_attempt_calls == config.workflow.max_critic_passes:
+                    if (
+                        is_terminal_confirmation
+                        or critic_attempt_calls >= config.workflow.max_critic_passes
+                    ):
                         reasons.append(
                             f"critic exhausted passes after failed certification: {error}"
                         )
@@ -3731,7 +4042,8 @@ async def _extract_case(
             if (
                 template is None
                 and not reasons
-                and critic_attempt_calls == config.workflow.max_critic_passes
+                and critic_attempt_calls >= config.workflow.max_critic_passes
+                and not terminal_confirmation_pending
             ):
                 reasons.append("template did not reach a final critic pass")
             break
@@ -3747,7 +4059,13 @@ async def _extract_case(
         result = ExtractionCaseResult.model_validate(
             {
                 "document_id": document_id,
-                "status": "certified" if template is not None else "rejected",
+                "status": (
+                    "certified"
+                    if template is not None
+                    else "review_required"
+                    if review_required
+                    else "rejected"
+                ),
                 "rejection_reasons": tuple(reasons),
                 "template_sha256": template_sha,
                 "compiler_stages": tuple(compiler_stages),
@@ -3777,13 +4095,14 @@ async def _extract_case(
                 drafts=drafts,
                 assessment=assessment,
                 semantic_only_target_facts=semantic_only_target_facts,
+                coherence_constraints=coherence_constraints,
                 critic_outputs=critic_outputs,
             )
             staged.publish_json(
                 f"{relative_root}/state-checkpoint.json",
                 checkpoint.model_dump(mode="json"),
             )
-        if template_payload is not None:
+        if template is not None and template_payload is not None:
             staged.publish_bytes(f"{relative_root}/template.json", template_payload)
             staged.publish_json(f"{relative_root}/catalog-row.json", template_summary(template))
         staged.publish_json(f"{relative_root}/result.json", result.model_dump(mode="json"))
@@ -3917,6 +4236,7 @@ def _report(config: ExtractionConfig, summary: Mapping[str, Any]) -> str:
             "",
             f"- Selected documents: **{summary['documents']}**.",
             f"- Certified templates: **{counts.get('certified', 0)}**.",
+            f"- Review-required templates: **{counts.get('review_required', 0)}**.",
             f"- Rejected templates: **{counts.get('rejected', 0)}**.",
             f"- Resumed cases: **{summary['resumedCases']}**"
             + (
@@ -3957,8 +4277,9 @@ def _report(config: ExtractionConfig, summary: Mapping[str, Any]) -> str:
             "exact carrier evidence (plus source-label equality when a label exists), "
             "deterministic risk ownership, and a final independent literal-remainder critic pass. "
             "Every binding also has a host-validated realization plan; mappings the host cannot "
-            "prove deterministic are explicitly marked agent-required. A rejected case contributes "
-            "no catalog template.",
+            "prove deterministic are explicitly marked agent-required. Ambiguous arithmetic "
+            "relationships are quarantined as review-required. Neither a rejected nor a "
+            "review-required case contributes a catalog template.",
             "",
             "## Artifact map",
             "",
@@ -4077,6 +4398,7 @@ async def run_extraction(config_path: Path) -> Path:
         critic_provider=config.critic_provider,
         agent_contract_protocol=config.workflow.agent_contract_protocol,
         max_concurrent_requests=config.workflow.max_concurrent_requests,
+        partition_critic_above_request_bytes=(config.workflow.partition_critic_above_request_bytes),
     )
     document_limiter = asyncio.Semaphore(config.workflow.max_concurrent_documents)
     started = time.perf_counter()
@@ -4466,13 +4788,13 @@ def _resume_contract(config_path: Path) -> dict[str, Any]:
     candidates = [experiment_root / "pyproject.toml", experiment_root / "uv.lock"]
     candidates.extend(sorted((experiment_root / "src").rglob("*.py")))
     paths = tuple(path for path in candidates if path.is_file() and not path.is_symlink())
-    files = tuple(
+    files = [
         {
             "path": path.relative_to(experiment_root).as_posix(),
             "sha256": sha256_file(path),
         }
         for path in paths
-    )
+    ]
     if len(files) != len(candidates):
         raise ValueError("resume contract contains a missing or symbolic runtime source file")
     return {

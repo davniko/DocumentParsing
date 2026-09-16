@@ -190,6 +190,7 @@ class DescendantCaseResult(BaseModel):
     format_envelopes_valid: bool
     target_binding_semantics_valid: bool
     source_relationships_valid: bool
+    semantic_coherence_valid: bool
     output_sha256: Sha256 | None
     source_bytes: Annotated[int, Field(gt=0)]
     output_bytes: Annotated[int, Field(ge=0)]
@@ -221,6 +222,7 @@ class DescendantCaseResult(BaseModel):
                 self.format_envelopes_valid,
                 self.target_binding_semantics_valid,
                 self.source_relationships_valid,
+                self.semantic_coherence_valid,
             )
         ):
             raise ValueError("passed descendant case has a false acceptance invariant")

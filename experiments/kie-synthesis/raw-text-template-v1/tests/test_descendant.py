@@ -8,7 +8,9 @@ from pydantic import ValidationError
 
 import raw_text_template_experiment.descendant as descendant
 from raw_text_template_experiment.descendant import (
+    BindingOutput,
     _binding_target_value,
+    _build_initial_plan,
     _date_candidates,
     _direct_auxiliary_route,
     _load_replayed_stage,
@@ -19,6 +21,7 @@ from raw_text_template_experiment.descendant import (
     _render_certified_date_surface,
     _render_date_surface,
     _render_derivations,
+    _render_inclusive_range_cardinality,
     _render_target_binding,
     _residual_output_type,
     _resolve_path,
@@ -44,6 +47,35 @@ def _auxiliary(source_text: str, *, policy: str, value_kind: str = "identifier")
         occurrences=(_slot(source_text, policy=policy),),
         value_kind=value_kind,
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "quantity", "expected"),
+    (
+        ("1\n- 18", 7, "1\n- 7"),
+        ("18 TO 1", 7, "18 TO 12"),
+        ("5\u201311", 18, "5\u201322"),
+        ("5~11", 23, "5~27"),
+        ("1 - 18", 18, "1 - 18"),
+        ("NO. 1 TO 480", 23, "NO. 1 TO 23"),
+        ("SDW/1 TO SDW/80", 23, "SDW/1 TO SDW/23"),
+    ),
+)
+def test_inclusive_range_derivation_preserves_layout_and_cardinality(
+    source: str, quantity: int, expected: str
+) -> None:
+    binding = SimpleNamespace(
+        logical_key="agent:inclusive_range:quantity",
+        dependency_paths=("documentPatch.cargoPackages[0].quantity",),
+        dependency_bindings=(),
+        occurrences=(_slot(source),),
+    )
+    target = {"documentPatch": {"cargoPackages": [{"quantity": quantity}]}}
+
+    output = _render_inclusive_range_cardinality(binding, target=target)
+
+    assert output.replacements == {"slot_1": expected}
+    assert output.canonical_value == quantity
 
 
 def test_path_resolution_and_assignment_are_exact() -> None:
@@ -92,6 +124,163 @@ def test_extended_date_renderer_preserves_hyphenated_named_month_style() -> None
     assert _render_date_surface("10-MAR-2024", "2024-03-10", "2025-11-03") == "03-NOV-2025"
 
 
+def test_source_only_date_renderer_preserves_mixed_numeric_separators() -> None:
+    binding = SimpleNamespace(
+        logical_key="agent:detail_mfg_1a",
+        occurrences=(
+            SimpleNamespace(
+                slot_id="slot_mixed_date",
+                source_text="27.03/2024",
+                render_policy="date_surface",
+            ),
+        ),
+    )
+
+    output = descendant._render_pattern_date_auxiliary(
+        binding,
+        descendant.DeterministicStream(20260912, "test", "mixed-date"),
+    )
+    rendered = output.replacements["slot_mixed_date"]
+
+    assert len(rendered) == len("27.03/2024")
+    assert rendered[2] == "."
+    assert rendered[5] == "/"
+    assert (rendered[:2] + rendered[3:5] + rendered[6:]).isdigit()
+
+
+def test_identifier_renderer_transfers_a_unique_certified_ocr_omission() -> None:
+    binding = SimpleNamespace(
+        value_kind="identifier",
+        target_paths=("documentPatch.transport.voyageNumber",),
+        occurrences=(
+            _slot("0INFRW1MA", policy="opaque_identifier", slot_id="slot_short"),
+            _slot("01INFRW1MA", policy="opaque_identifier", slot_id="slot_full"),
+        ),
+        realization=SimpleNamespace(
+            target_values=(
+                SimpleNamespace(
+                    target_path="documentPatch.transport.voyageNumber",
+                    source_value="01INFRW1MA",
+                ),
+            )
+        ),
+    )
+    source_target = {
+        "documentPatch": {"transport": {"voyageNumber": "01INFRW1MA"}}
+    }
+    target = {"documentPatch": {"transport": {"voyageNumber": "62RBJTY9TN"}}}
+
+    output = _render_agent_target_binding(
+        binding,
+        source_target=source_target,
+        target=target,
+    )
+
+    assert output.canonical_value == "62RBJTY9TN"
+    assert output.replacements == {
+        "slot_short": "6RBJTY9TN",
+        "slot_full": "62RBJTY9TN",
+    }
+
+
+def test_identifier_renderer_rejects_an_ambiguous_ocr_omission() -> None:
+    with pytest.raises(ValueError, match="absent or ambiguous"):
+        descendant._unique_subsequence_indices("AAB", "AB")
+
+
+def test_unchanged_static_target_is_accepted_from_certified_source_surfaces() -> None:
+    address = "Unit 3208, 32/F, The Octagon, 6 Sha Tsui Road, N.T."
+    occurrences = (
+        _slot(address.removesuffix(" N.T."), slot_id="slot_one"),
+        _slot(address.removesuffix(", N.T."), slot_id="slot_two"),
+    )
+    binding = SimpleNamespace(
+        logical_key="anchor:documentPatch.parties.carrier.address",
+        value_kind="address",
+        target_paths=("documentPatch.parties.carrier.address",),
+        dependency_paths=(),
+        occurrences=occurrences,
+        derivation=None,
+        realization=SimpleNamespace(
+            requires_agent=False,
+            mode="static",
+            target_values=(
+                SimpleNamespace(
+                    target_path="documentPatch.parties.carrier.address",
+                    source_value=address,
+                ),
+            ),
+        ),
+    )
+    target = {"documentPatch": {"parties": {"carrier": {"address": address}}}}
+    case = SimpleNamespace(
+        source_target=target,
+        target=target,
+        template=SimpleNamespace(bindings=(binding,), coherence_constraints=()),
+    )
+    outputs = {
+        binding.logical_key: BindingOutput(
+            {slot.slot_id: slot.source_text for slot in occurrences},
+            address,
+        )
+    }
+
+    assert descendant._target_binding_semantics_valid(case=case, outputs=outputs) == (
+        True,
+        (),
+    )
+
+
+def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    slot = SimpleNamespace(slot_id="slot_ocr_variant")
+    binding = SimpleNamespace(
+        binding_id="binding_voyage",
+        logical_key="anchor:documentPatch.transport.voyageNumber",
+        realization=SimpleNamespace(requires_agent=True, mode="agent_required"),
+        target_paths=("documentPatch.transport.voyageNumber",),
+        derivation=None,
+        occurrences=(slot,),
+        source_relationships=(),
+    )
+    case = SimpleNamespace(
+        document_id="doc_ocr_variant",
+        source=b"0NV18N1MA\n",
+        source_target={"documentPatch": {"transport": {"voyageNumber": "0NVI8N1MA"}}},
+        target={"documentPatch": {"transport": {"voyageNumber": "7KCI3Z0YW"}}},
+        template=SimpleNamespace(
+            bindings=(binding,),
+            coherence_constraints=(),
+            byte_template=SimpleNamespace(slots=(slot,)),
+        ),
+    )
+    monkeypatch.setattr(descendant, "validate_render_coherence", lambda **_kwargs: None)
+    monkeypatch.setattr(descendant, "_binding_route", lambda *_args: ("agent", "compiled"))
+    monkeypatch.setattr(descendant, "_unchanged_target_output", lambda *_args: None)
+    monkeypatch.setattr(
+        descendant,
+        "_render_agent_target_binding",
+        lambda *_args, **_kwargs: BindingOutput({"slot_ocr_variant": "7KCI3Z0YW"}, "7KCI3Z0YW"),
+    )
+
+    def reject_format(**_kwargs: object) -> None:
+        raise ValueError("slot slot_ocr_variant replacement changes identifier shape")
+
+    monkeypatch.setattr(
+        descendant,
+        "_validate_binding_format",
+        reject_format,
+    )
+
+    plan = _build_initial_plan(case, seed=20260912, country_codes={})
+
+    assert plan.deterministic_outputs == {}
+    assert plan.residual_bindings == (binding,)
+    assert plan.routes[0].runtime_route == "agent"
+    assert "changes identifier shape" in plan.routes[0].route_reason
+
+
 @pytest.mark.parametrize(
     ("source", "old", "new", "expected"),
     [
@@ -110,6 +299,40 @@ def test_certified_date_renderer_uses_observable_grammar(
 def test_package_candidate_uses_document_native_abbreviation_width() -> None:
     assert _package_candidate("CTN", "PACKAGE_PACKAGE") == "PKG"
     assert _package_candidate("CARTONS", "PACKAGE_PALLET") == "PALLETS"
+    assert _package_candidate("BOX(ES)", "PACKAGE_CARTON") == "CARTON(S)"
+
+
+def test_changed_direct_package_category_renders_without_an_agent() -> None:
+    slot = _slot("BOX(ES)", policy="categorical_surface", slot_id="slot_package")
+    binding = SimpleNamespace(
+        target_paths=("documentPatch.cargoPackages[0].typeCategory",),
+        occurrences=(slot,),
+        realization=SimpleNamespace(
+            mode="single_surface",
+            adapter="package_category",
+            target_values=(
+                SimpleNamespace(
+                    target_path="documentPatch.cargoPackages[0].typeCategory",
+                    source_value="PACKAGE_BOX",
+                ),
+            ),
+            slots=(
+                SimpleNamespace(
+                    slot_id="slot_package",
+                    literal_prefix="",
+                    literal_suffix="",
+                ),
+            ),
+        ),
+    )
+
+    output = _render_target_binding(
+        binding,
+        {"documentPatch": {"cargoPackages": [{"typeCategory": "PACKAGE_CARTON"}]}},
+    )
+
+    assert output.canonical_value == "PACKAGE_CARTON"
+    assert output.replacements == {"slot_package": "CARTON(S)"}
 
 
 def test_semantic_partition_prefers_exact_prefix_and_comma_clauses() -> None:

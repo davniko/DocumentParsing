@@ -17,8 +17,7 @@ from document_ocr.synthesis.config import (
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _RAW_TEXT_PIPELINE_CONFIG = (
-    _PROJECT_ROOT
-    / "configs/synthesis/mpci_bl_raw_text_pipeline100_additional_maritime_v1_glm53.yaml"
+    _PROJECT_ROOT / "configs/synthesis/mpci_bl_compiled_raw_text_pipeline30_validation_v1.yaml"
 )
 
 
@@ -368,15 +367,16 @@ def test_validate_raw_text_pipeline_config_emits_production_bounds(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert json.loads(captured.out) == {
-        "certification_shard_size": 50,
         "command": "validate-raw-text-pipeline-config",
-        "correction_attempts_per_round": 1,
-        "correction_rounds": 3,
-        "documents": 100,
-        "inventory_rounds": 3,
-        "run_id": "mpci-bl-raw-text-pipeline100-additional-maritime-v1-glm53",
-        "resume_mode": "fresh",
+        "documents": 30,
+        "max_requests_per_document": 1,
+        "publishes_training_records": True,
+        "run_name": "mpci-bl-compiled-raw-text-pipeline30-production-validation-v4",
         "status": "valid",
+        "template_run": (
+            "artifacts/kie-synthesis/"
+            "mpci-bl-template-compilation200-production-v4-luna-high"
+        ),
     }
 
 
@@ -397,7 +397,13 @@ def test_raw_text_pipeline_cli_delegates_exact_config(
         config: SynthesisRawTextPipelineConfig,
     ) -> dict[str, Any]:
         calls.append((project_root, config_path, config))
-        return {"runId": config.run.run_id, "documents": config.workflow.documents}
+        payload: dict[str, Any] = {
+            "runName": config.run_name,
+            "documents": config.workflow.documents,
+        }
+        if command == "run-raw-text-pipeline":
+            payload["status"] = "passed"
+        return payload
 
     target = (
         "preflight_raw_text_pipeline"
@@ -427,12 +433,243 @@ def test_raw_text_pipeline_cli_delegates_exact_config(
     assert len(calls) == 1
     assert calls[0][0] == _PROJECT_ROOT.resolve()
     assert calls[0][1] == _RAW_TEXT_PIPELINE_CONFIG.resolve()
-    assert calls[0][2].workflow.documents == 100
+    assert calls[0][2].workflow.documents == 30
+    expected_result = {
+        "documents": 30,
+        "runName": "mpci-bl-compiled-raw-text-pipeline30-production-validation-v4",
+    }
+    if command == "run-raw-text-pipeline":
+        expected_result["status"] = "passed"
     assert json.loads(captured.out) == {
         "command": command,
-        "result": {
-            "documents": 100,
-            "runId": "mpci-bl-raw-text-pipeline100-additional-maritime-v1-glm53",
-        },
+        "result": expected_result,
         "status": "complete",
     }
+
+
+def test_raw_text_pipeline_cli_returns_incomplete_exit_for_failed_acceptance(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from document_ocr.synthesis import raw_text_pipeline
+
+    monkeypatch.setattr(
+        raw_text_pipeline,
+        "run_raw_text_pipeline",
+        lambda **_kwargs: {"status": "failed", "passedDocuments": 29, "documents": 30},
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "document-kie-synthesis",
+            "run-raw-text-pipeline",
+            "--config",
+            str(_RAW_TEXT_PIPELINE_CONFIG),
+            "--project-root",
+            str(_PROJECT_ROOT),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 5
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "command": "run-raw-text-pipeline",
+        "result": {"documents": 30, "passedDocuments": 29, "status": "failed"},
+        "status": "incomplete",
+    }
+
+
+def test_template_compilation_readiness_cli_publishes_the_offline_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from document_ocr.synthesis.template_compiler import readiness
+
+    calls: list[tuple[Path, Path, tuple[Path, ...]]] = []
+    report = {
+        "offlineGatePassed": True,
+        "deterministicallyPreflightedDocuments": 1650,
+        "checkpointReplay": {
+            "configured": False,
+            "checkpoints": 0,
+            "passed": None,
+        },
+    }
+
+    def fake_readiness(
+        *, project_root: Path, config_path: Path, checkpoint_roots: tuple[Path, ...]
+    ) -> dict[str, Any]:
+        calls.append((project_root, config_path, checkpoint_roots))
+        return report
+
+    monkeypatch.setattr(readiness, "preflight_corpus_readiness", fake_readiness)
+    output = tmp_path / "readiness.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "document-kie-synthesis",
+            "audit-template-compilation-readiness",
+            "--config",
+            str(_PROJECT_ROOT / "configs/synthesis/mpci_bl_template_compilation200_v1_luna.yaml"),
+            "--project-root",
+            str(tmp_path),
+            "--output",
+            str(output),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 0
+    assert calls == [
+        (
+            tmp_path.resolve(),
+            _PROJECT_ROOT
+            / "configs/synthesis/mpci_bl_template_compilation200_v1_luna.yaml",
+            (),
+        )
+    ]
+    assert json.loads(output.read_text(encoding="utf-8")) == report
+    result = json.loads(capsys.readouterr().out)
+    assert result == {
+        "artifact": str(output),
+        "checkpoint_replay": report["checkpointReplay"],
+        "command": "audit-template-compilation-readiness",
+        "documents": 1650,
+        "offline_gate_passed": True,
+        "status": "complete",
+    }
+
+
+@pytest.mark.parametrize(
+    ("acceptance_gate_passed", "expected_status", "expected_exit_code"),
+    ((True, "complete", 0), (False, "incomplete", 5)),
+)
+def test_template_compilation_cli_forwards_project_root_and_reports_acceptance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    acceptance_gate_passed: bool,
+    expected_status: str,
+    expected_exit_code: int,
+) -> None:
+    from document_ocr.synthesis.template_compiler import pipeline
+
+    config_path = tmp_path / "compilation.yaml"
+    config_path.write_text("{}\n", encoding="utf-8")
+    artifact_root = tmp_path / "compiled-run"
+    artifact_root.mkdir()
+    (artifact_root / "summary.json").write_text(
+        json.dumps(
+            {
+                "acceptanceGatePassed": acceptance_gate_passed,
+                "statusCounts": {"certified": 1}
+                if acceptance_gate_passed
+                else {"rejected": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded_config = SimpleNamespace()
+    calls: list[tuple[Path, Path]] = []
+
+    async def fake_run_extraction(*, project_root: Path, config_path: Path) -> Path:
+        calls.append((project_root, config_path))
+        return artifact_root
+
+    monkeypatch.setattr(pipeline, "load_config", lambda _path: loaded_config)
+    monkeypatch.setattr(pipeline, "run_extraction", fake_run_extraction)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "document-kie-synthesis",
+            "compile-raw-text-templates",
+            "--config",
+            str(config_path),
+            "--project-root",
+            str(tmp_path),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == expected_exit_code
+    assert calls == [(tmp_path.resolve(), config_path.resolve())]
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "acceptance_gate_passed": acceptance_gate_passed,
+        "artifact": str(artifact_root),
+        "command": "compile-raw-text-templates",
+        "status": expected_status,
+        "status_counts": {"certified": 1}
+        if acceptance_gate_passed
+        else {"rejected": 1},
+    }
+
+
+def test_template_compilation_preflight_cli_forwards_project_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from document_ocr.synthesis.template_compiler import pipeline
+
+    config_path = tmp_path / "compilation.yaml"
+    config_path.write_text("{}\n", encoding="utf-8")
+    calls: list[tuple[Path, Path]] = []
+
+    def fake_preflight(*, project_root: Path, config_path: Path) -> dict[str, Any]:
+        calls.append((project_root, config_path))
+        return {"documents": 200}
+
+    monkeypatch.setattr(pipeline, "load_config", lambda _path: SimpleNamespace())
+    monkeypatch.setattr(pipeline, "preflight_extraction", fake_preflight)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "document-kie-synthesis",
+            "preflight-template-compilation",
+            "--config",
+            str(config_path),
+            "--project-root",
+            str(tmp_path),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 0
+    assert calls == [(tmp_path.resolve(), config_path.resolve())]
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "command": "preflight-template-compilation",
+        "result": {"documents": 200},
+        "status": "complete",
+    }
+
+
+def test_template_compiler_rejects_a_project_root_other_than_the_config_repository(
+    tmp_path: Path,
+) -> None:
+    from document_ocr.synthesis.template_compiler.pipeline import _validated_project_root
+
+    config_path = (
+        _PROJECT_ROOT / "configs/synthesis/mpci_bl_template_compilation200_v1_luna.yaml"
+    )
+
+    with pytest.raises(ValueError, match="differs from the config repository"):
+        _validated_project_root(project_root=tmp_path, config_path=config_path)

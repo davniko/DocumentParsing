@@ -1,0 +1,102 @@
+schema_version: 1
+task: carrier_bound_raw_text_template_extraction
+phase: efficiency_probe5
+run_name: mpci-bl-template-compiler-efficiency-probe5-v103-tail-confirmation-canary-luna-high
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+  current_targets:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-linguistic-completion100-additional-maritime-v5-luna-high-resume/generation/targets.jsonl
+    sha256: ac060011e19c1f03682da0da436fc395453ea5c60e4441dd6641daefdcea5a7e
+    records: 100
+  outcome_findings:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/findings.csv
+    sha256: 322528d83b03c0b905659066a77fe97d0337d0840ca3611fb4027d3e9d00aeb9
+  outcome_invariants:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/invariant-checks.csv
+    sha256: e213bc60031e98d38368e7a0dded068b78b2d33fa4c7e0b5228da02b7e13e396
+  manual_audit:
+    path: artifacts/kie-synthesis/mpci-bl-raw-text-pipeline100-v9-contract-v3-outcome-eda-v3/manual-audit.csv
+    sha256: 47585e1e0b070e4461a437c635196e2f2c1a706c00a19cda02ccba171ba13c88
+
+prompts:
+  compiler:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/compiler.md
+    sha256: 337d708eeda06f7f559b1ee0b3ba45c13035ac06ded8ba2a163d7bc3b7d37440
+  critic:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic.md
+    sha256: e409340e64d947f7acd4f7e5bb58c4bf3fc8eb894da212383ed79525de4ecf75
+  critic_audit:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic-audit-v4.md
+    sha256: b285cabe854359181d90d578a63bd2cf088e37026675c03995d5c8ca0604230d
+  critic_plan:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic-plan-v4.md
+    sha256: b8d02bf5639387ac79d4f626d3c5b14f6a3623d0961a6345f1d262b1fee72bb0
+
+compiler_provider: &luna
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 65536
+  store_responses: false
+  pricing:
+    currency: USD
+    effective_date: 2026-09-03
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+critic_provider:
+  <<: *luna
+  max_output_tokens: 32768
+
+workflow:
+  documents: 5
+  agent_contract_protocol: hybrid_reference_partitioned_v10
+  max_concurrent_documents: 5
+  max_concurrent_requests: 8
+  max_compiler_passes: 12
+  max_critic_passes: 2
+  compiler_output_retries: 1
+  critic_output_retries: 1
+  partition_critic_above_request_bytes: 200000
+  additional_call_launch_threshold_usd_per_document: 0.15
+  provider_launch_authorized: false
+  certified_resume_policy: current_host_recertify
+  require_all_documents_certified: true
+  require_carrier_resolution: true
+  require_source_round_trip: true
+  require_all_risk_candidates_owned: true
+  require_final_critic_pass: true
+  require_sentinel_isolation: true
+  publish_training_records: false
+
+selection_seed: 20260915
+resume_from:
+  path: artifacts/kie-synthesis/mpci-bl-template-compiler-efficiency-probe5-v102-closed-plan-canary-luna-high
+  commit_sha256: 3ed4b941963980b613467b0f8b52417a47fbaf5d568cbd36adcd5dc80181e918
+  allow_prompt_change: false
+excluded_document_ids: []
+pinned_document_ids:
+  - doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37
+  - doc_2f4d1db9a837beeb77e9d1a15dd788fde0487832915a868bf4bc6f735b2a9a5d
+  - doc_3973440c769a905e8ad788afd47c91a6481f301bc8d0bb48103d78f5913c80c8
+  - doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec
+  - doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578

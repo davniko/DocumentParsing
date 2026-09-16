@@ -26,7 +26,6 @@ from document_ocr.synthesis.generators import (
     validate_container_number,
 )
 from document_ocr.synthesis.linguistic_probe_runtime import (
-    LinguisticUsageReceipt,
     load_provider_key,
     model_messages,
     usage_receipt,
@@ -40,22 +39,31 @@ from document_ocr.synthesis.raw_text_template import (
 )
 from document_ocr.synthesis.rendering import render_number_surface
 from document_ocr.synthesis.run_safety import StagedArtifactRun
+from document_ocr.synthesis.usage_receipt import LinguisticUsageReceipt
 from document_ocr.training.tasks import get_training_task
 from openai import AsyncOpenAI
-from pydantic import ConfigDict, Field, JsonValue, create_model
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, create_model
 from pydantic_ai import Agent, NativeOutput, capture_run_messages
 from pydantic_ai.messages import ModelResponse
-from pydantic_ai.models import Model, ModelSettings
+from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
+from .coherence import (
+    coherence_dependency_paths,
+    inclusive_range_cardinalities,
+    validate_render_coherence,
+    whole_inclusive_range_surface,
+)
 from .descendant_models import (
     BindingRoute,
     DescendantCaseResult,
     DescendantConfig,
+    PinnedCommittedRun,
     PreparedTargetReceipt,
     ResidualReplayReceipt,
     ResidualStageReceipt,
@@ -63,6 +71,7 @@ from .descendant_models import (
 )
 from .models import (
     CertifiedSemanticTemplate,
+    CoherenceConstraint,
     OpenRouterProviderConfig,
     ProviderConfig,
     SemanticBinding,
@@ -277,7 +286,7 @@ def load_descendant_config(path: Path) -> DescendantConfig:
     )
 
 
-def _validate_committed_run(project_root: Path, configured: Any) -> Path:
+def _validate_committed_run(project_root: Path, configured: PinnedCommittedRun) -> Path:
     root = (project_root / configured.path).resolve(strict=True)
     if project_root not in root.parents or root.is_symlink() or not root.is_dir():
         raise ValueError(f"configured run is not a regular project directory: {configured.path}")
@@ -292,7 +301,7 @@ def _validate_committed_run(project_root: Path, configured: Any) -> Path:
     return root
 
 
-def _read_jsonl(path: Path, *, records: int) -> tuple[dict[str, Any], ...]:
+def _read_jsonl(path: Path, *, records: int | None) -> tuple[dict[str, Any], ...]:
     rows: list[dict[str, Any]] = []
     for line_number, line in enumerate(read_regular_file_bytes(path).splitlines(), start=1):
         try:
@@ -302,7 +311,7 @@ def _read_jsonl(path: Path, *, records: int) -> tuple[dict[str, Any], ...]:
         if not isinstance(row, dict):
             raise ValueError(f"{path}:{line_number}: JSONL row is not an object")
         rows.append(row)
-    if len(rows) != records:
+    if records is not None and len(rows) != records:
         raise ValueError(f"{path}: expected {records} rows, found {len(rows)}")
     return tuple(rows)
 
@@ -577,6 +586,57 @@ def _shape_alphanumeric_like_source(source: str, candidate: str) -> str:
     return "".join(output)
 
 
+def _unique_subsequence_indices(canonical: str, observed: str) -> tuple[int, ...]:
+    """Return the sole certified deletion projection from canonical to observed."""
+
+    canonical_chars = tuple(character.casefold() for character in _alphanumeric(canonical))
+    observed_chars = tuple(character.casefold() for character in _alphanumeric(observed))
+    if not observed_chars or len(observed_chars) > len(canonical_chars):
+        raise ValueError("identifier occurrence is not a deletion projection of its target")
+    counts = [[0] * (len(observed_chars) + 1) for _ in range(len(canonical_chars) + 1)]
+    for source_index in range(len(canonical_chars) + 1):
+        counts[source_index][len(observed_chars)] = 1
+    for source_index in range(len(canonical_chars) - 1, -1, -1):
+        for observed_index in range(len(observed_chars) - 1, -1, -1):
+            count = counts[source_index + 1][observed_index]
+            if canonical_chars[source_index] == observed_chars[observed_index]:
+                count += counts[source_index + 1][observed_index + 1]
+            counts[source_index][observed_index] = min(2, count)
+    if counts[0][0] != 1:
+        raise ValueError("identifier deletion projection is absent or ambiguous")
+    indices: list[int] = []
+    source_index = 0
+    observed_index = 0
+    while observed_index < len(observed_chars):
+        use_count = 0
+        if canonical_chars[source_index] == observed_chars[observed_index]:
+            use_count = counts[source_index + 1][observed_index + 1]
+        skip_count = counts[source_index + 1][observed_index]
+        if use_count == 1 and skip_count == 0:
+            indices.append(source_index)
+            observed_index += 1
+        elif use_count == 0 and skip_count == 1:
+            pass
+        else:
+            raise ValueError("identifier deletion projection cannot be reconstructed uniquely")
+        source_index += 1
+    return tuple(indices)
+
+
+def _project_identifier_occurrence(
+    *, source_canonical: str, source_surface: str, target_canonical: str
+) -> str:
+    source_value = _alphanumeric(source_canonical)
+    target_value = _alphanumeric(target_canonical)
+    observed_value = _alphanumeric(source_surface)
+    if len(source_value) != len(target_value):
+        raise ValueError("identifier target changes certified canonical width")
+    if len(observed_value) == len(source_value):
+        return target_value
+    indices = _unique_subsequence_indices(source_value, observed_value)
+    return "".join(target_value[index] for index in indices)
+
+
 def _scalar_surface(value: Any) -> str:
     if (
         isinstance(value, bool)
@@ -639,11 +699,14 @@ def _render_whole_slot(
             cast(int | float, old_value),
             cast(int | float, new_value),
         )
-    if binding.realization.adapter in {"package_category", "measurement_unit"}:
+    if binding.realization.adapter == "package_category":
+        if not isinstance(new_value, str):
+            raise ValueError("package category target is not text")
+        return _package_candidate(slot.source_text, new_value)
+    if binding.realization.adapter == "measurement_unit":
         if old_value != new_value:
             raise ValueError(
-                f"{binding.realization.adapter} changed outside this template's "
-                "deterministic vocabulary"
+                "measurement_unit changed outside this template's deterministic vocabulary"
             )
         return slot.source_text
     target_surface = _scalar_surface(new_value)
@@ -684,7 +747,7 @@ def _render_target_binding(binding: SemanticBinding, target: Mapping[str, Any]) 
         # punctuation, abbreviation, and segmentation styles when the target is unchanged.
         return BindingOutput(
             replacements={slot.slot_id: slot.source_text for slot in slots},
-            canonical_value=cast(JsonValue, new_value),
+            canonical_value=new_value,
         )
     mode = binding.realization.mode
     replacements: dict[str, str] = {}
@@ -721,14 +784,18 @@ def _render_target_binding(binding: SemanticBinding, target: Mapping[str, Any]) 
         target_surface = _scalar_surface(new_value)
         target_normalized = _alphanumeric(target_surface).casefold()
         for slot, slot_plan in zip(slots, binding.realization.slots, strict=True):
-            prefix = slot_plan.required_target_prefix_normalized.casefold()
-            suffix = slot_plan.required_target_suffix_normalized.casefold()
-            if not target_normalized.startswith(prefix) or (
-                suffix and not target_normalized.endswith(suffix)
+            normalized_prefix = slot_plan.required_target_prefix_normalized.casefold()
+            normalized_suffix = slot_plan.required_target_suffix_normalized.casefold()
+            if not target_normalized.startswith(normalized_prefix) or (
+                normalized_suffix and not target_normalized.endswith(normalized_suffix)
             ):
                 raise ValueError(f"target violates normalized projection for {slot.slot_id}")
-            stop = len(target_normalized) - len(suffix) if suffix else len(target_normalized)
-            projected = target_normalized[len(prefix) : stop]
+            stop = (
+                len(target_normalized) - len(normalized_suffix)
+                if normalized_suffix
+                else len(target_normalized)
+            )
+            projected = target_normalized[len(normalized_prefix) : stop]
             if not projected:
                 raise ValueError(f"normalized target projection is empty for {slot.slot_id}")
             replacements[slot.slot_id] = _shape_alphanumeric_like_source(
@@ -736,7 +803,7 @@ def _render_target_binding(binding: SemanticBinding, target: Mapping[str, Any]) 
             )
     else:
         raise ValueError(f"binding is not a deterministic target surface: {mode}")
-    return BindingOutput(replacements=replacements, canonical_value=cast(JsonValue, new_value))
+    return BindingOutput(replacements=replacements, canonical_value=new_value)
 
 
 def _parse_auxiliary_date(value: str) -> date:
@@ -840,17 +907,19 @@ def _render_pattern_date_auxiliary(
     chosen = date(2021, 1, 1) + timedelta(days=stream.derive(binding.logical_key).randbelow(3650))
     compact = source.strip()
     candidates: list[str] = []
-    if re.fullmatch(r"[0-9]{1,2}[/.-][0-9]{1,2}[/.-][0-9]{2,4}", compact):
-        separator = next(character for character in compact if character in "/.-")
-        parts = compact.split(separator)
+    numeric_match = re.fullmatch(
+        r"(?P<day>[0-9]{1,2})(?P<sep1>[/.-])(?P<month>[0-9]{1,2})"
+        r"(?P<sep2>[/.-])(?P<year>[0-9]{2,4})",
+        compact,
+    )
+    if numeric_match is not None:
+        year_width = len(numeric_match.group("year"))
         candidates.append(
-            separator.join(
-                (
-                    f"{chosen.day:0{len(parts[0])}d}",
-                    f"{chosen.month:0{len(parts[1])}d}",
-                    f"{chosen.year % (10 ** len(parts[2])):0{len(parts[2])}d}",
-                )
-            )
+            f"{chosen.day:0{len(numeric_match.group('day'))}d}"
+            f"{numeric_match.group('sep1')}"
+            f"{chosen.month:0{len(numeric_match.group('month'))}d}"
+            f"{numeric_match.group('sep2')}"
+            f"{chosen.year % (10**year_width):0{year_width}d}"
         )
     month_match = re.fullmatch(
         r"(?P<day>[0-9]{1,2})(?P<sep>[-./ ]?)(?P<month>[A-Za-z]{3,9})"
@@ -1111,6 +1180,29 @@ def _package_candidate(source: str, value: str) -> str:
     candidates = _PACKAGE_SURFACES.get(value)
     if candidates is None:
         raise ValueError(f"unsupported package category: {value}")
+    optional_plural = re.fullmatch(
+        r"(?P<leading>\s*)(?P<noun>[A-Za-z]+)\((?P<suffix>ES|S)\)(?P<trailing>\s*)",
+        source,
+        re.IGNORECASE,
+    )
+    if optional_plural is not None:
+        noun = value.removeprefix("PACKAGE_").replace("_", " ")
+        plural_suffix = (
+            "ES"
+            if noun.casefold().endswith(("s", "x", "z", "ch", "sh"))
+            else "IES"
+            if noun.casefold().endswith("y") and len(noun) > 1
+            else "S"
+        )
+        rendered_noun = noun[:-1] if plural_suffix == "IES" else noun
+        return (
+            optional_plural.group("leading")
+            + _case_like(optional_plural.group("noun"), rendered_noun)
+            + "("
+            + _case_like(optional_plural.group("suffix"), plural_suffix)
+            + ")"
+            + optional_plural.group("trailing")
+        )
     source_length = len(_alphanumeric(source))
     candidate = min(
         candidates,
@@ -1216,19 +1308,30 @@ def _render_agent_target_binding(
             },
             canonical_value=new,
         )
-    if binding.value_kind == "identifier" and len(values) == 1 and isinstance(values[0], str):
-        candidate = values[0]
-        if any(
-            len(_alphanumeric(slot.source_text)) != len(_alphanumeric(candidate))
-            for slot in binding.occurrences
-        ):
-            raise ValueError("identifier target changes certified alphanumeric width")
+    if (
+        binding.value_kind == "identifier"
+        and len(values) == len(source_values) == 1
+        and isinstance(values[0], str)
+        and isinstance(source_values[0], str)
+    ):
+        source_canonical = source_values[0]
+        target_canonical = values[0]
+        source_target_value = _binding_target_value(source_target, binding.target_paths[0])
+        if source_target_value != source_canonical:
+            raise ValueError("compiled identifier snapshot differs from the source target")
         return BindingOutput(
             replacements={
-                slot.slot_id: _shape_alphanumeric_like_source(slot.source_text, candidate)
+                slot.slot_id: _shape_alphanumeric_like_source(
+                    slot.source_text,
+                    _project_identifier_occurrence(
+                        source_canonical=source_canonical,
+                        source_surface=slot.source_text,
+                        target_canonical=target_canonical,
+                    ),
+                )
                 for slot in binding.occurrences
             },
-            canonical_value=candidate,
+            canonical_value=target_canonical,
         )
     if binding.value_kind == "package" and len(values) == 1 and isinstance(values[0], str):
         return BindingOutput(
@@ -1538,33 +1641,6 @@ def _has_semantic_equipment_values(binding: SemanticBinding, target: Mapping[str
     )
 
 
-def _equipment_description(value: Mapping[str, Any], *, apostrophe: bool) -> str:
-    size = value.get("sizeCategory")
-    equipment_type = value.get("typeCategory")
-    if not isinstance(size, str) or not isinstance(equipment_type, str):
-        raise ValueError("semantic equipment value lacks size/type categories")
-    if size.startswith("TWENTY_"):
-        length = "20"
-    elif size.startswith("FORTY_FIVE_"):
-        length = "45"
-    elif size.startswith("FORTY_"):
-        length = "40"
-    else:
-        raise ValueError(f"unsupported semantic equipment size: {size}")
-    marker = length + ("'" if apostrophe else "")
-    high_cube = "HIGH_CUBE" in size
-    if equipment_type == "GENERAL_PURPOSE":
-        code = "HC" if high_cube else "GP"
-    else:
-        try:
-            code = _EQUIPMENT_TYPE_CODES[equipment_type]
-        except KeyError as error:
-            raise ValueError(f"unsupported semantic equipment type: {equipment_type}") from error
-        if high_cube:
-            code = "HC " + code
-    return f"{marker} {code}"
-
-
 def _equipment_surface_candidates(value: Mapping[str, Any], source: str) -> tuple[str, ...]:
     size = value.get("sizeCategory")
     equipment_type = value.get("typeCategory")
@@ -1643,7 +1719,7 @@ def _equipment_surface_candidates(value: Mapping[str, Any], source: str) -> tupl
     count = re.match(r"\s*([1-9][0-9]*)\s*[xX]", source)
     if count is not None:
         prefix = count.group(1) + "X"
-        decorated = []
+        decorated: list[str] = []
         for candidate in values:
             decorated.extend(
                 (
@@ -1823,6 +1899,33 @@ def _unchanged_target_output(
     )
 
 
+def _binding_dependencies_unchanged(
+    binding: SemanticBinding,
+    *,
+    source_target: Mapping[str, Any],
+    target: Mapping[str, Any],
+    constraints: Sequence[CoherenceConstraint],
+) -> bool:
+    paths = tuple(
+        dict.fromkeys(
+            (
+                *binding.dependency_paths,
+                *(
+                    path
+                    for constraint in constraints
+                    if binding.logical_key in constraint.member_logical_keys
+                    for path in coherence_dependency_paths(constraint)
+                ),
+            )
+        )
+    )
+    return all(
+        canonical_json_bytes(_binding_target_value(source_target, path))
+        == canonical_json_bytes(_binding_target_value(target, path))
+        for path in paths
+    )
+
+
 def _binding_route(
     binding: SemanticBinding, target: Mapping[str, Any]
 ) -> tuple[Literal["deterministic", "agent"], str]:
@@ -1857,7 +1960,33 @@ def _binding_route(
     return "deterministic", "compiled deterministic realization is supported by the host"
 
 
-def _build_initial_plan(case: PreparedCase, *, seed: int) -> RenderPlan:
+def _build_initial_plan(
+    case: PreparedCase, *, seed: int, country_codes: Mapping[str, str]
+) -> RenderPlan:
+    # Coherence is a pre-routing safety gate. A stale target-backed range or a compiler-marked
+    # review case must fail before residual planning can initialize a provider request.
+    validate_render_coherence(
+        bindings=case.template.bindings,
+        constraints=case.template.coherence_constraints,
+        source_target=case.source_target,
+        target=case.target,
+        outputs=None,
+    )
+    coherence_members_with_dependencies = {
+        logical_key
+        for constraint in case.template.coherence_constraints
+        if coherence_dependency_paths(constraint)
+        for logical_key in constraint.member_logical_keys
+    }
+    changed_coherence_members = {
+        logical_key
+        for constraint in case.template.coherence_constraints
+        if any(
+            _resolve_path(case.source_target, path) != _resolve_path(case.target, path)
+            for path in coherence_dependency_paths(constraint)
+        )
+        for logical_key in constraint.member_logical_keys
+    }
     routes: list[BindingRoute] = []
     outputs: dict[str, BindingOutput] = {}
     residual: list[SemanticBinding] = []
@@ -1870,32 +1999,47 @@ def _build_initial_plan(case: PreparedCase, *, seed: int) -> RenderPlan:
     for binding in case.template.bindings:
         route, reason = _binding_route(binding, case.target)
         eager_output: BindingOutput | None = None
-        unchanged_output = (
-            _unchanged_target_output(binding, case.target)
-            if binding.realization.requires_agent
-            else None
-        )
+        unchanged_output = _unchanged_target_output(binding, case.target)
+        if unchanged_output is not None and not _binding_dependencies_unchanged(
+            binding,
+            source_target=case.source_target,
+            target=case.target,
+            constraints=case.template.coherence_constraints,
+        ):
+            unchanged_output = None
         if unchanged_output is not None:
-            # This is stronger than trusting the compiler's agent_required label: the compiler
-            # already certified that the exact source slots express these values, and the
-            # descendant target did not change any of them.
+            # The compiler already certified that these exact source slots express the target
+            # snapshots. Preserve them for every realization mode when no dependency changed.
             eager_output = unchanged_output
             route = "deterministic"
             reason = "target value is unchanged from the compiler-certified source surface"
+        elif (
+            binding.logical_key in coherence_members_with_dependencies
+            and binding.logical_key not in changed_coherence_members
+        ):
+            eager_output = _preserved_source_output(binding)
+            route = "deterministic"
+            reason = "coherence dependencies are unchanged from the certified source surface"
         elif (
             binding.realization.mode == "deterministic_derivation"
             and binding.derivation == "equipment_receipt"
         ):
             try:
-                eager_output = _render_equipment_receipt_binding(
+                candidate_output = _render_equipment_receipt_binding(
                     binding,
                     source_target=case.source_target,
                     target=case.target,
+                )
+                _validate_binding_format(
+                    source=case.source,
+                    template=case.template.byte_template,
+                    output=candidate_output,
                 )
             except ValueError as error:
                 route = "agent"
                 reason = f"typed equipment receipt execution is unavailable: {error}"
             else:
+                eager_output = candidate_output
                 route = "deterministic"
                 reason = "typed equipment receipt renderer executed successfully"
         elif binding.target_paths and (
@@ -1903,31 +2047,48 @@ def _build_initial_plan(case: PreparedCase, *, seed: int) -> RenderPlan:
             or _has_semantic_equipment_values(binding, case.target)
         ):
             try:
-                eager_output = _render_agent_target_binding(
+                candidate_output = _render_agent_target_binding(
                     binding,
                     source_target=case.source_target,
                     target=case.target,
+                )
+                _validate_binding_format(
+                    source=case.source,
+                    template=case.template.byte_template,
+                    output=candidate_output,
                 )
             except ValueError as error:
                 route = "agent"
                 reason = f"typed target execution is unavailable: {error}"
             else:
+                eager_output = candidate_output
                 route = "deterministic"
                 reason = "typed target-to-surface renderer executed successfully"
-        elif (
-            binding.realization.mode == "generated_auxiliary"
-            and not _stable_source_vocabulary(binding)
-        ) or (route == "agent" and binding.realization.requires_agent and not binding.target_paths):
+        elif binding.logical_key not in changed_coherence_members and (
+            (
+                binding.realization.mode == "generated_auxiliary"
+                and not _stable_source_vocabulary(binding)
+            )
+            or (
+                route == "agent" and binding.realization.requires_agent and not binding.target_paths
+            )
+        ):
             try:
-                eager_output = _render_generated_auxiliary(
+                candidate_output = _render_generated_auxiliary(
                     binding,
                     stream=stream,
                     values=values,
+                )
+                _validate_binding_format(
+                    source=case.source,
+                    template=case.template.byte_template,
+                    output=candidate_output,
                 )
             except ValueError as error:
                 route = "agent"
                 reason = f"typed deterministic execution is unavailable: {error}"
             else:
+                eager_output = candidate_output
                 route = "deterministic"
                 reason = "typed deterministic auxiliary generator executed successfully"
         routes.append(
@@ -1975,6 +2136,13 @@ def _build_initial_plan(case: PreparedCase, *, seed: int) -> RenderPlan:
         template=case.template,
         outputs=outputs,
         stream=stream,
+    )
+    _plan_derivations(
+        case=case,
+        outputs=outputs,
+        routes=routes,
+        residual=residual,
+        country_codes=country_codes,
     )
     for output in outputs.values():
         _validate_binding_format(
@@ -2215,7 +2383,7 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
 
 def _provider_settings(provider: ProviderConfig) -> ModelSettings:
     if isinstance(provider, OpenRouterProviderConfig):
-        settings: OpenRouterModelSettings = {
+        openrouter_settings: OpenRouterModelSettings = {
             "max_tokens": provider.max_output_tokens,
             "timeout": provider.request_timeout_seconds,
             "openrouter_reasoning": {"effort": provider.reasoning_effort},
@@ -2234,8 +2402,8 @@ def _provider_settings(provider: ProviderConfig) -> ModelSettings:
                 },
             ),
         }
-        return cast(ModelSettings, settings)
-    settings: OpenAIResponsesModelSettings = {
+        return cast(ModelSettings, openrouter_settings)
+    openai_settings: OpenAIResponsesModelSettings = {
         "max_tokens": provider.max_output_tokens,
         "timeout": provider.request_timeout_seconds,
         "openai_reasoning_effort": provider.reasoning_effort,
@@ -2243,7 +2411,7 @@ def _provider_settings(provider: ProviderConfig) -> ModelSettings:
         "openai_reasoning_context": "current_turn",
         "openai_store": provider.store_responses,
     }
-    return cast(ModelSettings, settings)
+    return cast(ModelSettings, openai_settings)
 
 
 def _provider_model(
@@ -2333,6 +2501,27 @@ def _residual_payload(*, case: PreparedCase, plan: RenderPlan) -> dict[str, Any]
                     }
                     for row in binding.source_relationships
                 ),
+                "coherenceConstraints": tuple(
+                    {
+                        "contract": constraint.model_dump(mode="json"),
+                        "sourceDependencyValues": tuple(
+                            {
+                                "path": path,
+                                "value": _binding_target_value(case.source_target, path),
+                            }
+                            for path in coherence_dependency_paths(constraint)
+                        ),
+                        "targetDependencyValues": tuple(
+                            {
+                                "path": path,
+                                "value": _binding_target_value(case.target, path),
+                            }
+                            for path in coherence_dependency_paths(constraint)
+                        ),
+                    }
+                    for constraint in case.template.coherence_constraints
+                    if binding.logical_key in constraint.member_logical_keys
+                ),
                 "stableNonIdentifyingBoilerplate": _stable_boilerplate(binding),
                 "bindingRationale": binding.rationale,
                 "slots": tuple(
@@ -2361,13 +2550,13 @@ def _residual_payload(*, case: PreparedCase, plan: RenderPlan) -> dict[str, Any]
     }
 
 
-def _residual_output_type(bindings: Sequence[SemanticBinding]) -> type[Any]:
+def _residual_output_type(bindings: Sequence[SemanticBinding]) -> type[BaseModel]:
     slots = tuple(slot for binding in bindings for slot in binding.occurrences)
     if not slots:
         raise ValueError("cannot build a residual schema without slots")
     if len({slot.slot_id for slot in slots}) != len(slots):
         raise ValueError("residual output schema contains duplicate slot IDs")
-    fields = {
+    fields: dict[str, Any] = {
         slot.slot_id: (
             str,
             Field(
@@ -2384,7 +2573,31 @@ def _residual_output_type(bindings: Sequence[SemanticBinding]) -> type[Any]:
         "DescendantResidual_"
         + sha256_bytes(canonical_json_bytes(tuple(field for field in fields)))[:16]
     )
-    return create_model(name, __config__=_STRICT_DYNAMIC, __module__=__name__, **fields)
+    return cast(
+        type[BaseModel],
+        create_model(name, __config__=_STRICT_DYNAMIC, __module__=__name__, **fields),
+    )
+
+
+def _not_required_stage(*, document_id: str, system_prompt_sha256: str) -> ResidualStageReceipt:
+    return ResidualStageReceipt.model_validate(
+        {
+            "schema_version": 1,
+            "document_id": document_id,
+            "status": "not_required",
+            "started_at": None,
+            "completed_at": None,
+            "duration_seconds": 0.0,
+            "system_prompt_sha256": system_prompt_sha256,
+            "user_prompt_sha256": None,
+            "output_schema_sha256": None,
+            "output": None,
+            "error_type": None,
+            "error_message": None,
+            "messages": [],
+            "usage": _empty_usage().model_dump(mode="json"),
+        }
+    )
 
 
 async def _call_residual_agent(
@@ -2397,23 +2610,9 @@ async def _call_residual_agent(
     limiter: asyncio.Semaphore,
 ) -> tuple[Mapping[str, str] | None, ResidualStageReceipt]:
     if not plan.residual_bindings:
-        return {}, ResidualStageReceipt.model_validate(
-            {
-                "schema_version": 1,
-                "document_id": case.document_id,
-                "status": "not_required",
-                "started_at": None,
-                "completed_at": None,
-                "duration_seconds": 0.0,
-                "system_prompt_sha256": sha256_bytes(system_prompt.encode()),
-                "user_prompt_sha256": None,
-                "output_schema_sha256": None,
-                "output": None,
-                "error_type": None,
-                "error_message": None,
-                "messages": [],
-                "usage": _empty_usage().model_dump(mode="json"),
-            }
+        return {}, _not_required_stage(
+            document_id=case.document_id,
+            system_prompt_sha256=sha256_bytes(system_prompt.encode()),
         )
     output_type = _residual_output_type(plan.residual_bindings)
     payload = _residual_payload(case=case, plan=plan)
@@ -2622,6 +2821,9 @@ def _country_code_map(path: Path) -> dict[str, str]:
         "greatbritain": "GB",
         "usa": "US",
         "unitedstates": "US",
+        "uae": "AE",
+        "prchina": "CN",
+        "peoplesrepublicchina": "CN",
         "southkorea": "KR",
         "northkorea": "KP",
         "russia": "RU",
@@ -2678,13 +2880,19 @@ def _numeric_value(value: JsonValue) -> Decimal:
             )
             if len(fractional) == 1:
                 return fractional[0]
+        word_value = _number_word_value(value)
+        if word_value is not None:
+            return Decimal(word_value)
     raise ValueError(f"value is not uniquely numeric: {value!r}")
 
 
 def _first_surface_number(value: str) -> Decimal:
     candidates = _numeric_interpretations(value)
     if not candidates:
-        raise ValueError(f"surface has no numeric interpretation: {value!r}")
+        word_value = _number_word_value(value)
+        if word_value is None:
+            raise ValueError(f"surface has no numeric interpretation: {value!r}")
+        return Decimal(word_value)
     integers = tuple(candidate for candidate in candidates if candidate == candidate.to_integral())
     if len(integers) == 1:
         return integers[0]
@@ -2745,6 +2953,83 @@ def _number_to_words(value: int) -> str:
     return " ".join(words)
 
 
+def _number_word_value(value: str) -> int | None:
+    """Parse only complete canonical English number-word surfaces.
+
+    Requiring a round trip through ``_number_to_words`` prevents incidental prose that happens
+    to contain number words from being treated as a numeric field.
+    """
+
+    if any(character.isdigit() for character in value):
+        return None
+    tokens = tuple(re.findall(r"[a-z]+", value.casefold()))
+    if not tokens:
+        return None
+    small = {
+        word: number
+        for number, word in enumerate(
+            (
+                "zero",
+                "one",
+                "two",
+                "three",
+                "four",
+                "five",
+                "six",
+                "seven",
+                "eight",
+                "nine",
+                "ten",
+                "eleven",
+                "twelve",
+                "thirteen",
+                "fourteen",
+                "fifteen",
+                "sixteen",
+                "seventeen",
+                "eighteen",
+                "nineteen",
+            )
+        )
+    }
+    tens = {
+        "twenty": 20,
+        "thirty": 30,
+        "forty": 40,
+        "fifty": 50,
+        "sixty": 60,
+        "seventy": 70,
+        "eighty": 80,
+        "ninety": 90,
+    }
+    total = 0
+    group = 0
+    for token in tokens:
+        if token in small:
+            group += small[token]
+        elif token in tens:
+            group += tens[token]
+        elif token == "hundred" and 0 < group < 10:
+            group *= 100
+        elif token in {"thousand", "million"} and group:
+            scale = 1_000 if token == "thousand" else 1_000_000
+            total += group * scale
+            group = 0
+        else:
+            return None
+    parsed = total + group
+    canonical_tokens = tuple(_number_to_words(parsed).split())
+    return parsed if canonical_tokens == tokens else None
+
+
+def _numeric_surface_values(value: str) -> tuple[Decimal, ...]:
+    values = list(_numeric_interpretations(value))
+    word_value = _number_word_value(value)
+    if word_value is not None and Decimal(word_value) not in values:
+        values.append(Decimal(word_value))
+    return tuple(values)
+
+
 def _dependency_count(target: Mapping[str, Any], path: str) -> int:
     value = _resolve_path(target, path)
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
@@ -2783,6 +3068,12 @@ def _container_package_count_value(
         "packages": len(cast(Sequence[Any], target_patch.get("cargoPackages") or [])),
         "package_quantity": sum(_package_quantities(target)),
     }
+    for index, (source_quantity, target_quantity) in enumerate(
+        zip(_package_quantities(source_target), _package_quantities(target), strict=True)
+    ):
+        key = f"package_quantity:{index}"
+        source_candidates[key] = source_quantity
+        target_candidates[key] = target_quantity
     observed = int(_first_surface_number(source_surface))
     matched = tuple(key for key, value in source_candidates.items() if value == observed)
     if not matched:
@@ -2794,30 +3085,46 @@ def _container_package_count_value(
 
 
 def _numeric_leaves(value: Any, *, names: frozenset[str] | None = None) -> tuple[Decimal, ...]:
-    output: list[Decimal] = []
-    if isinstance(value, Mapping):
-        for key, child in value.items():
-            if names is not None and key in names and not isinstance(child, (Mapping, list)):
-                output.append(_numeric_value(cast(JsonValue, child)))
-            else:
-                output.extend(_numeric_leaves(child, names=names))
-    elif isinstance(value, list):
-        for child in value:
-            output.extend(_numeric_leaves(child, names=names))
-    elif names is None or not isinstance(value, (Mapping, list)):
-        output.append(_numeric_value(cast(JsonValue, value)))
-    return tuple(output)
+    def collect(current: Any, *, selected: bool) -> list[Decimal]:
+        output: list[Decimal] = []
+        if isinstance(current, Mapping):
+            for key, child in current.items():
+                output.extend(
+                    collect(
+                        child,
+                        selected=selected or names is None or key in names,
+                    )
+                )
+        elif isinstance(current, list):
+            for child in current:
+                output.extend(collect(child, selected=selected))
+        elif selected or names is None:
+            output.append(_numeric_value(cast(JsonValue, current)))
+        return output
+
+    root_is_scalar = not isinstance(value, (Mapping, list))
+    return tuple(collect(value, selected=root_is_scalar))
 
 
 def _derivation_numeric_values(
-    *, binding: SemanticBinding, source_target: Mapping[str, Any], target: Mapping[str, Any]
+    *,
+    binding: SemanticBinding,
+    source_target: Mapping[str, Any],
+    target: Mapping[str, Any],
+    bindings: Mapping[str, SemanticBinding],
+    outputs: Mapping[str, BindingOutput],
 ) -> tuple[Decimal, Decimal]:
     derivation = binding.derivation
     if derivation in {"container_count", "package_count"}:
-        path = binding.dependency_paths[0]
-        return Decimal(_dependency_count(source_target, path)), Decimal(
-            _dependency_count(target, path)
-        )
+        if len(binding.dependency_paths) == 1:
+            path = binding.dependency_paths[0]
+            return Decimal(_dependency_count(source_target, path)), Decimal(
+                _dependency_count(target, path)
+            )
+        if binding.dependency_bindings and not binding.dependency_paths:
+            count = Decimal(len(binding.dependency_bindings))
+            return count, count
+        raise ValueError(f"count derivation lacks one countable dependency: {binding.logical_key}")
     if derivation == "container_package_count":
         old, new = _container_package_count_value(
             source_target=source_target,
@@ -2838,12 +3145,16 @@ def _derivation_numeric_values(
     source_values: list[Decimal] = []
     target_values: list[Decimal] = []
     for path in binding.dependency_paths:
-        source_values.extend(
-            _numeric_leaves(_resolve_path(source_target, path), names=filters[derivation])
-        )
-        target_values.extend(
-            _numeric_leaves(_resolve_path(target, path), names=filters[derivation])
-        )
+        names = filters[derivation]
+        if names is not None and path.rsplit(".", 1)[-1] in names:
+            names = None
+        source_values.extend(_numeric_leaves(_resolve_path(source_target, path), names=names))
+        target_values.extend(_numeric_leaves(_resolve_path(target, path), names=names))
+    if not binding.dependency_paths:
+        for key in binding.dependency_bindings:
+            dependency = bindings[key]
+            source_values.append(_first_surface_number(dependency.occurrences[0].source_text))
+            target_values.append(_numeric_value(outputs[key].canonical_value))
     if not source_values or not target_values:
         raise ValueError(f"numeric derivation has no values: {binding.logical_key}")
     return sum(source_values, Decimal(0)), sum(target_values, Decimal(0))
@@ -2861,6 +3172,30 @@ def _render_numeric_derived(
         replacements[slot.slot_id] = replacement
     canonical: JsonValue = int(new) if new == new.to_integral_value() else float(new)
     return BindingOutput(replacements=replacements, canonical_value=canonical)
+
+
+def _render_inclusive_range_cardinality(
+    binding: SemanticBinding, *, target: Mapping[str, Any]
+) -> BindingOutput:
+    if len(binding.dependency_paths) != 1 or binding.dependency_bindings:
+        raise ValueError("inclusive-range derivation requires exactly one quantity path")
+    quantity = _resolve_path(target, binding.dependency_paths[0])
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+        raise ValueError("inclusive-range derivation quantity is not a positive integer")
+    replacements: dict[str, str] = {}
+    for slot in binding.occurrences:
+        match = whole_inclusive_range_surface(slot.source_text)
+        if match is None:
+            raise ValueError("certified inclusive-range surface no longer matches its adapter")
+        start = match.start
+        old_end = match.end
+        direction = 1 if old_end >= start else -1
+        new_end = start + direction * (quantity - 1)
+        rendered_end = render_number_surface(
+            slot.source_text[match.end_start : match.end_end], old_end, new_end
+        )
+        replacements[slot.slot_id] = match.replace_end(slot.source_text, rendered_end)
+    return BindingOutput(replacements=replacements, canonical_value=quantity)
 
 
 def _render_temperature_setpoint(
@@ -2881,7 +3216,10 @@ def _render_temperature_setpoint(
     if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
         raise ValueError("temperature-setpoint value is not numeric")
     value = Decimal(str(raw_value))
-    required_precision = max(0, -value.normalize().as_tuple().exponent)
+    normalized_exponent = value.normalize().as_tuple().exponent
+    if not isinstance(normalized_exponent, int):
+        raise ValueError("temperature-setpoint value is not finite")
+    required_precision = max(0, -normalized_exponent)
     replacements: dict[str, str] = {}
     for slot in binding.occurrences:
         match = _TEMPERATURE_SURFACE.fullmatch(slot.source_text)
@@ -2946,12 +3284,187 @@ def _render_same_value(binding: SemanticBinding, value: JsonValue) -> BindingOut
     return BindingOutput(replacements=replacements, canonical_value=value)
 
 
+def _render_same_as_binding(
+    binding: SemanticBinding,
+    dependency: SemanticBinding,
+    dependency_output: BindingOutput,
+) -> BindingOutput:
+    """Project a proved source relationship instead of copying a dependency surface blindly."""
+
+    if binding.value_kind == "date":
+        dependency_dates = _date_candidates(dependency.occurrences[0].source_text)
+        target_dates = (
+            _date_candidates(dependency_output.canonical_value)
+            if isinstance(dependency_output.canonical_value, str)
+            else frozenset()
+        )
+        if len(dependency_dates) != 1 or len(target_dates) != 1:
+            raise ValueError("same-as date dependency is not uniquely interpretable")
+        old_date = next(iter(dependency_dates))
+        new_date = next(iter(target_dates))
+        replacements: dict[str, str] = {}
+        for slot in binding.occurrences:
+            if _date_candidates(slot.source_text) != frozenset({old_date}):
+                raise ValueError("same-as date source differs from its dependency")
+            replacements[slot.slot_id] = _render_date_surface(
+                slot.source_text,
+                old_date.isoformat(),
+                new_date.isoformat(),
+            )
+        return BindingOutput(
+            replacements=replacements,
+            canonical_value=new_date.isoformat(),
+        )
+
+    if binding.value_kind in {"identifier", "phone"}:
+        dependency_source = _alphanumeric(dependency.occurrences[0].source_text)
+        dependency_target = _alphanumeric(_scalar_surface(dependency_output.canonical_value))
+        if not dependency_source or len(dependency_source) != len(dependency_target):
+            raise ValueError("same-as identifier dependency changes width")
+        replacements = {}
+        for slot in binding.occurrences:
+            source = _alphanumeric(slot.source_text)
+            offsets = tuple(
+                match.start()
+                for match in re.finditer(re.escape(dependency_source.casefold()), source.casefold())
+            )
+            if len(offsets) != 1:
+                raise ValueError("same-as identifier dependency is not uniquely embedded")
+            offset = offsets[0]
+            candidate = (
+                source[:offset] + dependency_target + source[offset + len(dependency_source) :]
+            )
+            replacements[slot.slot_id] = _shape_alphanumeric_like_source(
+                slot.source_text, candidate
+            )
+        return BindingOutput(
+            replacements=replacements,
+            canonical_value=replacements[binding.occurrences[0].slot_id],
+        )
+
+    source_value = dependency.occurrences[0].source_text
+    if any(
+        _normalized_semantic(slot.source_text) != _normalized_semantic(source_value)
+        for slot in binding.occurrences
+    ):
+        raise ValueError("same-as text source is not semantically identical to its dependency")
+    return _render_same_value(binding, dependency_output.canonical_value)
+
+
+def _number_to_words_value(
+    binding: SemanticBinding,
+    outputs: Mapping[str, BindingOutput],
+    target: Mapping[str, Any],
+) -> Decimal:
+    if (
+        len(binding.dependency_paths) == 1
+        and not binding.dependency_bindings
+        and isinstance(_resolve_path(target, binding.dependency_paths[0]), (Mapping, list))
+    ):
+        return Decimal(_dependency_count(target, binding.dependency_paths[0]))
+    values: set[Decimal] = set()
+    dependencies: list[JsonValue] = [
+        outputs[key].canonical_value for key in binding.dependency_bindings
+    ]
+    dependencies.extend(
+        cast(JsonValue, _resolve_path(target, path)) for path in binding.dependency_paths
+    )
+    for value in dependencies:
+        try:
+            values.add(_numeric_value(value))
+        except ValueError:
+            continue
+    if len(values) != 1:
+        raise ValueError(
+            f"number-to-words dependency is not uniquely numeric: {binding.logical_key}"
+        )
+    return values.pop()
+
+
+def _render_one_derivation(
+    *,
+    binding: SemanticBinding,
+    case: PreparedCase,
+    outputs: Mapping[str, BindingOutput],
+    bindings: Mapping[str, SemanticBinding],
+    country_codes: Mapping[str, str],
+) -> BindingOutput:
+    derivation = binding.derivation
+    if derivation == "same_as_binding":
+        if len(binding.dependency_bindings) == 1:
+            key = binding.dependency_bindings[0]
+            return _render_same_as_binding(binding, bindings[key], outputs[key])
+        return _render_same_value(binding, _dependency_canonical(binding, outputs, case.target))
+    if derivation == "country_code":
+        country = _dependency_canonical(binding, outputs, case.target)
+        if not isinstance(country, str):
+            raise ValueError(f"country-code dependency is not text: {binding.logical_key}")
+        normalized = "".join(character for character in country.casefold() if character.isalnum())
+        code = country_codes.get(normalized)
+        if code is None:
+            raise ValueError(f"country is absent from the pinned ISO registry: {country!r}")
+        return _render_same_value(binding, code)
+    if derivation == "number_to_words":
+        numeric = _number_to_words_value(binding, outputs, case.target)
+        if numeric != numeric.to_integral_value():
+            raise ValueError(f"number-to-words dependency is not an integer: {binding.logical_key}")
+        words = _number_to_words(int(numeric))
+        return BindingOutput(
+            replacements={
+                slot.slot_id: _layout_like_source(slot.source_text, words)
+                for slot in binding.occurrences
+            },
+            canonical_value=words,
+        )
+    if derivation == "sum_monetary_amounts":
+        new = sum(
+            (_numeric_value(outputs[key].canonical_value) for key in binding.dependency_bindings),
+            Decimal(0),
+        )
+        old = _first_surface_number(binding.occurrences[0].source_text)
+        return _render_numeric_derived(binding, old=old, new=new)
+    if derivation == "temperature_setpoint":
+        return _render_temperature_setpoint(binding, target=case.target)
+    if derivation == "inclusive_range_cardinality":
+        return _render_inclusive_range_cardinality(binding, target=case.target)
+    if derivation == "equipment_receipt":
+        raise ValueError("equipment receipt must be routed through the residual agent")
+
+    source_base, target_base = _derivation_numeric_values(
+        binding=binding,
+        source_target=case.source_target,
+        target=case.target,
+        bindings=bindings,
+        outputs=outputs,
+    )
+    try:
+        source_surface = _first_surface_number(binding.occurrences[0].source_text)
+    except ValueError:
+        unit_paths = tuple(path for path in binding.dependency_paths if path.endswith(".unit"))
+        if unit_paths and all(
+            _resolve_path(case.source_target, path) == _resolve_path(case.target, path)
+            for path in unit_paths
+        ):
+            return _preserved_source_output(binding)
+        raise
+    if source_base == 0:
+        if target_base != 0:
+            raise ValueError(
+                f"numeric derivation cannot scale a zero source: {binding.logical_key}"
+            )
+        target_surface = source_surface
+    else:
+        target_surface = source_surface * target_base / source_base
+    return _render_numeric_derived(binding, old=source_surface, new=target_surface)
+
+
 def _render_derivations(
     *,
     case: PreparedCase,
     outputs: dict[str, BindingOutput],
     country_codes: Mapping[str, str],
 ) -> None:
+    bindings = {binding.logical_key: binding for binding in case.template.bindings}
     pending = {
         binding.logical_key: binding
         for binding in case.template.bindings
@@ -2959,67 +3472,18 @@ def _render_derivations(
         and binding.logical_key not in outputs
     }
 
-    def normalized_country(value: str) -> str:
-        return "".join(character for character in value.casefold() if character.isalnum())
-
     while pending:
         progressed = False
         for logical_key, binding in tuple(pending.items()):
             if any(key not in outputs for key in binding.dependency_bindings):
                 continue
-            derivation = binding.derivation
-            if derivation == "same_as_binding":
-                value = _dependency_canonical(binding, outputs, case.target)
-                output = _render_same_value(binding, value)
-            elif derivation == "country_code":
-                country = _dependency_canonical(binding, outputs, case.target)
-                if not isinstance(country, str):
-                    raise ValueError(f"country-code dependency is not text: {logical_key}")
-                code = country_codes.get(normalized_country(country))
-                if code is None:
-                    raise ValueError(f"country is absent from the pinned ISO registry: {country!r}")
-                output = _render_same_value(binding, code)
-            elif derivation == "number_to_words":
-                value = _dependency_canonical(binding, outputs, case.target)
-                if (
-                    len(binding.dependency_paths) == 1
-                    and not binding.dependency_bindings
-                    and isinstance(value, (Mapping, list))
-                ):
-                    numeric = Decimal(_dependency_count(case.target, binding.dependency_paths[0]))
-                else:
-                    numeric = _numeric_value(value)
-                if numeric != numeric.to_integral_value():
-                    raise ValueError(f"number-to-words dependency is not an integer: {logical_key}")
-                words = _number_to_words(int(numeric))
-                output = BindingOutput(
-                    replacements={
-                        slot.slot_id: _layout_like_source(slot.source_text, words)
-                        for slot in binding.occurrences
-                    },
-                    canonical_value=words,
-                )
-            elif derivation == "sum_monetary_amounts":
-                new = sum(
-                    (
-                        _numeric_value(outputs[key].canonical_value)
-                        for key in binding.dependency_bindings
-                    ),
-                    Decimal(0),
-                )
-                old = _first_surface_number(binding.occurrences[0].source_text)
-                output = _render_numeric_derived(binding, old=old, new=new)
-            elif derivation == "temperature_setpoint":
-                output = _render_temperature_setpoint(binding, target=case.target)
-            elif derivation == "equipment_receipt":
-                raise ValueError("equipment receipt must be routed through the residual agent")
-            else:
-                old, new = _derivation_numeric_values(
-                    binding=binding,
-                    source_target=case.source_target,
-                    target=case.target,
-                )
-                output = _render_numeric_derived(binding, old=old, new=new)
+            output = _render_one_derivation(
+                binding=binding,
+                case=case,
+                outputs=outputs,
+                bindings=bindings,
+                country_codes=country_codes,
+            )
             _validate_binding_format(
                 source=case.source, template=case.template.byte_template, output=output
             )
@@ -3030,6 +3494,81 @@ def _render_derivations(
             raise ValueError(
                 "derived binding graph cannot be resolved: " + ", ".join(sorted(pending))
             )
+
+
+def _plan_derivations(
+    *,
+    case: PreparedCase,
+    outputs: dict[str, BindingOutput],
+    routes: list[BindingRoute],
+    residual: list[SemanticBinding],
+    country_codes: Mapping[str, str],
+) -> None:
+    """Execute derivations during preflight and explicitly route unsupported ones to one call."""
+
+    bindings = {binding.logical_key: binding for binding in case.template.bindings}
+    route_indexes = {route.logical_key: index for index, route in enumerate(routes)}
+    residual_keys = {binding.logical_key for binding in residual}
+    pending = {
+        binding.logical_key: binding
+        for binding in case.template.bindings
+        if binding.realization.mode == "deterministic_derivation"
+        and binding.logical_key not in outputs
+        and binding.logical_key not in residual_keys
+    }
+
+    def route_to_agent(binding: SemanticBinding, reason: str) -> None:
+        residual.append(binding)
+        residual_keys.add(binding.logical_key)
+        index = route_indexes[binding.logical_key]
+        routes[index] = routes[index].model_copy(
+            update={"runtime_route": "agent", "route_reason": reason}
+        )
+
+    while pending:
+        progressed = False
+        for logical_key, binding in tuple(pending.items()):
+            missing = tuple(key for key in binding.dependency_bindings if key not in outputs)
+            if missing:
+                if any(key in residual_keys for key in missing):
+                    route_to_agent(
+                        binding,
+                        "derivation depends on residual binding(s): " + ", ".join(missing),
+                    )
+                    del pending[logical_key]
+                    progressed = True
+                continue
+            try:
+                output = _render_one_derivation(
+                    binding=binding,
+                    case=case,
+                    outputs=outputs,
+                    bindings=bindings,
+                    country_codes=country_codes,
+                )
+                _validate_binding_format(
+                    source=case.source,
+                    template=case.template.byte_template,
+                    output=output,
+                )
+            except (KeyError, ValueError) as error:
+                route_to_agent(
+                    binding,
+                    f"typed deterministic derivation is unavailable: {type(error).__name__}: "
+                    f"{error}",
+                )
+            else:
+                outputs[logical_key] = output
+            del pending[logical_key]
+            progressed = True
+        if progressed:
+            continue
+        for logical_key, binding in tuple(pending.items()):
+            route_to_agent(
+                binding,
+                "derivation dependency graph cannot be resolved without residual assistance",
+            )
+            del pending[logical_key]
 
 
 def _normalized_semantic(value: str) -> str:
@@ -3272,11 +3811,31 @@ def _target_binding_semantics_valid(
         output = outputs[binding.logical_key]
         unchanged = _unchanged_target_output(binding, case.target)
         if (
-            binding.realization.requires_agent
-            and unchanged is not None
+            unchanged is not None
+            and _binding_dependencies_unchanged(
+                binding,
+                source_target=case.source_target,
+                target=case.target,
+                constraints=case.template.coherence_constraints,
+            )
             and output.replacements == unchanged.replacements
         ):
             continue
+        if binding.realization.requires_agent and binding.target_paths:
+            try:
+                expected = _render_agent_target_binding(
+                    binding,
+                    source_target=case.source_target,
+                    target=case.target,
+                )
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                if output.replacements != expected.replacements or canonical_json_bytes(
+                    output.canonical_value
+                ) != canonical_json_bytes(expected.canonical_value):
+                    failures.append(f"{binding.logical_key}:typed-rendering-differs")
+                continue
         if (
             binding.realization.mode in deterministic_target_modes
             and not _has_semantic_equipment_values(binding, case.target)
@@ -3325,9 +3884,20 @@ def _target_binding_semantics_valid(
                 ):
                     failures.append(f"{binding.logical_key}:{path}:text-not-rendered")
             elif isinstance(target_value, (int, float)) and not isinstance(target_value, bool):
-                expected = Decimal(str(target_value))
-                if not any(
-                    expected in _numeric_interpretations(value)
+                expected_number = Decimal(str(target_value))
+                if binding.derivation == "inclusive_range_cardinality":
+                    observed_cardinalities = {
+                        cardinality
+                        for value in output.replacements.values()
+                        for cardinality in inclusive_range_cardinalities(value)
+                    }
+                    if (
+                        expected_number != expected_number.to_integral_value()
+                        or int(expected_number) not in observed_cardinalities
+                    ):
+                        failures.append(f"{binding.logical_key}:{path}:range-cardinality-mismatch")
+                elif not any(
+                    expected_number in _numeric_surface_values(value)
                     for value in output.replacements.values()
                 ):
                     failures.append(f"{binding.logical_key}:{path}:number-not-rendered")
@@ -3459,6 +4029,7 @@ def _failed_result(
             "format_envelopes_valid": False,
             "target_binding_semantics_valid": False,
             "source_relationships_valid": False,
+            "semantic_coherence_valid": False,
             "output_sha256": None,
             "source_bytes": len(case.source),
             "output_bytes": 0,
@@ -3588,6 +4159,13 @@ def _materialize_case(
         _render_derivations(case=case, outputs=outputs, country_codes=country_codes)
         if set(outputs) != {binding.logical_key for binding in case.template.bindings}:
             raise ValueError("binding outputs do not cover the semantic template exactly")
+        validate_render_coherence(
+            bindings=case.template.bindings,
+            constraints=case.template.coherence_constraints,
+            source_target=case.source_target,
+            target=case.target,
+            outputs=outputs,
+        )
         slot_bindings = {
             slot_id: replacement
             for output in outputs.values()
@@ -3658,6 +4236,7 @@ def _materialize_case(
                 "format_envelopes_valid": proof.format_envelopes_valid,
                 "target_binding_semantics_valid": semantic_valid,
                 "source_relationships_valid": relationships_valid,
+                "semantic_coherence_valid": True,
                 "output_sha256": proof.output_sha256,
                 "source_bytes": len(case.source),
                 "output_bytes": len(rendered),
@@ -3733,10 +4312,30 @@ async def _execute_case(
 
 
 def _preflight_payload(
-    cases: Sequence[PreparedCase], plans: Sequence[RenderPlan]
+    cases: Sequence[PreparedCase],
+    plans: Sequence[RenderPlan],
+    *,
+    country_codes: Mapping[str, str],
+    system_prompt_sha256: str,
 ) -> dict[str, Any]:
     rows = []
     for case, plan in zip(cases, plans, strict=True):
+        if not plan.residual_bindings:
+            execution = _materialize_case(
+                case=case,
+                plan=plan,
+                raw_output={},
+                stage=_not_required_stage(
+                    document_id=case.document_id,
+                    system_prompt_sha256=system_prompt_sha256,
+                ),
+                country_codes=country_codes,
+            )
+            if execution.result.status != "passed":
+                raise ValueError(
+                    f"provider-free preflight materialization failed for {case.document_id}: "
+                    f"{execution.result.error_type}: {execution.result.error_message}"
+                )
         payload = _residual_payload(case=case, plan=plan)
         schema_bytes = (
             len(
@@ -3789,6 +4388,7 @@ def _preflight_payload(
         "deterministicSlots": sum(row["deterministicSlots"] for row in rows),
         "agentSlots": sum(row["agentSlots"] for row in rows),
         "plannedProviderRequests": sum(row["plannedProviderRequests"] for row in rows),
+        "providerFreeValidatedDocuments": sum(not plan.residual_bindings for plan in plans),
         "maximumProviderRequestsPerDocument": max(row["plannedProviderRequests"] for row in rows),
         "targetCompatibilityAdaptations": sum(row["targetAdaptations"] for row in rows),
         "residualPromptBytes": sum(row["residualPromptBytes"] for row in rows),
@@ -3804,10 +4404,22 @@ def preflight_descendants(config_path: Path) -> dict[str, Any]:
     if sha256_file(prompt_path) != config.prompts.residual_renderer.sha256:
         raise ValueError("residual renderer prompt hash differs")
     cases = _load_cases(project_root=project_root, config=config)
+    country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
+    countries = _country_code_map(country_path)
     plans = tuple(
-        _build_initial_plan(case, seed=config.workflow.controlled_target_seed) for case in cases
+        _build_initial_plan(
+            case,
+            seed=config.workflow.controlled_target_seed,
+            country_codes=countries,
+        )
+        for case in cases
     )
-    return _preflight_payload(cases, plans)
+    return _preflight_payload(
+        cases,
+        plans,
+        country_codes=countries,
+        system_prompt_sha256=config.prompts.residual_renderer.sha256,
+    )
 
 
 def _jsonl_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
@@ -3891,6 +4503,7 @@ def _summary(
         "formatValidDocuments": sum(row.format_envelopes_valid for row in results),
         "targetSemanticValidDocuments": sum(row.target_binding_semantics_valid for row in results),
         "sourceRelationshipValidDocuments": sum(row.source_relationships_valid for row in results),
+        "semanticCoherenceValidDocuments": sum(row.semantic_coherence_valid for row in results),
         "targetCompatibilityAdaptations": preflight["targetCompatibilityAdaptations"],
         "trainingRecordsPublished": False,
     }
@@ -3944,6 +4557,8 @@ def _report(summary: Mapping[str, Any]) -> str:
             "- Exact literal regions: "
             f"**{summary['exactLiteralRegionDocuments']}/{summary['documents']}**",
             f"- Exact topology: **{summary['exactTopologyDocuments']}/{summary['documents']}**",
+            "- Semantic coherence: "
+            f"**{summary['semanticCoherenceValidDocuments']}/{summary['documents']}**",
             "- Training records published: **no**",
             "",
         )
@@ -3959,10 +4574,22 @@ async def run_descendants(config_path: Path) -> Path:
         raise ValueError("residual renderer prompt hash differs")
     system_prompt = prompt_path.read_text(encoding="utf-8")
     cases = _load_cases(project_root=project_root, config=config)
+    country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
+    countries = _country_code_map(country_path)
     plans = tuple(
-        _build_initial_plan(case, seed=config.workflow.controlled_target_seed) for case in cases
+        _build_initial_plan(
+            case,
+            seed=config.workflow.controlled_target_seed,
+            country_codes=countries,
+        )
+        for case in cases
     )
-    preflight = _preflight_payload(cases, plans)
+    preflight = _preflight_payload(
+        cases,
+        plans,
+        country_codes=countries,
+        system_prompt_sha256=config.prompts.residual_renderer.sha256,
+    )
     replay_pin = config.inputs.residual_replay_run
     execution_mode: Literal["provider", "offline_replay"]
     replay_root: Path | None = None
@@ -3976,8 +4603,6 @@ async def run_descendants(config_path: Path) -> Path:
             raise ValueError("offline replay requires provider_launch_authorized=false")
         replay_root = _validate_committed_run(project_root, replay_pin)
 
-    country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
-    countries = _country_code_map(country_path)
     transaction = {
         "schemaVersion": 1,
         "runName": config.run_name,
@@ -4036,6 +4661,7 @@ async def run_descendants(config_path: Path) -> Path:
         )
 
     replay_receipts: tuple[ResidualReplayReceipt, ...] | None = None
+    executions: Sequence[ExecutedCase]
     if replay_root is None:
         model = _provider_model(
             project_root=project_root,

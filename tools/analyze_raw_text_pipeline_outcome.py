@@ -43,7 +43,9 @@ from document_ocr.synthesis.raw_text_certification import (
 from document_ocr.synthesis.raw_text_certification_invariants import (
     CertificationInvariantAudit,
 )
-from document_ocr.synthesis.raw_text_pipeline import _PipelineResumeLineageRow
+from document_ocr.synthesis.raw_text_pipeline_lineage import (
+    PipelineResumeLineageRow as _PipelineResumeLineageRow,
+)
 from document_ocr.synthesis.run_safety import StagedArtifactRun, StagedCommitReceipt
 from document_ocr.training.config import resolve_config_path
 

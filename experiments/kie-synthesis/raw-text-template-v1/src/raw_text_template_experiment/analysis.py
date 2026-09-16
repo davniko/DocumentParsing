@@ -13,9 +13,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.run_safety import StagedArtifactRun
+from matplotlib.figure import Figure
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -101,7 +102,7 @@ def _csv_bytes(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> byt
     return stream.getvalue().encode("utf-8")
 
 
-def _figure_bytes(figure: plt.Figure) -> bytes:
+def _figure_bytes(figure: Figure) -> bytes:
     stream = io.BytesIO()
     figure.savefig(stream, format="png", dpi=180, bbox_inches="tight")
     plt.close(figure)

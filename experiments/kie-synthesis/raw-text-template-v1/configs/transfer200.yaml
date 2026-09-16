@@ -1,7 +1,7 @@
 schema_version: 1
 task: carrier_bound_raw_text_template_extraction
 phase: transfer200
-run_name: mpci-bl-carrier-bound-template-extraction-transfer200-v18-openai-continuation
+run_name: mpci-bl-template-compiler-transfer200-v104-source-integrity-hybrid-concurrent-luna-high
 output_dir: artifacts/kie-synthesis
 environment_file: .env
 
@@ -34,10 +34,16 @@ inputs:
 prompts:
   compiler:
     path: experiments/kie-synthesis/raw-text-template-v1/prompts/compiler.md
-    sha256: d618fead95788271c99efab03335f2b0903eb850877c02137c4796030bbad998
+    sha256: 337d708eeda06f7f559b1ee0b3ba45c13035ac06ded8ba2a163d7bc3b7d37440
   critic:
     path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic.md
-    sha256: 6344ecc3f271cb0119e330887e642702203aab670cbb788e92b11b6eee10f0d5
+    sha256: e409340e64d947f7acd4f7e5bb58c4bf3fc8eb894da212383ed79525de4ecf75
+  critic_audit:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic-audit-v4.md
+    sha256: b285cabe854359181d90d578a63bd2cf088e37026675c03995d5c8ca0604230d
+  critic_plan:
+    path: experiments/kie-synthesis/raw-text-template-v1/prompts/critic-plan-v4.md
+    sha256: b8d02bf5639387ac79d4f626d3c5b14f6a3623d0961a6345f1d262b1fee72bb0
 
 compiler_provider: &luna
   kind: openai_responses
@@ -50,7 +56,7 @@ compiler_provider: &luna
   store_responses: false
   pricing:
     currency: USD
-    effective_date: 2026-09-12
+    effective_date: 2026-09-03
     source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
     input_usd_per_million: 0.20
     cached_input_usd_per_million: 0.02
@@ -63,16 +69,17 @@ critic_provider:
 
 workflow:
   documents: 200
-  agent_contract_protocol: legacy_v1
+  agent_contract_protocol: hybrid_reference_partitioned_v10
   max_concurrent_documents: 8
   max_concurrent_requests: 8
-  max_compiler_passes: 16
-  max_critic_passes: 48
+  max_compiler_passes: 12
+  max_critic_passes: 24
   compiler_output_retries: 1
   critic_output_retries: 1
-  additional_call_launch_threshold_usd_per_document: 0.065
+  partition_critic_above_request_bytes: 200000
+  additional_call_launch_threshold_usd_per_document: 0.15
   provider_launch_authorized: false
-  certified_resume_policy: current_host_recertify
+  certified_resume_policy: require_exact_contract
   require_all_documents_certified: true
   require_carrier_resolution: true
   require_source_round_trip: true
@@ -82,10 +89,7 @@ workflow:
   publish_training_records: false
 
 selection_seed: 20260912
-resume_from:
-  path: artifacts/kie-synthesis/mpci-bl-carrier-bound-template-extraction-transfer200-v17-openai-continuation
-  commit_sha256: e78c25ca36f698c8116a48c7e96eb4929ccaf33097161f7184dca0eb0088ff2d
-  allow_prompt_change: true
+resume_from: null
 excluded_document_ids:
   - doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad
   - doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff

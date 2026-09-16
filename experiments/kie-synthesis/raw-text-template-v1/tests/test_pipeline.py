@@ -30,6 +30,7 @@ from raw_text_template_experiment.models import (
 from raw_text_template_experiment.pipeline import (
     _apply_validated_critic_review,
     _compiler_host_rejection,
+    _compiler_occurrence_candidates,
     _compiler_payload,
     _compiler_stagnation_reason,
     _critic_addressable_target_paths,
@@ -45,8 +46,10 @@ from raw_text_template_experiment.pipeline import (
     _literal_review_line_ids,
     _preview_critic_review,
     _replay_checkpoint_case,
+    _require_exact_resume_prefix,
     _restore_or_replay_resume_state,
     _restore_state_checkpoint,
+    _resume_contract,
     _state_checkpoint,
     _validated_compiler_state,
     load_config,
@@ -54,6 +57,28 @@ from raw_text_template_experiment.pipeline import (
 )
 
 _EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_resume_contract_is_json_round_trip_stable() -> None:
+    contract = _resume_contract(_EXPERIMENT_ROOT / "configs/transfer200.yaml")
+
+    assert json.loads(json.dumps(contract)) == contract
+
+
+def test_resume_accepts_only_an_exact_nonempty_selection_prefix() -> None:
+    first = (1, "doc_first", "a" * 64)
+    second = (2, "doc_second", "b" * 64)
+    current = (first, second)
+
+    _require_exact_resume_prefix(prior_identity=(first,), current_identity=current)
+    _require_exact_resume_prefix(prior_identity=current, current_identity=current)
+
+    for invalid in ((), (second,), (first, (2, "doc_changed", "b" * 64))):
+        with pytest.raises(ValueError, match="exact prefix"):
+            _require_exact_resume_prefix(
+                prior_identity=invalid,
+                current_identity=current,
+            )
 
 
 def test_expected_extraction_artifacts_include_relational_locality_receipt(
@@ -387,9 +412,7 @@ def test_compiler_state_discards_semantic_only_claim_refuted_by_pinned_cobinding
     )
 
     quantity_owners = {
-        (row.char_start, row.target_paths)
-        for row in drafts
-        if "quantity" in row.logical_key
+        (row.char_start, row.target_paths) for row in drafts if "quantity" in row.logical_key
     }
     assert quantity_owners == {
         (raw.index("96"), quantity_paths[0]),
@@ -839,10 +862,11 @@ def test_state_checkpoint_round_trips_exact_host_materialization() -> None:
         drafts=drafts,
         assessment=assessment,
         semantic_only_target_facts=(),
+        coherence_constraints=(),
         critic_outputs=(),
     )
 
-    restored, restored_assessment, semantic_only, reviews = _restore_state_checkpoint(
+    restored, restored_assessment, semantic_only, coherence, reviews = _restore_state_checkpoint(
         checkpoint_payload=checkpoint.model_dump_json().encode("utf-8"),
         document_id=document_id,
         raw=raw,
@@ -852,6 +876,7 @@ def test_state_checkpoint_round_trips_exact_host_materialization() -> None:
     assert restored == drafts
     assert restored_assessment == assessment
     assert semantic_only == ()
+    assert coherence == ()
     assert reviews == []
     with pytest.raises(ValueError, match="source hash differs"):
         _restore_state_checkpoint(
@@ -972,7 +997,7 @@ def test_compiler_payload_separates_shared_equality_from_semantic_review() -> No
             "sourceText",
             "occurrenceIndex",
         ),
-        "rows": (("compiler_occurrence_00001", "L00002", "L00002", value, 0),),
+        "rows": (("cand_L00002_00001", "L00002", "L00002", value, 0),),
     }
     relational_reference_payload = _compiler_payload(
         document_id="doc_relationship",
@@ -990,6 +1015,19 @@ def test_compiler_payload_separates_shared_equality_from_semantic_review() -> No
         relational_reference_payload["occurrenceCandidates"]
         == reference_payload["occurrenceCandidates"]
     )
+    hybrid_reference_payload = _compiler_payload(
+        document_id="doc_relationship",
+        raw=raw,
+        source_target=equal,
+        feature=feature,
+        anchors=anchors,
+        risks=risk_candidates(raw, ()),
+        prior_error=None,
+        prior_output=None,
+        prior_drafts=None,
+        agent_contract_protocol="hybrid_reference_partitioned_v10",
+    )
+    assert hybrid_reference_payload == relational_reference_payload
     staged_payload = _compiler_payload(
         document_id="doc_relationship",
         raw=raw,
@@ -1481,8 +1519,7 @@ def test_critic_review_candidates_ignore_conditional_negotiability_boilerplate()
     candidates = _critic_review_candidates(raw=raw, drafts=(owner,))
 
     assert not any(
-        row["kind"] == "unowned_exact_repeat"
-        and row["sourceTexts"] == ("NON-NEGOTIABLE",)
+        row["kind"] == "unowned_exact_repeat" and row["sourceTexts"] == ("NON-NEGOTIABLE",)
         for row in candidates
     )
 
@@ -1704,12 +1741,7 @@ def test_critic_review_candidates_surface_agent_residual_boundaries() -> None:
 
 
 def test_critic_review_candidates_specialize_joint_original_bill_status() -> None:
-    raw = (
-        "--- PAGE 1 ---\n"
-        "Consigned to order of\n"
-        "Number of Original FBL's\n"
-        "3/THREE\n"
-    )
+    raw = "--- PAGE 1 ---\nConsigned to order of\nNumber of Original FBL's\n3/THREE\n"
     surfaces = ("to order of", "3/THREE")
     starts = tuple(raw.index(surface) for surface in surfaces)
     drafts = tuple(
@@ -2255,6 +2287,65 @@ def test_inventory_exposes_exact_same_line_occurrence_index() -> None:
     )
 
 
+def test_inventory_preserves_overlapping_exact_occurrence_index() -> None:
+    raw = "--- PAGE 1 ---\nPG III, (25C.C.C.)\n"
+    source_text = "C.C."
+    first_start = raw.index(source_text)
+    second_start = raw.index(source_text, first_start + 1)
+    draft = SpanDraft(
+        draft_id="agent_binding_flash_point_method",
+        logical_key="agent:dangerous_goods:flash_point_method",
+        render_mode="deterministic_auxiliary",
+        value_kind="dangerous_goods",
+        group_kind="dangerous_goods",
+        group_key="dangerous_goods:0",
+        target_paths=(),
+        derivation=None,
+        dependency_paths=(),
+        dependency_bindings=(),
+        char_start=second_start,
+        char_end=second_start + len(source_text),
+        source_text=source_text,
+        evidence_origin="host_verified_agent_proposal",
+        render_policy="exact_surface",
+        rationale="Fixture overlapping occurrence.",
+    )
+
+    inventory = _draft_inventory(raw, (draft,), {"documentPatch": {}})
+    occurrence = inventory[0]["occurrences"][0]
+
+    assert occurrence["occurrenceIndex"] == 1
+    assert occurrence["exactMatchCount"] == 2
+    assert [row["rangeRelativeCharStart"] for row in occurrence["exactMatchCandidates"]] == [
+        first_start - raw.index("PG III"),
+        second_start - raw.index("PG III"),
+    ]
+    assert [row["selected"] for row in occurrence["exactMatchCandidates"]] == [False, True]
+
+
+def test_compiler_candidate_preserves_overlapping_exact_occurrence_index() -> None:
+    raw = "--- PAGE 1 ---\nPG III, (25C.C.C.)\n"
+    surface = "C.C."
+
+    candidates = _compiler_occurrence_candidates(
+        raw=raw,
+        source_target={"documentPatch": {}},
+        anchors=(),
+        risks=(
+            type(
+                "Risk",
+                (),
+                {"source_text": surface},
+            )(),
+        ),
+    )
+
+    selected = tuple(row for row in candidates if row["sourceText"] == surface)
+    # The leading match ends inside the larger token and is deliberately not exposed. The safe
+    # trailing match must nevertheless retain its true overlapping occurrence index.
+    assert tuple(row["occurrenceIndex"] for row in selected) == (1,)
+
+
 def test_inventory_exposes_unmasked_context_for_caption_substring_duplicate() -> None:
     body = "SHIPPER COUNTRY CODE: DE\n"
     raw = "--- PAGE 1 ---\n" + body
@@ -2350,6 +2441,28 @@ def _stage(role: str, pass_number: int, output: Any) -> AgentStageArtifact:
             "output": output.model_dump(mode="json"),
             "error_type": None,
             "error_message": None,
+            "messages": [],
+            "usage": empty_usage(),
+        }
+    )
+
+
+def _provider_error_stage(role: str, pass_number: int) -> AgentStageArtifact:
+    now = datetime.now(UTC)
+    return AgentStageArtifact.model_validate(
+        {
+            "role": role,
+            "pass_number": pass_number,
+            "started_at": now,
+            "completed_at": now,
+            "duration_seconds": 0.0,
+            "system_prompt_sha256": "0" * 64,
+            "user_prompt_sha256": "1" * 64,
+            "output_schema_sha256": "2" * 64,
+            "status": "provider_error",
+            "output": None,
+            "error_type": "UnexpectedModelBehavior",
+            "error_message": "Exceeded maximum output retries (fixture)",
             "messages": [],
             "usage": empty_usage(),
         }
@@ -2724,6 +2837,226 @@ class _FakeStagedRun:
 
 
 @pytest.mark.asyncio
+async def test_source_integrity_contradiction_is_reviewed_before_provider_call(
+    tmp_path: Path,
+) -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "CARRIER'S RECEIPT: Total number of containers received by Carrier\n"
+        "(FOUR) CONTAINER(S) ONLY\n"
+    )
+    source_target = {
+        "schemaVersion": "3.0.0-experimental",
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "AAAA0000000"},
+                {"containerNumber": "BBBB0000000"},
+                {"containerNumber": "CCCC0000000"},
+            ]
+        },
+    }
+    source = {
+        "documentId": "doc_source_integrity_review",
+        "joinedRawText": raw,
+        "joinedRawTextSha256": sha256_bytes(raw.encode("utf-8")),
+        "target": source_target,
+    }
+
+    class NoCallRuntime:
+        compiler_calls = 0
+        critic_calls = 0
+
+        async def compiler(self, **_kwargs: Any):
+            self.compiler_calls += 1
+            pytest.fail("source integrity review must precede compiler launch")
+
+        async def critic(self, **_kwargs: Any):
+            self.critic_calls += 1
+            pytest.fail("source integrity review must precede critic launch")
+
+    runtime = NoCallRuntime()
+    staged = _FakeStagedRun(tmp_path)
+    config = load_config(_EXPERIMENT_ROOT / "configs" / "canary1.yaml").model_copy(
+        update={"resume_from": None}
+    )
+
+    result, template, masked = await _extract_case(
+        ordinal=1,
+        document_id="doc_source_integrity_review",
+        source=source,
+        feature={},
+        anchor_rows=(),
+        runtime=runtime,  # type: ignore[arg-type]
+        compiler_prompt="compiler",
+        critic_prompt="critic",
+        config=config,
+        staged=staged,  # type: ignore[arg-type]
+        document_limiter=asyncio.Semaphore(1),
+    )
+
+    assert result.status == "review_required"
+    assert result.resume_mode == "source_integrity_review"
+    assert result.compiler_stages == ()
+    assert result.critic_stages == ()
+    assert "4_vs_3" in result.rejection_reasons[0]
+    assert runtime.compiler_calls == 0
+    assert runtime.critic_calls == 0
+    assert template is None
+    assert masked == raw
+    assert "cases/doc_source_integrity_review/template.json" not in staged.published
+
+
+class _RecoveringRuntime:
+    def __init__(
+        self,
+        compilers: tuple[CompilerAgentOutput | None, ...],
+        critics: tuple[CriticAgentOutput | None, ...],
+    ) -> None:
+        self.compilers = list(compilers)
+        self.critics = list(critics)
+        self.compiler_calls = 0
+        self.critic_calls = 0
+
+    async def compiler(self, **kwargs: Any):
+        self.compiler_calls += 1
+        output = self.compilers.pop(0)
+        stage = (
+            _stage("compiler", kwargs["pass_number"], output)
+            if output is not None
+            else _provider_error_stage("compiler", kwargs["pass_number"])
+        )
+        return output, stage
+
+    async def critic(self, **kwargs: Any):
+        self.critic_calls += 1
+        output = self.critics.pop(0)
+        stage = (
+            _stage("critic", kwargs["pass_number"], output)
+            if output is not None
+            else _provider_error_stage("critic", kwargs["pass_number"])
+        )
+        return output, stage
+
+
+@pytest.mark.asyncio
+async def test_provider_output_failure_retries_within_configured_stage_budgets(
+    tmp_path: Path,
+) -> None:
+    carrier = "Acme Ocean Lines Ltd."
+    heading = "BILL OF LADING"
+    raw = f"--- PAGE 1 ---\n{heading}\n{carrier}\n"
+    source_target = {
+        "schemaVersion": "3.0.0-experimental",
+        "documentPatch": {"parties": {"carrier": {"name": carrier}}},
+    }
+    source = {
+        "documentId": "doc_provider_recovery",
+        "joinedRawText": raw,
+        "joinedRawTextSha256": sha256_bytes(raw.encode("utf-8")),
+        "target": source_target,
+    }
+    anchor_rows = (
+        {
+            "anchor_id": "anchor_carrier",
+            "document_id": "doc_provider_recovery",
+            "patchable": True,
+            "page_number": 1,
+            "page_start": len(heading) + 1,
+            "page_end": len(heading) + 1 + len(carrier),
+            "raw_value": carrier,
+            "target_value": carrier,
+            "relation_target_path": "documentPatch.parties.carrier.name",
+            "role_path": "documentPatch.parties.carrier.name",
+            "surface_family": "text",
+        },
+    )
+    feature = {
+        "document_type": "bill_of_lading",
+        "template_proxy_id": "template_fixture",
+        "page_count": 1,
+        "ocr_lines": len(raw.splitlines()),
+        "ocr_characters": len(raw),
+        "container_count": 0,
+        "seal_count": 0,
+        "goods_group_count": 0,
+        "package_fact_count": 0,
+        "allocation_group_count": 0,
+        "allocation_row_count": 0,
+        "dangerous_goods_count": 0,
+        "temperature_setting_count": 0,
+        "additional_information_group_count": 0,
+        "marks_group_count": 0,
+        "target_leaf_paths": ["parties.carrier.name"],
+        "carrier_family": "ACME",
+    }
+    compiler = CompilerAgentOutput.model_validate(
+        {
+            "carrier": {
+                "canonical_name": carrier,
+                "aliases": (),
+                "evidence_occurrences": (
+                    {
+                        "line_start": "L00003",
+                        "line_end": "L00003",
+                        "source_text": carrier,
+                        "occurrence_index": 0,
+                    },
+                ),
+                "source": "source_label_confirmed_by_ocr",
+                "rationale": "Exact carrier evidence.",
+            },
+            "anchor_overrides": (),
+            "bindings": (),
+            "unresolved": (),
+            "all_shipment_dependent_surfaces_accounted_for": True,
+        }
+    )
+    passed = CriticAgentOutput.model_validate(
+        {
+            "verdict": "pass",
+            "findings": (),
+            "additional_bindings": (),
+            "rationale": "Every source surface is correctly classified.",
+        }
+    )
+    runtime = _RecoveringRuntime((None, compiler), (None, passed))
+    base = load_config(_EXPERIMENT_ROOT / "configs" / "canary1.yaml")
+    config = base.model_copy(
+        update={
+            "resume_from": None,
+            "workflow": base.workflow.model_copy(
+                update={
+                    "max_compiler_passes": 2,
+                    "max_critic_passes": 2,
+                    "additional_call_launch_threshold_usd_per_document": Decimal("1"),
+                }
+            ),
+        }
+    )
+
+    result, template, _masked = await _extract_case(
+        ordinal=1,
+        document_id="doc_provider_recovery",
+        source=source,
+        feature=feature,
+        anchor_rows=anchor_rows,
+        runtime=runtime,
+        compiler_prompt="compiler",
+        critic_prompt="critic",
+        config=config,
+        staged=_FakeStagedRun(tmp_path),
+        document_limiter=asyncio.Semaphore(1),
+    )
+
+    assert result.status == "certified", result.rejection_reasons
+    assert template is not None
+    assert runtime.compiler_calls == 2
+    assert runtime.critic_calls == 2
+    assert [stage.status for stage in result.compiler_stages] == ["provider_error", "success"]
+    assert [stage.status for stage in result.critic_stages] == ["provider_error", "success"]
+
+
+@pytest.mark.asyncio
 async def test_candidate_prepass_pass_still_requires_distinct_full_critic_pass(
     tmp_path: Path,
 ) -> None:
@@ -2976,7 +3309,7 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
             "resume_from": None,
             "workflow": config.workflow.model_copy(
                 update={
-                    "max_critic_passes": 4,
+                    "max_critic_passes": 3,
                     "additional_call_launch_threshold_usd_per_document": Decimal("1"),
                 }
             ),
@@ -3000,6 +3333,7 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
     assert template is not None
     assert runtime.compiler_calls == 1
     assert runtime.critic_calls == 4
+    assert runtime.critic_calls == config.workflow.max_critic_passes + 1
     assert runtime.critic_prior_errors[0] is None
     assert "risk_" in (runtime.critic_prior_errors[1] or "")
     assert "outside its cited findings" in (runtime.critic_prior_errors[2] or "")
@@ -3127,18 +3461,23 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
     assert recertification_runtime.critic_calls == 1
     assert recertified.critic_stages[-1].pass_number == 5
     assert recertified.resume_contract_match is False
-    chained_drafts, _chained_assessment, _chained_semantic, _chained_reviews, _warning = (
-        _replay_checkpoint_case(
-            result=recertified,
+    (
+        chained_drafts,
+        _chained_assessment,
+        _chained_semantic,
+        _chained_coherence,
+        _chained_reviews,
+        _warning,
+    ) = _replay_checkpoint_case(
+        result=recertified,
+        raw=raw,
+        source_target=source_target,
+        anchors=anchor_drafts(
             raw=raw,
-            source_target=source_target,
-            anchors=anchor_drafts(
-                raw=raw,
-                document_id="doc_critic_repair",
-                anchors=anchor_rows,
-            ),
-            risks=risk_candidates(raw, ()),
-        )
+            document_id="doc_critic_repair",
+            anchors=anchor_rows,
+        ),
+        risks=risk_candidates(raw, ()),
     )
     assert chained_drafts is not None
 
@@ -3159,6 +3498,7 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
         recovered_drafts,
         recovered_assessment,
         recovered_semantic,
+        recovered_coherence,
         recovered_reviews,
         recovered_warning,
     ) = _replay_checkpoint_case(
@@ -3175,6 +3515,7 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
     assert recovered_drafts is not None
     assert recovered_assessment is not None
     assert recovered_semantic == ()
+    assert recovered_coherence == ()
     assert recovered_reviews == []
     assert recovered_warning is not None
     assert "accepted the latest previously host-rejected compiler candidate" in (recovered_warning)
@@ -3194,6 +3535,7 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
         replayed_drafts,
         _replayed_assessment,
         _replayed_semantic,
+        _replayed_coherence,
         replayed_reviews,
         replayed_warning,
     ) = _replay_checkpoint_case(
@@ -3232,7 +3574,7 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
     stale_checkpoint = checkpoint.model_copy(
         update={"critic_stages": (_stage("critic", 1, stale_revision),)}
     )
-    replayed, replayed_assessment, semantic_only, replayed_reviews, warning = (
+    replayed, replayed_assessment, semantic_only, replayed_coherence, replayed_reviews, warning = (
         _replay_checkpoint_case(
             result=stale_checkpoint,
             raw=raw,
@@ -3248,25 +3590,31 @@ async def test_false_pass_and_host_rejected_addition_are_repaired_inside_critic_
     assert replayed is not None
     assert replayed_assessment is not None
     assert semantic_only == ()
+    assert replayed_coherence == ()
     assert replayed_reviews == []
     assert warning is not None
     assert "skipped incompatible prior critic pass 1" in warning
 
-    fallback_drafts, fallback_assessment, _semantic, _reviews, fallback_warning = (
-        _restore_or_replay_resume_state(
-            checkpoint_payload=b"{}",
-            result=checkpoint,
-            document_id="doc_critic_repair",
+    (
+        fallback_drafts,
+        fallback_assessment,
+        _semantic,
+        _coherence,
+        _reviews,
+        fallback_warning,
+    ) = _restore_or_replay_resume_state(
+        checkpoint_payload=b"{}",
+        result=checkpoint,
+        document_id="doc_critic_repair",
+        raw=raw,
+        source_target=source_target,
+        anchors=anchor_drafts(
             raw=raw,
-            source_target=source_target,
-            anchors=anchor_drafts(
-                raw=raw,
-                document_id="doc_critic_repair",
-                anchors=anchor_rows,
-            ),
-            risks=risk_candidates(raw, ()),
-            resume_contract_match=False,
-        )
+            document_id="doc_critic_repair",
+            anchors=anchor_rows,
+        ),
+        risks=risk_candidates(raw, ()),
+        resume_contract_match=False,
     )
     assert fallback_drafts is not None
     assert fallback_assessment is not None
@@ -3434,7 +3782,7 @@ async def test_critic_can_reclassify_false_anchor_as_audited_unprinted_target(
     )
     assert result.status == "certified", result.rejection_reasons
     assert template is not None
-    assert template.schema_version == 4
+    assert template.schema_version == 5
     assert template.semantic_only_target_facts[0].target_path == quantity_path
     assert template.semantic_only_target_facts[0].source_value == 96
     assert template.semantic_only_target_facts[0].provenance == "critic_audited_unprinted"

@@ -69,6 +69,14 @@ def _arguments() -> argparse.Namespace:
     descendant_analysis.add_argument("--manual-review", type=Path, required=True)
     descendant_analysis.add_argument("--output-parent", type=Path, required=True)
     descendant_analysis.add_argument("--run-name", required=True)
+    migration = subparsers.add_parser(
+        "migrate-production-checkpoints",
+        help="build a current-schema production seed from the pinned legacy transfer run",
+    )
+    migration.add_argument("--config", type=Path, required=True)
+    migration.add_argument("--legacy-run", type=Path, required=True)
+    migration.add_argument("--legacy-commit-sha256", required=True)
+    migration.add_argument("--run-name", required=True)
     return parser.parse_args()
 
 
@@ -150,6 +158,18 @@ def main() -> None:
                 baseline_dir=arguments.baseline_dir,
                 manual_review_path=arguments.manual_review,
                 output_parent=arguments.output_parent,
+                run_name=arguments.run_name,
+            )
+        )
+        return
+    if arguments.command == "migrate-production-checkpoints":
+        from .checkpoint_migration import migrate_legacy_checkpoints
+
+        print(
+            migrate_legacy_checkpoints(
+                config_path=arguments.config,
+                legacy_run=arguments.legacy_run,
+                legacy_commit_sha256=arguments.legacy_commit_sha256,
                 run_name=arguments.run_name,
             )
         )

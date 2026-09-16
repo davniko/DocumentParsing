@@ -7,13 +7,14 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-import pandas as pd
-import seaborn as sns
+import pandas as pd  # type: ignore[import-untyped]
+import seaborn as sns  # type: ignore[import-untyped]
 import yaml
 from document_ocr.atomic import read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 
 plt.switch_backend("Agg")
 
@@ -83,7 +84,7 @@ def _binding_category(logical_key: str) -> str:
     return "other"
 
 
-def _figure_bytes(figure: plt.Figure) -> bytes:
+def _figure_bytes(figure: Figure) -> bytes:
     buffer = io.BytesIO()
     figure.savefig(buffer, format="png", dpi=170, bbox_inches="tight", facecolor="white")
     plt.close(figure)
@@ -91,7 +92,7 @@ def _figure_bytes(figure: plt.Figure) -> bytes:
 
 
 def _csv_bytes(frame: pd.DataFrame) -> bytes:
-    return frame.to_csv(index=False, lineterminator="\n").encode("utf-8")
+    return str(frame.to_csv(index=False, lineterminator="\n")).encode("utf-8")
 
 
 def _describe(series: pd.Series) -> dict[str, float]:
@@ -351,12 +352,12 @@ def _plots(
     source_slots = int(documents["source_residual_slots"].sum())
     replayed_slots = int(documents["replayed_residual_slots"].sum())
     figure, axis = plt.subplots(figsize=(8, 4.8))
-    axis.bar(
+    bars = axis.bar(
         ["Paid v1 route", "Hardened host replay"],
         [source_slots, replayed_slots],
         color=["#B0BEC5", _PALETTE["agent"]],
     )
-    axis.bar_label(axis.containers[0])
+    axis.bar_label(bars)
     axis.set(
         title=f"Host hardening retired {source_slots - replayed_slots} residual slots",
         ylabel="Agent-routed slots",

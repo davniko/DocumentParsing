@@ -11,12 +11,14 @@ from raw_text_template_experiment.models import (
     AgentOccurrence,
     AnchorOverride,
     CompilerAgentOutput,
+    SemanticOnlyTargetFactProposal,
 )
 from raw_text_template_experiment.staged_contract import (
     StagedAuditOutput,
     StagedCriticPlanOutput,
     StagedFacetAuditOutput,
     _augment_proven_repeat_appends,
+    _augment_unambiguous_coherence_decisions,
     build_local_compiler_repair_payload,
     build_staged_audit_facet_payloads,
     build_staged_audit_payload,
@@ -26,6 +28,7 @@ from raw_text_template_experiment.staged_contract import (
     expand_staged_audit_request,
     expand_staged_plan_request,
     merge_staged_facet_audits,
+    normalize_staged_facet_audit,
     restore_staged_plan,
     staged_schema_sizes,
     validate_staged_audit,
@@ -192,6 +195,7 @@ def test_staged_audit_preserves_compact_candidate_guidance() -> None:
     )
     assert optional == {
         "candidateIndex": 1,
+        "candidateId": "review_candidate_0001",
         "kind": "potential_country_code_derivation",
         "requiredRevision": False,
         "bindingIndexes": (0,),
@@ -227,6 +231,7 @@ def test_staged_audit_merges_exact_required_risk_into_repeat_candidate() -> None
     assert candidate["requiredRevision"] is True
     assert candidate["bindingIndexes"] == (0,)
     assert candidate["candidateIndex"] == 0
+    assert candidate["candidateId"] == "review_candidate_0001"
     assert candidate["details"]["mergedRequiredRiskEvidence"][0]["kind"] == ("private_identifier")
 
 
@@ -426,6 +431,136 @@ def test_faceted_audit_partitions_candidates_and_requires_explicit_dispositions(
     missing = surface.model_copy(update={"candidate_dispositions": ()})
     with pytest.raises(ValueError, match="candidate disposition mismatch"):
         validate_staged_facet_audit(missing, facets[0])
+
+
+def test_facet_normalization_derives_redundant_dispositions_from_detailed_findings() -> None:
+    source = _source_payload()
+    source["reviewCandidates"] = [
+        {
+            "candidateId": "review_candidate_0001",
+            "kind": "potential_country_code_derivation",
+            "logicalKeys": ["anchor:documentPatch.billOfLadingNumber"],
+            "lineIds": ["L00002"],
+            "sourceTexts": ["ABC123"],
+            "details": {"relationshipToVerify": "Fixture relationship."},
+        }
+    ]
+    full_payload = build_staged_audit_payload(compact_critic_payload(source))
+    document = next(
+        facet
+        for facet in build_staged_audit_facet_payloads(full_payload)
+        if facet["auditFacet"]["name"] == "document_topology"
+    )
+    candidate_index = document["candidateRows"][0]["candidateIndex"]
+    finding = {
+        "finding_kind": "topology_or_grouping_error",
+        "line_ids": ("L00002",),
+        "evidence": "ABC123",
+        "explanation": "The supplied candidate needs revision.",
+        "binding_indexes": (0,),
+        "candidate_indexes": (candidate_index,),
+    }
+    inconsistent = StagedFacetAuditOutput.model_validate(
+        {
+            "facet": "document_topology",
+            "verdict": "revise",
+            "findings": (finding,),
+            "candidate_dispositions": (
+                {"candidate_index": candidate_index, "conclusion": "valid_current_state"},
+            ),
+            "coverage": {
+                "assigned_bindings_checked": True,
+                "assigned_candidates_checked": True,
+                "assigned_literal_lines_checked": True,
+                "assigned_target_relationships_checked": True,
+            },
+            "rationale": "The detailed finding is the auditable decision.",
+        }
+    )
+
+    normalized = normalize_staged_facet_audit(inconsistent, document)
+
+    assert normalized.findings == inconsistent.findings
+    assert normalized.candidate_dispositions[0].conclusion == "defect_requires_revision"
+
+
+def test_facet_normalization_materializes_host_required_candidate_finding() -> None:
+    full_payload = build_staged_audit_payload(compact_critic_payload(_source_payload()))
+    surface = next(
+        facet
+        for facet in build_staged_audit_facet_payloads(full_payload)
+        if facet["auditFacet"]["name"] == "surface_completeness"
+    )
+    candidate_index = surface["candidateRows"][0]["candidateIndex"]
+    omitted = StagedFacetAuditOutput.model_validate(
+        {
+            "facet": "surface_completeness",
+            "verdict": "pass",
+            "findings": (),
+            "candidate_dispositions": (
+                {"candidate_index": candidate_index, "conclusion": "valid_current_state"},
+            ),
+            "coverage": {
+                "assigned_bindings_checked": True,
+                "assigned_candidates_checked": True,
+                "assigned_literal_lines_checked": True,
+                "assigned_target_relationships_checked": True,
+            },
+            "rationale": "The model omitted the deterministic candidate.",
+        }
+    )
+
+    normalized = normalize_staged_facet_audit(omitted, surface)
+
+    assert normalized.verdict == "revise"
+    assert normalized.findings[0].candidate_indexes == (candidate_index,)
+    assert normalized.candidate_dispositions[0].conclusion == "defect_requires_revision"
+
+
+def test_facet_normalization_materializes_required_repeat_with_remote_owner_evidence() -> None:
+    source = _source_payload()
+    source["reviewCandidates"] = [
+        {
+            "candidateId": "review_candidate_0001",
+            "kind": "unowned_exact_repeat",
+            "logicalKeys": ["anchor:documentPatch.billOfLadingNumber"],
+            "lineIds": ["L00003"],
+            "sourceTexts": ["987654"],
+            "context": ["VAT 987654"],
+            "details": {"relationshipToVerify": "Fixture repeat relationship."},
+        }
+    ]
+    full_payload = build_staged_audit_payload(compact_critic_payload(source))
+    document = next(
+        facet
+        for facet in build_staged_audit_facet_payloads(full_payload)
+        if facet["auditFacet"]["name"] == "document_topology"
+    )
+    candidate_index = document["candidateRows"][0]["candidateIndex"]
+    omitted = StagedFacetAuditOutput.model_validate(
+        {
+            "facet": "document_topology",
+            "verdict": "pass",
+            "findings": (),
+            "candidate_dispositions": (
+                {"candidate_index": candidate_index, "conclusion": "valid_current_state"},
+            ),
+            "coverage": {
+                "assigned_bindings_checked": True,
+                "assigned_candidates_checked": True,
+                "assigned_literal_lines_checked": True,
+                "assigned_target_relationships_checked": True,
+            },
+            "rationale": "The required repeated candidate was omitted.",
+        }
+    )
+
+    normalized = normalize_staged_facet_audit(omitted, document)
+
+    finding = normalized.findings[0]
+    assert finding.finding_kind == "unowned_repeated_fact"
+    assert finding.binding_indexes == (0,)
+    assert finding.line_ids == ("L00002", "L00003")
 
 
 def test_candidate_prepass_exposes_only_candidate_closure_and_cannot_claim_full_scope() -> None:
@@ -1029,7 +1164,7 @@ def test_staged_plan_normalizes_complete_occurrence_removal_to_full_binding() ->
             "occurrence_removals": (
                 {
                     "logical_key": "anchor:documentPatch.billOfLadingNumber",
-                    "occurrence_ids": ("occurrence_00000",),
+                    "occurrence_ids": ("occ_L00002_00000",),
                     "rationale": "Remove the complete one-occurrence owner.",
                 },
             ),
@@ -1047,6 +1182,75 @@ def test_staged_plan_normalizes_complete_occurrence_removal_to_full_binding() ->
 
     assert restored.occurrence_removals == ()
     assert len(restored.remove_inventory_binding_ids) == 1
+
+
+def test_staged_plan_normalizes_complete_same_key_proposal_to_full_replacement() -> None:
+    source = _source_payload()
+    compact = compact_critic_payload(source)
+    audit_payload = build_staged_audit_payload(compact)
+    findings = (
+        {
+            "finding_kind": "incorrect_semantic_owner",
+            "line_ids": ("L00002",),
+            "evidence": "ABC123",
+            "explanation": "Fixture requests a complete same-key replacement.",
+            "binding_indexes": (0,),
+            "target_path_indexes": (0,),
+        },
+    )
+    audit = StagedAuditOutput.model_validate(
+        {
+            "verdict": "revise",
+            "findings": findings,
+            "coverage": _coverage(audit_payload, findings),
+            "rationale": "The current owner requires a complete replacement.",
+        }
+    )
+    plan_payload = build_staged_plan_payload(
+        audit_payload=audit_payload,
+        compact_payload=compact,
+        audit=audit,
+    )
+    logical_key = "anchor:documentPatch.billOfLadingNumber"
+    plan = StagedCriticPlanOutput.model_validate(
+        {
+            "additional_bindings": (
+                {
+                    "logical_key": logical_key,
+                    "value_kind": "identifier",
+                    "group_kind": "document",
+                    "group_key": "document",
+                    "rendering": {
+                        "render_mode": "target_binding",
+                        "target_paths": ("documentPatch.billOfLadingNumber",),
+                    },
+                    "occurrences": (
+                        {
+                            "line_start": "L00002",
+                            "line_end": "L00002",
+                            "source_text": "ABC123",
+                            "occurrence_index": 0,
+                        },
+                    ),
+                    "rationale": "Carry the complete current owner into its replacement.",
+                },
+            ),
+            "rationale": "The full same-key proposal is an atomic replacement.",
+        }
+    )
+
+    restored = restore_staged_plan(
+        plan=plan,
+        audit=audit,
+        plan_payload=plan_payload,
+        compact_payload=compact,
+        source_payload=source,
+    )
+
+    assert len(restored.remove_inventory_binding_ids) == 1
+    assert "Host normalized the complete same-key proposal" in (
+        restored.additional_bindings[0].rationale
+    )
 
 
 def test_staged_plan_retargets_wrong_handle_to_unique_cited_owner_occurrence() -> None:
@@ -1123,7 +1327,7 @@ def test_staged_plan_retargets_wrong_handle_to_unique_cited_owner_occurrence() -
             "occurrence_removals": (
                 {
                     "logical_key": target_key,
-                    "occurrence_ids": ("occurrence_00001",),
+                    "occurrence_ids": ("occ_L00003_00001",),
                     "rationale": "The model selected the adjacent row by mistake.",
                 },
             ),
@@ -1750,6 +1954,58 @@ def test_local_compiler_repair_selects_prior_binding_with_invalid_target_path() 
     assert "L00002 | ABC123" in local["sourceWindow"]
 
 
+def test_local_compiler_repair_exposes_invalid_semantic_only_path_for_removal() -> None:
+    invalid_path = "documentPatch.cargoGroups[1].grossWeight.value"
+    second_invalid_path = "documentPatch.cargoGroups[1].volume.value"
+    prior = _compiler_candidate().model_copy(
+        update={
+            "bindings": (),
+            "semantic_only_target_facts": (
+                SemanticOnlyTargetFactProposal(
+                    target_path=invalid_path,
+                    rationale="The compiler incorrectly declared an absent indexed fact.",
+                ),
+                SemanticOnlyTargetFactProposal(
+                    target_path=second_invalid_path,
+                    rationale="A second absent fact must be repaired in the same transaction.",
+                ),
+            ),
+        }
+    )
+    payload = {
+        "documentId": "doc_invalid_semantic_only",
+        "expectedCarrierName": "Example Carrier Ltd",
+        "numberedSource": "L00001 | HEADER\nL00002 | FOOTER",
+        "sourceLabel": {"documentPatch": {"cargoGroups": []}},
+        "allowedTargetPaths": ("documentPatch.cargoGroups",),
+        "requiredRevision": f"target path index does not exist in source label: {invalid_path}",
+        "anchorBindings": (),
+        "occurrenceCandidates": _compiler_occurrence_candidates(),
+        "requiredTargetCoBindings": (),
+        "previousCandidateBindingInventory": (),
+    }
+
+    local = build_local_compiler_repair_payload(payload, prior)
+
+    assert local["invalidPriorTargetPaths"] == (invalid_path, second_invalid_path)
+    assert local["targetFacts"] == ()
+    assert local["sourceWindow"] == ""
+    assert local["candidateSlice"]["semanticOnlyTargetFacts"] == [
+        {
+            "target_path": invalid_path,
+            "rationale": "The compiler incorrectly declared an absent indexed fact.",
+        },
+        {
+            "target_path": second_invalid_path,
+            "rationale": "A second absent fact must be repaired in the same transaction.",
+        },
+    ]
+    assert local["candidateSlice"]["removableSemanticOnlyTargetPaths"] == [
+        invalid_path,
+        second_invalid_path,
+    ]
+
+
 def test_local_compiler_repair_selects_existing_override_without_prefix_path_bloat() -> None:
     prior = _compiler_candidate().model_copy(
         update={
@@ -2097,3 +2353,103 @@ def test_plan_host_completes_only_proven_single_owner_exact_repeat() -> None:
     assert len(augmented.occurrence_appends) == 1
     assert augmented.occurrence_appends[0].logical_key == owner
     assert augmented.occurrence_appends[0].occurrences[0].occurrence_id == occurrence_id
+
+
+def test_staged_audit_preserves_host_required_coherence_candidate() -> None:
+    source = _source_payload()
+    source["remainingRiskCandidates"] = []
+    source["reviewCandidates"] = [
+        {
+            "candidateId": "review_candidate_0014",
+            "kind": "cross_field_semantic_relation",
+            "requiredRevision": True,
+            "logicalKeys": ("anchor:documentPatch.billOfLadingNumber",),
+            "lineIds": ("L00002",),
+            "sourceTexts": ("ABC123",),
+            "details": {
+                "suggestedContracts": (
+                    {
+                        "kind": "numeric_values",
+                        "memberLogicalKeys": (
+                            "anchor:documentPatch.billOfLadingNumber",
+                        ),
+                        "dependencyPaths": ("documentPatch.billOfLadingNumber",),
+                    },
+                ),
+                "ambiguousAlternatives": False,
+            },
+        }
+    ]
+
+    payload = build_staged_audit_payload(compact_critic_payload(source))
+
+    assert len(payload["candidateRows"]) == 1
+    assert payload["candidateRows"][0]["requiredRevision"] is True
+
+
+def test_plan_host_completes_audited_unambiguous_coherence_decision() -> None:
+    candidate_id = "review_candidate_0014"
+    audit = StagedAuditOutput.model_validate(
+        {
+            "verdict": "revise",
+            "findings": (
+                {
+                    "finding_kind": "missing_coherence_dependency",
+                    "line_ids": ("L00112",),
+                    "evidence": "15440.000",
+                    "explanation": "The printed total lacks its structured dependency.",
+                    "binding_indexes": (0,),
+                    "candidate_indexes": (0,),
+                },
+            ),
+            "coverage": {
+                "literal_completeness_checked": True,
+                "target_ownership_checked": True,
+                "topology_and_grouping_checked": True,
+                "derivations_checked": True,
+                "carrier_boundary_checked": True,
+                "identifier_relationships_checked": True,
+            },
+            "rationale": "The relation is semantically required.",
+        }
+    )
+    plan = StagedCriticPlanOutput.model_validate(
+        {
+            "remove_binding_logical_keys": ("unrelated_binding",),
+            "rationale": "A separate finding requires a removal.",
+        }
+    )
+    payload = {
+        "candidateRows": (
+            {
+                "candidateIndex": 0,
+                "candidateId": candidate_id,
+                "kind": "cross_field_semantic_relation",
+                "requiredRevision": True,
+                "details": {
+                    "suggestedContracts": (
+                        {
+                            "kind": "summed_numeric_value",
+                            "memberLogicalKeys": ("agent:tare_weight:3",),
+                            "dependencyPaths": (
+                                "documentPatch.cargoAllocationGroups[3].allocations[0]"
+                                ".packageQuantity",
+                            ),
+                        },
+                    ),
+                    "ambiguousAlternatives": False,
+                },
+            },
+        )
+    }
+
+    augmented = _augment_unambiguous_coherence_decisions(
+        plan=plan,
+        audit=audit,
+        plan_payload=payload,
+    )
+
+    assert len(augmented.coherence_decisions) == 1
+    assert augmented.coherence_decisions[0].candidate_id == candidate_id
+    assert augmented.coherence_decisions[0].disposition == "apply_suggestion"
+    assert augmented.coherence_decisions[0].suggestion_index == 0

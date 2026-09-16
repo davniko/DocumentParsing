@@ -13,20 +13,21 @@ from typing import Annotated, Any, Literal, TypeVar, cast
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.linguistic_probe_runtime import (
-    LinguisticUsageReceipt,
     load_provider_key,
     model_messages,
     usage_receipt,
 )
+from document_ocr.synthesis.usage_receipt import LinguisticUsageReceipt
 from openai import AsyncOpenAI
-from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
+from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator, model_validator
 from pydantic_ai import Agent, ModelProfile, ModelRetry, NativeOutput, capture_run_messages
 from pydantic_ai.messages import ModelResponse
-from pydantic_ai.models import Model, ModelSettings
+from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from .compact_contract import BINDING_COLUMNS, OCCURRENCE_COLUMNS, compact_critic_payload
@@ -37,6 +38,7 @@ from .models import (
     AgentStageArtifact,
     AnchorOverride,
     CarrierAssessment,
+    CoherenceCandidateDecision,
     CompilerAgentOutput,
     CriticAgentOutput,
     CriticFinding,
@@ -58,17 +60,20 @@ from .staged_contract import (
     StagedAuditOutput,
     StagedCriticPlanOutput,
     StagedFacetAuditOutput,
+    StagedPlanBindingProposal,
+    StagedPlanOccurrenceAppend,
     build_local_compiler_repair_payload,
     build_staged_audit_facet_payloads,
     build_staged_audit_payload,
     build_staged_plan_payload,
     compact_staged_audit_request,
     compact_staged_plan_request,
+    host_completable_coherence_decisions,
     merge_staged_facet_audits,
+    normalize_staged_facet_audit,
     restore_staged_plan,
     staged_audit_pass,
     validate_staged_audit,
-    validate_staged_facet_audit,
 )
 
 OutputT = TypeVar("OutputT", bound=BaseModel)
@@ -88,14 +93,21 @@ _CANDIDATE_FIRST_PROTOCOLS = {
     "candidate_first_staged_local_v7",
     "candidate_first_staged_local_v8",
 }
+_HYBRID_PROTOCOLS = {"hybrid_reference_partitioned_v10"}
 _REFERENCE_PROTOCOLS = {
     "reference_compact_v3",
     "relational_reference_compact_v9",
+    *_HYBRID_PROTOCOLS,
 }
 _LOCAL_COMPILER_REPAIR_PROTOCOLS = {
     *_STAGED_PROTOCOLS,
     "relational_reference_compact_v9",
+    *_HYBRID_PROTOCOLS,
 }
+_COMPILER_ACTIONABLE_REFERENCE = re.compile(
+    r"documentPatch(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\])+"
+    r"|agent_binding_[0-9a-f]{16}|anchor_binding_[0-9]{4}"
+)
 
 _DISCRIMINATED_BINDING_ADAPTER = """
 # Provider-facing delta-binding schema adapter (v3)
@@ -127,7 +139,7 @@ receive complete replacement ownership or an explicit semantic-only disposition.
 """.strip()
 
 _COMPACT_CRITIC_ADAPTER = """
-# Compact exhaustive critic protocol (v7)
+# Compact exhaustive critic protocol (v8)
 
 The payload is a semantic table encoding of the objects named by the rules below. Read
 `bindingRows` using `compactContract.bindingColumns`, `occurrenceRows` using
@@ -148,20 +160,38 @@ This is a required exhaustive receipt, not a sample. `candidate_receipt` is posi
 with the concatenation of `reviewCandidates` followed by `remainingRiskCandidates`: return exactly
 one conclusion string for every candidate, in request order. Do not repeat candidate IDs or
 candidate rationales in the response; the host reconstructs IDs by position and requires grounded
-explanations only for defects in `findings`.
+explanations only for defects in `findings`. The receipt records your audit judgment. The host is
+the authority for mechanically proven required revisions and will independently reject a pass or
+patch that leaves one unresolved; do not spend a response trying to satisfy a receipt instead of
+returning the complete repair.
 Review candidates are high-recall host leads and may be valid; remaining risks are proven unowned
 and therefore require a revision, even when their correct owner is `literal_static`. A `revise`
 decision must aggregate every
 independently visible defect into one complete local transaction; do not stop after finding the
 first defect. Binding proposals use the v2 discriminated `rendering` object described by the
 response schema. For every new occurrence available in `occurrenceCandidates`, return only its
-`occurrence_id` handle; use a literal occurrence object solely when the exact intended span is
-genuinely absent from that table. When an uncovered surface is merely another physical occurrence
+exact `occurrence_id` handle copied from the row. New-occurrence handles have format
+`cand_Lxxxxx_xxxxx`; they are not `compiler_occurrence_NNNNN` ordinals. Each handle embeds its
+source start-line ID; that line must agree with the finding you intend to repair, and you must
+verify the complete table row rather than guessing or constructing an ID. Use a literal occurrence
+object solely when the exact intended span is genuinely
+absent from that table. When an uncovered surface is merely another physical occurrence
 of an existing binding with unchanged semantics, use `occurrence_appends`; do not remove or restate
 that binding. When only one or more existing occurrences are semantically wrong, use
 `occurrence_removals`; do not remove and restate the otherwise unchanged binding. Use full removal
 plus `additional_bindings` only when the binding's semantic contract actually changes. Output full
 target-path strings from the second column of `targetPathTable`, never the short path IDs.
+
+For every `cross_field_semantic_relation` row whose `requiredRevision` is true, return exactly one
+`coherence_decisions` entry. Use `apply_suggestion` with the zero-based suggestion index only when
+the source context confirms that host-supplied arithmetic relationship; use
+`reviewed_independent` for an incidental numeric resemblance and `review_required` only when the
+relationship is genuinely unresolved.
+These decisions are metadata, not structural patches: a complete, defect-free audit may return
+`pass` with them. Copy the enclosing row's exact `candidateId` into each decision; do not rename it
+after the candidate kind. Mark their positional candidate receipts `valid_existing_contract`
+because the same decision completes the contract. Never invent a path, member, or arithmetic
+relationship.
 
 When the semantic rules below say `bindingInventory`, consult `bindingRows` plus `occurrenceRows`.
 When they say `allowedTargetPaths`, consult `targetPathTable`. Exact-match candidate data remains in
@@ -169,13 +199,15 @@ the occurrence table and is unchanged.
 """.strip()
 
 _REFERENCE_COMPILER_ADAPTER = """
-# Host-resolved occurrence-reference protocol (v3)
+# Host-resolved occurrence-reference protocol (v4)
 
 The payload contains `occurrenceCandidates`, an immutable table of exact source spans already
 resolved by the host. Read each row using the table's `columns`; numbered source supplies its full
 context. In `carrier.evidence_occurrences` and every binding's `occurrences`, emit
-`{"occurrence_id":"compiler_occurrence_NNNNN"}` whenever a listed row is the intended complete
-surface. The response schema enumerates the only legal IDs. Do not copy that row's line or text
+`{"occurrence_id":"cand_Lxxxxx_xxxxx"}` with the row's exact `occurrenceId` whenever a listed row
+is the intended complete surface. The first numeric component is the source start-line number; the
+second is a stable table identity, not a row number to guess. The response schema enumerates the
+only legal IDs. Do not copy that row's line or text
 fields into the response. Use a full `{line_start,line_end,source_text,occurrence_index}` occurrence
 only when the exact intended span is genuinely absent from the table; copy such text byte-for-byte.
 
@@ -225,13 +257,21 @@ _REFERENCE_OCCURRENCE_COLUMNS = (
 )
 
 _COMPILER_REPAIR_ADAPTER = """
-# Local compiler repair protocol (v2)
+# Local compiler repair protocol (v3)
 
-The payload contains `previousCandidateOutput` and an exact `requiredRevision` from the host.
-Return only the smallest complete patch that makes that candidate satisfy every listed defect.
-Do not repeat unaffected bindings. A replacement binding with an existing logical key atomically
-replaces that binding; use `remove_binding_logical_keys` only to delete a binding without a
-replacement. When one
+The payload contains a lossless `candidateSlice` of the current candidate, an exact
+`requiredRevision` from the host, and only the source/target context authorized for this repair.
+The host retains every omitted binding. Return only the smallest complete patch that makes the
+current candidate satisfy every listed defect. Do not repeat unaffected bindings. A replacement
+binding with an existing logical key atomically replaces that binding; use
+`remove_binding_logical_keys` only to delete a binding without a replacement. An
+`additional_anchor_overrides` entry may copy only an exact `anchorBindingId` nested under the
+supplied `anchorBindings`. Diagnostic `agent_binding_*` identifiers in `requiredRevision` are not
+edit handles: repair their corresponding candidate-slice binding and never transform or guess one
+into an `anchor_binding_*` ID. Every entry in `invalidPriorTargetPaths` is an existing declaration
+that cannot resolve against the source label: remove it through the exact
+`remove_semantic_only_target_paths` handle (or replace its owning binding), and never return that
+path in an addition or replacement. When one
 printed surface was incorrectly assigned to independently mutable target facts, retain only the
 fact the source topology supports and declare a genuinely unprinted fact through
 `additional_semantic_only_target_facts`; never merge independent facts merely because their
@@ -317,6 +357,7 @@ def _scoped_compiler_repair_output_type(
     removable_binding_keys: Sequence[str] | None = None,
     removable_anchor_ids: Sequence[str] | None = None,
     removable_semantic_paths: Sequence[str] | None = None,
+    addable_anchor_ids: Sequence[str] | None = None,
 ) -> type[_CompilerRepairOutput]:
     all_binding_keys = tuple(dict.fromkeys(row.logical_key for row in prior.bindings))
     all_anchor_ids = tuple(dict.fromkeys(row.anchor_binding_id for row in prior.anchor_overrides))
@@ -332,6 +373,9 @@ def _scoped_compiler_repair_output_type(
         if removable_semantic_paths is not None
         else all_semantic_paths
     )
+    authorized_additional_anchor_ids = (
+        tuple(addable_anchor_ids) if addable_anchor_ids is not None else None
+    )
     for name, selected, available in (
         ("binding", binding_keys, all_binding_keys),
         ("anchor override", anchor_ids, all_anchor_ids),
@@ -339,11 +383,15 @@ def _scoped_compiler_repair_output_type(
     ):
         if len(set(selected)) != len(selected) or not set(selected) <= set(available):
             raise ValueError(f"compiler repair {name} scope is invalid")
+    if authorized_additional_anchor_ids is not None and len(
+        set(authorized_additional_anchor_ids)
+    ) != len(authorized_additional_anchor_ids):
+        raise ValueError("compiler repair addable anchor scope is invalid")
     fields: dict[str, Any] = {}
     if binding_keys:
         fields["remove_binding_logical_keys"] = (
             Annotated[
-                tuple[Literal.__getitem__(binding_keys), ...],
+                tuple[Literal.__getitem__(binding_keys), ...],  # type: ignore[misc]
                 Field(json_schema_extra={"uniqueItems": True}),
             ],
             (),
@@ -359,7 +407,7 @@ def _scoped_compiler_repair_output_type(
     if anchor_ids:
         fields["remove_anchor_override_ids"] = (
             Annotated[
-                tuple[Literal.__getitem__(anchor_ids), ...],
+                tuple[Literal.__getitem__(anchor_ids), ...],  # type: ignore[misc]
                 Field(json_schema_extra={"uniqueItems": True}),
             ],
             (),
@@ -375,7 +423,7 @@ def _scoped_compiler_repair_output_type(
     if semantic_paths:
         fields["remove_semantic_only_target_paths"] = (
             Annotated[
-                tuple[Literal.__getitem__(semantic_paths), ...],
+                tuple[Literal.__getitem__(semantic_paths), ...],  # type: ignore[misc]
                 Field(json_schema_extra={"uniqueItems": True}),
             ],
             (),
@@ -386,6 +434,26 @@ def _scoped_compiler_repair_output_type(
                 tuple[str, ...],
                 Field(max_length=0, json_schema_extra={"uniqueItems": True}),
             ],
+            (),
+        )
+    if authorized_additional_anchor_ids:
+        additional_anchor_type = create_model(
+            "ScopedCompilerRepairAdditionalAnchor_"
+            + sha256_bytes(canonical_json_bytes(authorized_additional_anchor_ids))[:16],
+            __base__=AnchorOverride,
+            __module__=__name__,
+            anchor_binding_id=(Literal.__getitem__(authorized_additional_anchor_ids), ...),
+        )
+        fields["additional_anchor_overrides"] = (
+            Annotated[
+                tuple[additional_anchor_type, ...],  # type: ignore[valid-type]
+                Field(json_schema_extra={"uniqueItems": True}),
+            ],
+            (),
+        )
+    elif authorized_additional_anchor_ids is not None:
+        fields["additional_anchor_overrides"] = (
+            Annotated[tuple[AnchorOverride, ...], Field(max_length=0)],
             (),
         )
 
@@ -443,6 +511,7 @@ def _scoped_compiler_repair_output_type(
                 binding_keys,
                 anchor_ids,
                 semantic_paths,
+                authorized_additional_anchor_ids,
             )
         )
     )[:16]
@@ -452,9 +521,14 @@ def _scoped_compiler_repair_output_type(
             f"ScopedCompilerRepairOutput_{digest}",
             __base__=_CompilerRepairOutput,
             __module__=__name__,
-            __validators__={
-                "replacement_operations_are_transactional": replacement_operations_are_transactional
-            },
+            __validators__=cast(
+                dict[str, Callable[..., Any]],
+                {
+                    "replacement_operations_are_transactional": (
+                        replacement_operations_are_transactional
+                    )
+                },
+            ),
             **fields,
         ),
     )
@@ -565,11 +639,50 @@ def _compiler_repair_allowed_paths(payload: Mapping[str, Any]) -> frozenset[str]
     return frozenset(allowed_paths)
 
 
-def _compiler_repair_scope_references(payload: Mapping[str, Any]) -> frozenset[str]:
+def _compiler_repair_allowed_anchor_ids(payload: Mapping[str, Any]) -> tuple[str, ...]:
+    """Return the exact accepted-anchor edit handles exposed to a local repair."""
+
+    rows = payload.get("anchorBindings")
+    if not isinstance(rows, (tuple, list)):
+        raise ValueError("compiler repair anchorBindings vocabulary is invalid")
+    identifiers: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("compiler repair anchor binding is invalid")
+        occurrences = row.get("occurrences")
+        if not isinstance(occurrences, (tuple, list)):
+            raise ValueError("compiler repair anchor occurrence vocabulary is invalid")
+        for occurrence in occurrences:
+            if not isinstance(occurrence, Mapping) or not isinstance(
+                occurrence.get("anchorBindingId"), str
+            ):
+                raise ValueError("compiler repair anchor occurrence is invalid")
+            identifiers.append(cast(str, occurrence["anchorBindingId"]))
+    if len(set(identifiers)) != len(identifiers):
+        raise ValueError("compiler repair anchor IDs are not unique")
+    return tuple(identifiers)
+
+
+def _compiler_repair_addable_anchor_ids(
+    payload: Mapping[str, Any], prior: CompilerAgentOutput
+) -> tuple[str, ...]:
+    """Expose only accepted anchors whose current state can actually change."""
+
+    existing = {row.anchor_binding_id for row in prior.anchor_overrides}
+    return tuple(
+        anchor_id
+        for anchor_id in _compiler_repair_allowed_anchor_ids(payload)
+        if anchor_id not in existing
+    )
+
+
+def _compiler_repair_scope_references(
+    payload: Mapping[str, Any], repair: _CompilerRepairOutput | None = None
+) -> frozenset[str]:
     """Return exact identifiers the declared compiler transaction is authorized to change."""
 
     candidate_slice = payload.get("candidateSlice")
-    references = set(_compiler_repair_allowed_paths(payload))
+    references: set[str] = set()
     if isinstance(candidate_slice, Mapping):
         references.update(
             value
@@ -581,12 +694,108 @@ def _compiler_repair_scope_references(payload: Mapping[str, Any]) -> frozenset[s
             for value in candidate_slice.get(field, ())
             if isinstance(value, str)
         )
+        for binding in candidate_slice.get("bindings", ()):
+            if not isinstance(binding, Mapping):
+                continue
+            for field in ("logical_key", "target_paths", "dependency_paths"):
+                values = (binding.get(field),) if field == "logical_key" else binding.get(field, ())
+                references.update(value for value in values if isinstance(value, str))
+            references.update(_compiler_proposal_draft_ids(binding))
+    if repair is not None:
+        references.update(repair.remove_binding_logical_keys)
+        references.update(repair.remove_anchor_override_ids)
+        references.update(repair.remove_semantic_only_target_paths)
+        for binding in repair.replacement_bindings:
+            references.add(binding.logical_key)
+            restored = restore_legacy_binding(binding)
+            references.update(restored.target_paths)
+            references.update(restored.dependency_paths)
+            references.update(_compiler_proposal_draft_ids(restored))
+        references.update(row.anchor_binding_id for row in repair.additional_anchor_overrides)
+        references.update(row.target_path for row in repair.additional_semantic_only_target_facts)
     return frozenset(references)
 
 
-def _compiler_repair_error_intersects_scope(error: ValueError, payload: Mapping[str, Any]) -> bool:
+def _compiler_proposal_draft_ids(
+    proposal: AgentBindingProposal | Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Reproduce the stable draft handles emitted by ``resolve_agent_proposals``."""
+
+    if isinstance(proposal, Mapping):
+        logical_key = proposal.get("logical_key")
+        occurrences = proposal.get("occurrences", ())
+    else:
+        logical_key = proposal.logical_key
+        occurrences = proposal.occurrences
+    if not isinstance(logical_key, str) or not isinstance(occurrences, (tuple, list)):
+        raise ValueError("compiler repair binding has an invalid occurrence vocabulary")
+    identities: list[tuple[str, str, str, int]] = []
+    for occurrence in occurrences:
+        if isinstance(occurrence, Mapping):
+            values = (
+                occurrence.get("line_start"),
+                occurrence.get("line_end"),
+                occurrence.get("source_text"),
+                occurrence.get("occurrence_index"),
+            )
+        else:
+            values = (
+                occurrence.line_start,
+                occurrence.line_end,
+                occurrence.source_text,
+                occurrence.occurrence_index,
+            )
+        line_start, line_end, source_text, occurrence_index = values
+        if not (
+            isinstance(line_start, str)
+            and isinstance(line_end, str)
+            and isinstance(source_text, str)
+            and isinstance(occurrence_index, int)
+            and not isinstance(occurrence_index, bool)
+        ):
+            raise ValueError("compiler repair binding occurrence is invalid")
+        identities.append((line_start, line_end, source_text, occurrence_index))
+    return tuple(
+        "agent_binding_"
+        + sha256_bytes(
+            (
+                logical_key
+                + "\0"
+                + line_start
+                + "\0"
+                + line_end
+                + "\0"
+                + source_text
+                + "\0"
+                + str(occurrence_index)
+            ).encode("utf-8")
+        )[:16]
+        for line_start, line_end, source_text, occurrence_index in identities
+    )
+
+
+def _compiler_repair_error_intersects_scope(
+    error: ValueError,
+    payload: Mapping[str, Any],
+    repair: _CompilerRepairOutput | None = None,
+) -> bool:
     rendered = str(error)
-    return any(reference in rendered for reference in _compiler_repair_scope_references(payload))
+    scope_references = _compiler_repair_scope_references(payload, repair)
+    actionable_references = frozenset(_COMPILER_ACTIONABLE_REFERENCE.findall(rendered))
+    if any(reference not in scope_references for reference in actionable_references):
+        # The local transaction cannot edit every state element implicated by this rejection.
+        # Let the outer host construct a fresh authoritative slice instead of paying for an
+        # impossible retry against stale hidden state.
+        return False
+    for reference in scope_references:
+        if reference.startswith("documentPatch."):
+            # Structured paths are hierarchical. Editing an object or collection does not grant
+            # authority over every descendant path merely because its spelling is a prefix.
+            if re.search(re.escape(reference) + r"(?![.\[])", rendered) is not None:
+                return True
+        elif reference in rendered:
+            return True
+    return False
 
 
 def _validate_compiler_repair_scope(
@@ -606,13 +815,7 @@ def _validate_compiler_repair_scope(
             "compiler repair references target paths outside its local transaction: "
             + ", ".join(unknown_paths)
         )
-    allowed_anchor_ids = {
-        str(occurrence["anchorBindingId"])
-        for row in payload.get("anchorBindings", ())
-        if isinstance(row, Mapping)
-        for occurrence in row.get("occurrences", ())
-        if isinstance(occurrence, Mapping) and isinstance(occurrence.get("anchorBindingId"), str)
-    }
+    allowed_anchor_ids = set(_compiler_repair_allowed_anchor_ids(payload))
     unknown_anchor_ids = sorted(
         {row.anchor_binding_id for row in value.additional_anchor_overrides} - allowed_anchor_ids
     )
@@ -791,6 +994,37 @@ def _critic_provider_payload(compact_payload: Mapping[str, Any]) -> dict[str, An
     return provider_payload
 
 
+def _critic_provider_request_bytes(compact_payload: Mapping[str, Any]) -> int:
+    """Measure the exact UTF-8 request body used by the compact critic call."""
+
+    return len(
+        json.dumps(
+            _critic_provider_payload(compact_payload),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+
+def _uses_partitioned_critic(
+    *,
+    protocol: AgentContractProtocol,
+    compact_payload: Mapping[str, Any],
+    threshold_bytes: int | None,
+) -> bool:
+    """Route only measured oversized hybrid requests through concurrent audit facets."""
+
+    if protocol in _STAGED_PROTOCOLS:
+        return True
+    if protocol not in _HYBRID_PROTOCOLS:
+        if threshold_bytes is not None:
+            raise ValueError("critic partition threshold is invalid for a non-hybrid protocol")
+        return False
+    if threshold_bytes is None or threshold_bytes <= 0:
+        raise ValueError("hybrid critic routing requires a positive request-byte threshold")
+    return _critic_provider_request_bytes(compact_payload) > threshold_bytes
+
+
 def _materialize_reference_occurrences(
     rows: Any, lookup: Mapping[str, Mapping[str, Any]]
 ) -> tuple[dict[str, Any], ...]:
@@ -822,6 +1056,7 @@ class _CriticLogicalKeyOutput(BaseModel):
     remove_binding_logical_keys: tuple[str, ...] = ()
     additional_bindings: tuple[AgentBindingProposal, ...]
     semantic_only_target_facts: tuple[SemanticOnlyTargetFactProposal, ...] = ()
+    coherence_decisions: tuple[CoherenceCandidateDecision, ...] = ()
     rationale: NonEmptyText
 
     @model_validator(mode="after")
@@ -832,11 +1067,14 @@ class _CriticLogicalKeyOutput(BaseModel):
             or self.additional_bindings
             or self.semantic_only_target_facts
         ):
-            raise ValueError("pass requires zero findings and zero patch operations")
+            raise ValueError("pass requires zero findings and zero structural patch operations")
         if self.verdict == "revise" and not self.findings:
             raise ValueError("revise requires at least one finding")
         if len(set(self.remove_binding_logical_keys)) != len(self.remove_binding_logical_keys):
             raise ValueError("critic removal logical keys must be unique")
+        decision_ids = tuple(row.candidate_id for row in self.coherence_decisions)
+        if len(set(decision_ids)) != len(decision_ids):
+            raise ValueError("critic coherence decision candidate IDs must be unique")
         return self
 
 
@@ -861,9 +1099,9 @@ def _scoped_critic_output_type(
         name,
         __base__=_CriticLogicalKeyOutput,
         __module__=__name__,
-        remove_binding_logical_keys=(tuple[logical_key, ...], ()),
+        remove_binding_logical_keys=(tuple[logical_key, ...], ()),  # type: ignore[valid-type]
     )
-    return cast(type[_CriticLogicalKeyOutput], model)
+    return model
 
 
 def _critic_output_with_inventory_ids(
@@ -881,6 +1119,7 @@ def _critic_output_with_inventory_ids(
             ),
             "additional_bindings": output.additional_bindings,
             "semantic_only_target_facts": output.semantic_only_target_facts,
+            "coherence_decisions": output.coherence_decisions,
             "rationale": output.rationale,
         }
     )
@@ -893,6 +1132,9 @@ def _scoped_compact_critic_output_type(
     literal_line_ids: Sequence[str],
     occurrence_ids: Sequence[str] = (),
     inventory_occurrence_owners: Mapping[str, str] | None = None,
+    *,
+    required_review_candidate_ids: Sequence[str] = (),
+    coherence_candidate_ids: Sequence[str] = (),
 ) -> type[BaseModel]:
     """Build a compact verdict whose validator enforces the document-specific vocabulary.
 
@@ -909,11 +1151,23 @@ def _scoped_compact_critic_output_type(
     if len(set(allowed)) != len(allowed):
         raise ValueError("critic request contains duplicate removal logical keys")
     expected_candidates = tuple(review_candidate_ids)
+    required_review_candidates = tuple(required_review_candidate_ids)
+    expected_coherence_decisions = tuple(coherence_candidate_ids)
     required_risks = tuple(remaining_risk_ids)
     if len(set(expected_candidates)) != len(expected_candidates):
         raise ValueError("critic request contains duplicate review candidate IDs")
     if len(set(required_risks)) != len(required_risks):
         raise ValueError("critic request contains duplicate remaining risk IDs")
+    if len(set(required_review_candidates)) != len(required_review_candidates) or not set(
+        required_review_candidates
+    ) <= set(expected_candidates):
+        raise ValueError("critic required-review candidates are not a unique request subset")
+    if len(set(expected_coherence_decisions)) != len(expected_coherence_decisions) or not set(
+        expected_coherence_decisions
+    ) <= set(expected_candidates):
+        raise ValueError("critic coherence candidates are not a unique request subset")
+    if set(required_review_candidates) & set(expected_coherence_decisions):
+        raise ValueError("critic structural and coherence candidate sets overlap")
     if set(expected_candidates).intersection(required_risks):
         raise ValueError("critic review candidate IDs overlap remaining risk IDs")
     allowed_occurrences = tuple(occurrence_ids)
@@ -933,6 +1187,8 @@ def _scoped_compact_critic_output_type(
             (
                 allowed,
                 expected_candidates,
+                required_review_candidates,
+                expected_coherence_decisions,
                 required_risks,
                 expected_lines,
                 allowed_occurrences,
@@ -974,23 +1230,22 @@ def _scoped_compact_critic_output_type(
     )
 
     @model_validator(mode="after")
-    def coverage_is_exhaustive(value: BaseModel) -> BaseModel:
+    def coverage_is_exhaustive(value: Any) -> Any:
         candidate_receipt = value.coverage.candidate_receipt
         if len(candidate_receipt) != len(all_candidates):
             raise ValueError(
                 "critic candidate receipt length differs from the exact request vocabulary; "
                 f"expected={len(all_candidates)}; actual={len(candidate_receipt)}"
             )
-        candidate_receipt_by_id = dict(zip(all_candidates, candidate_receipt, strict=True))
-        wrong_required = tuple(
-            candidate_id
-            for candidate_id in required_risks
-            if candidate_receipt_by_id[candidate_id] != "defect_requires_revision"
-        )
-        if wrong_required:
+        decision_ids = tuple(row.candidate_id for row in value.coherence_decisions)
+        if len(set(decision_ids)) != len(decision_ids):
+            raise ValueError("critic coherence decision candidate IDs must be unique")
+        if set(decision_ids) != set(expected_coherence_decisions):
+            missing = sorted(set(expected_coherence_decisions) - set(decision_ids))
+            unexpected = sorted(set(decision_ids) - set(expected_coherence_decisions))
             raise ValueError(
-                "remaining risk candidates require revision dispositions: "
-                + ", ".join(wrong_required)
+                "critic coherence decisions differ from the exact required vocabulary; "
+                f"missing={missing}; unexpected={unexpected}"
             )
         literal_line_count = value.coverage.literal_line_count
         if literal_line_count != len(expected_lines):
@@ -1004,23 +1259,63 @@ def _scoped_compact_critic_output_type(
             raise ValueError("pass cannot retain a candidate defect")
         return value
 
+    coherence_fields: dict[str, Any]
+    if expected_coherence_decisions:
+        coherence_candidate_id = Literal.__getitem__(expected_coherence_decisions)
+        coherence_decision_type = create_model(
+            f"ScopedCoherenceCandidateDecision_{digest}",
+            __base__=CoherenceCandidateDecision,
+            __module__=__name__,
+            candidate_id=(coherence_candidate_id, ...),
+        )
+        coherence_fields = {
+            "coherence_decisions": (
+                Annotated[
+                    tuple[coherence_decision_type, ...],  # type: ignore[valid-type]
+                    Field(
+                        min_length=len(expected_coherence_decisions),
+                        max_length=len(expected_coherence_decisions),
+                    ),
+                ],
+                ...,
+            )
+        }
+    else:
+        coherence_fields = {
+            "coherence_decisions": (
+                Annotated[tuple[CoherenceCandidateDecision, ...], Field(max_length=0)],
+                (),
+            )
+        }
+
     pass_type = create_model(
         f"ScopedCompactCriticPass_{digest}",
         __base__=CompactCriticPassOutput,
         __module__=__name__,
-        __validators__={"coverage_is_exhaustive": coverage_is_exhaustive},
+        __validators__=cast(
+            dict[str, Callable[..., Any]],
+            {"coverage_is_exhaustive": coverage_is_exhaustive},
+        ),
         coverage=(coverage_type, ...),
+        **coherence_fields,
     )
     binding_type: Any = DiscriminatedBindingProposal
     append_fields: dict[str, Any] = {}
     if allowed_occurrences:
+        allowed_occurrence_id = Literal.__getitem__(allowed_occurrences)
+        occurrence_reference_type = create_model(
+            f"ScopedCriticOccurrenceReference_{digest}",
+            __base__=CompilerOccurrenceReference,
+            __module__=__name__,
+            occurrence_id=(allowed_occurrence_id, ...),
+        )
         binding_type = create_model(
             f"ScopedCriticBindingProposal_{digest}",
             __base__=DiscriminatedBindingProposal,
             __module__=__name__,
             occurrences=(
                 Annotated[
-                    tuple[CompilerOccurrenceReference | AgentOccurrence, ...],
+                    tuple[occurrence_reference_type | AgentOccurrence, ...],  # type: ignore[valid-type]
                     Field(min_length=1),
                 ],
                 ...,
@@ -1028,7 +1323,7 @@ def _scoped_compact_critic_output_type(
         )
         append_fields["occurrences"] = (
             Annotated[
-                tuple[CompilerOccurrenceReference | AgentOccurrence, ...],
+                tuple[occurrence_reference_type | AgentOccurrence, ...],  # type: ignore[valid-type]
                 Field(min_length=1),
             ],
             ...,
@@ -1042,7 +1337,7 @@ def _scoped_compact_critic_output_type(
     removal_type: Any = _CriticOccurrenceRemovalReference
 
     @model_validator(mode="after")
-    def critic_operations_are_unambiguous(value: BaseModel) -> BaseModel:
+    def critic_operations_are_unambiguous(value: Any) -> Any:
         append_keys = tuple(row.logical_key for row in value.occurrence_appends)
         occurrence_removal_keys = tuple(row.logical_key for row in value.occurrence_removals)
         replacement_keys = tuple(row.logical_key for row in value.additional_bindings)
@@ -1124,18 +1419,22 @@ def _scoped_compact_critic_output_type(
         f"ScopedCompactCriticRevision_{digest}",
         __base__=CompactCriticRevisionOutput,
         __module__=__name__,
-        __validators__={
-            "coverage_is_exhaustive": coverage_is_exhaustive,
-            "critic_operations_are_unambiguous": critic_operations_are_unambiguous,
-        },
+        __validators__=cast(
+            dict[str, Callable[..., Any]],
+            {
+                "coverage_is_exhaustive": coverage_is_exhaustive,
+                "critic_operations_are_unambiguous": critic_operations_are_unambiguous,
+            },
+        ),
         coverage=(coverage_type, ...),
         remove_binding_logical_keys=(tuple[NonEmptyText, ...], ()),
         additional_bindings=(tuple[binding_type, ...], ()),
-        occurrence_appends=(tuple[append_type, ...], ()),
+        occurrence_appends=(tuple[append_type, ...], ()),  # type: ignore[valid-type]
         occurrence_removals=(tuple[removal_type, ...], ()),
+        **coherence_fields,
     )
     decision_type = Annotated[
-        pass_type | revision_type,
+        pass_type | revision_type,  # type: ignore[valid-type]
         Field(discriminator="verdict"),
     ]
     envelope = create_model(
@@ -1144,7 +1443,7 @@ def _scoped_compact_critic_output_type(
         __config__=ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False),
         decision=(decision_type, ...),
     )
-    return cast(type[BaseModel], envelope)
+    return envelope
 
 
 def _scoped_reference_compiler_output_type(
@@ -1188,9 +1487,192 @@ def _scoped_reference_compiler_output_type(
         __base__=DiscriminatedCompilerAgentOutput,
         __module__=__name__,
         carrier=(carrier_type, ...),
-        bindings=(tuple[binding_type, ...], ...),
+        bindings=(tuple[binding_type, ...], ...),  # type: ignore[valid-type]
     )
-    return cast(type[BaseModel], output_type)
+    return output_type
+
+
+def _scoped_staged_plan_output_type(
+    plan_payload: Mapping[str, Any],
+) -> type[StagedCriticPlanOutput]:
+    """Restrict every staged-plan reference to exact handles in this repair slice."""
+
+    rows = plan_payload.get("occurrenceCandidates")
+    if not isinstance(rows, (tuple, list)) or any(
+        not isinstance(row, Mapping) or not isinstance(row.get("occurrenceId"), str) for row in rows
+    ):
+        raise ValueError("staged plan lacks a valid occurrence-candidate vocabulary")
+    allowed = tuple(cast(str, row["occurrenceId"]) for row in rows)
+    if len(set(allowed)) != len(allowed):
+        raise ValueError("staged plan contains duplicate occurrence-candidate IDs")
+    candidate_rows = plan_payload.get("candidateRows")
+    if not isinstance(candidate_rows, (tuple, list)) or any(
+        not isinstance(row, Mapping)
+        or not isinstance(row.get("candidateId"), str)
+        or not isinstance(row.get("kind"), str)
+        for row in candidate_rows
+    ):
+        raise ValueError("staged plan lacks a valid review-candidate vocabulary")
+    all_required_coherence_ids = tuple(
+        cast(str, row["candidateId"])
+        for row in candidate_rows
+        if row.get("kind") == "cross_field_semantic_relation"
+        and row.get("requiredRevision") is True
+    )
+    if len(set(all_required_coherence_ids)) != len(all_required_coherence_ids):
+        raise ValueError("staged plan contains duplicate coherence-candidate IDs")
+    raw_findings = plan_payload.get("findings", ())
+    if not isinstance(raw_findings, (tuple, list)) or any(
+        not isinstance(row, Mapping) for row in raw_findings
+    ):
+        raise ValueError("staged plan lacks a valid audit-finding sequence")
+    host_decisions = (
+        host_completable_coherence_decisions(
+            findings=cast(Sequence[Mapping[str, Any]], raw_findings),
+            candidate_rows=cast(Sequence[Mapping[str, Any]], candidate_rows),
+        )
+        if raw_findings
+        else ()
+    )
+    host_decisions_by_id = {row.candidate_id: row for row in host_decisions}
+    provider_required_coherence_ids = tuple(
+        candidate_id
+        for candidate_id in all_required_coherence_ids
+        if candidate_id not in host_decisions_by_id
+    )
+    digest = sha256_bytes(
+        canonical_json_bytes((allowed, all_required_coherence_ids, tuple(host_decisions_by_id)))
+    )[:16]
+    if allowed:
+        occurrence_id = Literal.__getitem__(allowed)
+        reference_type = create_model(
+            f"ScopedStagedPlanOccurrenceReference_{digest}",
+            __base__=CompilerOccurrenceReference,
+            __module__=__name__,
+            occurrence_id=(occurrence_id, ...),
+        )
+        occurrence_type: Any = reference_type | AgentOccurrence
+    else:
+        occurrence_type = AgentOccurrence
+    occurrences_type = Annotated[
+        tuple[occurrence_type, ...],
+        Field(min_length=1),
+    ]
+    binding_type = create_model(
+        f"ScopedStagedPlanBindingProposal_{digest}",
+        __base__=StagedPlanBindingProposal,
+        __module__=__name__,
+        occurrences=(occurrences_type, ...),
+    )
+    append_type = create_model(
+        f"ScopedStagedPlanOccurrenceAppend_{digest}",
+        __base__=StagedPlanOccurrenceAppend,
+        __module__=__name__,
+        occurrences=(occurrences_type, ...),
+    )
+    validators: dict[str, Callable[..., Any]] = {}
+    if all_required_coherence_ids:
+        coherence_candidate_id = Literal.__getitem__(all_required_coherence_ids)
+        coherence_decision_type = create_model(
+            f"ScopedStagedCoherenceCandidateDecision_{digest}",
+            __base__=CoherenceCandidateDecision,
+            __module__=__name__,
+            candidate_id=(coherence_candidate_id, ...),
+        )
+        coherence_field: Any = (
+            Annotated[
+                tuple[coherence_decision_type, ...],  # type: ignore[valid-type]
+                Field(
+                    min_length=len(provider_required_coherence_ids),
+                    max_length=len(all_required_coherence_ids),
+                ),
+            ],
+            ... if provider_required_coherence_ids else host_decisions,
+        )
+
+        @field_validator("coherence_decisions", mode="after")  # type: ignore[misc]
+        @classmethod
+        def materialize_host_coherence_decisions(
+            cls: type[BaseModel], value: tuple[CoherenceCandidateDecision, ...]
+        ) -> tuple[CoherenceCandidateDecision, ...]:
+            del cls
+            normalized: list[CoherenceCandidateDecision] = []
+            supplied_ids: set[str] = set()
+            for row in value:
+                supplied_ids.add(row.candidate_id)
+                expected = host_decisions_by_id.get(row.candidate_id)
+                if expected is None:
+                    normalized.append(row)
+                    continue
+                if (
+                    row.disposition,
+                    row.suggestion_index,
+                ) != (
+                    expected.disposition,
+                    expected.suggestion_index,
+                ):
+                    raise ValueError(
+                        "critic plan contradicts audit-proved coherence decision: "
+                        + row.candidate_id
+                    )
+                # Rationale is explanatory, not part of the deterministic host decision. Store
+                # the canonical host receipt so semantically identical provider prose cannot
+                # make an otherwise valid transaction non-reproducible.
+                normalized.append(expected)
+            additions = tuple(
+                decision
+                for candidate_id, decision in host_decisions_by_id.items()
+                if candidate_id not in supplied_ids
+            )
+            if not additions:
+                return tuple(normalized)
+            return (*normalized, *additions)
+
+        @model_validator(mode="after")
+        def coherence_decisions_cover_provider_work(
+            value: StagedCriticPlanOutput,
+        ) -> StagedCriticPlanOutput:
+            decisions = {row.candidate_id: row for row in value.coherence_decisions}
+            missing = set(provider_required_coherence_ids) - set(decisions)
+            if missing:
+                raise ValueError(
+                    "critic plan omits ambiguous coherence decisions: " + ", ".join(sorted(missing))
+                )
+            invalid_host_choices = tuple(
+                candidate_id
+                for candidate_id, expected in host_decisions_by_id.items()
+                if candidate_id in decisions
+                and decisions[candidate_id].model_dump(mode="json")
+                != expected.model_dump(mode="json")
+            )
+            if invalid_host_choices:
+                raise ValueError(
+                    "critic plan contradicts audit-proved coherence decisions: "
+                    + ", ".join(invalid_host_choices)
+                )
+            return value
+
+        validators["materialize_host_coherence_decisions"] = materialize_host_coherence_decisions
+        validators["coherence_decisions_cover_provider_work"] = cast(
+            Callable[..., Any], coherence_decisions_cover_provider_work
+        )
+    else:
+        coherence_field = (
+            Annotated[tuple[CoherenceCandidateDecision, ...], Field(max_length=0)],
+            (),
+        )
+    return cast(
+        type[StagedCriticPlanOutput],
+        create_model(
+            f"ScopedStagedCriticPlanOutput_{digest}",
+            __base__=StagedCriticPlanOutput,
+            __module__=__name__,
+            __validators__=validators,
+            additional_bindings=(tuple[binding_type, ...], ()),  # type: ignore[valid-type]
+            occurrence_appends=(tuple[append_type, ...], ()),  # type: ignore[valid-type]
+            coherence_decisions=coherence_field,
+        ),
+    )
 
 
 @lru_cache(maxsize=1)
@@ -1225,9 +1707,9 @@ def _fixed_reference_compiler_output_type() -> type[BaseModel]:
         __base__=DiscriminatedCompilerAgentOutput,
         __module__=__name__,
         carrier=(carrier_type, ...),
-        bindings=(tuple[binding_type, ...], ...),
+        bindings=(tuple[binding_type, ...], ...),  # type: ignore[valid-type]
     )
-    return cast(type[BaseModel], output_type)
+    return output_type
 
 
 @lru_cache(maxsize=128)
@@ -1271,18 +1753,18 @@ def _scoped_initial_compiler_output_type(
             __module__=__name__,
             anchor_binding_id=(override_id, ...),
         )
-        overrides_annotation: Any = tuple[override_type, ...]
+        overrides_annotation: Any = tuple[override_type, ...]  # type: ignore[valid-type]
     else:
         overrides_annotation = tuple[()]
 
     fields: dict[str, Any] = {"anchor_overrides": (overrides_annotation, ())}
-    validators: dict[str, classmethod] = {}
+    validators: dict[str, Callable[..., Any]] = {}
     if required_anchor_override_ids or cross_fact_review_ids:
         retained_annotation: Any
         if cross_fact_review_ids:
             retained_id = Literal.__getitem__(cross_fact_review_ids)
             retained_annotation = Annotated[
-                tuple[retained_id, ...],
+                tuple[retained_id, ...],  # type: ignore[valid-type]
                 Field(json_schema_extra={"uniqueItems": True}),
             ]
         else:
@@ -1291,11 +1773,12 @@ def _scoped_initial_compiler_output_type(
 
         @model_validator(mode="after")
         def topology_review_is_exhaustive(value: BaseModel) -> BaseModel:
+            dynamic_value = cast(Any, value)
             override_ids = {
                 row.anchor_binding_id
-                for row in cast(Sequence[AnchorOverride], value.anchor_overrides)
+                for row in cast(Sequence[AnchorOverride], dynamic_value.anchor_overrides)
             }
-            retained_ids = set(cast(Sequence[str], value.retained_cross_fact_anchor_ids))
+            retained_ids = set(cast(Sequence[str], dynamic_value.retained_cross_fact_anchor_ids))
             missing_required = sorted(set(required_anchor_override_ids) - override_ids)
             if missing_required:
                 raise ValueError(
@@ -1316,7 +1799,9 @@ def _scoped_initial_compiler_output_type(
                 )
             return value
 
-        validators["topology_review_is_exhaustive"] = topology_review_is_exhaustive
+        validators["topology_review_is_exhaustive"] = cast(
+            Callable[..., Any], topology_review_is_exhaustive
+        )
     return cast(
         type[BaseModel],
         create_model(
@@ -1364,7 +1849,7 @@ def _restore_reference_compact_critic(
 
     from .host import inventory_binding_id
 
-    decision = output.decision
+    decision = cast(Any, output).decision
     if decision.verdict == "pass":
         return CriticAgentOutput(
             verdict="pass",
@@ -1372,6 +1857,8 @@ def _restore_reference_compact_critic(
             remove_inventory_binding_ids=(),
             additional_bindings=(),
             semantic_only_target_facts=(),
+            coherence_decisions=decision.coherence_decisions,
+            exhaustive_audit_receipt=True,
             rationale=decision.rationale,
         )
     lookup = _reference_occurrence_lookup(compact_payload)
@@ -1444,6 +1931,8 @@ def _restore_reference_compact_critic(
         occurrence_removals=tuple(occurrence_removals),
         additional_bindings=tuple(restored_bindings),
         semantic_only_target_facts=decision.semantic_only_target_facts,
+        coherence_decisions=decision.coherence_decisions,
+        exhaustive_audit_receipt=True,
         rationale=decision.rationale,
     )
 
@@ -1588,9 +2077,49 @@ def _local_contract_error_stage(
     )
 
 
+def _cached_success_stage(
+    *,
+    role: Literal["compiler", "critic"],
+    pass_number: int,
+    system_prompt: str,
+    payload: Mapping[str, Any],
+    output_type: type[BaseModel],
+    output: BaseModel,
+    cache_key: str,
+) -> AgentStageArtifact:
+    """Record an exact immutable-state reuse without duplicating provider usage."""
+
+    timestamp = datetime.now(UTC)
+    user_prompt = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return AgentStageArtifact(
+        role=role,
+        pass_number=pass_number,
+        started_at=timestamp,
+        completed_at=timestamp,
+        duration_seconds=0.0,
+        system_prompt_sha256=sha256_bytes(system_prompt.encode("utf-8")),
+        user_prompt_sha256=sha256_bytes(user_prompt.encode("utf-8")),
+        output_schema_sha256=sha256_bytes(
+            canonical_json_bytes(output_type.model_json_schema(mode="validation"))
+        ),
+        status="success",
+        output=output.model_dump(mode="json"),
+        error_type=None,
+        error_message=None,
+        messages=[
+            {
+                "part_kind": "local-cache-hit",
+                "cache_key": cache_key,
+                "contract": "exact_immutable_critic_substage_v1",
+            }
+        ],
+        usage=empty_usage(),
+    )
+
+
 def _settings(provider: ProviderConfig) -> ModelSettings:
     if provider.kind == "openrouter":
-        settings: OpenRouterModelSettings = {
+        openrouter_settings: OpenRouterModelSettings = {
             "max_tokens": provider.max_output_tokens,
             "timeout": provider.request_timeout_seconds,
             "openrouter_reasoning": {"effort": provider.reasoning_effort},
@@ -1609,8 +2138,8 @@ def _settings(provider: ProviderConfig) -> ModelSettings:
                 },
             ),
         }
-        return cast(ModelSettings, settings)
-    settings: OpenAIResponsesModelSettings = {
+        return cast(ModelSettings, openrouter_settings)
+    openai_settings: OpenAIResponsesModelSettings = {
         "max_tokens": provider.max_output_tokens,
         "timeout": provider.request_timeout_seconds,
         "openai_reasoning_effort": provider.reasoning_effort,
@@ -1618,7 +2147,7 @@ def _settings(provider: ProviderConfig) -> ModelSettings:
         "openai_reasoning_context": "current_turn",
         "openai_store": provider.store_responses,
     }
-    return cast(ModelSettings, settings)
+    return cast(ModelSettings, openai_settings)
 
 
 def _openrouter_profile(provider: ProviderConfig) -> ModelProfile | None:
@@ -1639,8 +2168,18 @@ class AgentRuntime:
         critic_provider: ProviderConfig,
         agent_contract_protocol: AgentContractProtocol,
         max_concurrent_requests: int,
+        partition_critic_above_request_bytes: int | None = None,
     ) -> None:
         self._agent_contract_protocol = agent_contract_protocol
+        if agent_contract_protocol in _HYBRID_PROTOCOLS:
+            if (
+                partition_critic_above_request_bytes is None
+                or partition_critic_above_request_bytes <= 0
+            ):
+                raise ValueError("hybrid critic routing requires a positive byte threshold")
+        elif partition_critic_above_request_bytes is not None:
+            raise ValueError("critic partition threshold requires the hybrid protocol")
+        self._partition_critic_above_request_bytes = partition_critic_above_request_bytes
         self._providers = {
             "compiler": compiler_provider,
             "critic": critic_provider,
@@ -1671,6 +2210,30 @@ class AgentRuntime:
                     provider=OpenAIProvider(openai_client=client),
                 )
         self._limiter = asyncio.Semaphore(max_concurrent_requests)
+        self._critic_substage_cache: dict[str, StagedAuditOutput | StagedFacetAuditOutput] = {}
+
+    def _critic_cache_key(
+        self,
+        *,
+        system_prompt: str,
+        payload: Mapping[str, Any],
+        output_type: type[BaseModel],
+        output_name: str,
+        output_description: str,
+    ) -> str:
+        return sha256_bytes(
+            canonical_json_bytes(
+                {
+                    "provider": self._providers["critic"].model_dump(mode="json"),
+                    "protocol": self._agent_contract_protocol,
+                    "systemPrompt": system_prompt,
+                    "payload": payload,
+                    "outputSchema": output_type.model_json_schema(mode="validation"),
+                    "outputName": output_name,
+                    "outputDescription": output_description,
+                }
+            )
+        )
 
     async def compiler(
         self,
@@ -1711,7 +2274,7 @@ class AgentRuntime:
                         error=error,
                     )
                 candidate_slice = cast(Mapping[str, Any], repair_payload["candidateSlice"])
-                output_type = _scoped_compiler_repair_output_type(
+                repair_output_type = _scoped_compiler_repair_output_type(
                     prior,
                     removable_binding_keys=cast(
                         Sequence[str], candidate_slice["removableBindingKeys"]
@@ -1722,9 +2285,10 @@ class AgentRuntime:
                     removable_semantic_paths=cast(
                         Sequence[str], candidate_slice["removableSemanticOnlyTargetPaths"]
                     ),
+                    addable_anchor_ids=_compiler_repair_addable_anchor_ids(repair_payload, prior),
                 )
             else:
-                output_type = _scoped_compiler_repair_output_type(prior)
+                repair_output_type = _scoped_compiler_repair_output_type(prior)
                 repair_payload = dict(payload)
             repair_payload["repairInstruction"] = (
                 "Return only the local patch required by the repair response schema. Do not "
@@ -1746,7 +2310,7 @@ class AgentRuntime:
                     try:
                         preview_output(translated_repair)
                     except ValueError as error:
-                        if _compiler_repair_error_intersects_scope(error, repair_payload):
+                        if _compiler_repair_error_intersects_scope(error, repair_payload, value):
                             raise
                         # A successful local transaction can expose an unrelated latent defect.
                         # Return that candidate to the outer host gate, which will construct a
@@ -1757,7 +2321,7 @@ class AgentRuntime:
                 role="compiler",
                 pass_number=pass_number,
                 system_prompt=(
-                    repair_prompt
+                    cast(str, repair_prompt)
                     if self._agent_contract_protocol in _STAGED_PROTOCOLS
                     else (
                         f"{system_prompt}\n\n{_DISCRIMINATED_BINDING_ADAPTER}\n\n"
@@ -1765,7 +2329,7 @@ class AgentRuntime:
                     )
                 ),
                 payload=repair_payload,
-                output_type=output_type,
+                output_type=repair_output_type,
                 output_name="carrier_bound_template_compiler_repair_v2",
                 output_description=(
                     "Return only a local patch against previousCandidateOutput. Do not return "
@@ -1794,7 +2358,7 @@ class AgentRuntime:
             )
         if self._agent_contract_protocol in {*_REFERENCE_PROTOCOLS, *_STAGED_PROTOCOLS}:
             raw_candidates = _reference_occurrence_rows(payload)
-            output_type = (
+            reference_output_type = (
                 _scoped_initial_compiler_output_type(
                     tuple(
                         cast(
@@ -1838,7 +2402,7 @@ class AgentRuntime:
                 _restore_reference_compiler(output, payload)
                 return output
 
-            output, artifact = await self._call(
+            reference_output, reference_artifact = await self._call(
                 role="compiler",
                 pass_number=pass_number,
                 system_prompt=(
@@ -1852,8 +2416,8 @@ class AgentRuntime:
                     )
                 ),
                 payload=payload,
-                output_type=output_type,
-                output_name="carrier_bound_template_compiler_v3",
+                output_type=reference_output_type,
+                output_name="carrier_bound_template_compiler_v4",
                 retries=retries,
                 output_validator=(
                     validate_reference_output
@@ -1861,13 +2425,13 @@ class AgentRuntime:
                     else None
                 ),
             )
-            if output is None:
-                return None, artifact
-            translated = _restore_reference_compiler(output, payload)
-            return translated, artifact.model_copy(
+            if reference_output is None:
+                return None, reference_artifact
+            translated = _restore_reference_compiler(reference_output, payload)
+            return translated, reference_artifact.model_copy(
                 update={"output": translated.model_dump(mode="json")}
             )
-        output, artifact = await self._call(
+        discriminated_output, discriminated_artifact = await self._call(
             role="compiler",
             pass_number=pass_number,
             system_prompt=f"{system_prompt}\n\n{_DISCRIMINATED_BINDING_ADAPTER}",
@@ -1876,10 +2440,10 @@ class AgentRuntime:
             output_name="carrier_bound_template_compiler_v2",
             retries=retries,
         )
-        if output is None:
-            return None, artifact
-        translated = restore_legacy_compiler(output)
-        return translated, artifact.model_copy(
+        if discriminated_output is None:
+            return None, discriminated_artifact
+        translated = restore_legacy_compiler(discriminated_output)
+        return translated, discriminated_artifact.model_copy(
             update={"output": translated.model_dump(mode="json")}
         )
 
@@ -1903,24 +2467,37 @@ class AgentRuntime:
         ):
             raise ValueError("critic payload lacks a valid allowed-removal logical-key sequence")
         allowed = cast(Sequence[str], raw_allowed)
-        if self._agent_contract_protocol in _STAGED_PROTOCOLS:
+        compact_payload = compact_critic_payload(payload)
+        uses_partitioned_critic = _uses_partitioned_critic(
+            protocol=self._agent_contract_protocol,
+            compact_payload=compact_payload,
+            threshold_bytes=self._partition_critic_above_request_bytes,
+        )
+        if uses_partitioned_critic:
             if audit_prompt is None or plan_prompt is None or preview_review is None:
                 raise ValueError(
-                    "staged protocols require audit and plan prompts plus a host preview"
+                    "partitioned critic route requires audit and plan prompts plus a host preview"
                 )
-            compact_payload = compact_critic_payload(payload)
             audit_payload = build_staged_audit_payload(compact_payload)
-            if self._agent_contract_protocol in {
-                "faceted_staged_local_v5",
-                "partitioned_staged_local_v6",
-                "candidate_first_staged_local_v7",
-                "candidate_first_staged_local_v8",
-            }:
+            uses_facets = (
+                self._agent_contract_protocol
+                in {
+                    "faceted_staged_local_v5",
+                    "partitioned_staged_local_v6",
+                    "candidate_first_staged_local_v7",
+                    "candidate_first_staged_local_v8",
+                }
+                or self._agent_contract_protocol in _HYBRID_PROTOCOLS
+            )
+            partitions_literal_review = (
+                self._agent_contract_protocol in _PARTITIONED_PROTOCOLS
+                or self._agent_contract_protocol in _HYBRID_PROTOCOLS
+            )
+            audit: StagedAuditOutput | None
+            if uses_facets:
                 facet_payloads = build_staged_audit_facet_payloads(
                     audit_payload,
-                    partition_literal_review=(
-                        self._agent_contract_protocol in _PARTITIONED_PROTOCOLS
-                    ),
+                    partition_literal_review=partitions_literal_review,
                     candidate_only=candidate_only,
                 )
 
@@ -1929,26 +2506,50 @@ class AgentRuntime:
                 ) -> tuple[StagedFacetAuditOutput | None, AgentStageArtifact]:
                     facet_contract = cast(Mapping[str, Any], facet_payload["auditFacet"])
                     facet_name = cast(str, facet_contract["name"])
-                    return await self._call(
+                    request = compact_staged_audit_request(facet_payload)
+                    output_name = f"carrier_bound_template_{facet_name}_audit_v9"
+                    output_description = (
+                        "Return only the assigned host-candidate review facet. Every finding "
+                        "must resolve an assigned candidate; this pre-pass cannot certify the "
+                        "template."
+                        if candidate_only
+                        else "Return only the assigned immutable semantic audit facet. "
+                        "Do not plan or emit edits."
+                    )
+                    cache_key = self._critic_cache_key(
+                        system_prompt=audit_prompt,
+                        payload=request,
+                        output_type=StagedFacetAuditOutput,
+                        output_name=output_name,
+                        output_description=output_description,
+                    )
+                    cached = self._critic_substage_cache.get(cache_key)
+                    if isinstance(cached, StagedFacetAuditOutput):
+                        return cached, _cached_success_stage(
+                            role="critic",
+                            pass_number=pass_number,
+                            system_prompt=audit_prompt,
+                            payload=request,
+                            output_type=StagedFacetAuditOutput,
+                            output=cached,
+                            cache_key=cache_key,
+                        )
+                    output, stage = await self._call(
                         role="critic",
                         pass_number=pass_number,
                         system_prompt=audit_prompt,
-                        payload=compact_staged_audit_request(facet_payload),
+                        payload=request,
                         output_type=StagedFacetAuditOutput,
-                        output_name=f"carrier_bound_template_{facet_name}_audit_v9",
-                        output_description=(
-                            "Return only the assigned host-candidate review facet. Every finding "
-                            "must resolve an assigned candidate; this pre-pass cannot certify the "
-                            "template."
-                            if candidate_only
-                            else "Return only the assigned immutable semantic audit facet. "
-                            "Do not plan or emit edits."
-                        ),
+                        output_name=output_name,
+                        output_description=output_description,
                         retries=retries,
-                        output_validator=lambda output: validate_staged_facet_audit(
+                        output_validator=lambda output: normalize_staged_facet_audit(
                             output, facet_payload
                         ),
                     )
+                    if output is not None:
+                        self._critic_substage_cache[cache_key] = output
+                    return output, stage
 
                 facet_results = await asyncio.gather(
                     *(run_facet(facet_payload) for facet_payload in facet_payloads)
@@ -1975,19 +2576,45 @@ class AgentRuntime:
                 )
             else:
                 audit_request = compact_staged_audit_request(audit_payload)
-                audit, audit_stage = await self._call(
-                    role="critic",
-                    pass_number=pass_number,
+                audit_output_name = "carrier_bound_template_audit_v8"
+                audit_output_description = (
+                    "Return only the immutable semantic audit. Do not plan or emit edits."
+                )
+                audit_cache_key = self._critic_cache_key(
                     system_prompt=audit_prompt,
                     payload=audit_request,
                     output_type=StagedAuditOutput,
-                    output_name="carrier_bound_template_audit_v8",
-                    output_description=(
-                        "Return only the immutable semantic audit. Do not plan or emit edits."
-                    ),
-                    retries=retries,
-                    output_validator=lambda output: validate_staged_audit(output, audit_payload),
+                    output_name=audit_output_name,
+                    output_description=audit_output_description,
                 )
+                cached_audit = self._critic_substage_cache.get(audit_cache_key)
+                if isinstance(cached_audit, StagedAuditOutput):
+                    audit = cached_audit
+                    audit_stage = _cached_success_stage(
+                        role="critic",
+                        pass_number=pass_number,
+                        system_prompt=audit_prompt,
+                        payload=audit_request,
+                        output_type=StagedAuditOutput,
+                        output=cached_audit,
+                        cache_key=audit_cache_key,
+                    )
+                else:
+                    audit, audit_stage = await self._call(
+                        role="critic",
+                        pass_number=pass_number,
+                        system_prompt=audit_prompt,
+                        payload=audit_request,
+                        output_type=StagedAuditOutput,
+                        output_name=audit_output_name,
+                        output_description=audit_output_description,
+                        retries=retries,
+                        output_validator=lambda output: validate_staged_audit(
+                            output, audit_payload
+                        ),
+                    )
+                    if audit is not None:
+                        self._critic_substage_cache[audit_cache_key] = audit
             if audit is None:
                 return None, audit_stage
             if audit.verdict == "pass":
@@ -2019,7 +2646,7 @@ class AgentRuntime:
                 pass_number=pass_number,
                 system_prompt=plan_prompt,
                 payload=plan_request,
-                output_type=StagedCriticPlanOutput,
+                output_type=_scoped_staged_plan_output_type(plan_payload),
                 output_name=(
                     "carrier_bound_template_transaction_plan_v9"
                     if self._agent_contract_protocol
@@ -2028,6 +2655,7 @@ class AgentRuntime:
                         "partitioned_staged_local_v6",
                         "candidate_first_staged_local_v7",
                         "candidate_first_staged_local_v8",
+                        *_HYBRID_PROTOCOLS,
                     }
                     else "carrier_bound_template_transaction_plan_v8"
                 ),
@@ -2058,24 +2686,23 @@ class AgentRuntime:
                 output=translated,
             )
         if self._agent_contract_protocol == "legacy_v1":
-            output_type = _scoped_critic_output_type(allowed)
-            output, artifact = await self._call(
+            legacy_output_type = _scoped_critic_output_type(allowed)
+            legacy_output, legacy_artifact = await self._call(
                 role="critic",
                 pass_number=pass_number,
                 system_prompt=system_prompt,
                 payload=payload,
-                output_type=output_type,
+                output_type=legacy_output_type,
                 output_name="carrier_bound_template_literal_critic",
                 retries=retries,
             )
-            if output is None:
-                return None, artifact
-            translated = _critic_output_with_inventory_ids(output)
-            return translated, artifact.model_copy(
+            if legacy_output is None:
+                return None, legacy_artifact
+            translated = _critic_output_with_inventory_ids(legacy_output)
+            return translated, legacy_artifact.model_copy(
                 update={"output": translated.model_dump(mode="json")}
             )
 
-        compact_payload = compact_critic_payload(payload)
         raw_candidates = compact_payload.get("reviewCandidates")
         if not isinstance(raw_candidates, (tuple, list)) or any(
             not isinstance(row, Mapping) or not isinstance(row.get("candidateId"), str)
@@ -2095,31 +2722,56 @@ class AgentRuntime:
             raise ValueError("critic payload lacks a valid literal-line review sequence")
         raw_occurrences = _reference_occurrence_rows(compact_payload)
         inventory_occurrences = _compact_inventory_occurrence_lookup(compact_payload)
-        output_type = _scoped_compact_critic_output_type(
+        required_coherence_ids = tuple(
+            cast(str, row["candidateId"])
+            for row in raw_candidates
+            if row.get("requiredRevision") is True
+            and row.get("kind") == "cross_field_semantic_relation"
+        )
+        compact_output_type = _scoped_compact_critic_output_type(
             allowed,
             tuple(cast(str, row["candidateId"]) for row in raw_candidates),
             tuple(cast(str, row["risk_id"]) for row in raw_risks),
             tuple(raw_literal_lines),
-            tuple(cast(str, row["occurrenceId"]) for row in raw_occurrences),
-            {
+            required_review_candidate_ids=tuple(
+                cast(str, row["candidateId"])
+                for row in raw_candidates
+                if row.get("requiredRevision") is True
+                and row.get("kind") != "cross_field_semantic_relation"
+            ),
+            coherence_candidate_ids=required_coherence_ids,
+            occurrence_ids=tuple(cast(str, row["occurrenceId"]) for row in raw_occurrences),
+            inventory_occurrence_owners={
                 occurrence_id: owner
                 for occurrence_id, (owner, _occurrence) in inventory_occurrences.items()
             },
         )
         provider_payload = _critic_provider_payload(compact_payload)
-        output, artifact = await self._call(
+
+        def validate_compact_output(output: BaseModel) -> BaseModel:
+            translated_output = _restore_reference_compact_critic(
+                output,
+                compact_payload,
+                payload,
+            )
+            if preview_review is not None and translated_output.verdict == "revise":
+                preview_review(translated_output)
+            return output
+
+        compact_output, compact_artifact = await self._call(
             role="critic",
             pass_number=pass_number,
             system_prompt=f"{_COMPACT_CRITIC_ADAPTER}\n\n{system_prompt}",
             payload=provider_payload,
-            output_type=output_type,
-            output_name="carrier_bound_template_literal_critic_v7",
+            output_type=compact_output_type,
+            output_name="carrier_bound_template_literal_critic_v8",
             retries=retries,
+            output_validator=(validate_compact_output if preview_review is not None else None),
         )
-        if output is None:
-            return None, artifact
-        translated = _restore_reference_compact_critic(output, compact_payload, payload)
-        return translated, artifact.model_copy(
+        if compact_output is None:
+            return None, compact_artifact
+        translated = _restore_reference_compact_critic(compact_output, compact_payload, payload)
+        return translated, compact_artifact.model_copy(
             update={"output": translated.model_dump(mode="json")}
         )
 

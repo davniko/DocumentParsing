@@ -65,12 +65,13 @@ def test_live_compact_contract_retains_audited_tables_and_removal_vocabulary() -
 
     compact = compact_critic_payload(original)
 
-    assert compact["compactContract"]["schemaVersion"] == 2
+    assert compact["compactContract"]["schemaVersion"] == 3
+    assert compact["compactContract"]["occurrenceIdFormat"] == "occ_L%05d_%05d"
     assert compact["maskedTemplate"] == "L00003 | ⟦binding_0000⟧"
     assert compact["annotatedSource"] == ("L00003 | ⟦binding_0000⟧ABC123⟦/binding⟧")
     assert compact["targetPathTable"] == [["path_0000", "documentPatch.billOfLadingNumber"]]
     assert compact["bindingRows"][0][0] == "binding_0000"
-    assert compact["occurrenceRows"][0][0] == "occurrence_00000"
+    assert compact["occurrenceRows"][0][0] == "occ_L00003_00000"
     assert compact["allowedRemovalLogicalKeys"] == ["anchor:documentPatch.billOfLadingNumber"]
 
 

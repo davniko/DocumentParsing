@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from dataclasses import replace
@@ -12,8 +13,11 @@ from raw_text_template_experiment.host import (
     RequiredTargetCoBinding,
     SpanDraft,
     _drop_exact_source_only_duplicates,
+    _normalize_measurement_unit_component_locality,
     _repair_uniquely_bracketed_target_paths,
     _resolve_exact_target_source_only_conflicts,
+    _split_inline_structured_component_bindings,
+    all_risk_candidates,
     anchor_drafts,
     anchor_summary,
     annotated_source,
@@ -25,18 +29,29 @@ from raw_text_template_experiment.host import (
     line_range_for_chars,
     line_spans,
     merge_drafts,
+    normalize_adjacent_source_only_measurement_units,
+    normalize_agent_appointment_suffixes,
     normalize_auxiliary_identifier_boundaries,
     normalize_cargo_description_linked_package_prefixes,
     normalize_compact_equipment_locality,
     normalize_competing_auxiliary_outliers,
     normalize_country_code_locality,
+    normalize_dangerous_goods_class_locality,
     normalize_decimal_measurement_boundaries,
     normalize_deterministic_draft_semantics,
+    normalize_form_title_repeats,
+    normalize_inclusive_quantity_ranges,
+    normalize_labeled_registration_type_values,
     normalize_labeled_shipper_and_receipt_locality,
+    normalize_literal_care_of_separators,
+    normalize_measurement_caption_units,
+    normalize_original_bill_count_repeats,
+    normalize_package_quantity_row_locality,
     normalize_package_type_row_locality,
     normalize_pinned_carrier_assessment,
     normalize_relational_anchor_locality,
     normalize_segmented_party_address_targets,
+    normalize_shipped_on_board_vocabulary,
     normalize_source_boundaries,
     normalize_structured_row_locality,
     normalize_target_cobindings,
@@ -46,6 +61,7 @@ from raw_text_template_experiment.host import (
     resolve_agent_proposal_inventory,
     resolve_agent_proposals,
     risk_candidates,
+    target_fact_components,
     target_path_relationship,
     uncovered_risks,
     validate_agent_proposal_paths,
@@ -338,6 +354,106 @@ def test_selected_operational_and_type_values_are_high_recall_risks() -> None:
         for index, risk in enumerate(selected)
     )
     assert all(risk.kind != "selected_text" for risk in risk_candidates(raw, owned))
+
+
+def test_shipped_on_board_vocabulary_closes_only_the_exact_phrase() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "Shipped on Board Date (Local Time)\n"
+        "The notation \"SHIPPED ON BOARD\" remains legal boilerplate.\n"
+    )
+
+    normalized = normalize_shipped_on_board_vocabulary(raw=raw, drafts=())
+
+    assert tuple(row.source_text for row in normalized) == (
+        "Shipped on Board",
+        "SHIPPED ON BOARD",
+    )
+    assert {row.render_mode for row in normalized} == {"literal_static"}
+    assert all(row.value_kind == "legal_text" for row in normalized)
+    assert all(risk.kind != "selected_text" for risk in risk_candidates(raw, normalized))
+    assert normalize_shipped_on_board_vocabulary(raw=raw, drafts=normalized) == normalized
+
+
+def test_labeled_registration_type_owns_vocabulary_but_not_appended_identifier() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "*EXPORTER REGISTRATION TYPE: TAX ID\n"
+        "Foreign Exporter Registration Type : VAT Number 415 187 338\n"
+    )
+
+    normalized = normalize_labeled_registration_type_values(raw=raw, drafts=())
+
+    assert tuple(row.source_text for row in normalized) == ("TAX ID",)
+    assert normalized[0].render_mode == "deterministic_auxiliary"
+    remaining = risk_candidates(raw, normalized)
+    assert not any(row.source_text == "TAX ID" for row in remaining)
+    assert any(row.source_text == "VAT Number 415 187 338" for row in remaining)
+
+
+def test_care_of_separator_closes_only_same_group_owned_values() -> None:
+    raw = "--- PAGE 1 ---\nRIO DE JANEIRO C/O BRADESCO NY\n"
+    left = replace(
+        _test_draft(
+            raw,
+            "RIO DE JANEIRO",
+            "anchor:documentPatch.freight.paymentPlace.name",
+            "target_binding",
+            ("documentPatch.freight.paymentPlace.name",),
+        ),
+        value_kind="location",
+        group_kind="commercial",
+        group_key="commercial:freight",
+    )
+    right = replace(
+        _test_draft(
+            raw,
+            "BRADESCO NY",
+            "agent:aux:freight_intermediary",
+            "deterministic_auxiliary",
+        ),
+        value_kind="organization",
+        group_kind="commercial",
+        group_key="commercial:freight",
+    )
+
+    normalized = normalize_literal_care_of_separators(raw=raw, drafts=(left, right))
+
+    separator = next(row for row in normalized if row.source_text == "C/O")
+    assert separator.render_mode == "literal_static"
+    risks = risk_candidates(raw, ())
+    assert uncovered_risks(raw, risks, normalized) == ()
+
+
+@pytest.mark.parametrize(
+    ("surface", "quantity"),
+    (("PACKAGE 1-7", 7), ("PACKAGE NO : 1\n- 18", 18)),
+)
+def test_relational_package_ranges_are_detected_without_caption_vocabulary(
+    surface: str, quantity: int
+) -> None:
+    raw = f"--- PAGE 1 ---\n{surface}\n"
+    target = {"documentPatch": {"cargoPackages": [{"quantity": quantity}]}}
+
+    relational = tuple(
+        row
+        for row in all_risk_candidates(raw, (), target)
+        if row.kind == "relational_numeric_range"
+    )
+
+    assert len(relational) == 1
+    assert relational[0].source_text == ("1-7" if quantity == 7 else "1\n- 18")
+
+
+def test_relational_package_range_requires_structured_cardinality_and_respects_ownership() -> None:
+    raw = "--- PAGE 1 ---\nCLAUSE 10-15\nBAGS 1-7\n"
+    target = {"documentPatch": {"cargoPackages": [{"quantity": 7}]}}
+
+    risks = all_risk_candidates(raw, (), target)
+    assert [(row.kind, row.source_text) for row in risks] == [("relational_numeric_range", "1-7")]
+
+    owned = (_test_draft(raw, "1-7", "agent:package:range", "agent_residual"),)
+    assert all_risk_candidates(raw, owned, target) == ()
 
 
 def test_agent_target_semantics_survive_host_group_canonicalization() -> None:
@@ -935,6 +1051,70 @@ def test_agent_occurrence_uses_global_match_only_when_exact_quote_is_unique() ->
     ambiguous = _proposal("12345678", "L00004", key="ambiguous_wrong_line")
     with pytest.raises(ValueError, match="exact quote resolution failed"):
         resolve_agent_proposals(raw=ambiguous_raw, proposals=(ambiguous,))
+
+
+def test_target_occurrence_repairs_only_a_unique_one_line_selector_shift() -> None:
+    raw = "--- PAGE 1 ---\nCLASS 3, PGII\nUN1993, FLAMMABLE LIQUID\nUNRELATED\nCLASS 3, PGII\n"
+    base = _proposal("CLASS 3, PGII", "L00003", key="dangerous_goods_class")
+    target_bound = base.model_copy(
+        update={
+            "render_mode": "target_binding",
+            "value_kind": "dangerous_goods",
+            "group_kind": "dangerous_goods",
+            "group_key": "dangerous_goods:0",
+            "target_paths": ("documentPatch.cargoGroups[0].dangerousGoods[0].hazardCategory",),
+        }
+    )
+
+    (resolved,) = resolve_agent_proposals(raw=raw, proposals=(target_bound,))
+
+    assert resolved.source_text == "CLASS 3, PGII"
+    assert resolved.char_start == raw.index("CLASS 3, PGII")
+    assert "unique exact target surface" in resolved.rationale
+
+    source_only = base.model_copy(
+        update={
+            "value_kind": "dangerous_goods",
+            "group_kind": "dangerous_goods",
+            "group_key": "dangerous_goods:0",
+        }
+    )
+    with pytest.raises(ValueError, match="exact quote resolution failed"):
+        resolve_agent_proposals(raw=raw, proposals=(source_only,))
+
+    ambiguous_raw = "CLASS 3, PGII\nWRONG ROW\nCLASS 3, PGII\n"
+    ambiguous = target_bound.model_copy(
+        update={
+            "occurrences": (
+                target_bound.occurrences[0].model_copy(
+                    update={"line_start": "L00002", "line_end": "L00002"}
+                ),
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="exact quote resolution failed"):
+        resolve_agent_proposals(raw=ambiguous_raw, proposals=(ambiguous,))
+
+
+def test_target_numeric_occurrence_retains_unique_equivalent_source_format() -> None:
+    raw = "--- PAGE 1 ---\nFIBREBOARD BOXES, 5040 METAL CANS. FLASH POINT: -17\n"
+    proposal = _proposal("-17.0", "L00002", key="flash_point").model_copy(
+        update={
+            "render_mode": "target_binding",
+            "value_kind": "temperature",
+            "group_kind": "dangerous_goods",
+            "group_key": "dangerous_goods:0",
+            "target_paths": (
+                "documentPatch.cargoGroups[0].dangerousGoods[0].flashPoint.temperature.value",
+            ),
+        }
+    )
+
+    (resolved,) = resolve_agent_proposals(raw=raw, proposals=(proposal,))
+
+    assert resolved.source_text == "-17"
+    assert raw[resolved.char_start : resolved.char_end] == "-17"
+    assert "numerically equivalent source token" in resolved.rationale
 
 
 def test_phone_typo_recovers_only_the_unique_typed_value_on_declared_line() -> None:
@@ -1604,6 +1784,7 @@ def test_deterministic_semantic_normalization_stops_count_and_location_oscillati
         )
 
     normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
         drafts=(
             count,
             location("TAIWAN", 0),
@@ -3048,6 +3229,48 @@ def test_one_to_one_package_quantity_requires_one_logical_owner() -> None:
     validate_target_binding_relationships(drafts=(combined,), source_target=target)
 
 
+def test_multirow_one_to_one_package_quantities_are_independent_cobound_facts() -> None:
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 7},
+                {"groupId": "g1", "packageId": "p2", "quantity": 11},
+                {"groupId": "g1", "packageId": "p3", "quantity": 13},
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "coverage": "one_to_one_package_allocations",
+                    "packageIds": ["p1", "p2", "p3"],
+                    "allocations": [
+                        {"packageId": "p1", "packageQuantity": 7},
+                        {"packageId": "p2", "packageQuantity": 11},
+                        {"packageId": "p3", "packageQuantity": 13},
+                    ],
+                }
+            ],
+        }
+    }
+
+    requirements = required_target_cobindings(target)
+
+    assert tuple(row.target_paths for row in requirements) == (
+        (
+            "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
+            "documentPatch.cargoPackages[0].quantity",
+        ),
+        (
+            "documentPatch.cargoAllocationGroups[0].allocations[1].packageQuantity",
+            "documentPatch.cargoPackages[1].quantity",
+        ),
+        (
+            "documentPatch.cargoAllocationGroups[0].allocations[2].packageQuantity",
+            "documentPatch.cargoPackages[2].quantity",
+        ),
+    )
+    assert all(len(target_fact_components(target, row.target_paths)) == 1 for row in requirements)
+
+
 def test_exact_span_complementary_quantity_owners_join_before_overlap_rejection() -> None:
     raw = "96\n"
     allocation_path = "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity"
@@ -3469,6 +3692,190 @@ def test_occurrence_resolution_retains_source_unicode_case_variant() -> None:
         resolve_agent_proposals(raw=raw, proposals=(changed_letter,))
 
 
+@pytest.mark.parametrize(
+    ("raw_surface", "proposed_surface"),
+    (
+        ("02X20' FCL CONTAINER", "02 X 20' FCL CONTAINER"),
+        ("/ 72 DRUMS / FCL / FCL/20GP", "FCL/FCL"),
+    ),
+)
+def test_occurrence_resolution_retains_unique_whitespace_equivalent_source_bytes(
+    raw_surface: str, proposed_surface: str
+) -> None:
+    raw = f"--- PAGE 1 ---\n{raw_surface}\n"
+    proposal = _proposal(proposed_surface, "L00002", key="whitespace_variant")
+
+    (draft,) = resolve_agent_proposals(raw=raw, proposals=(proposal,))
+
+    assert draft.source_text.replace(" ", "") == proposed_surface.replace(" ", "")
+    assert draft.source_text in raw_surface
+
+    punctuation_change = proposal.model_copy(
+        update={
+            "occurrences": (
+                proposal.occurrences[0].model_copy(update={"source_text": proposed_surface + "!"}),
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="exact quote resolution failed"):
+        resolve_agent_proposals(raw=raw, proposals=(punctuation_change,))
+
+
+def test_occurrence_resolution_recovers_proven_wrapped_numeric_suffix() -> None:
+    raw = "--- PAGE 1 ---\nGROSS/NET: 4 656KG/4\n527KG, UN3082\n"
+    proposal = AgentBindingProposal.model_validate(
+        {
+            "logical_key": "weight:g1:net:value",
+            "render_mode": "target_binding",
+            "value_kind": "decimal_measurement",
+            "group_kind": "cargo",
+            "group_key": "cargo:g1",
+            "target_paths": ("documentPatch.cargoGroups[0].netWeight.value",),
+            "occurrences": (
+                {
+                    "line_start": "L00003",
+                    "line_end": "L00003",
+                    "source_text": "4 527",
+                    "occurrence_index": 0,
+                },
+            ),
+            "rationale": "OCR line wrapping split the numeric source surface.",
+        }
+    )
+
+    (draft,) = resolve_agent_proposals(raw=raw, proposals=(proposal,))
+
+    assert draft.source_text == "527"
+    assert draft.char_start == raw.index("527")
+    assert "split immediately before the OCR line boundary" in draft.rationale
+
+    unproved = raw.replace("/4\n", " 4\n")
+    with pytest.raises(ValueError, match="exact quote resolution failed"):
+        resolve_agent_proposals(raw=unproved, proposals=(proposal,))
+
+
+def test_overlap_reconciliation_partitions_source_residual_around_target_owner() -> None:
+    raw = "--- PAGE 1 ---\nAGENT IN EGYPT AT DESTINATION PORT\n"
+    country_path = "documentPatch.parties.deliveryAgent.country"
+    outer = replace(
+        _test_draft(
+            raw,
+            "AGENT IN EGYPT AT DESTINATION PORT",
+            "agent:delivery:appointment",
+            "agent_residual",
+            (),
+        ),
+        value_kind="operational_text",
+        group_kind="party",
+        group_key="party:deliveryAgent:0",
+    )
+    country = replace(
+        _test_draft(
+            raw,
+            "EGYPT",
+            "anchor:" + country_path,
+            "target_binding",
+            (country_path,),
+        ),
+        value_kind="location",
+        group_kind="party",
+        group_key="party:deliveryAgent:0",
+    )
+    target = {
+        "documentPatch": {
+            "parties": {"deliveryAgent": {"country": "EGYPT"}},
+            "containers": [],
+            "cargoGroups": [],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(outer, country),
+        source_target=target,
+    )
+
+    assert {row.source_text for row in normalized if row.logical_key == outer.logical_key} == {
+        "AGENT IN",
+        "AT DESTINATION PORT",
+    }
+    assert any(row.logical_key == country.logical_key for row in normalized)
+    assert all(left.char_end <= right.char_start for left, right in itertools.pairwise(normalized))
+
+
+def test_overlap_reconciliation_relocates_only_unique_token_bounded_numeric_segment() -> None:
+    raw = "--- PAGE 1 ---\nGROSS/NET: 1 315KG/1\n276KG\n"
+    gross_start = raw.index("1 315")
+    embedded_one = gross_start + len("1 3")
+    suffix_start = raw.index("276")
+    gross = SpanDraft(
+        draft_id="gross",
+        logical_key="anchor:documentPatch.cargoGroups[0].grossWeight.value",
+        render_mode="target_binding",
+        value_kind="decimal_measurement",
+        group_kind="cargo",
+        group_key="cargo:0",
+        target_paths=("documentPatch.cargoGroups[0].grossWeight.value",),
+        derivation=None,
+        dependency_paths=(),
+        dependency_bindings=(),
+        char_start=gross_start,
+        char_end=gross_start + len("1 315"),
+        source_text="1 315",
+        evidence_origin="host_verified_agent_proposal",
+        render_policy="numeric",
+        rationale="Exact gross value.",
+    )
+    net_prefix = replace(
+        gross,
+        draft_id="net_prefix",
+        logical_key="anchor:documentPatch.cargoGroups[0].netWeight.value",
+        target_paths=("documentPatch.cargoGroups[0].netWeight.value",),
+        char_start=embedded_one,
+        char_end=embedded_one + 1,
+        source_text="1",
+        rationale="Ambiguously selected net prefix.",
+    )
+    net_suffix = replace(
+        net_prefix,
+        draft_id="net_suffix",
+        char_start=suffix_start,
+        char_end=suffix_start + 3,
+        source_text="276",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 1315},
+                    "netWeight": {"value": 1276},
+                }
+            ],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+            "containers": [],
+        }
+    }
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(gross, net_prefix, net_suffix),
+        source_target=target,
+    )
+
+    relocated = next(
+        row
+        for row in reconciled
+        if row.logical_key.endswith("netWeight.value") and row.source_text == "1"
+    )
+    assert relocated.char_start == raw.index("/1") + 1
+    assert relocated.evidence_origin == "host_verified_agent_proposal"
+    merge_drafts(reconciled)
+
+
 def test_occurrence_resolution_prunes_only_proven_redundant_duplicate() -> None:
     raw = "2405\nunrelated\n2405"
     proposal = AgentBindingProposal.model_validate(
@@ -3507,6 +3914,48 @@ def test_occurrence_resolution_prunes_only_proven_redundant_duplicate() -> None:
     incomplete = proposal.model_copy(update={"occurrences": proposal.occurrences[:2]})
     with pytest.raises(ValueError, match="exact quote resolution failed"):
         resolve_agent_proposals(raw=raw, proposals=(incomplete,))
+
+
+def test_target_occurrence_resolution_drops_unusable_duplicate_handle_with_audit() -> None:
+    raw = "--- PAGE 1 ---\n3495 PACKAGES IN TOTAL\nPACKAGES\n\nPROVINCE\n"
+    path = "documentPatch.cargoPackages[0].typeCategory"
+    target_bound = AgentBindingProposal.model_validate(
+        {
+            "logical_key": "package:p1:type",
+            "render_mode": "target_binding",
+            "value_kind": "package",
+            "group_kind": "package",
+            "group_key": "package:p1",
+            "target_paths": (path,),
+            "occurrences": (
+                {
+                    "line_start": "L00002",
+                    "line_end": "L00002",
+                    "source_text": "PACKAGES",
+                },
+                {
+                    "line_start": "L00005",
+                    "line_end": "L00005",
+                    "source_text": "PACKAGES",
+                },
+            ),
+            "rationale": "The package type is printed in the total surface.",
+        }
+    )
+
+    (resolved,) = resolve_agent_proposals(raw=raw, proposals=(target_bound,))
+
+    assert resolved.source_text == "PACKAGES"
+    assert "discarded 1 unresolved duplicate occurrence" in resolved.rationale
+
+    source_only = target_bound.model_copy(
+        update={
+            "render_mode": "deterministic_auxiliary",
+            "target_paths": (),
+        }
+    )
+    with pytest.raises(ValueError, match="exact quote resolution failed"):
+        resolve_agent_proposals(raw=raw, proposals=(source_only,))
 
 
 def test_realization_validation_rejects_mixed_equipment_and_false_determinism() -> None:
@@ -3604,6 +4053,25 @@ def test_realization_validation_rejects_mixed_equipment_and_false_determinism() 
     validate_binding_realizations(
         raw=raw,
         drafts=(mixed, movement_only, target_bound),
+        source_target=target,
+    )
+
+    unrelated_type_surface = "20'X8'6\" GENERAL PURPOSE CONT."
+    unrelated_raw = raw + unrelated_type_surface
+    unrelated = replace(
+        source_only_equipment,
+        draft_id="unmodeled_equipment",
+        logical_key="agent:equipment:unmodeled_general_purpose",
+        value_kind="equipment",
+        group_kind="equipment",
+        group_key="equipment:unmodeled:0",
+        char_start=len(raw),
+        char_end=len(raw) + len(unrelated_type_surface),
+        source_text=unrelated_type_surface,
+    )
+    validate_binding_realizations(
+        raw=unrelated_raw,
+        drafts=(unrelated,),
         source_target=target,
     )
 
@@ -4210,7 +4678,7 @@ def test_near_ocr_address_variants_split_without_agent() -> None:
     target = {"documentPatch": {"containers": [], "cargoAllocationGroups": [], "cargoPackages": []}}
 
     normalized = normalize_deterministic_draft_semantics(
-        drafts=(first, second), source_target=target
+        raw=raw, drafts=(first, second), source_target=target
     )
 
     assert len({row.logical_key for row in normalized}) == 2
@@ -4238,7 +4706,9 @@ def test_distinct_source_only_dates_split_into_deterministic_bindings() -> None:
     )
     target = {"documentPatch": {"containers": [], "cargoAllocationGroups": [], "cargoPackages": []}}
 
-    normalized = normalize_deterministic_draft_semantics(drafts=drafts, source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=drafts, source_target=target
+    )
 
     assert len({row.logical_key for row in normalized}) == 2
     assert len({row.group_key for row in normalized}) == 2
@@ -4260,7 +4730,9 @@ def test_equivalent_source_only_date_formats_remain_one_residual_contract() -> N
     )
     target = {"documentPatch": {"containers": [], "cargoAllocationGroups": [], "cargoPackages": []}}
 
-    normalized = normalize_deterministic_draft_semantics(drafts=drafts, source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=drafts, source_target=target
+    )
 
     assert {row.logical_key for row in normalized} == {"agent:document_date"}
     assert {row.render_mode for row in normalized} == {"agent_residual"}
@@ -4291,7 +4763,9 @@ def test_exact_single_target_residual_becomes_direct_binding() -> None:
         }
     }
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(residual,), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(residual,), source_target=target
+    )
 
     assert len(normalized) == 1
     assert normalized[0].logical_key == "anchor:" + path
@@ -4302,6 +4776,129 @@ def test_exact_single_target_residual_becomes_direct_binding() -> None:
         slots=_realization_slots(normalized[0].source_text),
         source_target=target,
     ).requires_agent
+
+
+def test_unique_source_only_identifiers_join_one_target_text_contract() -> None:
+    raw = "--- PAGE 1 ---\nGOODS OPEN CELL\nPART.NO:91.31M02.A0B\nC/P.NO:BN96-51976A\n"
+    path = "documentPatch.cargoGroups[0].description"
+    owner = replace(
+        _test_draft(raw, "OPEN CELL", "anchor:" + path, "target_binding", (path,)),
+        value_kind="cargo_text",
+        group_kind="cargo",
+        group_key="cargo:0",
+        render_policy="natural_text",
+    )
+    auxiliaries = tuple(
+        replace(
+            _test_draft(raw, source_text, logical_key, "deterministic_auxiliary"),
+            value_kind="identifier",
+            group_kind="commercial",
+            group_key=group_key,
+            render_policy="opaque_identifier",
+        )
+        for source_text, logical_key, group_key in (
+            ("91.31M02.A0B", "agent:part", "commercial:part"),
+            ("BN96-51976A", "agent:cp", "commercial:cp"),
+        )
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"description": ("OPEN CELL; PART.NO:91.31M02.A0B; C/P.NO:BN96-51976A")}
+            ],
+            "containers": [],
+            "cargoAllocationGroups": [],
+            "cargoPackages": [],
+        }
+    }
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(owner, *auxiliaries),
+        source_target=target,
+    )
+
+    assert {row.logical_key for row in normalized} == {"anchor:" + path}
+    assert {row.target_paths for row in normalized} == {(path,)}
+    assert {row.render_mode for row in normalized} == {"target_binding"}
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
+def test_low_information_cross_scope_identifier_is_not_joined_by_coincidence() -> None:
+    raw = "--- PAGE 1 ---\nADDRESS MAIN STREET 2\nBOOKING 2\n"
+    path = "documentPatch.parties.shipper.address"
+    owner = replace(
+        _test_draft(raw, "MAIN STREET 2", "anchor:" + path, "target_binding", (path,)),
+        value_kind="address",
+        group_kind="party",
+        group_key="party:shipper:0",
+        render_policy="natural_text",
+    )
+    auxiliary = replace(
+        _test_draft(raw, "2", "agent:booking", "deterministic_auxiliary", occurrence=1),
+        value_kind="identifier",
+        group_kind="commercial",
+        group_key="commercial:booking",
+        render_policy="opaque_identifier",
+    )
+    target = {
+        "documentPatch": {
+            "parties": {"shipper": {"address": "MAIN STREET 2"}},
+            "containers": [],
+            "cargoAllocationGroups": [],
+            "cargoPackages": [],
+        }
+    }
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(owner, auxiliary),
+        source_target=target,
+    )
+
+    assert {row.logical_key for row in normalized} == {"anchor:" + path, "agent:booking"}
+
+
+def test_same_scope_numeric_identifier_joins_its_target_text_contract() -> None:
+    raw = "--- PAGE 1 ---\nADDRESS MAIN STREET 34218\nPOSTAL 34218\n"
+    path = "documentPatch.parties.shipper.address"
+    owner = replace(
+        _test_draft(raw, "MAIN STREET 34218", "anchor:" + path, "target_binding", (path,)),
+        value_kind="address",
+        group_kind="party",
+        group_key="party:shipper:0",
+        render_policy="natural_text",
+    )
+    postal = replace(
+        _test_draft(
+            raw,
+            "34218",
+            "agent:shipper_postal_code",
+            "deterministic_auxiliary",
+            occurrence=1,
+        ),
+        value_kind="identifier",
+        group_kind="party",
+        group_key="party:shipper:0",
+        render_policy="opaque_identifier",
+    )
+    target = {
+        "documentPatch": {
+            "parties": {"shipper": {"address": "MAIN STREET 34218"}},
+            "containers": [],
+            "cargoAllocationGroups": [],
+            "cargoPackages": [],
+        }
+    }
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(owner, postal),
+        source_target=target,
+    )
+
+    assert {row.logical_key for row in normalized} == {"anchor:" + path}
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
 
 
 def test_exact_residual_occurrence_does_not_split_mixed_semantic_contract() -> None:
@@ -4332,7 +4929,7 @@ def test_exact_residual_occurrence_does_not_split_mixed_semantic_contract() -> N
         }
     }
 
-    normalized = normalize_deterministic_draft_semantics(drafts=rows, source_target=target)
+    normalized = normalize_deterministic_draft_semantics(raw=raw, drafts=rows, source_target=target)
 
     assert {row.logical_key for row in normalized} == {rows[0].logical_key}
     assert {row.render_mode for row in normalized} == {"agent_residual"}
@@ -4360,7 +4957,9 @@ def test_unsupported_dangerous_goods_class_mapping_is_bounded_residual() -> None
         }
     }
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(draft,), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(draft,), source_target=target
+    )
 
     assert normalized[0].render_mode == "agent_residual"
     assert normalized[0].target_paths == (path,)
@@ -4425,7 +5024,7 @@ def test_exact_scalar_is_split_from_segmented_residual_occurrences() -> None:
     }
 
     normalized = normalize_deterministic_draft_semantics(
-        drafts=(first, country), source_target=target
+        raw=raw, drafts=(first, country), source_target=target
     )
 
     by_surface = {draft.source_text: draft for draft in normalized}
@@ -4476,7 +5075,7 @@ def test_cross_key_near_ocr_locality_variants_use_one_typed_key_namespace() -> N
     target = {"documentPatch": {"containers": [], "cargoAllocationGroups": [], "cargoPackages": []}}
 
     normalized = normalize_deterministic_draft_semantics(
-        drafts=(first, *repeated), source_target=target
+        raw=raw, drafts=(first, *repeated), source_target=target
     )
 
     assert len(normalized) == 3
@@ -4508,7 +5107,9 @@ def test_equal_source_only_localities_with_distinct_keys_are_not_merged() -> Non
     )
     target = {"documentPatch": {"containers": [], "cargoAllocationGroups": [], "cargoPackages": []}}
 
-    normalized = normalize_deterministic_draft_semantics(drafts=drafts, source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=drafts, source_target=target
+    )
 
     assert {row.logical_key for row in normalized} == {"agent:city", "agent:country"}
 
@@ -4533,7 +5134,9 @@ def test_exact_repeated_multiline_target_projection_splits_into_deterministic_oc
         render_policy="natural_text",
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(draft,), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(draft,), source_target=target
+    )
 
     assert len(normalized) == 2
     assert {row.source_text for row in normalized} == {"13672297"}
@@ -4568,7 +5171,9 @@ def test_exact_composite_party_surface_splits_into_independent_target_bindings()
         group_key="party:shipper:0",
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(draft,), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(draft,), source_target=target
+    )
 
     assert {row.target_paths for row in normalized} == {(paths[0],), (paths[1],)}
     assert {row.source_text for row in normalized} == {
@@ -4576,6 +5181,49 @@ def test_exact_composite_party_surface_splits_into_independent_target_bindings()
         "Saint Remy De Provence Union",
     }
     assert {row.render_mode for row in normalized} == {"target_binding"}
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
+def test_exact_container_and_seal_anchor_splits_by_independent_fact_components() -> None:
+    container_number = "MSCU1234567"
+    seal_number = "SEAL99"
+    surface = f"{container_number} / {seal_number}"
+    raw = "--- PAGE 1 ---\n" + surface + "\n"
+    container_paths = (
+        "documentPatch.cargoAllocationGroups[0].allocations[0].containerNumber",
+        "documentPatch.containers[0].containerNumber",
+    )
+    seal_path = "documentPatch.containers[0].sealNumbers[0]"
+    target = {
+        "documentPatch": {
+            "containers": [{"containerNumber": container_number, "sealNumbers": [seal_number]}],
+            "cargoAllocationGroups": [{"allocations": [{"containerNumber": container_number}]}],
+            "cargoPackages": [],
+        }
+    }
+    draft = replace(
+        _test_draft(
+            raw,
+            surface,
+            "anchor:" + "|".join((*container_paths, seal_path)),
+            "target_binding",
+            (*container_paths, seal_path),
+        ),
+        value_kind="equipment",
+        group_kind="equipment",
+        group_key="container:0",
+        evidence_origin="accepted_label_evidence",
+        render_policy="opaque_identifier",
+    )
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(draft,), source_target=target
+    )
+
+    assert {row.target_paths for row in normalized} == {container_paths, (seal_path,)}
+    assert {row.source_text for row in normalized} == {container_number, seal_number}
+    assert {row.render_mode for row in normalized} == {"target_binding"}
+    validate_target_binding_relationships(drafts=normalized, source_target=target)
     validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
 
 
@@ -4597,7 +5245,9 @@ def test_temperature_object_surface_expands_to_host_derived_leaf_pair() -> None:
         render_policy="numeric_surface",
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(draft,), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(draft,), source_target=target
+    )
 
     assert len(normalized) == 1
     assert normalized[0].render_mode == "deterministic_derived"
@@ -4632,7 +5282,9 @@ def test_identifier_group_uses_one_canonical_opaque_format_policy() -> None:
         for index, start in enumerate(starts)
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=drafts, source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=drafts, source_target=target
+    )
     realization = binding_realization(
         draft=normalized[0],
         slots=_realization_slots("3214.10.0010", "3214.10.0010"),
@@ -4669,7 +5321,9 @@ def test_temperature_value_and_unit_cobinding_becomes_deterministic_derivation()
         for text in ("+1 C", "+1,0 C")
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=drafts, source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=drafts, source_target=target
+    )
 
     assert {row.render_mode for row in normalized} == {"deterministic_derived"}
     assert {row.derivation for row in normalized} == {"temperature_setpoint"}
@@ -4678,6 +5332,7 @@ def test_temperature_value_and_unit_cobinding_becomes_deterministic_derivation()
 
     residuals = tuple(replace(row, render_mode="agent_residual") for row in drafts)
     normalized_residuals = normalize_deterministic_draft_semantics(
+        raw=raw,
         drafts=residuals,
         source_target=target,
     )
@@ -4685,6 +5340,7 @@ def test_temperature_value_and_unit_cobinding_becomes_deterministic_derivation()
     assert {row.derivation for row in normalized_residuals} == {"temperature_setpoint"}
     assert (
         normalize_deterministic_draft_semantics(
+            raw=raw,
             drafts=normalized_residuals,
             source_target=target,
         )
@@ -4729,6 +5385,130 @@ def test_reconcile_narrows_numeric_measurement_value_around_separate_unit() -> N
     assert {row.source_text for row in normalized} == {"+1,0", "C"}
     assert len(normalized) == 2
     validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
+def test_reconcile_splits_derived_measurement_total_from_literal_unit() -> None:
+    raw = "--- PAGE 1 ---\nTOTAL 3408.290 KGS\n"
+    dependencies = (
+        "documentPatch.cargoGroups[0].grossWeight.value",
+        "documentPatch.cargoGroups[1].grossWeight.value",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"grossWeight": {"value": 3000, "unit": "kilogram"}},
+                {"grossWeight": {"value": 408.29, "unit": "kilogram"}},
+            ]
+        }
+    }
+    total = replace(
+        _test_draft(
+            raw,
+            "3408.290 KGS",
+            "agent:cargo:total:grossWeight",
+            "deterministic_derived",
+            dependency_paths=dependencies,
+        ),
+        value_kind="decimal_measurement",
+        group_kind="cargo",
+        group_key="cargo:totals",
+        derivation="sum_gross_weight",
+    )
+    unit = replace(
+        _test_draft(
+            raw,
+            "KGS",
+            "agent:cargo:total:grossWeight:unit",
+            "literal_static",
+        ),
+        value_kind="other_text",
+        group_kind="cargo",
+        group_key="cargo:totals",
+        render_policy="natural_text",
+    )
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(total, unit),
+        source_target=target,
+    )
+
+    by_key = {row.logical_key: row for row in normalized}
+    assert by_key[total.logical_key].source_text == "3408.290"
+    assert by_key[total.logical_key].render_mode == "deterministic_derived"
+    assert by_key[total.logical_key].derivation == "sum_gross_weight"
+    assert by_key[total.logical_key].render_policy == "derived_surface"
+    assert by_key[unit.logical_key].source_text == "KGS"
+
+
+def test_reconcile_drops_residual_rows_exactly_owned_by_disjoint_targets() -> None:
+    raw = "--- PAGE 1 ---\nZERO (0)\nALEXANDRIA\n16/04/24\n"
+    target = {
+        "documentPatch": {
+            "negotiability": "non_negotiable",
+            "issueDate": "2024-04-16",
+            "freight": {"paymentPlace": {"name": "ALEXANDRIA"}},
+        }
+    }
+    residual = tuple(
+        replace(
+            _test_draft(
+                raw,
+                surface,
+                "agent:legal:negotiability_status",
+                "agent_residual",
+                ("documentPatch.negotiability",),
+            ),
+            value_kind="legal_text",
+            group_kind="legal",
+            group_key="legal:document",
+            render_policy="natural_text",
+        )
+        for surface in ("ZERO (0)", "ALEXANDRIA", "16/04/24")
+    )
+    payment = replace(
+        _test_draft(
+            raw,
+            "ALEXANDRIA",
+            "anchor:documentPatch.freight.paymentPlace.name",
+            "target_binding",
+            ("documentPatch.freight.paymentPlace.name",),
+        ),
+        value_kind="location",
+        group_kind="commercial",
+        group_key="commercial:freight",
+        render_policy="natural_text",
+    )
+    issue_date = replace(
+        _test_draft(
+            raw,
+            "16/04/24",
+            "anchor:documentPatch.issueDate",
+            "target_binding",
+            ("documentPatch.issueDate",),
+        ),
+        value_kind="date",
+        group_kind="document",
+        group_key="document",
+        render_policy="date_surface",
+    )
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(*residual, payment, issue_date),
+        source_target=target,
+    )
+
+    assert {
+        row.source_text
+        for row in normalized
+        if row.logical_key == "agent:legal:negotiability_status"
+    } == {"ZERO (0)"}
+    assert {row.logical_key for row in normalized} == {
+        "agent:legal:negotiability_status",
+        "anchor:documentPatch.freight.paymentPlace.name",
+        "anchor:documentPatch.issueDate",
+    }
 
 
 def test_reconcile_keeps_ambiguous_measurement_overlap_as_hard_error() -> None:
@@ -5074,7 +5854,9 @@ def test_container_count_derivation_and_noun_surface_share_one_canonical_owner()
         render_policy="derived_surface",
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(bare, noun), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(bare, noun), source_target=target
+    )
 
     assert len(normalized) == 2
     assert {row.logical_key for row in normalized} == {
@@ -5084,6 +5866,266 @@ def test_container_count_derivation_and_noun_surface_share_one_canonical_owner()
     assert {row.derivation for row in normalized} == {"container_count"}
     assert {row.target_paths for row in normalized} == {("documentPatch.containers",)}
     validate_target_binding_relationships(drafts=normalized, source_target=target)
+
+
+def test_container_count_canonicalization_updates_logical_dependencies() -> None:
+    raw = "--- PAGE 1 ---\nCOUNT 3\nTHREE(3) CONTAINER(S)\n"
+    target = {
+        "documentPatch": {
+            "containers": [{"containerNumber": f"MSCU12345{index:02d}"} for index in range(3)],
+            "cargoAllocationGroups": [],
+            "cargoPackages": [],
+        }
+    }
+    count = replace(
+        _test_draft(raw, "3", "agent:derived:container_count:summary", "deterministic_derived"),
+        char_start=raw.index("COUNT 3") + len("COUNT "),
+        char_end=raw.index("COUNT 3") + len("COUNT 3"),
+        value_kind="integer",
+        group_kind="equipment",
+        group_key="equipment:containers",
+        target_paths=("documentPatch.containers",),
+        derivation="container_count",
+        dependency_paths=("documentPatch.containers",),
+        render_policy="derived_surface",
+    )
+    receipt = replace(
+        _test_draft(
+            raw,
+            "THREE(3) CONTAINER(S)",
+            "agent:derived:total_container_receipt",
+            "deterministic_derived",
+        ),
+        value_kind="equipment",
+        group_kind="equipment",
+        group_key="equipment:containers",
+        derivation="equipment_receipt",
+        dependency_bindings=(count.logical_key,),
+        render_policy="derived_surface",
+    )
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(count, receipt),
+        source_target=target,
+    )
+
+    dependent = next(row for row in normalized if row.source_text == receipt.source_text)
+    assert dependent.dependency_bindings == (
+        "agent:container_count:documentPatch.containers",
+    )
+
+
+def test_container_count_becomes_dependency_only_when_receipt_owns_collection() -> None:
+    raw = "--- PAGE 1 ---\n20 x 40' HIGH CUBE\n20 cntrs\n"
+    collection_path = "documentPatch.containers"
+    type_path = "documentPatch.containers[0].typeDescription"
+    target = {
+        "documentPatch": {
+            "containers": [{"typeDescription": "40' HIGH CUBE"} for _index in range(20)],
+            "cargoAllocationGroups": [],
+            "cargoPackages": [],
+        }
+    }
+    receipt = replace(
+        _test_draft(
+            raw,
+            "20 x 40' HIGH CUBE",
+            "agent:equipment_receipt_total",
+            "deterministic_derived",
+            (collection_path,),
+            (type_path,),
+        ),
+        derivation="equipment_receipt",
+        value_kind="equipment",
+        group_key="equipment:all",
+    )
+    count = replace(
+        _test_draft(
+            raw,
+            "20 cntrs",
+            "agent:container_count_receipt",
+            "deterministic_derived",
+            (),
+            (collection_path,),
+        ),
+        derivation="container_count",
+        value_kind="integer",
+        group_key="equipment:all",
+    )
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(receipt, count), source_target=target
+    )
+
+    normalized_count = next(row for row in normalized if row.derivation == "container_count")
+    assert normalized_count.target_paths == ()
+    assert normalized_count.dependency_paths == (collection_path,)
+    normalized_receipt = next(
+        row for row in normalized if row.derivation == "equipment_receipt"
+    )
+    assert normalized_receipt.target_paths == (collection_path,)
+    validate_target_binding_relationships(drafts=normalized, source_target=target)
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+    assert (
+        normalize_deterministic_draft_semantics(
+            raw=raw, drafts=normalized, source_target=target
+        )
+        == normalized
+    )
+
+
+def test_multiline_package_interval_compiles_as_one_typed_derivation() -> None:
+    raw = "--- PAGE 1 ---\nPACKAGE NO : 1\n- 18\n"
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    target = {
+        "documentPatch": {
+            "cargoPackages": [{"packageId": "p1", "groupId": "g1", "quantity": 18}],
+            "cargoGroups": [{"groupId": "g1"}],
+            "cargoAllocationGroups": [],
+            "containers": [],
+        }
+    }
+    start_offset = raw.index("1\n- 18")
+    range_start = replace(
+        _test_draft(raw, "1", "agent:package:0:number_range_start", "deterministic_auxiliary"),
+        char_start=start_offset,
+        char_end=start_offset + 1,
+        value_kind="integer",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="numeric_surface",
+    )
+    range_end = replace(
+        _test_draft(raw, "18", "anchor:" + quantity_path, "target_binding", (quantity_path,)),
+        value_kind="integer",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="numeric_surface",
+    )
+
+    with pytest.raises(ValueError, match="split across independent bindings"):
+        validate_binding_realizations(
+            raw=raw,
+            drafts=(range_start, range_end),
+            source_target=target,
+        )
+
+    normalized = normalize_inclusive_quantity_ranges(
+        raw=raw,
+        drafts=(range_start, range_end),
+        source_target=target,
+    )
+
+    assert len(normalized) == 1
+    assert normalized[0].source_text == "1\n- 18"
+    assert normalized[0].derivation == "inclusive_range_cardinality"
+    assert normalized[0].target_paths == (quantity_path,)
+    assert normalized[0].dependency_paths == (quantity_path,)
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+    fully_normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=normalized,
+        source_target=target,
+    )
+    assert fully_normalized[0].derivation == "inclusive_range_cardinality"
+    assert fully_normalized[0].render_mode == "deterministic_derived"
+    assert (
+        normalize_inclusive_quantity_ranges(
+            raw=raw,
+            drafts=normalized,
+            source_target=target,
+        )
+        == normalized
+    )
+
+
+def test_labeled_package_interval_compiles_as_one_typed_derivation() -> None:
+    raw = "--- PAGE 1 ---\nBAGS NO. 1 TO 480\n"
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    target = {"documentPatch": {"cargoPackages": [{"quantity": 480}]}}
+    range_prefix = replace(
+        _test_draft(raw, "NO. 1 TO", "agent:package:p1:range", "deterministic_auxiliary"),
+        value_kind="operational_text",
+        group_kind="package",
+        group_key="package:p1",
+        render_policy="natural_text",
+    )
+    range_end = replace(
+        _test_draft(raw, "480", "anchor:" + quantity_path, "target_binding", (quantity_path,)),
+        value_kind="integer",
+        group_kind="package",
+        group_key="package:p1",
+        render_policy="numeric_surface",
+    )
+
+    normalized = normalize_inclusive_quantity_ranges(
+        raw=raw,
+        drafts=(range_prefix, range_end),
+        source_target=target,
+    )
+
+    assert len(normalized) == 1
+    assert normalized[0].source_text == "NO. 1 TO 480"
+    assert normalized[0].derivation == "inclusive_range_cardinality"
+    assert normalized[0].target_paths == (quantity_path,)
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+    assert (
+        normalize_deterministic_draft_semantics(
+            raw=raw,
+            drafts=normalized,
+            source_target=target,
+        )[0].derivation
+        == "inclusive_range_cardinality"
+    )
+
+
+def test_repeated_prefix_interval_compiles_as_one_typed_derivation() -> None:
+    raw = "--- PAGE 1 ---\nSDW/1 TO SDW/80\n"
+    marks_path = "documentPatch.cargoGroups[0].marksAndNumbers[0]"
+    quantity_path = (
+        "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity"
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"groupId": "g1", "marksAndNumbers": ["SDW/1 TO SDW/80"]}
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [{"packageQuantity": 80}],
+                }
+            ],
+        }
+    }
+    provider_draft = replace(
+        _test_draft(
+            raw,
+            "SDW/1 TO SDW/80",
+            "anchor:" + marks_path,
+            "deterministic_derived",
+            (marks_path,),
+            (quantity_path,),
+        ),
+        value_kind="cargo_text",
+        group_kind="cargo",
+        group_key="cargo:g1",
+        derivation="inclusive_range_cardinality",
+    )
+
+    normalized = normalize_inclusive_quantity_ranges(
+        raw=raw,
+        drafts=(provider_draft,),
+        source_target=target,
+    )
+
+    assert len(normalized) == 1
+    assert normalized[0].source_text == "SDW/1 TO SDW/80"
+    assert normalized[0].value_kind == "integer"
+    assert normalized[0].target_paths == (quantity_path,)
+    assert normalized[0].dependency_paths == (quantity_path,)
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
 
 
 def test_repeated_source_binding_cannot_prove_independent_total_operands() -> None:
@@ -5113,10 +6155,10 @@ def test_repeated_source_binding_cannot_prove_independent_total_operands() -> No
     )
 
     normalized_unsupported = normalize_deterministic_draft_semantics(
-        drafts=(unsupported,), source_target=target
+        raw=raw, drafts=(unsupported,), source_target=target
     )[0]
     normalized_supported = normalize_deterministic_draft_semantics(
-        drafts=(supported,), source_target=target
+        raw=raw, drafts=(supported,), source_target=target
     )[0]
 
     assert normalized_unsupported.render_mode == "deterministic_auxiliary"
@@ -5125,6 +6167,40 @@ def test_repeated_source_binding_cannot_prove_independent_total_operands() -> No
     assert "does not prove independent summands" in normalized_unsupported.rationale
     assert normalized_supported.render_mode == "deterministic_derived"
     assert normalized_supported.derivation == "sum_package_quantity"
+
+
+def test_direct_structured_aggregate_supersedes_inconsistent_sum_derivation() -> None:
+    raw = "--- PAGE 1 ---\n141.540 CBM\n"
+    path = "documentPatch.cargoGroups[0].volume.value"
+    draft = replace(
+        _test_draft(raw, "141.540", "agent:volume_total", "deterministic_derived", (path,)),
+        value_kind="decimal_measurement",
+        group_kind="cargo",
+        group_key="cargo:0",
+        derivation="sum_volume",
+        dependency_bindings=("agent:volume:one", "agent:volume:two"),
+        render_policy="derived_surface",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "volume": {"value": 141.54}}],
+        }
+    }
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(draft,),
+        source_target=target,
+    )
+
+    assert len(normalized) == 1
+    assert normalized[0].logical_key == "anchor:" + path
+    assert normalized[0].render_mode == "target_binding"
+    assert normalized[0].derivation is None
+    assert normalized[0].dependency_paths == ()
+    assert normalized[0].dependency_bindings == ()
+    assert normalized[0].render_policy == "numeric_surface"
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
 
 
 def test_country_code_locality_moves_caption_fragment_to_unique_labeled_value() -> None:
@@ -5583,15 +6659,8 @@ def test_compact_equipment_locality_does_not_cross_container_list_into_cargo_blo
 
 
 def test_compact_equipment_locality_counts_derived_receipt_as_stable_target_owner() -> None:
-    raw = (
-        "--- PAGE 1 ---\n"
-        "AAAU1234567\n"
-        "1X40HIGH CUBE\n"
-        "BBBU1234567 40HQ\n"
-    )
-    number_paths = tuple(
-        f"documentPatch.containers[{index}].containerNumber" for index in range(2)
-    )
+    raw = "--- PAGE 1 ---\nAAAU1234567\n1X40HIGH CUBE\nBBBU1234567 40HQ\n"
+    number_paths = tuple(f"documentPatch.containers[{index}].containerNumber" for index in range(2))
     type_path = "documentPatch.containers[0].typeDescription"
     container_path = "documentPatch.containers[0]"
     target = {
@@ -6131,9 +7200,7 @@ def test_pinned_required_cobinding_wins_equal_valued_semantic_only_conflict() ->
                 quantity_paths[index],
                 occurrence=occurrence,
             ),
-            draft_id=(
-                "anchor_binding_0001" if accepted else f"proposal_{index}_{occurrence}"
-            ),
+            draft_id=("anchor_binding_0001" if accepted else f"proposal_{index}_{occurrence}"),
             value_kind="integer",
             group_kind="package",
             group_key=f"package:{index}",
@@ -6165,6 +7232,58 @@ def test_pinned_required_cobinding_wins_equal_valued_semantic_only_conflict() ->
     assert refuted_semantic_only_target_paths(revised) == frozenset(quantity_paths[1])
     retained = next(row for row in revised if row.target_paths == quantity_paths[1])
     assert "equal-valued competing target" in retained.rationale
+
+
+def test_semantic_only_declaration_removes_false_form_caption_anchor() -> None:
+    raw = "--- PAGE 1 ---\n(5) SEA WAYBILL NUMBER\n"
+    path = "documentPatch.negotiability"
+    target = {"documentPatch": {"negotiability": "non_negotiable"}}
+    anchor = replace(
+        _test_draft(raw, "SEA WAYBILL", "anchor:" + path, "target_binding", (path,)),
+        draft_id="anchor_binding_0001",
+        value_kind="other_text",
+        group_kind="document",
+        group_key="document",
+        evidence_origin="accepted_label_evidence",
+        render_policy="natural_text",
+    )
+
+    revised = apply_anchor_overrides(
+        raw=raw,
+        source_target=target,
+        anchors=(anchor,),
+        proposed=(),
+        overrides=(),
+        semantic_only_target_paths=(path,),
+    )
+
+    assert revised == ()
+
+
+def test_semantic_only_declaration_does_not_remove_non_title_anchor() -> None:
+    raw = "--- PAGE 1 ---\nThis shipment is NON NEGOTIABLE.\n"
+    path = "documentPatch.negotiability"
+    target = {"documentPatch": {"negotiability": "non_negotiable"}}
+    anchor = replace(
+        _test_draft(raw, "NON NEGOTIABLE", "anchor:" + path, "target_binding", (path,)),
+        draft_id="anchor_binding_0001",
+        value_kind="other_text",
+        group_kind="document",
+        group_key="document",
+        evidence_origin="accepted_label_evidence",
+        render_policy="natural_text",
+    )
+
+    revised = apply_anchor_overrides(
+        raw=raw,
+        source_target=target,
+        anchors=(anchor,),
+        proposed=(),
+        overrides=(),
+        semantic_only_target_paths=(path,),
+    )
+
+    assert revised == (anchor,)
 
 
 def test_complete_conflicting_replacements_infer_anchor_override() -> None:
@@ -6334,6 +7453,105 @@ def test_competing_equal_target_occurrences_relocate_by_unique_row_topology() ->
     assert by_path[(paths[0],)].source_text == "MATERIAL\n13668880"
     assert by_path[(paths[1],)].source_text == "MATERIAL 13668880"
     assert "unique same-entity topology assignment" in by_path[(paths[0],)].rationale
+
+
+def test_equal_indexed_family_relocates_when_first_proposal_collides_with_anchor() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "CARGO A\nMADE IN GERMANY\n"
+        "CARGO B\nMADE IN GERMANY\n"
+        "CARGO C\nMADE IN GERMANY\n"
+        "CARGO D\nMADE IN GERMANY\n"
+        "CARGO E\nMADE IN GERMANY\n"
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"description": f"CARGO {letter}", "origin": {"name": "GERMANY"}}
+                for letter in "ABCDE"
+            ]
+        }
+    }
+    origin_paths = tuple(f"documentPatch.cargoGroups[{index}].origin.name" for index in range(5))
+    description_paths = tuple(
+        f"documentPatch.cargoGroups[{index}].description" for index in range(5)
+    )
+    germany_starts = tuple(match.start() for match in re.finditer("GERMANY", raw))
+
+    def target_draft(
+        *, draft_id: str, path: str, surface: str, start: int, group_index: int
+    ) -> SpanDraft:
+        return SpanDraft(
+            draft_id=draft_id,
+            logical_key="anchor:" + path,
+            render_mode="target_binding",
+            value_kind="location" if path.endswith("origin.name") else "cargo_text",
+            group_kind="cargo",
+            group_key=f"cargo:{group_index}",
+            target_paths=(path,),
+            derivation=None,
+            dependency_paths=(),
+            dependency_bindings=(),
+            char_start=start,
+            char_end=start + len(surface),
+            source_text=surface,
+            evidence_origin="agent_proposed",
+            render_policy="natural_text",
+            rationale="Fixture indexed cargo fact.",
+        )
+
+    anchor = replace(
+        target_draft(
+            draft_id="origin_anchor_0",
+            path=origin_paths[0],
+            surface="GERMANY",
+            start=germany_starts[0],
+            group_index=0,
+        ),
+        evidence_origin="accepted_label_evidence",
+    )
+    descriptions = tuple(
+        target_draft(
+            draft_id=f"description_{index}",
+            path=description_paths[index],
+            surface=f"CARGO {letter}",
+            start=raw.index(f"CARGO {letter}"),
+            group_index=index,
+        )
+        for index, letter in enumerate("ABCDE")
+    )
+    shifted_origins = tuple(
+        target_draft(
+            draft_id=f"origin_{index}",
+            path=origin_paths[index],
+            surface="GERMANY",
+            start=germany_starts[index - 1],
+            group_index=index,
+        )
+        for index in range(1, 5)
+    )
+
+    revised = apply_anchor_overrides(
+        raw=raw,
+        source_target=target,
+        anchors=(anchor,),
+        proposed=(*descriptions, *shifted_origins),
+        overrides=(),
+    )
+
+    origins_by_path = {
+        row.target_paths[0]: row
+        for row in revised
+        if len(row.target_paths) == 1 and row.target_paths[0] in origin_paths
+    }
+    assert origins_by_path[origin_paths[0]].char_start == germany_starts[0]
+    assert (
+        tuple(origins_by_path[path].char_start for path in origin_paths[1:]) == (germany_starts[1:])
+    )
+    assert all(
+        "unique same-entity topology assignment" in origins_by_path[path].rationale
+        for path in origin_paths[1:]
+    )
 
 
 def test_residual_edge_is_trimmed_when_exact_target_has_separate_owner() -> None:
@@ -6685,6 +7903,228 @@ def test_exact_source_only_duplicate_yields_to_same_span_target_owner() -> None:
         )
         == ()
     )
+
+
+def test_exact_source_only_carrier_static_duplicate_yields_to_target_owner() -> None:
+    raw = "--- PAGE 1 ---\nFORWARDING AGENT\nCEVA FREIGHT LLC\n"
+    path = "documentPatch.parties.forwardingAgent.name"
+    target_owner = replace(
+        _test_draft(raw, "CEVA FREIGHT LLC", "anchor:" + path, "target_binding", (path,)),
+        value_kind="organization",
+        group_kind="party",
+        group_key="party:forwardingAgent:0",
+        render_policy="natural_text",
+    )
+    mistaken_static = replace(
+        _test_draft(raw, "CEVA FREIGHT LLC", "agent:carrier:signature", "carrier_static"),
+        value_kind="organization",
+        group_kind="carrier",
+        group_key="carrier:signature",
+        render_policy="natural_text",
+    )
+    target = {"documentPatch": {"parties": {"forwardingAgent": {"name": "CEVA FREIGHT LLC"}}}}
+
+    assert _resolve_exact_target_source_only_conflicts(
+        drafts=(target_owner, mistaken_static), source_target=target
+    ) == (target_owner,)
+
+
+def test_reconcile_disambiguates_source_only_identifier_from_target_backed_party_block() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "SHIPPER\nACME EXPORTS\nTAX ID: DE120695665\n\n"
+        "CONSIGNEE\nBETA IMPORTS\nTAX ID: 316-062-316\n"
+    )
+    shipper_path = "documentPatch.parties.shipper.name"
+    shipper = replace(
+        _test_draft(
+            raw,
+            "ACME EXPORTS",
+            "anchor:" + shipper_path,
+            "target_binding",
+            (shipper_path,),
+        ),
+        value_kind="organization",
+        group_kind="party",
+        group_key="party:shipper:0",
+        render_policy="natural_text",
+    )
+    correct = replace(
+        _test_draft(
+            raw,
+            "DE120695665",
+            "agent:party:shipper:tax_id",
+            "deterministic_auxiliary",
+        ),
+        value_kind="identifier",
+        group_kind="party",
+        group_key="party:shipper:0",
+    )
+    misplaced = replace(
+        correct,
+        draft_id="misplaced_consignee_tax",
+        logical_key="agent:party:consignee:tax_id",
+        group_key="party:consignee:0",
+    )
+    target = {"documentPatch": {"parties": {"shipper": {"name": "ACME EXPORTS"}}}}
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(shipper, correct, misplaced),
+        source_target=target,
+    )
+
+    assert correct in reconciled
+    assert misplaced not in reconciled
+
+
+def test_reconcile_partitions_source_only_package_range_around_target_type() -> None:
+    raw = "--- PAGE 1 ---\nBAGS NO. 1 TO 480\n"
+    path = "documentPatch.cargoPackages[0].typeDescription"
+    package_type = replace(
+        _test_draft(raw, "BAGS", "anchor:" + path, "target_binding", (path,)),
+        value_kind="package",
+        group_kind="package",
+        group_key="package:p1",
+        render_policy="natural_text",
+    )
+    package_range = replace(
+        _test_draft(
+            raw,
+            "BAGS NO. 1 TO 480",
+            "agent:package:range:p1",
+            "deterministic_auxiliary",
+        ),
+        value_kind="operational_text",
+        group_kind="package",
+        group_key="package:p1",
+        render_policy="natural_text",
+    )
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {
+                    "packageId": "p1",
+                    "groupId": "g1",
+                    "typeCategory": "PACKAGE_BAG",
+                    "typeDescription": "BAGS",
+                }
+            ],
+            "cargoGroups": [{"groupId": "g1"}],
+            "cargoAllocationGroups": [],
+            "containers": [],
+        }
+    }
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(package_type, package_range),
+        source_target=target,
+    )
+
+    assert {(row.logical_key, row.source_text) for row in reconciled} == {
+        (package_type.logical_key, "BAGS"),
+        (package_range.logical_key, "NO. 1 TO 480"),
+    }
+
+
+def test_reconcile_relocates_derived_count_after_source_only_count_collision() -> None:
+    raw = "--- PAGE 1 ---\nLOADED ONTO 1 PALLET LOADED INTO 1 20' CONTAINER(S)\n"
+    first = raw.index("1 PALLET")
+    pallet = replace(
+        _test_draft(raw, "1", "agent:pallet_count", "deterministic_auxiliary"),
+        value_kind="integer",
+        group_kind="package",
+        group_key="cargo:g1",
+        char_start=first,
+        char_end=first + 1,
+        render_policy="numeric_surface",
+    )
+    container_path = "documentPatch.containers[0]"
+    type_path = "documentPatch.containers[0].typeDescription"
+    container = replace(
+        pallet,
+        draft_id="derived_container_count",
+        logical_key="agent:container_receipt_count",
+        render_mode="deterministic_derived",
+        group_kind="equipment",
+        group_key="container:0",
+        target_paths=(container_path,),
+        derivation="equipment_receipt",
+        dependency_paths=(type_path,),
+        char_start=first,
+        char_end=first + 1,
+        render_policy="derived_surface",
+    )
+    target = {
+        "documentPatch": {
+            "containers": [{"typeDescription": "20' CONTAINER"}],
+            "cargoGroups": [],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+        }
+    }
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(pallet, container),
+        source_target=target,
+    )
+
+    relocated = next(row for row in reconciled if row.logical_key == container.logical_key)
+    assert relocated.char_start == raw.index("1 20'")
+    assert (
+        next(row for row in reconciled if row.logical_key == pallet.logical_key).char_start == first
+    )
+
+
+def test_reconcile_discards_nested_target_repeat_when_separate_occurrence_remains() -> None:
+    raw = "--- PAGE 1 ---\nSUMMARY: 020792/SIF3837\nCustoms Seal: SIF3837\n"
+    customs_path = "documentPatch.containers[0].sealNumbers[0]"
+    veterinarian_path = "documentPatch.containers[0].sealNumbers[1]"
+    nested = tuple(
+        replace(
+            _test_draft(
+                raw,
+                "SIF3837",
+                "anchor:" + customs_path,
+                "target_binding",
+                (customs_path,),
+                occurrence=index,
+            ),
+            value_kind="equipment",
+            group_key="container:0",
+        )
+        for index in range(2)
+    )
+    complete = replace(
+        _test_draft(
+            raw,
+            "020792/SIF3837",
+            "anchor:" + veterinarian_path,
+            "target_binding",
+            (veterinarian_path,),
+        ),
+        value_kind="equipment",
+        group_key="container:0",
+    )
+    target = {
+        "documentPatch": {
+            "containers": [{"sealNumbers": ["SIF3837", "020792 SIF3837"]}],
+            "cargoGroups": [],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+        }
+    }
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(*nested, complete),
+        source_target=target,
+    )
+
+    assert len(reconciled) == 2
+    assert {row.source_text for row in reconciled} == {"SIF3837", "020792/SIF3837"}
 
 
 def test_incompatible_exact_target_duplicate_yields_to_typed_source_only_owner() -> None:
@@ -7240,11 +8680,7 @@ def test_structured_locality_appends_exact_labeled_route_repeats() -> None:
 
 
 def test_structured_locality_splits_exhaustive_captioned_equal_route_facts() -> None:
-    raw = (
-        "--- PAGE 1 ---\n"
-        "PORT OF DISCHARGE\nEL DEKHEILA\n"
-        "PLACE OF DELIVERY\nEL DEKHEILA\n"
-    )
+    raw = "--- PAGE 1 ---\nPORT OF DISCHARGE\nEL DEKHEILA\nPLACE OF DELIVERY\nEL DEKHEILA\n"
     discharge_path = "documentPatch.route.portOfDischarge.name"
     delivery_path = "documentPatch.route.placeOfDelivery.name"
     target_paths = (delivery_path, discharge_path)
@@ -7294,11 +8730,7 @@ def test_structured_locality_splits_exhaustive_captioned_equal_route_facts() -> 
 
 
 def test_structured_locality_does_not_guess_unlabeled_equal_route_fact() -> None:
-    raw = (
-        "--- PAGE 1 ---\n"
-        "PORT OF DISCHARGE\nEL DEKHEILA\n"
-        "UNLABELED COPY\nEL DEKHEILA\n"
-    )
+    raw = "--- PAGE 1 ---\nPORT OF DISCHARGE\nEL DEKHEILA\nUNLABELED COPY\nEL DEKHEILA\n"
     discharge_path = "documentPatch.route.portOfDischarge.name"
     delivery_path = "documentPatch.route.placeOfDelivery.name"
     target_paths = (delivery_path, discharge_path)
@@ -7397,9 +8829,7 @@ def test_structured_locality_appends_complete_inline_transport_repeats() -> None
 
     for row in rows:
         repeats = tuple(
-            candidate
-            for candidate in normalized
-            if candidate.logical_key == row.logical_key
+            candidate for candidate in normalized if candidate.logical_key == row.logical_key
         )
         assert len(repeats) == 2
     validate_target_binding_relationships(drafts=normalized, source_target=target)
@@ -7878,6 +9308,74 @@ def test_structured_locality_removes_unscoped_short_package_quantity_repeats() -
     validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
 
 
+def test_structured_locality_recovers_exact_quantity_on_adjacent_package_type_line() -> None:
+    raw = "--- PAGE 1 ---\n10694\nCARTON(S)\nREFERENCE\n10694 CARTON(S)\n"
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    type_path = "documentPatch.cargoPackages[0].typeCategory"
+    quantity = replace(
+        _test_draft(
+            raw,
+            "10694",
+            "anchor:" + quantity_path,
+            "target_binding",
+            (quantity_path,),
+            occurrence=1,
+        ),
+        value_kind="integer",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="numeric_surface",
+    )
+    package_types = tuple(
+        replace(
+            _test_draft(
+                raw,
+                "CARTON(S)",
+                "anchor:" + type_path,
+                "target_binding",
+                (type_path,),
+                occurrence=index,
+            ),
+            value_kind="package",
+            group_kind="package",
+            group_key="package:0",
+            render_policy="categorical_surface",
+        )
+        for index in range(2)
+    )
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 10694,
+                    "typeCategory": "PACKAGE_CARTON",
+                }
+            ],
+            "containers": [],
+        }
+    }
+
+    normalized = normalize_structured_row_locality(
+        raw=raw,
+        drafts=(quantity, *package_types),
+        source_target=target,
+    )
+    quantities = tuple(row for row in normalized if quantity_path in row.target_paths)
+
+    assert len(quantities) == 2
+    assert {row.char_start for row in quantities} == {
+        raw.index("10694"),
+        raw.rindex("10694"),
+    }
+    assert (
+        normalize_structured_row_locality(raw=raw, drafts=normalized, source_target=target)
+        == normalized
+    )
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
 def test_structured_locality_owns_labeled_booking_slac_and_country_clause() -> None:
     raw = (
         "--- PAGE 1 ---\n"
@@ -8233,7 +9731,241 @@ def test_structured_locality_derives_repeated_equipment_multipliers_and_original
         )
         == normalized
     )
-    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
+def test_relational_locality_repairs_unowned_subtoken_anchor_from_entity_block() -> None:
+    document_id = "doc_subtoken_anchor"
+    body = (
+        "DOCUMENT NUMBER\nUSOA164-00007080\n\n"
+        "FORWARDING AGENT\nCEVA FREIGHT LLC\n15355 VICKERY RD\nHOUSTON\nUS\n"
+    )
+    raw = "--- PAGE 1 ---\n" + body
+    target = {
+        "documentPatch": {
+            "parties": {
+                "forwardingAgent": {
+                    "name": "CEVA FREIGHT LLC",
+                    "address": "15355 VICKERY RD",
+                    "city": "HOUSTON",
+                    "country": "US",
+                }
+            },
+            "containers": [],
+            "cargoGroups": [],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+        }
+    }
+
+    def row(anchor_id: str, surface: str, path: str, start: int) -> dict[str, object]:
+        return {
+            "anchor_id": anchor_id,
+            "document_id": document_id,
+            "patchable": True,
+            "page_number": 1,
+            "page_start": start,
+            "page_end": start + len(surface),
+            "raw_value": surface,
+            "relation_target_path": path,
+            "role_path": path,
+            "surface_family": "text",
+        }
+
+    agent_prefix = "documentPatch.parties.forwardingAgent"
+    rows = (
+        row("name", "CEVA FREIGHT LLC", agent_prefix + ".name", body.index("CEVA")),
+        row("address", "15355 VICKERY RD", agent_prefix + ".address", body.index("15355")),
+        row("city", "HOUSTON", agent_prefix + ".city", body.index("HOUSTON")),
+        row("country", "US", agent_prefix + ".country", body.index("USOA")),
+    )
+
+    normalized, report = normalize_relational_anchor_locality(
+        raw=raw,
+        document_id=document_id,
+        anchors=rows,
+        source_target=target,
+    )
+
+    country = next(item for item in normalized if item["anchor_id"] == "country")
+    assert country["page_start"] == body.rindex("US")
+    assert report.relocated_anchor_ids == ("country",)
+    assert report.suppressed_anchor_ids == ()
+
+
+def test_numeric_topology_repair_assigns_equal_integer_rows_by_entity_context() -> None:
+    raw = "--- PAGE 1 ---\n4 TYPE ALPHA\n4 TYPE BETA\n"
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"quantity": 4, "typeDescription": "TYPE ALPHA"},
+                {"quantity": 4, "typeDescription": "TYPE BETA"},
+            ]
+        }
+    }
+    first_type = replace(
+        _test_draft(
+            raw,
+            "TYPE ALPHA",
+            "anchor:documentPatch.cargoPackages[0].typeDescription",
+            "target_binding",
+            ("documentPatch.cargoPackages[0].typeDescription",),
+        ),
+        char_start=raw.index("TYPE ALPHA"),
+        char_end=raw.index("TYPE ALPHA") + len("TYPE ALPHA"),
+        source_text="TYPE ALPHA",
+    )
+    second_type = replace(
+        first_type,
+        draft_id="second_type",
+        logical_key="anchor:documentPatch.cargoPackages[1].typeDescription",
+        target_paths=("documentPatch.cargoPackages[1].typeDescription",),
+        char_start=raw.index("TYPE BETA"),
+        char_end=raw.index("TYPE BETA") + len("TYPE BETA"),
+        source_text="TYPE BETA",
+    )
+    paths = (
+        "documentPatch.cargoPackages[0].quantity",
+        "documentPatch.cargoPackages[1].quantity",
+    )
+
+    repaired = _repair_uniquely_bracketed_target_paths(
+        raw=raw,
+        missing_paths=paths,
+        occupied=(first_type, second_type),
+        source_target=target,
+        source_hints={path: ("4",) for path in paths},
+    )
+
+    assert tuple(item.target_paths[0] for item in repaired) == paths
+    assert tuple(item.char_start for item in repaired) == (
+        raw.index("4 TYPE ALPHA"),
+        raw.index("4 TYPE BETA"),
+    )
+
+
+def test_host_prunes_incompatible_value_from_direct_equality_proposal() -> None:
+    raw = "--- PAGE 1 ---\nCOMMON CARGO\n"
+    paths = (
+        "documentPatch.cargoGroups[0].description",
+        "documentPatch.cargoGroups[1].description",
+        "documentPatch.cargoGroups[2].description",
+    )
+    draft = replace(
+        _test_draft(raw, "COMMON CARGO", "agent:summary", "target_binding", paths),
+        evidence_origin="host_verified_agent_proposal",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"description": "COMMON CARGO"},
+                {"description": "COMMON CARGO"},
+                {"description": "COMMON CARGO; SPECIAL HANDLING"},
+            ]
+        }
+    }
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(draft,),
+        source_target=target,
+    )
+
+    assert normalized[0].target_paths == paths[:2]
+    assert "incompatible direct target paths" in normalized[0].rationale
+
+
+def test_two_scalar_totals_keep_shared_collection_only_as_dependency() -> None:
+    raw = "--- PAGE 1 ---\n100.0\n20.0\n"
+    collection = "documentPatch.cargoGroups"
+    weight_path = collection + "[0].grossWeight.value"
+    volume_path = collection + "[0].volume.value"
+    weight = replace(
+        _test_draft(raw, "100.0", "agent:weight_total", "deterministic_derived"),
+        target_paths=(collection,),
+        derivation="sum_gross_weight",
+        dependency_paths=(weight_path,),
+        render_policy="derived_surface",
+    )
+    volume = replace(
+        _test_draft(raw, "20.0", "agent:volume_total", "deterministic_derived"),
+        draft_id="volume_total",
+        logical_key="agent:volume_total",
+        char_start=raw.index("20.0"),
+        char_end=raw.index("20.0") + len("20.0"),
+        source_text="20.0",
+        target_paths=(collection,),
+        derivation="sum_volume",
+        dependency_paths=(volume_path,),
+        render_policy="derived_surface",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"grossWeight": {"value": 100.0}, "volume": {"value": 20.0}}]
+        }
+    }
+
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(weight, volume),
+        source_target=target,
+    )
+
+    assert {item.target_paths for item in normalized} == {()}
+    assert {item.dependency_paths for item in normalized} == {(weight_path,), (volume_path,)}
+
+
+def test_reconcile_splits_numeric_value_from_compatible_nested_unit() -> None:
+    raw = "--- PAGE 1 ---\n47 CBM\n"
+    value_path = "documentPatch.cargoGroups[0].volume.value"
+    unit_path = "documentPatch.cargoGroups[0].volume.unit"
+    value = replace(
+        _test_draft(raw, "47 CBM", "anchor:" + value_path, "target_binding", (value_path,)),
+        value_kind="decimal_measurement",
+        render_policy="numeric_surface",
+    )
+    unit_start = raw.index("CBM")
+    unit = replace(
+        _test_draft(raw, "CBM", "agent:unit", "literal_static"),
+        draft_id="unit",
+        char_start=unit_start,
+        char_end=unit_start + 3,
+        source_text="CBM",
+    )
+    target = {
+        "documentPatch": {"cargoGroups": [{"volume": {"value": 0.47, "unit": "cubic_metre"}}]}
+    }
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(value, unit),
+        source_target=target,
+    )
+
+    assert tuple(item.source_text for item in reconciled) == ("47", "CBM")
+    assert reconciled[1].target_paths == (unit_path,)
+
+
+def test_reconcile_moves_literal_caption_outside_direct_target_slot() -> None:
+    raw = "--- PAGE 1 ---\nFREIGET PREPAID\n"
+    path = "documentPatch.freight.paymentArrangement"
+    draft = replace(
+        _test_draft(raw, "FREIGET PREPAID", "anchor:" + path, "target_binding", (path,)),
+        value_kind="commercial_text",
+        render_policy="natural_text",
+    )
+
+    reconciled = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(draft,),
+        source_target={"documentPatch": {"freight": {"paymentArrangement": "PREPAID"}}},
+    )
+
+    assert reconciled[0].source_text == "PREPAID"
+    validate_binding_realizations(
+        raw=raw,
+        drafts=reconciled,
+        source_target={"documentPatch": {"freight": {"paymentArrangement": "PREPAID"}}},
+    )
 
 
 def test_structured_locality_expands_existing_type_only_equipment_receipt() -> None:
@@ -8384,6 +10116,7 @@ def test_structured_locality_owns_abbreviated_counts_registration_type_and_packa
         source_target=target,
     )
     normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
         drafts=structured,
         source_target=target,
     )
@@ -8404,6 +10137,7 @@ def test_structured_locality_owns_abbreviated_counts_registration_type_and_packa
     assert normalized_total.derivation is None
     assert (
         normalize_deterministic_draft_semantics(
+            raw=raw,
             drafts=normalize_structured_row_locality(
                 raw=raw,
                 drafts=normalized,
@@ -9008,7 +10742,9 @@ def test_temperature_value_leaf_surface_expands_to_value_unit_derivation() -> No
         render_policy="numeric_surface",
     )
 
-    normalized = normalize_deterministic_draft_semantics(drafts=(draft,), source_target=target)
+    normalized = normalize_deterministic_draft_semantics(
+        raw=raw, drafts=(draft,), source_target=target
+    )
 
     assert len(normalized) == 1
     assert normalized[0].render_mode == "deterministic_derived"
@@ -9355,6 +11091,7 @@ def test_temperature_separate_value_and_unit_slots_remain_independent() -> None:
     }
 
     normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
         drafts=(*values, *units),
         source_target=target,
     )
@@ -9736,11 +11473,7 @@ def test_anchor_drafts_distinguish_pinned_and_host_inferred_relational_evidence(
 
 
 def test_cargo_description_prefix_reassigns_equal_package_values_by_group_id() -> None:
-    raw = (
-        "--- PAGE 1 ---\n"
-        "96 CARTONS SERBIA TOBACCO\n"
-        "96 CARTONS OTHER CARGO\n"
-    )
+    raw = "--- PAGE 1 ---\n96 CARTONS SERBIA TOBACCO\n96 CARTONS OTHER CARGO\n"
     quantity_paths = {
         index: (
             f"documentPatch.cargoAllocationGroups[{index}].allocations[0].packageQuantity",
@@ -9748,9 +11481,7 @@ def test_cargo_description_prefix_reassigns_equal_package_values_by_group_id() -
         )
         for index in range(2)
     }
-    type_paths = {
-        index: f"documentPatch.cargoPackages[{index}].typeCategory" for index in range(2)
-    }
+    type_paths = {index: f"documentPatch.cargoPackages[{index}].typeCategory" for index in range(2)}
     description_path = "documentPatch.cargoGroups[0].description"
     description = replace(
         _test_draft(
@@ -9860,8 +11591,7 @@ def test_cargo_description_prefix_reassigns_equal_package_values_by_group_id() -
         (first_type, first_type + len("CARTONS")): (type_paths[0],),
     }
     assert any(
-        row.char_start > first_type and row.target_paths == quantity_paths[1]
-        for row in normalized
+        row.char_start > first_type and row.target_paths == quantity_paths[1] for row in normalized
     )
     assert (
         normalize_cargo_description_linked_package_prefixes(
@@ -9931,7 +11661,7 @@ def test_segmented_party_address_promotes_exact_role_scoped_target_projection() 
     )
 
 
-def test_package_residual_normalizes_to_linked_package_count_derivation() -> None:
+def test_package_residual_splits_to_direct_quantity_and_category_leaves() -> None:
     raw = "--- PAGE 1 ---\n1 PARCEL\n"
     target_paths = (
         "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity",
@@ -9973,16 +11703,20 @@ def test_package_residual_normalizes_to_linked_package_count_derivation() -> Non
     )
 
     normalized = normalize_deterministic_draft_semantics(
+        raw=raw,
         drafts=(residual,),
         source_target=target,
     )
 
-    assert len(normalized) == 1
-    assert normalized[0].render_mode == "deterministic_derived"
-    assert normalized[0].derivation == "package_count"
-    assert normalized[0].target_paths == target_paths
-    assert normalized[0].dependency_paths == target_paths
-    assert normalized[0].evidence_origin == "derived_operational_fact"
+    assert len(normalized) == 2
+    assert {row.render_mode for row in normalized} == {"target_binding"}
+    assert {row.derivation for row in normalized} == {None}
+    assert {row.dependency_paths for row in normalized} == {()}
+    assert {row.source_text: row.target_paths for row in normalized} == {
+        "1": tuple(sorted(target_paths[:2])),
+        "PARCEL": (target_paths[2],),
+    }
+    assert {row.value_kind for row in normalized} == {"integer", "package"}
     validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
 
 
@@ -10029,3 +11763,1325 @@ def test_structured_locality_expands_equipment_receipt_to_complete_target_type()
         )
         == normalized
     )
+
+
+def test_reconcile_relocates_package_leaves_and_splits_source_only_measurements() -> None:
+    raw = "--- PAGE 1 ---\n6 x BOX\n100 KGS\n6 BOX(ES)\n5.0 KGS\n.5 CBM\n"
+    paths = (
+        "documentPatch.cargoPackages[0].quantity",
+        "documentPatch.cargoPackages[0].typeCategory",
+    )
+    malformed = replace(
+        _test_draft(raw, "100 KGS", "agent:malformed_package", "target_binding", paths),
+        value_kind="package",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="categorical_surface",
+    )
+
+    def source_only(text: str, key: str, *, occurrence: int = 0) -> SpanDraft:
+        return replace(
+            _test_draft(
+                raw,
+                text,
+                key,
+                "deterministic_auxiliary",
+                group_key="package:row",
+                occurrence=occurrence,
+            ),
+            value_kind="decimal_measurement" if "CBM" in text else "package",
+            group_kind="package",
+            render_policy="natural_text",
+        )
+
+    drafts = (
+        malformed,
+        source_only("5.0 KGS", "agent:row_weight"),
+        source_only("KGS", "agent:row_weight_unit", occurrence=1),
+        source_only("5 CBM", "agent:row_volume"),
+        source_only("CBM", "agent:row_volume_unit"),
+    )
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"groupId": "g1", "packageId": "p1", "quantity": 6, "typeCategory": "PACKAGE_BOX"}
+            ]
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(raw=raw, drafts=drafts, source_target=target)
+    quantity_rows = tuple(row for row in normalized if row.target_paths == (paths[0],))
+    category_rows = tuple(row for row in normalized if row.target_paths == (paths[1],))
+    values = {row.logical_key: row.source_text for row in normalized if "row_" in row.logical_key}
+
+    assert tuple(row.source_text for row in quantity_rows) == ("6", "6")
+    assert tuple(row.source_text for row in category_rows) == ("BOX", "BOX(ES)")
+    assert all(row.render_mode == "target_binding" for row in (*quantity_rows, *category_rows))
+    assert all(row.derivation is None for row in (*quantity_rows, *category_rows))
+    assert values["agent:row_weight"] == "5.0"
+    assert values["agent:row_volume"] == ".5"
+
+
+def test_reconcile_partitions_multi_target_projection_by_exactness() -> None:
+    raw = "--- PAGE 1 ---\nCOMMON CARGO\nADHESIVES\nRESIN SOLUTION\n"
+    paths = tuple(f"documentPatch.cargoGroups[{index}].description" for index in range(3))
+    rows = tuple(
+        replace(
+            _test_draft(raw, text, "agent:compound_description", "agent_residual", paths),
+            draft_id=f"compound_{index}",
+            value_kind="cargo_text",
+            group_kind="cargo",
+            group_key="cargo:compound",
+            render_policy="natural_text",
+        )
+        for index, text in enumerate(("COMMON CARGO", "ADHESIVES", "RESIN SOLUTION"))
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"description": "COMMON CARGO"},
+                {"description": "COMMON CARGO"},
+                {"description": "COMMON CARGO; ADHESIVES; RESIN SOLUTION"},
+            ]
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(raw=raw, drafts=rows, source_target=target)
+    by_source = {row.source_text: row.target_paths for row in normalized}
+
+    assert by_source == {
+        "COMMON CARGO": paths[:2],
+        "ADHESIVES": (paths[2],),
+        "RESIN SOLUTION": (paths[2],),
+    }
+    assert {row.render_mode for row in normalized} == {"target_binding"}
+
+
+def test_reconcile_partitions_package_and_measurement_component_groups() -> None:
+    raw = "--- PAGE 1 ---\n118 INNERS PACKAGE\n3.350,248 KGS\n3350.25\n"
+    package_paths = (
+        "documentPatch.cargoPackages[0].quantity",
+        "documentPatch.cargoPackages[0].typeCategory",
+    )
+    measurement_paths = (
+        "documentPatch.cargoGroups[0].grossWeight.value",
+        "documentPatch.cargoGroups[0].grossWeight.unit",
+    )
+    package_rows = tuple(
+        replace(
+            _test_draft(raw, text, "agent:package_components", "target_binding", package_paths),
+            draft_id=f"package_component_{index}",
+            value_kind="package",
+            group_kind="package",
+            group_key="package:0",
+            render_policy="categorical_surface",
+        )
+        for index, text in enumerate(("118", "INNERS PACKAGE"))
+    )
+    measurement_rows = tuple(
+        replace(
+            _test_draft(
+                raw,
+                text,
+                "agent:measurement_components",
+                "target_binding",
+                measurement_paths,
+            ),
+            draft_id=f"measurement_component_{index}",
+            value_kind="decimal_measurement",
+            group_kind="cargo",
+            group_key="cargo:0",
+            render_policy="numeric_surface",
+        )
+        for index, text in enumerate(("3.350,248", "KGS", "3350.25"))
+    )
+    target = {
+        "documentPatch": {
+            "cargoPackages": [
+                {
+                    "groupId": "g1",
+                    "packageId": "p1",
+                    "quantity": 118,
+                    "typeCategory": "PACKAGE_PACKAGE",
+                }
+            ],
+            "cargoGroups": [
+                {"groupId": "g1", "grossWeight": {"value": 3350.248, "unit": "kilogram"}}
+            ],
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(*package_rows, *measurement_rows),
+        source_target=target,
+    )
+    by_source = {row.source_text: row.target_paths for row in normalized}
+
+    assert by_source == {
+        "118": (package_paths[0],),
+        "INNERS PACKAGE": (package_paths[1],),
+        "3.350,248": (measurement_paths[0],),
+        "KGS": (measurement_paths[1],),
+        "3350.25": (measurement_paths[0],),
+    }
+
+
+def test_reconcile_splits_one_inline_measurement_into_direct_leaf_owners() -> None:
+    raw = "--- PAGE 1 ---\nFLASH POINT 25C\n"
+    paths = (
+        "documentPatch.cargoGroups[0].dangerousGoods[0].flashPoint.temperature.value",
+        "documentPatch.cargoGroups[0].dangerousGoods[0].flashPoint.temperature.unit",
+    )
+    combined = replace(
+        _test_draft(raw, "25C", "agent:flash_point", "target_binding", paths),
+        value_kind="temperature",
+        group_kind="dangerous_goods",
+        group_key="dangerous_goods:0:0",
+        render_policy="categorical_surface",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "dangerousGoods": [
+                        {"flashPoint": {"temperature": {"value": 25, "unit": "celsius"}}}
+                    ]
+                }
+            ]
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(combined,),
+        source_target=target,
+    )
+
+    assert {row.source_text: row.target_paths for row in normalized} == {
+        "25": (paths[0],),
+        "C": (paths[1],),
+    }
+    assert {row.value_kind for row in normalized} == {"temperature", "other_text"}
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
+def test_reconcile_exact_target_owner_beats_redundant_projected_collision() -> None:
+    raw = "--- PAGE 1 ---\nCOMMON CARGO\nADHESIVES\n"
+    exact_paths = (
+        "documentPatch.cargoGroups[0].description",
+        "documentPatch.cargoGroups[1].description",
+    )
+    projected_path = "documentPatch.cargoGroups[2].description"
+    exact = replace(
+        _test_draft(raw, "COMMON CARGO", "anchor:common", "target_binding", exact_paths),
+        value_kind="cargo_text",
+        group_kind="cargo",
+        group_key="cargo:common",
+        render_policy="natural_text",
+    )
+    projected = tuple(
+        replace(
+            _test_draft(raw, text, "anchor:projected", "target_binding", (projected_path,)),
+            draft_id=f"projected_{text}",
+            value_kind="cargo_text",
+            group_kind="cargo",
+            group_key="cargo:2",
+            render_policy="natural_text",
+        )
+        for text in ("COMMON CARGO", "ADHESIVES")
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"description": "COMMON CARGO"},
+                {"description": "COMMON CARGO"},
+                {"description": "COMMON CARGO; ADHESIVES"},
+            ]
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(exact, *projected),
+        source_target=target,
+    )
+
+    assert {(row.source_text, row.target_paths) for row in normalized} == {
+        ("COMMON CARGO", exact_paths),
+        ("ADHESIVES", (projected_path,)),
+    }
+
+
+def test_reconcile_identifier_collision_uses_unique_explicit_caption() -> None:
+    raw = "--- PAGE 1 ---\nACID# 2155690592023090049\n"
+    acid = replace(
+        _test_draft(
+            raw,
+            "2155690592023090049",
+            "agent:shipment:acid_reference",
+            "deterministic_auxiliary",
+        ),
+        value_kind="identifier",
+        group_kind="customs",
+        group_key="customs:acid",
+    )
+    unrelated = replace(
+        acid,
+        draft_id="unrelated_tax_id",
+        logical_key="agent:shipment:egypt_importer_tax_id:full",
+    )
+
+    (normalized,) = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(acid, unrelated),
+        source_target={"documentPatch": {}},
+    )
+
+    assert normalized.logical_key == acid.logical_key
+
+
+def test_source_normalization_narrows_labeled_identifier_and_fixes_token_kind() -> None:
+    raw = "--- PAGE 1 ---\nACID# 2155690592024040050\nEGLHOPHO24A1227\n"
+    acid = replace(
+        _test_draft(
+            raw,
+            "ACID# 2155690592024040050",
+            "source:acid_reference",
+            "deterministic_auxiliary",
+        ),
+        value_kind="identifier",
+        group_kind="customs",
+        group_key="customs:acid",
+    )
+    row_reference = replace(
+        _test_draft(
+            raw,
+            "EGLHOPHO24A1227",
+            "source:cargo_row:package_count",
+            "deterministic_auxiliary",
+        ),
+        value_kind="package",
+        group_kind="package",
+        group_key="package:row",
+        render_policy="natural_text",
+    )
+
+    semantic = normalize_deterministic_draft_semantics(
+        raw=raw,
+        drafts=(acid, row_reference),
+        source_target={"documentPatch": {}},
+    )
+    normalized = normalize_source_boundaries(raw=raw, drafts=semantic)
+
+    assert {row.source_text for row in normalized} == {
+        "2155690592024040050",
+        "EGLHOPHO24A1227",
+    }
+    assert {row.value_kind for row in normalized} == {"identifier"}
+    assert {row.render_policy for row in normalized} == {"opaque_identifier"}
+
+
+def test_form_title_repeat_is_added_only_from_heading_like_line() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "(5) SEA WAYBILL NUMBER\n"
+        "Carrier terms apply to this Sea Waybill.\n"
+        "(28) PLACE AND DATE OF ISSUE OF SEA WAYBILL\n"
+    )
+    owner = replace(
+        _test_draft(
+            raw,
+            "SEA WAYBILL",
+            "agent:document:form_title:repeat",
+            "literal_static",
+            occurrence=1,
+        ),
+        value_kind="other_text",
+        group_kind="document",
+        group_key="document",
+        render_policy="natural_text",
+    )
+
+    normalized = normalize_form_title_repeats(raw=raw, drafts=(owner,))
+
+    assert tuple(row.source_text for row in normalized) == ("SEA WAYBILL", "SEA WAYBILL")
+    lines = line_spans(raw)
+    assert tuple(
+        line_range_for_chars(lines, row.char_start, row.char_end)[0] for row in normalized
+    ) == (
+        "L00002",
+        "L00004",
+    )
+
+
+def test_agent_appointment_suffix_is_not_carrier_static() -> None:
+    carrier = "SACO SHIPPING LINE LIMITED"
+    raw = f"--- PAGE 1 ---\nAs agent only for {carrier} LIMITASSOL\n"
+    suffix = replace(
+        _test_draft(raw, "LIMITASSOL", "carrier:signature:affiliate", "carrier_static"),
+        value_kind="organization",
+        group_kind="carrier",
+        group_key="carrier:affiliate",
+        render_policy="natural_text",
+    )
+    target = {"documentPatch": {"parties": {"carrier": {"name": carrier}}}}
+
+    (normalized,) = normalize_agent_appointment_suffixes(
+        raw=raw,
+        drafts=(suffix,),
+        source_target=target,
+    )
+
+    assert normalized.render_mode == "deterministic_auxiliary"
+    assert normalized.value_kind == "location"
+    assert normalized.group_key == "party:issuingAgent:0"
+
+
+def test_measurement_caption_unit_joins_uniquely_matching_next_line_value() -> None:
+    raw = "--- PAGE 1 ---\nIMO GROSS WEIGHT: 105,540 KGS\nGross weight, KGS\n230,080\n"
+    unit_path = "documentPatch.cargoGroups[0].grossWeight.unit"
+    owner = replace(
+        _test_draft(raw, "KGS", "anchor:" + unit_path, "target_binding"),
+        value_kind="decimal_measurement",
+        group_kind="cargo",
+        group_key="cargo:0",
+        target_paths=(unit_path,),
+        render_policy="categorical_surface",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"grossWeight": {"value": 230080, "unit": "kilogram"}},
+                {"grossWeight": {"value": 105540, "unit": "kilogram"}},
+            ]
+        }
+    }
+
+    normalized = normalize_measurement_caption_units(
+        raw=raw,
+        drafts=(owner,),
+        source_target=target,
+    )
+
+    assert len(normalized) == 2
+    assert {row.source_text for row in normalized} == {"KGS"}
+    assert {row.value_kind for row in normalized} == {"other_text"}
+    assert {row.target_paths for row in normalized} == {(unit_path,)}
+
+
+def test_measurement_caption_unit_joins_value_then_standalone_unit_line() -> None:
+    raw = "--- PAGE 1 ---\nGross Weight\n21380.000\nKG\nNet Weight\n24000.000\nKGs\n"
+    unit_path = "documentPatch.cargoGroups[0].netWeight.unit"
+    owner = replace(
+        _test_draft(raw, "24000.000", "anchor:" + unit_path, "target_binding"),
+        value_kind="decimal_measurement",
+        group_kind="cargo",
+        group_key="cargo:0",
+        target_paths=(unit_path,),
+        render_policy="categorical_surface",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "grossWeight": {"value": 21380, "unit": "kilogram"},
+                    "netWeight": {"value": 24000, "unit": "kilogram"},
+                }
+            ]
+        }
+    }
+
+    normalized = normalize_measurement_caption_units(
+        raw=raw,
+        drafts=(owner,),
+        source_target=target,
+    )
+
+    assert {row.source_text for row in normalized} == {"24000.000", "KGs"}
+    assert {row.target_paths for row in normalized} == {(unit_path,)}
+
+
+def test_measurement_units_split_between_unit_first_total_and_source_only_detail() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "Gross Cargo Weight\n"
+        "KGS\n"
+        "15440.000\n"
+        "BATCH GROSS WT: 193.000 KGS\n"
+        "TOTAL: 15440.000 KGS\n"
+    )
+    unit_path = "documentPatch.cargoGroups[0].grossWeight.unit"
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"grossWeight": {"value": 77200, "unit": "kilogram"}}
+            ]
+        }
+    }
+    target_unit = replace(
+        _test_draft(
+            raw,
+            "KGS",
+            "anchor:" + unit_path,
+            "target_binding",
+            (unit_path,),
+            occurrence=2,
+        ),
+        value_kind="other_text",
+        group_kind="cargo",
+        group_key="cargo:0",
+        render_policy="natural_text",
+    )
+    literal_units = tuple(
+        replace(
+            _test_draft(
+                raw,
+                "KGS",
+                "agent:literal:batch_weight_unit:kgs",
+                "literal_static",
+                occurrence=occurrence,
+            ),
+            value_kind="other_text",
+            group_kind="cargo",
+            group_key="cargo:0",
+            render_policy="natural_text",
+        )
+        for occurrence in (0, 1)
+    )
+    detail_value = replace(
+        _test_draft(
+            raw,
+            "193.000",
+            "agent:batch:gross:1",
+            "deterministic_auxiliary",
+        ),
+        value_kind="decimal_measurement",
+        group_kind="cargo",
+        group_key="cargo:0",
+        render_policy="numeric_surface",
+    )
+
+    caption_normalized = normalize_measurement_caption_units(
+        raw=raw,
+        drafts=(target_unit, *literal_units, detail_value),
+        source_target=target,
+    )
+    normalized = normalize_adjacent_source_only_measurement_units(
+        raw=raw,
+        drafts=caption_normalized,
+    )
+
+    target_rows = tuple(row for row in normalized if row.target_paths == (unit_path,))
+    auxiliary_rows = tuple(
+        row
+        for row in normalized
+        if row.logical_key == "agent:cargo:measurement_unit:kgs"
+    )
+    assert {row.source_text for row in target_rows} == {"KGS"}
+    assert len(target_rows) == 2
+    assert len(auxiliary_rows) == 1
+    assert auxiliary_rows[0].render_mode == "deterministic_auxiliary"
+    assert auxiliary_rows[0].source_text == "KGS"
+
+
+def test_original_count_repeats_include_caption_values_and_complete_witness_phrase() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "Number of original Bills of Lading\n"
+        "3/THREE\n"
+        "In WITNESS whereof three (3) original Bills of Lading have been signed.\n"
+        "NUMBER OF ORIGINAL BILLS OF LADING\n"
+        "THREE (3)\n"
+    )
+    owner = replace(
+        _test_draft(
+            raw,
+            "3/THREE",
+            "agent:document:negotiability_and_original_count",
+            "agent_residual",
+            ("documentPatch.negotiability",),
+        ),
+        value_kind="other_text",
+        group_kind="document",
+        group_key="document",
+        render_policy="natural_text",
+    )
+
+    normalized = normalize_original_bill_count_repeats(raw=raw, drafts=(owner,))
+
+    assert {row.source_text for row in normalized} == {"3/THREE", "three (3)", "THREE (3)"}
+    assert {row.logical_key for row in normalized} == {owner.logical_key}
+
+
+def test_original_status_owner_rejects_original_inside_count_caption() -> None:
+    raw = "--- PAGE 1 ---\nORIGINAL\nNUMBER OF ORIGINAL BILLS OF LADING\nTHREE (3)\n"
+    status = tuple(
+        replace(
+            _test_draft(
+                raw,
+                "ORIGINAL",
+                "agent:document:original_mark",
+                "deterministic_auxiliary",
+                occurrence=index,
+            ),
+            value_kind="other_text",
+            group_kind="document",
+            group_key="document:original_status",
+            render_policy="natural_text",
+        )
+        for index in range(2)
+    )
+
+    with pytest.raises(ValueError, match="selects caption grammar"):
+        validate_binding_realizations(
+            raw=raw,
+            drafts=status,
+            source_target={"documentPatch": {}},
+        )
+
+
+def test_reconcile_harmonizes_hazard_class_and_relocates_temperature_unit() -> None:
+    raw = "--- PAGE 1 ---\n30 C.C.C.\nCLASS 3\n"
+    temperature_base = "documentPatch.cargoGroups[0].dangerousGoods[0].flashPoint.temperature"
+    hazard_path = "documentPatch.cargoGroups[0].dangerousGoods[0].hazardCategory"
+    value = replace(
+        _test_draft(
+            raw,
+            "30",
+            "anchor:" + temperature_base + ".value",
+            "target_binding",
+            (temperature_base + ".value",),
+        ),
+        value_kind="temperature",
+        group_kind="temperature",
+        group_key="temperature:0",
+        render_policy="numeric_surface",
+    )
+    misplaced_unit = replace(
+        _test_draft(
+            raw,
+            "C",
+            "anchor:" + temperature_base + ".unit",
+            "target_binding",
+            (temperature_base + ".unit",),
+            occurrence=3,
+        ),
+        value_kind="temperature",
+        group_kind="temperature",
+        group_key="temperature:0",
+        render_policy="categorical_surface",
+    )
+    hazard = replace(
+        _test_draft(raw, "CLASS 3", "agent:hazard", "target_binding", (hazard_path,)),
+        value_kind="dangerous_goods",
+        group_kind="dangerous_goods",
+        group_key="dangerous_goods:0:0",
+        render_policy="natural_text",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "dangerousGoods": [
+                        {
+                            "hazardCategory": "FLAMMABLE_LIQUIDS",
+                            "flashPoint": {"temperature": {"unit": "celsius", "value": 30}},
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(value, misplaced_unit, hazard),
+        source_target=target,
+    )
+    unit = next(row for row in normalized if row.target_paths == (temperature_base + ".unit",))
+    hazard_owner = next(row for row in normalized if row.target_paths == (hazard_path,))
+
+    assert unit.char_start == raw.index("C.C.C.")
+    assert hazard_owner.source_text == "3"
+    assert hazard_owner.render_mode == "agent_residual"
+    assert any(
+        row.source_text == "CLASS" and row.render_mode == "literal_static" for row in normalized
+    )
+
+
+def test_reconcile_promotes_non_equivalent_source_only_repeats_to_agent_residual() -> None:
+    raw = "--- PAGE 1 ---\n13 x BOX\n13 BOX(ES)\n"
+    rows = tuple(
+        replace(
+            _test_draft(raw, text, "agent:package_total", "deterministic_auxiliary"),
+            value_kind="package",
+            group_kind="cargo",
+            group_key="cargo:summary",
+            render_policy="natural_text",
+        )
+        for text in ("13 x BOX", "13 BOX(ES)")
+    )
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=rows,
+        source_target={"documentPatch": {}},
+    )
+
+    assert {row.render_mode for row in normalized} == {"agent_residual"}
+    validate_binding_realizations(
+        raw=raw,
+        drafts=normalized,
+        source_target={"documentPatch": {}},
+    )
+
+
+def test_structured_locality_recovers_complete_party_block_and_source_only_postal_city() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "CONSIGNEE\nACME INDUSTRIES\nINDUSTRIAL ZONE 7 REGION\nSADAT CITY\nEGYPT\n\n"
+        "SIGNING AGENT\nSACO Shipping GmbH\nWollkaemmereistrasse 1\n21107 Hamburg\nGermany\n"
+    )
+    name_path = "documentPatch.parties.consignee.name"
+    name = replace(
+        _test_draft(raw, "ACME INDUSTRIES", "anchor:" + name_path, "target_binding", (name_path,)),
+        value_kind="organization",
+        group_kind="party",
+        group_key="party:consignee:0",
+        render_policy="natural_text",
+    )
+    auxiliary_rows = tuple(
+        replace(
+            _test_draft(raw, text, key, "deterministic_auxiliary", group_key="signature:agent:0"),
+            value_kind=kind,
+            group_kind="party",
+            render_policy="opaque_identifier" if kind == "identifier" else "natural_text",
+        )
+        for text, key, kind in (
+            ("SACO Shipping GmbH", "agent:signature:name", "organization"),
+            ("Wollkaemmereistrasse 1", "agent:signature:address", "address"),
+            ("21107", "agent:signature:postal", "identifier"),
+            ("Germany", "agent:signature:country", "location"),
+        )
+    )
+    target = {
+        "documentPatch": {
+            "parties": {
+                "consignee": {
+                    "name": "ACME INDUSTRIES",
+                    "address": "INDUSTRIAL ZONE 7 REGION",
+                    "city": "SADAT CITY",
+                    "country": "EGYPT",
+                }
+            },
+            "containers": [],
+            "cargoGroups": [],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+        }
+    }
+
+    normalized = normalize_structured_row_locality(
+        raw=raw,
+        drafts=(name, *auxiliary_rows),
+        source_target=target,
+    )
+    owned_paths = {path for row in normalized for path in row.target_paths}
+
+    assert {
+        name_path,
+        "documentPatch.parties.consignee.address",
+        "documentPatch.parties.consignee.city",
+        "documentPatch.parties.consignee.country",
+    } <= owned_paths
+    assert any(row.source_text == "Hamburg" and row.value_kind == "location" for row in normalized)
+
+
+def test_structured_locality_adds_captioned_payment_repeats_and_single_original_mark() -> None:
+    raw = (
+        "--- PAGE 1 ---\nORIGINAL BILL OF LADING\nORIGINAL\n"
+        "20. Freight Payable at\nALEXANDRIA\n"
+        "20. Freight Payable at\nALEXANDRIA\n"
+        "20. Freight Payable at\nALEXANDRIA\n"
+    )
+    path = "documentPatch.freight.paymentPlace.name"
+    owner = replace(
+        _test_draft(raw, "ALEXANDRIA", "anchor:" + path, "target_binding", (path,)),
+        value_kind="location",
+        group_kind="commercial",
+        group_key="commercial:freight",
+        render_policy="natural_text",
+    )
+    target = {
+        "documentPatch": {
+            "freight": {"paymentPlace": {"name": "ALEXANDRIA"}},
+            "containers": [],
+            "cargoGroups": [],
+            "cargoPackages": [],
+            "cargoAllocationGroups": [],
+        }
+    }
+
+    normalized = normalize_structured_row_locality(
+        raw=raw,
+        drafts=(owner,),
+        source_target=target,
+    )
+
+    assert sum(path in row.target_paths for row in normalized) == 3
+    assert any(
+        row.source_text == "ORIGINAL" and row.render_mode == "deterministic_auxiliary"
+        for row in normalized
+    )
+
+
+def test_structured_locality_completes_closed_carrier_identity_block() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "CARRIER: CMA CGM Societe Anonyme\n"
+        "Head Office 4 quai d Arenc - 13002 Marseille - France\n"
+        "Tel. (33) 4 88 91 90 00\n"
+        "562 024 422 R.C.S. Marseille\n\n"
+        "SHIPMENT REGISTRATION NUMBER\n"
+        "999 888 777\n"
+    )
+    carrier = {
+        "name": "CMA CGM Societe Anonyme",
+        "address": "4 quai d Arenc - 13002",
+        "city": "Marseille",
+        "country": "France",
+        "contactDetails": {"phoneNumbers": ["(33) 4 88 91 90 00"]},
+    }
+
+    def carrier_row(text: str, path: str, kind: str) -> SpanDraft:
+        return replace(
+            _test_draft(raw, text, "anchor:" + path, "carrier_static", (path,)),
+            value_kind=kind,
+            group_kind="party",
+            group_key="party:carrier:0",
+            render_policy="opaque_identifier" if kind == "phone" else "natural_text",
+        )
+
+    drafts = (
+        carrier_row(
+            "CMA CGM Societe Anonyme", "documentPatch.parties.carrier.name", "organization"
+        ),
+        carrier_row("4 quai d Arenc - 13002", "documentPatch.parties.carrier.address", "address"),
+        carrier_row("Marseille", "documentPatch.parties.carrier.city", "location"),
+        carrier_row("France", "documentPatch.parties.carrier.country", "location"),
+        carrier_row(
+            "(33) 4 88 91 90 00",
+            "documentPatch.parties.carrier.contactDetails.phoneNumbers[0]",
+            "phone",
+        ),
+    )
+    target = {"documentPatch": {"parties": {"carrier": carrier}}}
+
+    normalized = normalize_structured_row_locality(
+        raw=raw,
+        drafts=drafts,
+        source_target=target,
+    )
+
+    assert sum(row.source_text == "Marseille" for row in normalized) == 2
+    assert any(
+        row.source_text == "562 024 422"
+        and row.render_mode == "carrier_static"
+        and row.value_kind == "identifier"
+        for row in normalized
+    )
+    assert not any(row.source_text == "999 888 777" for row in normalized)
+
+
+@pytest.mark.parametrize(
+    ("surface", "quantity", "category"),
+    (
+        ("6 BUNDLES", 6, "PACKAGE_BUNDLE"),
+        ("1 BUNDLE", 1, "PACKAGE_BUNDLE"),
+        ("1 PIECE", 1, "PACKAGE_PIECE"),
+    ),
+)
+def test_reconcile_splits_inline_package_quantity_and_category(
+    surface: str, quantity: int, category: str
+) -> None:
+    raw = f"--- PAGE 1 ---\n{surface}\n"
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    category_path = "documentPatch.cargoPackages[0].typeCategory"
+    proposal = AgentBindingProposal.model_validate(
+        {
+            "logical_key": "package:p1:quantity_type",
+            "render_mode": "target_binding",
+            "value_kind": "package",
+            "group_kind": "package",
+            "group_key": "package:p1",
+            "target_paths": (quantity_path, category_path),
+            "occurrences": (
+                {
+                    "line_start": "L00002",
+                    "line_end": "L00002",
+                    "source_text": surface,
+                    "occurrence_index": 0,
+                },
+            ),
+            "rationale": "Composite package surface fixture.",
+        }
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1"}],
+            "cargoPackages": [
+                {
+                    "packageId": "p1",
+                    "groupId": "g1",
+                    "quantity": quantity,
+                    "typeCategory": category,
+                }
+            ],
+            "cargoAllocationGroups": [],
+            "containers": [],
+        }
+    }
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=resolve_agent_proposals(raw=raw, proposals=(proposal,)),
+        source_target=target,
+    )
+
+    assert {(row.source_text, row.target_paths) for row in normalized} == {
+        (str(quantity), (quantity_path,)),
+        (surface.split(maxsplit=1)[1], (category_path,)),
+    }
+    validate_target_binding_relationships(drafts=normalized, source_target=target)
+    validate_binding_realizations(raw=raw, drafts=normalized, source_target=target)
+
+
+def test_reconcile_does_not_split_ambiguous_inline_package_text() -> None:
+    raw = "--- PAGE 1 ---\n6 BUNDLES OVERSIZE\n"
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    category_path = "documentPatch.cargoPackages[0].typeCategory"
+    draft = replace(
+        _test_draft(
+            raw,
+            "6 BUNDLES OVERSIZE",
+            "anchor:" + quantity_path + "|" + category_path,
+            "target_binding",
+            (quantity_path, category_path),
+        ),
+        value_kind="package",
+        group_kind="package",
+        group_key="package:p1",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1"}],
+            "cargoPackages": [
+                {
+                    "packageId": "p1",
+                    "groupId": "g1",
+                    "quantity": 6,
+                    "typeCategory": "PACKAGE_BUNDLE",
+                }
+            ],
+            "cargoAllocationGroups": [],
+            "containers": [],
+        }
+    }
+
+    normalized = _split_inline_structured_component_bindings(drafts=(draft,), source_target=target)
+
+    assert normalized == (draft,)
+
+
+def test_package_quantity_locality_keeps_column_header_rows_but_stops_at_new_text() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "Quantity/Number of Packages\n"
+        "Description of Goods\n"
+        "Gross Weight\n"
+        "Measurement\n"
+        "\n"
+        "N/M\n"
+        "3495\n"
+        "3495 PACKAGES IN TOTAL\n"
+        "UNRELATED CLAUSE\n"
+        "3495\n"
+    )
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    category_path = "documentPatch.cargoPackages[0].typeCategory"
+
+    def quantity(occurrence: int) -> SpanDraft:
+        return replace(
+            _test_draft(
+                raw,
+                "3495",
+                "anchor:" + quantity_path,
+                "target_binding",
+                (quantity_path,),
+                occurrence=occurrence,
+            ),
+            value_kind="integer",
+            group_kind="package",
+            group_key="package:0",
+            render_policy="numeric_surface",
+        )
+
+    marks = replace(
+        _test_draft(raw, "N/M", "agent:marks", "deterministic_auxiliary"),
+        value_kind="cargo_text",
+        group_kind="cargo",
+        group_key="cargo:0",
+        render_policy="natural_text",
+    )
+    category = replace(
+        _test_draft(
+            raw,
+            "PACKAGES",
+            "anchor:" + category_path,
+            "target_binding",
+            (category_path,),
+        ),
+        value_kind="package",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="categorical_surface",
+    )
+
+    normalized = normalize_package_quantity_row_locality(
+        raw=raw,
+        drafts=(marks, quantity(0), quantity(1), quantity(2), category),
+    )
+
+    quantity_starts = {
+        row.char_start for row in normalized if row.logical_key == "anchor:" + quantity_path
+    }
+    assert quantity_starts == {raw.index("3495"), raw.index("3495", raw.index("3495") + 1)}
+
+
+def test_package_quantity_locality_recognizes_abbreviated_table_headings() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "CONTAINER NO\n"
+        "MARKS & NUMBERS\n"
+        "NO OF PKGS\n"
+        "DESCRIPTION OF GOODS & PACKAGES\n"
+        "TOTAL GR. WT. (KGS)\n"
+        "VOL (CBM)\n"
+        "\n"
+        "16000\n"
+        "SAID TO CONTAIN / WEIGH & MEASURE\n"
+        "16000 BAGS\n"
+        "UNRELATED CLAUSE\n"
+        "16000\n"
+    )
+    quantity_path = "documentPatch.cargoPackages[0].quantity"
+    category_path = "documentPatch.cargoPackages[0].typeCategory"
+
+    def quantity(occurrence: int) -> SpanDraft:
+        return replace(
+            _test_draft(
+                raw,
+                "16000",
+                "anchor:" + quantity_path,
+                "target_binding",
+                (quantity_path,),
+                occurrence=occurrence,
+            ),
+            value_kind="integer",
+            group_kind="package",
+            group_key="package:0",
+            render_policy="numeric_surface",
+        )
+
+    category = replace(
+        _test_draft(
+            raw,
+            "BAGS",
+            "anchor:" + category_path,
+            "target_binding",
+            (category_path,),
+        ),
+        value_kind="package",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="categorical_surface",
+    )
+
+    normalized = normalize_package_quantity_row_locality(
+        raw=raw,
+        drafts=(quantity(0), quantity(1), quantity(2), category),
+    )
+
+    quantity_starts = {
+        row.char_start for row in normalized if row.logical_key == "anchor:" + quantity_path
+    }
+    first = raw.index("16000")
+    second = raw.index("16000", first + 1)
+    assert quantity_starts == {first, second}
+
+
+def test_measurement_component_locality_keeps_units_below_unambiguous_captions() -> None:
+    raw = (
+        "--- PAGE 1 ---\n"
+        "Gross Cargo Weight\n"
+        "KGS\n"
+        "77200 KGS\n"
+        "BATCH GROSS WT: 193.000 KGS\n"
+        "Measurement\n"
+        "CBM\n"
+        "100 CBM\n"
+    )
+    gross_base = "documentPatch.cargoGroups[0].grossWeight"
+    volume_base = "documentPatch.cargoGroups[0].volume"
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "grossWeight": {"value": 77200, "unit": "kilogram"},
+                    "volume": {"value": 100, "unit": "cubic_metre"},
+                }
+            ]
+        }
+    }
+
+    def component(text: str, path: str, occurrence: int = 0) -> SpanDraft:
+        return replace(
+            _test_draft(
+                raw,
+                text,
+                "anchor:" + path,
+                "target_binding",
+                (path,),
+                occurrence=occurrence,
+            ),
+            value_kind="other_text" if path.endswith(".unit") else "decimal_measurement",
+            group_kind="cargo",
+            group_key="cargo:0",
+            render_policy="natural_text" if path.endswith(".unit") else "numeric_surface",
+        )
+
+    normalized = _normalize_measurement_unit_component_locality(
+        raw=raw,
+        drafts=(
+            component("77200", gross_base + ".value"),
+            component("KGS", gross_base + ".unit", 0),
+            component("KGS", gross_base + ".unit", 1),
+            component("KGS", gross_base + ".unit", 2),
+            replace(
+                _test_draft(
+                    raw,
+                    "193.000",
+                    "agent:batch:gross:1",
+                    "deterministic_auxiliary",
+                ),
+                value_kind="decimal_measurement",
+                group_kind="cargo",
+                group_key="cargo:0",
+                render_policy="numeric_surface",
+            ),
+            component("100", volume_base + ".value"),
+            component("CBM", volume_base + ".unit", 0),
+            component("CBM", volume_base + ".unit", 1),
+        ),
+        source_target=target,
+    )
+
+    target_kgs = tuple(
+        row for row in normalized if row.target_paths == (gross_base + ".unit",)
+    )
+    auxiliary_kgs = tuple(
+        row
+        for row in normalized
+        if row.logical_key == "agent:cargo:measurement_unit:kgs"
+    )
+    assert len(target_kgs) == 2
+    assert len(auxiliary_kgs) == 1
+    assert auxiliary_kgs[0].render_mode == "deterministic_auxiliary"
+    assert sum(row.source_text == "CBM" for row in normalized) == 2
+
+
+def test_measurement_component_locality_keeps_complete_owner_when_extra_unit_is_ambiguous() -> None:
+    raw = "--- PAGE 1 ---\nGross Cargo Weight\nKGS\n77200 KGS\nUNLABELED KGS\n"
+    base = "documentPatch.cargoGroups[0].grossWeight"
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {"grossWeight": {"value": 77200, "unit": "kilogram"}}
+            ]
+        }
+    }
+
+    def component(text: str, path: str, occurrence: int = 0) -> SpanDraft:
+        return replace(
+            _test_draft(
+                raw,
+                text,
+                "anchor:" + path,
+                "target_binding",
+                (path,),
+                occurrence=occurrence,
+            ),
+            value_kind="other_text" if path.endswith(".unit") else "decimal_measurement",
+            group_kind="cargo",
+            group_key="cargo:0",
+            render_policy="natural_text" if path.endswith(".unit") else "numeric_surface",
+        )
+
+    drafts = (
+        component("77200", base + ".value"),
+        component("KGS", base + ".unit", 0),
+        component("KGS", base + ".unit", 1),
+        component("KGS", base + ".unit", 2),
+    )
+    normalized = _normalize_measurement_unit_component_locality(
+        raw=raw,
+        drafts=drafts,
+        source_target=target,
+    )
+
+    assert normalized == drafts
+
+
+def test_reconcile_preserves_uri_scheme_inside_agent_residual() -> None:
+    raw = "--- PAGE 1 ---\nhttp://p.o.no:4512631286/]P.O.NO:4512631286\n"
+    surface = "http://p.o.no:4512631286/]P.O.NO:4512631286"
+    draft = _test_draft(
+        raw,
+        surface,
+        "agent:booking_reference",
+        "agent_residual",
+    )
+
+    normalized = reconcile_draft_overlaps(
+        raw=raw,
+        drafts=(draft,),
+        source_target={"documentPatch": {}},
+    )
+
+    assert len(normalized) == 1
+    assert normalized[0].source_text == surface
+    assert normalized[0].char_start == raw.index(surface)
+
+
+def test_dangerous_goods_locality_covers_un_no_variants_and_standalone_class() -> None:
+    raw = "--- PAGE 1 ---\nUN NO : 1993 CLASS : 3 UNNO : UN1993 Class : 3\nCLASS : 3\n"
+    hazard_path = "documentPatch.cargoGroups[0].dangerousGoods[0].hazardCategory"
+    class_spans = tuple(
+        (match.start(1), match.end(1)) for match in re.finditer(r"(?i)CLASS\s*:\s*(3)", raw)
+    )
+    owner_start, owner_end = class_spans[-1]
+    owner = SpanDraft(
+        draft_id="hazard_owner",
+        logical_key="agent:dg_class",
+        render_mode="agent_residual",
+        value_kind="dangerous_goods",
+        group_kind="dangerous_goods",
+        group_key="dangerous_goods:0:0",
+        target_paths=(hazard_path,),
+        derivation=None,
+        dependency_paths=(),
+        dependency_bindings=(),
+        char_start=owner_start,
+        char_end=owner_end,
+        source_text="3",
+        evidence_origin="host_verified_agent_proposal",
+        render_policy="natural_text",
+        rationale="Unique dangerous-goods class fixture.",
+    )
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": "g1",
+                    "dangerousGoods": [{"unNumber": "1993", "hazardCategory": "FLAMMABLE_LIQUIDS"}],
+                }
+            ]
+        }
+    }
+
+    normalized = normalize_dangerous_goods_class_locality(
+        raw=raw,
+        drafts=(owner,),
+        source_target=target,
+    )
+
+    assert {(row.char_start, row.char_end) for row in normalized} == set(class_spans)
+
+
+def test_critic_patch_deduplicates_already_materialized_semantic_occurrences() -> None:
+    raw = "--- PAGE 1 ---\nVALUE 7\nDRAFT\n"
+    path = "documentPatch.cargoPackages[0].quantity"
+    existing = replace(
+        _test_draft(raw, "7", "anchor:" + path, "target_binding", (path,)),
+        value_kind="integer",
+        group_kind="package",
+        group_key="package:0",
+        render_policy="numeric_surface",
+    )
+    duplicate = AgentBindingProposal.model_validate(
+        {
+            "logical_key": existing.logical_key,
+            "render_mode": "target_binding",
+            "value_kind": "integer",
+            "group_kind": "package",
+            "group_key": "package:0",
+            "target_paths": (path,),
+            "occurrences": (
+                {
+                    "line_start": "L00002",
+                    "line_end": "L00002",
+                    "source_text": "7",
+                    "occurrence_index": 0,
+                },
+            ),
+            "rationale": "Already materialized occurrence.",
+        }
+    )
+    status = AgentBindingProposal.model_validate(
+        {
+            "logical_key": "agent:document_status",
+            "render_mode": "deterministic_auxiliary",
+            "value_kind": "operational_text",
+            "group_kind": "document",
+            "group_key": "document",
+            "target_paths": (),
+            "occurrences": (
+                {
+                    "line_start": "L00003",
+                    "line_end": "L00003",
+                    "source_text": "DRAFT",
+                    "occurrence_index": 0,
+                },
+            ),
+            "rationale": "Mutable document status.",
+        }
+    )
+    findings = (
+        CriticFinding(
+            finding_kind="unowned_repeated_fact",
+            line_ids=("L00002",),
+            evidence="7",
+            explanation="The occurrence was already materialized by current host normalization.",
+        ),
+        CriticFinding(
+            finding_kind="unowned_shipment_fact",
+            line_ids=("L00003",),
+            evidence="DRAFT",
+            explanation="The document status remains mutable.",
+        ),
+    )
+    target = {"documentPatch": {"cargoPackages": [{"packageId": "package:0", "quantity": 7}]}}
+
+    revised = apply_critic_patch(
+        raw=raw,
+        drafts=(existing,),
+        findings=findings,
+        remove_inventory_binding_ids=(),
+        additional_bindings=(duplicate, status),
+        source_target=target,
+    )
+
+    assert sum(row.logical_key == existing.logical_key for row in revised) == 1
+    assert any(row.source_text == "DRAFT" for row in revised)

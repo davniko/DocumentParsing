@@ -1,0 +1,87 @@
+schema_version: 1
+task: bill_of_lading_raw_text_template_compilation_v1
+phase: template_compilation
+run_name: mpci-bl-template-compilation5-production-canary-v1-luna-high
+output_dir: artifacts/kie-synthesis
+environment_file: .env
+inputs:
+  source_corpus:
+    path: artifacts/kie-training/datasets/mpci-bl-combined2174-task-facing-package-categories-v1/records.jsonl
+    sha256: 90d01f11ddf8cbca2bcc3f660c6990991c616cdaa70e8d549a565367ac570b1f
+    records: 2174
+  document_features:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-readiness-eda-v1/data/document-features.jsonl
+    sha256: 4760e35111b64ebab2d82a7f7af181dbd8fbfe3d4b96b18a3c245d2f4ca82292
+    records: 2174
+  anchors:
+    path: artifacts/kie-synthesis/mpci-bl-combined2174-synthesis-preparation-v1/anchors/ocr-anchors.jsonl
+    sha256: b5f299033404b606581a4d03049ab55d25e709ef6c816a9716498b3a2e51968e
+prompts:
+  compiler:
+    path: src/document_ocr/synthesis/template_compiler/prompts/compiler.md
+    sha256: bff9d2d94708a307290357ec2c0451ecb697f6bb870372ba1da600f42dbe3462
+  critic:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic.md
+    sha256: 030a7e7bf443bd56c0830cdd51f2c2fc5bd42900109d8c36a7bf4a97cf239f3b
+  critic_audit:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-audit-v4.md
+    sha256: fbaac17804901fc07a3243bb6a59317b76a85804708e120a709ffc6d01e51f71
+  critic_plan:
+    path: src/document_ocr/synthesis/template_compiler/prompts/critic-plan-v4.md
+    sha256: 5cac8cfb3dfcb0e9ad397de2bda0dab799ae20af84370b32b7be4a58e4337bdc
+compiler_provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 65536
+  store_responses: false
+  pricing: &id001
+    currency: USD
+    effective_date: 2026-09-03
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.2
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.2
+critic_provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 32768
+  store_responses: false
+  pricing: *id001
+workflow:
+  documents: 5
+  agent_contract_protocol: hybrid_reference_partitioned_v10
+  max_concurrent_documents: 4
+  max_concurrent_requests: 4
+  max_compiler_passes: 4
+  max_critic_passes: 4
+  compiler_output_retries: 1
+  critic_output_retries: 1
+  partition_critic_above_request_bytes: 200000
+  additional_call_launch_threshold_usd_per_document: 0.15
+  provider_launch_authorized: true
+  certified_resume_policy: require_exact_contract
+  require_no_rejected_documents: true
+  require_carrier_resolution: true
+  require_source_round_trip: true
+  require_all_risk_candidates_owned: true
+  require_final_critic_pass: true
+  require_sentinel_isolation: true
+  publish_training_records: false
+selection_seed: 20260912
+resume_from: null
+excluded_document_ids: []
+pinned_document_ids:
+- doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37
+- doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578
+- doc_951024129bf38a16234b6b31e924e0bf72ec56207be8d68bb9af51927447a358
+- doc_3973440c769a905e8ad788afd47c91a6481f301bc8d0bb48103d78f5913c80c8
+- doc_26ccea2924c27fc24c1225e5019237dd79f0794a3a9c3b8732a3e6f04791aa5e

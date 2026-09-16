@@ -62,7 +62,9 @@ from document_ocr.synthesis.raw_text_inventory_probe import (
     compile_raw_text_inventory_cases,
     raw_text_inventory_compiler_contract,
 )
-from document_ocr.synthesis.raw_text_pipeline import _PipelineResumeLineageRow
+from document_ocr.synthesis.raw_text_pipeline_lineage import (
+    PipelineResumeLineageRow as _PipelineResumeLineageRow,
+)
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 
 _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
