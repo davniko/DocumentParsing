@@ -1,0 +1,61 @@
+schema_version: 1
+task: bill_of_lading_compiled_raw_text_pipeline_v1
+run_name: mpci-bl-production-compiled-synthesis10000-layout-proxy-holdout-v1
+output_dir: artifacts/kie-synthesis-production/synthesis-runs
+environment_file: .env
+
+inputs:
+  template_run:
+    path: artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v5
+    commit_sha256: 07c7ae3e1d87ac8b1de6e766a4013c748fad12ad493be5ab5f252229ac4d0b44
+    transaction_sha256: 5441ee47baef025e9159df336e78e4ebb9424f8913aceecaf6fa373530bedfa7
+  sample_plan_run:
+    path: artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-production-synthesis10000-layout-proxy-holdout-v1
+    commit_sha256: 583e824632b6e3d5fa2bcad477049903884cbfdf7bc4bfa26dc90050e2c9da4f
+    transaction_sha256: 2bbaa22af796520b324aaa17667ce24560c000a085301ec58c2d5de13d39b666
+  sample_plan:
+    path: artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-production-synthesis10000-layout-proxy-holdout-v1/plan.jsonl
+    sha256: d2eaab33c67404afcd7c119ddeedc921a01e2722edef1d3e8bfe53ce657d5401
+    records: 10000
+  iso3166_snapshot:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+
+prompts:
+  residual_renderer:
+    path: src/document_ocr/synthesis/template_compiler/prompts/descendant_renderer.md
+    sha256: 44833cd1e171642fe021bf57e8597c5c9d76f0706ebaa8d8ce5a9f5427cfcae2
+
+provider:
+  kind: openai_responses
+  model: gpt-5.6-luna
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: high
+  request_timeout_seconds: 900.0
+  transport_max_retries: 2
+  max_output_tokens: 16384
+  store_responses: true
+  pricing:
+    currency: USD
+    effective_date: 2026-09-12
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    input_usd_per_million: 0.20
+    cached_input_usd_per_million: 0.02
+    cache_write_multiplier: 1.25
+    output_usd_per_million: 1.20
+
+workflow:
+  documents: 10000
+  controlled_target_seed: 20260917
+  target_schema_version: 5.0.0-experimental
+  target_generation: controlled_latest_schema_from_source_v1
+  max_concurrent_requests: 16
+  max_requests_per_document: 1
+  provider_launch_authorized: true
+  require_exact_topology: true
+  require_source_carrier: true
+  require_every_slot_bound_once: true
+  require_exact_literal_regions: true
+  require_page_markers_unchanged: true
+  require_line_endings_preserved: true
+  publish_training_records: true

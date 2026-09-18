@@ -94,9 +94,17 @@ def test_pilot_training_configuration_is_strict_and_content_pinned() -> None:
     assert config.logging.mlflow.system_metrics is True
 
 
-def test_relation_explicit_training_requires_frozen_task_constraints() -> None:
+@pytest.mark.parametrize(
+    "task",
+    [
+        "bill_of_lading_relation_explicit_v3",
+        "bill_of_lading_relation_explicit_v4",
+        "bill_of_lading_relation_explicit_v5",
+    ],
+)
+def test_relation_explicit_training_requires_frozen_task_constraints(task: str) -> None:
     value = load_training_config(CONFIG_PATH).model_dump(mode="python")
-    value["task"] = "bill_of_lading_relation_explicit_v3"
+    value["task"] = task
 
     with pytest.raises(ValidationError, match="requires a frozen task_constraints"):
         TrainingConfig.model_validate(value, strict=True)
@@ -115,6 +123,33 @@ def test_t5gemma2_configuration_rejects_unsupported_flash_attention_2() -> None:
     value["model"]["attention_implementation"] = "flash_attention_2"
 
     with pytest.raises(ValidationError, match="attention_implementation"):
+        TrainingConfig.model_validate(value, strict=True)
+
+
+def test_evaluation_generation_capacity_can_be_smaller_than_training_capacity() -> None:
+    value = load_training_config(CONFIG_PATH).model_dump(mode="python")
+    value["evaluation"]["generation_max_length"] = (
+        value["dataset"]["preprocessing"]["max_target_length"] - 1
+    )
+
+    config = TrainingConfig.model_validate(value, strict=True)
+
+    assert (
+        config.evaluation.generation_max_length
+        < config.dataset.preprocessing.max_target_length
+    )
+
+
+def test_evaluation_generation_capacity_cannot_exceed_training_capacity() -> None:
+    value = load_training_config(CONFIG_PATH).model_dump(mode="python")
+    value["evaluation"]["generation_max_length"] = (
+        value["dataset"]["preprocessing"]["max_target_length"] + 1
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match=r"generation_max_length must not exceed preprocessing\.max_target_length",
+    ):
         TrainingConfig.model_validate(value, strict=True)
 
 
@@ -508,6 +543,22 @@ def test_prompt_is_literal_single_placeholder_template(tmp_path: Path) -> None:
     bad_config = config.prompt.model_copy(update={"path": str(bad_prompt)})
     with pytest.raises(ValueError, match="unsupported template expression"):
         load_prompt(PROJECT_ROOT, bad_config, task)
+
+
+def test_relation_v5_prompt_encodes_independent_dg_and_equipment_contracts() -> None:
+    baseline = load_training_config(CONFIG_PATH)
+    prompt_config = baseline.prompt.model_copy(
+        update={"path": "prompts/kie/bill_of_lading_relation_explicit_v5.txt"}
+    )
+    task = get_training_task("bill_of_lading_relation_explicit_v5")
+
+    prompt = load_prompt(PROJECT_ROOT, prompt_config, task)
+    rendered = prompt.render("--- PAGE 1 ---\nOCR")
+
+    assert '"const":"5.0.0-experimental"' in rendered
+    assert "`sizeCategory` and `typeCategory` together" in rendered
+    assert "`packingGroupCategory` is independent of `flashPoint`" in rendered
+    assert rendered.count("--- PAGE 1 ---\nOCR") == 1
 
 
 def test_prompt_schema_is_sparse_and_derived_from_latest_target_model() -> None:

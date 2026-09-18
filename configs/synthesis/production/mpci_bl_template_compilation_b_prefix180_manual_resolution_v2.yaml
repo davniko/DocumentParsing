@@ -1,0 +1,58 @@
+schema_version: 1
+task: bill_of_lading_template_manual_review_resolution_v1
+run_name: mpci-bl-template-compilation-b-prefix180-manual-resolved-v2
+output_dir: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions
+source_run:
+  path: artifacts/kie-synthesis-production/template-base/remaining1420-split/budgeted-batches/mpci-bl-template-compilation-remaining710-b-prefix180-v1-luna-high
+  commit_sha256: 3c2b4020938e7c5c7661f66ffbf79e75199e6421d2bd06d0f8d0dc501d6ba51a
+  transaction_sha256: dd7b949d7a79c24df75459ea7f0beea11612e7b66bb4f1794c5e6c7edca178a4
+review_date: "2026-09-17"
+review_method: full_queue_source_target_and_checkpoint_review
+expected_source_documents: 180
+expected_source_certified: 167
+expected_source_rejected: 9
+expected_source_review_required: 4
+expected_usable_templates: 167
+expected_excluded_documents: 13
+require_zero_unresolved_reviews: true
+decisions:
+  - document_id: doc_11a4fc7d08b4b42867346ab6b0221b84a8cdb33fa6b543164cf86e226c0a5f51
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [53, 62, 83, 97, 98, 111, 122]
+    rationale: "The shipment and carrier receipt state two 40-foot containers, but MSCU7219548 is the only distinct identity in the task-facing source and the structured target contains one container. The second container cannot be reconstructed without invention."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_e42f749e931b71c72d16102bf68e0210b0ed2a3a2bf6a35067ef3f86ad31aa2e
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:3_vs_2"
+    source_line_numbers: [60, 90, 91, 110, 111, 127, 129, 135, 140]
+    rationale: "The source repeatedly declares three high-cube containers, but only CAAU7196928 and MSNU7368669 are exposed and the target likewise contains two containers. The third container identity and its dependent facts are absent."
+    expected_printed_container_counts: [3]
+    expected_labeled_container_count: 2
+    expected_observed_container_identity_count: 2
+  - document_id: doc_ff4b11b75c4619d644577834de33099c3d1b6ba4676935ef5c288140d0ef64ab
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [44, 69, 78, 79]
+    rationale: "The carrier receipt states one container, but neither the task-facing OCR nor the structured target provides a container identity. The printed count therefore has no supported container object."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_0919fdfbb117fc0eb86db5371ff693304db4fe72c1d962cd4a3ccdbe72e8fd68
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [48, 84, 95, 96]
+    rationale: "The carrier receipt declares one container while no distinct container identity or structured container is available. Promoting it would preserve an unsupported mutable topology."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0

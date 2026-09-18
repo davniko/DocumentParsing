@@ -1,0 +1,44 @@
+schema_version: 1
+task: bill_of_lading_compiled_template_synthesis_plan_v1
+run_name: mpci-bl-production-synthesis10000-layout-proxy-holdout-v1
+output_dir: artifacts/kie-synthesis-production/synthesis-plans
+
+template_run:
+  path: artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v5
+  commit_sha256: 07c7ae3e1d87ac8b1de6e766a4013c748fad12ad493be5ab5f252229ac4d0b44
+  transaction_sha256: 5441ee47baef025e9159df336e78e4ebb9424f8913aceecaf6fa373530bedfa7
+
+validation_partition:
+  path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+  sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  report_format: t5gemma2_runtime_partition_dataset_report_v1
+  split: validation
+  expected_documents: 100
+  document_ids_sha256: 25f01f196a83be1f71e36dc998b56392c70ac3cd509b6a091bfc533591b7c677
+
+target_task: bill_of_lading_relation_explicit_v5
+target_schema_version: 5.0.0-experimental
+target_generation: controlled_latest_schema_from_source_v1
+
+selection:
+  documents: 10000
+  seed: 20260917
+  sample_namespace: mpci-bl-production-v5-layout-proxy-holdout-10000-v1
+  exclusion_mode: template_proxy_family
+  capability_counts:
+    standard: 7500
+    dangerous_goods: 1000
+    temperature_controlled: 1500
+  balancing: even_reuse_within_capability_hmac_rank_v1
+  require_disjoint_capability_pools: true
+  require_every_eligible_template_selected: true
+
+expected_inventory:
+  validation_documents_in_catalog: 66
+  validation_template_proxy_families: 50
+  latest_schema_incompatible_templates: 3
+  excluded_templates: 525
+  eligible_templates: 985
+  eligible_standard_templates: 894
+  eligible_dangerous_goods_templates: 27
+  eligible_temperature_controlled_templates: 64

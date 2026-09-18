@@ -1,0 +1,148 @@
+schema_version: 1
+task: bill_of_lading_template_manual_review_resolution_v1
+run_name: mpci-bl-template-compilation-b-ordinals521-710-manual-resolved-v1
+output_dir: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions
+source_run:
+  path: artifacts/kie-synthesis-production/template-base/remaining1420-split/budgeted-batches/mpci-bl-template-compilation-b-ordinals521-710-v1-luna-high
+  commit_sha256: 229825d91868d99ec2527d74b2ca94cbf3fd50c61b10a908840abf19fb152e13
+  transaction_sha256: bf3eb4218d9ef70f22eaef717e60ecdf653f46158883de6057174f7d4b5f58c6
+review_date: "2026-09-17"
+review_method: full_queue_source_target_and_checkpoint_review
+expected_source_documents: 190
+expected_source_certified: 166
+expected_source_rejected: 11
+expected_source_review_required: 13
+expected_usable_templates: 166
+expected_excluded_documents: 24
+require_zero_unresolved_reviews: true
+decisions:
+  - document_id: doc_1fbc935f6ed1c373d6dac24f9c31117199fdbe3f5e85aadef38a4e6fdac3f2eb
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 47, 71, 72, 160, 162, 194, 195]
+    rationale: "Both printed copies of the shipment declare one container, but neither copy exposes a container identity and the structured target has no container object. The repeated cargo and receipt surfaces cannot be made mutable without inventing the missing equipment topology."
+    expected_printed_container_counts: [1, 1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_813e427102481e286073467284e7dd2ccecbd88863c71a1279a49331e3b523c0
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [45, 47, 55, 57, 81, 82]
+    rationale: "The carrier receipt and two cargo blocks establish two containers, while only MSKU6785350 is identified and modeled. The second container identity, seal, and row allocation are absent and cannot be reconstructed safely."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_6fa0b967ca5627aeed9c80a3e191e1e1fc9e7cf2b83eedb4df61c6034ce27282
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [58, 63, 65, 72, 74, 81, 106, 107, 126]
+    rationale: "The source declares and receipts two containers and splits 7,080 packages across two cargo quantities, but only GLDU7620093 is identified and modeled. The second equipment identity and its row-level dependencies are missing."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_01b2195740e2b33ba032f2982c1ac4b60f687d4355584655356f9a919aca57d0
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [57, 64, 68, 76, 94, 95, 109, 116, 117]
+    rationale: "The carrier receipt declares two containers and the cargo is split into two package quantities, but no container identity or structured container object is present. Aggregate totals cannot recover the missing equipment membership."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_05fd9e375177d2a2f4ba53170732794b0c1a92f768bf4529964504986fffc80c
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:40_vs_39"
+    source_line_numbers: [53, 55, 60, 61, 77, 85, 86, 110, 122, 124, 145, 150, 151, 152]
+    rationale: "The shipment and carrier receipt declare forty containers, but only thirty-nine distinct identities and structured objects are available. One full container row and its dependent seal, package, weight, and allocation facts are absent."
+    expected_printed_container_counts: [40]
+    expected_labeled_container_count: 39
+    expected_observed_container_identity_count: 39
+  - document_id: doc_311407b33587479b4ca40a815b060780f42a751e97e297b681fb19446aed1a07
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [52, 68, 97, 98, 111, 131]
+    rationale: "The carrier receipt declares one container, but the structured target has no container object and the only equipment-like identifiers are explicitly printed as seals. A container identity and its cargo relationship cannot be recovered from the source."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 2
+  - document_id: doc_85587045391289047e4ba15a21167b6c9381eeed772d9a2b2bffc1d8d3c63d6c
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [48, 50, 67, 101, 102, 123, 125, 132, 156]
+    rationale: "The receipt and two eleven-pallet cargo blocks establish two containers, but only CAAU9374905 is identified and modeled. The second container identity and its 81-carton allocation are missing."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_8c803f747e74c2330b1a0880bd11c66199b834a25fb82fd279d30ca8f5e3a0b5
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [49, 58, 65, 85, 86]
+    rationale: "The carrier receipt declares one container, while neither the source nor the structured target supplies its identity. Package and weight totals cannot establish a supported mutable equipment object."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_a86b59b047c0c9774306b3d556f5a5f490dae5e3ba765da4487bae85ebc784a6
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [38, 42, 64, 65]
+    rationale: "The cargo and carrier receipt declare one container, but no container identity and no structured container object are present. The missing topology cannot be inferred from the thirteen-pallet aggregate."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_b10abb5024afb677675e192c1e7c07b38efc9d545449bbf63a82e8742490fbd5
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [45, 53, 55, 56, 69, 70, 85, 103, 109]
+    rationale: "The carrier receipt declares two containers, but the rider contains only aggregate cargo totals and exposes no container identities or structured container objects. Per-container equipment and allocations would have to be invented."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_9786f01145f846b72375b07cc94db3a3ab5244e18aeb0c1a289748072322fc04
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [39, 43, 47, 53, 72, 73, 87, 95]
+    rationale: "The carrier receipt and two package rows establish two containers, but no equipment identities and no structured container objects are available. The rider's aggregate tare and gross totals do not recover the missing row topology."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_d3bfc5210a6dddcd384dde9bf5607cd0c2218012cb4e3c99d87847ced570ac5c
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [39, 43, 48, 57, 69, 70, 92, 101, 102]
+    rationale: "The receipt declares two containers and the cargo is split into two package rows, but no container identity or structured container object is present. Aggregate totals cannot determine either container's membership and dependent facts."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_2cc34a3174e3ac99ee0e98825fe78c79f54df8e3ca3e4bc0f03494da4fec2698
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 47, 80, 81]
+    rationale: "The source and carrier receipt declare one container, but there is no container identity and the target contains no container object. The seven-package aggregate cannot supply the missing equipment topology."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0

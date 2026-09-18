@@ -1,0 +1,68 @@
+schema_version: 1
+task: bill_of_lading_template_manual_review_resolution_v1
+run_name: mpci-bl-template-compilation-b-ordinals181-520-recovery211-manual-resolved-v1
+output_dir: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions
+source_run:
+  path: artifacts/kie-synthesis-production/template-base/remaining1420-split/recovery/mpci-bl-template-compilation-b-ordinals181-520-completed211-recovery-v1
+  commit_sha256: abaec60f4b6ae11a088fabb46e0d1d84978943778eabe5522ddb10ee21931f5f
+  transaction_sha256: 7cb71baa932c306f6787ddc373ad8bd40ef05bd50a0c7218b9380fad96f5c1a2
+review_date: "2026-09-17"
+review_method: full_queue_source_target_and_checkpoint_review
+expected_source_documents: 211
+expected_source_certified: 193
+expected_source_rejected: 13
+expected_source_review_required: 5
+expected_usable_templates: 193
+expected_excluded_documents: 18
+require_zero_unresolved_reviews: true
+decisions:
+  - document_id: doc_5facbbbdd1eb7441aed91e95b6af4e3ac4a2a95603abdd046f2488e1741ad9e4
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [48, 53, 76, 89, 90, 101, 103, 111, 112]
+    rationale: "The shipment and carrier receipt both declare two 40-foot containers, but neither the source nor the structured target exposes a usable container identity. The rider contains totals only, so both container objects and their dependent facts would have to be invented."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_703b30b618b51dc07926a39ec595f58e35578c05f711e35eb8a872e41975dbe7
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [38, 40, 42, 62, 63]
+    rationale: "The source states that one container was shipped and received, but no container identity or structured container object is present. A usable mutable topology cannot be reconstructed without invention."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_05e3713646484151f61a426781d0b4f959060b678fe342da379f3118fa50d07d
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:44_vs_28"
+    source_line_numbers: [72, 73, 92, 98, 128, 149, 151, 159, 227, 229, 252, 288, 305, 307, 330, 358]
+    rationale: "The carrier receipt and OCR expose 44 distinct container identities, while the structured target contains only 28. Sixteen printed containers are absent from the target, so promoting the sample would leave real identities static or require inventing missing structured objects and dependencies."
+    expected_printed_container_counts: [44]
+    expected_labeled_container_count: 28
+    expected_observed_container_identity_count: 44
+  - document_id: doc_5cd6ebe6fabea7203fa11d603d46c70cf24111a5fd51dbefebb14dd73fb0c7b7
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [52, 57, 80, 94, 95, 109, 111, 115]
+    rationale: "The source twice declares two containers, but no container identity and no structured container object is available. The continuation page provides aggregate weights and item totals only, not recoverable container membership."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_1518fd3b22c75a716a6d9f48d265d9d9a1c88f46daf03ac59978799662b31d2e
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [46, 50, 81, 82, 114, 116, 127, 128]
+    rationale: "The carrier receipt and duplicated cargo blocks establish two containers, but only FFAU4773932 is identified and modeled. The second identity, seal, and allocation cannot be reconstructed from the available source and target."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1

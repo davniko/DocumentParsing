@@ -14,6 +14,8 @@ from document_ocr.hashing import canonical_json_bytes, canonical_json_sha256, sh
 from document_ocr.training.config import (
     TrainingConfig,
     load_dataset_partition_config,
+    load_real_v5_projection_config,
+    load_relation_constraints_build_config,
     load_training_config,
 )
 from document_ocr.training.data import inspect_dataset, prepare_datasets
@@ -55,6 +57,30 @@ def _parser() -> argparse.ArgumentParser:
     )
     split_command.add_argument("--config", required=True, type=Path, metavar="PATH")
     split_command.add_argument(
+        "--project-root",
+        type=Path,
+        default=Path.cwd(),
+        metavar="PATH",
+        help="repository root used to resolve relative paths (default: current directory)",
+    )
+    project_command = commands.add_parser(
+        "project-real-v5",
+        help="publish the prior real split with canonical relation-v5 targets",
+    )
+    project_command.add_argument("--config", required=True, type=Path, metavar="PATH")
+    project_command.add_argument(
+        "--project-root",
+        type=Path,
+        default=Path.cwd(),
+        metavar="PATH",
+        help="repository root used to resolve relative paths (default: current directory)",
+    )
+    constraints_command = commands.add_parser(
+        "build-relation-constraints",
+        help="publish the exact category vocabulary union for relation-explicit training",
+    )
+    constraints_command.add_argument("--config", required=True, type=Path, metavar="PATH")
+    constraints_command.add_argument(
         "--project-root",
         type=Path,
         default=Path.cwd(),
@@ -163,6 +189,60 @@ def _dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
                 "config_path": str(config_path),
                 "config_file_sha256": sha256_file(config_path),
                 "partition_manifest": manifest,
+            }
+        except Exception as error:
+            raise _CommandFailure(
+                _EXIT_OPERATION,
+                type(error).__name__,
+                str(error).strip() or type(error).__name__,
+            ) from error
+
+    if command == "project-real-v5":
+        config_path = _regular_config_path(
+            cast(Path, arguments.config), "real v5 projection configuration"
+        )
+        try:
+            from document_ocr.training.real_v5_projection import project_real_v5_split
+
+            projection_config = load_real_v5_projection_config(config_path)
+            manifest = project_real_v5_split(
+                project_root=project_root,
+                config=projection_config,
+                config_sha256=sha256_file(config_path),
+            )
+            return {
+                "command": command,
+                "status": "complete",
+                "config_path": str(config_path),
+                "config_file_sha256": sha256_file(config_path),
+                "projection_manifest": manifest,
+            }
+        except Exception as error:
+            raise _CommandFailure(
+                _EXIT_OPERATION,
+                type(error).__name__,
+                str(error).strip() or type(error).__name__,
+            ) from error
+
+    if command == "build-relation-constraints":
+        config_path = _regular_config_path(
+            cast(Path, arguments.config), "relation constraints build configuration"
+        )
+        try:
+            from document_ocr.training.relation_constraints import build_relation_constraints
+
+            constraints_config = load_relation_constraints_build_config(config_path)
+            manifest = build_relation_constraints(
+                project_root=project_root,
+                config=constraints_config,
+                config_sha256=sha256_file(config_path),
+            )
+            return {
+                "command": command,
+                "status": "complete",
+                "config_path": str(config_path),
+                "config_file_sha256": sha256_file(config_path),
+                "constraints_manifest": manifest,
             }
         except Exception as error:
             raise _CommandFailure(

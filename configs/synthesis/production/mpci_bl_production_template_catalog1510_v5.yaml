@@ -1,0 +1,95 @@
+schema_version: 1
+task: bill_of_lading_production_template_catalog_v1
+run_name: mpci-bl-production-template-catalog1510-v5
+output_dir: artifacts/kie-synthesis-production/template-base/catalogs
+shards:
+  - catalog_run:
+      path: artifacts/kie-synthesis/mpci-bl-compiled-template-catalog230-semantic-v4
+      commit_sha256: 61c5e1ced535352c4395ca6d4eb6bc9d5e2a05ab7f211d6ca1a7d24a2e415e8e
+      transaction_sha256: e92bd190a5ad449b98a95757a05f3b60afecd21dd2f0e6cbab74b49184e0649a
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/prior230/manual-review-resolutions/mpci-bl-template-compilation-prior200-manual-resolved-v2
+      commit_sha256: 19d3eee92835b24a9063379b371abe5159f1dbedcd59e5209f5a46804854ba7a
+      transaction_sha256: 1c36bc6703f8c7a1383d2200710742079502e77a12efd5523999a7e12af893b1
+    outcomes_file: outcomes.jsonl
+    resolution_scope: review_subset
+    expected_documents: 230
+    expected_certified: 226
+    expected_rejected: 0
+    expected_review_required: 4
+  - catalog_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/mpci-bl-template-compilation-remaining710-a-v1-luna-high
+      commit_sha256: 2248783f564ff5000601e8cfa9a621f5a93e3f73d4e6d324c62dd86dc5fd4b2d
+      transaction_sha256: 4382e0f36e97678b6ba429e9e2d9f8885268a8e4fa33a62b314576816e46bd77
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions/mpci-bl-template-compilation-remaining710-a-manual-resolved-v1
+      commit_sha256: f54be22220a7867a0abc8d9dfc97342ee087f9ad9b1ce217a142626b3c95f940
+      transaction_sha256: f50930ab4d54fea22dc15b51a2c497fc35b8b9bf60f0c032bbc7cbd64b468669
+    outcomes_file: results.jsonl
+    resolution_scope: complete_source
+    expected_documents: 710
+    expected_certified: 645
+    expected_rejected: 43
+    expected_review_required: 22
+  - catalog_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/budgeted-batches/mpci-bl-template-compilation-remaining710-b-prefix180-v1-luna-high
+      commit_sha256: 3c2b4020938e7c5c7661f66ffbf79e75199e6421d2bd06d0f8d0dc501d6ba51a
+      transaction_sha256: dd7b949d7a79c24df75459ea7f0beea11612e7b66bb4f1794c5e6c7edca178a4
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions/mpci-bl-template-compilation-b-prefix180-manual-resolved-v2
+      commit_sha256: e43a9be040b727347cc56bcdb50fed11f5d55fa14418900fd0a58eefdfb3820d
+      transaction_sha256: dbdf9ae6865084dc1fa4a01ed9a002463ecb2dafc3ea4e43aa1655e3fbd20b81
+    outcomes_file: results.jsonl
+    resolution_scope: complete_source
+    expected_documents: 180
+    expected_certified: 167
+    expected_rejected: 9
+    expected_review_required: 4
+  - catalog_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/recovery/mpci-bl-template-compilation-b-ordinals181-520-completed211-recovery-v1
+      commit_sha256: abaec60f4b6ae11a088fabb46e0d1d84978943778eabe5522ddb10ee21931f5f
+      transaction_sha256: 7cb71baa932c306f6787ddc373ad8bd40ef05bd50a0c7218b9380fad96f5c1a2
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions/mpci-bl-template-compilation-b-ordinals181-520-recovery211-manual-resolved-v1
+      commit_sha256: 58e8c57abd44b1d284c4035142896d98f2d57964f76b81890e0eeab9a9669e9c
+      transaction_sha256: 3cb62db6625c25fcefa3e161c55a854b552f8d9e65577e39446a59fa8117d51b
+    outcomes_file: results.jsonl
+    resolution_scope: complete_source
+    expected_documents: 211
+    expected_certified: 193
+    expected_rejected: 13
+    expected_review_required: 5
+  - catalog_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/budgeted-batches/mpci-bl-template-compilation-b-ordinals181-520-missing129-v1-luna-high
+      commit_sha256: bc917f88e58ae9c1db3b19094ad82302cdbb8942cbf6781c1e14b3cad29029ee
+      transaction_sha256: 295ee3bd3d1027025b77128df31785c0d7479d36ce37bd72c67febf7027da930
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions/mpci-bl-template-compilation-b-ordinals181-520-missing129-manual-resolved-v1
+      commit_sha256: 3025f2a4237ebf91656c90abbee705693be26af307960ec99aa72a9c27328078
+      transaction_sha256: 3abce1c495dddd0e235a85942f87ce2b77d1c1655ebd58d940e1a1af6a9e69f8
+    outcomes_file: results.jsonl
+    resolution_scope: complete_source
+    expected_documents: 129
+    expected_certified: 113
+    expected_rejected: 9
+    expected_review_required: 7
+  - catalog_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/budgeted-batches/mpci-bl-template-compilation-b-ordinals521-710-v1-luna-high
+      commit_sha256: 229825d91868d99ec2527d74b2ca94cbf3fd50c61b10a908840abf19fb152e13
+      transaction_sha256: bf3eb4218d9ef70f22eaef717e60ecdf653f46158883de6057174f7d4b5f58c6
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions/mpci-bl-template-compilation-b-ordinals521-710-manual-resolved-v1
+      commit_sha256: 6667ddb5a5349cd73ef75ead284ab822e22ec2753069173ff43869dcbb962938
+      transaction_sha256: 86f82c5afb04150c897db952ca8cfc90d1903039a0cab3611889b9830383d8af
+    outcomes_file: results.jsonl
+    resolution_scope: complete_source
+    expected_documents: 190
+    expected_certified: 166
+    expected_rejected: 11
+    expected_review_required: 13
+expected_source_documents: 1650
+expected_usable_templates: 1510
+expected_excluded_documents: 140
+require_current_template_schema: 6
+require_zero_unresolved_reviews: true
+require_disjoint_shards: true

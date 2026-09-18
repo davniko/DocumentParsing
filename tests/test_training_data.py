@@ -411,3 +411,32 @@ def test_arrow_preprocessing_is_cache_keyed_and_complete(tmp_path: Path) -> None
     }
     assert first.token_lengths["train"]["source_truncated_records"] == 0
     assert list((tmp_path / "cache").glob("train-*.arrow"))
+
+
+def test_preparation_rejects_generation_capacity_below_evaluation_reference(
+    tmp_path: Path,
+) -> None:
+    config, prompt, task = _training_components()
+    preprocessing = config.dataset.preprocessing.model_copy(
+        update={"cache_dir": str(tmp_path / "cache"), "num_proc": None}
+    )
+    config = config.model_copy(
+        update={
+            "dataset": config.dataset.model_copy(update={"preprocessing": preprocessing}),
+            "evaluation": config.evaluation.model_copy(
+                update={"generation_max_length": 1}
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="evaluation generation_max_length cannot reproduce the longest reference",
+    ):
+        prepare_datasets(
+            project_root=PROJECT_ROOT,
+            config=config,
+            prompt=prompt,
+            task=task,
+            tokenizer=_WordTokenizer(),
+        )

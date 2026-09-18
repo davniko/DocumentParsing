@@ -1,0 +1,236 @@
+schema_version: 1
+task: bill_of_lading_template_manual_review_resolution_v1
+run_name: mpci-bl-template-compilation-remaining710-a-manual-resolved-v1
+output_dir: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions
+source_run:
+  path: artifacts/kie-synthesis-production/template-base/remaining1420-split/mpci-bl-template-compilation-remaining710-a-v1-luna-high
+  commit_sha256: 2248783f564ff5000601e8cfa9a621f5a93e3f73d4e6d324c62dd86dc5fd4b2d
+  transaction_sha256: 4382e0f36e97678b6ba429e9e2d9f8885268a8e4fa33a62b314576816e46bd77
+review_date: "2026-09-17"
+review_method: full_queue_source_target_and_checkpoint_review
+expected_source_documents: 710
+expected_source_certified: 645
+expected_source_rejected: 43
+expected_source_review_required: 22
+expected_usable_templates: 645
+expected_excluded_documents: 65
+require_zero_unresolved_reviews: true
+decisions:
+  - document_id: doc_0255517f1e617fed6464f35ab84a9fa4c077cc7719f86c01b1a176eb8bfdd250
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 57, 76, 77, 92]
+    rationale: "The source states one reefer container and a one-container carrier receipt, but neither the OCR text nor the structured target exposes a usable container identity. Keeping it would leave the stated container topology unsupported."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_124c11cf85cf1fa402e51348824fea2a96cfbded9121f803dbccd8096d066344
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [55, 73, 88, 95]
+    rationale: "The shipment and receipt state two containers, but only one distinct container identity is present and that same identity is repeated. One labeled container cannot safely represent the declared two-container topology."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_1b3c9ed4558c92e34ab6fac9d4f54ae7585b8c07a4007d9a5a0c6f830040f997
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [73, 91, 92, 119]
+    rationale: "The shipment and carrier receipt explicitly state two high-cube containers while only one distinct container identity and one structured container are available. The second identity cannot be reconstructed from the task-facing text."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_3ab13906dd6ee8378294f0077c704ce8b2450282649baa6b1d630c5c16ee0ce7
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [48, 50, 82, 83, 195, 196]
+    rationale: "Both repeated document copies state one received container, but no container identity is present in the task-facing text or target. The count therefore cannot be tied to a supported container object."
+    expected_printed_container_counts: [1, 1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_5723662b7be2953f1140f4294ef0df5c556cc7c26813b13cdaceec7d75ab3f8f
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [48, 62, 82, 83]
+    rationale: "The source states two containers but exposes only TCNU3122712 and the target contains only that container. The missing first container identity makes deterministic two-container synthesis impossible."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_593529ea6bd7ad1ccf8b034cf55e25a531edcb5e0e87656518b1fc4fe9a04c49
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [49, 51, 82, 83, 97]
+    rationale: "The source repeatedly declares a two-container shipment, but no container identity is present in the task-facing OCR or structured target. Retaining it would preserve a mutable count with no representable container set."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_5fd776200522129bdbf01a0c7d9ebb32c0b88768247303dfc18544745d3021ca
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [48, 50, 81, 82, 96]
+    rationale: "The source declares two containers while neither the OCR text nor target contains a container identity. The two-container relationship cannot be represented or validated during synthesis."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_626177d0d48950525c01becfa25a93a4975c60c9a5a4338fd4d3b8e434456959
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [48, 50, 81, 82, 93]
+    rationale: "The source declares a two-container shipment and receipt but provides no task-facing container identity and no structured container. The topology is therefore incomplete for synthesis."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_6c9d46df46df0b280756814a6e616cab49926ae43d8658352eaf27227e9f49b7
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [58, 69, 76, 101, 102]
+    rationale: "Two containers are declared, but MEDU9369482 is the only distinct identity and is repeated with two seal pairs; the target consequently collapses the shipment to one container. This is not a safe two-container template."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_6dadb61424d56a5f6c4856326caf800357a20d1b96a0ad3e6f57829c1272ac51
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [65, 102, 103]
+    rationale: "The carrier receipt states one container, but there is no container identity in the OCR text and no structured container. The printed count cannot be synthesized coherently from the target."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_7898a9188454d64b2dd1eddd4df9787795155db63ec174daa80ddc95ebfdf59e
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [40, 42, 74, 75, 88]
+    rationale: "The source declares two containers, but no distinct container identity or structured container is available. The two cargo groups do not supply the missing equipment topology."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_7e7512714b949dbea4cffdaea75aa3f0b55029ab724ace90ec708e7f565beec2
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 98, 99]
+    rationale: "The receipt declares one container while the task-facing source and target provide no container identity. Retention would leave a source-only count disconnected from the training target."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_847672c53d3a2e50ad3e5b1959773403b254d60388102190988e6042b2f97f28
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [46, 48, 80, 81, 98]
+    rationale: "The source states two containers and a two-container receipt, but neither distinct identities nor structured container objects are present. The missing topology cannot be recovered deterministically."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_91ca9561265176ea2dcbb76673c98e5b41a047e5c4d49c2ac8bda4c3f7b4b564
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [54, 87, 88, 107]
+    rationale: "The shipment and receipt state two containers, while only MSDU2809951 and one structured container are available. The absent second identity prevents a complete two-container template."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_9ee31116684283ed07d1cbc29a4451e7e8584d0191cade43b0b001741179b6e8
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:9_vs_5"
+    source_line_numbers: [52, 53, 56, 57, 58, 59, 75, 76]
+    rationale: "The source explicitly declares nine containers but exposes only five distinct identities, matching the five structured containers. Four container identities are absent, so the declared topology is not fully representable."
+    expected_printed_container_counts: [9, 9, 9]
+    expected_labeled_container_count: 5
+    expected_observed_container_identity_count: 5
+  - document_id: doc_a298bbf97ea038f86a1b6af879505190fbae203dcb0cc82d60f9f31dcba7defb
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [42, 44, 68, 69]
+    rationale: "The source declares one container but provides no distinct identity and no structured container. Package facts alone cannot support the missing equipment object."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_b362e747375b7102c2f64838492add721278375758e3c57ae2e57fc098d6ea1b
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 57, 76, 77, 92]
+    rationale: "The document states one reefer container and a one-container receipt, but its task-facing OCR and target contain no container identity. The six cargo package rows do not resolve that missing equipment topology."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_b86f54c52917ece740a812454cf44d8b8056efc50e1f2f9572e7d52fd8153db4
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [54, 59, 96, 97, 110]
+    rationale: "The source states two containers but exposes no distinct container identities and the target has no containers. The two cargo-package quantities cannot substitute for the missing container set."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_e4572aa6ccec4c5184d6aa9ae62d69171f45e55cb296f37a195a24ee673c7fc2
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 98, 99]
+    rationale: "The carrier receipt states one container, while no container identity or structured container is present. Retaining this source would permit an unsupported equipment count in synthesized text."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_e8cebf5567bd89631954159fc34f87a9cb910654e0f500e86039fadf49555949
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [48, 87, 88]
+    rationale: "The receipt declares one container, but no distinct container identity or target container exists. The count is therefore semantically disconnected from the available synthesis target."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_eda9067cb1e7d0988e86501d22033d5f2bf26ec38e265b88bfbe5ab8a3f10d9e
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:3_vs_2"
+    source_line_numbers: [63, 82, 83, 103, 108, 120]
+    rationale: "The source states three containers, but only TLLU5415433 and MSMU5708489 are present as distinct identities; the first rider block has a seal without its container identity. The target likewise contains only two containers."
+    expected_printed_container_counts: [3]
+    expected_labeled_container_count: 2
+    expected_observed_container_identity_count: 2
+  - document_id: doc_11ac17a4963225bdb78247f8c29d8e1a47b79ac942682ce8f459170c37389489
+    resolution: exclude
+    issue_class: compound_package_dependency
+    expected_review_reasons:
+      - "semantic coherence requires review: coherence_constraint_f7ff8fdd773b3f0d: The cargo sentence explicitly states both structured quantities—143 bundles and 581 rolls—while the supplied alternatives each connect the sentence to only one package quantity. No single suggested contract represents the complete two-package relationship without an additional combined suggestion."
+    source_line_numbers: [46, 47, 49, 50, 51]
+    rationale: "The mutable sentence jointly asserts 143 bundles and 581 rolls. The checkpoint binds the sentence as one cargo text value but has no combined dependency contract covering both package quantities, so synthesis could silently introduce an internal contradiction."
+    expected_coherence_constraint_id: coherence_constraint_f7ff8fdd773b3f0d

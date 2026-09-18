@@ -68,6 +68,7 @@ from .host import (
     validate_agent_proposal_paths,
     validate_binding_realizations,
     validate_carrier_assessment,
+    validate_draft_source_alignment,
     validate_mutable_token_boundaries,
     validate_repeated_binding_fact_topology,
     validate_target_binding_relationships,
@@ -376,6 +377,7 @@ def _apply_validated_critic_review(
             source_target=source_target,
         ),
     )
+    validate_draft_source_alignment(raw=raw, drafts=revised)
     validate_carrier_assessment(
         assessment=assessment,
         expected=source_carrier(source_target),
@@ -510,6 +512,7 @@ def _materialize_compiler_drafts(
             source_target=source_target,
         ),
     )
+    validate_draft_source_alignment(raw=raw, drafts=materialized)
     return materialized
 
 
@@ -738,6 +741,7 @@ def _draft_inventory(
 ) -> list[dict[str, Any]]:
     from .host import line_range_for_chars, line_spans
 
+    validate_draft_source_alignment(raw=raw, drafts=drafts)
     lines = line_spans(raw)
     line_by_id = {line.line_id: line for line in lines}
     grouped: dict[str, list[SpanDraft]] = {}
@@ -2814,6 +2818,7 @@ def _state_checkpoint(
     coherence_constraints: Sequence[CoherenceConstraint],
     critic_outputs: Sequence[CriticAgentOutput],
 ) -> ExtractionStateCheckpoint:
+    validate_draft_source_alignment(raw=raw, drafts=drafts)
     return ExtractionStateCheckpoint.model_validate(
         {
             "schema_version": 2,
@@ -2874,11 +2879,7 @@ def _restore_state_checkpoint(
     if checkpoint.source_label_sha256 != sha256_bytes(canonical_json_bytes(source_target)):
         raise ValueError("state checkpoint source-label hash differs")
     raw_drafts = tuple(SpanDraft(**row.model_dump(mode="python")) for row in checkpoint.drafts)
-    for draft in raw_drafts:
-        if raw[draft.char_start : draft.char_end] != draft.source_text:
-            raise ValueError(
-                "state checkpoint draft no longer matches pinned OCR: " + draft.draft_id
-            )
+    validate_draft_source_alignment(raw=raw, drafts=raw_drafts)
     drafts = normalize_source_boundaries(
         raw=raw,
         drafts=normalize_deterministic_draft_semantics(
@@ -2894,6 +2895,7 @@ def _restore_state_checkpoint(
             source_target=source_target,
         ),
     )
+    validate_draft_source_alignment(raw=raw, drafts=drafts)
     validate_target_binding_relationships(drafts=drafts, source_target=source_target)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
     with suppress(CoherenceReviewRequired):

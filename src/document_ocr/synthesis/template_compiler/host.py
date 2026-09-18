@@ -277,6 +277,31 @@ class SpanDraft:
     rationale: str
 
 
+class DraftSourceAlignmentError(ValueError):
+    """A draft's character coordinates do not reproduce its claimed pinned OCR bytes."""
+
+
+def validate_draft_source_alignment(*, raw: str, drafts: Sequence[SpanDraft]) -> None:
+    """Require every draft surface to be the exact character slice it claims to own.
+
+    Drafts pass through several deterministic normalizers after provider output is resolved.
+    Any normalizer that changes a boundary must update ``source_text`` in the same transaction;
+    otherwise downstream occurrence indexing can no longer identify the selected source bytes.
+    Keep this as an explicit state invariant instead of letting a later payload renderer discover
+    the corruption outside the compiler/critic rejection boundary.
+    """
+
+    for draft in drafts:
+        valid_bounds = 0 <= draft.char_start < draft.char_end <= len(raw)
+        pinned_surface = raw[draft.char_start : draft.char_end] if valid_bounds else None
+        if pinned_surface != draft.source_text:
+            raise DraftSourceAlignmentError(
+                f"draft {draft.draft_id} ({draft.logical_key}) source span "
+                f"[{draft.char_start},{draft.char_end}) does not match pinned OCR; "
+                f"claimed={draft.source_text!r}; pinned={pinned_surface!r}"
+            )
+
+
 @dataclass(frozen=True)
 class RequiredTargetCoBinding:
     relationship: str
@@ -16820,6 +16845,7 @@ def validate_binding_realizations(
 ) -> None:
     """Reject mutable bindings whose declared semantics cannot realize their own surfaces."""
 
+    validate_draft_source_alignment(raw=raw, drafts=drafts)
     validate_compact_equipment_locality(raw=raw, drafts=drafts, source_target=source_target)
     quantity_paths = _structured_package_quantity_paths(source_target)
     split_range_errors: list[str] = []
@@ -16995,7 +17021,11 @@ def _source_binding_relationships(
                 if (
                     dependency_key == owner_key
                     or dependency.render_mode == "deterministic_derived"
-                    or len(dependency_surface) < 6
+                    # The shorter value is the embedded identifier regardless of which
+                    # binding owns this loop iteration.  Requiring only the dependency to
+                    # be long admitted incidental one-character/digit overlaps whenever
+                    # the owner happened to be the embedded side.
+                    or min(len(dependency_surface), len(owner_surface)) < 6
                     or len(dependency_surface) == len(owner_surface)
                 ):
                     continue

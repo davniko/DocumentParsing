@@ -1,0 +1,39 @@
+schema_version: 1
+task: bill_of_lading_production_template_catalog_v1
+run_name: mpci-bl-production-template-catalog871-v1
+output_dir: artifacts/kie-synthesis-production/template-base/catalogs
+shards:
+  - catalog_run:
+      path: artifacts/kie-synthesis/mpci-bl-compiled-template-catalog230-semantic-v4
+      commit_sha256: 61c5e1ced535352c4395ca6d4eb6bc9d5e2a05ab7f211d6ca1a7d24a2e415e8e
+      transaction_sha256: e92bd190a5ad449b98a95757a05f3b60afecd21dd2f0e6cbab74b49184e0649a
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/prior230/manual-review-resolutions/mpci-bl-template-compilation-prior200-manual-resolved-v1
+      commit_sha256: d876b38f664ba8b680530fde03fc6a91c191a7858f45f9f871fa359f861f51f0
+      transaction_sha256: 9a37ebec0db3b5d6ee4e09b10ae27aba9643e04517f635ffeb8c692d90d7dbc1
+    outcomes_file: outcomes.jsonl
+    resolution_scope: review_subset
+    expected_documents: 230
+    expected_certified: 226
+    expected_rejected: 0
+    expected_review_required: 4
+  - catalog_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/mpci-bl-template-compilation-remaining710-a-v1-luna-high
+      commit_sha256: 2248783f564ff5000601e8cfa9a621f5a93e3f73d4e6d324c62dd86dc5fd4b2d
+      transaction_sha256: 4382e0f36e97678b6ba429e9e2d9f8885268a8e4fa33a62b314576816e46bd77
+    resolution_run:
+      path: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions/mpci-bl-template-compilation-remaining710-a-manual-resolved-v1
+      commit_sha256: f54be22220a7867a0abc8d9dfc97342ee087f9ad9b1ce217a142626b3c95f940
+      transaction_sha256: f50930ab4d54fea22dc15b51a2c497fc35b8b9bf60f0c032bbc7cbd64b468669
+    outcomes_file: results.jsonl
+    resolution_scope: complete_source
+    expected_documents: 710
+    expected_certified: 645
+    expected_rejected: 43
+    expected_review_required: 22
+expected_source_documents: 940
+expected_usable_templates: 871
+expected_excluded_documents: 69
+require_current_template_schema: 6
+require_zero_unresolved_reviews: true
+require_disjoint_shards: true

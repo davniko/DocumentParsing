@@ -15,24 +15,31 @@ class GeoProfile:
     city: str
     country: str
     country_code: str
+    alpha3: str
+    calling_code: str
+    locode: str
     region: str
     region_code: str
     postal_code: str
 
 
 _GEOGRAPHIES = (
-    GeoProfile("Valencia", "Spain", "ES", "Valencian Community", "VC", "46011"),
-    GeoProfile("Rotterdam", "Netherlands", "NL", "South Holland", "ZH", "3011"),
-    GeoProfile("Hamburg", "Germany", "DE", "Hamburg", "HH", "20457"),
-    GeoProfile("Gdansk", "Poland", "PL", "Pomeranian", "PM", "80-001"),
-    GeoProfile("Izmir", "Turkey", "TR", "Izmir", "IZ", "35210"),
-    GeoProfile("Busan", "South Korea", "KR", "Busan", "BS", "48940"),
-    GeoProfile("Singapore", "Singapore", "SG", "Singapore", "SG", "089763"),
-    GeoProfile("Antwerp", "Belgium", "BE", "Antwerp", "AN", "2000"),
-    GeoProfile("Savannah", "United States", "US", "Georgia", "GA", "31401"),
-    GeoProfile("Montreal", "Canada", "CA", "Quebec", "QC", "H3B 2Y5"),
-    GeoProfile("Santos", "Brazil", "BR", "Sao Paulo", "SP", "11013-922"),
-    GeoProfile("Auckland", "New Zealand", "NZ", "Auckland", "AUK", "1010"),
+    GeoProfile(
+        "Valencia", "Spain", "ES", "ESP", "34", "ESVLC", "Valencian Community", "VC", "46011"
+    ),
+    GeoProfile(
+        "Rotterdam", "Netherlands", "NL", "NLD", "31", "NLRTM", "South Holland", "ZH", "3011"
+    ),
+    GeoProfile("Hamburg", "Germany", "DE", "DEU", "49", "DEHAM", "Hamburg", "HH", "20457"),
+    GeoProfile("Gdansk", "Poland", "PL", "POL", "48", "PLGDN", "Pomeranian", "PM", "80-001"),
+    GeoProfile("Izmir", "Turkey", "TR", "TUR", "90", "TRIZM", "Izmir", "IZ", "35210"),
+    GeoProfile("Busan", "South Korea", "KR", "KOR", "82", "KRPUS", "Busan", "BS", "48940"),
+    GeoProfile("Singapore", "Singapore", "SG", "SGP", "65", "SGSIN", "Singapore", "SG", "089763"),
+    GeoProfile("Antwerp", "Belgium", "BE", "BEL", "32", "BEANR", "Antwerp", "AN", "2000"),
+    GeoProfile("Savannah", "United States", "US", "USA", "1", "USSAV", "Georgia", "GA", "31401"),
+    GeoProfile("Montreal", "Canada", "CA", "CAN", "1", "CAMTR", "Quebec", "QC", "H3B 2Y5"),
+    GeoProfile("Santos", "Brazil", "BR", "BRA", "55", "BRSSZ", "Sao Paulo", "SP", "11013-922"),
+    GeoProfile("Auckland", "New Zealand", "NZ", "NZL", "64", "NZAKL", "Auckland", "AUK", "1010"),
 )
 
 _ORGANIZATION_PREFIXES = (
@@ -162,10 +169,27 @@ class DeterministicValueFactory:
     def geography(self, binding: SemanticBinding) -> GeoProfile:
         return self.geography_for_identity(binding.group_key)
 
-    def geography_for_identity(self, identity: str) -> GeoProfile:
+    def geography_for_identity(
+        self,
+        identity: str,
+        *,
+        calling_code_width: int | None = None,
+        country_name_width: int | None = None,
+    ) -> GeoProfile:
+        candidates = tuple(
+            geography
+            for geography in _GEOGRAPHIES
+            if (calling_code_width is None or len(geography.calling_code) == calling_code_width)
+            and (
+                country_name_width is None
+                or len(_normalized(geography.country)) == country_name_width
+            )
+        )
+        if not candidates:
+            raise ValueError("no synthetic geography satisfies the certified country-code surface")
         identity = "geo:" + identity
-        index = self._stream.derive(identity).randbelow(len(_GEOGRAPHIES))
-        return _GEOGRAPHIES[index]
+        index = self._stream.derive(identity).randbelow(len(candidates))
+        return candidates[index]
 
     def organization(self, binding: SemanticBinding) -> str:
         return self.organization_for_identity(binding.group_key)
@@ -196,8 +220,18 @@ class DeterministicValueFactory:
         street = self._select(_STREET_NAMES, "street:" + binding.group_key)
         return f"{number} {street}, {geo.postal_code} {geo.city}"
 
-    def address_for_identity(self, identity: str) -> str:
-        geo = self.geography_for_identity(identity)
+    def address_for_identity(
+        self,
+        identity: str,
+        *,
+        calling_code_width: int | None = None,
+        country_name_width: int | None = None,
+    ) -> str:
+        geo = self.geography_for_identity(
+            identity,
+            calling_code_width=calling_code_width,
+            country_name_width=country_name_width,
+        )
         number = 10 + self._stream.derive("address:" + identity).randbelow(890)
         street = self._select(_STREET_NAMES, "street:" + identity)
         return f"{number} {street}, {geo.postal_code} {geo.city}"
@@ -251,6 +285,8 @@ class DeterministicValueFactory:
         entity: AuxiliaryEntity,
         member: AuxiliaryEntityMember,
         country_codes: Mapping[str, str],
+        calling_code_width: int | None = None,
+        country_name_width: int | None = None,
     ) -> str | None:
         """Return one field from a canonical auxiliary entity.
 
@@ -302,11 +338,19 @@ class DeterministicValueFactory:
             return self.person_for_identity(entity.entity_id) if field == "contact_name" else None
 
         identity = entity.entity_id
-        geo = self.geography_for_identity(identity)
+        geo = self.geography_for_identity(
+            identity,
+            calling_code_width=calling_code_width,
+            country_name_width=country_name_width,
+        )
         if field == "name":
             return self.organization_for_identity(identity)
         if field == "address":
-            return self.address_for_identity(identity)
+            return self.address_for_identity(
+                identity,
+                calling_code_width=calling_code_width,
+                country_name_width=country_name_width,
+            )
         if field == "city":
             return geo.city
         if field == "region":

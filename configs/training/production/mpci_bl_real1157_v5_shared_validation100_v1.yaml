@@ -1,0 +1,24 @@
+schema_version: 1
+projection: relation_v3_real_split_to_v5_v1
+
+source:
+  path: artifacts/kie-training/datasets/mpci-bl-combined1157-task-facing-package-categories-v2/records.jsonl
+  sha256: 2a3e2ea3231cfff7674e85b54a52f66d0fee98b59b207bc7b04fe0f9916dfc42
+  records: 1157
+
+baseline_dataset_report:
+  path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+  sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+
+validation:
+  records: 100
+  document_ids_sha256: 25f01f196a83be1f71e36dc998b56392c70ac3cd509b6a091bfc533591b7c677
+
+corrections:
+  - document_id: doc_243706979d0c12ffcdcd311dc31d417d9baf5c738232797cfef21ec20ade8bab
+    input_sha256: 12b24ad2c4488f3fd1fe5af70d73c1d921000325d4d90ebe1afaf3f6d2c1e1f9
+    evidence_text: "Cargo is stowed in a refrigerated container set at the shipper's requested carrying temperature of -18 degrees Celsius."
+    container_index: 0
+    type_description: refrigerated container
+
+output_dir: artifacts/kie-training/datasets/mpci-bl-real1157-v5-shared-validation100-v1

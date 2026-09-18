@@ -1,0 +1,31 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v5
+
+# Build one immutable output-vocabulary contract for both comparison arms. The
+# shared contract keeps their prompts identical while covering every category
+# present in the real train/validation split and either synthetic corpus.
+sources:
+  - path: artifacts/kie-training/datasets/mpci-bl-real1157-v5-shared-validation100-v1/train.jsonl
+    sha256: 7997bd97e4e9f8c3c98fbf04149e58b94a0704aaced3e694f94193f1e63d696e
+    records: 1057
+  - path: artifacts/kie-training/datasets/mpci-bl-real1157-v5-shared-validation100-v1/validation.jsonl
+    sha256: ad8b91101922365fd7314d2030e230ab71c3592893095a0d0897fa8d76969dfe
+    records: 100
+  - path: artifacts/kie-synthesis-production/synthesis-runs/mpci-bl-production-compiled-synthesis10000-exact-validation-id-v2-offline-replay/dataset/records.jsonl
+    sha256: c4173c04aba4c32027e11afd03bccd1e30bf71c5c8374f5ea53bd3798cf793a9
+    records: 10000
+  - path: artifacts/kie-synthesis-production/synthesis-runs/mpci-bl-production-compiled-synthesis10000-layout-proxy-holdout-v1/dataset/records.jsonl
+    sha256: 0cffa4faa5305b546ebf8669495fc5ec76349250bad9439285e134d452fbff6c
+    records: 10000
+
+target_field: target
+
+package_registry:
+  path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+  sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+
+container_registry:
+  path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+  sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+
+output_dir: artifacts/kie-training/datasets/mpci-bl-relation-v5-real1157-synthetic20000-constraints-v1

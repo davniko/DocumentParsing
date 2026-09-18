@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -10,9 +11,11 @@ from document_ocr.synthesis.template_compiler.descendant_eda import (
     DescendantEdaConfig,
     ManualReview,
     _change_family,
+    _compilation_lineage,
     _exporter_country_surfaces,
     _number_contradictions,
     _rows_frame,
+    _stage_analysis,
 )
 
 
@@ -76,6 +79,22 @@ def test_manual_review_rejects_duplicate_documents() -> None:
         ManualReview.model_validate_json(json.dumps(payload))
 
 
+def test_manual_review_accepts_planned_v5_variant_origin() -> None:
+    entry = _review_entry()
+    entry["target_origin"] = "planned_v5_controlled_source_variant"
+    payload = {
+        "schema_version": 1,
+        "run": _pin("descendant"),
+        "template_catalog": _pin("catalog"),
+        "selection_method": "purposive stress sample",
+        "reviews": [entry],
+    }
+
+    review = ManualReview.model_validate_json(json.dumps(payload))
+
+    assert review.reviews[0].target_origin == "planned_v5_controlled_source_variant"
+
+
 def test_manual_review_requires_review_decision_for_coherence_concern() -> None:
     entry = _review_entry()
     entry["quality_decision"] = "pass"
@@ -122,6 +141,37 @@ def test_empty_analysis_rows_retain_their_declared_table_schema() -> None:
 
     assert frame.empty
     assert tuple(frame.columns) == ("document_id", "line_number", "kind")
+
+
+def test_production_catalog_lineage_uses_catalog_run() -> None:
+    assert (
+        _compilation_lineage(
+            {"catalogRun": "artifacts/compilation-production"}, document_id="doc_a"
+        )
+        == "artifacts/compilation-production"
+    )
+
+
+def test_live_stage_analysis_has_no_replay_dependency(tmp_path: Path) -> None:
+    (tmp_path / "agent-stage.json").write_text(
+        json.dumps({"document_id": "sample_a", "output": {"slot_a": "VALUE"}}),
+        encoding="utf-8",
+    )
+
+    analysis = _stage_analysis(tmp_path, document_id="sample_a")
+
+    assert analysis["source_output_slot_count"] == 1
+    assert analysis["replayed_output_slot_count"] == 1
+    assert analysis["dropped_output_slot_count"] == 0
+
+
+def test_stage_analysis_rejects_ambiguous_live_and_replay_artifacts(tmp_path: Path) -> None:
+    stage = json.dumps({"document_id": "sample_a", "output": None})
+    (tmp_path / "agent-stage.json").write_text(stage, encoding="utf-8")
+    (tmp_path / "source-agent-stage.json").write_text(stage, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="exactly one agent-stage"):
+        _stage_analysis(tmp_path, document_id="sample_a")
 
 
 def test_exporter_country_surface_supports_inline_and_split_layouts() -> None:

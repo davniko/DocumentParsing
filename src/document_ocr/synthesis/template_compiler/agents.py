@@ -2262,6 +2262,14 @@ class AgentRuntime:
             prior = CompilerAgentOutput.model_validate_json(
                 json.dumps(prior_candidate, ensure_ascii=False, separators=(",", ":"))
             )
+            repair_system_prompt = (
+                cast(str, repair_prompt)
+                if self._agent_contract_protocol in _STAGED_PROTOCOLS
+                else (
+                    f"{system_prompt}\n\n{_DISCRIMINATED_BINDING_ADAPTER}\n\n"
+                    f"{_COMPILER_REPAIR_ADAPTER}"
+                )
+            )
             if self._agent_contract_protocol in _LOCAL_COMPILER_REPAIR_PROTOCOLS:
                 try:
                     repair_payload = build_local_compiler_repair_payload(payload, prior)
@@ -2269,27 +2277,49 @@ class AgentRuntime:
                     return None, _local_contract_error_stage(
                         role="compiler",
                         pass_number=pass_number,
-                        system_prompt=cast(str, repair_prompt),
+                        system_prompt=repair_system_prompt,
                         payload=payload,
                         operation="local_compiler_repair_projection",
                         error=error,
                     )
-                candidate_slice = cast(Mapping[str, Any], repair_payload["candidateSlice"])
-                repair_output_type = _scoped_compiler_repair_output_type(
-                    prior,
-                    removable_binding_keys=cast(
-                        Sequence[str], candidate_slice["removableBindingKeys"]
-                    ),
-                    removable_anchor_ids=cast(
-                        Sequence[str], candidate_slice["removableAnchorOverrideIds"]
-                    ),
-                    removable_semantic_paths=cast(
-                        Sequence[str], candidate_slice["removableSemanticOnlyTargetPaths"]
-                    ),
-                    addable_anchor_ids=_compiler_repair_addable_anchor_ids(repair_payload, prior),
-                )
+                try:
+                    candidate_slice = cast(Mapping[str, Any], repair_payload["candidateSlice"])
+                    repair_output_type = _scoped_compiler_repair_output_type(
+                        prior,
+                        removable_binding_keys=cast(
+                            Sequence[str], candidate_slice["removableBindingKeys"]
+                        ),
+                        removable_anchor_ids=cast(
+                            Sequence[str], candidate_slice["removableAnchorOverrideIds"]
+                        ),
+                        removable_semantic_paths=cast(
+                            Sequence[str], candidate_slice["removableSemanticOnlyTargetPaths"]
+                        ),
+                        addable_anchor_ids=_compiler_repair_addable_anchor_ids(
+                            repair_payload, prior
+                        ),
+                    )
+                except ValueError as error:
+                    return None, _local_contract_error_stage(
+                        role="compiler",
+                        pass_number=pass_number,
+                        system_prompt=repair_system_prompt,
+                        payload=payload,
+                        operation="local_compiler_repair_schema",
+                        error=error,
+                    )
             else:
-                repair_output_type = _scoped_compiler_repair_output_type(prior)
+                try:
+                    repair_output_type = _scoped_compiler_repair_output_type(prior)
+                except ValueError as error:
+                    return None, _local_contract_error_stage(
+                        role="compiler",
+                        pass_number=pass_number,
+                        system_prompt=repair_system_prompt,
+                        payload=payload,
+                        operation="compiler_repair_schema",
+                        error=error,
+                    )
                 repair_payload = dict(payload)
             repair_payload["repairInstruction"] = (
                 "Return only the local patch required by the repair response schema. Do not "
@@ -2321,14 +2351,7 @@ class AgentRuntime:
             repair, artifact = await self._call(
                 role="compiler",
                 pass_number=pass_number,
-                system_prompt=(
-                    cast(str, repair_prompt)
-                    if self._agent_contract_protocol in _STAGED_PROTOCOLS
-                    else (
-                        f"{system_prompt}\n\n{_DISCRIMINATED_BINDING_ADAPTER}\n\n"
-                        f"{_COMPILER_REPAIR_ADAPTER}"
-                    )
-                ),
+                system_prompt=repair_system_prompt,
                 payload=repair_payload,
                 output_type=repair_output_type,
                 output_name="carrier_bound_template_compiler_repair_v2",

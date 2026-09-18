@@ -107,8 +107,14 @@ def test_aggregate_range_target_adaptation_preserves_members_and_exact_total() -
     logical_keys = tuple(f"marks:{index}" for index in range(4))
     template = SimpleNamespace(
         bindings=tuple(
-            SimpleNamespace(logical_key=key, target_paths=(path,))
-            for key, path in zip(logical_keys, paths, strict=True)
+            SimpleNamespace(
+                logical_key=key,
+                target_paths=(path,),
+                realization=SimpleNamespace(
+                    target_values=(SimpleNamespace(target_path=path, source_value=source_value),)
+                ),
+            )
+            for key, path, source_value in zip(logical_keys, paths, source_values, strict=True)
         ),
         coherence_constraints=(
             AggregateRangeConstraint(
@@ -205,6 +211,150 @@ def test_identifier_renderer_transfers_a_unique_certified_ocr_omission() -> None
 def test_identifier_renderer_rejects_an_ambiguous_ocr_omission() -> None:
     with pytest.raises(ValueError, match="absent or ambiguous"):
         descendant._unique_subsequence_indices("AAB", "AB")
+
+
+@pytest.mark.parametrize(
+    ("canonical", "surface", "target"),
+    (
+        ("0NVI8N1MA", "0NV18N1MA", "3ONC5S3TG"),
+        ("OBEK3W1MA", "0BEK3W1MA", "SPSC2E4PH"),
+        ("MC00034672", "MCO0034672", "MR66512942"),
+    ),
+)
+def test_identifier_renderer_preserves_certified_ocr_substitution_shape(
+    canonical: str,
+    surface: str,
+    target: str,
+) -> None:
+    projected = descendant._project_identifier_occurrence(
+        source_canonical=canonical,
+        source_surface=surface,
+        target_canonical=target,
+    )
+    rendered = descendant._shape_alphanumeric_like_source(surface, projected)
+
+    assert descendant.surface_pattern(rendered) == descendant.surface_pattern(surface)
+    assert rendered != target
+
+
+def test_identifier_renderer_preserves_a_literal_prefix_outside_the_canonical_value() -> None:
+    projected = descendant._project_identifier_occurrence(
+        source_canonical="15870Rev2/2024",
+        source_surface="NO15870Rev2/2024",
+        target_canonical="12994Nvf2/7263",
+    )
+
+    assert projected == "NO12994Nvf27263"
+
+
+def test_identifier_renderer_resolves_a_repeated_trailing_ocr_omission_by_position() -> None:
+    projected = descendant._project_identifier_occurrence(
+        source_canonical="AD2201104444",
+        source_surface="AD220110444",
+        target_canonical="BF9384037507",
+    )
+
+    assert projected == "BF938403750"
+
+
+def test_extended_date_grammars_cover_agent_and_timestamp_surfaces() -> None:
+    assert descendant._date_candidates("MAY. 20, 2020") == frozenset({date(2020, 5, 20)})
+    assert descendant._date_candidates("BARCELONA, APRIL 22ND 2026") == frozenset(
+        {date(2026, 4, 22)}
+    )
+    assert descendant._date_candidates("FEBRUARY TWENTY-NINTH, 2020") == frozenset(
+        {date(2020, 2, 29)}
+    )
+    assert descendant._date_candidates("SEP. 7,2027") == frozenset({date(2027, 9, 7)})
+    assert descendant._date_candidates("03 AUG 2029") == frozenset({date(2029, 8, 3)})
+    assert (
+        descendant._render_date_surface(
+            "11/28/2023 12:00:00 AM",
+            "2023-11-28",
+            "2025-07-10",
+        )
+        == "07/10/2025 12:00:00 AM"
+    )
+
+
+def test_source_only_number_word_auxiliary_preserves_grammar_and_plurality() -> None:
+    binding = SimpleNamespace(
+        logical_key="agent:total_container_assertion_source_only",
+        occurrences=(SimpleNamespace(slot_id="slot_count", source_text="ONE CONTAINER"),),
+    )
+
+    output = descendant._render_number_word_auxiliary(
+        binding,
+        descendant.DeterministicStream(20260917, "test", "number-word"),
+    )
+
+    assert output.canonical_value != 1
+    assert output.replacements["slot_count"].endswith(" CONTAINERS")
+    assert output.replacements["slot_count"].isupper()
+
+
+def test_indexed_whole_container_receipt_is_rendered_without_inventing_an_identifier() -> None:
+    binding = SimpleNamespace(
+        derivation=None,
+        value_kind="equipment",
+        target_paths=("documentPatch.containers[0]",),
+        dependency_paths=(),
+        occurrences=(SimpleNamespace(slot_id="slot_receipt", source_text="01X40'HC"),),
+    )
+    source_target = {
+        "documentPatch": {
+            "containers": [{"containerNumber": "FBIU5385937", "typeDescription": "40RF"}]
+        }
+    }
+    target = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "FBIU5385937",
+                    "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+                    "typeCategory": "REFRIGERATED",
+                }
+            ]
+        }
+    }
+
+    output = descendant._render_equipment_receipt_binding(
+        binding,
+        source_target=source_target,
+        target=target,
+    )
+
+    assert output.replacements == {"slot_receipt": "01X40'RE"}
+    assert "FBIU5385937" not in output.replacements["slot_receipt"]
+
+
+def test_explicit_unknown_identifier_placeholder_is_provider_free() -> None:
+    binding = SimpleNamespace(
+        logical_key="agent:customs:importer_tax_id",
+        target_paths=(),
+        value_kind="identifier",
+        occurrences=(SimpleNamespace(source_text="??"),),
+    )
+
+    assert descendant._explicit_unknown_placeholder(binding)
+    assert descendant._binding_route(binding, {}) == (
+        "deterministic",
+        "explicit source placeholder is preserved without invented identity",
+    )
+
+
+def test_entity_geography_can_be_constrained_by_country_code_surface_width() -> None:
+    values = descendant.DeterministicValueFactory(
+        seed=20260917,
+        document_id="doc_country_code_width",
+        target={},
+    )
+
+    calling = values.geography_for_identity("exporter", calling_code_width=2)
+    named = values.geography_for_identity("exporter", country_name_width=5)
+
+    assert len(calling.calling_code) == 2
+    assert named.country == "Spain"
 
 
 def test_unchanged_static_target_is_accepted_from_certified_source_surfaces() -> None:
@@ -410,7 +560,7 @@ def test_legacy_equipment_surface_retains_reviewed_semantics_when_target_does_no
     }
 
 
-def test_unrenderable_ocr_variant_identifier_reverts_to_certified_value(
+def test_agent_routed_identifier_is_not_silently_reverted_before_rendering(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = "documentPatch.transport.voyageNumber"
@@ -448,9 +598,8 @@ def test_unrenderable_ocr_variant_identifier_reverts_to_certified_value(
         ),
     )
 
-    assert target["documentPatch"]["transport"]["voyageNumber"] == source_value
-    assert len(adaptations) == 1
-    assert adaptations[0].target_path == path
+    assert target["documentPatch"]["transport"]["voyageNumber"] == "7OZL4Q4EP"
+    assert adaptations == ()
 
 
 def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
@@ -1424,6 +1573,7 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
     )
     case = SimpleNamespace(
         document_id="doc_test",
+        source_document_id="doc_test",
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
         target=_target(9),

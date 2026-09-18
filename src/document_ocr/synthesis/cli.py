@@ -111,6 +111,15 @@ def main() -> None:
         "validate-template-recertification-config",
         "preflight-template-recertification",
         "recertify-template-catalog",
+        "validate-template-review-resolution-config",
+        "preflight-template-review-resolution",
+        "resolve-template-reviews",
+        "validate-production-template-catalog-config",
+        "preflight-production-template-catalog",
+        "build-production-template-catalog",
+        "validate-production-synthesis-plan-config",
+        "preflight-production-synthesis-plan",
+        "build-production-synthesis-plan",
         "validate-compiled-raw-text-pipeline-config",
         "preflight-compiled-raw-text-pipeline",
         "run-compiled-raw-text-pipeline",
@@ -160,6 +169,38 @@ def main() -> None:
             )
 
             template_recertification_config = load_recertification_config(config_path)
+        elif arguments.command in {
+            "validate-template-review-resolution-config",
+            "preflight-template-review-resolution",
+            "resolve-template-reviews",
+        }:
+            from document_ocr.synthesis.template_compiler.review_resolution import (
+                load_review_resolution_config,
+            )
+
+            template_review_resolution_config = load_review_resolution_config(config_path)
+        elif arguments.command in {
+            "validate-production-template-catalog-config",
+            "preflight-production-template-catalog",
+            "build-production-template-catalog",
+        }:
+            from document_ocr.synthesis.template_compiler.production_catalog import (
+                load_production_catalog_config,
+            )
+
+            production_template_catalog_config = load_production_catalog_config(config_path)
+        elif arguments.command in {
+            "validate-production-synthesis-plan-config",
+            "preflight-production-synthesis-plan",
+            "build-production-synthesis-plan",
+        }:
+            from document_ocr.synthesis.template_compiler.production_synthesis import (
+                load_production_synthesis_plan_config,
+            )
+
+            production_synthesis_plan_config = load_production_synthesis_plan_config(
+                config_path
+            )
         elif arguments.command in {
             "validate-compiled-raw-text-pipeline-config",
             "preflight-compiled-raw-text-pipeline",
@@ -326,7 +367,136 @@ def main() -> None:
             preparation_config = load_synthesis_preparation_config(config_path)
         else:
             foundation_config = load_synthesis_foundation_config(config_path)
-        if arguments.command == "validate-template-recertification-config":
+        if arguments.command == "validate-production-synthesis-plan-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": production_synthesis_plan_config.run_name,
+                "documents": production_synthesis_plan_config.selection.documents,
+                "exclusion_mode": (
+                    production_synthesis_plan_config.selection.exclusion_mode
+                ),
+                "target_schema_version": (
+                    production_synthesis_plan_config.target_schema_version
+                ),
+            }
+        elif arguments.command == "preflight-production-synthesis-plan":
+            from document_ocr.synthesis.template_compiler.production_synthesis import (
+                preflight_production_synthesis_plan,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_production_synthesis_plan(
+                    project_root=project_root,
+                    config_path=config_path,
+                ),
+            }
+        elif arguments.command == "build-production-synthesis-plan":
+            from document_ocr.synthesis.template_compiler.production_synthesis import (
+                build_production_synthesis_plan,
+            )
+
+            artifact_root = build_production_synthesis_plan(
+                project_root=project_root,
+                config_path=config_path,
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("production synthesis plan summary must be an object")
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(artifact_root),
+                "documents": summary["documents"],
+                "eligible_templates": summary["eligibleTemplates"],
+                "selected_templates": summary["selectedTemplates"],
+                "exclusion_mode": summary["exclusionMode"],
+            }
+        elif arguments.command == "validate-production-template-catalog-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": production_template_catalog_config.run_name,
+                "source_documents": (production_template_catalog_config.expected_source_documents),
+                "usable_templates": (production_template_catalog_config.expected_usable_templates),
+            }
+        elif arguments.command == "preflight-production-template-catalog":
+            from document_ocr.synthesis.template_compiler.production_catalog import (
+                preflight_production_template_catalog,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_production_template_catalog(
+                    project_root=project_root,
+                    config_path=config_path,
+                ),
+            }
+        elif arguments.command == "build-production-template-catalog":
+            from document_ocr.synthesis.template_compiler.production_catalog import (
+                build_production_template_catalog,
+            )
+
+            artifact_root = build_production_template_catalog(
+                project_root=project_root,
+                config_path=config_path,
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("production template catalog summary must be an object")
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(artifact_root),
+                "source_documents": summary["sourceDocuments"],
+                "usable_templates": summary["usableTemplates"],
+                "excluded_documents": summary["excludedDocuments"],
+            }
+        elif arguments.command == "validate-template-review-resolution-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": template_review_resolution_config.run_name,
+                "source_documents": (template_review_resolution_config.expected_source_documents),
+                "manual_decisions": len(template_review_resolution_config.decisions),
+            }
+        elif arguments.command == "preflight-template-review-resolution":
+            from document_ocr.synthesis.template_compiler.review_resolution import (
+                preflight_review_resolution,
+            )
+
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "result": preflight_review_resolution(
+                    project_root=project_root,
+                    config_path=config_path,
+                ),
+            }
+        elif arguments.command == "resolve-template-reviews":
+            from document_ocr.synthesis.template_compiler.review_resolution import (
+                resolve_template_reviews,
+            )
+
+            artifact_root = resolve_template_reviews(
+                project_root=project_root,
+                config_path=config_path,
+            )
+            summary = json.loads(read_regular_file_bytes(artifact_root / "summary.json"))
+            if not isinstance(summary, dict):
+                raise ValueError("template review-resolution summary must be an object")
+            result = {
+                "command": arguments.command,
+                "status": "complete",
+                "artifact": str(artifact_root),
+                "usable_templates": summary["usableTemplates"],
+                "excluded_documents": summary["excludedDocuments"],
+                "unresolved_reviews": summary["unresolvedReviews"],
+            }
+        elif arguments.command == "validate-template-recertification-config":
             result = {
                 "command": arguments.command,
                 "status": "valid",

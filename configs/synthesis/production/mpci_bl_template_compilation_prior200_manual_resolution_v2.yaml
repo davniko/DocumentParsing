@@ -1,0 +1,60 @@
+schema_version: 1
+task: bill_of_lading_template_manual_review_resolution_v1
+run_name: mpci-bl-template-compilation-prior200-manual-resolved-v2
+output_dir: artifacts/kie-synthesis-production/template-base/prior230/manual-review-resolutions
+source_run:
+  path: artifacts/kie-synthesis/mpci-bl-template-compilation200-production-v4-luna-high
+  commit_sha256: 5b35f5a35f94634c0a8d2ee0ea84e40092b30cf41df393e62d3133e5f320a5d6
+  transaction_sha256: 846a1c84b24ed23b0b40cddf521cc5514c5a24710d208164f56d56bd59406cae
+certified_catalog_run:
+  path: artifacts/kie-synthesis/mpci-bl-compiled-template-catalog230-semantic-v4
+  commit_sha256: 61c5e1ced535352c4395ca6d4eb6bc9d5e2a05ab7f211d6ca1a7d24a2e415e8e
+  transaction_sha256: e92bd190a5ad449b98a95757a05f3b60afecd21dd2f0e6cbab74b49184e0649a
+review_date: "2026-09-17"
+review_method: full_queue_source_target_and_checkpoint_review
+expected_source_documents: 200
+expected_source_certified: 196
+expected_source_rejected: 0
+expected_source_review_required: 4
+expected_usable_templates: 196
+expected_excluded_documents: 4
+require_zero_unresolved_reviews: true
+decisions:
+  - document_id: doc_a90ab0d2fd176a156b84f8fdb95a7c5c3977f31bffb100084f3da6344f285578
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:4_vs_3"
+    source_line_numbers: [71, 82, 91, 115, 254, 265, 274, 298, 435, 446, 455, 480, 618, 629, 638, 663, 799, 810, 819, 844, 981, 993, 1003, 1023]
+    rationale: "Six repeated copies each state a four-container carrier receipt, but every copy exposes the same three distinct identities and the structured target contains only those three containers. A fourth identity and its container-level facts are absent, so the declared topology cannot be synthesized without invention."
+    expected_printed_container_counts: [4, 4, 4, 4, 4, 4]
+    expected_labeled_container_count: 3
+    expected_observed_container_identity_count: 3
+  - document_id: doc_199bc5ec47e2764977d00a9c8220df9ed05d8959ffcef1e2411623751eaf575b
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1"
+    source_line_numbers: [58, 97, 98]
+    rationale: "The source declares two 20-foot reefer containers but exposes only CXRU1276914 and the target contains one container. The missing second identity prevents a complete two-container template."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 1
+    expected_observed_container_identity_count: 1
+  - document_id: doc_7b49e26bda0d593c042f49cf508046de20157fe3e0efd9c891b421cbc270f805
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:5_vs_3"
+    source_line_numbers: [58, 60, 115, 117]
+    rationale: "The source declares five 40-foot containers but exposes only TRHU5054884, TGBU9326903, and MSMU7977466, matching the target's three containers. Two identities and their container-level facts are absent."
+    expected_printed_container_counts: [5]
+    expected_labeled_container_count: 3
+    expected_observed_container_identity_count: 3
+  - document_id: doc_d37684b330776f5ac77e8be0fa064f0fca82c3f48a6c1b1aaf84bf8a49d5b485
+    resolution: exclude
+    issue_class: compound_package_dependency
+    expected_review_reasons:
+      - "semantic coherence requires review: coherence_constraint_01a7c9ba5d6cb5a1: The L00048 loadability quantity 1125 is printed once and coincides with both allocation quantities, but the source does not identify whether it deliberately represents allocation 0, allocation 1, or an independent loadability fact. The relationship is therefore unresolved rather than safely applicable to either suggested dependency."
+    source_line_numbers: [39, 40, 43, 44, 48]
+    rationale: "The single loadability statement says 1125 cartons per 20-foot container while both container allocations independently contain 1125 cartons. The compiled alternatives do not establish whether this surface is a shared derivation across both allocations or an independent fact, so choosing either binding would be an unsupported semantic edit."
+    expected_coherence_constraint_id: coherence_constraint_01a7c9ba5d6cb5a1

@@ -740,20 +740,14 @@ def validate_auxiliary_semantic_plan(
         for key in number_fact.member_logical_keys:
             values = tuple(composite_number_surface(text) for text in _source_texts(by_key[key]))
             if not values or any(value != number_fact.value for value in values):
-                raise ValueError(
-                    f"composite-number source no longer matches {number_fact.fact_id}"
-                )
+                raise ValueError(f"composite-number source no longer matches {number_fact.fact_id}")
     for sequence_fact in plan.document_sequences:
         expected_sequences = {
             row.logical_key: (row.index, sequence_fact.total) for row in sequence_fact.members
         }
         for key, expected_sequence in expected_sequences.items():
-            sequence_values = tuple(
-                sequence_surface(text) for text in _source_texts(by_key[key])
-            )
-            if not sequence_values or any(
-                value != expected_sequence for value in sequence_values
-            ):
+            sequence_values = tuple(sequence_surface(text) for text in _source_texts(by_key[key]))
+            if not sequence_values or any(value != expected_sequence for value in sequence_values):
                 raise ValueError(
                     f"document-sequence source no longer matches {sequence_fact.fact_id}"
                 )
@@ -791,7 +785,11 @@ def validate_auxiliary_render(
             canonical = getattr(output, "canonical_value", None)
             if isinstance(canonical, str) and canonical.strip():
                 values_by_field[member.field].append(canonical)
-        for field in ("name", "address", "city", "region", "postal_code", "country"):
+        # An address can be split across several independently owned physical lines (street,
+        # postal locality, building, and so on).  Those canonical fragments are complementary,
+        # not conflicting duplicate scalar values.  Target-linked full addresses are still
+        # checked member-by-member against the structured party below.
+        for field in ("name", "city", "region", "postal_code", "country"):
             normalized = {_normalized(value) for value in values_by_field.get(field, [])}
             if len(normalized) > 1:
                 raise ValueError(
@@ -835,9 +833,7 @@ def validate_auxiliary_render(
                 composite_number_surface(replacements[slot.slot_id]) for slot in binding.occurrences
             )
             if not values or any(value != number_fact.value for value in values):
-                raise ValueError(
-                    f"rendered composite-number contradiction: {number_fact.fact_id}"
-                )
+                raise ValueError(f"rendered composite-number contradiction: {number_fact.fact_id}")
     for sequence_fact in plan.document_sequences:
         expected_sequences = {
             row.logical_key: (row.index, sequence_fact.total) for row in sequence_fact.members
@@ -849,9 +845,7 @@ def validate_auxiliary_render(
             sequence_values = tuple(
                 sequence_surface(replacements[slot.slot_id]) for slot in binding.occurrences
             )
-            if not sequence_values or any(
-                value != expected_sequence for value in sequence_values
-            ):
+            if not sequence_values or any(value != expected_sequence for value in sequence_values):
                 raise ValueError(
                     f"rendered document-sequence contradiction: {sequence_fact.fact_id}"
                 )

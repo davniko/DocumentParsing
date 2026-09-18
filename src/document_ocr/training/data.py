@@ -558,6 +558,21 @@ def prepare_datasets(
             ),
         }
 
+    evaluation_lengths = token_lengths.get(config.evaluation.split)
+    if evaluation_lengths is not None:
+        target_distribution = evaluation_lengths["target"]
+        if not isinstance(target_distribution, dict):
+            raise AssertionError("evaluation target-length distribution is incomplete")
+        maximum_reference_length = target_distribution["max"]
+        if not isinstance(maximum_reference_length, int):
+            raise AssertionError("evaluation maximum target length is not an integer")
+        if maximum_reference_length > config.evaluation.generation_max_length:
+            raise ValueError(
+                "evaluation generation_max_length cannot reproduce the longest reference "
+                f"in split {config.evaluation.split!r}: observed={maximum_reference_length}, "
+                f"configured={config.evaluation.generation_max_length}"
+            )
+
     return PreparedDatasets(
         datasets=DatasetDict(prepared),
         inspection=inspection,

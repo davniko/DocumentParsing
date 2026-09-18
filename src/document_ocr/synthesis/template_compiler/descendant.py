@@ -29,6 +29,9 @@ from pydantic_ai.usage import UsageLimits
 
 from document_ocr.atomic import read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
+from document_ocr.label_schemas.bill_of_lading_v5 import (
+    TEMPERATURE_CAPABLE_CONTAINER_TYPES,
+)
 from document_ocr.synthesis.container_semantics import review_source_equipment_surface
 from document_ocr.synthesis.generators import (
     DeterministicStream,
@@ -73,6 +76,7 @@ from .descendant_models import (
     ResidualStageReceipt,
     TargetAdaptation,
 )
+from .latest_target import latest_target_from_source
 from .models import (
     AggregateRangeConstraint,
     AuxiliaryEntity,
@@ -83,6 +87,7 @@ from .models import (
     OpenRouterProviderConfig,
     ProviderConfig,
     SemanticBinding,
+    SourceBindingRelationship,
 )
 from .pipeline import project_root_from_config, resolve_input
 from .semantic_plan import (
@@ -90,13 +95,14 @@ from .semantic_plan import (
     entity_members_by_binding,
     validate_auxiliary_render,
 )
-from .synthetic_values import DeterministicValueFactory
+from .synthetic_values import DeterministicValueFactory, GeoProfile
 
 _IMPLEMENTATION_PATH = Path(__file__).resolve(strict=True)
 _MODEL_PATH = Path(__file__).with_name("descendant_models.py").resolve(strict=True)
 _SEMANTIC_PLAN_PATH = Path(__file__).with_name("semantic_plan.py").resolve(strict=True)
 _SYNTHETIC_VALUES_PATH = Path(__file__).with_name("synthetic_values.py").resolve(strict=True)
 _COHERENCE_PATH = Path(__file__).with_name("coherence.py").resolve(strict=True)
+_LATEST_TARGET_PATH = Path(__file__).with_name("latest_target.py").resolve(strict=True)
 _STRICT_DYNAMIC = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 _TOKEN = re.compile(r"[A-Za-z0-9]+")
 _ALNUM = re.compile(r"[A-Za-z0-9]")
@@ -125,6 +131,11 @@ _DATE_FORMATS = (
     "%B-%d-%Y",
     "%b. %d,%Y",
     "%B. %d,%Y",
+    "%b. %d, %Y",
+    "%B. %d, %Y",
+    "%b. %d. %Y",
+    "%B. %d. %Y",
+    "%m/%d/%Y %I:%M:%S %p",
     "%d/%m/%y",
     "%m/%d/%y",
     "%d-%m-%y",
@@ -226,8 +237,10 @@ _EQUIPMENT_TYPE_CODES = {
 @dataclass(frozen=True, slots=True)
 class PreparedCase:
     document_id: str
+    source_document_id: str
     source: bytes
     source_target: dict[str, Any]
+    topology_reference_target: dict[str, Any]
     target: dict[str, Any]
     template: CertifiedSemanticTemplate
     target_receipt: PreparedTargetReceipt
@@ -237,6 +250,81 @@ class PreparedCase:
 class BindingOutput:
     replacements: Mapping[str, str]
     canonical_value: JsonValue
+
+
+@dataclass(frozen=True, slots=True)
+class EntityGeographyConstraint:
+    calling_code_width: int | None = None
+    country_name_width: int | None = None
+
+
+def _country_code_surface_style(source: str, *, country_surfaces: frozenset[str]) -> str:
+    compact = _alphanumeric(source)
+    normalized = compact.casefold()
+    if normalized in country_surfaces:
+        return "country_name"
+    if re.fullmatch(r"\s*\+\s*[0-9]+\s*", source):
+        return "calling_plus"
+    if re.fullmatch(r"\s*00[0-9]+\s*", source):
+        return "calling_00"
+    if compact.isalpha() and len(compact) == 2:
+        return "iso2"
+    if compact.isalpha() and len(compact) == 3:
+        return "iso3"
+    if compact.isalpha() and len(compact) == 5:
+        return "unlocode"
+    raise ValueError(f"unsupported country-code surface grammar: {source!r}")
+
+
+def _entity_country_code_context(
+    template: CertifiedSemanticTemplate,
+) -> tuple[dict[str, str], dict[str, EntityGeographyConstraint]]:
+    bindings = {binding.logical_key: binding for binding in template.bindings}
+    styles: dict[str, str] = {}
+    constraints: dict[str, EntityGeographyConstraint] = {}
+    for entity in template.auxiliary_semantic_plan.entities:
+        country_surfaces = frozenset(
+            _alphanumeric(slot.source_text).casefold()
+            for member in entity.members
+            if member.field == "country"
+            for slot in bindings[member.logical_key].occurrences
+        )
+        calling_widths: set[int] = set()
+        country_name_widths: set[int] = set()
+        for member in entity.members:
+            if member.field != "country_code":
+                continue
+            binding = bindings[member.logical_key]
+            member_styles = {
+                _country_code_surface_style(
+                    slot.source_text,
+                    country_surfaces=country_surfaces,
+                )
+                for slot in binding.occurrences
+            }
+            if len(member_styles) != 1:
+                raise ValueError(
+                    f"country-code binding mixes surface grammars: {member.logical_key}"
+                )
+            style = member_styles.pop()
+            styles[member.logical_key] = style
+            for slot in binding.occurrences:
+                compact = _alphanumeric(slot.source_text)
+                if style == "calling_plus":
+                    calling_widths.add(len(compact))
+                elif style == "calling_00":
+                    calling_widths.add(len(compact) - 2)
+                elif style == "country_name":
+                    country_name_widths.add(len(compact))
+        if len(calling_widths) > 1 or len(country_name_widths) > 1:
+            raise ValueError(
+                f"auxiliary entity has incompatible country-code widths: {entity.entity_id}"
+            )
+        constraints[entity.entity_id] = EntityGeographyConstraint(
+            calling_code_width=next(iter(calling_widths), None),
+            country_name_width=next(iter(country_name_widths), None),
+        )
+    return styles, constraints
 
 
 def _preserve_unpadded_day(source: str, rendered: str, *, old: date, new: date) -> str:
@@ -358,7 +446,20 @@ def _path_parts(path: str) -> tuple[str | int, ...]:
     return tuple(parts)
 
 
-def _resolve_path(target: Mapping[str, Any], path: str) -> Any:
+def _latest_schema_path(path: str) -> str | None:
+    """Map the two relation-v3 DG paths that moved in relation-v4/v5."""
+
+    if ".dangerousGoods[" not in path:
+        return None
+    if path.endswith(".subsidiaryHazardCategory"):
+        return path.removesuffix(".subsidiaryHazardCategory") + (".subsidiaryHazardCategories[0]")
+    marker = ".flashPoint.packingGroupCategory"
+    if path.endswith(marker):
+        return path.removesuffix(marker) + ".packingGroupCategory"
+    return None
+
+
+def _resolve_exact_path(target: Mapping[str, Any], path: str) -> Any:
     value: Any = target
     for part in _path_parts(path):
         if isinstance(part, int):
@@ -375,6 +476,16 @@ def _resolve_path(target: Mapping[str, Any], path: str) -> Any:
     return value
 
 
+def _resolve_path(target: Mapping[str, Any], path: str) -> Any:
+    try:
+        return _resolve_exact_path(target, path)
+    except ValueError:
+        alias = _latest_schema_path(path)
+        if alias is None or target.get("schemaVersion") != "5.0.0-experimental":
+            raise
+        return _resolve_exact_path(target, alias)
+
+
 def _path_exists(target: Mapping[str, Any], path: str) -> bool:
     try:
         _resolve_path(target, path)
@@ -384,6 +495,12 @@ def _path_exists(target: Mapping[str, Any], path: str) -> bool:
 
 
 def _set_path(target: dict[str, Any], path: str, replacement: Any) -> None:
+    try:
+        _resolve_exact_path(target, path)
+    except ValueError:
+        alias = _latest_schema_path(path)
+        if alias is not None and target.get("schemaVersion") == "5.0.0-experimental":
+            path = alias
     parts = _path_parts(path)
     value: Any = target
     for part in parts[:-1]:
@@ -461,10 +578,13 @@ def _controlled_target(
     source_target: Mapping[str, Any],
     template: CertifiedSemanticTemplate,
     seed: int,
+    variant_identity: str | None = None,
 ) -> dict[str, Any]:
     target = deepcopy(dict(source_target))
     stream = DeterministicStream(
-        seed, "carrier-bound-descendant-controlled-v1", template.document_id
+        seed,
+        "carrier-bound-descendant-controlled-v1",
+        variant_identity or template.document_id,
     )
     generated_by_source: dict[tuple[str, str], str] = {}
     paths = sorted(
@@ -658,10 +778,92 @@ def _project_identifier_occurrence(
     observed_value = _alphanumeric(source_surface)
     if len(source_value) != len(target_value):
         raise ValueError("identifier target changes certified canonical width")
+
+    def same_character_class(left: str, right: str) -> bool:
+        return left.isdigit() == right.isdigit() and left.isalpha() == right.isalpha()
+
+    def noise_character(character: str, index: int) -> str:
+        alphabet = (
+            "0123456789"
+            if character.isdigit()
+            else "abcdefghijklmnopqrstuvwxyz"
+            if character.islower()
+            else "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        )
+        digest = sha256_bytes(
+            (
+                source_canonical
+                + "\x00"
+                + source_surface
+                + "\x00"
+                + target_canonical
+                + "\x00"
+                + str(index)
+            ).encode()
+        )
+        selected = int(digest[:16], 16) % len(alphabet)
+        if alphabet[selected].casefold() == character.casefold():
+            selected = (selected + 1) % len(alphabet)
+        return alphabet[selected]
+
     if len(observed_value) == len(source_value):
-        return target_value
-    indices = _unique_subsequence_indices(source_value, observed_value)
-    return "".join(target_value[index] for index in indices)
+        return "".join(
+            target_character
+            if source_character.casefold() == observed_character.casefold()
+            and same_character_class(target_character, observed_character)
+            else noise_character(observed_character, index)
+            for index, (source_character, observed_character, target_character) in enumerate(
+                zip(source_value, observed_value, target_value, strict=True)
+            )
+        )
+
+    if len(observed_value) < len(source_value):
+        contiguous = tuple(
+            match.start()
+            for match in re.finditer(re.escape(observed_value.casefold()), source_value.casefold())
+        )
+        indices = (
+            tuple(range(contiguous[0], contiguous[0] + len(observed_value)))
+            if len(contiguous) == 1
+            else _unique_subsequence_indices(source_value, observed_value)
+        )
+        return "".join(target_value[index] for index in indices)
+
+    contiguous = tuple(
+        match.start()
+        for match in re.finditer(re.escape(source_value.casefold()), observed_value.casefold())
+    )
+    if len(contiguous) == 1:
+        start = contiguous[0]
+        source_by_observed = {
+            start + source_index: source_index for source_index in range(len(source_value))
+        }
+    else:
+        source_positions = _unique_subsequence_indices(observed_value, source_value)
+        source_by_observed = {
+            observed_index: source_index
+            for source_index, observed_index in enumerate(source_positions)
+        }
+    literal_prefix_length = min(source_by_observed) if source_by_observed else 0
+    literal_prefix = observed_value[:literal_prefix_length].casefold()
+    preserve_prefix = literal_prefix in {"no", "nr", "ref"}
+    output: list[str] = []
+    for observed_index, observed_character in enumerate(observed_value):
+        source_index = source_by_observed.get(observed_index)
+        if source_index is None:
+            output.append(
+                observed_character
+                if preserve_prefix and observed_index < literal_prefix_length
+                else noise_character(observed_character, observed_index)
+            )
+            continue
+        target_character = target_value[source_index]
+        output.append(
+            target_character
+            if same_character_class(target_character, observed_character)
+            else noise_character(observed_character, observed_index)
+        )
+    return "".join(output)
 
 
 def _scalar_surface(value: Any) -> str:
@@ -885,6 +1087,8 @@ def _render_direct_auxiliary(
         }
         return BindingOutput(replacements=replacements, canonical_value=generated)
     if policy == "numeric_surface":
+        if not any(character.isdigit() for character in first.source_text):
+            return _render_number_word_auxiliary(binding, stream)
         generated = _randomize_numeric_surface(
             first.source_text, stream.derive(binding.logical_key)
         )
@@ -1034,19 +1238,73 @@ def _render_entity_auxiliary(
     binding: SemanticBinding,
     *,
     entity_member: tuple[AuxiliaryEntity, AuxiliaryEntityMember],
+    country_code_style: str | None,
+    geography_constraint: EntityGeographyConstraint,
     stream: DeterministicStream,
     values: DeterministicValueFactory,
     country_codes: Mapping[str, str],
 ) -> BindingOutput:
     entity, member = entity_member
+    if _explicit_unknown_placeholder(binding):
+        return _preserved_source_output(binding)
     if member.field == "registration_type":
         return _preserved_source_output(binding)
     typed = values.entity_textual(
         entity=entity,
         member=member,
         country_codes=country_codes,
+        calling_code_width=geography_constraint.calling_code_width,
+        country_name_width=geography_constraint.country_name_width,
     )
     if typed is not None:
+        if member.field == "country_code":
+            if country_code_style is None:
+                raise ValueError(
+                    f"country-code member has no surface grammar: {binding.logical_key}"
+                )
+            geography: GeoProfile | None = None
+            if entity.relationship == "independent":
+                geography = values.geography_for_identity(
+                    entity.entity_id,
+                    calling_code_width=geography_constraint.calling_code_width,
+                    country_name_width=geography_constraint.country_name_width,
+                )
+                if geography.country_code != typed:
+                    raise ValueError("entity country code differs from its constrained geography")
+            replacements: dict[str, str] = {}
+            for slot in binding.occurrences:
+                compact = _alphanumeric(slot.source_text)
+                if country_code_style == "iso2":
+                    candidate = typed
+                elif country_code_style == "iso3" and geography is not None:
+                    candidate = geography.alpha3
+                elif country_code_style == "country_name" and geography is not None:
+                    candidate = geography.country
+                elif country_code_style == "unlocode" and geography is not None:
+                    candidate = geography.locode
+                elif (
+                    country_code_style == "unlocode" and compact[:2].casefold() == typed.casefold()
+                ):
+                    # Target-linked parties are carrier-bound in this pipeline.  When their
+                    # certified UN/LOCODE already has the target ISO prefix, retaining the
+                    # locality suffix is the only evidence-backed projection.
+                    candidate = compact
+                elif country_code_style in {"calling_plus", "calling_00"} and geography is not None:
+                    candidate = (
+                        "00" + geography.calling_code
+                        if country_code_style == "calling_00"
+                        else geography.calling_code
+                    )
+                else:
+                    raise ValueError(
+                        "country-code style cannot be rendered from its entity: "
+                        + binding.logical_key
+                    )
+                replacements[slot.slot_id] = _shape_alphanumeric_like_source(
+                    slot.source_text,
+                    candidate,
+                )
+            return BindingOutput(replacements=replacements, canonical_value=typed)
         return _render_text_candidate(binding, typed)
     if entity.relationship == "same_as_target_party" and member.field in {
         "name",
@@ -1431,7 +1689,7 @@ def _render_agent_target_binding(
                 values[0] + match.group("suffix"),
             )
         return BindingOutput(replacements=replacements, canonical_value=values[0])
-    if binding.value_kind == "equipment" and binding.target_paths == ("documentPatch.containers",):
+    if _is_equipment_receipt_binding(binding):
         return _render_equipment_receipt_binding(
             binding,
             source_target=source_target,
@@ -1496,19 +1754,27 @@ def _direct_auxiliary_route(binding: SemanticBinding) -> tuple[bool, str]:
         return True, "typed format-preserving contact generator is available"
     if first.render_policy == "date_surface":
         try:
-            parsed = _parse_auxiliary_date(first.source_text)
+            parsed_date = _parse_auxiliary_date(first.source_text)
             for slot in slots:
-                if _parse_auxiliary_date(slot.source_text) != parsed:
+                if _parse_auxiliary_date(slot.source_text) != parsed_date:
                     return False, "repeated date surfaces do not encode one source date"
                 _render_date_surface(
                     slot.source_text,
-                    parsed.isoformat(),
+                    parsed_date.isoformat(),
                     date(2031, 9, 23).isoformat(),
                 )
         except ValueError as error:
             return False, f"date surface lacks one unambiguous render style: {error}"
         return True, "typed format-preserving date generator is available"
     if first.render_policy == "numeric_surface":
+        try:
+            word_values = tuple(_number_word_phrase(slot.source_text)[0] for slot in slots)
+        except ValueError:
+            word_values = ()
+        if word_values:
+            if len(set(word_values)) != 1:
+                return False, "repeated number-word surfaces encode different values"
+            return True, "typed number-word auxiliary generator is available"
         if not any(character.isdigit() for character in first.source_text):
             return False, "numeric surface has no numeric digits"
         words = {token.casefold() for token in _TOKEN.findall(first.source_text)}
@@ -1543,6 +1809,18 @@ def _stable_source_vocabulary(binding: SemanticBinding) -> bool:
     )
 
 
+def _explicit_unknown_placeholder(binding: SemanticBinding) -> bool:
+    return bool(
+        not binding.target_paths
+        and binding.value_kind == "identifier"
+        and binding.occurrences
+        and all(
+            slot.source_text.strip() and not _alphanumeric(slot.source_text)
+            for slot in binding.occurrences
+        )
+    )
+
+
 def _direct_unbound_identifier(binding: SemanticBinding) -> bool:
     if (
         binding.target_paths
@@ -1560,6 +1838,30 @@ def _direct_unbound_identifier(binding: SemanticBinding) -> bool:
     )
 
 
+def _active_identifier_relationships(
+    template: CertifiedSemanticTemplate,
+) -> dict[str, tuple[SourceBindingRelationship, ...]]:
+    """Return relationships whose embedded identifier meets the compiler's evidence floor."""
+
+    bindings = {binding.logical_key: binding for binding in template.bindings}
+    return {
+        binding.logical_key: tuple(
+            relationship
+            for relationship in binding.source_relationships
+            if min(
+                len(_alphanumeric(binding.occurrences[0].source_text)),
+                len(
+                    _alphanumeric(
+                        bindings[relationship.dependency_binding].occurrences[0].source_text
+                    )
+                ),
+            )
+            >= 6
+        )
+        for binding in template.bindings
+    }
+
+
 def _solve_identifier_relationships(
     *,
     template: CertifiedSemanticTemplate,
@@ -1569,14 +1871,15 @@ def _solve_identifier_relationships(
     """Solve exact identifier-containment constraints at character-position level."""
 
     bindings = {binding.logical_key: binding for binding in template.bindings}
+    active_relationships = _active_identifier_relationships(template)
     related_keys = {
         key
         for binding in template.bindings
         for key in (
             binding.logical_key,
-            *(row.dependency_binding for row in binding.source_relationships),
+            *(row.dependency_binding for row in active_relationships[binding.logical_key]),
         )
-        if binding.source_relationships
+        if active_relationships[binding.logical_key]
     }
     if not related_keys:
         return
@@ -1616,7 +1919,7 @@ def _solve_identifier_relationships(
             find((key, index))
 
     for binding in template.bindings:
-        for relationship in binding.source_relationships:
+        for relationship in active_relationships[binding.logical_key]:
             if relationship.relationship == "embeds_exact_source_identifier":
                 container_key = binding.logical_key
                 embedded_key = relationship.dependency_binding
@@ -1655,6 +1958,8 @@ def _solve_identifier_relationships(
                 raise ValueError("synthetic target values conflict inside an identifier component")
 
     generated: dict[tuple[str, int], str] = {}
+    alphabet_by_root: dict[tuple[str, int], str] = {}
+    source_characters_by_root: dict[tuple[str, int], tuple[str, ...]] = {}
     roots = sorted({find(node) for node in parent})
     for ordinal, root in enumerate(roots):
         members = tuple(node for node in parent if find(node) == root)
@@ -1665,6 +1970,8 @@ def _solve_identifier_relationships(
             alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         else:
             raise ValueError("identifier relationship joins incompatible character classes")
+        alphabet_by_root[root] = alphabet
+        source_characters_by_root[root] = source_characters
         generated[root] = fixed.get(
             root,
             alphabet[
@@ -1674,6 +1981,9 @@ def _solve_identifier_relationships(
             ],
         )
 
+    # Random generation may legitimately draw every original character, especially when a
+    # target-bound identifier fixes most components.  Resolve that collision by changing one
+    # free connected component, preserving every containment relationship by construction.
     for key in sorted(related_keys):
         binding = bindings[key]
         if binding.target_paths:
@@ -1681,8 +1991,53 @@ def _solve_identifier_relationships(
         candidate = "".join(
             generated[find((key, index))] for index in range(len(source_values[key]))
         )
-        if candidate.casefold() == source_values[key].casefold():
-            raise ValueError(f"identifier relationship solver retained a source identifier: {key}")
+        if candidate.casefold() != source_values[key].casefold():
+            continue
+        mutable_roots = tuple(
+            sorted(
+                {
+                    find((key, index))
+                    for index in range(len(source_values[key]))
+                    if find((key, index)) not in fixed
+                }
+            )
+        )
+        if not mutable_roots:
+            # The source-only surface can be a strict projection of an unchanged target-bound
+            # identifier (for example, a printed 9-digit classification prefix of a 12-digit
+            # HS code).  Every component is then fixed by the structured target; preserving the
+            # source projection is required for consistency and is not a generator collision.
+            continue
+        selected = mutable_roots[
+            stream.derive("relationship-novelty-root:" + key).randbelow(len(mutable_roots))
+        ]
+        source_character_set = {
+            character.casefold() for character in source_characters_by_root[selected]
+        }
+        alternatives = tuple(
+            character
+            for character in alphabet_by_root[selected]
+            if character.casefold() not in source_character_set
+        )
+        if not alternatives:
+            raise ValueError(f"identifier relationship has no source-distinct character: {key}")
+        generated[selected] = alternatives[
+            stream.derive("relationship-novelty-value:" + key).randbelow(len(alternatives))
+        ]
+
+    for key in sorted(related_keys):
+        binding = bindings[key]
+        if binding.target_paths:
+            continue
+        candidate = "".join(
+            generated[find((key, index))] for index in range(len(source_values[key]))
+        )
+        if candidate.casefold() == source_values[key].casefold() and any(
+            find((key, index)) not in fixed for index in range(len(source_values[key]))
+        ):
+            raise RuntimeError(
+                f"identifier relationship novelty repair failed for source identifier: {key}"
+            )
         outputs[key] = BindingOutput(
             replacements={
                 slot.slot_id: _shape_alphanumeric_like_source(slot.source_text, candidate)
@@ -1813,6 +2168,18 @@ def _render_semantic_equipment_binding(
     value = _semantic_equipment_binding_value(binding, target)
     if value is None:
         raise ValueError("binding does not resolve to one semantic equipment value")
+    source_values = tuple(row.source_value for row in binding.realization.target_values)
+    if source_values and all(
+        isinstance(source_value, str) and _equipment_semantics_match(value, source_value)
+        for source_value in source_values
+    ):
+        # The compiler already certified every physical occurrence against this source
+        # target value.  V5 merely replaces that legacy target scalar with its reviewed
+        # semantic pair, so an abbreviated/concatenated physical occurrence remains exact.
+        return BindingOutput(
+            replacements={slot.slot_id: slot.source_text for slot in binding.occurrences},
+            canonical_value=cast(JsonValue, dict(value)),
+        )
     replacements: dict[str, str] = {}
     for slot in binding.occurrences:
         if _equipment_semantics_match(value, slot.source_text):
@@ -1874,6 +2241,18 @@ def _equipment_description(value: Mapping[str, Any], *, apostrophe: bool) -> str
     return _equipment_length(value) + separator + _equipment_code(value)
 
 
+def _is_equipment_receipt_binding(binding: SemanticBinding) -> bool:
+    if binding.derivation == "equipment_receipt":
+        return True
+    if binding.value_kind not in {"equipment", "operational_text"}:
+        return False
+    return any(
+        path == "documentPatch.containers"
+        or re.fullmatch(r"documentPatch\.containers\[[0-9]+\]", path) is not None
+        for path in binding.target_paths
+    )
+
+
 def _render_equipment_receipt_binding(
     binding: SemanticBinding,
     *,
@@ -1882,28 +2261,53 @@ def _render_equipment_receipt_binding(
 ) -> BindingOutput:
     if not binding.target_paths:
         return _preserved_source_output(binding)
-    if binding.target_paths != ("documentPatch.containers",):
-        raise ValueError("equipment receipt does not depend on the complete container list")
-    source_containers = _resolve_path(source_target, "documentPatch.containers")
-    target_containers = _resolve_path(target, "documentPatch.containers")
+    source_all = _resolve_path(source_target, "documentPatch.containers")
+    target_all = _resolve_path(target, "documentPatch.containers")
     if (
-        not isinstance(source_containers, Sequence)
-        or isinstance(source_containers, (str, bytes))
-        or not isinstance(target_containers, Sequence)
-        or isinstance(target_containers, (str, bytes))
-        or not target_containers
+        not isinstance(source_all, Sequence)
+        or isinstance(source_all, (str, bytes))
+        or not isinstance(target_all, Sequence)
+        or isinstance(target_all, (str, bytes))
     ):
         raise ValueError("equipment receipt container dependencies are invalid")
-    semantic_values = tuple(
-        {
-            "sizeCategory": row.get("sizeCategory"),
-            "typeCategory": row.get("typeCategory"),
-        }
-        for row in target_containers
-        if isinstance(row, Mapping)
-        and isinstance(row.get("sizeCategory"), str)
-        and isinstance(row.get("typeCategory"), str)
-    )
+    dependency_paths = (*binding.target_paths, *binding.dependency_paths)
+    if "documentPatch.containers" in dependency_paths:
+        source_containers = tuple(source_all)
+        target_containers = tuple(target_all)
+    else:
+        indexes = tuple(
+            sorted(
+                {
+                    int(match.group(1))
+                    for path in dependency_paths
+                    for match in (re.match(r"documentPatch\.containers\[([0-9]+)\]", path),)
+                    if match is not None
+                }
+            )
+        )
+        if not indexes or max(indexes) >= len(source_all) or max(indexes) >= len(target_all):
+            raise ValueError("equipment receipt has no complete in-range container dependency")
+        source_containers = tuple(source_all[index] for index in indexes)
+        target_containers = tuple(target_all[index] for index in indexes)
+    if not target_containers:
+        raise ValueError("equipment receipt has no target containers")
+    semantic_values_list: list[dict[str, str]] = []
+    for row in target_containers:
+        if not isinstance(row, Mapping):
+            raise ValueError("equipment receipt target container is not an object")
+        size = row.get("sizeCategory")
+        equipment_type = row.get("typeCategory")
+        if size is None and equipment_type is None:
+            # Aggregate receipts can be the only type evidence for an otherwise identified
+            # sibling container.  Typed siblings still determine the shared wording; an
+            # incomplete half-pair is never accepted.
+            continue
+        if not isinstance(size, str) or not isinstance(equipment_type, str):
+            raise ValueError("equipment receipt target has an incomplete semantic size/type pair")
+        semantic_values_list.append({"sizeCategory": size, "typeCategory": equipment_type})
+    semantic_values = tuple(semantic_values_list)
+    if not semantic_values:
+        raise ValueError("equipment receipt target has no semantic size/type evidence")
     unique_semantics = {canonical_json_bytes(value): value for value in semantic_values}
     replacements: dict[str, str] = {}
     for slot in binding.occurrences:
@@ -1911,12 +2315,18 @@ def _render_equipment_receipt_binding(
         old_count = len(source_containers)
         new_count = len(target_containers)
         if old_count != new_count:
-            rendered, numeric_replacements = re.subn(
-                rf"(?<![0-9]){old_count}(?![0-9])",
-                str(new_count),
-                rendered,
-                count=1,
-            )
+            numeric_replacements = 0
+            for pattern in (
+                rf"(?<![0-9])0*{old_count}(?=\s*[xX])",
+                rf"(?<=[xX])0*{old_count}(?![0-9])",
+            ):
+                match = re.search(pattern, rendered)
+                if match is None:
+                    continue
+                replacement = str(new_count).zfill(len(match.group(0)))
+                rendered = rendered[: match.start()] + replacement + rendered[match.end() :]
+                numeric_replacements = 1
+                break
             if not numeric_replacements:
                 old_words = _number_to_words(old_count)
                 if re.search(rf"(?i)\b{re.escape(old_words)}\b", rendered) is None:
@@ -1940,9 +2350,11 @@ def _render_equipment_receipt_binding(
                 code = _case_like(code_match.group(0), _equipment_code(semantic))
                 rendered = rendered[: code_match.start()] + code + rendered[code_match.end() :]
         replacements[slot.slot_id] = rendered
+    values = tuple(_binding_target_value(target, path) for path in binding.target_paths)
+    canonical: JsonValue = cast(JsonValue, values[0] if len(values) == 1 else list(values))
     return BindingOutput(
         replacements=replacements,
-        canonical_value=cast(JsonValue, list(target_containers)),
+        canonical_value=canonical,
     )
 
 
@@ -2006,6 +2418,8 @@ def _binding_route(
 ) -> tuple[Literal["deterministic", "agent"], str]:
     if _stable_source_vocabulary(binding):
         return "deterministic", "stable non-identifying document vocabulary is preserved"
+    if _explicit_unknown_placeholder(binding):
+        return "deterministic", "explicit source placeholder is preserved without invented identity"
     if _direct_unbound_identifier(binding):
         return "deterministic", "unbound identifier has a complete exact surface pattern"
     if _semantic_equipment_binding_value(binding, target) is not None:
@@ -2073,6 +2487,7 @@ def _build_initial_plan(
     )
     auxiliary_dispositions = disposition_by_binding(case.template.auxiliary_semantic_plan)
     auxiliary_entities = entity_members_by_binding(case.template.auxiliary_semantic_plan)
+    country_code_styles, entity_geography_constraints = _entity_country_code_context(case.template)
     binding_value_kinds = {
         candidate.logical_key: candidate.value_kind for candidate in case.template.bindings
     }
@@ -2128,6 +2543,10 @@ def _build_initial_plan(
                     else _render_entity_auxiliary(
                         binding,
                         entity_member=auxiliary_entities[binding.logical_key],
+                        country_code_style=country_code_styles.get(binding.logical_key),
+                        geography_constraint=entity_geography_constraints[
+                            auxiliary_entities[binding.logical_key][0].entity_id
+                        ],
                         stream=stream,
                         values=values,
                         country_codes=country_codes,
@@ -2237,7 +2656,11 @@ def _build_initial_plan(
             continue
         if eager_output is not None:
             outputs[binding.logical_key] = eager_output
-        elif _stable_source_vocabulary(binding) or binding.realization.mode == "static":
+        elif (
+            _stable_source_vocabulary(binding)
+            or _explicit_unknown_placeholder(binding)
+            or binding.realization.mode == "static"
+        ):
             outputs[binding.logical_key] = _preserved_source_output(binding)
         elif _direct_unbound_identifier(binding):
             outputs[binding.logical_key] = _render_direct_auxiliary(binding, stream)
@@ -2401,8 +2824,7 @@ def _adapt_target_compatibility(
         "normalized_projected_surface",
     }
     for binding in template.bindings:
-        typed_identifier = binding.value_kind == "identifier" and bool(binding.target_paths)
-        if binding.realization.mode not in deterministic_modes and not typed_identifier:
+        if binding.realization.mode not in deterministic_modes:
             continue
         semantic_equipment_paths = tuple(
             path
@@ -2498,15 +2920,7 @@ def _adapt_target_compatibility(
                 )
             continue
         try:
-            output = (
-                _render_agent_target_binding(
-                    binding,
-                    source_target=source_target,
-                    target=target,
-                )
-                if typed_identifier and binding.realization.requires_agent
-                else _render_target_binding(binding, target)
-            )
+            output = _render_target_binding(binding, target)
             _validate_binding_format(source=source, template=template.byte_template, output=output)
         except (KeyError, TypeError, ValueError) as error:
             party_paths = {
@@ -2548,15 +2962,7 @@ def _adapt_target_compatibility(
                         }
                     )
                 )
-                output = (
-                    _render_agent_target_binding(
-                        binding,
-                        source_target=source_target,
-                        target=target,
-                    )
-                    if typed_identifier and binding.realization.requires_agent
-                    else _render_target_binding(binding, target)
-                )
+                output = _render_target_binding(binding, target)
                 _validate_binding_format(
                     source=source,
                     template=template.byte_template,
@@ -2588,16 +2994,7 @@ def _adapt_target_compatibility(
                         }
                     )
                 )
-            if typed_identifier and binding.realization.requires_agent:
-                unchanged_output = _unchanged_target_output(binding, target)
-                if unchanged_output is None:
-                    raise ValueError(
-                        f"adapted identifier did not restore its certified source value: "
-                        f"{binding.logical_key}"
-                    ) from error
-                output = unchanged_output
-            else:
-                output = _render_target_binding(binding, target)
+            output = _render_target_binding(binding, target)
             _validate_binding_format(source=source, template=template.byte_template, output=output)
     return tuple(adaptations)
 
@@ -2679,9 +3076,15 @@ def _adapt_target_coherence_ranges(
             binding = by_key.get(logical_key)
             if binding is None:
                 raise ValueError(f"coherence range member has no binding: {logical_key}")
-            if not binding.target_paths:
+            range_paths = tuple(
+                snapshot.target_path
+                for snapshot in binding.realization.target_values
+                if isinstance(snapshot.source_value, str)
+                and inclusive_range_cardinalities(snapshot.source_value)
+            )
+            if not range_paths:
                 target_backed = False
-            ordered_paths.extend(binding.target_paths)
+            ordered_paths.extend(range_paths)
         if not target_backed:
             # Source-only range members are one joint residual-rendering problem. Their exact
             # values do not exist in the structured target and are reconciled by that typed route.
@@ -2754,37 +3157,15 @@ def _case_files(template_root: Path, document_id: str) -> tuple[bytes, dict[str,
 
 def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[PreparedCase, ...]:
     template_root = _validate_committed_run(project_root, config.inputs.template_run)
-    target_root = _validate_committed_run(project_root, config.inputs.synthetic_target_run)
-    target_path = resolve_input(project_root, config.inputs.synthetic_targets.path)
-    if target_root not in target_path.parents:
-        raise ValueError("synthetic-target file is outside its pinned committed run")
-    if sha256_file(target_path) != config.inputs.synthetic_targets.sha256:
-        raise ValueError("synthetic-target file hash differs")
     country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
     if sha256_file(country_path) != config.inputs.iso3166_snapshot.sha256:
         raise ValueError("ISO-3166 snapshot hash differs")
-    target_rows = _read_jsonl(target_path, records=config.inputs.synthetic_targets.records)
-    targets: dict[str, dict[str, Any]] = {}
-    for row in target_rows:
-        document_id = row.get("baseDocumentId")
-        target = row.get("target")
-        if not isinstance(document_id, str) or not isinstance(target, dict):
-            raise ValueError("synthetic-target row lacks a document ID or target")
-        if document_id in targets:
-            raise ValueError(f"duplicate synthetic target for {document_id}")
-        if sha256_bytes(canonical_json_bytes(target)) != row.get("targetSha256"):
-            raise ValueError(f"synthetic-target row hash differs: {document_id}")
-        targets[document_id] = target
 
     # The compiler selection can contain fail-closed source-integrity or semantic-review cases.
     # Only its committed certified catalog is renderable; selecting from the original manifest
     # would turn an intentional review outcome into a missing-file failure downstream.
     catalog_path = template_root / "catalog.jsonl"
     complete_catalog = _read_jsonl(catalog_path, records=None)
-    if len(complete_catalog) < config.workflow.documents:
-        raise ValueError(
-            "template catalog has fewer certified rows than the requested descendant cohort"
-        )
     if any(row.get("certified") is not True for row in complete_catalog):
         raise ValueError("template catalog contains a non-certified row")
     complete_document_ids = tuple(row.get("documentId") for row in complete_catalog)
@@ -2792,20 +3173,145 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         raise ValueError("template catalog contains an invalid document ID")
     if len(set(complete_document_ids)) != len(complete_document_ids):
         raise ValueError("template catalog document IDs are not unique")
-    document_ids = complete_document_ids[: config.workflow.documents]
+
+    planned_inputs: tuple[tuple[str, str, dict[str, Any] | None, str], ...]
+    sample_plan = config.inputs.sample_plan
+    sample_plan_run = config.inputs.sample_plan_run
+    if sample_plan is None:
+        target_run = config.inputs.synthetic_target_run
+        synthetic_targets = config.inputs.synthetic_targets
+        assert target_run is not None and synthetic_targets is not None
+        target_root = _validate_committed_run(project_root, target_run)
+        target_path = resolve_input(project_root, synthetic_targets.path)
+        if target_root not in target_path.parents:
+            raise ValueError("synthetic-target file is outside its pinned committed run")
+        if sha256_file(target_path) != synthetic_targets.sha256:
+            raise ValueError("synthetic-target file hash differs")
+        target_rows = _read_jsonl(target_path, records=synthetic_targets.records)
+        targets: dict[str, dict[str, Any]] = {}
+        for row in target_rows:
+            document_id = row.get("baseDocumentId")
+            target = row.get("target")
+            if not isinstance(document_id, str) or not isinstance(target, dict):
+                raise ValueError("synthetic-target row lacks a document ID or target")
+            if document_id in targets:
+                raise ValueError(f"duplicate synthetic target for {document_id}")
+            if sha256_bytes(canonical_json_bytes(target)) != row.get("targetSha256"):
+                raise ValueError(f"synthetic-target row hash differs: {document_id}")
+            targets[document_id] = target
+        if len(complete_catalog) < config.workflow.documents:
+            raise ValueError(
+                "template catalog has fewer certified rows than the requested descendant cohort"
+            )
+        planned_inputs = tuple(
+            (
+                document_id,
+                document_id,
+                targets.get(document_id),
+                (
+                    "existing_linguistic_target_carrier_restored"
+                    if document_id in targets
+                    else "controlled_source_variant"
+                ),
+            )
+            for document_id in cast(
+                tuple[str, ...], complete_document_ids[: config.workflow.documents]
+            )
+        )
+    else:
+        assert sample_plan_run is not None
+        plan_root = _validate_committed_run(project_root, sample_plan_run)
+        plan_path = resolve_input(project_root, sample_plan.path)
+        if plan_root not in plan_path.parents:
+            raise ValueError("sample-plan file is outside its pinned committed run")
+        if sha256_file(plan_path) != sample_plan.sha256:
+            raise ValueError("sample-plan file hash differs")
+        plan_rows = _read_jsonl(plan_path, records=sample_plan.records)
+        if len(plan_rows) != config.workflow.documents:
+            raise ValueError("sample-plan row count differs from workflow.documents")
+
+        plan_by_sample: dict[str, tuple[str, int]] = {}
+        for row in plan_rows:
+            sample_id = row.get("sampleId")
+            source_document_id = row.get("sourceDocumentId")
+            variant_index = row.get("variantIndex")
+            if (
+                not isinstance(sample_id, str)
+                or not sample_id
+                or not isinstance(source_document_id, str)
+                or not source_document_id
+                or not isinstance(variant_index, int)
+                or isinstance(variant_index, bool)
+                or variant_index < 0
+            ):
+                raise ValueError("sample-plan row has an invalid sample/source/variant identity")
+            if (
+                row.get("targetTask") != "bill_of_lading_relation_explicit_v5"
+                or row.get("targetSchemaVersion") != config.workflow.target_schema_version
+            ):
+                raise ValueError(f"sample-plan target contract differs: {sample_id}")
+            if row.get("targetGeneration") != config.workflow.target_generation:
+                raise ValueError(f"sample-plan target generation differs: {sample_id}")
+            if sample_id in plan_by_sample:
+                raise ValueError(f"sample plan repeats sample identity: {sample_id}")
+            plan_by_sample[sample_id] = (source_document_id, variant_index)
+        source_variants = tuple(plan_by_sample.values())
+        if len(source_variants) != len(set(source_variants)):
+            raise ValueError("sample plan repeats a source-document/variant identity")
+        planned_rows: list[tuple[str, str, dict[str, Any] | None, str]] = []
+        for row in plan_rows:
+            sample_id = cast(str, row["sampleId"])
+            source_document_id = cast(str, row["sourceDocumentId"])
+            planned_rows.append(
+                (
+                    sample_id,
+                    source_document_id,
+                    None,
+                    "planned_v5_controlled_source_variant",
+                )
+            )
+        planned_inputs = tuple(planned_rows)
+
+    catalog_document_ids = frozenset(cast(tuple[str, ...], complete_document_ids))
+    unknown_sources = sorted(
+        {source_document_id for _sample_id, source_document_id, _target, _origin in planned_inputs}
+        - catalog_document_ids
+    )
+    if unknown_sources:
+        raise ValueError(f"sample plan references unknown template documents: {unknown_sources}")
 
     prepared: list[PreparedCase] = []
-    for document_id in cast(tuple[str, ...], document_ids):
-        source, source_target, template_bytes = _case_files(template_root, document_id)
-        template = CertifiedSemanticTemplate.model_validate_json(template_bytes, strict=True)
-        if template.document_id != document_id or template.source_sha256 != sha256_bytes(source):
-            raise ValueError(f"template/source identity differs: {document_id}")
-        _validate_canonical_target(source_target)
-        if document_id in targets:
-            target_origin = "existing_linguistic_target_carrier_restored"
-            proposed_target = deepcopy(targets[document_id])
+    case_cache: dict[str, tuple[bytes, dict[str, Any], CertifiedSemanticTemplate]] = {}
+    latest_target_cache: dict[str, dict[str, Any]] = {}
+    for sample_id, source_document_id, planned_target, target_origin in planned_inputs:
+        cached = case_cache.get(source_document_id)
+        if cached is None:
+            source, source_target, template_bytes = _case_files(template_root, source_document_id)
+            template = CertifiedSemanticTemplate.model_validate_json(template_bytes, strict=True)
+            if template.document_id != source_document_id or template.source_sha256 != sha256_bytes(
+                source
+            ):
+                raise ValueError(f"template/source identity differs: {source_document_id}")
+            _validate_canonical_target(source_target)
+            cached = (source, source_target, template)
+            case_cache[source_document_id] = cached
+        source, source_target, template = cached
+        comparison_source_target = source_target
+        if planned_target is not None:
+            proposed_target = deepcopy(planned_target)
+        elif sample_plan is not None:
+            latest_source_target = latest_target_cache.get(source_document_id)
+            if latest_source_target is None:
+                latest_source_target = latest_target_from_source(source_target)
+                latest_target_cache[source_document_id] = latest_source_target
+            comparison_source_target = latest_source_target
+            proposed_target = _controlled_target(
+                source_target=latest_source_target,
+                template=template,
+                seed=config.workflow.controlled_target_seed,
+                variant_identity=sample_id,
+            )
         else:
-            target_origin = "controlled_source_variant"
             proposed_target = _controlled_target(
                 source_target=source_target,
                 template=template,
@@ -2832,14 +3338,17 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 template=template,
             )
         )
-        mismatches = printed_topology_mismatches(source_target, target)
+        mismatches = printed_topology_mismatches(comparison_source_target, target)
         if mismatches:
             details = ", ".join(f"{row.path}:{row.value_kind}" for row in mismatches)
-            raise ValueError(
-                f"prepared target changes printed topology for {document_id}: {details}"
-            )
+            raise ValueError(f"prepared target changes printed topology for {sample_id}: {details}")
         _validate_canonical_target(target)
-        source_leaves = _flatten_leaves(source_target)
+        if (
+            config.workflow.target_schema_version is not None
+            and target.get("schemaVersion") != config.workflow.target_schema_version
+        ):
+            raise ValueError(f"prepared target is not latest-schema: {sample_id}")
+        source_leaves = _flatten_leaves(comparison_source_target)
         target_leaves = _flatten_leaves(target)
         changed = {
             path
@@ -2854,16 +3363,15 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
             path: value for path, value in target_leaves.items() if path.startswith(carrier_prefix)
         }
         if not carrier_source or carrier_source != carrier_target:
-            raise ValueError(
-                f"prepared target does not preserve the complete carrier: {document_id}"
-            )
+            raise ValueError(f"prepared target does not preserve the complete carrier: {sample_id}")
         target_sha = sha256_bytes(canonical_json_bytes(target))
         synthetic_id = (
             "syn_tpl_"
             + sha256_bytes(
                 canonical_json_bytes(
                     [
-                        document_id,
+                        sample_id,
+                        source_document_id,
                         template.source_sha256,
                         target_sha,
                         config.workflow.controlled_target_seed,
@@ -2874,7 +3382,8 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         receipt = PreparedTargetReceipt.model_validate(
             {
                 "schema_version": 1,
-                "document_id": document_id,
+                "document_id": sample_id,
+                "source_document_id": source_document_id,
                 "target_origin": target_origin,
                 "source_schema_version": source_target["schemaVersion"],
                 "target_schema_version": target["schemaVersion"],
@@ -2894,9 +3403,11 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         )
         prepared.append(
             PreparedCase(
-                document_id=document_id,
+                document_id=sample_id,
+                source_document_id=source_document_id,
                 source=source,
                 source_target=source_target,
+                topology_reference_target=comparison_source_target,
                 target=target,
                 template=template,
                 target_receipt=receipt,
@@ -2990,6 +3501,7 @@ def _stable_boilerplate(binding: SemanticBinding) -> bool:
 
 def _residual_payload(*, case: PreparedCase, plan: RenderPlan) -> dict[str, Any]:
     known = plan.deterministic_outputs
+    active_relationships = _active_identifier_relationships(case.template)
     rows = []
     for binding in plan.residual_bindings:
         rows.append(
@@ -3023,7 +3535,7 @@ def _residual_payload(*, case: PreparedCase, plan: RenderPlan) -> dict[str, Any]
                             else None
                         ),
                     }
-                    for row in binding.source_relationships
+                    for row in active_relationships[binding.logical_key]
                 ),
                 "coherenceConstraints": tuple(
                     {
@@ -3263,9 +3775,10 @@ def _reconcile_identifier_relationships(
     """Project embedded source identifiers from their authoritative container surface."""
 
     bindings = {binding.logical_key: binding for binding in template.bindings}
+    active_relationships = _active_identifier_relationships(template)
     parents_by_child: dict[str, set[str]] = {}
     for binding in template.bindings:
-        for relationship in binding.source_relationships:
+        for relationship in active_relationships[binding.logical_key]:
             if relationship.relationship == "embeds_exact_source_identifier":
                 parent_key = binding.logical_key
                 child_key = relationship.dependency_binding
@@ -3349,7 +3862,10 @@ def _country_code_map(path: Path) -> dict[str, str]:
         "prchina": "CN",
         "peoplesrepublicchina": "CN",
         "southkorea": "KR",
+        "korea": "KR",
         "northkorea": "KP",
+        "taiwan": "TW",
+        "turkiye": "TR",
         "russia": "RU",
         "czechrepublic": "CZ",
         "ivorycoast": "CI",
@@ -3544,6 +4060,62 @@ def _number_word_value(value: str) -> int | None:
     parsed = total + group
     canonical_tokens = tuple(_number_to_words(parsed).split())
     return parsed if canonical_tokens == tokens else None
+
+
+def _number_word_phrase(value: str) -> tuple[int, int, int]:
+    tokens = tuple(re.finditer(r"[A-Za-z]+", value))
+    candidates: list[tuple[int, int, int, int]] = []
+    for start in range(len(tokens)):
+        for stop in range(start + 1, len(tokens) + 1):
+            parsed = _number_word_value(" ".join(match.group(0) for match in tokens[start:stop]))
+            if parsed is not None:
+                candidates.append(
+                    (stop - start, tokens[start].start(), tokens[stop - 1].end(), parsed)
+                )
+    if not candidates:
+        raise ValueError(f"surface has no complete number-word phrase: {value!r}")
+    width = max(row[0] for row in candidates)
+    longest = tuple(row for row in candidates if row[0] == width)
+    if len(longest) != 1:
+        raise ValueError(f"surface has multiple number-word phrases: {value!r}")
+    _token_count, start, end, parsed = longest[0]
+    return parsed, start, end
+
+
+def _pluralize_number_word_noun(value: str, *, number: int) -> str:
+    match = re.match(
+        r"(?i)^(?P<gap>\s*)(?P<noun>container|package|pallet|carton|crate|drum|"
+        r"bundle|case|piece|roll|sack)(?P<suffix>\(s\)|s)?\b",
+        value,
+    )
+    if match is None or match.group("suffix") == "(s)":
+        return value
+    noun = match.group("noun")
+    suffix = match.group("suffix") or ""
+    if number == 1:
+        replacement = noun
+    elif suffix:
+        replacement = noun + suffix
+    else:
+        replacement = noun + ("S" if noun.isupper() else "s")
+    return match.group("gap") + replacement + value[match.end() :]
+
+
+def _render_number_word_auxiliary(
+    binding: SemanticBinding, stream: DeterministicStream
+) -> BindingOutput:
+    old, _start, _end = _number_word_phrase(binding.occurrences[0].source_text)
+    candidate = 1 + stream.derive(binding.logical_key).randbelow(9)
+    new = candidate if candidate != old else candidate % 9 + 1
+    replacements: dict[str, str] = {}
+    for slot in binding.occurrences:
+        parsed, start, end = _number_word_phrase(slot.source_text)
+        if parsed != old:
+            raise ValueError("repeated number-word surfaces encode different values")
+        rendered_words = _case_like(slot.source_text[start:end], _number_to_words(new))
+        suffix = _pluralize_number_word_noun(slot.source_text[end:], number=new)
+        replacements[slot.slot_id] = slot.source_text[:start] + rendered_words + suffix
+    return BindingOutput(replacements=replacements, canonical_value=new)
 
 
 def _numeric_surface_values(value: str) -> tuple[Decimal, ...]:
@@ -4071,6 +4643,25 @@ def _plan_derivations(
             update={"runtime_route": "agent", "route_reason": reason}
         )
 
+    def dependencies_preserve_source(binding: SemanticBinding) -> bool:
+        for path in binding.dependency_paths:
+            try:
+                source_value = _binding_target_value(case.source_target, path)
+                target_value = _binding_target_value(case.target, path)
+            except (KeyError, ValueError):
+                return False
+            if canonical_json_bytes(source_value) != canonical_json_bytes(target_value):
+                return False
+        for dependency_key in binding.dependency_bindings:
+            dependency = bindings[dependency_key]
+            output = outputs.get(dependency_key)
+            if output is None or any(
+                output.replacements.get(slot.slot_id) != slot.source_text
+                for slot in dependency.occurrences
+            ):
+                return False
+        return bool(binding.dependency_paths or binding.dependency_bindings)
+
     while pending:
         progressed = False
         for logical_key, binding in tuple(pending.items()):
@@ -4083,6 +4674,27 @@ def _plan_derivations(
                     )
                     del pending[logical_key]
                     progressed = True
+                continue
+            if dependencies_preserve_source(binding):
+                output = _preserved_source_output(binding)
+                _validate_binding_format(
+                    source=case.source,
+                    template=case.template.byte_template,
+                    output=output,
+                )
+                outputs[logical_key] = output
+                index = route_indexes[logical_key]
+                routes[index] = routes[index].model_copy(
+                    update={
+                        "runtime_route": "deterministic",
+                        "route_reason": (
+                            "derivation dependencies preserve their compiler-certified "
+                            "source surfaces"
+                        ),
+                    }
+                )
+                del pending[logical_key]
+                progressed = True
                 continue
             try:
                 output = _render_one_derivation(
@@ -4122,9 +4734,56 @@ def _normalized_semantic(value: str) -> str:
     return "".join(character for character in normalized if character.isalnum())
 
 
+def _english_word_date_candidate(value: str) -> date | None:
+    match = re.fullmatch(
+        r"(?i)\s*(?P<month>[A-Za-z]{3,9})\.?\s+"
+        r"(?P<day>[A-Za-z]+(?:[- ]+[A-Za-z]+)*)\s*,?\s*(?P<year>[0-9]{4})\s*",
+        value,
+    )
+    if match is None:
+        return None
+    month_names = {name.casefold(): index for index, name in enumerate(_ENGLISH_MONTHS, start=1)}
+    month_names.update({name[:3].casefold(): index for name, index in month_names.items()})
+    month = month_names.get(match.group("month").casefold())
+    if month is None:
+        return None
+    ordinal_to_cardinal = {
+        "first": "one",
+        "second": "two",
+        "third": "three",
+        "fourth": "four",
+        "fifth": "five",
+        "sixth": "six",
+        "seventh": "seven",
+        "eighth": "eight",
+        "ninth": "nine",
+        "tenth": "ten",
+        "eleventh": "eleven",
+        "twelfth": "twelve",
+        "thirteenth": "thirteen",
+        "fourteenth": "fourteen",
+        "fifteenth": "fifteen",
+        "sixteenth": "sixteen",
+        "seventeenth": "seventeen",
+        "eighteenth": "eighteen",
+        "nineteenth": "nineteen",
+        "twentieth": "twenty",
+        "thirtieth": "thirty",
+    }
+    day_tokens = re.findall(r"[A-Za-z]+", match.group("day").casefold())
+    day_tokens[-1] = ordinal_to_cardinal.get(day_tokens[-1], day_tokens[-1])
+    day = _number_word_value(" ".join(day_tokens))
+    if day is None or not 1 <= day <= 31:
+        return None
+    try:
+        return date(int(match.group("year")), month, day)
+    except ValueError:
+        return None
+
+
 def _date_candidates(value: str) -> frozenset[date]:
     raw = value.strip()
-    localized = raw
+    localized = re.sub(r"(?i)(?<=\d)(?:st|nd|rd|th)\b", "", raw)
     french_months = (
         (r"janv(?:ier)?", "Jan"),
         (r"f[ée]v(?:r(?:ier)?)?", "Feb"),
@@ -4152,8 +4811,18 @@ def _date_candidates(value: str) -> frozenset[date]:
         " ".join(localized.replace(",", " ").split()),
         " ".join(month_period_normalized.replace(",", " ").split()),
     }
+    variants.update(
+        suffix.strip()
+        for candidate in tuple(variants)
+        if "," in candidate
+        for suffix in (candidate.split(",", 1)[1],)
+        if suffix.strip()
+    )
     output: set[date] = set()
     for variant in variants:
+        word_date = _english_word_date_candidate(variant)
+        if word_date is not None:
+            output.add(word_date)
         for date_format in _DATE_FORMATS:
             try:
                 output.add(datetime.strptime(variant, date_format).date())
@@ -4246,6 +4915,12 @@ def _equipment_semantics_match(value: Mapping[str, Any], rendered: str) -> bool:
     equipment_type = value.get("typeCategory")
     if not isinstance(size, str) or not isinstance(equipment_type, str):
         return False
+    reviewed = review_source_equipment_surface(
+        rendered,
+        temperature_present=equipment_type in TEMPERATURE_CAPABLE_CONTAINER_TYPES,
+    )
+    if reviewed.size_category is not None and reviewed.type_category is not None:
+        return reviewed.size_category == size and reviewed.type_category == equipment_type
     actual = _normalized_semantic(rendered)
     length = (
         "20" if size.startswith("TWENTY_") else "45" if size.startswith("FORTY_FIVE_") else "40"
@@ -4304,6 +4979,30 @@ def _equipment_receipt_semantics_match(value: Sequence[Any], rendered: str) -> b
         for row in containers
     }
     return all(_equipment_semantics_match(item, rendered) for item in semantic_values.values())
+
+
+def _typed_semantic_equipment_output_matches(
+    *,
+    binding: SemanticBinding,
+    source_target: Mapping[str, Any],
+    target: Mapping[str, Any],
+    output: BindingOutput,
+) -> bool:
+    """Validate a compiler-certified projection against its typed renderer receipt."""
+
+    if not _has_semantic_equipment_values(binding, target):
+        return False
+    try:
+        expected = _render_agent_target_binding(
+            binding,
+            source_target=source_target,
+            target=target,
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+    return output.replacements == expected.replacements and canonical_json_bytes(
+        output.canonical_value
+    ) == canonical_json_bytes(expected.canonical_value)
 
 
 def _interrupted_target_semantics_match(
@@ -4367,6 +5066,13 @@ def _target_binding_semantics_valid(
             and output.replacements == unchanged.replacements
         ):
             continue
+        if _typed_semantic_equipment_output_matches(
+            binding=binding,
+            source_target=case.source_target,
+            target=case.target,
+            output=output,
+        ):
+            continue
         if binding.realization.requires_agent and binding.target_paths:
             try:
                 expected = _render_agent_target_binding(
@@ -4400,11 +5106,12 @@ def _target_binding_semantics_valid(
                     try:
                         expected_date = date.fromisoformat(target_value)
                     except ValueError:
-                        failures.append(f"{binding.logical_key}:{path}:invalid-target-date")
+                        if not _string_semantics_match(target_value, rendered):
+                            failures.append(f"{binding.logical_key}:{path}:text-not-rendered")
                         continue
                     if not any(
                         expected_date in _date_candidates(value)
-                        for value in output.replacements.values()
+                        for value in (*output.replacements.values(), rendered)
                     ):
                         failures.append(f"{binding.logical_key}:{path}:date-not-rendered")
                 elif path.endswith(".unit") and target_value in {
@@ -4473,13 +5180,15 @@ def _source_relationships_valid(
     *, template: CertifiedSemanticTemplate, outputs: Mapping[str, BindingOutput]
 ) -> tuple[bool, tuple[str, ...]]:
     failures: list[str] = []
+    active_relationships = _active_identifier_relationships(template)
     for binding in template.bindings:
-        if not binding.source_relationships:
+        relationships = active_relationships[binding.logical_key]
+        if not relationships:
             continue
         current = _alphanumeric(
             outputs[binding.logical_key].replacements[binding.occurrences[0].slot_id]
         ).casefold()
-        for relationship in binding.source_relationships:
+        for relationship in relationships:
             dependency = next(
                 row
                 for row in template.bindings
@@ -4552,6 +5261,7 @@ def _failed_result(
         {
             "schema_version": 1,
             "document_id": case.document_id,
+            "source_document_id": case.source_document_id,
             "synthetic_document_id": case.target_receipt.synthetic_document_id,
             "status": status,
             "error_type": error_type,
@@ -4787,7 +5497,7 @@ def _materialize_case(
         carrier_valid = _carrier_unchanged(case=case, outputs=outputs)
         if not carrier_valid:
             raise ValueError("carrier-bound label or carrier slot changed")
-        if printed_topology_mismatches(case.source_target, case.target):
+        if printed_topology_mismatches(case.topology_reference_target, case.target):
             raise ValueError("prepared target topology changed after preflight")
         requests, input_tokens, output_tokens, reasoning_tokens, estimated, reported = (
             _usage_values(stage)
@@ -4809,6 +5519,7 @@ def _materialize_case(
             {
                 "schema_version": 1,
                 "document_id": case.document_id,
+                "source_document_id": case.source_document_id,
                 "synthetic_document_id": case.target_receipt.synthetic_document_id,
                 "status": "passed",
                 "error_type": None,
@@ -4915,6 +5626,7 @@ def _preflight_payload(
     system_prompt_sha256: str,
 ) -> dict[str, Any]:
     rows = []
+    provider_free_failures: list[str] = []
     for case, plan in zip(cases, plans, strict=True):
         if not plan.residual_bindings:
             execution = _materialize_case(
@@ -4928,8 +5640,8 @@ def _preflight_payload(
                 country_codes=country_codes,
             )
             if execution.result.status != "passed":
-                raise ValueError(
-                    f"provider-free preflight materialization failed for {case.document_id}: "
+                provider_free_failures.append(
+                    f"{case.document_id} from {case.source_document_id}: "
                     f"{execution.result.error_type}: {execution.result.error_message}"
                 )
         payload = _residual_payload(case=case, plan=plan)
@@ -4949,6 +5661,7 @@ def _preflight_payload(
         rows.append(
             {
                 "documentId": case.document_id,
+                "sourceDocumentId": case.source_document_id,
                 "targetOrigin": case.target_receipt.target_origin,
                 "targetSchemaVersion": case.target["schemaVersion"],
                 "targetChanges": case.target_receipt.changed_target_leaf_count,
@@ -4964,6 +5677,11 @@ def _preflight_payload(
                 "plannedProviderRequests": int(bool(plan.residual_bindings)),
             }
         )
+    if provider_free_failures:
+        raise ValueError(
+            "provider-free preflight materialization failed for "
+            f"{len(provider_free_failures)} document(s):\n" + "\n".join(provider_free_failures)
+        )
     return {
         "schemaVersion": 1,
         "status": "ready",
@@ -4976,6 +5694,10 @@ def _preflight_payload(
         ),
         "controlledTargetDocuments": sum(
             case.target_receipt.target_origin == "controlled_source_variant" for case in cases
+        ),
+        "plannedV5TargetDocuments": sum(
+            case.target_receipt.target_origin == "planned_v5_controlled_source_variant"
+            for case in cases
         ),
         "templateBindings": sum(len(case.template.bindings) for case in cases),
         "templateSlots": sum(len(case.template.byte_template.slots) for case in cases),
@@ -4993,6 +5715,30 @@ def _preflight_payload(
     }
 
 
+def _build_render_plans(
+    cases: Sequence[PreparedCase],
+    *,
+    seed: int,
+    country_codes: Mapping[str, str],
+) -> tuple[RenderPlan, ...]:
+    plans: list[RenderPlan] = []
+    for case in cases:
+        try:
+            plans.append(
+                _build_initial_plan(
+                    case,
+                    seed=seed,
+                    country_codes=country_codes,
+                )
+            )
+        except ValueError as error:
+            raise ValueError(
+                f"render-plan preflight failed for sample {case.document_id} "
+                f"from template {case.source_document_id}: {error}"
+            ) from error
+    return tuple(plans)
+
+
 def preflight_descendants(config_path: Path) -> dict[str, Any]:
     project_root = project_root_from_config(config_path)
     config = load_descendant_config(config_path)
@@ -5002,13 +5748,10 @@ def preflight_descendants(config_path: Path) -> dict[str, Any]:
     cases = _load_cases(project_root=project_root, config=config)
     country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
     countries = _country_code_map(country_path)
-    plans = tuple(
-        _build_initial_plan(
-            case,
-            seed=config.workflow.controlled_target_seed,
-            country_codes=countries,
-        )
-        for case in cases
+    plans = _build_render_plans(
+        cases,
+        seed=config.workflow.controlled_target_seed,
+        country_codes=countries,
     )
     payload = _preflight_payload(
         cases,
@@ -5208,8 +5951,9 @@ def _training_dataset(
         records.append(
             {
                 "documentId": synthetic_id,
-                "sourceDocumentId": case.document_id,
-                "splitGroupId": case.document_id,
+                "sourceDocumentId": case.source_document_id,
+                "samplePlanId": case.document_id,
+                "splitGroupId": case.source_document_id,
                 "joinedRawText": execution.rendered.decode("utf-8"),
                 "joinedRawTextSha256": sha256_bytes(execution.rendered),
                 "target": case.target,
@@ -5218,16 +5962,37 @@ def _training_dataset(
         lineage.append(
             {
                 "documentId": synthetic_id,
-                "sourceDocumentId": case.document_id,
-                "splitGroupId": case.document_id,
+                "sourceDocumentId": case.source_document_id,
+                "samplePlanId": case.document_id,
+                "splitGroupId": case.source_document_id,
                 "templateRunCommitSha256": config.inputs.template_run.commit_sha256,
                 "templateRunTransactionSha256": config.inputs.template_run.transaction_sha256,
+                "samplePlanRunCommitSha256": (
+                    config.inputs.sample_plan_run.commit_sha256
+                    if config.inputs.sample_plan_run is not None
+                    else None
+                ),
+                "samplePlanRunTransactionSha256": (
+                    config.inputs.sample_plan_run.transaction_sha256
+                    if config.inputs.sample_plan_run is not None
+                    else None
+                ),
+                "samplePlanSha256": (
+                    config.inputs.sample_plan.sha256
+                    if config.inputs.sample_plan is not None
+                    else None
+                ),
                 "syntheticTargetRunCommitSha256": (
                     config.inputs.synthetic_target_run.commit_sha256
+                    if config.inputs.synthetic_target_run is not None
+                    else None
                 ),
                 "syntheticTargetRunTransactionSha256": (
                     config.inputs.synthetic_target_run.transaction_sha256
+                    if config.inputs.synthetic_target_run is not None
+                    else None
                 ),
+                "targetGeneration": config.workflow.target_generation,
                 "templateSha256": sha256_bytes(
                     canonical_json_bytes(case.template.model_dump(mode="json"))
                 ),
@@ -5282,13 +6047,10 @@ async def run_descendants(config_path: Path) -> Path:
     cases = _load_cases(project_root=project_root, config=config)
     country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
     countries = _country_code_map(country_path)
-    plans = tuple(
-        _build_initial_plan(
-            case,
-            seed=config.workflow.controlled_target_seed,
-            country_codes=countries,
-        )
-        for case in cases
+    plans = _build_render_plans(
+        cases,
+        seed=config.workflow.controlled_target_seed,
+        country_codes=countries,
     )
     preflight = _preflight_payload(
         cases,
@@ -5314,8 +6076,30 @@ async def run_descendants(config_path: Path) -> Path:
         "runName": config.run_name,
         "configSha256": sha256_file(config_path),
         "templateRunCommitSha256": config.inputs.template_run.commit_sha256,
-        "syntheticTargetRunCommitSha256": config.inputs.synthetic_target_run.commit_sha256,
-        "syntheticTargetsSha256": config.inputs.synthetic_targets.sha256,
+        "samplePlanRunCommitSha256": (
+            config.inputs.sample_plan_run.commit_sha256
+            if config.inputs.sample_plan_run is not None
+            else None
+        ),
+        "samplePlanRunTransactionSha256": (
+            config.inputs.sample_plan_run.transaction_sha256
+            if config.inputs.sample_plan_run is not None
+            else None
+        ),
+        "samplePlanSha256": (
+            config.inputs.sample_plan.sha256 if config.inputs.sample_plan is not None else None
+        ),
+        "syntheticTargetRunCommitSha256": (
+            config.inputs.synthetic_target_run.commit_sha256
+            if config.inputs.synthetic_target_run is not None
+            else None
+        ),
+        "syntheticTargetsSha256": (
+            config.inputs.synthetic_targets.sha256
+            if config.inputs.synthetic_targets is not None
+            else None
+        ),
+        "targetGeneration": config.workflow.target_generation,
         "iso3166Sha256": config.inputs.iso3166_snapshot.sha256,
         "promptSha256": config.prompts.residual_renderer.sha256,
         "executionMode": execution_mode,
@@ -5335,9 +6119,11 @@ async def run_descendants(config_path: Path) -> Path:
                 _SEMANTIC_PLAN_PATH,
                 _SYNTHETIC_VALUES_PATH,
                 _COHERENCE_PATH,
+                _LATEST_TARGET_PATH,
             )
         },
         "documentIds": [case.document_id for case in cases],
+        "sourceDocumentIds": [case.source_document_id for case in cases],
         "preparedTargetSha256": [case.target_receipt.prepared_target_sha256 for case in cases],
         "runtime": {
             "providerKind": config.provider.kind,
@@ -5384,20 +6170,34 @@ async def run_descendants(config_path: Path) -> Path:
             provider=config.provider,
         )
         limiter = asyncio.Semaphore(config.workflow.max_concurrent_requests)
-        executions = await asyncio.gather(
-            *(
-                _execute_case(
-                    case=case,
-                    plan=plan,
+        pending_executions: list[ExecutedCase | None] = [None] * len(cases)
+        next_case = 0
+        next_case_lock = asyncio.Lock()
+
+        async def worker() -> None:
+            nonlocal next_case
+            while True:
+                async with next_case_lock:
+                    if next_case >= len(cases):
+                        return
+                    index = next_case
+                    next_case += 1
+                pending_executions[index] = await _execute_case(
+                    case=cases[index],
+                    plan=plans[index],
                     model=model,
                     provider=config.provider,
                     system_prompt=system_prompt,
                     limiter=limiter,
                     country_codes=countries,
                 )
-                for case, plan in zip(cases, plans, strict=True)
-            )
+
+        await asyncio.gather(
+            *(worker() for _ in range(min(config.workflow.max_concurrent_requests, len(cases))))
         )
+        if any(row is None for row in pending_executions):
+            raise RuntimeError("provider worker pool did not execute every descendant case")
+        executions = tuple(cast(ExecutedCase, row) for row in pending_executions)
     else:
         replay_rows: list[ResidualReplayReceipt] = []
         replayed_executions: list[ExecutedCase] = []

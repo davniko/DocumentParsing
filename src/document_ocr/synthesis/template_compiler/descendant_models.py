@@ -22,10 +22,22 @@ class DescendantInputs(BaseModel):
     model_config = _STRICT
 
     template_run: PinnedCommittedRun
-    synthetic_target_run: PinnedCommittedRun
-    synthetic_targets: Annotated[PinnedJsonl, Field()]
+    sample_plan_run: PinnedCommittedRun | None = None
+    sample_plan: Annotated[PinnedJsonl, Field()] | None = None
+    synthetic_target_run: PinnedCommittedRun | None = None
+    synthetic_targets: Annotated[PinnedJsonl, Field()] | None = None
     iso3166_snapshot: PinnedFile
     residual_replay_run: PinnedCommittedRun | None = None
+
+    @model_validator(mode="after")
+    def input_pins_are_complete(self) -> DescendantInputs:
+        if (self.sample_plan_run is None) != (self.sample_plan is None):
+            raise ValueError("sample_plan_run and sample_plan must be configured together")
+        if (self.synthetic_target_run is None) != (self.synthetic_targets is None):
+            raise ValueError(
+                "synthetic_target_run and synthetic_targets must be configured together"
+            )
+        return self
 
 
 class DescendantPrompts(BaseModel):
@@ -37,8 +49,10 @@ class DescendantPrompts(BaseModel):
 class DescendantWorkflow(BaseModel):
     model_config = _STRICT
 
-    documents: Annotated[int, Field(gt=0, le=100_000)]
+    documents: Annotated[int, Field(gt=0)]
     controlled_target_seed: int
+    target_schema_version: Literal["5.0.0-experimental"] | None = None
+    target_generation: Literal["controlled_latest_schema_from_source_v1"] | None = None
     max_concurrent_requests: Annotated[int, Field(gt=0, le=16)]
     max_requests_per_document: Literal[1]
     provider_launch_authorized: bool
@@ -64,6 +78,33 @@ class DescendantConfig(BaseModel):
     provider: ProviderConfig
     workflow: DescendantWorkflow
 
+    @model_validator(mode="after")
+    def target_source_is_unambiguous(self) -> DescendantConfig:
+        planned = self.inputs.sample_plan is not None
+        external_targets = self.inputs.synthetic_targets is not None
+        planned_latest = (
+            self.workflow.target_schema_version == "5.0.0-experimental"
+            and self.workflow.target_generation
+            == "controlled_latest_schema_from_source_v1"
+        )
+        if planned and external_targets:
+            raise ValueError(
+                "sample-plan synthesis generates its own latest-schema targets and cannot "
+                "also accept external synthetic targets"
+            )
+        if planned != planned_latest:
+            raise ValueError(
+                "sample-plan synthesis requires the latest-schema controlled target policy"
+            )
+        if not planned and not external_targets:
+            raise ValueError("historical rendering requires pinned external synthetic targets")
+        if not planned and (
+            self.workflow.target_schema_version is not None
+            or self.workflow.target_generation is not None
+        ):
+            raise ValueError("historical rendering cannot configure planned target generation")
+        return self
+
 
 class TargetAdaptation(BaseModel):
     model_config = _STRICT
@@ -80,9 +121,11 @@ class PreparedTargetReceipt(BaseModel):
 
     schema_version: Literal[1]
     document_id: NonEmptyText
+    source_document_id: NonEmptyText | None = None
     target_origin: Literal[
         "existing_linguistic_target_carrier_restored",
         "controlled_source_variant",
+        "planned_v5_controlled_source_variant",
     ]
     source_schema_version: NonEmptyText
     target_schema_version: NonEmptyText
@@ -167,6 +210,7 @@ class DescendantCaseResult(BaseModel):
 
     schema_version: Literal[1]
     document_id: NonEmptyText
+    source_document_id: NonEmptyText | None = None
     synthetic_document_id: NonEmptyText
     status: Literal["passed", "provider_error", "host_rejected"]
     error_type: str | None

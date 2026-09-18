@@ -1,0 +1,88 @@
+schema_version: 1
+task: bill_of_lading_template_manual_review_resolution_v1
+run_name: mpci-bl-template-compilation-b-ordinals181-520-missing129-manual-resolved-v1
+output_dir: artifacts/kie-synthesis-production/template-base/remaining1420-split/manual-review-resolutions
+source_run:
+  path: artifacts/kie-synthesis-production/template-base/remaining1420-split/budgeted-batches/mpci-bl-template-compilation-b-ordinals181-520-missing129-v1-luna-high
+  commit_sha256: bc917f88e58ae9c1db3b19094ad82302cdbb8942cbf6781c1e14b3cad29029ee
+  transaction_sha256: 295ee3bd3d1027025b77128df31785c0d7479d36ce37bd72c67febf7027da930
+review_date: "2026-09-17"
+review_method: full_queue_source_target_and_checkpoint_review
+expected_source_documents: 129
+expected_source_certified: 113
+expected_source_rejected: 9
+expected_source_review_required: 7
+expected_usable_templates: 113
+expected_excluded_documents: 16
+require_zero_unresolved_reviews: true
+decisions:
+  - document_id: doc_ae90b31fe0de68c44e68288bfaff7b96e3def586312d70e363738f50df59dcdd
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [48, 50, 52, 83, 84]
+    rationale: "The source states one container but supplies neither a container number nor a structured container object. The missing equipment identity and dependencies cannot be recovered without invention."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_f28ea2b051f8abef3fd1751dac3ca70d000235d3232aa943eaf6ff054d442cce
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [67, 78, 79, 80, 102, 103, 124, 127, 129]
+    rationale: "The source describes one reefer container and a carrier receipt of one container, but its identity and the corresponding structured container are absent. Cargo and temperature facts cannot be bound to a supported container object."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_ef438af5a29d8d83ea221d4187ecba7d3fbf45f257be49ed8dffa11b940c1552
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:10_vs_7"
+    source_line_numbers: [45, 47, 57, 58, 59, 60, 61, 62, 63, 79, 80]
+    rationale: "The shipment and receipt declare ten containers, but only seven identities are exposed and modeled. Three container identities, seals, and row-level cargo facts are missing and cannot be reconstructed safely."
+    expected_printed_container_counts: [10]
+    expected_labeled_container_count: 7
+    expected_observed_container_identity_count: 7
+  - document_id: doc_959ea02c7f247d3e9e7fd37494b4a6f38ed33d5a275ea8037381065548217133
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [45, 47, 52, 75, 76]
+    rationale: "The source declares one 40-foot high-cube container but provides no container identity and the target has no container object. A synthetic container topology would therefore be unsupported."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_540299f929b322e10b87b2b6bd07ddd59130eb44bdbb25c14146b92120eb59e1
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0"
+    source_line_numbers: [51, 53, 103, 104]
+    rationale: "The carrier receipt declares one container while neither source nor target supplies its identity. No supported structured container can drive deterministic replacement."
+    expected_printed_container_counts: [1]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0
+  - document_id: doc_c0f529a4e76ce0c3259b00c32a479fb6ec35b297ca5eef9a937bc222ed5dd265
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:6_vs_4"
+    source_line_numbers: [50, 52, 58, 60, 62, 64, 81, 82]
+    rationale: "The source and carrier receipt declare six containers, but only four identities and four structured container objects are present. The two omitted equipment rows and dependent facts cannot be inferred."
+    expected_printed_container_counts: [6]
+    expected_labeled_container_count: 4
+    expected_observed_container_identity_count: 4
+  - document_id: doc_06f92f19b1e7999317459bda71d679378d5a9ee79420d4ff155cf7fd6713a3bf
+    resolution: exclude
+    issue_class: incomplete_container_topology
+    expected_review_reasons:
+      - "source template integrity requires review: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0"
+    source_line_numbers: [44, 46, 71, 73, 74, 85, 86, 100, 102, 110]
+    rationale: "The source declares two containers and exposes two gross-weight rows, but it contains no container identities and the target contains no container objects. Aggregate evidence cannot recover the missing per-container topology."
+    expected_printed_container_counts: [2]
+    expected_labeled_container_count: 0
+    expected_observed_container_identity_count: 0

@@ -13,6 +13,7 @@ from document_ocr.synthesis.template_compiler.host import (
 )
 from document_ocr.synthesis.template_compiler.models import (
     AgentStageArtifact,
+    CompilerAgentOutput,
     CriticAgentOutput,
 )
 
@@ -52,6 +53,31 @@ def _span_draft(
     )
 
 
+def _compiler_output_fixture() -> CompilerAgentOutput:
+    return CompilerAgentOutput.model_validate(
+        {
+            "carrier": {
+                "canonical_name": "FIXTURE CARRIER",
+                "aliases": (),
+                "evidence_occurrences": (
+                    {
+                        "line_start": "L00001",
+                        "line_end": "L00001",
+                        "source_text": "FIXTURE CARRIER",
+                        "occurrence_index": 0,
+                    },
+                ),
+                "source": "source_label_confirmed_by_ocr",
+                "rationale": "Exact fixture evidence.",
+            },
+            "anchor_overrides": (),
+            "bindings": (),
+            "unresolved": (),
+            "all_shipment_dependent_surfaces_accounted_for": True,
+        }
+    )
+
+
 def test_package_quantity_locality_recognizes_abbreviated_table_headings() -> None:
     raw = (
         "--- PAGE 1 ---\n"
@@ -86,6 +112,102 @@ def test_package_quantity_locality_recognizes_abbreviated_table_headings() -> No
     first = raw.index("16000")
     second = raw.index("16000", first + 1)
     assert quantity_starts == {first, second}
+
+
+@pytest.mark.asyncio
+async def test_hybrid_compiler_records_unprojectable_local_repair_without_repair_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = object.__new__(AgentRuntime)
+    runtime._agent_contract_protocol = "hybrid_reference_partitioned_v10"
+    prior = _compiler_output_fixture()
+
+    def reject_projection(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("host rejection cannot be safely projected onto a local repair slice")
+
+    monkeypatch.setattr(
+        agents_module,
+        "build_local_compiler_repair_payload",
+        reject_projection,
+    )
+    system_prompt = "compiler system prompt"
+
+    output, stage = await runtime.compiler(
+        pass_number=2,
+        system_prompt=system_prompt,
+        payload={
+            "documentId": "doc_fixture",
+            "previousCandidateOutput": prior.model_dump(mode="json"),
+            "requiredRevision": "Repair a defect outside the safe local slice.",
+        },
+        retries=1,
+        repair_prompt=None,
+    )
+
+    effective_prompt = (
+        f"{system_prompt}\n\n{agents_module._DISCRIMINATED_BINDING_ADAPTER}\n\n"
+        f"{agents_module._COMPILER_REPAIR_ADAPTER}"
+    )
+    assert output is None
+    assert stage.status == "host_rejected"
+    assert stage.error_type == "ValueError"
+    assert stage.error_message is not None
+    assert "cannot be safely projected" in stage.error_message
+    assert stage.system_prompt_sha256 == agents_module.sha256_bytes(
+        effective_prompt.encode("utf-8")
+    )
+    assert stage.usage.requests == 0
+
+
+@pytest.mark.asyncio
+async def test_hybrid_compiler_records_invalid_local_repair_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = object.__new__(AgentRuntime)
+    runtime._agent_contract_protocol = "hybrid_reference_partitioned_v10"
+    prior = _compiler_output_fixture()
+    repair_payload = {
+        "anchorBindings": (),
+        "candidateSlice": {
+            "removableBindingKeys": (),
+            "removableAnchorOverrideIds": (),
+            "removableSemanticOnlyTargetPaths": (),
+        }
+    }
+    monkeypatch.setattr(
+        agents_module,
+        "build_local_compiler_repair_payload",
+        lambda *_args, **_kwargs: repair_payload,
+    )
+
+    def reject_schema(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("compiler repair binding scope is invalid")
+
+    monkeypatch.setattr(
+        agents_module,
+        "_scoped_compiler_repair_output_type",
+        reject_schema,
+    )
+
+    output, stage = await runtime.compiler(
+        pass_number=2,
+        system_prompt="compiler system prompt",
+        payload={
+            "documentId": "doc_fixture",
+            "previousCandidateOutput": prior.model_dump(mode="json"),
+            "requiredRevision": "Repair the invalid binding scope.",
+        },
+        retries=1,
+        repair_prompt=None,
+    )
+
+    assert output is None
+    assert stage.status == "host_rejected"
+    assert stage.error_type == "ValueError"
+    assert stage.error_message is not None
+    assert "local_compiler_repair_schema" in stage.error_message
+    assert "binding scope is invalid" in stage.error_message
+    assert stage.usage.requests == 0
 
 
 @pytest.mark.asyncio

@@ -105,6 +105,7 @@ _NUMBER_CONTRADICTION_COLUMNS = (
 _ORIGIN_LABELS = {
     "existing_linguistic_target_carrier_restored": "Existing full target",
     "controlled_source_variant": "Controlled source variant",
+    "planned_v5_controlled_source_variant": "Planned v5 controlled variant",
 }
 _PALETTE = {
     "deterministic": "#1976D2",
@@ -114,6 +115,7 @@ _PALETTE = {
     "pass_with_source_limitation": "#F9A825",
     "Existing full target": "#00897B",
     "Controlled source variant": "#8E24AA",
+    "Planned v5 controlled variant": "#5E35B1",
 }
 _EXPORTER_COUNTRY_INLINE = re.compile(
     r"(?:FOREIGN\s+EXPORTER(?:\s+REGISTRATION)?\s+COUNTRY|"
@@ -172,7 +174,7 @@ class DescendantEdaConfig(BaseModel):
     template_catalog: PinnedCommittedRun
     iso3166_snapshot: PinnedFile
     manual_review: PinnedFile
-    expected_documents: Annotated[int, Field(gt=0, le=100_000)]
+    expected_documents: Annotated[int, Field(gt=0)]
     expected_manual_reviews: Annotated[int, Field(gt=0, le=1_000)]
 
 
@@ -186,6 +188,7 @@ class ManualReviewEntry(BaseModel):
     target_origin: Literal[
         "existing_linguistic_target_carrier_restored",
         "controlled_source_variant",
+        "planned_v5_controlled_source_variant",
     ]
     compilation_lineage: NonEmptyText
     selection_reason: NonEmptyText
@@ -543,6 +546,67 @@ def _rows_frame(
     return frame
 
 
+def _compilation_lineage(lineage: Mapping[str, Any], *, document_id: str) -> str:
+    """Return the exact compiler-run identity across catalog generations."""
+
+    present = tuple(
+        cast(str, lineage[key])
+        for key in ("sourceRun", "catalogRun")
+        if isinstance(lineage.get(key), str) and lineage[key]
+    )
+    if len(present) != 1:
+        raise ValueError(
+            f"template lineage must contain exactly one compiler-run identity: {document_id}"
+        )
+    return present[0]
+
+
+def _stage_analysis(case_root: Path, *, document_id: str) -> dict[str, Any]:
+    """Normalize live and replayed residual-stage evidence without guessing a branch."""
+
+    live_path = case_root / "agent-stage.json"
+    replayed_path = case_root / "source-agent-stage.json"
+    present = tuple(path for path in (live_path, replayed_path) if path.is_file())
+    if len(present) != 1:
+        raise ValueError(
+            f"descendant case must contain exactly one agent-stage artifact: {document_id}"
+        )
+    stage = _json(present[0])
+    if stage.get("document_id") != document_id:
+        raise ValueError(f"agent-stage document identity differs: {document_id}")
+    output = stage.get("output")
+    if output is not None and not isinstance(output, Mapping):
+        raise ValueError(f"agent-stage output is not an object: {document_id}")
+    output_slots = len(output) if isinstance(output, Mapping) else 0
+
+    replay_path = case_root / "replay-receipt.json"
+    if present[0] == live_path:
+        if replay_path.exists():
+            raise ValueError(
+                f"live descendant case unexpectedly has a replay receipt: {document_id}"
+            )
+        return {
+            "stage": stage,
+            "source_output_slot_count": output_slots,
+            "replayed_output_slot_count": output_slots,
+            "dropped_output_slot_count": 0,
+        }
+
+    if not replay_path.is_file():
+        raise ValueError(f"replayed descendant case lacks a replay receipt: {document_id}")
+    replay = _json(replay_path)
+    if replay.get("document_id") != document_id:
+        raise ValueError(f"replay-receipt document identity differs: {document_id}")
+    if int(replay["replayed_output_slot_count"]) != output_slots:
+        raise ValueError(f"replayed slot count differs from the agent stage: {document_id}")
+    return {
+        "stage": stage,
+        "source_output_slot_count": int(replay["source_output_slot_count"]),
+        "replayed_output_slot_count": int(replay["replayed_output_slot_count"]),
+        "dropped_output_slot_count": int(replay["dropped_output_slot_count"]),
+    }
+
+
 def _build_frames(
     *,
     run_root: Path,
@@ -562,15 +626,24 @@ def _build_frames(
 
     for result in results:
         document_id = result.document_id
-        if document_id not in catalog_rows:
-            raise ValueError(f"descendant document is absent from template catalog: {document_id}")
+        template_document_id = result.source_document_id or document_id
+        if template_document_id not in catalog_rows:
+            raise ValueError(
+                "descendant source document is absent from template catalog: "
+                f"{template_document_id} (sample {document_id})"
+            )
         case_root = run_root / "cases" / document_id
-        catalog_case = catalog_root / "cases" / document_id
-        catalog = catalog_rows[document_id]
+        catalog_case = catalog_root / "cases" / template_document_id
+        catalog = catalog_rows[template_document_id]
         case_catalog = _json(catalog_case / "catalog-row.json")
         if canonical_json_bytes(case_catalog) != canonical_json_bytes(catalog):
-            raise ValueError(f"catalog row differs from joined case artifact: {document_id}")
+            raise ValueError(
+                f"catalog row differs from joined case artifact: {template_document_id}"
+            )
         lineage = _json(catalog_case / "lineage.json")
+        compilation_lineage = _compilation_lineage(
+            lineage, document_id=template_document_id
+        )
         template = _json(catalog_case / "template.json")
         template_bindings = {
             cast(str, row["binding_id"]): row
@@ -605,8 +678,8 @@ def _build_frames(
         source_target = _json(case_root / "source-target.json")
         target = _json(case_root / "target.json")
         target_receipt = _json(case_root / "target-receipt.json")
-        replay = _json(case_root / "replay-receipt.json")
-        agent_stage = _json(case_root / "source-agent-stage.json")
+        stage_analysis = _stage_analysis(case_root, document_id=document_id)
+        agent_stage = cast(dict[str, Any], stage_analysis["stage"])
         usage = agent_stage.get("usage")
         if not isinstance(usage, Mapping):
             raise ValueError(f"agent-stage usage is absent: {document_id}")
@@ -655,7 +728,7 @@ def _build_frames(
             country_row.update(
                 {
                     "target_origin": result.target_origin,
-                    "compilation_lineage": lineage["sourceRun"],
+                    "compilation_lineage": compilation_lineage,
                 }
             )
             country_rows.append(country_row)
@@ -664,7 +737,7 @@ def _build_frames(
             contradiction.update(
                 {
                     "target_origin": result.target_origin,
-                    "compilation_lineage": lineage["sourceRun"],
+                    "compilation_lineage": compilation_lineage,
                 }
             )
         contradiction_rows.extend(contradictions)
@@ -675,8 +748,9 @@ def _build_frames(
         documents.append(
             {
                 **result.model_dump(mode="json"),
+                "template_document_id": template_document_id,
                 "target_origin_label": _ORIGIN_LABELS[result.target_origin],
-                "compilation_lineage": lineage["sourceRun"],
+                "compilation_lineage": compilation_lineage,
                 "carrier": catalog["carrier"],
                 "carrier_family": catalog["carrierFamily"],
                 "document_type": catalog["documentType"],
@@ -698,9 +772,11 @@ def _build_frames(
                     float(stage_cost) if current_provider_required else 0.0
                 ),
                 "source_provider_duration_seconds": float(agent_stage["duration_seconds"]),
-                "source_residual_slots": int(replay["source_output_slot_count"]),
-                "replayed_residual_slots": int(replay["replayed_output_slot_count"]),
-                "dropped_residual_slots": int(replay["dropped_output_slot_count"]),
+                "source_residual_slots": int(stage_analysis["source_output_slot_count"]),
+                "replayed_residual_slots": int(
+                    stage_analysis["replayed_output_slot_count"]
+                ),
+                "dropped_residual_slots": int(stage_analysis["dropped_output_slot_count"]),
                 "visible_output_tokens": result.output_tokens - result.reasoning_tokens,
                 "containers": _list_length(patch.get("containers")),
                 "cargo_groups": _list_length(patch.get("cargoGroups")),
@@ -844,11 +920,15 @@ def _plots(
     axes[0].bar_label(axes[0].containers[0])
     axes[0].set(title="Target origin", ylabel="Documents")
     axes[0].tick_params(axis="x", rotation=18)
-    lineage = documents["compilation_lineage"].str.extract(r"compilation(30|200)")[0]
-    lineage_counts = lineage.map({"30": "30-doc lineage", "200": "200-doc lineage"}).value_counts()
-    axes[1].bar(lineage_counts.index, lineage_counts.values, color=["#5C6BC0", "#26A69A"])
+    lineage_counts = documents["compilation_lineage"].value_counts().head(8).sort_values()
+    lineage_labels = [Path(value).name for value in lineage_counts.index]
+    axes[1].barh(
+        lineage_labels,
+        lineage_counts.values,
+        color=sns.color_palette("viridis", n_colors=len(lineage_counts)),
+    )
     axes[1].bar_label(axes[1].containers[0])
-    axes[1].set(title="Compilation lineage", ylabel="Documents")
+    axes[1].set(title="Compilation lineage", xlabel="Documents")
     carrier = documents["carrier_family"].map(
         lambda value: "Other / NVOCC" if str(value).startswith("OTHER::") else value
     )
@@ -1360,6 +1440,9 @@ def _report(summary: Mapping[str, Any]) -> str:
         target_origins.get("existing_linguistic_target_carrier_restored", 0)
     )
     controlled_variant_count = int(target_origins.get("controlled_source_variant", 0))
+    planned_variant_count = int(
+        target_origins.get("planned_v5_controlled_source_variant", 0)
+    )
     return "\n".join(
         (
             f"# Compiled-template {summary['documents']}-document synthesis EDA",
@@ -1406,7 +1489,8 @@ def _report(summary: Mapping[str, Any]) -> str:
                 "- Scope caveat: those figures exclude one-time template compilation and any "
                 "separate model-based full-target synthesis. This cohort used "
                 f"{existing_target_count} pre-existing full linguistic targets and "
-                f"{controlled_variant_count} deterministic controlled source variants."
+                f"{controlled_variant_count} historical controlled source variants plus "
+                f"{planned_variant_count} planned v5 controlled variants."
             ),
             "",
             "## Deep quality finding",

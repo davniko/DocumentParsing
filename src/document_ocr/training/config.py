@@ -175,6 +175,105 @@ class DatasetFileConfig(_StrictModel):
         return value
 
 
+class PinnedArtifactFileConfig(_StrictModel):
+    path: NonEmptyString
+    sha256: NonEmptyString
+
+    @field_validator("path")
+    @classmethod
+    def artifact_path_is_safe(cls, value: str) -> str:
+        return _validate_config_path(value)
+
+    @field_validator("sha256")
+    @classmethod
+    def artifact_digest_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("artifact sha256 must be a lowercase 64-character SHA-256")
+        return value
+
+
+class RealV5ValidationContractConfig(_StrictModel):
+    records: PositiveInteger
+    document_ids_sha256: NonEmptyString
+
+    @field_validator("document_ids_sha256")
+    @classmethod
+    def validation_ids_digest_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("validation document_ids_sha256 must be lowercase SHA-256")
+        return value
+
+
+class RealV5EquipmentCorrectionConfig(_StrictModel):
+    document_id: NonEmptyString
+    input_sha256: NonEmptyString
+    evidence_text: NonEmptyString
+    container_index: NonNegativeInteger
+    type_description: NonEmptyString
+
+    @field_validator("input_sha256")
+    @classmethod
+    def correction_input_digest_is_sha256(cls, value: str) -> str:
+        if not _SHA256_PATTERN.fullmatch(value):
+            raise ValueError("correction input_sha256 must be lowercase SHA-256")
+        return value
+
+
+class RealV5ProjectionConfig(_StrictModel):
+    schema_version: Literal[1]
+    projection: Literal["relation_v3_real_split_to_v5_v1"]
+    source: DatasetFileConfig
+    baseline_dataset_report: PinnedArtifactFileConfig
+    validation: RealV5ValidationContractConfig
+    corrections: list[RealV5EquipmentCorrectionConfig]
+    output_dir: NonEmptyString
+
+    @field_validator("output_dir")
+    @classmethod
+    def projection_output_path_is_safe(cls, value: str) -> str:
+        return _validate_config_path(value)
+
+    @model_validator(mode="after")
+    def correction_documents_are_unique(self) -> RealV5ProjectionConfig:
+        document_ids = [item.document_id for item in self.corrections]
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("correction document IDs must be unique")
+        return self
+
+
+class RelationConstraintsBuildConfig(_StrictModel):
+    schema_version: Literal[1]
+    task: Literal[
+        "bill_of_lading_relation_explicit_v3",
+        "bill_of_lading_relation_explicit_v4",
+        "bill_of_lading_relation_explicit_v5",
+    ]
+    sources: list[DatasetFileConfig] = Field(min_length=1)
+    target_field: NonEmptyString
+    package_registry: PinnedArtifactFileConfig
+    container_registry: PinnedArtifactFileConfig
+    output_dir: NonEmptyString
+
+    @field_validator("target_field")
+    @classmethod
+    def target_field_is_top_level_identifier(cls, value: str) -> str:
+        if not _FIELD_PATTERN.fullmatch(value):
+            raise ValueError("target_field must be a top-level identifier")
+        return value
+
+    @field_validator("output_dir")
+    @classmethod
+    def constraints_output_path_is_safe(cls, value: str) -> str:
+        return _validate_config_path(value)
+
+    @model_validator(mode="after")
+    def source_paths_are_unique(self) -> RelationConstraintsBuildConfig:
+        paths = [source.path for source in self.sources]
+        if len(paths) != len(set(paths)):
+            raise ValueError("relation-constraints source paths must be unique")
+        return self
+
+
 class DatasetPartitionFieldsConfig(_StrictModel):
     document_id: NonEmptyString
     input_sha256: NonEmptyString
@@ -599,10 +698,14 @@ class TrainingConfig(_StrictModel):
 
     @model_validator(mode="after")
     def strategies_and_splits_are_consistent(self) -> TrainingConfig:
-        relation_explicit = self.task == "bill_of_lading_relation_explicit_v3"
+        relation_explicit = self.task in {
+            "bill_of_lading_relation_explicit_v3",
+            "bill_of_lading_relation_explicit_v4",
+            "bill_of_lading_relation_explicit_v5",
+        }
         if relation_explicit != (self.task_constraints is not None):
             raise ValueError(
-                "bill_of_lading_relation_explicit_v3 requires a frozen task_constraints "
+                "each relation-explicit bill-of-lading task requires a frozen task_constraints "
                 "artifact, and other registered tasks must not configure it"
             )
         if self.dataset.splits is None:
@@ -629,8 +732,10 @@ class TrainingConfig(_StrictModel):
                 raise ValueError("test predictions require a test split")
         if self.evaluation.write_predictions_for and self.dataloader.drop_last:
             raise ValueError("prediction publication requires dataloader.drop_last=false")
-        if self.evaluation.generation_max_length != self.dataset.preprocessing.max_target_length:
-            raise ValueError("generation_max_length must equal preprocessing.max_target_length")
+        if self.evaluation.generation_max_length > self.dataset.preprocessing.max_target_length:
+            raise ValueError(
+                "generation_max_length must not exceed preprocessing.max_target_length"
+            )
         if (
             self.evaluation.strategy != "no"
             or self.evaluation.run_final_evaluation
@@ -712,6 +817,24 @@ def load_training_config(path: Path) -> TrainingConfig:
     """Load one strict training YAML without importing the GPU training stack."""
 
     return parse_training_config(path.read_bytes())
+
+
+def load_real_v5_projection_config(path: Path) -> RealV5ProjectionConfig:
+    """Load one strict real-data relation-v5 projection declaration."""
+
+    return RealV5ProjectionConfig.model_validate(
+        _parse_yaml_mapping(path.read_bytes(), "real v5 projection configuration"),
+        strict=True,
+    )
+
+
+def load_relation_constraints_build_config(path: Path) -> RelationConstraintsBuildConfig:
+    """Load a strict relation-explicit vocabulary publication declaration."""
+
+    return RelationConstraintsBuildConfig.model_validate(
+        _parse_yaml_mapping(path.read_bytes(), "relation constraints build configuration"),
+        strict=True,
+    )
 
 
 def parse_dataset_partition_config(payload: bytes | str) -> DatasetPartitionConfig:
