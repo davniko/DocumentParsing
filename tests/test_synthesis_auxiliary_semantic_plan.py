@@ -6,13 +6,41 @@ from typing import Any
 import pytest
 
 from document_ocr.synthesis.template_compiler.descendant import (
-    _adapt_unrepresented_party_facets,
+    _validate_unrepresented_party_facets,
 )
-from document_ocr.synthesis.template_compiler.models import AuxiliarySemanticPlan
+from document_ocr.synthesis.template_compiler.models import (
+    AuxiliaryBindingDisposition,
+    AuxiliaryEntity,
+    AuxiliaryEntityMember,
+    AuxiliarySemanticPlan,
+)
 from document_ocr.synthesis.template_compiler.semantic_plan import (
     AuxiliarySemanticPlanReviewRequired,
     build_auxiliary_semantic_plan,
+    resolve_geographic_members,
+    validate_auxiliary_render,
 )
+
+
+def test_proven_name_suffix_is_validated_as_a_facet_not_as_the_whole_party():
+    entity = SimpleNamespace(
+        entity_id="test",
+        target_party_path="documentPatch.parties.shipper",
+        members=(SimpleNamespace(logical_key="suffix", field="name"),),
+    )
+    plan = SimpleNamespace(entities=(entity,), composite_numbers=(), document_sequences=())
+    target = {
+        "documentPatch": {"parties": {"shipper": {"name": "NEW EXPORT CO ON BEHALF OF PRINCIPAL"}}}
+    }
+    outputs = {"suffix": SimpleNamespace(canonical_value="ON BEHALF OF PRINCIPAL")}
+    kwargs = dict(plan=plan, bindings=(), outputs=outputs, target=target, country_codes={})
+    with pytest.raises(ValueError, match="name differs"):
+        validate_auxiliary_render(**kwargs)
+    validate_auxiliary_render(
+        **kwargs, target_projection_values={"suffix": "ON BEHALF OF PRINCIPAL"}
+    )
+    with pytest.raises(ValueError, match="facet differs"):
+        validate_auxiliary_render(**kwargs, target_projection_values={"suffix": "WRONG PRINCIPAL"})
 
 
 def _binding(
@@ -37,6 +65,94 @@ def _binding(
         occurrences=(SimpleNamespace(source_text=source_text),),
         source_relationships=(),
     )
+
+
+@pytest.mark.parametrize(
+    "key,code,country,expected",
+    [
+        ("agent:foreign_exporter_code", "AE", "UNITED ARAB EMIRATES", "country_code"),
+        ("agent:foreign_exporter_code", "ARE", "UNITED ARAB EMIRATES", "country_code"),
+        ("agent:foreign_exporter_code", "DE", "UNITED ARAB EMIRATES", "registration_identifier"),
+        ("agent:foreign_exporter_code", "AE123", "UNITED ARAB EMIRATES", "registration_identifier"),
+        (
+            "agent:foreign_exporter_registration_code",
+            "AE",
+            "UNITED ARAB EMIRATES",
+            "registration_identifier",
+        ),
+        (
+            "agent:foreign_exporter_tax_code",
+            "AE",
+            "UNITED ARAB EMIRATES",
+            "registration_identifier",
+        ),
+        ("agent:foreign_exporter_code", "AE", "UNKNOWN", "registration_identifier"),
+        ("agent:foreign_exporter_id", "AE", "UNITED ARAB EMIRATES", "registration_identifier"),
+    ],
+)
+def test_country_code_resolution_requires_closed_same_entity_iso_evidence(
+    key, code, country, expected
+):
+    entity = AuxiliaryEntity(
+        entity_id="aux_entity_0123456789abcdef",
+        role="exporter",
+        relationship="independent",
+        target_party_path=None,
+        rationale="Explicit exporter fields.",
+        members=(
+            AuxiliaryEntityMember(logical_key="country", field="country"),
+            AuxiliaryEntityMember(logical_key=key, field="registration_identifier"),
+        ),
+    )
+    plan = AuxiliarySemanticPlan(
+        schema_version=1,
+        entities=(entity,),
+        composite_numbers=(),
+        document_sequences=(),
+        dispositions=tuple(
+            AuxiliaryBindingDisposition(
+                logical_key=member.logical_key,
+                disposition="entity_member",
+                semantic_id=entity.entity_id,
+                rationale="Same explicit exporter.",
+            )
+            for member in entity.members
+        ),
+    )
+    bindings = (_binding("country", country), _binding(key, code))
+    countries = {
+        "unitedarabemirates": "AE",
+        "ae": "AE",
+        "are": "AE",
+        "de": "DE",
+        "canada": "CA",
+        "ca": "CA",
+    }
+    resolved = resolve_geographic_members(plan, bindings, countries)
+    assert resolved.entities[0].members[1].field == expected
+    assert plan.entities[0].members[1].field == "registration_identifier"
+    if expected != "country_code":
+        assert resolved is plan
+        return
+    outputs = {
+        "country": SimpleNamespace(canonical_value="CANADA"),
+        key: SimpleNamespace(canonical_value="CA"),
+    }
+    validate_auxiliary_render(
+        plan=plan, bindings=bindings, outputs=outputs, target={}, country_codes=countries
+    )
+    outputs[key].canonical_value = "XT"
+    with pytest.raises(ValueError, match="country code conflicts"):
+        validate_auxiliary_render(
+            plan=plan, bindings=bindings, outputs=outputs, target={}, country_codes=countries
+        )
+    # A country in a different entity does not license reclassification.
+    unrelated = entity.model_copy(
+        update={"entity_id": "aux_entity_fedcba9876543210", "members": entity.members[:1]}
+    )
+    isolated_code = entity.model_copy(update={"members": entity.members[1:]})
+    separated = plan.model_copy(update={"entities": (unrelated, isolated_code)})
+    assert resolve_geographic_members(separated, bindings, countries) is separated
 
 
 def test_plan_formalizes_word_digit_counts_and_bounded_sequences() -> None:
@@ -126,7 +242,7 @@ def test_phone_extension_has_a_distinct_entity_field() -> None:
     assert plan.entities[0].members[0].field == "phone_extension"
 
 
-def test_unrepresented_party_context_restores_the_whole_source_party() -> None:
+def test_unrepresented_party_context_rejects_without_restoring_the_source_party() -> None:
     plan = AuxiliarySemanticPlan.model_validate(
         {
             "schema_version": 1,
@@ -157,11 +273,14 @@ def test_unrepresented_party_context_restores_the_whole_source_party() -> None:
         "documentPatch": {"parties": {"shipper": {"name": "Synthetic Shipper", "country": "Spain"}}}
     }
 
-    adaptations = _adapt_unrepresented_party_facets(
-        source_target={"documentPatch": {"parties": {"shipper": source_party}}},
-        target=target,
-        template=SimpleNamespace(auxiliary_semantic_plan=plan),
-    )
+    with pytest.raises(ValueError, match="source-party restoration is forbidden"):
+        _validate_unrepresented_party_facets(
+            source_target={"documentPatch": {"parties": {"shipper": source_party}}},
+            target=target,
+            template=SimpleNamespace(auxiliary_semantic_plan=plan),
+        )
 
-    assert target["documentPatch"]["parties"]["shipper"] == source_party
-    assert tuple(row.target_path for row in adaptations) == ("documentPatch.parties.shipper",)
+    assert target["documentPatch"]["parties"]["shipper"] == {
+        "name": "Synthetic Shipper",
+        "country": "Spain",
+    }

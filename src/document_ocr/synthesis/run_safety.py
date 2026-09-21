@@ -1112,13 +1112,34 @@ class StagedArtifactRun:
             safe = _safe_relative_path(relative).as_posix()
             if safe in {self._TRANSACTION, self._COMMIT}:
                 raise ValueError(f"expected artifact path is reserved: {safe}")
-        if self._completed:
-            receipt = self._validate_final(expected_transaction=self.transaction_sha256)
-            if tuple(row.relative_path for row in receipt.artifacts) != expected:
-                raise StagedRunError("committed run differs from expected artifact inventory")
-            if receipt.metadata != dict(metadata):
-                raise StagedRunError("committed run differs from expected metadata")
-            return StagedCommitResult(receipt=receipt, created=False)
+        flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW
+        try:
+            lock_descriptor = os.open(self.lock_path, flags, 0o600)
+        except OSError as error:
+            raise StagedRunError("cannot acquire staged-run commit lock") from error
+        try:
+            if not stat.S_ISREG(os.fstat(lock_descriptor).st_mode):
+                raise StagedRunError("staged-run commit lock is not a regular file")
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+            # The inventory scan and receipt creation are part of the commit,
+            # not preparation outside its lock: another writer's temporary
+            # receipt must never appear as an unexpected dataset artifact.
+            if self.final_root.exists() or self.final_root.is_symlink():
+                receipt = self._validate_final(expected_transaction=self.transaction_sha256)
+                if tuple(row.relative_path for row in receipt.artifacts) != expected:
+                    raise StagedRunError("committed run differs from expected artifact inventory")
+                if receipt.metadata != dict(metadata):
+                    raise StagedRunError("committed run differs from expected metadata")
+                self._completed = True
+                return StagedCommitResult(receipt=receipt, created=False)
+            return self._commit_locked(expected=expected, metadata=metadata)
+        finally:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+            os.close(lock_descriptor)
+
+    def _commit_locked(
+        self, *, expected: tuple[str, ...], metadata: Mapping[str, JsonValue]
+    ) -> StagedCommitResult:
         actual = self._scan_artifacts()
         actual_paths = tuple(row.relative_path for row in actual)
         if actual_paths != expected:
@@ -1148,44 +1169,18 @@ class StagedArtifactRun:
             self.stage_root / self._COMMIT,
             json_artifact_bytes(receipt.model_dump(mode="json")),
         )
-        flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW
-        try:
-            lock_descriptor = os.open(self.lock_path, flags, 0o600)
-        except OSError as error:
-            raise StagedRunError("cannot acquire staged-run commit lock") from error
-        try:
-            if not stat.S_ISREG(os.fstat(lock_descriptor).st_mode):
-                raise StagedRunError("staged-run commit lock is not a regular file")
-            fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
-            if self.final_root.exists() or self.final_root.is_symlink():
-                existing = self._validate_final(expected_transaction=self.transaction_sha256)
-                if existing != receipt:
-                    raise StagedRunError(
-                        "concurrent committed run differs from staged bytes"
-                    ) from None
-                self._completed = True
-                return StagedCommitResult(receipt=existing, created=False)
-            _fsync_directory(self.stage_root)
-            # Every writer for this run name is serialized by the advisory
-            # lock above.  The second existence check is therefore the
-            # no-overwrite boundary for cooperating synthesis processes, while
-            # rename is the same-filesystem atomic visibility boundary.  This
-            # strategy is supported by both native Linux filesystems and WSL's
-            # DrvFS, unlike RENAME_NOREPLACE.
-            if self.final_root.exists() or self.final_root.is_symlink():
-                existing = self._validate_final(expected_transaction=self.transaction_sha256)
-                if existing != receipt:
-                    raise StagedRunError("concurrent committed run differs from staged bytes")
-                self._completed = True
-                return StagedCommitResult(receipt=existing, created=False)
-            os.rename(self.stage_root, self.final_root)
-            _fsync_directory(self.output_parent)
+        _fsync_directory(self.stage_root)
+        # Cooperating writers hold this run's lock for the complete operation;
+        # the final check is the no-overwrite boundary before atomic visibility.
+        if self.final_root.exists() or self.final_root.is_symlink():
+            existing = self._validate_final(expected_transaction=self.transaction_sha256)
+            if existing != receipt:
+                raise StagedRunError("concurrent committed run differs from staged bytes")
             self._completed = True
-            # The inventory was byte-verified before the same-filesystem atomic
-            # rename.  Re-reading every artifact here would double commit I/O;
-            # later resumes and the explicit validator independently re-read
-            # the complete committed tree.
-            return StagedCommitResult(receipt=receipt, created=True)
-        finally:
-            fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
-            os.close(lock_descriptor)
+            return StagedCommitResult(receipt=existing, created=False)
+        os.rename(self.stage_root, self.final_root)
+        _fsync_directory(self.output_parent)
+        self._completed = True
+        # Atomic rename preserves the just-verified bytes. Explicit validation
+        # and every subsequent resume independently re-read the committed tree.
+        return StagedCommitResult(receipt=receipt, created=True)

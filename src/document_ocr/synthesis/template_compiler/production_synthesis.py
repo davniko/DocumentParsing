@@ -105,9 +105,10 @@ class ProductionSynthesisPlanConfig(BaseModel):
     validation_partition: ValidationPartitionPin
     target_task: Literal["bill_of_lading_relation_explicit_v5"]
     target_schema_version: Literal["5.0.0-experimental"]
-    target_generation: Literal["controlled_latest_schema_from_source_v1"]
+    target_generation: Literal["complete_latest_schema_targets_v1"]
     selection: ProductionSynthesisSelection
     expected_inventory: ExpectedSelectionInventory
+    source_review_exclusions: dict[NonEmptyText, NonEmptyText] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,7 +161,7 @@ class TemplateInventoryRow:
             "allocationGroupCount": self.allocation_group_count,
             "targetTask": _TARGET_TASK,
             "targetSchemaVersion": _TARGET_SCHEMA_VERSION,
-            "targetGeneration": "controlled_latest_schema_from_source_v1",
+            "targetGeneration": "complete_latest_schema_targets_v1",
         }
 
 
@@ -527,6 +528,8 @@ def _analyze_plan(
     )
     inventory = _template_inventory(template_root)
     by_id = {row.source_document_id: row for row in inventory}
+    if set(config.source_review_exclusions) - set(by_id):
+        raise ValueError("source review exclusions contain documents outside the pinned catalog")
     validation_catalog_ids = frozenset(by_id) & frozenset(validation_ids)
     validation_proxy_ids = frozenset(
         by_id[document_id].template_proxy_id for document_id in validation_catalog_ids
@@ -549,7 +552,7 @@ def _analyze_plan(
     excluded_ids = {
         row.source_document_id
         for row in (*validation_excluded, *latest_schema_incompatible)
-    }
+    } | set(config.source_review_exclusions)
     excluded = tuple(row for row in inventory if row.source_document_id in excluded_ids)
     eligible = tuple(row for row in inventory if row.source_document_id not in excluded_ids)
     capability_pools: dict[CapabilityCohort, tuple[TemplateInventoryRow, ...]] = {
@@ -732,6 +735,7 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
     summary = dict(cast(dict[str, Any], analyzed["summary"]))
     summary["wallSeconds"] = time.perf_counter() - started
     publish_json("config.json", config.model_dump(mode="json"))
+    publish_json("source-review-exclusions.json", config.source_review_exclusions)
     publish_json("lineage.json", lineage)
     publish_bytes("plan.jsonl", _jsonl_bytes(plan_rows))
     publish_bytes(
@@ -760,6 +764,7 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
             "latestSchemaIncompatibleTemplateDocumentIds": sorted(
                 row.source_document_id for row in latest_schema_incompatible
             ),
+            "sourceReviewExcludedTemplateDocumentIds": sorted(config.source_review_exclusions),
             "excludedTemplateDocumentIds": sorted(
                 row.source_document_id for row in excluded
             ),

@@ -123,6 +123,8 @@ def main() -> None:
         "validate-compiled-raw-text-pipeline-config",
         "preflight-compiled-raw-text-pipeline",
         "run-compiled-raw-text-pipeline",
+        "validate-complete-compiled-synthesis-config",
+        "run-complete-compiled-synthesis",
         "validate-compiled-descendant-eda-config",
         "analyze-compiled-descendant-run",
     ):
@@ -198,9 +200,7 @@ def main() -> None:
                 load_production_synthesis_plan_config,
             )
 
-            production_synthesis_plan_config = load_production_synthesis_plan_config(
-                config_path
-            )
+            production_synthesis_plan_config = load_production_synthesis_plan_config(config_path)
         elif arguments.command in {
             "validate-compiled-raw-text-pipeline-config",
             "preflight-compiled-raw-text-pipeline",
@@ -211,6 +211,13 @@ def main() -> None:
             )
 
             compiled_raw_text_config = load_descendant_config(config_path)
+        elif arguments.command in {
+            "validate-complete-compiled-synthesis-config",
+            "run-complete-compiled-synthesis",
+        }:
+            from document_ocr.synthesis.template_compiler.complete_pipeline import load_config
+
+            complete_config = load_config(config_path)
         elif arguments.command in {
             "validate-compiled-descendant-eda-config",
             "analyze-compiled-descendant-run",
@@ -373,12 +380,8 @@ def main() -> None:
                 "status": "valid",
                 "run_name": production_synthesis_plan_config.run_name,
                 "documents": production_synthesis_plan_config.selection.documents,
-                "exclusion_mode": (
-                    production_synthesis_plan_config.selection.exclusion_mode
-                ),
-                "target_schema_version": (
-                    production_synthesis_plan_config.target_schema_version
-                ),
+                "exclusion_mode": (production_synthesis_plan_config.selection.exclusion_mode),
+                "target_schema_version": (production_synthesis_plan_config.target_schema_version),
             }
         elif arguments.command == "preflight-production-synthesis-plan":
             from document_ocr.synthesis.template_compiler.production_synthesis import (
@@ -576,6 +579,19 @@ def main() -> None:
                 "provider_error_documents": summary["providerErrorDocuments"],
                 "training_records_published": summary["trainingRecordsPublished"],
             }
+        elif arguments.command == "validate-complete-compiled-synthesis-config":
+            result = {
+                "command": arguments.command,
+                "status": "valid",
+                "run_name": complete_config.run_name,
+                "documents": complete_config.documents,
+                "provider_launch_authorized": complete_config.provider_launch_authorized,
+            }
+        elif arguments.command == "run-complete-compiled-synthesis":
+            from document_ocr.synthesis.template_compiler.complete_pipeline import run
+
+            result = {"command": arguments.command, **asyncio.run(run(config_path))}
+            exit_code = 0 if result["trainingPublished"] else _EXIT_INCOMPLETE
         elif arguments.command == "validate-compiled-descendant-eda-config":
             result = {
                 "command": arguments.command,

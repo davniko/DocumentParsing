@@ -197,7 +197,7 @@ class OpenAIResponsesProviderConfig(BaseModel):
     kind: Literal["openai_responses"]
     model: NonEmptyText
     api_key_env: Literal["OPENAI_API_KEY"]
-    reasoning_effort: Literal["high", "max"]
+    reasoning_effort: Literal["low", "medium", "high", "max"]
     request_timeout_seconds: Annotated[float, Field(gt=0)]
     transport_max_retries: Annotated[int, Field(ge=0, le=3)]
     max_output_tokens: Annotated[int, Field(gt=0)]
@@ -217,7 +217,7 @@ class OpenRouterProviderConfig(BaseModel):
         ),
     ]
     api_key_env: Literal["OPENROUTER_API_KEY"]
-    reasoning_effort: Literal["high"]
+    reasoning_effort: Literal["low", "medium", "high"]
     request_timeout_seconds: Annotated[float, Field(gt=0)]
     transport_max_retries: Annotated[int, Field(ge=0, le=3)]
     max_output_tokens: Annotated[int, Field(gt=0)]
@@ -322,6 +322,13 @@ class ExtractionConfig(BaseModel):
 
     @model_validator(mode="after")
     def selection_contract_is_consistent(self) -> ExtractionConfig:
+        # Extraction/criticism remain high-reasoning tasks. The shared provider
+        # schema also serves cheap, already-compiled linguistic realization.
+        if any(
+            provider.reasoning_effort not in {"high", "max"}
+            for provider in (self.compiler_provider, self.critic_provider)
+        ):
+            raise ValueError("template compilation and criticism require high reasoning")
         if len(set(self.excluded_document_ids)) != len(self.excluded_document_ids):
             raise ValueError("excluded document IDs must be unique")
         if len(set(self.pinned_document_ids)) != len(self.pinned_document_ids):

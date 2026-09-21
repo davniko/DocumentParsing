@@ -30,7 +30,7 @@ def _pin(prefix: str) -> dict[str, str]:
 def _review_entry(document_id: str = "doc_a") -> dict[str, object]:
     return {
         "document_id": document_id,
-        "target_origin": "controlled_source_variant",
+        "target_origin": "complete_synthetic_target",
         "compilation_lineage": "compilation-200",
         "selection_reason": "stress case",
         "mechanical_fidelity": "pass",
@@ -79,9 +79,12 @@ def test_manual_review_rejects_duplicate_documents() -> None:
         ManualReview.model_validate_json(json.dumps(payload))
 
 
-def test_manual_review_accepts_planned_v5_variant_origin() -> None:
+@pytest.mark.parametrize(
+    "origin", ("controlled_source_variant", "planned_v5_controlled_source_variant")
+)
+def test_manual_review_rejects_retired_incomplete_target_origins(origin: str) -> None:
     entry = _review_entry()
-    entry["target_origin"] = "planned_v5_controlled_source_variant"
+    entry["target_origin"] = origin
     payload = {
         "schema_version": 1,
         "run": _pin("descendant"),
@@ -90,9 +93,8 @@ def test_manual_review_accepts_planned_v5_variant_origin() -> None:
         "reviews": [entry],
     }
 
-    review = ManualReview.model_validate_json(json.dumps(payload))
-
-    assert review.reviews[0].target_origin == "planned_v5_controlled_source_variant"
+    with pytest.raises(ValidationError, match="complete_synthetic_target"):
+        ManualReview.model_validate_json(json.dumps(payload))
 
 
 def test_manual_review_requires_review_decision_for_coherence_concern() -> None:

@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "task": "bill_of_lading_complete_compiled_synthesis_v1",
+  "run_name": "mpci-bl-complete-synthesis10000-layout-proxy-holdout-v2",
+  "output_dir": "artifacts/kie-synthesis-production/complete-generation",
+  "response_cache_dir": "artifacts/kie-synthesis-production/complete-response-cache",
+  "environment_file": ".env",
+  "template_run": {
+    "path": "artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v5",
+    "commit_sha256": "07c7ae3e1d87ac8b1de6e766a4013c748fad12ad493be5ab5f252229ac4d0b44",
+    "transaction_sha256": "5441ee47baef025e9159df336e78e4ebb9424f8913aceecaf6fa373530bedfa7"
+  },
+  "iso3166_snapshot": {
+    "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+    "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
+  },
+  "provider": {
+    "kind": "openai_responses",
+    "model": "gpt-5.6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "reasoning_effort": "high",
+    "request_timeout_seconds": 900.0,
+    "transport_max_retries": 2,
+    "max_output_tokens": 16384,
+    "store_responses": true,
+    "pricing": {
+      "currency": "USD",
+      "effective_date": "2026-09-12",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      "input_usd_per_million": 0.2,
+      "cached_input_usd_per_million": 0.02,
+      "cache_write_multiplier": 1.25,
+      "output_usd_per_million": 1.2
+    }
+  },
+  "seed": 20260919,
+  "documents": 10000,
+  "max_concurrent_requests": 16,
+  "generation_attempts": 3,
+  "provider_launch_authorized": true,
+  "sample_plan_run": {
+    "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-production-synthesis10000-layout-proxy-holdout-v5",
+    "commit_sha256": "fb5680edc49bb9816c64a47efb93da0a482a2ccad9a5268ca5134f6d425278e2",
+    "transaction_sha256": "b2580f4a6033c9b63ed5a46051868406f721bf93042f89594a1f76e0c607dbbd"
+  },
+  "sample_plan": {
+    "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-production-synthesis10000-layout-proxy-holdout-v5/plan.jsonl",
+    "sha256": "a5eaf4966fd462e0143948c92b682215b23e996806b33f5626e430b35817b0ce",
+    "records": 10000
+  },
+  "vessel_registry": {
+    "path": "data/registries/vessels/public-cargo-vessel-names-20260901-v1/vessel-names.jsonl",
+    "sha256": "6bbfda40b9337e86c650f043ef7d68974e3213c4fcabd2d9412cb34adb9fb0a6",
+    "records": 16356
+  },
+  "hs_manifest": {
+    "path": "data/registries/hs/ukgt-v4.0.1590/source-manifest.json",
+    "sha256": "7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e"
+  },
+  "hs_metadata": {
+    "path": "data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
+    "sha256": "4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7"
+  },
+  "hs_report": {
+    "path": "data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
+    "sha256": "13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513"
+  },
+  "generation_prompt": {
+    "path": "src/document_ocr/synthesis/template_compiler/prompts/complete_generation.md",
+    "sha256": "66cec62057f3b79d7f1cc8dc688b84eb36e46bb6f35e899ded56b2f560fb5a97"
+  },
+  "residual_prompt": {
+    "path": "src/document_ocr/synthesis/template_compiler/prompts/descendant_renderer.md",
+    "sha256": "44833cd1e171642fe021bf57e8597c5c9d76f0706ebaa8d8ce5a9f5427cfcae2"
+  },
+  "numeric_prompt": {
+    "path": "src/document_ocr/synthesis/template_compiler/prompts/numeric_dependencies.md",
+    "sha256": "96a51492067995eb5954549b7cdcf124274f82bad01df88e65bd5878a2471501"
+  },
+  "numeric_contract_run": {
+    "commit_sha256": "eb385397aa7e982273f4dfebc16e9bf5b056db834e4ffb5dddc0d56e4b8b1179",
+    "path": "artifacts/kie-synthesis-production/numeric-contract-catalogs/mpci-bl-numeric-contracts-20260919-v1",
+    "transaction_sha256": "f20a63b7201221c9d2e68e57c51f5cb2e4a924746d0b1c9b47ee99655356cf2d"
+  }
+}

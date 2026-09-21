@@ -33,6 +33,21 @@ _READ_CHUNK_SIZE = 1024 * 1024
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 
 
+def package_category_surface_present(value: str, category: str) -> bool:
+    """Match noun-plus-material category tokens in natural printed word order."""
+    if not category.startswith("PACKAGE_"):
+        raise ValueError(f"unsupported package category token: {category!r}")
+    for word in category.removeprefix("PACKAGE_").split("_"):
+        variants = {word, word + "S"}
+        if word.endswith("Y") and len(word) > 1:
+            variants.add(word[:-1] + "IES")
+        if word.endswith(("S", "X", "Z", "CH", "SH")):
+            variants.add(word + "ES")
+        if not any(re.search(rf"\b{re.escape(item)}\b", value, re.I) for item in variants):
+            return False
+    return True
+
+
 class PackageRegistryEntry(BaseModel):
     """One exact application category and its deployed code."""
 

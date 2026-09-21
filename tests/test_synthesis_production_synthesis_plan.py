@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -12,17 +11,6 @@ from document_ocr.synthesis.template_compiler.production_synthesis import (
     TemplateInventoryRow,
     _even_repetitions,
     _sample_id,
-    load_production_synthesis_plan_config,
-)
-
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_EXACT_CONFIG = (
-    _PROJECT_ROOT
-    / "configs/synthesis/production/mpci_bl_production_synthesis10000_exact_validation_id_v1.yaml"
-)
-_PROXY_CONFIG = (
-    _PROJECT_ROOT
-    / "configs/synthesis/production/mpci_bl_production_synthesis10000_layout_proxy_holdout_v1.yaml"
 )
 
 
@@ -47,7 +35,7 @@ def _config() -> dict[str, Any]:
         },
         "target_task": "bill_of_lading_relation_explicit_v5",
         "target_schema_version": "5.0.0-experimental",
-        "target_generation": "controlled_latest_schema_from_source_v1",
+        "target_generation": "complete_latest_schema_targets_v1",
         "selection": {
             "documents": 10,
             "seed": 17,
@@ -157,16 +145,45 @@ def test_variant_identity_is_unique_and_repeatable() -> None:
     )
 
 
-def test_primary_and_transfer_configs_pin_v5_and_distinct_exclusion_modes() -> None:
-    exact = load_production_synthesis_plan_config(_EXACT_CONFIG)
-    proxy = load_production_synthesis_plan_config(_PROXY_CONFIG)
+def test_plan_cannot_request_the_incomplete_source_copy_generator() -> None:
+    payload = _config()
+    payload["target_generation"] = "controlled_latest_schema_from_source_v1"
+    with pytest.raises(ValidationError, match="complete_latest_schema_targets_v1"):
+        ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
 
-    assert exact.selection.documents == proxy.selection.documents == 10_000
-    assert exact.target_task == proxy.target_task == "bill_of_lading_relation_explicit_v5"
-    assert exact.target_schema_version == proxy.target_schema_version == "5.0.0-experimental"
-    assert exact.selection.exclusion_mode == "exact_document_id"
-    assert proxy.selection.exclusion_mode == "template_proxy_family"
-    assert exact.expected_inventory.eligible_templates == 1_441
-    assert proxy.expected_inventory.eligible_templates == 985
-    assert exact.selection.capability_counts.dangerous_goods == 1_000
-    assert exact.selection.capability_counts.temperature_controlled == 1_500
+
+def test_review_exclusion_happens_before_sampling_without_reducing_requested_count(
+    monkeypatch, tmp_path
+):
+    from dataclasses import replace
+
+    from document_ocr.synthesis.template_compiler import production_synthesis as planning
+
+    inventory = (
+        _inventory("validation"),
+        _inventory("safe"),
+        _inventory("review"),
+        replace(_inventory("dg"), dangerous_goods=True, cohort="dangerous_goods"),
+        replace(
+            _inventory("thermal"), temperature_controlled=True, cohort="temperature_controlled"
+        ),
+    )
+    monkeypatch.setattr(planning, "_validate_committed_run", lambda *args: tmp_path)
+    monkeypatch.setattr(planning, "_validation_document_ids", lambda **kwargs: ("validation",))
+    monkeypatch.setattr(planning, "_template_inventory", lambda *args: inventory)
+    payload = _config()
+    payload["source_review_exclusions"] = {
+        "review": "Source container totals contradict printed rows"
+    }
+    payload["expected_inventory"]["excluded_templates"] = 2
+    config = ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
+    result = planning._analyze_plan(project_root=tmp_path, config=config)
+    assert len(result["plan_rows"]) == 10
+    assert {r["sourceDocumentId"] for r in result["plan_rows"]} == {"safe", "dg", "thermal"}
+    assert {r.source_document_id for r in result["excluded"]} == {"review", "validation"}
+    payload["source_review_exclusions"] = {"nonexistent": "Invalid review identity"}
+    with pytest.raises(ValueError, match="outside the pinned catalog"):
+        planning._analyze_plan(
+            project_root=tmp_path,
+            config=ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload)),
+        )

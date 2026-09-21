@@ -5,8 +5,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.generators import DeterministicStream, surface_pattern
 
+from .contact_values import mailbox, phone
 from .models import AuxiliaryEntity, AuxiliaryEntityMember, SemanticBinding
 
 
@@ -175,14 +176,22 @@ class DeterministicValueFactory:
         *,
         calling_code_width: int | None = None,
         country_name_width: int | None = None,
+        postal_code_pattern: str | None = None,
+        fixed_country_code: str | None = None,
     ) -> GeoProfile:
         candidates = tuple(
             geography
             for geography in _GEOGRAPHIES
             if (calling_code_width is None or len(geography.calling_code) == calling_code_width)
+            and (fixed_country_code is None or geography.country_code == fixed_country_code)
             and (
                 country_name_width is None
                 or len(_normalized(geography.country)) == country_name_width
+            )
+            and (
+                postal_code_pattern is None
+                or surface_pattern("".join(c for c in geography.postal_code if c.isalnum()))
+                == postal_code_pattern
             )
         )
         if not candidates:
@@ -226,15 +235,27 @@ class DeterministicValueFactory:
         *,
         calling_code_width: int | None = None,
         country_name_width: int | None = None,
+        postal_code_pattern: str | None = None,
+        fixed_country_code: str | None = None,
+        include_postal_code: bool = True,
+        include_city: bool = True,
     ) -> str:
         geo = self.geography_for_identity(
             identity,
             calling_code_width=calling_code_width,
             country_name_width=country_name_width,
+            postal_code_pattern=postal_code_pattern,
+            fixed_country_code=fixed_country_code,
         )
         number = 10 + self._stream.derive("address:" + identity).randbelow(890)
         street = self._select(_STREET_NAMES, "street:" + identity)
-        return f"{number} {street}, {geo.postal_code} {geo.city}"
+        locality = " ".join(
+            [
+                *([geo.postal_code] if include_postal_code else []),
+                *([geo.city] if include_city else []),
+            ]
+        )
+        return f"{number} {street}" + (f", {locality}" if locality else "")
 
     def location(self, binding: SemanticBinding) -> str:
         tokens = _tokens(binding.logical_key + " " + binding.group_key)
@@ -287,6 +308,8 @@ class DeterministicValueFactory:
         country_codes: Mapping[str, str],
         calling_code_width: int | None = None,
         country_name_width: int | None = None,
+        postal_code_pattern: str | None = None,
+        fixed_country_code: str | None = None,
     ) -> str | None:
         """Return one field from a canonical auxiliary entity.
 
@@ -334,22 +357,54 @@ class DeterministicValueFactory:
                 code = country_codes.get(normalized)
                 if code is not None:
                     return code
+        if field == "email":
+            name = (
+                party.get("name")
+                if party is not None
+                else self.organization_for_identity(entity.entity_id)
+            )
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("email entity has no generated organization identity")
+            return mailbox(self._stream.derive(entity.entity_id), organization=name)
         if party is not None:
             return self.person_for_identity(entity.entity_id) if field == "contact_name" else None
 
         identity = entity.entity_id
+        if field == "name":
+            return self.organization_for_identity(identity)
+        if field == "contact_name":
+            return self.person_for_identity(identity)
+        if field not in {
+            "address",
+            "city",
+            "region",
+            "postal_code",
+            "country",
+            "country_code",
+            "phone",
+        }:
+            return None
         geo = self.geography_for_identity(
             identity,
             calling_code_width=calling_code_width,
             country_name_width=country_name_width,
+            postal_code_pattern=postal_code_pattern,
+            fixed_country_code=fixed_country_code,
         )
-        if field == "name":
-            return self.organization_for_identity(identity)
+        if field == "phone":
+            return phone(
+                self._stream.derive(identity + ":phone:" + member.logical_key),
+                country_code=geo.country_code,
+            )
         if field == "address":
             return self.address_for_identity(
                 identity,
                 calling_code_width=calling_code_width,
                 country_name_width=country_name_width,
+                postal_code_pattern=postal_code_pattern,
+                fixed_country_code=fixed_country_code,
+                include_postal_code=not any(m.field == "postal_code" for m in entity.members),
+                include_city=not any(m.field == "city" for m in entity.members),
             )
         if field == "city":
             return geo.city
@@ -361,6 +416,4 @@ class DeterministicValueFactory:
             return geo.country
         if field == "country_code":
             return geo.country_code
-        if field == "contact_name":
-            return self.person_for_identity(identity)
         return None

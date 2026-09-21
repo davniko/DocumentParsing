@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "task": "bill_of_lading_complete_compiled_synthesis_v1",
+  "run_name": "mpci-bl-complete-synthesis10000-exact-validation-id-v10",
+  "output_dir": "artifacts/kie-synthesis-production/complete-generation",
+  "response_cache_dir": "artifacts/kie-synthesis-production/complete-response-cache",
+  "environment_file": ".env",
+  "template_run": {
+    "commit_sha256": "97d43815a6cdc8beb6b8284e5c5700ef308ba95f9f25e585c376d4e64f3f8958",
+    "path": "artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v6",
+    "transaction_sha256": "a21290c2a31ad36b8495508f2d462953e255ad810ed677ba0a7b4e04239c2a30"
+  },
+  "iso3166_snapshot": {
+    "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+    "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
+  },
+  "provider": {
+    "kind": "openai_responses",
+    "model": "gpt-5.6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "reasoning_effort": "low",
+    "request_timeout_seconds": 900.0,
+    "transport_max_retries": 0,
+    "max_output_tokens": 16384,
+    "store_responses": true,
+    "pricing": {
+      "currency": "USD",
+      "effective_date": "2026-09-12",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      "input_usd_per_million": 0.2,
+      "cached_input_usd_per_million": 0.02,
+      "cache_write_multiplier": 1.25,
+      "output_usd_per_million": 1.2
+    }
+  },
+  "seed": 20260919,
+  "documents": 10000,
+  "max_concurrent_requests": 16,
+  "generation_attempts": 4,
+  "provider_launch_authorized": false,
+  "sample_plan_run": {
+    "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-production-synthesis10000-exact-validation-id-v15",
+    "commit_sha256": "aac30b2dc86895d52d32cb1c614bd473f5fe55cfffe968c9003153f432f37db6",
+    "transaction_sha256": "72fe9203a9f4f233e75b87f923047d9b31c55bd9d0b0ca0d00603d9850c348d2"
+  },
+  "sample_plan": {
+    "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-production-synthesis10000-exact-validation-id-v15/plan.jsonl",
+    "sha256": "7b05541a7c6e857180d6285154cbce3571fe3948f133caa6cd18753ba2044ba5",
+    "records": 10000
+  },
+  "vessel_registry": {
+    "path": "data/registries/vessels/public-cargo-vessel-names-20260901-v1/vessel-names.jsonl",
+    "sha256": "6bbfda40b9337e86c650f043ef7d68974e3213c4fcabd2d9412cb34adb9fb0a6",
+    "records": 16356
+  },
+  "hs_manifest": {
+    "path": "data/registries/hs/ukgt-v4.0.1590/source-manifest.json",
+    "sha256": "7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e"
+  },
+  "hs_metadata": {
+    "path": "data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
+    "sha256": "4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7"
+  },
+  "hs_report": {
+    "path": "data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
+    "sha256": "13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513"
+  },
+  "generation_prompt": {
+    "path": "src/document_ocr/synthesis/template_compiler/prompts/complete_generation.md",
+    "sha256": "66cec62057f3b79d7f1cc8dc688b84eb36e46bb6f35e899ded56b2f560fb5a97"
+  },
+  "residual_prompt": {
+    "path": "src/document_ocr/synthesis/template_compiler/prompts/descendant_renderer.md",
+    "sha256": "44833cd1e171642fe021bf57e8597c5c9d76f0706ebaa8d8ce5a9f5427cfcae2"
+  },
+  "numeric_prompt": {
+    "path": "src/document_ocr/synthesis/template_compiler/prompts/numeric_dependencies.md",
+    "sha256": "141a31718dccbee23b9ad18cac06dbbafb78d9d760cac3b0abbcfe77460cc501"
+  },
+  "numeric_contract_run": {
+    "commit_sha256": "e5fd789c1a0070436948bb8ff2714202ee2eabdb9cfa57acb261cd5cb1ad7f1e",
+    "path": "artifacts/kie-synthesis-production/numeric-contract-catalogs/mpci-bl-numeric-contracts-package-complete-v4",
+    "transaction_sha256": "c5bc531f29a01c11c2c2f0ca0951dbc47e4ba9c5a77f054e8f0103c345997b8e"
+  },
+  "request_batch_size": 16,
+  "spending": {
+    "ledger_path": "artifacts/kie-synthesis-production/spending/complete-exact_validation_id-budget-v2.sqlite3",
+    "maximum_estimated_cost_usd": "6.00"
+  }
+}

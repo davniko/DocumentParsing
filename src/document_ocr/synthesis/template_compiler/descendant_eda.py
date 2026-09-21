@@ -102,11 +102,7 @@ _NUMBER_CONTRADICTION_COLUMNS = (
     "target_origin",
     "compilation_lineage",
 )
-_ORIGIN_LABELS = {
-    "existing_linguistic_target_carrier_restored": "Existing full target",
-    "controlled_source_variant": "Controlled source variant",
-    "planned_v5_controlled_source_variant": "Planned v5 controlled variant",
-}
+_ORIGIN_LABELS = {"complete_synthetic_target": "Complete synthetic target"}
 _PALETTE = {
     "deterministic": "#1976D2",
     "agent": "#EF6C00",
@@ -185,11 +181,7 @@ class ManualReviewEntry(BaseModel):
     model_config = _STRICT
 
     document_id: NonEmptyText
-    target_origin: Literal[
-        "existing_linguistic_target_carrier_restored",
-        "controlled_source_variant",
-        "planned_v5_controlled_source_variant",
-    ]
+    target_origin: Literal["complete_synthetic_target"]
     compilation_lineage: NonEmptyText
     selection_reason: NonEmptyText
     mechanical_fidelity: Literal["pass"]
@@ -1436,13 +1428,7 @@ def _report(summary: Mapping[str, Any]) -> str:
     manual = cast(Mapping[str, Any], summary["manualReview"])
     changes = cast(Mapping[str, Any], summary["changeScope"])
     target_origins = cast(Mapping[str, Any], summary["targetOrigins"])
-    existing_target_count = int(
-        target_origins.get("existing_linguistic_target_carrier_restored", 0)
-    )
-    controlled_variant_count = int(target_origins.get("controlled_source_variant", 0))
-    planned_variant_count = int(
-        target_origins.get("planned_v5_controlled_source_variant", 0)
-    )
+    complete_target_count = int(target_origins.get("complete_synthetic_target", 0))
     return "\n".join(
         (
             f"# Compiled-template {summary['documents']}-document synthesis EDA",
@@ -1488,9 +1474,8 @@ def _report(summary: Mapping[str, Any]) -> str:
             (
                 "- Scope caveat: those figures exclude one-time template compilation and any "
                 "separate model-based full-target synthesis. This cohort used "
-                f"{existing_target_count} pre-existing full linguistic targets and "
-                f"{controlled_variant_count} historical controlled source variants plus "
-                f"{planned_variant_count} planned v5 controlled variants."
+                f"{complete_target_count} pinned complete synthetic targets. "
+                "Rendering acceptance alone does not establish target diversity."
             ),
             "",
             "## Deep quality finding",

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import Any
 
 _CARRIER_RECEIPT_HEADING = re.compile(
     r"\bCARRIER['\N{RIGHT SINGLE QUOTATION MARK}]?S[ \t]+RECEIPT\b",
     re.IGNORECASE,
 )
+_EXPLICIT_RECEIVED_COUNT = re.compile(
+    r"^\s*Total\s+(?:No\.?|Number)\s+of\s+Containers\s+received\s+by\s+(?:the\s+)?Carrier\s*:\s*(?P<count>[0-9]+)\s*$",
+    re.IGNORECASE,
+)
+_WEIGHT_TOTAL_CONTAINER_FIELD = re.compile(r"^\s*Weight\s+in\s+Kgs\s+Total\s*:", re.IGNORECASE)
 _SAME_LINE_CONTAINER_COUNT = re.compile(
     r"(?:\(|\b)(?P<count>[0-9][0-9,]*|"
     r"(?:ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|"
@@ -136,6 +141,16 @@ def explicit_carrier_receipt_container_counts(raw_text: str) -> tuple[int, ...]:
     lines = raw_text.splitlines()
     counts: list[int] = []
     for index, line in enumerate(lines):
+        explicit = _EXPLICIT_RECEIVED_COUNT.fullmatch(line)
+        if explicit:
+            counts.append(int(explicit.group("count")))
+            continue
+        weight_total = _WEIGHT_TOTAL_CONTAINER_FIELD.match(line)
+        if weight_total:
+            count = _container_count_in(line[weight_total.end() :])
+            if count is not None:
+                counts.append(count)
+            continue
         heading = _CARRIER_RECEIPT_HEADING.search(line)
         if heading is None:
             continue
@@ -168,7 +183,7 @@ def source_template_integrity_issues(
     else:
         labeled_count = sum(
             isinstance(row, Mapping) and isinstance(row.get("containerNumber"), str)
-            for row in cast(Sequence[Any], containers)
+            for row in containers
         )
     printed_counts = explicit_carrier_receipt_container_counts(raw_text)
     conflicting = sorted({count for count in printed_counts if count != labeled_count})

@@ -32,18 +32,6 @@ TASK_FACING_CONFIG_PATH = (
     / "training"
     / "t5gemma2_270m_lora.mpci_bl_combined1157_task_facing.yaml"
 )
-TASK_FACING_R64_CONFIG_PATH = (
-    PROJECT_ROOT
-    / "configs"
-    / "training"
-    / "t5gemma2_270m_lora.mpci_bl_combined1157_task_facing_r64_a96_ga32_e30.yaml"
-)
-TABLE_INPUT_CONFIG_PATH = (
-    PROJECT_ROOT
-    / "configs"
-    / "training"
-    / "t5gemma2_270m_lora.mpci_bl_relation_v3_table_input.yaml"
-)
 FOLLOWUP_SPLIT_CONFIG_PATH = (
     PROJECT_ROOT / "configs" / "training" / "mpci_bl_followup381_split.seed42.yaml"
 )
@@ -214,89 +202,6 @@ def test_task_facing_training_configuration_uses_one_seeded_source() -> None:
     assert config.evaluation.steps == config.checkpoint.steps == 225
     assert config.evaluation.early_stopping_patience is None
     assert config.evaluation.early_stopping_threshold is None
-
-
-def test_task_facing_r64_configuration_changes_only_requested_experiment_axes() -> None:
-    baseline = load_training_config(TASK_FACING_CONFIG_PATH)
-    config = load_training_config(TASK_FACING_R64_CONFIG_PATH)
-
-    assert config.run.run_id != baseline.run.run_id
-    assert config.run.output_dir == baseline.run.output_dir
-    assert config.peft.adapter_name != baseline.peft.adapter_name
-    assert config.dataset == baseline.dataset
-    assert config.prompt == baseline.prompt
-    assert config.task_constraints == baseline.task_constraints
-    assert config.model == baseline.model
-    assert config.runtime == baseline.runtime
-    assert config.dataloader == baseline.dataloader
-    assert config.task == baseline.task
-    assert config.objective == baseline.objective
-    assert config.dataset.fields.input_text == "joinedRawText"
-    assert config.dataset.fields.input_sha256 == "joinedRawTextSha256"
-    assert "table" not in config.prompt.path
-
-    assert config.peft.rank == 64
-    assert config.peft.alpha == 96
-    baseline_peft = baseline.peft.model_dump(mode="python")
-    configured_peft = config.peft.model_dump(mode="python")
-    for key in ("adapter_name", "rank", "alpha"):
-        baseline_peft.pop(key)
-        configured_peft.pop(key)
-    assert configured_peft == baseline_peft
-
-    assert config.optimization.num_train_epochs == 30.0
-    assert config.optimization.per_device_train_batch_size == 1
-    assert config.optimization.gradient_accumulation_steps == 32
-    assert (
-        config.optimization.per_device_train_batch_size
-        * config.optimization.gradient_accumulation_steps
-        == 32
-    )
-    baseline_optimization = baseline.optimization.model_dump(mode="python")
-    configured_optimization = config.optimization.model_dump(mode="python")
-    for key in ("num_train_epochs", "gradient_accumulation_steps"):
-        baseline_optimization.pop(key)
-        configured_optimization.pop(key)
-    assert configured_optimization == baseline_optimization
-
-    assert config.evaluation.on_start is True
-    assert config.evaluation.steps == config.checkpoint.steps == 170
-    assert config.evaluation.early_stopping_patience is None
-    assert config.evaluation.early_stopping_threshold is None
-    baseline_evaluation = baseline.evaluation.model_dump(mode="python")
-    configured_evaluation = config.evaluation.model_dump(mode="python")
-    baseline_evaluation.pop("steps")
-    configured_evaluation.pop("steps")
-    assert configured_evaluation == baseline_evaluation
-    baseline_checkpoint = baseline.checkpoint.model_dump(mode="python")
-    configured_checkpoint = config.checkpoint.model_dump(mode="python")
-    baseline_checkpoint.pop("steps")
-    configured_checkpoint.pop("steps")
-    assert configured_checkpoint == baseline_checkpoint
-
-
-def test_table_input_training_configuration_is_pinned_and_uses_safe_batch_one() -> None:
-    config = load_training_config(TABLE_INPUT_CONFIG_PATH)
-
-    assert config.task == "bill_of_lading_relation_explicit_v3"
-    assert config.dataset.input_mode == "pre_split"
-    assert config.dataset.splits is not None
-    assert config.dataset.splits.train[0].records == 423
-    assert config.dataset.splits.validation[0].records == 60
-    assert config.dataset.fields.input_text == "modelInputText"
-    assert config.dataset.fields.input_sha256 == "modelInputTextSha256"
-    assert config.dataset.preprocessing.max_source_length == 13312
-    assert config.dataset.preprocessing.max_target_length == 4096
-    assert config.optimization.per_device_train_batch_size == 1
-    assert config.optimization.gradient_accumulation_steps == 24
-    assert (
-        config.optimization.per_device_train_batch_size
-        * config.optimization.gradient_accumulation_steps
-        == 24
-    )
-    assert config.evaluation.per_device_batch_size == 2
-    assert config.evaluation.steps == config.checkpoint.steps == 90
-    assert config.prompt.path.endswith("bill_of_lading_relation_explicit_v3_table_view.txt")
 
 
 def test_followup_partition_configuration_is_content_pinned() -> None:

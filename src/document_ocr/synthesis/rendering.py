@@ -19,7 +19,7 @@ from document_ocr.synthesis.generation_models import (
 )
 
 _PAGE_HEADER = re.compile(r"(?m)^--- PAGE ([1-9][0-9]*) ---$")
-_NUMBER = re.compile(r"[+-]?[0-9](?:[0-9., '\u00a0]*[0-9])?")
+_NUMBER = re.compile(r"[+-]?(?:[0-9](?:[0-9., '\u00a0]*[0-9])?|[.,][0-9]+)")
 _DATE_FORMATS = (
     "%Y-%m-%d",
     "%Y/%m/%d",
@@ -133,6 +133,21 @@ def _numeric_interpretations(token: str) -> list[tuple[Decimal, str | None, str 
     for decimal_separator, grouping_separator in candidates:
         normalized = compact
         if grouping_separator is not None:
+            if (
+                decimal_separator
+                and grouping_separator in normalized.split(decimal_separator, 1)[-1]
+            ):
+                # Group separators belong only to the integer part. Removing
+                # them from a fractional part invents a second numeric value.
+                continue
+            integer = normalized.split(decimal_separator, 1)[0] if decimal_separator else normalized
+            groups = integer.lstrip("+-").split(grouping_separator)
+            if (
+                not 1 <= len(groups[0]) <= 3
+                or groups[0].startswith("0")
+                or any(len(group) != 3 for group in groups[1:])
+            ):
+                continue
             normalized = normalized.replace(grouping_separator, "")
         decimal_places = 0
         if decimal_separator is not None:
@@ -185,14 +200,41 @@ def render_number_surface(
     if len(unique) != 1:
         raise ValueError(f"audited numeric surface does not identify one source value: {raw!r}")
     start, end, decimal_separator, grouping_separator, decimal_places = next(iter(unique))
+    spaced_grouping = set(re.findall(r"(?<=\d)([ \u00a0'])(?=\d)", raw[start:end]))
+    if spaced_grouping:
+        if len(spaced_grouping) != 1 or grouping_separator is not None:
+            raise ValueError("numeric source has inconsistent grouping separators")
+        grouping_separator = next(iter(spaced_grouping))
+        source_integer = (
+            raw[start:end].split(decimal_separator, 1)[0] if decimal_separator else raw[start:end]
+        )
+        groups = source_integer.strip().lstrip("+-").split(grouping_separator)
+        if not 1 <= len(groups[0]) <= 3 or any(len(group) != 3 for group in groups[1:]):
+            raise ValueError("numeric source does not have conventional three-digit grouping")
     quantum = Decimal(1).scaleb(-decimal_places)
     rendered_decimal = Decimal(str(new_value)).quantize(quantum)
     if rendered_decimal != Decimal(str(new_value)):
         raise ValueError("new numeric value cannot be represented in the audited source precision")
     plain = f"{rendered_decimal:.{decimal_places}f}"
     integer, _dot, fraction = plain.partition(".")
+    source_unsigned = raw[start:end].lstrip("+-")
+    source_integer_digits = (
+        source_unsigned.split(decimal_separator, 1)[0] if decimal_separator else source_unsigned
+    )
+    if (
+        grouping_separator is None
+        and len(source_integer_digits) > 1
+        and source_integer_digits.startswith("0")
+    ):
+        integer = ("-" if rendered_decimal < 0 else "") + integer.lstrip("-").zfill(
+            len(source_integer_digits)
+        )
+    if raw[start:end].startswith("+") and rendered_decimal >= 0:
+        integer = "+" + integer
     integer = _group_digits(integer, grouping_separator)
     rendered = integer
+    if re.match(r"^[+-]?[.,]", raw[start:end]) and abs(rendered_decimal) < 1:
+        rendered = "-" if rendered_decimal < 0 else "+" if raw[start:end].startswith("+") else ""
     if decimal_places:
         rendered += cast(str, decimal_separator) + fraction
     return raw[:start] + rendered + raw[end:]

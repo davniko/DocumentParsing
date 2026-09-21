@@ -356,7 +356,7 @@ def _validate_format(slot: TemplateSlot, replacement: str) -> None:
         raise ValueError(f"slot {slot.slot_id} replacement changes trailing whitespace")
     if (
         expected.case_profile in {"upper", "lower"}
-        and envelope.case_profile != expected.case_profile
+        and envelope.case_profile not in {expected.case_profile, "uncased"}
     ):
         raise ValueError(f"slot {slot.slot_id} replacement changes the source case profile")
     if (

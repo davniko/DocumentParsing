@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 import document_ocr.synthesis.raw_text_pipeline as raw_text_pipeline
 import document_ocr.synthesis.template_compiler.descendant as descendant
-from document_ocr.hashing import sha256_bytes, sha256_file
+from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import load_synthesis_raw_text_pipeline_config
 from document_ocr.synthesis.raw_text_pipeline import (
     _validate_pipeline_config_file,
@@ -32,10 +32,8 @@ from document_ocr.synthesis.template_compiler.coherence import (
 from document_ocr.synthesis.template_compiler.descendant import (
     BindingOutput,
     RenderPlan,
-    _adapt_target_coherence_ranges,
     _build_initial_plan,
     _materialize_case,
-    _positive_proportional_partition,
 )
 from document_ocr.synthesis.template_compiler.descendant_models import (
     DescendantConfig,
@@ -88,20 +86,33 @@ _EMPTY_AUXILIARY_PLAN = AuxiliarySemanticPlan(
 )
 
 
-def test_aggregate_range_target_adaptation_preserves_members_and_exact_total() -> None:
+def _frozen_receipt(target: Any, **fields: Any) -> SimpleNamespace:
+    digest = sha256_bytes(canonical_json_bytes(target))
+    return SimpleNamespace(
+        proposed_target_sha256=digest,
+        prepared_target_sha256=digest,
+        compatibility_adaptations=(),
+        auxiliary_values_sha256=sha256_bytes(canonical_json_bytes({})),
+        numeric_auxiliary_sha256=sha256_bytes(canonical_json_bytes({})),
+        **fields,
+    )
+
+
+@pytest.mark.parametrize("quantity", (12, 17))
+def test_aggregate_range_validation_never_rewrites_target(quantity: int) -> None:
     paths = tuple(f"documentPatch.cargoGroups[0].marksAndNumbers[{index}]" for index in range(4))
     source_values = ("A100 - A102", "B200 - B202", "C300 - C302", "D400 - D402")
     target_values = ("Q500 - Q502", "R600 - R602", "S700 - S702", "T800 - T802")
     source_target = {
         "documentPatch": {
             "cargoGroups": [{"marksAndNumbers": list(source_values)}],
-            "cargoPackages": [{"quantity": 17}],
+            "cargoPackages": [{"quantity": 12}],
         }
     }
     target = {
         "documentPatch": {
             "cargoGroups": [{"marksAndNumbers": list(target_values)}],
-            "cargoPackages": [{"quantity": 17}],
+            "cargoPackages": [{"quantity": quantity}],
         }
     }
     logical_keys = tuple(f"marks:{index}" for index in range(4))
@@ -110,6 +121,11 @@ def test_aggregate_range_target_adaptation_preserves_members_and_exact_total() -
             SimpleNamespace(
                 logical_key=key,
                 target_paths=(path,),
+                render_mode="deterministic",
+                value_kind="text",
+                group_kind="cargo_group",
+                group_key="g1",
+                dependency_paths=(),
                 realization=SimpleNamespace(
                     target_values=(SimpleNamespace(target_path=path, source_value=source_value),)
                 ),
@@ -128,34 +144,23 @@ def test_aggregate_range_target_adaptation_preserves_members_and_exact_total() -
         ),
     )
 
-    adaptations = _adapt_target_coherence_ranges(
-        source_target=source_target,
-        target=target,
-        template=template,
-    )
+    before = canonical_json_bytes(target)
 
-    adapted_values = target["documentPatch"]["cargoGroups"][0]["marksAndNumbers"]
-    cardinalities = tuple(
-        cardinality
-        for value in adapted_values
-        for cardinality in inclusive_range_cardinalities(value)
-    )
-    assert cardinalities == (5, 4, 4, 4)
-    assert sum(cardinalities) == 17
-    assert tuple(value.split()[0] for value in adapted_values) == (
-        "Q500",
-        "R600",
-        "S700",
-        "T800",
-    )
-    assert tuple(row.target_path for row in adaptations) == paths
-    assert tuple(row.source_value for row in adaptations) == source_values
-    assert tuple(row.proposed_value for row in adaptations) == target_values
+    def validate() -> None:
+        validate_render_coherence(
+            source_target=source_target,
+            target=target,
+            bindings=template.bindings,
+            constraints=template.coherence_constraints,
+            outputs=None,
+        )
 
-
-def test_aggregate_range_partition_rejects_impossible_positive_cardinality() -> None:
-    with pytest.raises(ValueError, match="cannot preserve every positive interval"):
-        _positive_proportional_partition(3, (5, 5, 5, 5))
+    if quantity == 12:
+        validate()
+    else:
+        with pytest.raises(ValueError, match="aggregate interval cardinality 12"):
+            validate()
+    assert canonical_json_bytes(target) == before
 
 
 def test_numeric_derivation_filter_excludes_non_numeric_package_fields() -> None:
@@ -165,6 +170,59 @@ def test_numeric_derivation_filter_excludes_non_numeric_package_fields() -> None
     )
 
     assert leaves == (Decimal(1),)
+
+
+@pytest.mark.parametrize("total", (6, 7))
+def test_aggregate_ranges_allow_unchanged_constituent_only_when_total_is_exact(total):
+    paths = tuple(f"documentPatch.cargoGroups[0].marksAndNumbers[{i}]" for i in range(2))
+    bindings = tuple(
+        SimpleNamespace(
+            logical_key=f"range:{i}",
+            target_paths=(path,),
+            value_kind="text",
+            render_mode="deterministic",
+            group_kind="cargo_group",
+            group_key="g1",
+            dependency_paths=(),
+            realization=SimpleNamespace(target_values=()),
+        )
+        for i, path in enumerate(paths)
+    )
+    constraint = AggregateRangeConstraint(
+        constraint_id="coherence_constraint_0123456789abcdef",
+        candidate_fingerprint="0" * 64,
+        kind="aggregate_inclusive_range_cardinality",
+        member_logical_keys=("range:0", "range:1"),
+        dependency_paths=(_QUANTITY,),
+        rationale="Two constituent pallet intervals.",
+    )
+    source = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": ["1-7", "1-1"]}],
+            "cargoPackages": [{"quantity": 8}],
+        }
+    }
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": ["1-5", "1-1"]}],
+            "cargoPackages": [{"quantity": total}],
+        }
+    }
+
+    def validate():
+        validate_render_coherence(
+            bindings=bindings,
+            constraints=[constraint],
+            source_target=source,
+            target=target,
+            outputs=None,
+        )
+
+    if total == 6:
+        validate()
+    else:
+        with pytest.raises(ValueError, match="aggregate interval cardinality"):
+            validate()
 
 
 @pytest.mark.parametrize(
@@ -277,20 +335,21 @@ def test_extended_date_grammars_cover_agent_and_timestamp_surfaces() -> None:
     )
 
 
-def test_source_only_number_word_auxiliary_preserves_grammar_and_plurality() -> None:
+def test_unowned_numeric_randomization_is_forbidden() -> None:
     binding = SimpleNamespace(
-        logical_key="agent:total_container_assertion_source_only",
-        occurrences=(SimpleNamespace(slot_id="slot_count", source_text="ONE CONTAINER"),),
+        logical_key="agent:source_only_count",
+        value_kind="integer",
+        target_paths=(),
+        occurrences=(
+            SimpleNamespace(
+                slot_id="slot_count", source_text="ONE CONTAINER", render_policy="numeric_surface"
+            ),
+        ),
     )
-
-    output = descendant._render_number_word_auxiliary(
-        binding,
-        descendant.DeterministicStream(20260917, "test", "number-word"),
-    )
-
-    assert output.canonical_value != 1
-    assert output.replacements["slot_count"].endswith(" CONTAINERS")
-    assert output.replacements["slot_count"].isupper()
+    with pytest.raises(ValueError, match="numeric auxiliary requires"):
+        descendant._render_direct_auxiliary(
+            binding, descendant.DeterministicStream(17, "test", "count")
+        )
 
 
 def test_indexed_whole_container_receipt_is_rendered_without_inventing_an_identifier() -> None:
@@ -385,6 +444,7 @@ def test_unchanged_static_target_is_accepted_from_certified_source_surfaces() ->
     case = SimpleNamespace(
         source_target=target,
         target=target,
+        source=address.encode("utf-8"),
         template=SimpleNamespace(bindings=(binding,), coherence_constraints=()),
     )
     outputs = {
@@ -495,7 +555,7 @@ def test_direct_derivation_path_overrides_composite_dependency_value() -> None:
     assert descendant._dependency_canonical(binding, outputs, target) == "China"
 
 
-def test_legacy_equipment_surface_retains_reviewed_semantics_when_target_does_not_fit(
+def test_equipment_surface_rejects_without_restoring_source_semantics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = "documentPatch.containers[0].typeDescription"
@@ -539,24 +599,23 @@ def test_legacy_equipment_surface_retains_reviewed_semantics_when_target_does_no
     monkeypatch.setattr(descendant, "_render_agent_target_binding", render_when_compatible)
     monkeypatch.setattr(descendant, "_validate_binding_format", lambda **_kwargs: None)
 
-    adaptations = descendant._adapt_target_compatibility(
-        source=b"20' Dry Heavy Duty",
-        source_target=source_target,
-        target=target,
-        template=SimpleNamespace(
-            bindings=(binding,),
-            byte_template=SimpleNamespace(),
-            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
-        ),
-    )
+    with pytest.raises(
+        ValueError, match=r"semantic equipment wording does not fit.*target not modified"
+    ):
+        descendant._validate_target_compatibility(
+            source=b"20' Dry Heavy Duty",
+            source_target=source_target,
+            target=target,
+            template=SimpleNamespace(
+                bindings=(binding,),
+                byte_template=SimpleNamespace(),
+                auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
+            ),
+        )
 
     assert target["documentPatch"]["containers"][0] == {
-        "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+        "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
         "typeCategory": "GENERAL_PURPOSE",
-    }
-    assert {row.target_path for row in adaptations} == {
-        "documentPatch.containers[0].sizeCategory",
-        "documentPatch.containers[0].typeCategory",
     }
 
 
@@ -587,7 +646,7 @@ def test_agent_routed_identifier_is_not_silently_reverted_before_rendering(
     )
     monkeypatch.setattr(descendant, "_validate_binding_format", lambda **_kwargs: None)
 
-    adaptations = descendant._adapt_target_compatibility(
+    result = descendant._validate_target_compatibility(
         source=b"0NV18N1MA",
         source_target=source_target,
         target=target,
@@ -599,7 +658,162 @@ def test_agent_routed_identifier_is_not_silently_reverted_before_rendering(
     )
 
     assert target["documentPatch"]["transport"]["voyageNumber"] == "7OZL4Q4EP"
-    assert adaptations == ()
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    ("path", "source_target", "target"),
+    (
+        (
+            "documentPatch.parties.shipper.name",
+            {"documentPatch": {"parties": {"shipper": {"name": "SOURCE", "address": "OLD"}}}},
+            {"documentPatch": {"parties": {"shipper": {"name": "NEW", "address": "NEW ADDRESS"}}}},
+        ),
+        (
+            "documentPatch.cargoPackages[0].quantity",
+            {"documentPatch": {"cargoPackages": [{"quantity": 10}]}},
+            {"documentPatch": {"cargoPackages": [{"quantity": 23}]}},
+        ),
+        (
+            "documentPatch.billOfLadingNumber",
+            {"documentPatch": {"billOfLadingNumber": "OLD"}},
+            {"documentPatch": {"billOfLadingNumber": "SYNTHETIC"}},
+        ),
+    ),
+)
+def test_unrenderable_target_never_restores_a_field_or_whole_party(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    source_target: dict[str, Any],
+    target: dict[str, Any],
+) -> None:
+    before = canonical_json_bytes(target)
+    binding = SimpleNamespace(
+        logical_key="test:binding",
+        target_paths=(path,),
+        realization=SimpleNamespace(mode="single_surface"),
+    )
+
+    def reject(*_args: Any, **_kwargs: Any) -> Any:
+        raise ValueError("incompatible source format")
+
+    monkeypatch.setattr(descendant, "_render_target_binding", reject)
+    with pytest.raises(ValueError, match=r"test:binding.*target not modified"):
+        descendant._validate_target_compatibility(
+            source=b"source",
+            source_target=source_target,
+            target=target,
+            template=SimpleNamespace(
+                bindings=(binding,),
+                byte_template=None,
+                auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
+            ),
+        )
+    assert canonical_json_bytes(target) == before
+
+
+def test_carrier_mismatch_is_rejected_not_repaired() -> None:
+    source = {"documentPatch": {"parties": {"carrier": {"name": "Fixed Carrier"}}}}
+    target = {"documentPatch": {"parties": {"carrier": {"name": "Wrong Carrier"}}}}
+    before = canonical_json_bytes(target)
+    with pytest.raises(ValueError, match="changes the template-bound carrier"):
+        descendant._require_source_carrier(source_target=source, target=target)
+    assert canonical_json_bytes(target) == before
+
+
+def test_mutated_target_is_rejected_before_routing_or_publication() -> None:
+    target = {"documentPatch": {"billOfLadingNumber": "ACCEPTED"}}
+    case = SimpleNamespace(
+        document_id="test",
+        target=target,
+        target_receipt=_frozen_receipt(target),
+        auxiliary_values={},
+        numeric_auxiliary={},
+    )
+    target["documentPatch"]["billOfLadingNumber"] = "REPLACED"
+    with pytest.raises(ValueError, match="synthetic target changed after generation"):
+        descendant._build_initial_plan(case, seed=1, country_codes={})
+    with pytest.raises(ValueError, match="synthetic target changed after generation"):
+        descendant._training_dataset(cases=(case,), executions=(None,), config=None)
+
+
+def test_unknown_auxiliary_generator_cannot_keep_the_source_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = SimpleNamespace(
+        value_kind="other_text",
+        logical_key="aux:shipment_context",
+        occurrences=(SimpleNamespace(source_text="Private source context"),),
+    )
+    values = SimpleNamespace(textual=lambda _binding: None)
+
+    def unavailable(*_args: Any) -> Any:
+        raise ValueError("no direct generator")
+
+    monkeypatch.setattr(descendant, "_render_direct_auxiliary", unavailable)
+    with pytest.raises(ValueError, match="source-copy substitution is forbidden"):
+        descendant._render_generated_auxiliary(binding, stream=None, values=values)
+
+
+def test_equipment_receipt_without_a_target_cannot_keep_source_text() -> None:
+    with pytest.raises(ValueError, match="equipment receipt has no target dependency"):
+        descendant._render_equipment_receipt_binding(
+            SimpleNamespace(target_paths=(), dependency_paths=()), source_target={}, target={}
+        )
+
+
+def test_target_linked_location_code_cannot_reuse_an_unresolved_source_city() -> None:
+    binding = SimpleNamespace(
+        logical_key="aux:shipper_location",
+        value_kind="location",
+        target_paths=(),
+        occurrences=(SimpleNamespace(source_text="NLRTM", slot_id="slot_location"),),
+    )
+    with pytest.raises(ValueError, match="cannot be rendered from its entity"):
+        descendant._render_entity_auxiliary(
+            binding,
+            entity_member=(
+                SimpleNamespace(relationship="same_as_target_party"),
+                SimpleNamespace(field="country_code"),
+            ),
+            country_code_style="unlocode",
+            geography_constraint=descendant.EntityGeographyConstraint(),
+            stream=None,
+            values=SimpleNamespace(entity_textual=lambda **_: "NL"),
+            country_codes={},
+        )
+
+
+def test_ambiguous_numeric_date_does_not_invent_a_locale() -> None:
+    with pytest.raises(ValueError, match="locale guessing is forbidden"):
+        descendant._render_certified_date_surface("05/05/2025", "2025-05-05", "2026-08-19")
+    assert (
+        descendant._render_certified_date_surface("05/05/2025", "2025-05-05", "2026-08-08")
+        == "08/08/2026"
+    )
+
+
+def test_failed_numeric_derivation_cannot_keep_source_because_units_are_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = {"documentPatch": {"cargoGroups": [{"grossWeight": {"unit": "kilogram"}}]}}
+    binding = SimpleNamespace(
+        derivation="sum_gross_weights",
+        logical_key="aux:weight",
+        dependency_paths=("documentPatch.cargoGroups[0].grossWeight.unit",),
+        occurrences=(SimpleNamespace(source_text="NOT A NUMERIC TOTAL"),),
+    )
+    monkeypatch.setattr(
+        descendant, "_derivation_numeric_values", lambda **_: (Decimal(1), Decimal(2))
+    )
+    with pytest.raises(ValueError):
+        descendant._render_one_derivation(
+            binding=binding,
+            case=SimpleNamespace(source_target=target, target=target, numeric_auxiliary={}),
+            outputs={},
+            bindings={},
+            country_codes={},
+        )
 
 
 def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
@@ -617,6 +831,8 @@ def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
         source=b"source",
         source_target=source_target,
         target={"new": "target"},
+        auxiliary_values={},
+        numeric_auxiliary={},
         target_receipt=SimpleNamespace(model_dump=lambda **_kwargs: {"new": "receipt"}),
     )
 
@@ -671,6 +887,8 @@ def test_replay_chain_is_explicitly_proven_and_provider_free_when_no_slot_is_reu
         source=b"source",
         source_target=source_target,
         target={"new": "target"},
+        auxiliary_values={},
+        numeric_auxiliary={},
         target_receipt=SimpleNamespace(model_dump=lambda **_kwargs: {"new": "receipt"}),
     )
 
@@ -689,9 +907,10 @@ def test_replay_chain_is_explicitly_proven_and_provider_free_when_no_slot_is_reu
     assert receipt.source_agent_stage_sha256 == sha256_file(stage_path)
 
 
-def test_source_only_date_renderer_preserves_mixed_numeric_separators() -> None:
+def test_source_only_dates_preserve_the_template_chronology() -> None:
     binding = SimpleNamespace(
         logical_key="agent:detail_mfg_1a",
+        target_paths=(),
         occurrences=(
             SimpleNamespace(
                 slot_id="slot_mixed_date",
@@ -701,16 +920,10 @@ def test_source_only_date_renderer_preserves_mixed_numeric_separators() -> None:
         ),
     )
 
-    output = descendant._render_pattern_date_auxiliary(
-        binding,
-        descendant.DeterministicStream(20260912, "test", "mixed-date"),
-    )
+    output = descendant._fixed_date_auxiliary(binding)
     rendered = output.replacements["slot_mixed_date"]
 
-    assert len(rendered) == len("27.03/2024")
-    assert rendered[2] == "."
-    assert rendered[5] == "/"
-    assert (rendered[:2] + rendered[3:5] + rendered[6:]).isdigit()
+    assert rendered == "27.03/2024"
 
 
 def test_same_as_identifier_projects_a_unique_dependency_suffix() -> None:
@@ -1436,10 +1649,15 @@ def test_coherence_gate_runs_before_descendant_routing(monkeypatch: pytest.Monke
     case = SimpleNamespace(
         document_id="doc_test",
         source_target=_target(7),
+        topology_reference_target=_target(7),
         target=_target(9),
+        auxiliary_values={},
+        numeric_auxiliary={},
+        target_receipt=_frozen_receipt(_target(9)),
         template=SimpleNamespace(
             bindings=(_coherence_binding(),),
             coherence_constraints=(_range_constraint(),),
+            auxiliary_semantic_plan=_EMPTY_AUXILIARY_PLAN,
         ),
     )
     calls: list[str] = []
@@ -1460,13 +1678,19 @@ def test_coherence_gate_runs_before_descendant_routing(monkeypatch: pytest.Monke
     assert calls == ["coherence"]
 
 
-def test_changed_coherence_member_stays_on_the_joint_residual_route() -> None:
+def test_changed_formal_range_uses_proven_deterministic_cardinality(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     binding = _coherence_binding()
     case = SimpleNamespace(
         document_id="doc_changed_range",
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
+        topology_reference_target=_target(7),
         target=_target(9),
+        auxiliary_values={},
+        numeric_auxiliary={},
+        target_receipt=_frozen_receipt(_target(9)),
         template=SimpleNamespace(
             bindings=(binding,),
             coherence_constraints=(_range_constraint(),),
@@ -1475,11 +1699,14 @@ def test_changed_coherence_member_stays_on_the_joint_residual_route() -> None:
         ),
     )
 
+    monkeypatch.setattr(descendant, "_validate_binding_format", lambda **_kwargs: None)
     plan = _build_initial_plan(case, seed=20260912, country_codes={})
 
-    assert plan.residual_bindings == (binding,)
-    assert plan.routes[0].runtime_route == "agent"
-    assert plan.deterministic_outputs == {}
+    assert plan.residual_bindings == ()
+    assert plan.routes[0].runtime_route == "deterministic"
+    assert tuple(plan.deterministic_outputs[binding.logical_key].replacements.values()) == (
+        "PACKAGE 1-9",
+    )
 
 
 def test_unchanged_coherence_member_preserves_the_certified_source(
@@ -1490,7 +1717,11 @@ def test_unchanged_coherence_member_preserves_the_certified_source(
         document_id="doc_unchanged_range",
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
+        topology_reference_target=_target(7),
         target=_target(7),
+        auxiliary_values={},
+        numeric_auxiliary={},
+        target_receipt=_frozen_receipt(_target(7)),
         template=SimpleNamespace(
             bindings=(binding,),
             coherence_constraints=(_range_constraint(),),
@@ -1528,7 +1759,13 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
         document_id="doc_ocr_variant",
         source=b"0NV18N1MA\n",
         source_target={"documentPatch": {"transport": {"voyageNumber": "0NVI8N1MA"}}},
+        topology_reference_target={"documentPatch": {"transport": {"voyageNumber": "0NVI8N1MA"}}},
         target={"documentPatch": {"transport": {"voyageNumber": "7KCI3Z0YW"}}},
+        auxiliary_values={},
+        numeric_auxiliary={},
+        target_receipt=_frozen_receipt(
+            {"documentPatch": {"transport": {"voyageNumber": "7KCI3Z0YW"}}}
+        ),
         template=SimpleNamespace(
             bindings=(binding,),
             coherence_constraints=(),
@@ -1578,9 +1815,12 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
         source_target=_target(7),
         target=_target(9),
         template=template,
-        target_receipt=SimpleNamespace(
+        auxiliary_values={},
+        numeric_auxiliary={},
+        target_receipt=_frozen_receipt(
+            _target(9),
             synthetic_document_id="syn_test",
-            target_origin="controlled_source_variant",
+            target_origin="complete_synthetic_target",
             changed_target_leaf_count=1,
         ),
     )
@@ -1595,6 +1835,7 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
             binding.logical_key: BindingOutput({"slot_range": "PACKAGE 1-7"}, "1-7")
         },
         residual_bindings=(),
+        independent_phone_countries={},
     )
 
     def reject_coherence(**_kwargs: Any) -> None:

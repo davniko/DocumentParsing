@@ -79,12 +79,12 @@ peft:
   ensure_weight_tying: false
 
 optimization:
-  # 11,057 train rows at effective batch 24 yield 461 optimizer updates per
-  # epoch and approximately 2,305 updates over the requested five epochs.
+  # 11,057 train rows at effective batch 32 yield 346 optimizer updates per
+  # epoch and 1,730 updates over the requested five epochs.
   num_train_epochs: 5.0
   max_steps: -1
   per_device_train_batch_size: 1
-  gradient_accumulation_steps: 24
+  gradient_accumulation_steps: 32
   learning_rate: 0.0001
   optimizer: adamw_torch_fused
   optimizer_args: null
@@ -101,8 +101,6 @@ optimization:
   seed: 424
   data_seed: 424
   full_determinism: false
-  # Preserve the baseline sampler. With the memory cliff removed below, this
-  # was slightly faster than random order on the same 240-document benchmark.
   train_sampling_strategy: group_by_length
   length_column_name: input_length
 
@@ -136,7 +134,7 @@ evaluation:
   split: validation
   # Half-epoch evaluation/checkpoint cadence gives ten comparable observations
   # across five epochs without limiting the requested optimizer updates.
-  steps: 230
+  steps: 173
   per_device_batch_size: 2
   on_start: false
   predict_with_generate: true
@@ -158,7 +156,7 @@ evaluation:
 
 checkpoint:
   strategy: steps
-  steps: 230
+  steps: 173
   total_limit: 2
   load_best_model_at_end: true
   metric_for_best_model: field_value_f1
@@ -191,9 +189,9 @@ logging:
       dataset: real1057-plus-synthetic10000-layout-proxy-holdout
       validation: shared-real100
       lora_rank: "32"
-      effective_optimizer_batch: "24"
+      effective_optimizer_batch: "32"
       epochs: "5"
-      projected_optimizer_updates: "2305"
+      projected_optimizer_updates: "1730"
   structured_log: logs/events.jsonl
   disable_tqdm: false
   log_level: info

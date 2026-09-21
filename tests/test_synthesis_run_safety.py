@@ -468,6 +468,29 @@ def test_staged_run_resumes_sealed_stage_after_final_rename_denial(
     assert resumed.validate_committed_run().metadata == {"records": 1}
 
 
+def test_commit_inventory_scan_holds_the_publication_lock(tmp_path: Path, monkeypatch) -> None:
+    import fcntl
+    import os
+
+    run = StagedArtifactRun(
+        output_parent=tmp_path, run_name="locked-scan", transaction_sha256=_hash("transaction")
+    )
+    run.publish_bytes("artifact.bin", b"same")
+    scan = run._scan_artifacts
+
+    def guarded_scan():
+        descriptor = os.open(run.lock_path, os.O_RDWR)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(descriptor)
+        return scan()
+
+    monkeypatch.setattr(run, "_scan_artifacts", guarded_scan)
+    run.commit(expected_artifacts=("artifact.bin",), metadata={"records": 1})
+
+
 def test_concurrent_identical_stage_commits_publish_exactly_once(tmp_path: Path) -> None:
     transaction = _hash("transaction")
     runs = tuple(

@@ -34,14 +34,15 @@ from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import SynthesisCargoLanguageProbeConfig
 from document_ocr.synthesis.linguistic_probe_runtime import (
-    LinguisticUsageReceipt,
     load_openai_key,
     model_messages,
     openai_responses_settings,
     usage_receipt,
 )
+from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.semantic_completion_pipeline import SemanticCompletionPlanRow
+from document_ocr.synthesis.usage_receipt import LinguisticUsageReceipt
 from document_ocr.training.config import resolve_config_path
 
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -850,32 +851,8 @@ def _contains_integer_surface(value: str, expected: int) -> bool:
     return re.search(rf"(?<![0-9]){expected}(?![0-9])", compact) is not None
 
 
-def _package_category_surface_present(value: str, category: str) -> bool:
-    if not category.startswith("PACKAGE_"):
-        raise ValueError(f"unsupported package category token: {category!r}")
-    # MPCI category tokens follow the registry's noun-plus-qualifier order (for example,
-    # ``PACKAGE_BOX_FIBREBOARD``), while natural printed English commonly reverses it
-    # (``FIBREBOARD BOXES``).  Match every semantic token independently so word order is not
-    # mistaken for category identity, while still requiring the full category rather than a
-    # generic package noun.
-    words = category.removeprefix("PACKAGE_").split("_")
-
-    def variants(word: str) -> tuple[str, ...]:
-        values = {word, f"{word}S"}
-        if word.endswith("Y") and len(word) > 1:
-            values.add(f"{word[:-1]}IES")
-        if word.endswith(("S", "X", "Z", "CH", "SH")):
-            values.add(f"{word}ES")
-        return tuple(sorted(values))
-
-    return all(
-        any(re.search(rf"\b{re.escape(candidate)}\b", value, re.I) for candidate in variants(word))
-        for word in words
-    )
-
-
 def _package_fact_present(value: str, fact: CargoPackageFact) -> bool:
-    return _contains_integer_surface(value, fact.quantity) and _package_category_surface_present(
+    return _contains_integer_surface(value, fact.quantity) and package_category_surface_present(
         value, fact.typeCategory
     )
 

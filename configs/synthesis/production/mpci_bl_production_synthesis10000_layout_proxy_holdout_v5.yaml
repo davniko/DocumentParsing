@@ -1,0 +1,160 @@
+schema_version: 1
+task: bill_of_lading_compiled_template_synthesis_plan_v1
+run_name: mpci-bl-production-synthesis10000-layout-proxy-holdout-v5
+output_dir: artifacts/kie-synthesis-production/synthesis-plans
+template_run:
+  path: artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v5
+  commit_sha256: 07c7ae3e1d87ac8b1de6e766a4013c748fad12ad493be5ab5f252229ac4d0b44
+  transaction_sha256: 5441ee47baef025e9159df336e78e4ebb9424f8913aceecaf6fa373530bedfa7
+validation_partition:
+  path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+  sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  report_format: t5gemma2_runtime_partition_dataset_report_v1
+  split: validation
+  expected_documents: 100
+  document_ids_sha256: 25f01f196a83be1f71e36dc998b56392c70ac3cd509b6a091bfc533591b7c677
+target_task: bill_of_lading_relation_explicit_v5
+target_schema_version: 5.0.0-experimental
+target_generation: complete_latest_schema_targets_v1
+selection:
+  documents: 10000
+  seed: 20260919
+  sample_namespace: mpci-bl-production-v5-layout-proxy-holdout-10000-v2
+  exclusion_mode: template_proxy_family
+  capability_counts:
+    standard: 7500
+    dangerous_goods: 1000
+    temperature_controlled: 1500
+  balancing: even_reuse_within_capability_hmac_rank_v1
+  require_disjoint_capability_pools: true
+  require_every_eligible_template_selected: true
+expected_inventory:
+  validation_documents_in_catalog: 66
+  validation_template_proxy_families: 50
+  latest_schema_incompatible_templates: 3
+  excluded_templates: 562
+  eligible_templates: 948
+  eligible_standard_templates: 862
+  eligible_dangerous_goods_templates: 26
+  eligible_temperature_controlled_templates: 60
+source_review_exclusions:
+  doc_30ef57fe33ec019ae87faaaf8506b97314cf077b9e6aac3aaf32e379bffea851: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:cargo:0:weight_lbs_value:
+    Source prints 9900.000 LBS alongside 4490.600 KGS, but exact kg-to-lb conversion is approximately
+    9900.077 LBS; the printed precision intervals do not overlap.'
+  doc_49e600f728488dcf755975fc37ca4fbb4a14ed52c8959b34c03fb3ef64fde933: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:total_package_assertion:
+    The source prints TOTAL 1124 PACKAGES ONLY, but the detailed source quantities are 480 + 512 + 108
+    + 96 = 1196, which also matches the structured target leaves; no supplied mode can faithfully express
+    the contradictory total.'
+  doc_615a495812a18606e5ff0069f131b65e44eaafdf1e70252f800f519fed3bf0d0: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:aux:cargo:gross_weight:value:
+    The gross-weight surface is printed as "19.000.00KGS". Its two periods do not unambiguously identify
+    decimal and thousands grouping, so the canonical gross mass cannot be established faithfully from
+    the source.'
+  doc_66f90c143567a00a8f9d9bd013183cbfc5edc9a86997a8718c5253460d37d852: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:cargo:g1:gross_weight_plus_tare:
+    The source prints GROSS WEIGHT+TARE as 83 718.0 KGS, equal to the structured gross weight 72 618.0
+    KGS plus the separately bound fixed tare 11 100.0 KGS. No supplied mode expresses this coupled gross-plus-tare
+    relationship.'
+  doc_68748b4d7e4d7bd7cc842ba93666d122cf21c0fa6ff4b2ec85c587c7d8015997: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:container:0:volume:
+    Container TCNU4601617 volume is printed as 5.880 CBM. The three listed container volumes 5.880 + 5.880
+    + 3.900 equal 15.660 CBM, which contradicts the separately printed source cargo total volume of 105.660
+    CBM; no supplied dependency mode can faithfully express the relationship.'
+  doc_7c6a020d7b9e01e67f1fa6b4f4d25e17372a76f80be5e0edbf784887d69f285a: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:container_row:7:package_quantity:
+    The MAGU5123996 container row prints 40 PCS, while source target allocation index 7 is 22 PCS; the
+    same-container quantity conflict cannot be represented faithfully by a supplied dependency mode.'
+  doc_7fbe99547c2f6215f2f476fab5ed81a4adfd23f331ed0097236210814a6d56c8: Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. equal partition lacks one source occurrence
+    per constituent
+  doc_8addd0171065b40d80c5d7548733359e3b59d502393c37db50f49cb740a55362: Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. target-share constituents do not exactly
+    account for their source total
+  doc_9a55d93af2ef648108068bb8d01c83061e53ea6a44fbee761a3a2f9bedf8e375: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:cargo:truncated_gross_weight_surface:
+    The source prints gross mass as "1272.36K", while the structured grossWeight target is 1272.365 kilogram;
+    no supplied mode represents this same-unit truncated mass alias exactly.'
+  doc_a534c5e5503e9cf9946b281e028cfa787290dd15b5d3b57cef5b260916df18b4: Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. shipment totals cannot be silently frozen
+  doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:detail_gross_1:
+    The source prints 193.000 KGS as a per-drum gross measure while separately printing 400 total items
+    and 77200.000 KGS total gross cargo weight; this binding has only one source occurrence and the supplied
+    structured quantity is 80, so no supplied mode links the surface to the gross target without inventing
+    missing constituent occurrences.'
+  doc_ba5ba8aca1594542cabae39db308a99d28aafa43571917e5a4617ef78d7b9fd1: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:total_gross_weight_imperial_value:
+    The source prints 4188.783 Lbs as a converted representation of 1900.000 Kgs, but the supplied target
+    leaf is numeric 1900.0 without proved target-side printed precision for the required rounding-interval
+    validation.'
+  doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric source grammar is ambiguous:
+    agent:cargo:measurement'
+  doc_dce9af72b80b3b26ad1db31c98397c552459737ea59ce7f0fd5019c7357cb236: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:source:net_weight_declared_by_shipper:
+    The source separately prints a shipper-declared net weight of 33024.440 KGS, which conflicts with
+    both the two container net weights totaling 33024.100 KGS and the structured net weight of 33024.100
+    KGS; no supplied dependency mode faithfully reconciles this contradiction.'
+  doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:net_weight_imperial_value:
+    The source prints net weight as 24,511.75 KG and 54,038.60 LBS. Exact conversion of 24,511.75 kg is
+    approximately 54,039.17 lbs, and the printed rounding intervals do not overlap; the two mass representations
+    are contradictory.'
+  doc_ea06d095a5b08df5104a9abc3b9cded3a2e04d5c19bf14a079b91dd3440c4f5f: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:cargo:0:net_weight_imperial:
+    The source bill of lading prints NET WEIGHT as 59680.40 LB/27,070.85 KG, but the exact kg conversion
+    of 59680.40 LB is approximately 27070.574078 KG. The printed LB and KG precision intervals do not
+    overlap, so the converted net-mass dependency is contradictory.'
+  doc_fa745ae064613a6cdf43f8829512bb5ab9bdcbed6b6d0911e40fc882f2958825: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:gross_weight:attached_list_total:
+    The attached-list GOODS WEIGHT is 80,832.99 KGS, while the four printed container weights sum to 82,272.990
+    KGS; the source does not identify a gross/net distinction or provide a tare dependency, so the relationship
+    is unresolved.'
+  doc_fd4a1aeaefd77b970bc84a3942aa77f28413630884a577a3b8b9d8b409a80539: 'Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. numeric semantic review required: agent:attached_list_total_weight:
+    The attached-list total printed as “19,516.90” cannot be reconciled: the four printed net weights
+    sum to 16,859.50, not 19,516.90, and no supplied target or dependency mode expresses this distinct
+    total.'
+  doc_ff600393e5965efd666331e7d48481db04490884e6dc4b0e0bc1ead7be6fecf2: Unresolved source numeric dependency;
+    excluded before sampling, not a synthesized-sample fallback. target-share constituents do not exactly
+    account for their source total
+  doc_3c37a891c542df197cd381addc0042fdb369bb04024b89efb9564049055325fe: Source declares one 40-foot high-cube
+    dry container and 95 cubic metres; this exceeds its published capacity. Source resolution required
+    before synthesis.
+  doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8: Source declares one 40-foot high-cube
+    dry container and 84.573 cubic metres, exceeding published capacity. Do not silently reinterpret the
+    volume.
+  doc_a8f37d861c1b1944292dc0a73730491cbc90d8e010dcff247e96b60cb39b30a3: Source declares one 20-foot dry
+    container and 65 cubic metres, exceeding published capacity. Equipment or quantity requires source
+    review.
+  doc_bb4ae824fda4c15f69d2fd34ad8d87a6041bea680c5e2904061d64fa5df65ce2: Source and label gross mass are
+    445595 kg for one 20-foot container of 110 rolls. Decimal/field reading is unresolved; do not guess
+    a corrected mass.
+  doc_1aa85b39bbd013c75d9f9ee40664ff82c2ae07bb98e27714fb13cf443fd705de: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_3d364dc65633fbef9b9afb99e26e9c1edbb3e080328a6ef03e64ab8d0b438f86: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_4e56b6aa9c06186f699ebcf3397cf62318c80c4f9460acadf5fed6a00871efff: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_8529ebbd3fcc2538ea395bb2454924d6c76a9b9a7b5eb196f4268f30277c41f8: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0
+  doc_882f29b6f33b4c1645bd0e9dd607c31c526d5d16be1cb6521de680d7ba2d0f38: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1
+  doc_9266be5cc0d9b0b8f3c8221767e5381f48ea5e5da2763d67071c4d68d3df8035: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_bf50aa4214ecd281f3c1e6e2380e45783b3050a3e5c91941712febaa1599305b: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0
+  doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1
+  doc_e352e3f6bde04bee8169254fdc6ac0043778118a972ed6582832c134ae56ab13: explicit_carrier_receipt_container_count_differs_from_labeled_containers:17_vs_6
+  doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee: Compiled package-range contracts
+    claim multiple crossing subsets of the same numbered cases for different allocations. Source-number
+    equality alone does not establish unique ownership. Relationship review required before broadly varying
+    quantities; no generated sample is published from this source.
+  doc_8035258b1162d3bf06803577cfee46f7b41a2bb1d9dcf079a54faad786c11c53: The g1 marks target PALLET NO:1-30
+    is compiled with only PALLET NO mutable; the numeric 1-30 suffix is an immutable projection frame
+    even though allocation quantity varies. Template coverage review required; do not restore source quantity
+    or accept contradictory marks.
+  doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5: Printed equipment receipt 1X40HR
+    conflicts with the container typeDescription 40RO. No audited alias or semantic pair proves equivalence.
+    Original source retained for review; no inferred correction to training labels.
+  doc_c483b54260175090305e0d60aec3ee4651025dc466dc088e0dc100d8c75ef924: Printed equipment receipt 3X40HR
+    conflicts with three container typeDescription values 40RQ. Compiler rationale explicitly notes the
+    conflict. Source requires review, not residual-agent acceptance.
+  doc_e7d956645b59dcfeb9e5dbdf370081174b5b60edc50267c0dec365cd4a797845: Source labels bind container typeDescription
+    to CY/FO while the document separately prints 1X40HC CONTAINER(S). This source field ownership is
+    incorrect; exclude pending source-label/template review rather than propagate it into synthetic labels.

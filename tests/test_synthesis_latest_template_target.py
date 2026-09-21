@@ -5,13 +5,12 @@ from pathlib import Path
 
 import pytest
 
+from document_ocr.synthesis.template_compiler.coherence import validate_render_coherence
 from document_ocr.synthesis.template_compiler.descendant import (
     _active_identifier_relationships,
-    _adapt_target_coherence_ranges,
     _equipment_semantics_match,
     _render_agent_target_binding,
     _resolve_path,
-    _set_path,
     _typed_semantic_equipment_output_matches,
 )
 from document_ocr.synthesis.template_compiler.latest_target import (
@@ -64,7 +63,7 @@ def test_latest_target_rejects_temperature_without_equipment_evidence() -> None:
         latest_target_from_source(_source_target(next(iter(_INCOMPATIBLE))))
 
 
-def test_v3_dangerous_goods_paths_resolve_and_update_their_v5_locations() -> None:
+def test_compiled_dangerous_goods_paths_resolve_their_v5_locations() -> None:
     target = {
         "schemaVersion": "5.0.0-experimental",
         "documentPatch": {
@@ -93,8 +92,6 @@ def test_v3_dangerous_goods_paths_resolve_and_update_their_v5_locations() -> Non
 
     assert _resolve_path(target, subsidiary_path) == "TOXIC_SUBSTANCES"
     assert _resolve_path(target, packing_path) == "MEDIUM_DANGER"
-    _set_path(target, packing_path, "LOW_DANGER")
-    assert _resolve_path(target, packing_path) == "LOW_DANGER"
 
 
 def test_equipment_matcher_uses_the_same_reviewed_grammar_as_v5_enrichment() -> None:
@@ -107,7 +104,7 @@ def test_equipment_matcher_uses_the_same_reviewed_grammar_as_v5_enrichment() -> 
     )
 
 
-def test_composite_range_coherence_selects_only_the_textual_range_path() -> None:
+def test_composite_range_coherence_validates_without_modifying_target() -> None:
     document_id = "doc_2520425e6bd3a4ea5b06ec6e83322468a17a78668d3e8900188e7d14f8d685a7"
     source = _source_target(document_id)
     target = latest_target_from_source(source)
@@ -115,13 +112,16 @@ def test_composite_range_coherence_selects_only_the_textual_range_path() -> None
         (_CATALOG / "cases" / document_id / "template.json").read_bytes(), strict=True
     )
 
-    adaptations = _adapt_target_coherence_ranges(
+    before = json.dumps(target, sort_keys=True)
+    validate_render_coherence(
         source_target=source,
         target=target,
-        template=template,
+        bindings=template.bindings,
+        constraints=template.coherence_constraints,
+        outputs=None,
     )
 
-    assert adaptations == ()
+    assert json.dumps(target, sort_keys=True) == before
 
 
 def test_incidental_short_identifier_overlap_is_not_a_runtime_relationship() -> None:

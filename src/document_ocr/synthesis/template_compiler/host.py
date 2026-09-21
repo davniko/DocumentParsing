@@ -580,7 +580,8 @@ def _value_kind(paths: Sequence[str], policy: str) -> str:
     if "hscodes" in joined:
         return "identifier"
     if ".transport.vesselname" in joined:
-        return "equipment"
+        # A vessel name is lexical text, not a fixed-width equipment identifier.
+        return "other_text"
     if ".freight.paymentplace." in joined:
         return "location"
     if ".freight.paymentarrangement" in joined:

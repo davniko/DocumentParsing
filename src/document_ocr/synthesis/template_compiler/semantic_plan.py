@@ -302,6 +302,12 @@ def _sequence_scope(binding: SemanticBinding) -> str:
 
 def _entity_field(binding: SemanticBinding) -> str:
     tokens = set(_identity_tokens(binding.logical_key + " " + binding.group_key))
+    if binding.value_kind in {"identifier", "location"} and tokens & {
+        "postal",
+        "postcode",
+        "zipcode",
+    }:
+        return "postal_code"
     if binding.value_kind == "phone" and tokens & {"extension", "ext"}:
         return "phone_extension"
     if "registration" in tokens and "type" in tokens:
@@ -767,6 +773,99 @@ def entity_members_by_binding(
     }
 
 
+def resolve_geographic_members(
+    plan: AuxiliarySemanticPlan,
+    bindings: Sequence[SemanticBinding],
+    country_codes: Mapping[str, str],
+) -> AuxiliarySemanticPlan:
+    """Resolve separately owned geography and source-proven ISO country codes.
+
+    Registration/tax-labelled codes are never reinterpreted. An exporter CODE
+    must be a complete ISO alphabetic code matching every country occurrence in
+    that same entity, not merely a two-letter string somewhere on the page.
+    """
+    by_key = {binding.logical_key: binding for binding in bindings}
+    entities = []
+    for entity in plan.entities:
+        postal_keys = {
+            m.logical_key
+            for m in entity.members
+            if m.field == "postal_code"
+            or (
+                m.field in {"registration_identifier", "other_identifier"}
+                and _entity_field(by_key[m.logical_key]) == "postal_code"
+            )
+        }
+        region_keys = {
+            m.logical_key
+            for m in entity.members
+            if m.field == "address"
+            and set(_identity_tokens(m.logical_key)) & {"state", "province", "region"}
+            and postal_keys - {m.logical_key}
+            and all(
+                any(c.isalpha() for c in s.source_text)
+                and not any(c.isdigit() for c in s.source_text)
+                for s in by_key[m.logical_key].occurrences
+            )
+        }
+        # A compiler may label the region slice as address_region_postal even
+        # though its postcode has a distinct binding. Preserve those owners;
+        # generating another street for the region would corrupt the address.
+        candidates = region_keys | {
+            member.logical_key
+            for member in entity.members
+            if member.field in {"registration_identifier", "other_identifier"}
+        }
+        if not candidates:
+            entities.append(entity)
+            continue
+        countries = {
+            country_codes.get(_normalized(slot.source_text))
+            for member in entity.members
+            if member.field == "country"
+            for slot in by_key[member.logical_key].occurrences
+        }
+        members = []
+        for member in entity.members:
+            if member.logical_key not in candidates:
+                members.append(member)
+                continue
+            binding = by_key[member.logical_key]
+            if member.logical_key in region_keys:
+                members.append(member.model_copy(update={"field": "region"}))
+                continue
+            tokens = set(_identity_tokens(binding.logical_key))
+            surfaces = [slot.source_text.strip() for slot in binding.occurrences]
+            if _entity_field(binding) == "postal_code":
+                members.append(member.model_copy(update={"field": "postal_code"}))
+                continue
+            if (
+                member.field in {"registration_identifier", "other_identifier"}
+                and "code" in tokens
+                and not tokens & {"registration", "registry", "tax", "vat", "gst"}
+                and len(countries) == 1
+                and None not in countries
+                and bool(surfaces)
+                and all(
+                    re.fullmatch(r"[A-Za-z]{2,3}", value)
+                    and country_codes.get(_normalized(value)) in countries
+                    for value in surfaces
+                )
+            ):
+                member = member.model_copy(update={"field": "country_code"})
+            members.append(member)
+        entities.append(
+            entity
+            if tuple(members) == entity.members
+            else entity.model_copy(update={"members": tuple(members)})
+        )
+    return (
+        plan
+        if tuple(entities) == plan.entities
+        else plan.model_copy(update={"entities": tuple(entities)})
+    )
+
+
 def validate_auxiliary_render(
     *,
     plan: AuxiliarySemanticPlan,
@@ -774,15 +873,30 @@ def validate_auxiliary_render(
     outputs: Mapping[str, Any],
     target: Mapping[str, Any],
     country_codes: Mapping[str, str],
+    target_projection_values: Mapping[str, str] | None = None,
 ) -> None:
     """Parse formal auxiliary surfaces back after rendering and reject contradictions."""
-
+    plan = resolve_geographic_members(plan, bindings, country_codes)
     by_key = {binding.logical_key: binding for binding in bindings}
     for entity in plan.entities:
         values_by_field: dict[str, list[str]] = defaultdict(list)
         for member in entity.members:
             output = outputs.get(member.logical_key)
             canonical = getattr(output, "canonical_value", None)
+            if (
+                entity.target_party_path is not None
+                and target_projection_values is not None
+                and member.logical_key in target_projection_values
+            ):
+                projected_expected = target_projection_values[member.logical_key]
+                if not isinstance(canonical, str) or not _surface_equivalent(
+                    canonical, projected_expected
+                ):
+                    raise ValueError("auxiliary target-projection facet differs from its contract")
+                # A proven postcode, legal suffix or locality fragment is not the
+                # entire address/name/country. Validate that facet, not equality
+                # between the fragment and its whole parent field.
+                continue
             if isinstance(canonical, str) and canonical.strip():
                 values_by_field[member.field].append(canonical)
         # An address can be split across several independently owned physical lines (street,

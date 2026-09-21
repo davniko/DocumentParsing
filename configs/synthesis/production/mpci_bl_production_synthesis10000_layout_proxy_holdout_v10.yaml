@@ -1,0 +1,712 @@
+schema_version: 1
+task: bill_of_lading_compiled_template_synthesis_plan_v1
+run_name: mpci-bl-production-synthesis10000-layout-proxy-holdout-v10
+output_dir: artifacts/kie-synthesis-production/synthesis-plans
+template_run:
+  commit_sha256: 97d43815a6cdc8beb6b8284e5c5700ef308ba95f9f25e585c376d4e64f3f8958
+  path: artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v6
+  transaction_sha256: a21290c2a31ad36b8495508f2d462953e255ad810ed677ba0a7b4e04239c2a30
+validation_partition:
+  path: artifacts/kie-training/t5gemma2-270m-lora-mpci-bl-combined1157-task-facing-v2/dataset-report.json
+  sha256: 28a2aab2139ab5a87879e89a67bfcf765f88647070177dd3cc9b5500fac9f879
+  report_format: t5gemma2_runtime_partition_dataset_report_v1
+  split: validation
+  expected_documents: 100
+  document_ids_sha256: 25f01f196a83be1f71e36dc998b56392c70ac3cd509b6a091bfc533591b7c677
+target_task: bill_of_lading_relation_explicit_v5
+target_schema_version: 5.0.0-experimental
+target_generation: complete_latest_schema_targets_v1
+selection:
+  documents: 10000
+  seed: 20260919
+  sample_namespace: mpci-bl-production-v5-layout-proxy-holdout-10000-v2
+  exclusion_mode: template_proxy_family
+  capability_counts:
+    standard: 7500
+    dangerous_goods: 1000
+    temperature_controlled: 1500
+  balancing: even_reuse_within_capability_hmac_rank_v1
+  require_disjoint_capability_pools: true
+  require_every_eligible_template_selected: true
+expected_inventory:
+  validation_documents_in_catalog: 66
+  validation_template_proxy_families: 50
+  latest_schema_incompatible_templates: 3
+  excluded_templates: 653
+  eligible_templates: 857
+  eligible_standard_templates: 780
+  eligible_dangerous_goods_templates: 20
+  eligible_temperature_controlled_templates: 57
+source_review_exclusions:
+  doc_30ef57fe33ec019ae87faaaf8506b97314cf077b9e6aac3aaf32e379bffea851: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:cargo:0:weight_lbs_value: Source
+    prints 9900.000 LBS alongside 4490.600 KGS, but exact kg-to-lb conversion is approximately
+    9900.077 LBS; the printed precision intervals do not overlap.'
+  doc_49e600f728488dcf755975fc37ca4fbb4a14ed52c8959b34c03fb3ef64fde933: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:total_package_assertion: The
+    source prints TOTAL 1124 PACKAGES ONLY, but the detailed source quantities are
+    480 + 512 + 108 + 96 = 1196, which also matches the structured target leaves;
+    no supplied mode can faithfully express the contradictory total.'
+  doc_615a495812a18606e5ff0069f131b65e44eaafdf1e70252f800f519fed3bf0d0: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:aux:cargo:gross_weight:value:
+    The gross-weight surface is printed as "19.000.00KGS". Its two periods do not
+    unambiguously identify decimal and thousands grouping, so the canonical gross
+    mass cannot be established faithfully from the source.'
+  doc_66f90c143567a00a8f9d9bd013183cbfc5edc9a86997a8718c5253460d37d852: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:cargo:g1:gross_weight_plus_tare:
+    The source prints GROSS WEIGHT+TARE as 83 718.0 KGS, equal to the structured gross
+    weight 72 618.0 KGS plus the separately bound fixed tare 11 100.0 KGS. No supplied
+    mode expresses this coupled gross-plus-tare relationship.'
+  doc_68748b4d7e4d7bd7cc842ba93666d122cf21c0fa6ff4b2ec85c587c7d8015997: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:container:0:volume: Container
+    TCNU4601617 volume is printed as 5.880 CBM. The three listed container volumes
+    5.880 + 5.880 + 3.900 equal 15.660 CBM, which contradicts the separately printed
+    source cargo total volume of 105.660 CBM; no supplied dependency mode can faithfully
+    express the relationship.'
+  doc_7c6a020d7b9e01e67f1fa6b4f4d25e17372a76f80be5e0edbf784887d69f285a: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:container_row:7:package_quantity:
+    The MAGU5123996 container row prints 40 PCS, while source target allocation index
+    7 is 22 PCS; the same-container quantity conflict cannot be represented faithfully
+    by a supplied dependency mode.'
+  doc_7fbe99547c2f6215f2f476fab5ed81a4adfd23f331ed0097236210814a6d56c8: Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. equal partition lacks one source occurrence per constituent
+  doc_8addd0171065b40d80c5d7548733359e3b59d502393c37db50f49cb740a55362: Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. target-share constituents do not exactly account for their source total
+  doc_9a55d93af2ef648108068bb8d01c83061e53ea6a44fbee761a3a2f9bedf8e375: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:cargo:truncated_gross_weight_surface:
+    The source prints gross mass as "1272.36K", while the structured grossWeight target
+    is 1272.365 kilogram; no supplied mode represents this same-unit truncated mass
+    alias exactly.'
+  doc_a534c5e5503e9cf9946b281e028cfa787290dd15b5d3b57cef5b260916df18b4: Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. shipment totals cannot be silently frozen
+  doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:detail_gross_1: The source prints
+    193.000 KGS as a per-drum gross measure while separately printing 400 total items
+    and 77200.000 KGS total gross cargo weight; this binding has only one source occurrence
+    and the supplied structured quantity is 80, so no supplied mode links the surface
+    to the gross target without inventing missing constituent occurrences.'
+  doc_ba5ba8aca1594542cabae39db308a99d28aafa43571917e5a4617ef78d7b9fd1: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:total_gross_weight_imperial_value:
+    The source prints 4188.783 Lbs as a converted representation of 1900.000 Kgs,
+    but the supplied target leaf is numeric 1900.0 without proved target-side printed
+    precision for the required rounding-interval validation.'
+  doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric source grammar is ambiguous: agent:cargo:measurement'
+  doc_dce9af72b80b3b26ad1db31c98397c552459737ea59ce7f0fd5019c7357cb236: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:source:net_weight_declared_by_shipper:
+    The source separately prints a shipper-declared net weight of 33024.440 KGS, which
+    conflicts with both the two container net weights totaling 33024.100 KGS and the
+    structured net weight of 33024.100 KGS; no supplied dependency mode faithfully
+    reconciles this contradiction.'
+  doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:net_weight_imperial_value: The
+    source prints net weight as 24,511.75 KG and 54,038.60 LBS. Exact conversion of
+    24,511.75 kg is approximately 54,039.17 lbs, and the printed rounding intervals
+    do not overlap; the two mass representations are contradictory.'
+  doc_ea06d095a5b08df5104a9abc3b9cded3a2e04d5c19bf14a079b91dd3440c4f5f: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:cargo:0:net_weight_imperial:
+    The source bill of lading prints NET WEIGHT as 59680.40 LB/27,070.85 KG, but the
+    exact kg conversion of 59680.40 LB is approximately 27070.574078 KG. The printed
+    LB and KG precision intervals do not overlap, so the converted net-mass dependency
+    is contradictory.'
+  doc_fa745ae064613a6cdf43f8829512bb5ab9bdcbed6b6d0911e40fc882f2958825: 'Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. numeric semantic review required: agent:gross_weight:attached_list_total:
+    The attached-list GOODS WEIGHT is 80,832.99 KGS, while the four printed container
+    weights sum to 82,272.990 KGS; the source does not identify a gross/net distinction
+    or provide a tare dependency, so the relationship is unresolved.'
+  doc_fd4a1aeaefd77b970bc84a3942aa77f28413630884a577a3b8b9d8b409a80539: "Unresolved\
+    \ source numeric dependency; excluded before sampling, not a synthesized-sample\
+    \ fallback. numeric semantic review required: agent:attached_list_total_weight:\
+    \ The attached-list total printed as \u201C19,516.90\u201D cannot be reconciled:\
+    \ the four printed net weights sum to 16,859.50, not 19,516.90, and no supplied\
+    \ target or dependency mode expresses this distinct total."
+  doc_ff600393e5965efd666331e7d48481db04490884e6dc4b0e0bc1ead7be6fecf2: Unresolved
+    source numeric dependency; excluded before sampling, not a synthesized-sample
+    fallback. target-share constituents do not exactly account for their source total
+  doc_3c37a891c542df197cd381addc0042fdb369bb04024b89efb9564049055325fe: Source declares
+    one 40-foot high-cube dry container and 95 cubic metres; this exceeds its published
+    capacity. Source resolution required before synthesis.
+  doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8: Source declares
+    one 40-foot high-cube dry container and 84.573 cubic metres, exceeding published
+    capacity. Do not silently reinterpret the volume.
+  doc_a8f37d861c1b1944292dc0a73730491cbc90d8e010dcff247e96b60cb39b30a3: Source declares
+    one 20-foot dry container and 65 cubic metres, exceeding published capacity. Equipment
+    or quantity requires source review.
+  doc_bb4ae824fda4c15f69d2fd34ad8d87a6041bea680c5e2904061d64fa5df65ce2: Source and
+    label gross mass are 445595 kg for one 20-foot container of 110 rolls. Decimal/field
+    reading is unresolved; do not guess a corrected mass.
+  doc_1aa85b39bbd013c75d9f9ee40664ff82c2ae07bb98e27714fb13cf443fd705de: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_3d364dc65633fbef9b9afb99e26e9c1edbb3e080328a6ef03e64ab8d0b438f86: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_4e56b6aa9c06186f699ebcf3397cf62318c80c4f9460acadf5fed6a00871efff: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_8529ebbd3fcc2538ea395bb2454924d6c76a9b9a7b5eb196f4268f30277c41f8: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0
+  doc_882f29b6f33b4c1645bd0e9dd607c31c526d5d16be1cb6521de680d7ba2d0f38: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1
+  doc_9266be5cc0d9b0b8f3c8221767e5381f48ea5e5da2763d67071c4d68d3df8035: explicit_carrier_receipt_container_count_differs_from_labeled_containers:1_vs_0
+  doc_bf50aa4214ecd281f3c1e6e2380e45783b3050a3e5c91941712febaa1599305b: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_0
+  doc_de767ed72a127a6383213fc31415edd1648db26acc9ce8c014e810d6fcfff85e: explicit_carrier_receipt_container_count_differs_from_labeled_containers:2_vs_1
+  doc_e352e3f6bde04bee8169254fdc6ac0043778118a972ed6582832c134ae56ab13: explicit_carrier_receipt_container_count_differs_from_labeled_containers:17_vs_6
+  doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee: Compiled package-range
+    contracts claim multiple crossing subsets of the same numbered cases for different
+    allocations. Source-number equality alone does not establish unique ownership.
+    Relationship review required before broadly varying quantities; no generated sample
+    is published from this source.
+  doc_8035258b1162d3bf06803577cfee46f7b41a2bb1d9dcf079a54faad786c11c53: The g1 marks
+    target PALLET NO:1-30 is compiled with only PALLET NO mutable; the numeric 1-30
+    suffix is an immutable projection frame even though allocation quantity varies.
+    Template coverage review required; do not restore source quantity or accept contradictory
+    marks.
+  doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5: Printed equipment
+    receipt 1X40HR conflicts with the container typeDescription 40RO. No audited alias
+    or semantic pair proves equivalence. Original source retained for review; no inferred
+    correction to training labels.
+  doc_c483b54260175090305e0d60aec3ee4651025dc466dc088e0dc100d8c75ef924: Printed equipment
+    receipt 3X40HR conflicts with three container typeDescription values 40RQ. Compiler
+    rationale explicitly notes the conflict. Source requires review, not residual-agent
+    acceptance.
+  doc_e7d956645b59dcfeb9e5dbdf370081174b5b60edc50267c0dec365cd4a797845: Source labels
+    bind container typeDescription to CY/FO while the document separately prints 1X40HC
+    CONTAINER(S). This source field ownership is incorrect; exclude pending source-label/template
+    review rather than propagate it into synthetic labels.
+  doc_0eeaecee2bda22d1884873eeca81e5f3199779980b46ea856489f3db672c6cff: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_7c3de1ec4c2653a18bac647a428a9bfeae1ed35f29265dfc1b015a8d157e23f8: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_36f068065636f7bae12f09191ec604b3b19c31a6ce4bdea1b362311f422e24be: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_ad45948322926cfa769f4f938e1cafec74b520ae9c595e0f34cb30cbcdf983bb: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_cf1b1104bd849b29f6d3e2c11fa4fd27e1bf3fe9a7e5db86f4c4009f1e35e192: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_7f8ea2306eb387df9a79aaa448df5a8add66555787ca606626e7d84a048c4c7e: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_e836b643a799620af0e897e0fa36d0673bd4b23f3c839e454855518d6f98ac4b: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[1]'
+  doc_f00b00eb3b54b36bbc59bb67fb12d3d18fc1a306bf455b7a927bf3f51a3498cc: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_db79c54da841dd8f1df406ed908c0b9eb44529f05c89926d31bef6f156f3ea6a: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_9f97c8edd5d4fd625822b0dd8287e6b32e8356fe3381970b185ffaba9677a6ca: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_0358ccef2b107de6b19afcef173c039e2e8141effbebc1693f367a8b6f5dbb38: Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose has no numeric
+    interpretation
+  doc_6f5a69ebc88d423da855307d7170689fdfbf95501fe736a6ae30fd13345e87e4: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_a0a8e62065fff3056a3fb11c4779fb21951f27c95a74f84c32d2b379d4bb2648: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_8563ff35233e1f33728fdf0e5e349baf716306d13e33bcb26e8ff58c25e63fec: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_1ad0f7cd2d24316ebb7aa68d48e95ff311ae85137999ebe3d63f6e1ea01d3eeb: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_560ff39796d5ac8e4ecff46dae368ba213f8e9fba88a027d3e716d9ccb0b2da6: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_9e40ddee0350ba6625fbb598a0d4fdfafc45c22c7ff945869238fe7d16629aec: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_372c779c9aaeed273fda78438a576603853d91a582536f977f72a8d1325899e5: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_6037ca53cf6a7ab4ea185ebe4bd01399b43cbccb625e0b9ab54c69b8a1bdf832: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_351f6f69412a69ce9b70c575bbe4290af6ca5c409fbf3937a844682f16366a8c: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_604ba44e85f758295a68a22dd2c73d7090e2e1e48d1ae905ae13c5c6b71e4847: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_fafbbea3bdb3914b96205c8ab330874a939e702a79763983ac8cac7355827f70: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_3f0df772e505d8897165acaeb98dfde306e1e06683693abf962e38d1b74d2b61: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_c21801080ce6fe253ac1db66be33fea6ab00b5ebc3a51192434f304b482ea635: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_c09ab74840e8dfc4726af874cb7e5389c7c44fc19b064696249e4d49fb2b751b: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[1]'
+  doc_47963c504be44c7f951838f1c1524d549682591a0508827b157f0c92a7591b8d: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_c81f71d2468cbae5c3e3d08ff33a5e16745fbda39e5145144c516e30f77b0fdf: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[3]'
+  doc_ce3f0739459cb72f773cb24686ceebb7898b9c9244635ff6cd2bce10e663a3df: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_103c6bbaf575012f88eb4240a6f7f7013ea4d370d6f6e946604418177bacd91d: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_d85a1ce75241bdb8cddf6f592ee12f3d445a590d60aa5d8c1bd5acc9a2edcd86: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[2]'
+  doc_b3ceb2757ec200558245d5107e7f42976ada99ae536fb900e0c0e777b2c4d8b0: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. synthetic target is incompatible
+    with binding anchor:documentPatch.cargoGroups[0].additionalInformation[0] at (''documentPatch.cargoGroups[0].additionalInformation[0]'',):
+    target violates unique token-prefix, token-suffix or literal-gap constraint; target
+    not modified'
+  doc_e349b0d3ec2a2b2984182fc3be022e5df996255c5de5a1daa9bccfb5a680744f: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_862bf1209052613e9a8cb0f24bb86f346f4111e33c59c863545aebb7b573648e: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_c1e6ed0bb95c39558349c1aa65d0f34347dabfadc15a86f39f99a8fe0291c204: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_391d1b5fd59a090afad768337724beafda24b5f1a32780fbb562eca7ff312298: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_a51616d3a725765f010f9b476982be0e0445e8276cb24cfbac858cbd027e10be: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_6bd66f9a7e823c92420132e77423571677dcb1ef3367412170e07b7c58ad7304: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_7a104647d319472270f5f3ded6d933ca76789c8329b0c31122b033a14b1f2fbc: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[1]'
+  doc_3a4577e583b44de1d1554cb1e3abee568649643b372ae1aa705ab801d8e640bc: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[1]'
+  doc_8ebdd00629e2ee8ba569ed70ff12620e730a3237649251558cc63808678efe45: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_dd8cea1cfa0d47caf799ccbc2ec38062a84f599a6411fa7be76811af3b14e47c: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_836b99c1dc8c6b2a9b80439117d2d9ec3a58b3961630acf2c879781f0333be13: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_08ec8a5ff38973d6b448d6210beae09dfa6daa1df935781d0bcdb31b567b958b: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_c6f1c9d160f7a5c38d197ed4995fda4cae9b4f81df9bf5c34adeb71041cdf876: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_588c55396615a7eb5d01fd76913d04a7c9147b9d2f3c23d5d4035361eb14482b: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[1]'
+  doc_84203d7009745cc7fd77678a278379d14ff561a1296cec52ebc02e3a2ef10b4d: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_557e28f471c1448cd0a4e98d8e694a7667763e9a5940a8b4ed61bb94c4005f87: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_e7f8bba69dfb3c6e44b9c0e88b5fed796b95c8c837ed6607ec68779cd910525e: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_624696c0616d1160d1016765c6477ab690d398d7eced5fc770e46d8730bfbd05: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_c076dcf6354492789ce683b35915ea35ced460fa6b2595bee8727ccfcfae9d2f: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_8a73dafe3f20a7adedeaa66e6b12c4919396b4e38dec67d20a5ec5ddd972870e: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_833343a16ea3dc87ba4f1b7939a68ab6a31289a29d51b8ffda4a03b9c36eecde: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_220d8c5964c1b278edaa22a9b3686fdb998de837f5b34e960c98d1dc39421f70: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_fd617acac2345f13836fd07e02f14dec0a12523272f7db66efa5b37365096718: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[1]'
+  doc_ba2cd4fe8ed8257d7ca52961d39261390897c07048d754e0624ff81d0193385f: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].description'
+  doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53: 'Broad-mutation
+    preflight requires an explicit prose dependency/projection contract before reuse;
+    source validity is not decided by this screen. cargo mass prose lacks a unique
+    total/component contract: documentPatch.cargoGroups[0].additionalInformation[0]'
+  doc_57995dfc1acd2e1a8ae8bca7dab391acb6957a02e4436f452a10d64b5d2f89fd: Auxiliary
+    exporter code IDSRG is a five-letter location code assigned to a country-only
+    dependency while the shipper city is JAKARTA. No certified city/location-code
+    relation exists; source-copy replacement is not allowed.
+  doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37: Cargo group
+    2 projected description pins the old description owned by mutable cargo groups
+    0 and 1; missing cross-group dependency.
+  doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd: Shipper name
+    projection pins OPPLE, but that fragment is owned by a separately mutable cargo
+    mark; missing shared identity dependency.
+  doc_32f9c07b429237fab08971eca36781e0f11c3fc331ee2df25bc5049c05578fc8: Forwarding-agent
+    address projection includes QBZ, a separately mutable forwarding reference; source
+    address/reference ownership needs correction.
+  doc_058d92bbc08fce97814b33b71d9e5f9700d8a83c595180477b131fb5cafcb8e1: 'Source-only
+    package count dependency requires review before synthesis: numeric semantic review
+    required: agent:package:source_declared_count: The source states "1 Container
+    Said to Contain 20 PACKAGES" but separately states "600 BOXES WITH". The target
+    contains only a quantity of 600 PACKAGE_BOX units, so the source does not establish
+    whether 20 is an outer-package count, a contradictory total, or a different packaging
+    level; no supplied mode faithfully expresses that relationship.'
+  doc_26ccea2924c27fc24c1225e5019237dd79f0794a3a9c3b8732a3e6f04791aa5e: 'Source-only
+    package count dependency requires review before synthesis: numbered package surfaces
+    require an explicit cargo quantity contract'
+  doc_38c81d9ca5d1215833131ed2d6a7ee47126675dd3218f1dce34a74caaa2a6b93: "Source-only\
+    \ package count dependency requires review before synthesis: numeric semantic\
+    \ review required: agent:source:package_summary_pallets: The 186 PALLETS shipment\
+    \ total equals the sum of the eight per-container pallet bindings (7\xD724 plus\
+    \ 18), but pallets have no numeric target leaf and no supplied mode preserves\
+    \ this coupled integer total during scaling; independently scaling and rounding\
+    \ the total and constituents would be invalid."
+  doc_4d47f5e76baaeed1b39c58cb3515a441cac6fe0e1d1f182963d6857817eb6aef: 'Source-only
+    package count dependency requires review before synthesis: numbered package surfaces
+    require an explicit cargo quantity contract'
+  doc_5fe4e9267c1fe200ac548b042a06557d315b155abd3e3ebba3400d3380dd81a2: "Source-only\
+    \ package count dependency requires review before synthesis: numeric semantic\
+    \ review required: agent:source:cargo:pallet_count: The source explicitly states\
+    \ \u201C16 PLTS = 125 CTNS.\u201D This binding is a pallet quantity, while the\
+    \ only corresponding numeric target leaf is the carton quantity 125; no supplied\
+    \ dependency mode expresses this cross-unit relationship without incorrectly freezing\
+    \ or independently scaling coupled shipment quantities."
+  doc_87e3a902b72415dbd1ef5963ec0358a1f6be65bf909fe815c55e1cae8c67ec14: 'Source-only
+    package count dependency requires review before synthesis: numeric semantic review
+    required: agent:package:pallet_assertion: The source prints 7 PALLETS twice as
+    the same shipment package assertion, while the available cargo quantity target
+    leaf is 53 cartons. No supplied dependency mode faithfully relates pallet count
+    to carton quantity because there is no pallet target or explicit pallet-to-carton
+    conversion.'
+  doc_9a78fe15e84a7b91e474a482f951d70a2a0150e0e6f76c4b3fa9fa06a5fde87e: 'Source-only
+    package count dependency requires review before synthesis: numbered package surfaces
+    require an explicit cargo quantity contract'
+  doc_ab394650a66101bb8aab99878c0a548a530a21052f6bd28a05d60c3da806de6c: 'Source-only
+    package count dependency requires review before synthesis: numeric semantic review
+    required: agent:summary:ibc_count: The source explicitly prints "3 IBCS", but
+    the detailed cargo target assigns 24 + 24 + 12 = 60 IBCs. This contradictory shipment
+    package quantity cannot be represented faithfully by the supplied dependency modes.'
+  doc_b2f64fbe5aef1eef6d13a3aa0d81783f35286fe1928d63fee0dc3b739bd1071b: "Source-only\
+    \ package count dependency requires review before synthesis: numeric semantic\
+    \ review required: agent:package:pallet_count: The source binds a pallet count\
+    \ of 2, repeated as the same fact, and separately states \u201C2 PLTS = 3 CTNS.\u201D\
+    \ The structured target contains only the 3-carton quantity and no pallet-count\
+    \ leaf; mapping the distinct pallet count to that carton total would invent a\
+    \ dependency, while freezing it would incorrectly treat a shipment package total\
+    \ as fixed."
+  doc_cc79735a24cdf94c059ce05365262154fa582ca12fe144b4e26ba460a83311b2: 'Source-only
+    package count dependency requires review before synthesis: numbered package surfaces
+    require an explicit cargo quantity contract'
+  doc_d6ad6ca7658c9d0e8818a01c5e5f339e63a67c88c3508dd1c61f40f109049f19: 'Source-only
+    package count dependency requires review before synthesis: numeric source grammar
+    is ambiguous: agent:cargo:carton_quantity'
+  doc_d98052338410f8cf321980945f59ead9d50522e42d130b912c8a2a1cadb69a1c: "Source-only\
+    \ package count dependency requires review before synthesis: numeric semantic\
+    \ review required: agent:aux:bulk_package_label: The source surface \"BULK N\xB0\
+    1/1\" combines a package ordinal (1) and a total package count (1). The ordinal\
+    \ is not represented by a numeric target leaf, while the total corresponds to\
+    \ the cargo package quantity; no supplied mode can preserve the exact composite\
+    \ surface while distinguishing these dependencies."
+  doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea: 'Source-only
+    package count dependency requires review before synthesis: numeric semantic review
+    required: agent:package:source:pallets: The source surfaces "5 PALLETS" and "FIVE
+    PALLETS" identify a pallet count, while the only available cargo quantity target
+    leaf is 54 boxes. No pallet-count target leaf or supplied relationship faithfully
+    maps the pallet count to that box quantity.'
+  doc_ee029f3cd846cfad8940064cb6011e2a3fa9e9d098446895b3b57e1458988e76: 'Source-only
+    package count dependency requires review before synthesis: numeric semantic review
+    required: agent:package_pallet_count_phrase: The source explicitly states 48 PLTS=362
+    CTNS, coupling this pallet cargo quantity to the target carton quantity 362. No
+    supplied mode expresses this cross-unit integer relationship, so independently
+    scaling or rounding the pallet count would not faithfully reproduce the source
+    dependency.'
+  doc_faf503b7ed3cc093355419c8d74a9b23d4b03ca940b4bcdcb396211d7ee2dd48: 'Source-only
+    package count dependency requires review before synthesis: numeric semantic review
+    required: agent:aux:pallet_total: The shipment-level pallet total 162 is a cargo
+    package quantity absent from the structured target, but it is coupled to the listed
+    per-container pallet counts, which sum to 162. No supplied mode preserves this
+    exact coupled integer relationship while scaling the shipment.'
+  doc_019e61229b6aea313ac98a3db5264ec6697235e94e57cf5d0526c85a19547e87: Printed source
+    package total 73 depends on row quantities 5+16+16+16+20. The 5-package constituent
+    is not covered by the numeric inventory; source contract review is required, not
+    independent rounding of the total.
+  doc_72f72794ef19f9a3d28d5c786c0a00e740ea1feeccecd4cd3b610b77868deaa4: Printed 51-package
+    total has only two 17-package constituent bindings in the compiled numeric inventory.
+    Missing constituent ownership prevents a complete sum contract.
+  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:total_container_package_count: surface
+    has no numeric interpretation: ''ONE Container(s) - FIVE HUNDRED FIFTY-NINE Package(s)'''
+  doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:container_summary_equipment: equipment
+    receipt has no target dependency; source-copy substitution is forbidden'
+  doc_1b796092eb37f8f7fc1b236f83728dcbb396bc73f5e521e82fdfb39256054448: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:derived:total_container_receipt: equipment
+    receipt has no target dependency; source-copy substitution is forbidden'
+  doc_1ccbe3aeb6c2a25752ca6342415a8452f6c847c2158985fafd3b078b0f5d0fe2: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:transport:equipment:0:receipt: equipment
+    receipt target has no semantic size/type evidence'
+  doc_2e61a35e6d4e5a6f43df8e45e241b3bb3fd019a90c46be490778c941e1a3923c: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:container_count:documentPatch.containers:
+    source does not prove the declared arithmetic or its printed precision: agent:container_count:documentPatch.containers'
+  doc_2f502b838a416f106cdc922f722416d54feda680bf5dd705acaf3461c0839b9a: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:aux:shipper_address_no_prefix: same-as
+    identifier dependency changes width'
+  doc_2f753d62de4c74ba24735e092525de056565988d6c99be78d9a6039d8517527e: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:container_count:documentPatch.containers:
+    source does not prove the declared arithmetic or its printed precision: agent:container_count:documentPatch.containers'
+  doc_312fe4b995fa8ba0d38ed7643995829b0ac809de849623feb982bec8485adb7f: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:container_receipt:group:0: equipment receipt
+    has no complete in-range container dependency'
+  doc_3d5c4ac9413b063fa6457eb010d027b963c8fcb89b68a9e340a3d03bf4c06953: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:document:gross_weight_total_tons: source
+    does not prove the declared arithmetic or its printed precision: agent:document:gross_weight_total_tons'
+  doc_458d2fa0033b403d447e50b8a42148161bbd6a320671c5b94a9708e03e891be3: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:derived:gross_weight_total: source does
+    not prove the declared arithmetic or its printed precision: agent:derived:gross_weight_total'
+  doc_4a197f812e512921016dc83e6aa457c9ce7f7a4f473563da522e506c40501e2e: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:container_count:documentPatch.containers:
+    source does not prove the declared arithmetic or its printed precision: agent:container_count:documentPatch.containers'
+  doc_4e2c7c4de73214cc7f47aeaf8a6927bfe270ef891d2e1261008a9e020a961bbb: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment:container:0:receipt: equipment
+    receipt has no target dependency; source-copy substitution is forbidden'
+  doc_5371509acee3a4dd242bd3636d6eb584d60bae82f123e3437a4244663d0c4222: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment:container_receipt:0: equipment
+    receipt target has no semantic size/type evidence'
+  doc_557923d19f12bdd182538e5387a28e1d26fee927c3f2c817bf068bca766ef54f: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:delivery_agent_fax: same-as identifier
+    dependency changes width'
+  doc_568c455c0dab59f0c463bf22bf12ad6b90b93fc76158368c490c1ef746d9dc01: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:container_equipment_receipt: target path
+    is absent: documentPatch.containers'
+  doc_600a1e8927a5aeb14c85eb98ee4fa39063d4f892779bc507dfb63a11ffa6993c: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:derived:cargo:g1:volume_cbm_value: source
+    does not prove the declared arithmetic or its printed precision: agent:derived:cargo:g1:volume_cbm_value'
+  doc_6428958c445665276f09079371df3903c803fa1250ad2b1e97c0ec037c3cc788: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment:receipt_assertion: equipment
+    receipt has no target dependency; source-copy substitution is forbidden'
+  doc_643f38c66fb77285fd27e6e4941c9cfe12f3f51953ba5a9a6fcf18ad5bec0dce: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:received_container_package_count: surface
+    has no numeric interpretation: ''THREE Container(s) - THREE Package(s)'''
+  doc_6721c64cb2f4c332b9fb4387be297493825dffde7283ae6c864e290af637bfc2: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment:container:0:equipment_receipt:
+    equipment receipt has no target dependency; source-copy substitution is forbidden'
+  doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:package_quantity_words: number-word surface
+    disagrees with the declared derivation'
+  doc_6a47265de2958927e82a728d572c9b331786dd8f34751157d6ad37e48305b2bf: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:container_summary_receipt: equipment receipt
+    target has no semantic size/type evidence'
+  doc_6c38b4937f138514bde2347d7e87f90880d4ecdfae153934949afe5e71609bab: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:source:cargo:net_weight_total: unit conversion
+    lacks proven input-side printed precision'
+  doc_7dc4efe5ea43bbc578cbc74dbd8bf279e1630b81e45155da440870584936bed3: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:container_equipment_receipt:0: equipment
+    receipt target has no semantic size/type evidence'
+  doc_7ffa2b532d4ff30c6918c107fd62d221a51e2ef099bf19944cb43593713904e8: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:package_number_words: value is not uniquely
+    numeric: ''PACKAGE_PALLET'''
+  doc_8134f6e46852f93b8ffcb49d7508f9ad13595e23b1f8fa980bc3a1168e7889ea: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:source:foreign_exporter_id_formatted:
+    same-as identifier dependency is not uniquely embedded'
+  doc_8208e99109bc3347998b843e9427badd3f1173c7d7efe9ebee3e4e16aad3224a: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:derived:container_receipt_count: equipment
+    receipt has no target dependency; source-copy substitution is forbidden'
+  doc_8add9a5cdafb88471b8e2d7b3b9329989fd5406bcb09bf1e63466a742b3abe01: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:package:0:quantity:words: number-word
+    surface disagrees with the declared derivation'
+  doc_8d2216eb27719c40e1e546d4a97bd2f7eecaa03984ef06d1281086d8c0146325: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:container_package_count:0: container/package
+    receipt matches no source count'
+  doc_922450a428ed06cbaea9266344a29194abe0fa9d25566f5f01ebeced83c8171a: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:derived:package_quantity_words: number-word
+    surface disagrees with the declared derivation'
+  doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:equipment:summary:20dr:repeat: same-as
+    text source is not semantically identical to its dependency'
+  doc_ac55c3220196bce9ce0e3eb5c6db4b2bf370a23589beb27b1199dcd1e8fb0f27: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:package:0:equipment_receipt: target path
+    is absent: documentPatch.containers'
+  doc_b26179019509e8672a2b3a6957f04156c381f95605d92859494993dcbe311799: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:container_count:documentPatch.containers:
+    source does not prove the declared arithmetic or its printed precision: agent:container_count:documentPatch.containers'
+  doc_c1785ea2541c8054bb8f170e2a379ea10e344cdfb2c5f34d771a8e66b2a1c370: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment:container:0:receipt: equipment
+    receipt target has no semantic size/type evidence'
+  doc_da71337944d8656f913773f2da7b945e39ba261ccc7fff545e164cc0ae24e1e1: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:cargo:weight_in_kgs_total: source does
+    not prove the declared arithmetic or its printed precision: agent:cargo:weight_in_kgs_total'
+  doc_eaa53338dda0fbbc0a5832ea6dd302a75ffe84d96107abb332dc0d0400e6c316: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment:receipt:0: target path is absent:
+    documentPatch.containers'
+  doc_fc06e47dc8863abcda6c2051fc2863fecbe5a82e9d16e2aa36265d2c4e828a64: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven equipment
+    receipt requires contract review: agent:equipment_receipt:cargoAllocationGroups[0]:
+    equipment receipt has no complete in-range container dependency'
+  doc_fc539210f6eb96ec4e146be1d2ec0646e00b4e2b0c1e740f0891baab0bf3aecb: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:gross_weight_total_lbs: unit conversion
+    lacks proven input-side printed precision'
+  doc_fe260ee7210181004f3730bd03333a5507e487fa0a6fb27fde0e0752732fe263: 'Explicit
+    derived-contract review before sampling; no source-value fallback: same-as text
+    source is not semantically identical to its dependency'
+  doc_fe70ead5daf59cc3596f32ea9188e9aadedcdaab6780bd479a0c9b36414e663b: 'Explicit
+    derived-contract review before sampling; no source-value fallback: unproven derived
+    binding requires contract review: agent:pallet_count_words_surface: same-as text
+    source is not semantically identical to its dependency'

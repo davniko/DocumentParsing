@@ -5,6 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+from document_ocr.hashing import canonical_json_bytes, sha256_bytes
+
 from .models import NonEmptyText, PinnedFile, PinnedJsonl, ProviderConfig, Sha256
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
@@ -51,8 +53,10 @@ class DescendantWorkflow(BaseModel):
 
     documents: Annotated[int, Field(gt=0)]
     controlled_target_seed: int
-    target_schema_version: Literal["5.0.0-experimental"] | None = None
-    target_generation: Literal["controlled_latest_schema_from_source_v1"] | None = None
+    target_schema_version: Literal["5.0.0-experimental"] = "5.0.0-experimental"
+    target_generation: Literal["complete_latest_schema_targets_v1"] = (
+        "complete_latest_schema_targets_v1"
+    )
     max_concurrent_requests: Annotated[int, Field(gt=0, le=16)]
     max_requests_per_document: Literal[1]
     provider_launch_authorized: bool
@@ -80,40 +84,12 @@ class DescendantConfig(BaseModel):
 
     @model_validator(mode="after")
     def target_source_is_unambiguous(self) -> DescendantConfig:
-        planned = self.inputs.sample_plan is not None
-        external_targets = self.inputs.synthetic_targets is not None
-        planned_latest = (
-            self.workflow.target_schema_version == "5.0.0-experimental"
-            and self.workflow.target_generation
-            == "controlled_latest_schema_from_source_v1"
-        )
-        if planned and external_targets:
+        if self.inputs.synthetic_targets is None:
             raise ValueError(
-                "sample-plan synthesis generates its own latest-schema targets and cannot "
-                "also accept external synthetic targets"
+                "synthesis requires pinned complete synthetic targets; source-copy target "
+                "generation is not a substitute for completed label synthesis"
             )
-        if planned != planned_latest:
-            raise ValueError(
-                "sample-plan synthesis requires the latest-schema controlled target policy"
-            )
-        if not planned and not external_targets:
-            raise ValueError("historical rendering requires pinned external synthetic targets")
-        if not planned and (
-            self.workflow.target_schema_version is not None
-            or self.workflow.target_generation is not None
-        ):
-            raise ValueError("historical rendering cannot configure planned target generation")
         return self
-
-
-class TargetAdaptation(BaseModel):
-    model_config = _STRICT
-
-    target_path: NonEmptyText
-    reason: NonEmptyText
-    source_value: JsonValue
-    proposed_value: JsonValue
-    adapted_value: JsonValue
 
 
 class PreparedTargetReceipt(BaseModel):
@@ -122,25 +98,33 @@ class PreparedTargetReceipt(BaseModel):
     schema_version: Literal[1]
     document_id: NonEmptyText
     source_document_id: NonEmptyText | None = None
-    target_origin: Literal[
-        "existing_linguistic_target_carrier_restored",
-        "controlled_source_variant",
-        "planned_v5_controlled_source_variant",
-    ]
+    target_origin: Literal["complete_synthetic_target"]
     source_schema_version: NonEmptyText
     target_schema_version: NonEmptyText
     fixed_carrier_name: NonEmptyText
     source_target_sha256: Sha256
     proposed_target_sha256: Sha256
     prepared_target_sha256: Sha256
+    auxiliary_values_sha256: Sha256 = Field(
+        default_factory=lambda: sha256_bytes(canonical_json_bytes({}))
+    )
+    numeric_auxiliary_sha256: Sha256 = Field(
+        default_factory=lambda: sha256_bytes(canonical_json_bytes({}))
+    )
     synthetic_document_id: NonEmptyText
     topology_mismatch_count: Literal[0]
     target_leaf_count: Annotated[int, Field(ge=0)]
     changed_target_leaf_count: Annotated[int, Field(ge=0)]
     carrier_leaf_count: Annotated[int, Field(ge=1)]
     carrier_changed_leaf_count: Literal[0]
-    compatibility_adaptations: tuple[TargetAdaptation, ...]
+    compatibility_adaptations: tuple[()]
     training_eligible: Literal[False]
+
+    @model_validator(mode="after")
+    def prepared_target_is_the_complete_proposal(self) -> PreparedTargetReceipt:
+        if self.proposed_target_sha256 != self.prepared_target_sha256:
+            raise ValueError("render preparation must not alter the complete synthetic target")
+        return self
 
 
 class BindingRoute(BaseModel):
@@ -171,6 +155,22 @@ class ResidualStageReceipt(BaseModel):
     error_message: str | None
     messages: JsonValue
     usage: JsonValue
+    batch_provenance: dict[str, JsonValue] | None = None
+
+    @model_validator(mode="after")
+    def batched_output_is_attributable(self) -> ResidualStageReceipt:
+        if self.batch_provenance is not None:
+            from .request_batches import validate_batch_member
+
+            if self.status != "success":
+                raise ValueError("only successful residual stages can carry batch outputs")
+            validate_batch_member(
+                provenance=self.batch_provenance,
+                output=self.output,
+                messages=self.messages,
+                usage=self.usage,
+            )
+        return self
 
 
 class ResidualReplayReceipt(BaseModel):

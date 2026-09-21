@@ -1187,17 +1187,24 @@ def _texts_from_target(binding: _GroupedBinding, target: Mapping[str, Any]) -> t
     return tuple(
         value
         for path in binding.target_paths
-        if isinstance((value := _resolve_path(target, path)), str)
+        if _CARGO_TEXT_PATH.fullmatch(path)
+        and isinstance((value := _resolve_path(target, path)), str)
     )
 
 
 def _texts_from_output(binding: _GroupedBinding, output: Any) -> tuple[str, ...]:
     canonical = getattr(output, "canonical_value", None)
     if binding.target_paths:
-        if isinstance(canonical, str):
+        if isinstance(canonical, str) and any(
+            _CARGO_TEXT_PATH.fullmatch(p) for p in binding.target_paths
+        ):
             return (canonical,)
         if isinstance(canonical, Sequence) and not isinstance(canonical, (str, bytes)):
-            canonical_texts = tuple(value for value in canonical if isinstance(value, str))
+            canonical_texts = tuple(
+                value
+                for path, value in zip(binding.target_paths, canonical, strict=True)
+                if _CARGO_TEXT_PATH.fullmatch(path) and isinstance(value, str)
+            )
             if canonical_texts:
                 return tuple(dict.fromkeys(canonical_texts))
     replacements = getattr(output, "replacements", None)
@@ -1235,13 +1242,20 @@ def validate_render_coherence(
                 texts = _texts_from_output(binding, outputs[key])
             elif binding.target_paths:
                 texts = _texts_from_target(binding, target)
+                if not texts:
+                    includes_unrendered_source_only = True
+                    texts = _physical_source_texts(binding)
             else:
                 includes_unrendered_source_only = True
                 texts = _physical_source_texts(binding)
             if not texts:
                 raise ValueError(f"coherent binding has no text surface: {key}")
             member_texts.append(texts)
-            if binding.target_paths and dependency_changed:
+            if (
+                binding.target_paths
+                and dependency_changed
+                and not isinstance(constraint, AggregateRangeConstraint)
+            ):
                 source_texts = _texts_from_target(binding, source_target)
                 if source_texts and texts == source_texts:
                     raise ValueError(

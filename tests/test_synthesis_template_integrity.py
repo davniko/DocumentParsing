@@ -34,6 +34,19 @@ def test_carrier_receipt_container_count_rejects_invalid_word_sequences() -> Non
     assert explicit_carrier_receipt_container_counts(raw) == ()
 
 
+def test_explicit_received_and_weight_total_container_fields():
+    assert explicit_carrier_receipt_container_counts(
+        "Total No. of Containers received by the Carrier: 17\n"
+        "Weight in Kgs Total: 10 CONTAINER(S)\n"
+    ) == (17, 10)
+    assert (
+        explicit_carrier_receipt_container_counts(
+            "Freight invoice: 17\nWeight in Kgs Total: 100 KG\n"
+        )
+        == ()
+    )
+
+
 def test_source_template_integrity_rejects_only_a_proven_count_contradiction() -> None:
     target = {
         "documentPatch": {

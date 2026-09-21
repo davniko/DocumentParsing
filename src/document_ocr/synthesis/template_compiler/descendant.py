@@ -7,10 +7,11 @@ import re
 import time
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from importlib.metadata import version
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -37,7 +38,6 @@ from document_ocr.synthesis.generators import (
     DeterministicStream,
     generate_container_number,
     generate_from_surface_pattern,
-    shift_document_dates,
     surface_pattern,
     validate_container_number,
 )
@@ -46,6 +46,7 @@ from document_ocr.synthesis.linguistic_probe_runtime import (
     model_messages,
     usage_receipt,
 )
+from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.raw_text_template import (
     CompiledRawTextTemplate,
     TemplateRenderProof,
@@ -54,15 +55,24 @@ from document_ocr.synthesis.raw_text_template import (
     render_compiled_template,
     validate_slot_replacements,
 )
+from document_ocr.synthesis.rendering import (
+    _numeric_interpretations as numeric_surface_interpretations,
+)
 from document_ocr.synthesis.rendering import render_number_surface
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.usage_receipt import LinguisticUsageReceipt
 from document_ocr.training.tasks import get_training_task
 
+from . import (
+    contact_values,
+    count_aliases,
+    entity_identifiers,
+    geographic_context,
+    lexical_partitions,
+)
 from .coherence import (
     coherence_dependency_paths,
     inclusive_range_cardinalities,
-    inclusive_range_surfaces,
     validate_render_coherence,
     whole_inclusive_range_surface,
 )
@@ -74,25 +84,39 @@ from .descendant_models import (
     PreparedTargetReceipt,
     ResidualReplayReceipt,
     ResidualStageReceipt,
-    TargetAdaptation,
+)
+from .fixed_vocabulary import fixed_context
+from .generation_contract import (
+    INVALID_TEXT_CONTROL,
+    leaves,
+    require_complete_variation,
+    validate_unbound_lexical_surfaces,
 )
 from .latest_target import latest_target_from_source
 from .models import (
-    AggregateRangeConstraint,
     AuxiliaryEntity,
     AuxiliaryEntityMember,
     CertifiedSemanticTemplate,
     CoherenceConstraint,
-    InclusiveRangeConstraint,
     OpenRouterProviderConfig,
     ProviderConfig,
     SemanticBinding,
     SourceBindingRelationship,
 )
+from .numeric_auxiliary import PreparedNumeric, numeric_bindings, render_prepared, surface_quantum
 from .pipeline import project_root_from_config, resolve_input
+from .range_generation import plan_ranges, render_composite_range
+from .realization_contract import (
+    effective_realization_template,
+    fixed_projection_ranges,
+    projected_auxiliary_values,
+    shared_projection_ranges,
+    token_projection_intervals,
+)
 from .semantic_plan import (
     disposition_by_binding,
     entity_members_by_binding,
+    resolve_geographic_members,
     validate_auxiliary_render,
 )
 from .synthetic_values import DeterministicValueFactory, GeoProfile
@@ -140,6 +164,8 @@ _DATE_FORMATS = (
     "%m/%d/%y",
     "%d-%m-%y",
     "%m-%d-%y",
+    "%d.%m.%y",
+    "%m.%d.%y",
     "%Y %b %d",
     "%Y %B %d",
     "%Y-%b-%d",
@@ -244,6 +270,27 @@ class PreparedCase:
     target: dict[str, Any]
     template: CertifiedSemanticTemplate
     target_receipt: PreparedTargetReceipt
+    auxiliary_values: Mapping[str, str] = field(default_factory=dict)
+    numeric_auxiliary: Mapping[str, PreparedNumeric] = field(default_factory=dict)
+
+
+def _require_frozen_target(case: PreparedCase) -> None:
+    receipt = case.target_receipt
+    digest = sha256_bytes(canonical_json_bytes(case.target))
+    if (
+        digest != receipt.proposed_target_sha256
+        or digest != receipt.prepared_target_sha256
+        or receipt.compatibility_adaptations
+    ):
+        raise ValueError(
+            f"synthetic target changed after generation: {case.document_id}; "
+            "rendering and publication require the exact completed target"
+        )
+    if sha256_bytes(canonical_json_bytes(case.auxiliary_values)) != receipt.auxiliary_values_sha256:
+        raise ValueError("auxiliary semantic context changed after generation")
+    numeric = {key: value.model_dump(mode="json") for key, value in case.numeric_auxiliary.items()}
+    if sha256_bytes(canonical_json_bytes(numeric)) != receipt.numeric_auxiliary_sha256:
+        raise ValueError("numeric auxiliary context changed after generation")
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,6 +303,9 @@ class BindingOutput:
 class EntityGeographyConstraint:
     calling_code_width: int | None = None
     country_name_width: int | None = None
+    postal_code_pattern: str | None = None
+    fixed_country_code: str | None = None
+    fixed_country_bindings: frozenset[str] = frozenset()
 
 
 def _country_code_surface_style(source: str, *, country_surfaces: frozenset[str]) -> str:
@@ -278,11 +328,34 @@ def _country_code_surface_style(source: str, *, country_surfaces: frozenset[str]
 
 def _entity_country_code_context(
     template: CertifiedSemanticTemplate,
+    country_codes: Mapping[str, str],
+    source: bytes | None = None,
 ) -> tuple[dict[str, str], dict[str, EntityGeographyConstraint]]:
     bindings = {binding.logical_key: binding for binding in template.bindings}
     styles: dict[str, str] = {}
     constraints: dict[str, EntityGeographyConstraint] = {}
-    for entity in template.auxiliary_semantic_plan.entities:
+    plan = resolve_geographic_members(
+        template.auxiliary_semantic_plan, template.bindings, country_codes
+    )
+    for entity in plan.entities:
+        pinned_members = {
+            member.logical_key: code
+            for member in entity.members
+            if member.field == "country" and source is not None
+            if (
+                code := geographic_context.pinned_country(
+                    bindings[member.logical_key], template, source, country_codes
+                )
+            )
+            is not None
+        }
+        pinned_countries = set(pinned_members.values())
+        if source is not None:
+            pinned_countries.update(
+                geographic_context.address_country_context(entity, template, source, country_codes)
+            )
+        if len(pinned_countries) > 1:
+            raise ValueError("auxiliary entity has incompatible fixed country contexts")
         country_surfaces = frozenset(
             _alphanumeric(slot.source_text).casefold()
             for member in entity.members
@@ -291,6 +364,17 @@ def _entity_country_code_context(
         )
         calling_widths: set[int] = set()
         country_name_widths: set[int] = set()
+        postal_patterns = {
+            surface_pattern(_alphanumeric(slot.source_text))
+            for member in entity.members
+            if member.field == "postal_code"
+            for slot in bindings[member.logical_key].occurrences
+            if slot.render_policy == "opaque_identifier"
+        }
+        if len(postal_patterns) > 1:
+            raise ValueError(
+                f"auxiliary entity has incompatible postal-code shapes: {entity.entity_id}"
+            )
         for member in entity.members:
             if member.field != "country_code":
                 continue
@@ -323,6 +407,9 @@ def _entity_country_code_context(
         constraints[entity.entity_id] = EntityGeographyConstraint(
             calling_code_width=next(iter(calling_widths), None),
             country_name_width=next(iter(country_name_widths), None),
+            postal_code_pattern=next(iter(postal_patterns), None),
+            fixed_country_code=next(iter(pinned_countries), None),
+            fixed_country_bindings=frozenset(pinned_members),
         )
     return styles, constraints
 
@@ -387,6 +474,7 @@ class RenderPlan:
     routes: tuple[BindingRoute, ...]
     deterministic_outputs: Mapping[str, BindingOutput]
     residual_bindings: tuple[SemanticBinding, ...]
+    independent_phone_countries: Mapping[str, str]
 
 
 def load_descendant_config(path: Path) -> DescendantConfig:
@@ -494,20 +582,6 @@ def _path_exists(target: Mapping[str, Any], path: str) -> bool:
     return True
 
 
-def _set_path(target: dict[str, Any], path: str, replacement: Any) -> None:
-    try:
-        _resolve_exact_path(target, path)
-    except ValueError:
-        alias = _latest_schema_path(path)
-        if alias is not None and target.get("schemaVersion") == "5.0.0-experimental":
-            path = alias
-    parts = _path_parts(path)
-    value: Any = target
-    for part in parts[:-1]:
-        value = value[part]
-    value[parts[-1]] = deepcopy(replacement)
-
-
 def _flatten_leaves(value: Any, path: str = "") -> dict[str, JsonValue]:
     output: dict[str, JsonValue] = {}
     if isinstance(value, Mapping):
@@ -537,108 +611,17 @@ def _validate_canonical_target(target: dict[str, Any]) -> None:
         raise ValueError("target differs from its canonical task representation")
 
 
-def _restore_carrier(
-    *, source_target: Mapping[str, Any], target: dict[str, Any]
-) -> TargetAdaptation | None:
+def _require_source_carrier(*, source_target: Mapping[str, Any], target: Mapping[str, Any]) -> None:
+    """The producer owns its target; a renderer must not repair its carrier."""
     source_parties = cast(Mapping[str, Any], source_target["documentPatch"]).get("parties")
-    target_parties = cast(dict[str, Any], target["documentPatch"]).get("parties")
-    if not isinstance(source_parties, Mapping) or not isinstance(target_parties, dict):
+    target_parties = cast(Mapping[str, Any], target["documentPatch"]).get("parties")
+    if not isinstance(source_parties, Mapping) or not isinstance(target_parties, Mapping):
         raise ValueError("carrier-bound target lacks a parties object")
     source_carrier = source_parties.get("carrier")
     if not isinstance(source_carrier, Mapping) or not source_carrier.get("name"):
         raise ValueError("carrier-bound source label lacks a carrier object")
-    proposed = deepcopy(target_parties.get("carrier"))
-    if proposed == source_carrier:
-        return None
-    target_parties["carrier"] = deepcopy(dict(source_carrier))
-    return TargetAdaptation.model_validate(
-        {
-            "target_path": "documentPatch.parties.carrier",
-            "reason": "carrier-bound templates retain the complete source carrier object",
-            "source_value": dict(source_carrier),
-            "proposed_value": proposed,
-            "adapted_value": dict(source_carrier),
-        }
-    )
-
-
-def _safe_identifier_path(path: str) -> bool:
-    return bool(
-        path.endswith("billOfLadingNumber")
-        or path.endswith("voyageNumber")
-        or path.endswith("bookingNumber")
-        or re.search(r"\.containerNumber$", path)
-        or re.search(r"\.sealNumbers\[[0-9]+\]$", path)
-        or re.search(r"\.forwardingAndExportReferences\[[0-9]+\]$", path)
-    )
-
-
-def _controlled_target(
-    *,
-    source_target: Mapping[str, Any],
-    template: CertifiedSemanticTemplate,
-    seed: int,
-    variant_identity: str | None = None,
-) -> dict[str, Any]:
-    target = deepcopy(dict(source_target))
-    stream = DeterministicStream(
-        seed,
-        "carrier-bound-descendant-controlled-v1",
-        variant_identity or template.document_id,
-    )
-    generated_by_source: dict[tuple[str, str], str] = {}
-    paths = sorted(
-        {
-            path
-            for binding in template.bindings
-            if binding.value_kind == "identifier"
-            for path in binding.target_paths
-            if _safe_identifier_path(path)
-        }
-    )
-    for path in paths:
-        source_value = _resolve_path(source_target, path)
-        if not isinstance(source_value, str) or not source_value:
-            raise ValueError(f"controlled identifier path is not a string: {path}")
-        family = "container" if path.endswith("containerNumber") else "generic"
-        key = (family, source_value)
-        generated = generated_by_source.get(key)
-        if generated is None:
-            if family == "container" and validate_container_number(source_value):
-                generated = generate_container_number(
-                    owner_and_category=source_value[:4],
-                    stream=stream.derive(path),
-                    excluded={source_value},
-                )
-            else:
-                generated = generate_from_surface_pattern(
-                    pattern=surface_pattern(source_value),
-                    stream=stream.derive(path),
-                    additional_excluded=source_value,
-                )
-            generated_by_source[key] = generated
-        _set_path(target, path, generated)
-
-    source_patch = cast(Mapping[str, Any], source_target["documentPatch"])
-    issue_raw = source_patch.get("issueDate")
-    shipped_raw = source_patch.get("shippedOnBoardDate")
-    issue = date.fromisoformat(issue_raw) if isinstance(issue_raw, str) else None
-    shipped = date.fromisoformat(shipped_raw) if isinstance(shipped_raw, str) else None
-    if issue is not None or shipped is not None:
-        new_issue, new_shipped = shift_document_dates(
-            issue_date=issue,
-            shipped_on_board_date=shipped,
-            minimum=date(2020, 1, 1),
-            maximum=date(2030, 12, 31),
-            stream=stream.derive("document-dates"),
-        )
-        target_patch = cast(dict[str, Any], target["documentPatch"])
-        if new_issue is not None:
-            target_patch["issueDate"] = new_issue.isoformat()
-        if new_shipped is not None:
-            target_patch["shippedOnBoardDate"] = new_shipped.isoformat()
-    _validate_canonical_target(target)
-    return target
+    if source_carrier != target_parties.get("carrier"):
+        raise ValueError("synthetic target changes the template-bound carrier; target not modified")
 
 
 def _case_like(source: str, value: str) -> str:
@@ -687,7 +670,9 @@ def _allocate_words(words: Sequence[str], weights: Sequence[int]) -> tuple[tuple
 def _layout_like_source(source: str, candidate: str) -> str:
     endings = tuple(match.group(0) for match in re.finditer(r"\r\n|\r|\n", source))
     source_lines = re.split(r"\r\n|\r|\n", source)
-    words = tuple(candidate.split())
+    # A numeric-only source line has no case evidence. Apply the whole slot's
+    # case before distributing words so new text on that line cannot lose it.
+    words = tuple(_case_like(source, candidate).split())
     if not words:
         raise ValueError("replacement content is empty")
     weights = tuple(max(1, len(_TOKEN.findall(_line_edges(line)[1]))) for line in source_lines)
@@ -877,6 +862,15 @@ def _scalar_surface(value: Any) -> str:
 
 
 def _token_spans(value: str) -> tuple[tuple[str, int, int], ...]:
+    if not value.isascii():
+        # The compiler tokenizes casefolded text. Unicode casefolding can create
+        # ASCII tokens (İ -> i + combining dot), so retain an explicit offset map.
+        folded = value.casefold()
+        offsets = tuple(i for i, char in enumerate(value) for _ in char.casefold())
+        return tuple(
+            (match.group(0), offsets[match.start()], offsets[match.end() - 1] + 1)
+            for match in _TOKEN.finditer(folded)
+        )
     return tuple(
         (match.group(0).casefold(), match.start(), match.end()) for match in _TOKEN.finditer(value)
     )
@@ -921,7 +915,9 @@ def _render_whole_slot(
 ) -> str:
     realization = next(row for row in binding.realization.slots if row.slot_id == slot.slot_id)
     if binding.realization.adapter == "date":
-        return _render_date_surface(slot.source_text, cast(str, old_value), cast(str, new_value))
+        return _render_certified_date_surface(
+            slot.source_text, cast(str, old_value), cast(str, new_value)
+        )
     if binding.realization.adapter == "numeric":
         return render_number_surface(
             slot.source_text,
@@ -958,7 +954,14 @@ def _partition_target_surface(value: str, slots: Sequence[TemplateSlot]) -> tupl
     return tuple(" ".join(words) for words in _allocate_words(chunks, weights))
 
 
-def _render_target_binding(binding: SemanticBinding, target: Mapping[str, Any]) -> BindingOutput:
+def _render_target_binding(
+    binding: SemanticBinding,
+    target: Mapping[str, Any],
+    *,
+    auxiliary_values: Mapping[str, str] | None = None,
+    source: bytes | None = None,
+    template: CertifiedSemanticTemplate | None = None,
+) -> BindingOutput:
     target_values = tuple(_binding_target_value(target, path) for path in binding.target_paths)
     if not target_values:
         raise ValueError("target binding has no target values")
@@ -978,6 +981,16 @@ def _render_target_binding(binding: SemanticBinding, target: Mapping[str, Any]) 
             replacements={slot.slot_id: slot.source_text for slot in slots},
             canonical_value=new_value,
         )
+    cargo_partition = lexical_partitions.partition(binding)
+    if cargo_partition is not None:
+        if not isinstance(new_value, str):
+            raise ValueError("cargo fragment target is not text")
+        return BindingOutput(
+            replacements=lexical_partitions.render_parts(
+                cargo_partition, new_value, auxiliary_values or {}, source=source
+            ),
+            canonical_value=new_value,
+        )
     mode = binding.realization.mode
     replacements: dict[str, str] = {}
     if mode in {"single_surface", "repeated_surface"}:
@@ -989,12 +1002,103 @@ def _render_target_binding(binding: SemanticBinding, target: Mapping[str, Any]) 
                 new_value=new_value,
             )
     elif mode == "segmented_surface":
+        from .realization_contract import character_partition_frames
+
+        character_frames = character_partition_frames(binding)
+        if character_frames is not None:
+            proposed = _scalar_surface(new_value)
+            if any(c.isspace() for c in proposed) or len(proposed) < len(character_frames):
+                raise ValueError("segmented scalar requires enough non-whitespace characters")
+            pieces = _allocate_words(
+                tuple(proposed), tuple(len(core) for _, core, _ in character_frames)
+            )
+            for slot, (character_prefix, core, character_suffix), piece in zip(
+                slots, character_frames, pieces, strict=True
+            ):
+                replacements[slot.slot_id] = (
+                    character_prefix + _case_like(core, "".join(piece)) + character_suffix
+                )
+            return BindingOutput(replacements=replacements, canonical_value=new_value)
+        if binding.realization.adapter == "opaque_identifier":
+            original = "".join(_alphanumeric(slot.source_text) for slot in slots)
+            proposed = _alphanumeric(_scalar_surface(new_value))
+            if original.casefold() != _alphanumeric(_scalar_surface(old_value)).casefold() or len(
+                original
+            ) != len(proposed):
+                raise ValueError(
+                    "segmented identifier does not preserve its proven character partition"
+                )
+            offset = 0
+            for slot in slots:
+                width = len(_alphanumeric(slot.source_text))
+                replacements[slot.slot_id] = _shape_alphanumeric_like_source(
+                    slot.source_text, proposed[offset : offset + width]
+                )
+                offset += width
+            return BindingOutput(replacements=replacements, canonical_value=new_value)
         surfaces = _partition_target_surface(_scalar_surface(new_value), slots)
         for slot, surface in zip(slots, surfaces, strict=True):
             replacements[slot.slot_id] = _layout_like_source(slot.source_text, surface)
     elif mode == "token_projected_surface":
         target_surface = _scalar_surface(new_value)
         target_tokens = _token_spans(target_surface)
+        intervals = token_projection_intervals(binding)
+        if intervals is not None:
+            boundaries = sorted({index for interval in intervals for index in interval})
+            source_size = len(_token_spans(str(binding.realization.target_values[0].source_value)))
+            normalized = tuple(row[0] for row in target_tokens)
+            anchors = [(0, 0, 0, 0)]
+            cursor = 0
+            for start, end, fixed in shared_projection_ranges(binding, template, target):
+                matches = [
+                    i
+                    for i in range(cursor, len(normalized) - len(fixed) + 1)
+                    if normalized[i : i + len(fixed)] == fixed
+                    and (start != 0 or i == 0)
+                    and (end != source_size or i + len(fixed) == len(normalized))
+                ]
+                if len(matches) != 1:
+                    raise ValueError(
+                        "target violates unique token-prefix, token-suffix "
+                        "or literal-gap constraint"
+                    )
+                position = matches[0]
+                anchors.append((start, end, position, position + len(fixed)))
+                cursor = position + len(fixed)
+            anchors.append((source_size, source_size, len(normalized), len(normalized)))
+            new_boundaries = {
+                boundary: position + boundary - start
+                for start, end, position, _ in anchors
+                for boundary in boundaries
+                if start <= boundary <= end
+            }
+            for prior, following in pairwise(anchors):
+                left, right = prior[1], following[0]
+                new_left, new_right = prior[3], following[2]
+                if left == right:
+                    if new_left != new_right:
+                        raise ValueError(
+                            "unowned text was inserted outside projected mutable segments"
+                        )
+                    continue
+                region = sorted({left, right, *[b for b in boundaries if left < b < right]})
+                weights = tuple(b - a for a, b in pairwise(region))
+                if new_right - new_left < len(weights):
+                    raise ValueError("target has fewer tokens than its printed partition")
+                pieces = _allocate_words(tuple(str(i) for i in range(new_left, new_right)), weights)
+                new_boundaries[left] = new_left
+                current = new_left
+                for boundary, piece in zip(region[1:], pieces, strict=True):
+                    current += len(piece)
+                    new_boundaries[boundary] = current
+            for slot, (start, end) in zip(slots, intervals, strict=True):
+                left, right = new_boundaries[start], new_boundaries[end]
+                begin = target_tokens[left][1]
+                stop = target_tokens[right - 1][2]
+                replacements[slot.slot_id] = _layout_like_source(
+                    slot.source_text, target_surface[begin:stop]
+                )
+            return BindingOutput(replacements=replacements, canonical_value=new_value)
         normalized_tokens = tuple(row[0] for row in target_tokens)
         for slot, slot_plan in zip(slots, binding.realization.slots, strict=True):
             prefix = tuple(value.casefold() for value in slot_plan.required_target_prefix_tokens)
@@ -1050,64 +1154,64 @@ def _parse_auxiliary_date(value: str) -> date:
     return parsed[0]
 
 
-def _randomize_numeric_surface(source: str, stream: DeterministicStream) -> str:
-    digits = [index for index, character in enumerate(source) if character.isdigit()]
-    if not digits:
-        raise ValueError("numeric auxiliary has no digits")
-    output = list(source)
-    for ordinal, index in enumerate(digits):
-        source_digit = output[index]
-        for attempt in range(20):
-            candidate = str(stream.derive(str(ordinal)).randbelow(10, counter=attempt))
-            if candidate != source_digit and (
-                ordinal > 0 or source_digit == "0" or candidate != "0"
-            ):
-                output[index] = candidate
-                break
-        else:
-            raise RuntimeError("failed to change numeric auxiliary digit")
-    return "".join(output)
+def _source_container_identifier(binding: SemanticBinding) -> str | None:
+    tokens = set(re.findall(r"[a-z]+", binding.logical_key.lower()))
+    source = _alphanumeric(binding.occurrences[0].source_text).upper()
+    if (
+        not binding.target_paths
+        and "container" in tokens
+        and not tokens & {"seal", "seals"}
+        and re.fullmatch(r"[A-Z]{3}[UJZ][0-9]{7}", source)
+    ):
+        return source
+    return None
 
 
 def _render_direct_auxiliary(
     binding: SemanticBinding, stream: DeterministicStream
 ) -> BindingOutput:
+    if _explicit_unknown_placeholder(binding):
+        return _preserved_source_output(binding)
     first = binding.occurrences[0]
     policy = first.render_policy
-    if policy == "opaque_identifier" or binding.value_kind in {"email", "phone"}:
+    if binding.value_kind == "date" or policy == "date_surface":
+        return _fixed_date_auxiliary(binding)
+    if binding.value_kind == "email":
+        return _render_text_candidate(
+            binding, contact_values.mailbox(stream.derive(binding.logical_key))
+        )
+    if binding.value_kind == "phone":
+        region = contact_values.source_phone_country(first.source_text)
+        return _render_text_candidate(
+            binding, contact_values.phone(stream.derive(binding.logical_key), country_code=region)
+        )
+    source_container = _source_container_identifier(binding)
+    if source_container is not None:
+        return _render_text_candidate(
+            binding,
+            generate_container_number(
+                owner_and_category=source_container[:4],
+                stream=stream.derive(binding.logical_key),
+                excluded={source_container},
+            ),
+        )
+    source_seal = (
+        binding.value_kind == "equipment"
+        and "seal" in set(re.findall(r"[a-z]+", binding.logical_key.lower()))
+        and any(c.isdigit() for c in first.source_text)
+    )
+    if policy == "opaque_identifier" and (binding.value_kind == "identifier" or source_seal):
         generated = generate_from_surface_pattern(
             pattern=surface_pattern(first.source_text),
             stream=stream.derive(binding.logical_key),
             additional_excluded=first.source_text,
         )
-        canonical = _alphanumeric(generated)
-        replacements = {
-            slot.slot_id: _shape_alphanumeric_like_source(slot.source_text, canonical)
-            for slot in binding.occurrences
-        }
-        return BindingOutput(replacements=replacements, canonical_value=generated)
+        return _render_text_candidate(binding, generated)
     if policy == "numeric_surface":
-        if not any(character.isdigit() for character in first.source_text):
-            return _render_number_word_auxiliary(binding, stream)
-        generated = _randomize_numeric_surface(
-            first.source_text, stream.derive(binding.logical_key)
+        raise ValueError(
+            "numeric auxiliary requires a proven scenario dependency; "
+            "digit randomization is forbidden"
         )
-        replacements = {
-            slot.slot_id: _shape_alphanumeric_like_source(
-                slot.source_text, _alphanumeric(generated)
-            )
-            for slot in binding.occurrences
-        }
-        return BindingOutput(replacements=replacements, canonical_value=generated.strip())
-    if policy == "date_surface":
-        old = _parse_auxiliary_date(first.source_text)
-        offset = 31 + stream.derive(binding.logical_key).randbelow(334)
-        new = old + timedelta(days=offset)
-        replacements = {
-            slot.slot_id: _render_date_surface(slot.source_text, old.isoformat(), new.isoformat())
-            for slot in binding.occurrences
-        }
-        return BindingOutput(replacements=replacements, canonical_value=new.isoformat())
     raise ValueError(f"no deterministic auxiliary renderer for {policy}")
 
 
@@ -1116,62 +1220,41 @@ def _render_text_candidate(binding: SemanticBinding, candidate: str) -> BindingO
         raise ValueError("typed auxiliary candidate is empty")
     replacements: dict[str, str] = {}
     for slot in binding.occurrences:
-        if slot.render_policy in {"opaque_identifier", "numeric_surface"}:
-            replacement = _shape_alphanumeric_like_source(slot.source_text, candidate)
+        if binding.value_kind == "email":
+            replacement = contact_values.render_mailbox(slot.source_text, candidate)
+        elif slot.render_policy in {"opaque_identifier", "numeric_surface"}:
+            canonical_source = _alphanumeric(binding.occurrences[0].source_text)
+            observed = _alphanumeric(slot.source_text)
+            value = _alphanumeric(candidate)
+            # Repeated source-only identifiers may include a printed alphabetic
+            # designator (EIN/REF/etc.). Prove its exact embedding in the source;
+            # it is neither part of the new identifier nor random OCR noise.
+            matches = tuple(re.finditer(re.escape(canonical_source), observed, re.I))
+            if (
+                len(value) == len(canonical_source)
+                and len(matches) == 1
+                and all(
+                    c.isalpha()
+                    for c in observed[: matches[0].start()] + observed[matches[0].end() :]
+                )
+            ):
+                match = matches[0]
+                value = observed[: match.start()] + value + observed[match.end() :]
+            replacement = _shape_alphanumeric_like_source(slot.source_text, value)
         else:
             replacement = _layout_like_source(slot.source_text, candidate)
         replacements[slot.slot_id] = replacement
     return BindingOutput(replacements=replacements, canonical_value=candidate.strip())
 
 
-def _render_pattern_date_auxiliary(
-    binding: SemanticBinding, stream: DeterministicStream
-) -> BindingOutput:
-    """Render an arbitrary valid date when the source date itself is ambiguous or malformed.
-
-    A source-only date has no canonical value to preserve.  Its separator/month-name grammar and
-    field width are the reusable facts.  Numeric ambiguity (DD/MM versus MM/DD) therefore does not
-    require an agent: both interpretations share the same observable surface grammar.
-    """
-
-    source = binding.occurrences[0].source_text
-    chosen = date(2021, 1, 1) + timedelta(days=stream.derive(binding.logical_key).randbelow(3650))
-    compact = source.strip()
-    candidates: list[str] = []
-    numeric_match = re.fullmatch(
-        r"(?P<day>[0-9]{1,2})(?P<sep1>[/.-])(?P<month>[0-9]{1,2})"
-        r"(?P<sep2>[/.-])(?P<year>[0-9]{2,4})",
-        compact,
+def _fixed_date_auxiliary(binding: SemanticBinding) -> BindingOutput:
+    """Retain the declared timeline; never invent an unrelated source-only date."""
+    if binding.target_paths:
+        raise ValueError("target-backed dates must use their target realization")
+    return BindingOutput(
+        replacements={slot.slot_id: slot.source_text for slot in binding.occurrences},
+        canonical_value=binding.occurrences[0].source_text,
     )
-    if numeric_match is not None:
-        year_width = len(numeric_match.group("year"))
-        candidates.append(
-            f"{chosen.day:0{len(numeric_match.group('day'))}d}"
-            f"{numeric_match.group('sep1')}"
-            f"{chosen.month:0{len(numeric_match.group('month'))}d}"
-            f"{numeric_match.group('sep2')}"
-            f"{chosen.year % (10**year_width):0{year_width}d}"
-        )
-    month_match = re.fullmatch(
-        r"(?P<day>[0-9]{1,2})(?P<sep>[-./ ]?)(?P<month>[A-Za-z]{3,9})"
-        r"(?P=sep)(?P<year>[0-9]{2,4})",
-        compact,
-    )
-    if month_match is not None:
-        month = chosen.strftime("%B" if len(month_match.group("month")) > 3 else "%b")
-        month = _case_like(month_match.group("month"), month)
-        year_width = len(month_match.group("year"))
-        candidates.append(
-            f"{chosen.day:0{len(month_match.group('day'))}d}"
-            f"{month_match.group('sep')}{month}{month_match.group('sep')}"
-            f"{chosen.year % (10**year_width):0{year_width}d}"
-        )
-    if not candidates:
-        raise ValueError(f"source-only date has no supported observable grammar: {source!r}")
-    candidate = candidates[0]
-    if len(_alphanumeric(candidate)) != len(_alphanumeric(compact)):
-        raise ValueError("generated source-only date changes the certified alphanumeric width")
-    return _render_text_candidate(binding, candidate)
 
 
 def _render_generated_auxiliary(
@@ -1192,9 +1275,6 @@ def _render_generated_auxiliary(
         return _render_text_candidate(binding, typed)
 
     first = binding.occurrences[0]
-    if binding.value_kind == "date":
-        return _render_pattern_date_auxiliary(binding, stream)
-
     if binding.value_kind == "identifier" and first.render_policy == "opaque_identifier":
         generated = generate_from_surface_pattern(
             pattern=surface_pattern(first.source_text),
@@ -1203,35 +1283,10 @@ def _render_generated_auxiliary(
         )
         return _render_text_candidate(binding, generated)
 
-    vocabulary_kinds = {
-        "decimal_measurement",
-        "equipment",
-        "package",
-        "dangerous_goods",
-        "commercial_text",
-        "legal_text",
-        "operational_text",
-        "other_text",
-    }
-    if binding.value_kind not in vocabulary_kinds:
-        raise ValueError(f"no typed deterministic auxiliary generator for {binding.value_kind}")
-    if binding.value_kind == "equipment" and binding.group_kind == "transport":
-        raise ValueError("source-only transport equipment may be a vessel identity")
-
-    # Units, movement modes, status words, and operational/legal clauses are controlled
-    # vocabularies rather than private identities.  Preserve their semantic wording, while
-    # deterministically changing any embedded shipment-specific number.
-    if any(character.isdigit() for character in first.source_text):
-        generated = _randomize_numeric_surface(
-            first.source_text, stream.derive(binding.logical_key)
-        )
-        if all(
-            len(_alphanumeric(slot.source_text)) == len(_alphanumeric(generated))
-            for slot in binding.occurrences
-        ):
-            return _render_text_candidate(binding, generated)
-        raise ValueError("repeated numeric vocabulary surfaces have incompatible widths")
-    return _preserved_source_output(binding)
+    raise ValueError(
+        f"no typed deterministic auxiliary generator for {binding.value_kind}: "
+        f"{binding.logical_key}; source-copy substitution is forbidden"
+    )
 
 
 def _render_entity_auxiliary(
@@ -1243,18 +1298,31 @@ def _render_entity_auxiliary(
     stream: DeterministicStream,
     values: DeterministicValueFactory,
     country_codes: Mapping[str, str],
+    prepared_auxiliary: Mapping[str, str] | None = None,
 ) -> BindingOutput:
     entity, member = entity_member
     if _explicit_unknown_placeholder(binding):
         return _preserved_source_output(binding)
     if member.field == "registration_type":
         return _preserved_source_output(binding)
+    if geography_constraint.fixed_country_code and member.field in {"country", "country_code"}:
+        if binding.logical_key not in geography_constraint.fixed_country_bindings and any(
+            country_codes.get(_alphanumeric(s.source_text).casefold())
+            != geography_constraint.fixed_country_code
+            for s in binding.occurrences
+        ):
+            raise ValueError("country surface conflicts with its immutable geographic context")
+        return _preserved_source_output(binding)
+    if prepared_auxiliary is not None and binding.logical_key in prepared_auxiliary:
+        return _render_text_candidate(binding, prepared_auxiliary[binding.logical_key])
     typed = values.entity_textual(
         entity=entity,
         member=member,
         country_codes=country_codes,
         calling_code_width=geography_constraint.calling_code_width,
         country_name_width=geography_constraint.country_name_width,
+        postal_code_pattern=geography_constraint.postal_code_pattern,
+        fixed_country_code=geography_constraint.fixed_country_code,
     )
     if typed is not None:
         if member.field == "country_code":
@@ -1268,27 +1336,28 @@ def _render_entity_auxiliary(
                     entity.entity_id,
                     calling_code_width=geography_constraint.calling_code_width,
                     country_name_width=geography_constraint.country_name_width,
+                    postal_code_pattern=geography_constraint.postal_code_pattern,
+                    fixed_country_code=geography_constraint.fixed_country_code,
                 )
                 if geography.country_code != typed:
                     raise ValueError("entity country code differs from its constrained geography")
             replacements: dict[str, str] = {}
             for slot in binding.occurrences:
-                compact = _alphanumeric(slot.source_text)
                 if country_code_style == "iso2":
                     candidate = typed
+                elif geography is None and (
+                    country_codes.get(_alphanumeric(slot.source_text).casefold()) == typed
+                ):
+                    # A target-linked country retains its certified source spelling
+                    # when that spelling explicitly resolves to the same country.
+                    # The canonical receipt remains ISO2, not a five-letter port code.
+                    candidate = _alphanumeric(slot.source_text)
                 elif country_code_style == "iso3" and geography is not None:
                     candidate = geography.alpha3
                 elif country_code_style == "country_name" and geography is not None:
                     candidate = geography.country
                 elif country_code_style == "unlocode" and geography is not None:
                     candidate = geography.locode
-                elif (
-                    country_code_style == "unlocode" and compact[:2].casefold() == typed.casefold()
-                ):
-                    # Target-linked parties are carrier-bound in this pipeline.  When their
-                    # certified UN/LOCODE already has the target ISO prefix, retaining the
-                    # locality suffix is the only evidence-backed projection.
-                    candidate = compact
                 elif country_code_style in {"calling_plus", "calling_00"} and geography is not None:
                     candidate = (
                         "00" + geography.calling_code
@@ -1317,10 +1386,10 @@ def _render_entity_auxiliary(
         "phone_extension",
         "other",
     }:
-        # Target schemas do not represent every printed party facet.  Target preparation has
-        # already restored the whole source party whenever one of these facets cannot be
-        # projected, so retaining its certified surface is coherent and avoids inventing data.
-        return _preserved_source_output(binding)
+        raise ValueError(
+            f"target-linked auxiliary context is unresolved: {binding.logical_key}; "
+            "a missing generated facet must not be replaced with its source surface"
+        )
     if binding.value_kind in {"identifier", "email", "phone"}:
         return _render_direct_auxiliary(binding, stream)
     if entity.relationship == "same_as_target_party":
@@ -1410,7 +1479,9 @@ def _render_certified_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
     """Render an agent-labelled date from its certified canonical source value and grammar."""
 
     try:
-        return _render_date_surface(raw, old_iso, new_iso)
+        formatted = _render_date_surface(raw, old_iso, new_iso)
+        if re.findall(r"\r\n|\r|\n", formatted) == re.findall(r"\r\n|\r|\n", raw):
+            return formatted
     except ValueError:
         pass
     old = date.fromisoformat(old_iso)
@@ -1476,9 +1547,12 @@ def _render_certified_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
         day_candidates = tuple(index for index in unassigned if int(tokens[index]) == old.day)
         month_candidates = tuple(index for index in unassigned if int(tokens[index]) == old.month)
         if old.day == old.month and day_candidates == month_candidates and len(day_candidates) == 2:
-            # The original surface cannot distinguish DD/MM from MM/DD when both values are
-            # equal.  Use the compiler's documented numeric-date convention (day first) so the
-            # descendant remains representable and round-trips to one unambiguous new date.
+            if new.day != new.month:
+                raise ValueError(
+                    f"numeric date has no certified day/month ordering: {raw!r}; "
+                    "locale guessing is forbidden"
+                )
+            # Either ordering produces the same new date; no locale inference is needed.
             day_candidates = (min(day_candidates),)
             month_candidates = (max(month_candidates),)
         if (
@@ -1601,21 +1675,127 @@ def _partition_semantic_surface(value: str, slots: Sequence[TemplateSlot]) -> tu
 
 
 def _composite_target_surface(binding: SemanticBinding, values: Sequence[JsonValue]) -> str:
-    strings = tuple(value for value in values if isinstance(value, str))
+    strings = tuple(
+        value for value in values if isinstance(value, str) and not value.startswith("PACKAGE_")
+    )
     if not strings:
         raise ValueError("composite target has no textual surface")
     longest = max(strings, key=lambda value: len(_normalized_semantic(value)))
     if all(
-        not isinstance(value, str) or _normalized_semantic(value) in _normalized_semantic(longest)
+        _string_semantics_match(value, longest)
+        if isinstance(value, str)
+        else isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and Decimal(str(value)) in _numeric_surface_values(longest)
         for value in values
     ):
         return longest
+    if any(isinstance(value, str) and value.startswith("PACKAGE_") for value in values):
+        raise ValueError("composite package surface needs a human-readable semantic composition")
     if binding.value_kind == "package" and any("PACK" in value.upper() for value in strings):
         return longest
     if binding.value_kind in {"address", "location", "other_text"}:
         unique = tuple(dict.fromkeys(value.strip() for value in strings if value.strip()))
         return ", ".join(unique)
     raise ValueError("multiple target values have no deterministic textual composition")
+
+
+def _package_summary_output(
+    binding: SemanticBinding, source_target: Mapping[str, Any], target: Mapping[str, Any]
+) -> BindingOutput | None:
+    text_paths = [
+        p
+        for p in binding.target_paths
+        if re.fullmatch(r"documentPatch\.cargoGroups\[\d+\]\.additionalInformation\[\d+\]", p)
+    ]
+    if len(text_paths) != 1 or len(binding.target_paths) == 1:
+        return None
+    old = _resolve_path(source_target, text_paths[0])
+    new = _resolve_path(target, text_paths[0])
+    values = [_binding_target_value(target, p) for p in binding.target_paths]
+    categories = []
+    for path, value in zip(binding.target_paths, values, strict=True):
+        if path == text_paths[0]:
+            continue
+        if isinstance(value, str):
+            if not _string_semantics_match(value, new):
+                return None
+        elif re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.quantity", path):
+            if not _composite_package_quantity_matches(binding, target, path, new):
+                return None
+            package = _resolve_path(target, path.removesuffix(".quantity"))
+            original = _resolve_path(source_target, path.removesuffix(".quantity"))
+            for key in ("typeCategory", "typeDescription"):
+                if key in package and package.get(key) == original.get(key):
+                    categories.append(package[key])
+        elif isinstance(value, int) and path.endswith(".packageQuantity"):
+            if not re.search(rf"(?<![A-Za-z0-9]){value}(?![0-9])", new):
+                return None
+        else:
+            return None
+    replacements = {}
+    for slot in binding.occurrences:
+        if old.casefold() == slot.source_text.casefold():
+            surface = new
+        elif old.casefold().startswith(slot.source_text.casefold()):
+            suffix = old[len(slot.source_text) :]
+            if (
+                not suffix.strip()
+                or not any(
+                    _string_semantics_match(category, suffix.strip()) for category in categories
+                )
+                or not new.casefold().endswith(suffix.casefold())
+            ):
+                return None
+            # The category has its own printed slot; do not duplicate it inside
+            # the preceding quantity/description slot.
+            surface = new[: -len(suffix)]
+        else:
+            return None
+        replacements[slot.slot_id] = _layout_like_source(slot.source_text, surface)
+    return BindingOutput(replacements=replacements, canonical_value=values)
+
+
+def _annotated_cargo_output(
+    binding: SemanticBinding, source_target: Mapping[str, Any], target: Mapping[str, Any]
+) -> BindingOutput | None:
+    """Print complete item rows whose parenthetical annotations interrupt the label.
+
+    Both the source and generated description must equal the ordered item names
+    with their separately labelled annotations removed. This is not loose token
+    subsequence matching and cannot hide missing/reordered product identities.
+    """
+    if binding.value_kind != "cargo_text" or len(binding.occurrences) != 1:
+        return None
+    descriptions = [p for p in binding.target_paths if p.endswith(".description")]
+    rows = [p for p in binding.target_paths if re.search(r"\.additionalInformation\[\d+\]$", p)]
+    if len(descriptions) != 1 or len(rows) < 2 or len(rows) + 1 != len(binding.target_paths):
+        return None
+    slot = binding.occurrences[0]
+    lines = re.split(r"\r\n|\r|\n", slot.source_text)
+    if len(lines) != len(rows):
+        return None
+    for line, path in zip(lines, rows, strict=True):
+        if _normalized_semantic(line) != _normalized_semantic(_resolve_path(source_target, path)):
+            return None
+    for document in (source_target, target):
+        names = " ".join(
+            re.sub(r"\([^()]*\)", "", _resolve_path(document, p)).strip() for p in rows
+        )
+        if _normalized_semantic(names) != _normalized_semantic(
+            _resolve_path(document, descriptions[0])
+        ):
+            return None
+    endings = re.findall(r"\r\n|\r|\n", slot.source_text)
+    rendered = [
+        _layout_like_source(line, _resolve_path(target, path))
+        for line, path in zip(lines, rows, strict=True)
+    ]
+    surface = rendered[0] + "".join(a + b for a, b in zip(endings, rendered[1:], strict=True))
+    return BindingOutput(
+        replacements={slot.slot_id: surface},
+        canonical_value=[_binding_target_value(target, p) for p in binding.target_paths],
+    )
 
 
 def _render_agent_target_binding(
@@ -1630,6 +1810,39 @@ def _render_agent_target_binding(
     if not values:
         raise ValueError("agent target binding has no target values")
     source_values = tuple(row.source_value for row in binding.realization.target_values)
+    summary = _package_summary_output(binding, source_target, target)
+    if summary is not None:
+        return summary
+    annotated = _annotated_cargo_output(binding, source_target, target)
+    if annotated is not None:
+        return annotated
+    if len(binding.target_paths) == 2:
+        quantity_paths = [
+            p
+            for p in binding.target_paths
+            if re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.quantity", p)
+        ]
+        if len(quantity_paths) == 1:
+            path = quantity_paths[0]
+            category_path = path.removesuffix("quantity") + "typeCategory"
+            if category_path in binding.target_paths:
+                category = _resolve_path(target, category_path)
+                if category == _resolve_path(source_target, category_path):
+                    old, new = _resolve_path(source_target, path), _resolve_path(target, path)
+                    package_replacements = {}
+                    for slot in binding.occurrences:
+                        match = re.fullmatch(
+                            r"\s*([0-9][0-9,]*)\s*([A-Za-z ]+)\s*", slot.source_text
+                        )
+                        if match is None or not _string_semantics_match(category, match.group(2)):
+                            break
+                        package_replacements[slot.slot_id] = render_number_surface(
+                            slot.source_text, old, new
+                        )
+                    if len(package_replacements) == len(binding.occurrences):
+                        return BindingOutput(
+                            replacements=package_replacements, canonical_value=list(values)
+                        )
     if binding.value_kind == "date" and len(values) == len(source_values) == 1:
         old, new = source_values[0], values[0]
         if not isinstance(old, str) or not isinstance(new, str):
@@ -1642,8 +1855,12 @@ def _render_agent_target_binding(
             canonical_value=new,
         )
     if (
-        binding.value_kind == "identifier"
-        and len(values) == len(source_values) == 1
+        (
+            binding.value_kind == "identifier"
+            or all(path.endswith(".containerNumber") for path in binding.target_paths)
+        )
+        and len(set(map(canonical_json_bytes, values))) == 1
+        and len(set(map(canonical_json_bytes, source_values))) == 1
         and isinstance(values[0], str)
         and isinstance(source_values[0], str)
     ):
@@ -1745,13 +1962,18 @@ def _direct_auxiliary_route(binding: SemanticBinding) -> tuple[bool, str]:
 
     slots = binding.occurrences
     first = slots[0]
-    if binding.value_kind in {"email", "phone"}:
-        if not _alphanumeric(first.source_text):
-            return False, "contact surface has no replaceable alphanumeric positions"
-        length = len(_alphanumeric(first.source_text))
-        if any(len(_alphanumeric(slot.source_text)) != length for slot in slots):
-            return False, "repeated contact surfaces have unequal alphanumeric lengths"
-        return True, "typed format-preserving contact generator is available"
+    if binding.value_kind == "email":
+        if any(slot.render_policy != "natural_text" for slot in slots):
+            return False, "email requires a lexical mailbox envelope, not identifier punctuation"
+        return True, "typed valid mailbox generator is available"
+    if binding.value_kind == "phone":
+        try:
+            contact_values.source_phone_country(first.source_text)
+        except ValueError as error:
+            return False, str(error)
+        if any(s.render_policy != "natural_text" for s in slots):
+            return False, "phone requires a typed lexical envelope"
+        return True, "country-valid international phone generator is available"
     if first.render_policy == "date_surface":
         try:
             parsed_date = _parse_auxiliary_date(first.source_text)
@@ -1767,20 +1989,7 @@ def _direct_auxiliary_route(binding: SemanticBinding) -> tuple[bool, str]:
             return False, f"date surface lacks one unambiguous render style: {error}"
         return True, "typed format-preserving date generator is available"
     if first.render_policy == "numeric_surface":
-        try:
-            word_values = tuple(_number_word_phrase(slot.source_text)[0] for slot in slots)
-        except ValueError:
-            word_values = ()
-        if word_values:
-            if len(set(word_values)) != 1:
-                return False, "repeated number-word surfaces encode different values"
-            return True, "typed number-word auxiliary generator is available"
-        if not any(character.isdigit() for character in first.source_text):
-            return False, "numeric surface has no numeric digits"
-        words = {token.casefold() for token in _TOKEN.findall(first.source_text)}
-        if words & _NUMBER_WORDS:
-            return False, "numeric surface contains a coupled number-word expression"
-        return True, "typed format-preserving numeric generator is available"
+        return False, "numeric auxiliaries require an explicit dependency contract"
     if first.render_policy == "opaque_identifier":
         if binding.value_kind != "identifier":
             return False, "opaque surface is a semantic vocabulary value, not an identifier"
@@ -1797,6 +2006,10 @@ def _direct_auxiliary_route(binding: SemanticBinding) -> tuple[bool, str]:
 
 
 def _stable_source_vocabulary(binding: SemanticBinding) -> bool:
+    from .numeric_auxiliary import measurement_unit_binding
+
+    if measurement_unit_binding(binding):
+        return True
     if binding.target_paths:
         return False
     tokens = frozenset(
@@ -1810,6 +2023,12 @@ def _stable_source_vocabulary(binding: SemanticBinding) -> bool:
 
 
 def _explicit_unknown_placeholder(binding: SemanticBinding) -> bool:
+    if binding.value_kind == "email" and not binding.target_paths:
+        return bool(binding.occurrences) and all(
+            " ".join(slot.source_text.upper().split())
+            in {"NA", "N/A", "NIL", "NONE", "NOT PROVIDED", "NOT AVAILABLE", "-", "--", "---"}
+            for slot in binding.occurrences
+        )
     return bool(
         not binding.target_paths
         and binding.value_kind == "identifier"
@@ -1867,6 +2086,8 @@ def _solve_identifier_relationships(
     template: CertifiedSemanticTemplate,
     outputs: dict[str, BindingOutput],
     stream: DeterministicStream,
+    equivalence_groups: tuple[tuple[str, ...], ...] = (),
+    fixed_prefixes: Mapping[str, str] | None = None,
 ) -> None:
     """Solve exact identifier-containment constraints at character-position level."""
 
@@ -1881,6 +2102,8 @@ def _solve_identifier_relationships(
         )
         if active_relationships[binding.logical_key]
     }
+    related_keys.update(key for keys in equivalence_groups for key in keys)
+    related_keys.update(fixed_prefixes or {})
     if not related_keys:
         return
     for key in related_keys:
@@ -1943,10 +2166,23 @@ def _solve_identifier_relationships(
                     (embedded_key, embedded_index),
                 )
 
+    for keys in equivalence_groups:
+        anchor = keys[0]
+        for key in keys[1:]:
+            if source_values[key].casefold() != source_values[anchor].casefold():
+                raise ValueError("equivalent identifier contract lacks equal source evidence")
+            for index in range(len(source_values[anchor])):
+                union((anchor, index), (key, index))
+
     fixed: dict[tuple[str, int], str] = {}
+    for key, prefix in (fixed_prefixes or {}).items():
+        for index, character in enumerate(prefix):
+            root = find((key, index))
+            if fixed.setdefault(root, character).casefold() != character.casefold():
+                raise ValueError("identifier country prefixes conflict in one component")
     for key in related_keys:
         binding = bindings[key]
-        if not binding.target_paths:
+        if not binding.target_paths and _source_container_identifier(binding) is None:
             continue
         rendered = _alphanumeric(outputs[key].replacements[binding.occurrences[0].slot_id])
         if len(rendered) != len(source_values[key]):
@@ -2259,8 +2495,10 @@ def _render_equipment_receipt_binding(
     source_target: Mapping[str, Any],
     target: Mapping[str, Any],
 ) -> BindingOutput:
-    if not binding.target_paths:
-        return _preserved_source_output(binding)
+    if not binding.target_paths and not binding.dependency_paths:
+        raise ValueError(
+            "equipment receipt has no target dependency; source-copy substitution is forbidden"
+        )
     source_all = _resolve_path(source_target, "documentPatch.containers")
     target_all = _resolve_path(target, "documentPatch.containers")
     if (
@@ -2291,6 +2529,41 @@ def _render_equipment_receipt_binding(
         target_containers = tuple(target_all[index] for index in indexes)
     if not target_containers:
         raise ValueError("equipment receipt has no target containers")
+    # A source can print only the receipt count, or an exact unclassified type
+    # description (e.g. 1 X 20'). Neither requires inventing a v5 size/type pair.
+    # Keep this path strict: a conflicting HR/RQ surface does not match it.
+    descriptions = {
+        row.get("typeDescription") for row in source_containers if isinstance(row, Mapping)
+    }
+    target_descriptions = {
+        row.get("typeDescription") for row in target_containers if isinstance(row, Mapping)
+    }
+    projected: dict[str, str] = {}
+    for slot in binding.occurrences:
+        match = re.fullmatch(r"(?P<count>\s*0*\d+)(?P<body>.*)", slot.source_text, re.DOTALL)
+        if match is None or int(match.group("count")) != len(source_containers):
+            break
+        body = match.group("body")
+        count_only = re.fullmatch(r"(?i)\s*(?:[xX]|CONTAINERS?)?\s*", body) is not None
+        description = next(iter(descriptions)) if len(descriptions) == 1 else None
+        exact_description = (
+            isinstance(description, str)
+            and descriptions == target_descriptions
+            and _normalized_semantic(
+                re.sub(r"(?i)\bCONTAINERS?\b", "", re.sub(r"^\s*[xX]\s*", "", body))
+            )
+            == _normalized_semantic(description)
+        )
+        if not count_only and not exact_description:
+            break
+        count = render_number_surface(
+            match.group("count"), len(source_containers), len(target_containers)
+        )
+        projected[slot.slot_id] = count + body
+    if len(projected) == len(binding.occurrences):
+        return BindingOutput(
+            replacements=projected, canonical_value=cast(JsonValue, list(target_containers))
+        )
     semantic_values_list: list[dict[str, str]] = []
     for row in target_containers:
         if not isinstance(row, Mapping):
@@ -2365,6 +2638,17 @@ def _preserved_source_output(binding: SemanticBinding) -> BindingOutput:
     )
 
 
+_TYPOGRAPHIC_QUOTES = str.maketrans("\u2019\u2018\u201c\u201d", "''\"\"")
+
+
+def _typographic_text_equal(left: JsonValue, right: JsonValue) -> bool:
+    return (
+        isinstance(left, str)
+        and isinstance(right, str)
+        and left.translate(_TYPOGRAPHIC_QUOTES) == right.translate(_TYPOGRAPHIC_QUOTES)
+    )
+
+
 def _unchanged_target_output(
     binding: SemanticBinding, target: Mapping[str, Any]
 ) -> BindingOutput | None:
@@ -2376,6 +2660,7 @@ def _unchanged_target_output(
     values = tuple(_binding_target_value(target, path) for path in binding.target_paths)
     if any(
         canonical_json_bytes(value) != canonical_json_bytes(snapshots[path])
+        and not _typographic_text_equal(value, snapshots[path])
         for path, value in zip(binding.target_paths, values, strict=True)
     ):
         return None
@@ -2452,6 +2737,35 @@ def _binding_route(
 def _build_initial_plan(
     case: PreparedCase, *, seed: int, country_codes: Mapping[str, str]
 ) -> RenderPlan:
+    _require_frozen_target(case)
+    if conflicts := geographic_context.source_entity_conflicts(case.template, country_codes):
+        raise ValueError("source auxiliary geography requires review: " + "; ".join(conflicts))
+    from .package_prose import validate_package_masses
+
+    validate_package_masses(case.template, case.topology_reference_target, case.target)
+    if {b.logical_key for b in numeric_bindings(case.template)} != set(case.numeric_auxiliary):
+        raise ValueError("numeric dependency contracts do not cover unowned shipment facts")
+    missing_package_contracts = {
+        binding.logical_key
+        for binding in numeric_bindings(case.template)
+        if binding.value_kind == "package" and binding.logical_key not in case.numeric_auxiliary
+    }
+    if missing_package_contracts:
+        raise ValueError(
+            "source-only package quantities require numeric contracts: "
+            + ", ".join(sorted(missing_package_contracts))
+        )
+    numeric_outputs = (
+        render_prepared(
+            numeric_bindings(case.template),
+            case.numeric_auxiliary,
+            source_target=case.topology_reference_target,
+            target=case.target,
+            source_template=case.template,
+        )
+        if case.numeric_auxiliary
+        else {}
+    )
     # Coherence is a pre-routing safety gate. A stale target-backed range or a compiler-marked
     # review case must fail before residual planning can initialize a provider request.
     validate_render_coherence(
@@ -2461,6 +2775,7 @@ def _build_initial_plan(
         target=case.target,
         outputs=None,
     )
+    range_outputs = plan_ranges(case.template, case.source_target, case.target).auxiliary_surfaces
     coherence_members_with_dependencies = {
         logical_key
         for constraint in case.template.coherence_constraints
@@ -2476,6 +2791,7 @@ def _build_initial_plan(
         )
         for logical_key in constraint.member_logical_keys
     }
+    projected_context = projected_auxiliary_values(case.template, case.target)
     routes: list[BindingRoute] = []
     outputs: dict[str, BindingOutput] = {}
     residual: list[SemanticBinding] = []
@@ -2486,16 +2802,32 @@ def _build_initial_plan(
         target=case.target,
     )
     auxiliary_dispositions = disposition_by_binding(case.template.auxiliary_semantic_plan)
-    auxiliary_entities = entity_members_by_binding(case.template.auxiliary_semantic_plan)
-    country_code_styles, entity_geography_constraints = _entity_country_code_context(case.template)
-    binding_value_kinds = {
-        candidate.logical_key: candidate.value_kind for candidate in case.template.bindings
-    }
+    auxiliary_plan = resolve_geographic_members(
+        case.template.auxiliary_semantic_plan, case.template.bindings, country_codes
+    )
+    auxiliary_entities = entity_members_by_binding(auxiliary_plan)
+    country_code_styles, entity_geography_constraints = _entity_country_code_context(
+        case.template, country_codes, case.source
+    )
+    bindings_by_key = {candidate.logical_key: candidate for candidate in case.template.bindings}
     shape_sensitive_relationship_dependencies = {
         dependency
         for candidate in case.template.bindings
         for dependency in candidate.dependency_bindings
-        if binding_value_kinds[dependency] == "phone"
+        if bindings_by_key[dependency].value_kind == "phone"
+        if candidate.value_kind != "phone"
+        or any(
+            _alphanumeric(s.source_text)
+            != _alphanumeric(bindings_by_key[dependency].occurrences[0].source_text)
+            or s.render_policy == "opaque_identifier"
+            for s in candidate.occurrences
+        )
+    }
+    identifier_relationship_members = {
+        key
+        for owner, relationships in _active_identifier_relationships(case.template).items()
+        for relationship in relationships
+        for key in (owner, relationship.dependency_binding)
     }
     for binding in case.template.bindings:
         route, reason = _binding_route(binding, case.target)
@@ -2509,12 +2841,83 @@ def _build_initial_plan(
             constraints=case.template.coherence_constraints,
         ):
             unchanged_output = None
-        if unchanged_output is not None:
+        measurement_output = _render_target_measurement(binding, case)
+        composite_range = render_composite_range(
+            binding, case.source_target, case.target, case.source
+        )
+        if composite_range is not None:
+            eager_output = BindingOutput(
+                replacements=composite_range,
+                canonical_value=[
+                    _binding_target_value(case.target, p) for p in binding.target_paths
+                ],
+            )
+            route = "deterministic"
+            reason = "source-byte-proven caption and range express typed package facts"
+        elif measurement_output is not None:
+            eager_output = measurement_output
+            route = "deterministic"
+            reason = "each measurement occurrence has source-proven units and arithmetic"
+        elif (
+            binding.logical_key in projected_context
+            and binding.logical_key not in case.numeric_auxiliary
+        ):
+            eager_output = _render_text_candidate(binding, projected_context[binding.logical_key])
+            route = "deterministic"
+            reason = "auxiliary context derived from the completed target projection contract"
+        elif binding.logical_key in range_outputs:
+            surfaces = dict(range_outputs[binding.logical_key])
+            eager_output = BindingOutput(
+                replacements=surfaces, canonical_value=next(iter(surfaces.values()))
+            )
+            route = "deterministic"
+            reason = "source-proven package range cardinality contract"
+        elif binding.logical_key in case.numeric_auxiliary:
+            prepared_numeric = case.numeric_auxiliary[binding.logical_key]
+            eager_output = BindingOutput(
+                replacements=numeric_outputs[binding.logical_key],
+                canonical_value=prepared_numeric.value,
+            )
+            route = "deterministic"
+            reason = "source-proven numeric scenario dependency"
+        elif (
+            not binding.target_paths
+            and binding.derivation is None
+            and (
+                binding.value_kind == "date"
+                or all(slot.render_policy == "date_surface" for slot in binding.occurrences)
+            )
+        ):
+            eager_output = _fixed_date_auxiliary(binding)
+            route = "deterministic"
+            reason = (
+                "complete source chronology is fixed scenario context, not independently sampled"
+            )
+        elif unchanged_output is not None:
             # The compiler already certified that these exact source slots express the target
             # snapshots. Preserve them for every realization mode when no dependency changed.
             eager_output = unchanged_output
             route = "deterministic"
             reason = "target value is unchanged from the compiler-certified source surface"
+        elif (
+            fixed_context(
+                binding,
+                case.topology_reference_target
+                if binding.value_kind == "equipment"
+                else case.source_target,
+                case.target,
+            )
+            and binding.logical_key not in changed_coherence_members
+        ):
+            eager_output = _preserved_source_output(binding)
+            route = "deterministic"
+            reason = (
+                "source-only location belongs to the complete unchanged route scenario"
+                if binding.group_kind == "route" and binding.value_kind == "location"
+                else "typed source-only equipment or independent feeder context is unchanged"
+                if binding.value_kind == "equipment"
+                else "complete source surface is closed, non-identifying template vocabulary"
+            )
         elif (
             binding.logical_key in coherence_members_with_dependencies
             and binding.logical_key not in changed_coherence_members
@@ -2539,7 +2942,9 @@ def _build_initial_plan(
             try:
                 candidate_output = (
                     _render_direct_auxiliary(binding, stream)
-                    if binding.logical_key in shape_sensitive_relationship_dependencies
+                    if binding.logical_key
+                    in (shape_sensitive_relationship_dependencies | identifier_relationship_members)
+                    and not binding.target_paths
                     else _render_entity_auxiliary(
                         binding,
                         entity_member=auxiliary_entities[binding.logical_key],
@@ -2550,6 +2955,7 @@ def _build_initial_plan(
                         stream=stream,
                         values=values,
                         country_codes=country_codes,
+                        prepared_auxiliary=case.auxiliary_values,
                     )
                 )
                 _validate_binding_format(
@@ -2565,9 +2971,21 @@ def _build_initial_plan(
                 route = "deterministic"
                 reason = (
                     "shape-sensitive relationship dependency rendered deterministically"
-                    if binding.logical_key in shape_sensitive_relationship_dependencies
+                    if binding.logical_key
+                    in (shape_sensitive_relationship_dependencies | identifier_relationship_members)
+                    and not binding.target_paths
                     else "canonical auxiliary entity field rendered deterministically"
                 )
+        elif lexical_partitions.partition(binding) is not None:
+            eager_output = _render_target_binding(
+                binding,
+                case.target,
+                auxiliary_values=case.auxiliary_values,
+                source=case.source,
+                template=case.template,
+            )
+            route = "deterministic"
+            reason = "source-proven cargo fragment ownership and exact target assembly"
         elif (
             binding.realization.mode == "deterministic_derivation"
             and binding.derivation == "equipment_receipt"
@@ -2584,8 +3002,10 @@ def _build_initial_plan(
                     output=candidate_output,
                 )
             except ValueError as error:
-                route = "agent"
-                reason = f"typed equipment receipt execution is unavailable: {error}"
+                raise ValueError(
+                    "unproven equipment receipt requires contract review: "
+                    f"{binding.logical_key}: {error}"
+                ) from error
             else:
                 eager_output = candidate_output
                 route = "deterministic"
@@ -2652,6 +3072,15 @@ def _build_initial_plan(
             )
         )
         if route == "agent":
+            if (
+                binding.value_kind == "equipment"
+                and not binding.target_paths
+                and not binding.derivation
+                and any(s.render_policy == "opaque_identifier" for s in binding.occurrences)
+            ):
+                raise ValueError(
+                    "unproven opaque equipment requires contract review: " + binding.logical_key
+                )
             residual.append(binding)
             continue
         if eager_output is not None:
@@ -2673,7 +3102,13 @@ def _build_initial_plan(
             "token_projected_surface",
             "normalized_projected_surface",
         }:
-            outputs[binding.logical_key] = _render_target_binding(binding, case.target)
+            outputs[binding.logical_key] = _render_target_binding(
+                binding,
+                case.target,
+                auxiliary_values=case.auxiliary_values,
+                source=case.source,
+                template=case.template,
+            )
         elif binding.realization.mode == "generated_auxiliary":
             outputs[binding.logical_key] = _render_generated_auxiliary(
                 binding,
@@ -2684,10 +3119,15 @@ def _build_initial_plan(
             continue
         else:
             raise ValueError(f"unsupported realization mode: {binding.realization.mode}")
+    entity_groups, country_prefixes = entity_identifiers.contracts(
+        case.template, case.source_target, case.target, country_codes
+    )
     _solve_identifier_relationships(
         template=case.template,
         outputs=outputs,
         stream=stream,
+        equivalence_groups=entity_groups,
+        fixed_prefixes=country_prefixes,
     )
     _plan_derivations(
         case=case,
@@ -2702,10 +3142,25 @@ def _build_initial_plan(
             template=case.template.byte_template,
             output=output,
         )
+    phone_countries = {}
+    for entity in auxiliary_plan.entities:
+        members = [m for m in entity.members if m.field == "phone"]
+        if entity.relationship != "independent" or not members:
+            continue
+        constraint = entity_geography_constraints[entity.entity_id]
+        geo = values.geography_for_identity(
+            entity.entity_id,
+            calling_code_width=constraint.calling_code_width,
+            country_name_width=constraint.country_name_width,
+            postal_code_pattern=constraint.postal_code_pattern,
+            fixed_country_code=constraint.fixed_country_code,
+        )
+        phone_countries.update({m.logical_key: geo.country_code for m in members})
     return RenderPlan(
         routes=tuple(routes),
         deterministic_outputs=outputs,
         residual_bindings=tuple(residual),
+        independent_phone_countries=phone_countries,
     )
 
 
@@ -2715,15 +3170,6 @@ def _validate_binding_format(
     if len(source) != template.source_size_bytes or sha256_bytes(source) != template.source_sha256:
         raise ValueError("template source payload differs from the pinned source")
     validate_slot_replacements(template=template, replacements=output.replacements)
-
-
-def _party_object_path(path: str) -> str | None:
-    match = re.match(
-        r"^(documentPatch\.parties\.(?:[A-Za-z][A-Za-z0-9]*|"
-        r"notifyParties\[[0-9]+\]))(?:\.|$)",
-        path,
-    )
-    return match.group(1) if match is not None else None
 
 
 def _party_exposes_auxiliary_field(party: Mapping[str, Any], field: str) -> bool:
@@ -2739,17 +3185,23 @@ def _party_exposes_auxiliary_field(party: Mapping[str, Any], field: str) -> bool
     if field == "country_code":
         value = party.get("country")
         return isinstance(value, str) and bool(value.strip())
+    contacts = party.get("contactDetails")
+    if isinstance(contacts, Mapping):
+        if field == "contact_name":
+            return bool(contacts.get("contactName"))
+        if field in {"phone", "email"}:
+            return bool(contacts.get("phoneNumbers" if field == "phone" else "emailAddresses"))
     return False
 
 
-def _adapt_unrepresented_party_facets(
+def _validate_unrepresented_party_facets(
     *,
     source_target: Mapping[str, Any],
-    target: dict[str, Any],
+    target: Mapping[str, Any],
     template: CertifiedSemanticTemplate,
-) -> tuple[TargetAdaptation, ...]:
-    """Prevent a source-only party facet from being attached to a new target identity."""
-
+    auxiliary_values: Mapping[str, str] | None = None,
+) -> None:
+    """Missing identity context is unresolved work, never permission to undo synthesis."""
     contextual_fields = {
         "name",
         "address",
@@ -2761,60 +3213,55 @@ def _adapt_unrepresented_party_facets(
         "phone_extension",
         "other",
     }
-    adaptations: list[TargetAdaptation] = []
-    restored_paths: set[str] = set()
+    projected_context = projected_auxiliary_values(template, target) if auxiliary_values else {}
     for entity in template.auxiliary_semantic_plan.entities:
         party_path = entity.target_party_path
-        if party_path is None or party_path in restored_paths:
+        if party_path is not None and auxiliary_values:
+            party = _resolve_path(target, party_path)
+            for member in entity.members:
+                if (
+                    member.logical_key in auxiliary_values
+                    and _party_exposes_auxiliary_field(party, member.field)
+                    and auxiliary_values[member.logical_key]
+                    != projected_context.get(member.logical_key)
+                ):
+                    raise ValueError(
+                        f"auxiliary context cannot override target field: {member.logical_key}"
+                    )
+        if party_path is None:
             continue
-        proposed_party = deepcopy(_resolve_path(target, party_path))
-        if not isinstance(proposed_party, Mapping):
+        party = _resolve_path(target, party_path)
+        if not isinstance(party, Mapping):
             raise ValueError(f"auxiliary target party is not an object: {party_path}")
         missing = tuple(
             member
             for member in entity.members
             if member.field in contextual_fields
-            and not _party_exposes_auxiliary_field(proposed_party, member.field)
+            and not _party_exposes_auxiliary_field(party, member.field)
+            and (auxiliary_values is None or member.logical_key not in auxiliary_values)
         )
-        if not missing:
-            continue
-        source_party = deepcopy(_resolve_path(source_target, party_path))
-        if canonical_json_bytes(source_party) == canonical_json_bytes(proposed_party):
-            continue
-        _set_path(target, party_path, source_party)
-        restored_paths.add(party_path)
-        adaptations.append(
-            TargetAdaptation.model_validate(
-                {
-                    "target_path": party_path,
-                    "reason": (
-                        "atomic party auxiliary-facet constraint; the compiled template prints "
-                        "identity context absent from the target schema, so retaining the full "
-                        "source party prevents a hybrid identity: "
-                        + ", ".join(sorted(member.logical_key for member in missing))
-                    ),
-                    "source_value": source_party,
-                    "proposed_value": proposed_party,
-                    "adapted_value": source_party,
-                }
+        if missing and party != _resolve_path(source_target, party_path):
+            keys = ", ".join(sorted(member.logical_key for member in missing))
+            raise ValueError(
+                f"synthetic party has unresolved auxiliary identity context: {party_path}: "
+                f"{keys}; source-party restoration is forbidden"
             )
-        )
-    return tuple(adaptations)
 
 
-def _adapt_target_compatibility(
+def _validate_target_compatibility(
     *,
     source: bytes,
     source_target: Mapping[str, Any],
-    target: dict[str, Any],
+    target: Mapping[str, Any],
     template: CertifiedSemanticTemplate,
-) -> tuple[TargetAdaptation, ...]:
-    adaptations = list(
-        _adapt_unrepresented_party_facets(
-            source_target=source_target,
-            target=target,
-            template=template,
-        )
+    auxiliary_values: Mapping[str, str] | None = None,
+) -> None:
+    """Check the frozen target without replacing any proposed fact by source data."""
+    _validate_unrepresented_party_facets(
+        source_target=source_target,
+        target=target,
+        template=template,
+        auxiliary_values=auxiliary_values,
     )
     deterministic_modes = {
         "single_surface",
@@ -2824,318 +3271,32 @@ def _adapt_target_compatibility(
         "normalized_projected_surface",
     }
     for binding in template.bindings:
-        if binding.realization.mode not in deterministic_modes:
+        partition = lexical_partitions.partition(binding)
+        if binding.realization.mode not in deterministic_modes and partition is None:
             continue
-        semantic_equipment_paths = tuple(
-            path
-            for path in binding.target_paths
-            if not _path_exists(target, path)
-            and _semantic_equipment_value(target, path) is not None
-        )
-        if semantic_equipment_paths:
-            # V5 removes the legacy printed description when semantic categories are present.
-            # First test whether those categories fit the certified legacy surface. If they do
-            # not, retain the source equipment semantics rather than asking a model to violate an
-            # immutable document-native format contract.
-            try:
-                output = _render_agent_target_binding(
-                    binding,
-                    source_target=source_target,
-                    target=target,
-                )
-                _validate_binding_format(
-                    source=source,
-                    template=template.byte_template,
-                    output=output,
-                )
-            except (KeyError, TypeError, ValueError) as error:
-                source_containers = cast(
-                    Sequence[Mapping[str, Any]],
-                    cast(Mapping[str, Any], source_target["documentPatch"]).get("containers") or (),
-                )
-                target_containers = cast(
-                    Sequence[dict[str, Any]],
-                    cast(dict[str, Any], target["documentPatch"]).get("containers") or (),
-                )
-                indexes: set[int] = set()
-                for path in semantic_equipment_paths:
-                    match = re.fullmatch(
-                        r"documentPatch\.containers\[([0-9]+)\]\.typeDescription", path
-                    )
-                    if match is None:
-                        raise ValueError(
-                            f"invalid semantic equipment compatibility path: {path}"
-                        ) from error
-                    indexes.add(int(match.group(1)))
-                for index in sorted(indexes):
-                    if index >= len(source_containers) or index >= len(target_containers):
-                        raise ValueError(
-                            "semantic equipment compatibility index is absent"
-                        ) from error
-                    source_container = source_containers[index]
-                    target_container = target_containers[index]
-                    description = source_container.get("typeDescription")
-                    if not isinstance(description, str):
-                        raise ValueError("source semantic equipment surface is absent") from error
-                    reviewed = review_source_equipment_surface(
-                        description,
-                        temperature_present=source_container.get("temperatureSetpoint") is not None,
-                    )
-                    if reviewed.size_category is None or reviewed.type_category is None:
-                        raise ValueError(
-                            "source semantic equipment surface is not registry-resolved"
-                        ) from error
-                    for field, adapted in (
-                        ("sizeCategory", reviewed.size_category),
-                        ("typeCategory", reviewed.type_category),
-                    ):
-                        path = f"documentPatch.containers[{index}].{field}"
-                        proposed = target_container.get(field)
-                        target_container[field] = adapted
-                        adaptations.append(
-                            TargetAdaptation.model_validate(
-                                {
-                                    "target_path": path,
-                                    "reason": (
-                                        "compiled legacy equipment surface cannot realize the "
-                                        "proposed semantic category; retained its reviewed source "
-                                        f"semantics ({reviewed.review_rule}): "
-                                        f"{type(error).__name__}: {error}"
-                                    ),
-                                    "source_value": adapted,
-                                    "proposed_value": proposed,
-                                    "adapted_value": adapted,
-                                }
-                            )
-                        )
-                output = _render_agent_target_binding(
-                    binding,
-                    source_target=source_target,
-                    target=target,
-                )
-                _validate_binding_format(
-                    source=source,
-                    template=template.byte_template,
-                    output=output,
-                )
+        if auxiliary_values is None and partition is not None:
+            # Preliminary structured proposals have not generated language yet.
+            # The completed target must pass with its explicit fragment receipt.
             continue
         try:
-            output = _render_target_binding(binding, target)
+            if _has_semantic_equipment_values(binding, target):
+                output = _render_agent_target_binding(
+                    binding, source_target=source_target, target=target
+                )
+            else:
+                output = _render_target_binding(
+                    binding,
+                    target,
+                    auxiliary_values=auxiliary_values,
+                    source=source,
+                    template=template,
+                )
             _validate_binding_format(source=source, template=template.byte_template, output=output)
         except (KeyError, TypeError, ValueError) as error:
-            party_paths = {
-                root
-                for snapshot in binding.realization.target_values
-                if (root := _party_object_path(snapshot.target_path)) is not None
-            }
-            non_party_paths = {
-                snapshot.target_path
-                for snapshot in binding.realization.target_values
-                if _party_object_path(snapshot.target_path) is None
-            }
-            if party_paths:
-                if len(party_paths) != 1 or non_party_paths:
-                    raise ValueError(
-                        "one unrenderable binding spans multiple semantic party objects"
-                    ) from error
-                party_path = next(iter(party_paths))
-                source_party = deepcopy(_resolve_path(source_target, party_path))
-                proposed_party = deepcopy(_resolve_path(target, party_path))
-                if canonical_json_bytes(source_party) == canonical_json_bytes(proposed_party):
-                    raise ValueError(
-                        f"source party is not renderable under its certified plan: "
-                        f"{binding.logical_key}: {error}"
-                    ) from error
-                _set_path(target, party_path, source_party)
-                adaptations.append(
-                    TargetAdaptation.model_validate(
-                        {
-                            "target_path": party_path,
-                            "reason": (
-                                "atomic party representability constraint; restoring the full "
-                                "source party prevents a hybrid identity after one compiled "
-                                f"surface rejected the proposal: {type(error).__name__}: {error}"
-                            ),
-                            "source_value": source_party,
-                            "proposed_value": proposed_party,
-                            "adapted_value": source_party,
-                        }
-                    )
-                )
-                output = _render_target_binding(binding, target)
-                _validate_binding_format(
-                    source=source,
-                    template=template.byte_template,
-                    output=output,
-                )
-                continue
-            for snapshot in binding.realization.target_values:
-                try:
-                    proposed = _resolve_path(target, snapshot.target_path)
-                except ValueError:
-                    proposed = None
-                if proposed == snapshot.source_value:
-                    raise ValueError(
-                        f"source value is not renderable under its certified plan: "
-                        f"{binding.logical_key}: {error}"
-                    ) from error
-                _set_path(target, snapshot.target_path, snapshot.source_value)
-                adaptations.append(
-                    TargetAdaptation.model_validate(
-                        {
-                            "target_path": snapshot.target_path,
-                            "reason": (
-                                f"compiled descendant compatibility constraint: "
-                                f"{type(error).__name__}: {error}"
-                            ),
-                            "source_value": snapshot.source_value,
-                            "proposed_value": proposed,
-                            "adapted_value": snapshot.source_value,
-                        }
-                    )
-                )
-            output = _render_target_binding(binding, target)
-            _validate_binding_format(source=source, template=template.byte_template, output=output)
-    return tuple(adaptations)
-
-
-def _positive_proportional_partition(total: int, weights: Sequence[int]) -> tuple[int, ...]:
-    """Partition a positive total without dropping any formal interval.
-
-    Aggregate serial ranges carry one independently printed interval per source member.  Every
-    interval must therefore retain cardinality of at least one.  The remaining cardinality is
-    distributed in exact integer arithmetic using largest remainders, with source order as the
-    deterministic tie-breaker.
-    """
-
-    if total < len(weights) or not weights or any(weight <= 0 for weight in weights):
-        raise ValueError("aggregate range total cannot preserve every positive interval")
-    remaining = total - len(weights)
-    weight_total = sum(weights)
-    quotients = tuple(divmod(remaining * weight, weight_total) for weight in weights)
-    allocated = [1 + quotient for quotient, _ in quotients]
-    remainder = total - sum(allocated)
-    order = sorted(range(len(weights)), key=lambda index: (-quotients[index][1], index))
-    for index in order[:remainder]:
-        allocated[index] += 1
-    if sum(allocated) != total or any(value <= 0 for value in allocated):
-        raise ValueError("aggregate range partition failed its exact-total contract")
-    return tuple(allocated)
-
-
-def _render_range_cardinality(value: str, cardinalities: Sequence[int]) -> str:
-    surfaces = inclusive_range_surfaces(value)
-    if len(surfaces) != len(cardinalities):
-        raise ValueError("formal range surface count changed during adaptation")
-    rendered = value
-    for surface, cardinality in reversed(tuple(zip(surfaces, cardinalities, strict=True))):
-        if cardinality <= 0:
-            raise ValueError("formal range cardinality must remain positive")
-        direction = 1 if surface.end >= surface.start else -1
-        new_end = surface.start + direction * (cardinality - 1)
-        rendered_end = render_number_surface(
-            value[surface.end_start : surface.end_end],
-            surface.end,
-            new_end,
-        )
-        rendered = surface.replace_end(rendered, rendered_end)
-    if tuple(inclusive_range_cardinalities(rendered)) != tuple(cardinalities):
-        raise ValueError("adapted formal ranges do not realize their assigned cardinalities")
-    return rendered
-
-
-def _adapt_target_coherence_ranges(
-    *,
-    source_target: Mapping[str, Any],
-    target: dict[str, Any],
-    template: CertifiedSemanticTemplate,
-) -> tuple[TargetAdaptation, ...]:
-    """Reconcile formal printed ranges with changed structured quantities.
-
-    A linguistic target may legitimately change a package quantity while retaining the source
-    number of printed serial ranges.  The compiled coherence contract proves which range members
-    jointly encode that quantity, allowing this reconciliation to be deterministic rather than
-    delegated to an editor model.
-    """
-
-    by_key = {binding.logical_key: binding for binding in template.bindings}
-    adaptations: list[TargetAdaptation] = []
-    for constraint in template.coherence_constraints:
-        if not isinstance(constraint, (InclusiveRangeConstraint, AggregateRangeConstraint)):
-            continue
-        expected_total = 0
-        for path in constraint.dependency_paths:
-            value = _resolve_path(target, path)
-            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-                raise ValueError(f"coherence range dependency is not a positive integer: {path}")
-            expected_total += value
-
-        ordered_paths: list[str] = []
-        target_backed = True
-        for logical_key in constraint.member_logical_keys:
-            binding = by_key.get(logical_key)
-            if binding is None:
-                raise ValueError(f"coherence range member has no binding: {logical_key}")
-            range_paths = tuple(
-                snapshot.target_path
-                for snapshot in binding.realization.target_values
-                if isinstance(snapshot.source_value, str)
-                and inclusive_range_cardinalities(snapshot.source_value)
-            )
-            if not range_paths:
-                target_backed = False
-            ordered_paths.extend(range_paths)
-        if not target_backed:
-            # Source-only range members are one joint residual-rendering problem. Their exact
-            # values do not exist in the structured target and are reconciled by that typed route.
-            continue
-        ordered_paths = list(dict.fromkeys(ordered_paths))
-        if not ordered_paths:
-            raise ValueError("coherence range contract has no target-backed member")
-
-        values: dict[str, str] = {}
-        weights: list[int] = []
-        surface_counts: dict[str, int] = {}
-        for path in ordered_paths:
-            value = _resolve_path(target, path)
-            if not isinstance(value, str):
-                raise ValueError(f"coherence range member is not textual: {path}")
-            cardinalities = inclusive_range_cardinalities(value)
-            if not cardinalities:
-                raise ValueError(f"coherence range member has no formal interval: {path}")
-            values[path] = value
-            surface_counts[path] = len(cardinalities)
-            weights.extend(cardinalities)
-        if sum(weights) == expected_total:
-            continue
-
-        assigned = _positive_proportional_partition(expected_total, weights)
-        cursor = 0
-        for path in ordered_paths:
-            count = surface_counts[path]
-            path_cardinalities = assigned[cursor : cursor + count]
-            cursor += count
-            proposed = values[path]
-            adapted = _render_range_cardinality(proposed, path_cardinalities)
-            _set_path(target, path, adapted)
-            adaptations.append(
-                TargetAdaptation.model_validate(
-                    {
-                        "target_path": path,
-                        "reason": (
-                            "compiled inclusive-range coherence contract reconciled "
-                            f"{len(weights)} printed interval(s) to structured total "
-                            f"{expected_total}"
-                        ),
-                        "source_value": _resolve_path(source_target, path),
-                        "proposed_value": proposed,
-                        "adapted_value": adapted,
-                    }
-                )
-            )
-        if cursor != len(assigned):
-            raise ValueError("coherence range adaptation did not consume every interval")
-    return tuple(adaptations)
+            raise ValueError(
+                f"synthetic target is incompatible with binding {binding.logical_key} "
+                f"at {binding.target_paths}: {error}; target not modified"
+            ) from error
 
 
 def _case_files(template_root: Path, document_id: str) -> tuple[bytes, dict[str, Any], bytes]:
@@ -3174,50 +3335,58 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
     if len(set(complete_document_ids)) != len(complete_document_ids):
         raise ValueError("template catalog document IDs are not unique")
 
-    planned_inputs: tuple[tuple[str, str, dict[str, Any] | None, str], ...]
     sample_plan = config.inputs.sample_plan
     sample_plan_run = config.inputs.sample_plan_run
+    target_run = config.inputs.synthetic_target_run
+    synthetic_targets = config.inputs.synthetic_targets
+    if target_run is None or synthetic_targets is None:
+        raise ValueError(
+            "complete synthetic targets are required; source-copy substitution is forbidden"
+        )
+    target_root = _validate_committed_run(project_root, target_run)
+    target_path = resolve_input(project_root, synthetic_targets.path)
+    if target_root not in target_path.parents:
+        raise ValueError("synthetic-target file is outside its pinned committed run")
+    if sha256_file(target_path) != synthetic_targets.sha256:
+        raise ValueError("synthetic-target file hash differs")
+    targets: dict[str, tuple[str, dict[str, Any]]] = {}
+    auxiliary_by_sample: dict[str, dict[str, str]] = {}
+    numeric_by_sample: dict[str, dict[str, PreparedNumeric]] = {}
+    for row in _read_jsonl(target_path, records=synthetic_targets.records):
+        sample_id = row.get("sampleId") if sample_plan is not None else row.get("baseDocumentId")
+        source_id = row.get("sourceDocumentId") if sample_plan is not None else sample_id
+        target = row.get("target")
+        if not isinstance(sample_id, str) or not sample_id or not isinstance(source_id, str):
+            raise ValueError("synthetic-target row lacks its sample/source identity")
+        if not isinstance(target, dict):
+            raise ValueError(f"synthetic-target row lacks a complete target: {sample_id}")
+        if sample_id in targets:
+            raise ValueError(f"duplicate synthetic target for {sample_id}")
+        if sha256_bytes(canonical_json_bytes(target)) != row.get("targetSha256"):
+            raise ValueError(f"synthetic-target row hash differs: {sample_id}")
+        targets[sample_id] = (source_id, target)
+        auxiliary = row.get("auxiliaryValues", {})
+        if not isinstance(auxiliary, dict) or any(
+            not isinstance(k, str) or not isinstance(v, str) or not v.strip()
+            for k, v in auxiliary.items()
+        ):
+            raise ValueError(f"invalid auxiliary semantic context: {sample_id}")
+        auxiliary_by_sample[sample_id] = auxiliary
+        numeric_by_sample[sample_id] = {
+            key: PreparedNumeric.model_validate_json(canonical_json_bytes(value), strict=True)
+            for key, value in row.get("numericAuxiliary", {}).items()
+        }
+
+    selected: list[tuple[str, str]] = []
     if sample_plan is None:
-        target_run = config.inputs.synthetic_target_run
-        synthetic_targets = config.inputs.synthetic_targets
-        assert target_run is not None and synthetic_targets is not None
-        target_root = _validate_committed_run(project_root, target_run)
-        target_path = resolve_input(project_root, synthetic_targets.path)
-        if target_root not in target_path.parents:
-            raise ValueError("synthetic-target file is outside its pinned committed run")
-        if sha256_file(target_path) != synthetic_targets.sha256:
-            raise ValueError("synthetic-target file hash differs")
-        target_rows = _read_jsonl(target_path, records=synthetic_targets.records)
-        targets: dict[str, dict[str, Any]] = {}
-        for row in target_rows:
-            document_id = row.get("baseDocumentId")
-            target = row.get("target")
-            if not isinstance(document_id, str) or not isinstance(target, dict):
-                raise ValueError("synthetic-target row lacks a document ID or target")
-            if document_id in targets:
-                raise ValueError(f"duplicate synthetic target for {document_id}")
-            if sha256_bytes(canonical_json_bytes(target)) != row.get("targetSha256"):
-                raise ValueError(f"synthetic-target row hash differs: {document_id}")
-            targets[document_id] = target
         if len(complete_catalog) < config.workflow.documents:
-            raise ValueError(
-                "template catalog has fewer certified rows than the requested descendant cohort"
-            )
-        planned_inputs = tuple(
-            (
-                document_id,
-                document_id,
-                targets.get(document_id),
-                (
-                    "existing_linguistic_target_carrier_restored"
-                    if document_id in targets
-                    else "controlled_source_variant"
-                ),
-            )
+            raise ValueError("template catalog has fewer certified rows than the requested cohort")
+        selected = [
+            (document_id, document_id)
             for document_id in cast(
                 tuple[str, ...], complete_document_ids[: config.workflow.documents]
             )
-        )
+        ]
     else:
         assert sample_plan_run is not None
         plan_root = _validate_committed_run(project_root, sample_plan_run)
@@ -3258,19 +3427,25 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         source_variants = tuple(plan_by_sample.values())
         if len(source_variants) != len(set(source_variants)):
             raise ValueError("sample plan repeats a source-document/variant identity")
-        planned_rows: list[tuple[str, str, dict[str, Any] | None, str]] = []
-        for row in plan_rows:
-            sample_id = cast(str, row["sampleId"])
-            source_document_id = cast(str, row["sourceDocumentId"])
-            planned_rows.append(
-                (
-                    sample_id,
-                    source_document_id,
-                    None,
-                    "planned_v5_controlled_source_variant",
-                )
+        selected = [
+            (cast(str, row["sampleId"]), cast(str, row["sourceDocumentId"])) for row in plan_rows
+        ]
+        if set(targets) != {sample_id for sample_id, _ in selected}:
+            raise ValueError("complete synthetic targets do not cover the sample plan exactly")
+
+    planned_inputs: list[tuple[str, str, dict[str, Any], str]] = []
+    for sample_id, source_id in selected:
+        if sample_id not in targets:
+            raise ValueError(
+                f"missing completed synthetic target: {sample_id}; "
+                "source-copy substitution is forbidden"
             )
-        planned_inputs = tuple(planned_rows)
+        actual_source_id, target = targets[sample_id]
+        if actual_source_id != source_id:
+            raise ValueError(
+                f"synthetic-target source identity differs from sample plan: {sample_id}"
+            )
+        planned_inputs.append((sample_id, source_id, target, "complete_synthetic_target"))
 
     catalog_document_ids = frozenset(cast(tuple[str, ...], complete_document_ids))
     unknown_sources = sorted(
@@ -3293,61 +3468,53 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
             ):
                 raise ValueError(f"template/source identity differs: {source_document_id}")
             _validate_canonical_target(source_target)
+            template = effective_realization_template(template)
             cached = (source, source_target, template)
             case_cache[source_document_id] = cached
         source, source_target, template = cached
-        comparison_source_target = source_target
-        if planned_target is not None:
-            proposed_target = deepcopy(planned_target)
-        elif sample_plan is not None:
-            latest_source_target = latest_target_cache.get(source_document_id)
-            if latest_source_target is None:
-                latest_source_target = latest_target_from_source(source_target)
-                latest_target_cache[source_document_id] = latest_source_target
-            comparison_source_target = latest_source_target
-            proposed_target = _controlled_target(
-                source_target=latest_source_target,
-                template=template,
-                seed=config.workflow.controlled_target_seed,
-                variant_identity=sample_id,
-            )
-        else:
-            proposed_target = _controlled_target(
-                source_target=source_target,
-                template=template,
-                seed=config.workflow.controlled_target_seed,
-            )
-        proposed_sha = sha256_bytes(canonical_json_bytes(proposed_target))
-        target = deepcopy(proposed_target)
-        adaptations: list[TargetAdaptation] = []
-        carrier_adaptation = _restore_carrier(source_target=source_target, target=target)
-        if carrier_adaptation is not None:
-            adaptations.append(carrier_adaptation)
-        adaptations.extend(
-            _adapt_target_coherence_ranges(
-                source_target=source_target,
-                target=target,
-                template=template,
-            )
+        comparison_source_target = latest_target_cache.get(source_document_id)
+        if comparison_source_target is None:
+            comparison_source_target = latest_target_from_source(source_target)
+            latest_target_cache[source_document_id] = comparison_source_target
+        target = deepcopy(planned_target)
+        auxiliary_values = auxiliary_by_sample[sample_id]
+        numeric_auxiliary = numeric_by_sample[sample_id]
+        known_auxiliary = {
+            member.logical_key
+            for entity in template.auxiliary_semantic_plan.entities
+            for member in entity.members
+        }
+        projection_values = projected_auxiliary_values(template, target)
+        known_auxiliary.update(projection_values)
+        known_auxiliary.update(lexical_partitions.known_keys(template))
+        if set(auxiliary_values) - known_auxiliary:
+            raise ValueError(f"unknown auxiliary semantic keys: {sample_id}")
+        if any(auxiliary_values.get(key) != value for key, value in projection_values.items()):
+            raise ValueError(f"target-derived auxiliary context receipt differs: {sample_id}")
+        if target.get("schemaVersion") != config.workflow.target_schema_version:
+            raise ValueError(f"prepared target is not latest-schema: {sample_id}")
+        _validate_canonical_target(target)
+        proposed_sha = sha256_bytes(canonical_json_bytes(target))
+        _require_source_carrier(source_target=source_target, target=target)
+        require_complete_variation(comparison_source_target, target)
+        _validate_target_compatibility(
+            source=source,
+            source_target=source_target,
+            target=target,
+            template=template,
+            auxiliary_values=auxiliary_values,
         )
-        adaptations.extend(
-            _adapt_target_compatibility(
-                source=source,
-                source_target=source_target,
-                target=target,
-                template=template,
-            )
+        validate_render_coherence(
+            bindings=template.bindings,
+            constraints=template.coherence_constraints,
+            source_target=source_target,
+            target=target,
+            outputs=None,
         )
         mismatches = printed_topology_mismatches(comparison_source_target, target)
         if mismatches:
             details = ", ".join(f"{row.path}:{row.value_kind}" for row in mismatches)
             raise ValueError(f"prepared target changes printed topology for {sample_id}: {details}")
-        _validate_canonical_target(target)
-        if (
-            config.workflow.target_schema_version is not None
-            and target.get("schemaVersion") != config.workflow.target_schema_version
-        ):
-            raise ValueError(f"prepared target is not latest-schema: {sample_id}")
         source_leaves = _flatten_leaves(comparison_source_target)
         target_leaves = _flatten_leaves(target)
         changed = {
@@ -3391,13 +3558,19 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 "source_target_sha256": sha256_bytes(canonical_json_bytes(source_target)),
                 "proposed_target_sha256": proposed_sha,
                 "prepared_target_sha256": target_sha,
+                "auxiliary_values_sha256": sha256_bytes(canonical_json_bytes(auxiliary_values)),
+                "numeric_auxiliary_sha256": sha256_bytes(
+                    canonical_json_bytes(
+                        {k: v.model_dump(mode="json") for k, v in numeric_auxiliary.items()}
+                    )
+                ),
                 "synthetic_document_id": synthetic_id,
                 "topology_mismatch_count": 0,
                 "target_leaf_count": len(target_leaves),
                 "changed_target_leaf_count": len(changed),
                 "carrier_leaf_count": len(carrier_source),
                 "carrier_changed_leaf_count": 0,
-                "compatibility_adaptations": tuple(adaptations),
+                "compatibility_adaptations": (),
                 "training_eligible": False,
             }
         )
@@ -3411,6 +3584,8 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 target=target,
                 template=template,
                 target_receipt=receipt,
+                auxiliary_values=auxiliary_values,
+                numeric_auxiliary=numeric_auxiliary,
             )
         )
     return tuple(prepared)
@@ -3582,24 +3757,50 @@ def _residual_payload(*, case: PreparedCase, plan: RenderPlan) -> dict[str, Any]
         "documentId": case.document_id,
         "fixedCarrier": case.template.carrier.model_dump(mode="json"),
         "syntheticTarget": case.target,
+        "auxiliaryValues": dict(case.auxiliary_values),
+        "numericAuxiliary": {
+            k: v.model_dump(mode="json") for k, v in case.numeric_auxiliary.items()
+        },
         "residualBindings": tuple(rows),
     }
 
 
 def _residual_output_type(bindings: Sequence[SemanticBinding]) -> type[BaseModel]:
     slots = tuple(slot for binding in bindings for slot in binding.occurrences)
+    phone_slots = {s.slot_id for b in bindings if b.value_kind == "phone" for s in b.occurrences}
     if not slots:
         raise ValueError("cannot build a residual schema without slots")
     if len({slot.slot_id for slot in slots}) != len(slots):
         raise ValueError("residual output schema contains duplicate slot IDs")
+
+    def text_pattern(source: str) -> str:
+        # A semantic value is not another serialized JSON string. Literal slash-n
+        # appeared when models tried to encode the host-owned line layout.
+        slash = r"\\" if "\\" not in source else ""
+        forbidden = r"\x00-\x1f\x7f-\x9f" + slash
+        return rf"^[^\s{forbidden}](?:[^{forbidden}]*[^\s{forbidden}])?$"
+
     fields: dict[str, Any] = {
         slot.slot_id: (
             str,
             Field(
                 min_length=1,
+                pattern=(
+                    r"^\+[0-9][0-9 ().-]*[0-9]$"
+                    if slot.slot_id in phone_slots
+                    else text_pattern(slot.source_text)
+                ),
                 description=(
                     f"Semantic replacement content for {slot.semantic_role}; "
                     f"source render policy is {slot.render_policy}."
+                    " Use spaces between semantic words. The host owns all line breaks; "
+                    "do not encode or escape newlines, tabs, or control separators."
+                    + (
+                        " Return one valid international phone starting with +, consistent with "
+                        "the owner's country; no extensions or alternative numbers."
+                        if slot.slot_id in phone_slots
+                        else ""
+                    )
                 ),
             ),
         )
@@ -3736,6 +3937,16 @@ def _postprocess_residual_outputs(
         replacements: dict[str, str] = {}
         for slot in binding.occurrences:
             candidate = raw_output[slot.slot_id]
+            if INVALID_TEXT_CONTROL.search(candidate):
+                raise ValueError(
+                    f"residual slot {slot.slot_id} contains an invalid control character; "
+                    "return ordinary printable text with spaces, not control separators"
+                )
+            if "\\" not in slot.source_text and "\\" in candidate:
+                raise ValueError(
+                    f"residual slot {slot.slot_id} introduced a backslash/encoded separator; "
+                    "return plain semantic words separated by spaces; the host owns line layout"
+                )
             if slot.render_policy == "opaque_identifier":
                 replacement = _shape_alphanumeric_like_source(slot.source_text, candidate)
             else:
@@ -3879,25 +4090,13 @@ def _numeric_interpretations(value: str) -> tuple[Decimal, ...]:
     matches = tuple(match.group(0).strip() for match in _NUMBER.finditer(value))
     if len(matches) != 1:
         return ()
-    compact = matches[0].replace(" ", "").replace("\u00a0", "").replace("'", "")
-    variants = {compact}
-    if "." in compact and "," in compact:
-        decimal_separator = "." if compact.rfind(".") > compact.rfind(",") else ","
-        grouping_separator = "," if decimal_separator == "." else "."
-        variants.add(compact.replace(grouping_separator, "").replace(decimal_separator, "."))
-    elif compact.count(",") == 1:
-        variants.update({compact.replace(",", "."), compact.replace(",", "")})
-    elif compact.count(".") == 1:
-        variants.update({compact, compact.replace(".", "")})
-    output: list[Decimal] = []
-    for variant in variants:
-        try:
-            parsed = Decimal(variant)
-        except InvalidOperation:
-            continue
-        if parsed.is_finite() and parsed not in output:
-            output.append(parsed)
-    return tuple(output)
+    return tuple(
+        dict.fromkeys(
+            parsed
+            for parsed, _decimal, _grouping, _places in numeric_surface_interpretations(matches[0])
+            if parsed.is_finite()
+        )
+    )
 
 
 def _numeric_value(value: JsonValue) -> Decimal:
@@ -3911,15 +4110,6 @@ def _numeric_value(value: JsonValue) -> Decimal:
         candidates = _numeric_interpretations(value)
         if len(candidates) == 1:
             return candidates[0]
-        if candidates:
-            # Monetary and measurement surfaces conventionally use the interpretation with
-            # the smallest absolute magnitude only when one separator can be decimal/grouping.
-            # Prefer a fractional interpretation when it is available.
-            fractional = tuple(
-                candidate for candidate in candidates if candidate != candidate.to_integral()
-            )
-            if len(fractional) == 1:
-                return fractional[0]
         word_value = _number_word_value(value)
         if word_value is not None:
             return Decimal(word_value)
@@ -4005,6 +4195,17 @@ def _number_word_value(value: str) -> int | None:
     tokens = tuple(re.findall(r"[a-z]+", value.casefold()))
     if not tokens:
         return None
+    if "and" in tokens:
+        # British conjunctions may bridge a hundreds/thousands group to its
+        # remainder; an arbitrary conjunction is not a numeric dependency.
+        for index, token in enumerate(tokens):
+            if token == "and" and (
+                index == 0
+                or index == len(tokens) - 1
+                or tokens[index - 1] not in {"hundred", "thousand", "million"}
+            ):
+                return None
+        tokens = tuple(token for token in tokens if token != "and")
     small = {
         word: number
         for number, word in enumerate(
@@ -4085,7 +4286,7 @@ def _number_word_phrase(value: str) -> tuple[int, int, int]:
 def _pluralize_number_word_noun(value: str, *, number: int) -> str:
     match = re.match(
         r"(?i)^(?P<gap>\s*)(?P<noun>container|package|pallet|carton|crate|drum|"
-        r"bundle|case|piece|roll|sack)(?P<suffix>\(s\)|s)?\b",
+        r"bundle|case|piece|roll|sack)(?P<suffix>\(s\)|s)?(?![A-Za-z])",
         value,
     )
     if match is None or match.group("suffix") == "(s)":
@@ -4101,25 +4302,18 @@ def _pluralize_number_word_noun(value: str, *, number: int) -> str:
     return match.group("gap") + replacement + value[match.end() :]
 
 
-def _render_number_word_auxiliary(
-    binding: SemanticBinding, stream: DeterministicStream
-) -> BindingOutput:
-    old, _start, _end = _number_word_phrase(binding.occurrences[0].source_text)
-    candidate = 1 + stream.derive(binding.logical_key).randbelow(9)
-    new = candidate if candidate != old else candidate % 9 + 1
-    replacements: dict[str, str] = {}
-    for slot in binding.occurrences:
-        parsed, start, end = _number_word_phrase(slot.source_text)
-        if parsed != old:
-            raise ValueError("repeated number-word surfaces encode different values")
-        rendered_words = _case_like(slot.source_text[start:end], _number_to_words(new))
-        suffix = _pluralize_number_word_noun(slot.source_text[end:], number=new)
-        replacements[slot.slot_id] = slot.source_text[:start] + rendered_words + suffix
-    return BindingOutput(replacements=replacements, canonical_value=new)
-
-
 def _numeric_surface_values(value: str) -> tuple[Decimal, ...]:
-    values = list(_numeric_interpretations(value))
+    # A composite surface can contain several numeric facts. Digits inside an
+    # identifier are not numeric evidence (e.g. TTNU6462679 is not a temperature).
+    values = list(
+        dict.fromkeys(
+            parsed
+            for match in re.finditer(
+                r"(?<![A-Za-z0-9])[-+]?[0-9]+(?:[.,][0-9]+)*(?![A-Za-z0-9])", value
+            )
+            for parsed in _numeric_interpretations(match.group())
+        )
+    )
     word_value = _number_word_value(value)
     if word_value is not None and Decimal(word_value) not in values:
         values.append(Decimal(word_value))
@@ -4209,14 +4403,32 @@ def _derivation_numeric_values(
     target: Mapping[str, Any],
     bindings: Mapping[str, SemanticBinding],
     outputs: Mapping[str, BindingOutput],
+    numeric_auxiliary: Mapping[str, PreparedNumeric] | None = None,
 ) -> tuple[Decimal, Decimal]:
     derivation = binding.derivation
     if derivation in {"container_count", "package_count"}:
-        if len(binding.dependency_paths) == 1:
-            path = binding.dependency_paths[0]
-            return Decimal(_dependency_count(source_target, path)), Decimal(
-                _dependency_count(target, path)
-            )
+        if binding.dependency_paths:
+
+            def count_dependencies(document: Mapping[str, Any]) -> Decimal:
+                collection = "containers" if derivation == "container_count" else "cargoPackages"
+                roots = [
+                    re.match(rf"^(documentPatch\.{collection}\[\d+\])(?:\.|$)", path)
+                    for path in binding.dependency_paths
+                ]
+                if all(match is not None for match in roots):
+                    for match in roots:
+                        if match is not None:
+                            _resolve_path(document, match.group(1))
+                    return Decimal(len({match.group(1) for match in roots if match is not None}))
+                values = [_resolve_path(document, path) for path in binding.dependency_paths]
+                if len(values) == 1 and isinstance(values[0], (Mapping, list)):
+                    return Decimal(_dependency_count(document, binding.dependency_paths[0]))
+                field = "containerNumber" if derivation == "container_count" else "packageId"
+                if all(path.endswith("." + field) for path in binding.dependency_paths):
+                    return Decimal(len({canonical_json_bytes(value) for value in values}))
+                raise ValueError("count dependencies do not identify distinct typed entities")
+
+            return count_dependencies(source_target), count_dependencies(target)
         if binding.dependency_bindings and not binding.dependency_paths:
             count = Decimal(len(binding.dependency_bindings))
             return count, count
@@ -4240,34 +4452,261 @@ def _derivation_numeric_values(
         raise ValueError(f"derivation is not a path-based numeric sum: {derivation}")
     source_values: list[Decimal] = []
     target_values: list[Decimal] = []
-    for path in binding.dependency_paths:
+    if (
+        derivation in {"sum_gross_weight", "sum_net_weight", "sum_volume"}
+        and binding.dependency_paths
+    ):
+        old_values = _measurement_dependency_values(binding, source_target)
+        new_values = _measurement_dependency_values(binding, target)
+        if not old_values or old_values.keys() != new_values.keys():
+            raise ValueError("typed measurement dependencies are empty or changed topology")
+        source_values.extend(old_values.values())
+        target_values.extend(new_values.values())
+    for path in () if source_values else binding.dependency_paths:
         names = filters[derivation]
+        if path.endswith(".unit") and names == frozenset({"value"}):
+            if _resolve_path(source_target, path) != _resolve_path(target, path):
+                raise ValueError("measurement derivation units changed without a conversion")
+            continue
         if names is not None and path.rsplit(".", 1)[-1] in names:
             names = None
         source_values.extend(_numeric_leaves(_resolve_path(source_target, path), names=names))
         target_values.extend(_numeric_leaves(_resolve_path(target, path), names=names))
-    if not binding.dependency_paths:
-        for key in binding.dependency_bindings:
-            dependency = bindings[key]
-            source_values.append(_first_surface_number(dependency.occurrences[0].source_text))
+    for key in binding.dependency_bindings:
+        dependency = bindings[key]
+        if dependency.target_paths and all(
+            any(
+                path == declared
+                or path.startswith(declared + ".")
+                or path.startswith(declared + "[")
+                for declared in binding.dependency_paths
+            )
+            for path in dependency.target_paths
+        ):
+            continue
+        if binding.dependency_paths and dependency.target_paths:
+            shared = set(binding.dependency_paths) & set(dependency.target_paths)
+            if shared:
+                representative = sorted(shared)[0]
+                if all(
+                    _resolve_path(document, path) == _resolve_path(document, representative)
+                    for document in (source_target, target)
+                    for path in dependency.target_paths
+                ):
+                    # A compiled scalar can also own equal allocation aliases.
+                    # Count that scalar once only after proving both equalities.
+                    continue
+            raise ValueError(
+                "numeric binding dependencies are not covered by declared target paths"
+            )
+        if numeric_auxiliary is not None and key in numeric_auxiliary:
+            source_values.append(Decimal(numeric_auxiliary[key].contract.source_value))
+            target_values.append(Decimal(numeric_auxiliary[key].value))
+        elif len(dependency.target_paths) == 1 and isinstance(
+            _resolve_path(source_target, dependency.target_paths[0]), (int, float)
+        ):
+            source_values.append(
+                Decimal(str(_resolve_path(source_target, dependency.target_paths[0])))
+            )
+            target_values.append(Decimal(str(_resolve_path(target, dependency.target_paths[0]))))
+        else:
+            source_values.append(_numeric_value(dependency.occurrences[0].source_text))
             target_values.append(_numeric_value(outputs[key].canonical_value))
     if not source_values or not target_values:
         raise ValueError(f"numeric derivation has no values: {binding.logical_key}")
     return sum(source_values, Decimal(0)), sum(target_values, Decimal(0))
 
 
-def _render_numeric_derived(
-    binding: SemanticBinding, *, old: Decimal, new: Decimal
+def _render_proven_numeric_derivation(
+    binding: SemanticBinding,
+    *,
+    source_value: Decimal,
+    target_value: Decimal,
+    source_uncertainty: Decimal = Decimal(0),
+    occurrences: Sequence[TemplateSlot] | None = None,
 ) -> BindingOutput:
+    """Source arithmetic disambiguates punctuation; never infer an arbitrary ratio."""
+    replacements = {}
+    canonical = None
+    for slot in binding.occurrences if occurrences is None else occurrences:
+        if source_value == int(source_value) and target_value == int(target_value):
+            alias = count_aliases.render_pair(
+                slot.source_text, int(source_value), int(target_value)
+            )
+            if alias is not None:
+                replacements[slot.slot_id] = _layout_like_source(slot.source_text, alias)
+                canonical = target_value
+                continue
+        candidates = []
+        for old in _numeric_interpretations(slot.source_text):
+            try:
+                step = surface_quantum(slot.source_text, old)
+            except ValueError:
+                continue
+            if source_value.quantize(step, rounding=ROUND_HALF_UP) == old or (
+                source_uncertainty > 0 and abs(source_value - old) <= step / 2 + source_uncertainty
+            ):
+                candidates.append((old, step))
+        if len(candidates) == 1:
+            old, step = candidates[0]
+            new = target_value.quantize(step, rounding=ROUND_HALF_UP)
+            replacements[slot.slot_id] = render_number_surface(slot.source_text, old, new)
+            if canonical is None:
+                canonical = new
+        elif (
+            not candidates
+            and not any(c.isdigit() for c in slot.source_text)
+            and source_value == source_value.to_integral_value()
+        ):
+            number, start, end = _number_word_phrase(slot.source_text)
+            if Decimal(number) != source_value or target_value != target_value.to_integral_value():
+                raise ValueError("number-word surface disagrees with the declared derivation")
+            replacement = (
+                slot.source_text[:start]
+                + _case_like(slot.source_text[start:end], _number_to_words(int(target_value)))
+                + _pluralize_number_word_noun(slot.source_text[end:], number=int(target_value))
+            )
+            replacements[slot.slot_id] = _layout_like_source(slot.source_text, replacement)
+            if canonical is None:
+                canonical = target_value
+        else:
+            raise ValueError(
+                "source does not prove the declared arithmetic or its printed precision: "
+                f"{binding.logical_key}"
+            )
+    if canonical is None:
+        raise ValueError("numeric derivation has no printed occurrences")
+    return BindingOutput(replacements=replacements, canonical_value=float(canonical))
+
+
+def _measurement_dependency_values(
+    binding: SemanticBinding, document: Mapping[str, Any]
+) -> dict[str, Decimal]:
+    names = {
+        "sum_gross_weight": "grossWeight",
+        "sum_net_weight": "netWeight",
+        "sum_volume": "volume",
+    }
+    if binding.derivation not in names:
+        raise ValueError("derivation is not a typed measurement sum")
+    field_name = names[binding.derivation]
+    selected = {}
+    for path in binding.dependency_paths:
+        for leaf_path, value in leaves(_resolve_path(document, path), path).items():
+            if leaf_path.endswith("." + field_name + ".value"):
+                selected[leaf_path] = _numeric_value(value)
+    return selected
+
+
+def _derivation_measurement_factor(
+    binding: SemanticBinding,
+    case: PreparedCase,
+    *,
+    value_paths: Sequence[str] = (),
+    occurrences: Sequence[TemplateSlot] | None = None,
+) -> tuple[Decimal, Decimal]:
+    """Use explicit typed input units and adjacent printed units, never a fitted ratio."""
+    if not value_paths and binding.derivation not in {
+        "sum_gross_weight",
+        "sum_net_weight",
+        "sum_volume",
+    }:
+        return Decimal(1), Decimal(0)
+    units = set()
+    numeric_values = (
+        {path: _numeric_value(_resolve_path(case.source_target, path)) for path in value_paths}
+        if value_paths
+        else _measurement_dependency_values(binding, case.source_target)
+    )
+    for path in numeric_values:
+        unit_path = path.removesuffix(".value") + ".unit"
+        old = _resolve_path(case.source_target, unit_path)
+        if _resolve_path(case.target, unit_path) != old:
+            raise ValueError("derived measurement cannot change its source unit contract")
+        units.add(old)
+    if not units:
+        return Decimal(1), Decimal(0)
+    if len(units) != 1:
+        raise ValueError("derived measurement sum mixes source units")
+    source_unit = units.pop()
+    aliases = {
+        "kilogram": r"(?:kg|kgs|kgm|kilograms?)",
+        "metric_tonne": r"(?:mt|mts|metric[ \t]+tonnes?|tonnes?)",
+        "pound": r"(?:lb|lbs|pounds?)",
+        "cubic_metre": r"(?:cbm|m3|m³|cubic[ \t]+met(?:er|re)s?)",
+        "cubic_foot": r"(?:cbf|cft|ft3|ft³|ftq|cubic[ \t]+feet)",
+    }
+    printed_units = set()
+    for slot in binding.occurrences if occurrences is None else occurrences:
+        suffix = case.source[slot.byte_end :].split(b"\n", 1)[0].decode()
+        # Only the immediately adjacent unit is context; subsequent columns
+        # or prose cannot supply a conversion for this numeric field.
+        adjacent = re.match(r"^[ \t]*[A-Za-z³0-9]+", suffix)
+        text = slot.source_text + (adjacent[0] if adjacent is not None else "")
+        for unit, pattern in aliases.items():
+            if re.search(r"(?i)(?<![A-Za-z])" + pattern + r"(?![A-Za-z])", text):
+                printed_units.add(unit)
+    if not printed_units:
+        return Decimal(1), Decimal(0)
+    if len(printed_units) != 1:
+        raise ValueError("derived measurement occurrences use differing units")
+    printed = printed_units.pop()
+    masses = {"kilogram": Decimal(1), "metric_tonne": Decimal(1000), "pound": Decimal("0.45359237")}
+    volumes = {"cubic_metre": Decimal(1), "cubic_foot": Decimal("0.028316846592")}
+    if source_unit in masses and printed in masses:
+        factor = masses[source_unit] / masses[printed]
+    elif source_unit in volumes and printed in volumes:
+        factor = volumes[source_unit] / volumes[printed]
+    else:
+        raise ValueError("derived measurement units are dimensionally incompatible")
+    uncertainty = Decimal(0)
+    if factor != 1:
+        for path, value in numeric_values.items():
+            steps = []
+            for member in case.template.bindings:
+                if path not in member.target_paths:
+                    continue
+                for slot in member.occurrences:
+                    try:
+                        steps.append(surface_quantum(slot.source_text, value))
+                    except ValueError:
+                        continue
+            if not steps:
+                raise ValueError("unit conversion lacks proven input-side printed precision")
+            uncertainty += min(steps) * factor / 2
+    return factor, uncertainty
+
+
+def _render_target_measurement(
+    binding: SemanticBinding, case: PreparedCase
+) -> BindingOutput | None:
+    """Render every typed numeric occurrence in its own proved printed unit."""
+    paths = tuple(
+        path
+        for path in binding.target_paths
+        if re.search(r"\.(grossWeight|netWeight|volume)\.value$", path)
+    )
+    if not paths or set(paths) != set(binding.target_paths):
+        return None
+    old_values = {_numeric_value(_resolve_path(case.source_target, path)) for path in paths}
+    new_values = {_numeric_value(_resolve_path(case.target, path)) for path in paths}
+    if len(old_values) != 1 or len(new_values) != 1:
+        raise ValueError("measurement binding does not identify one repeated numeric value")
+    old, new = old_values.pop(), new_values.pop()
     replacements: dict[str, str] = {}
     for slot in binding.occurrences:
-        if old == new:
-            replacement = slot.source_text
-        else:
-            replacement = render_number_surface(slot.source_text, old, new)
-        replacements[slot.slot_id] = replacement
-    canonical: JsonValue = int(new) if new == new.to_integral_value() else float(new)
-    return BindingOutput(replacements=replacements, canonical_value=canonical)
+        factor, uncertainty = _derivation_measurement_factor(
+            binding, case, value_paths=paths, occurrences=(slot,)
+        )
+        output = _render_proven_numeric_derivation(
+            binding,
+            source_value=old * factor,
+            target_value=new * factor,
+            source_uncertainty=uncertainty,
+            occurrences=(slot,),
+        )
+        replacements.update(output.replacements)
+    return BindingOutput(replacements=replacements, canonical_value=float(new))
 
 
 def _render_inclusive_range_cardinality(
@@ -4417,6 +4856,13 @@ def _render_same_as_binding(
             canonical_value=new_date.isoformat(),
         )
 
+    if binding.value_kind == "phone" and all(
+        _alphanumeric(s.source_text) == _alphanumeric(dependency.occurrences[0].source_text)
+        and s.render_policy != "opaque_identifier"
+        for s in binding.occurrences
+    ):
+        # A complete repeated phone is semantic equality, not a fixed-width ID.
+        return _render_same_value(binding, dependency_output.canonical_value)
     if binding.value_kind in {"identifier", "phone"}:
         dependency_source = _alphanumeric(dependency.occurrences[0].source_text)
         dependency_target = _alphanumeric(_scalar_surface(dependency_output.canonical_value))
@@ -4442,7 +4888,30 @@ def _render_same_as_binding(
                 offset = surface_inside_dependency[0]
                 candidate = dependency_target[offset : offset + len(source)]
             else:
-                raise ValueError("same-as identifier dependency is not uniquely embedded")
+                # A declared same-as edge may print a delimited component with
+                # an alphabetic form prefix, rather than the whole reference.
+                projections = []
+                for token in re.finditer(r"[A-Za-z0-9]+", dependency.occurrences[0].source_text):
+                    part = token.group()
+                    if not any(c.isdigit() for c in part):
+                        continue
+                    positions = tuple(re.finditer(re.escape(part), source, flags=re.IGNORECASE))
+                    if len(positions) != 1:
+                        continue
+                    hit = positions[0]
+                    if any(c.isdigit() for c in source[: hit.start()] + source[hit.end() :]):
+                        continue
+                    offset = len(
+                        _alphanumeric(dependency.occurrences[0].source_text[: token.start()])
+                    )
+                    projections.append(
+                        source[: hit.start()]
+                        + dependency_target[offset : offset + len(part)]
+                        + source[hit.end() :]
+                    )
+                if len(projections) != 1:
+                    raise ValueError("same-as identifier dependency is not uniquely embedded")
+                candidate = projections[0]
             replacements[slot.slot_id] = _shape_alphanumeric_like_source(
                 slot.source_text, candidate
             )
@@ -4459,6 +4928,12 @@ def _render_same_as_binding(
         return _render_same_value(binding, dependency_output.canonical_value)
 
     source_value = dependency.occurrences[0].source_text
+    if binding.value_kind in {"integer", "decimal_measurement"}:
+        return _render_proven_numeric_derivation(
+            binding,
+            source_value=_numeric_value(source_value),
+            target_value=_numeric_value(dependency_output.canonical_value),
+        )
     if any(
         _normalized_semantic(slot.source_text) != _normalized_semantic(source_value)
         for slot in binding.occurrences
@@ -4486,10 +4961,7 @@ def _number_to_words_value(
         cast(JsonValue, _resolve_path(target, path)) for path in binding.dependency_paths
     )
     for value in dependencies:
-        try:
-            values.add(_numeric_value(value))
-        except ValueError:
-            continue
+        values.add(_numeric_value(value))
     if len(values) != 1:
         raise ValueError(
             f"number-to-words dependency is not uniquely numeric: {binding.logical_key}"
@@ -4523,30 +4995,69 @@ def _render_one_derivation(
             raise ValueError(f"country is absent from the pinned ISO registry: {country!r}")
         return _render_same_value(binding, code)
     if derivation == "number_to_words":
+        quantities = tuple(
+            path
+            for path in binding.dependency_paths
+            if re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.quantity", path)
+        )
+        if (
+            quantities
+            and not binding.dependency_bindings
+            and all(
+                re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.(quantity|typeCategory)", path)
+                for path in binding.dependency_paths
+            )
+        ):
+            for path in binding.dependency_paths:
+                if path.endswith(".typeCategory") and (
+                    _resolve_path(case.source_target, path) != _resolve_path(case.target, path)
+                ):
+                    raise ValueError("number-word package frame cannot change its category")
+            return _render_proven_numeric_derivation(
+                binding,
+                source_value=sum(
+                    (Decimal(str(_resolve_path(case.source_target, path))) for path in quantities),
+                    Decimal(0),
+                ),
+                target_value=sum(
+                    (Decimal(str(_resolve_path(case.target, path))) for path in quantities),
+                    Decimal(0),
+                ),
+            )
         numeric = _number_to_words_value(binding, outputs, case.target)
-        if numeric != numeric.to_integral_value():
-            raise ValueError(f"number-to-words dependency is not an integer: {binding.logical_key}")
-        words = _number_to_words(int(numeric))
-        return BindingOutput(
-            replacements={
-                slot.slot_id: _layout_like_source(slot.source_text, words)
-                for slot in binding.occurrences
-            },
-            canonical_value=words,
+        source_outputs = {
+            key: BindingOutput(
+                replacements={}, canonical_value=bindings[key].occurrences[0].source_text
+            )
+            for key in binding.dependency_bindings
+        }
+        source_numeric = _number_to_words_value(binding, source_outputs, case.source_target)
+        return _render_proven_numeric_derivation(
+            binding, source_value=source_numeric, target_value=numeric
         )
     if derivation == "sum_monetary_amounts":
+        if binding.dependency_paths or not binding.dependency_bindings:
+            raise ValueError("monetary sum requires explicit amount binding dependencies")
         new = sum(
             (_numeric_value(outputs[key].canonical_value) for key in binding.dependency_bindings),
             Decimal(0),
         )
-        old = _first_surface_number(binding.occurrences[0].source_text)
-        return _render_numeric_derived(binding, old=old, new=new)
+        old = sum(
+            (
+                _numeric_value(bindings[key].occurrences[0].source_text)
+                for key in binding.dependency_bindings
+            ),
+            Decimal(0),
+        )
+        return _render_proven_numeric_derivation(binding, source_value=old, target_value=new)
     if derivation == "temperature_setpoint":
         return _render_temperature_setpoint(binding, target=case.target)
     if derivation == "inclusive_range_cardinality":
         return _render_inclusive_range_cardinality(binding, target=case.target)
     if derivation == "equipment_receipt":
-        raise ValueError("equipment receipt must be routed through the residual agent")
+        return _render_equipment_receipt_binding(
+            binding, source_target=case.source_target, target=case.target
+        )
 
     source_base, target_base = _derivation_numeric_values(
         binding=binding,
@@ -4554,26 +5065,15 @@ def _render_one_derivation(
         target=case.target,
         bindings=bindings,
         outputs=outputs,
+        numeric_auxiliary=case.numeric_auxiliary,
     )
-    try:
-        source_surface = _first_surface_number(binding.occurrences[0].source_text)
-    except ValueError:
-        unit_paths = tuple(path for path in binding.dependency_paths if path.endswith(".unit"))
-        if unit_paths and all(
-            _resolve_path(case.source_target, path) == _resolve_path(case.target, path)
-            for path in unit_paths
-        ):
-            return _preserved_source_output(binding)
-        raise
-    if source_base == 0:
-        if target_base != 0:
-            raise ValueError(
-                f"numeric derivation cannot scale a zero source: {binding.logical_key}"
-            )
-        target_surface = source_surface
-    else:
-        target_surface = source_surface * target_base / source_base
-    return _render_numeric_derived(binding, old=source_surface, new=target_surface)
+    factor, uncertainty = _derivation_measurement_factor(binding, case)
+    return _render_proven_numeric_derivation(
+        binding,
+        source_value=source_base * factor,
+        target_value=target_base * factor,
+        source_uncertainty=uncertainty,
+    )
 
 
 def _render_derivations(
@@ -4581,8 +5081,14 @@ def _render_derivations(
     case: PreparedCase,
     outputs: dict[str, BindingOutput],
     country_codes: Mapping[str, str],
+    residual_bindings: Sequence[SemanticBinding] = (),
 ) -> None:
     bindings = {binding.logical_key: binding for binding in case.template.bindings}
+    # Residual responses cannot certify their own derived totals. Discard those
+    # representations and recompute after their dependency outputs are available.
+    for binding in residual_bindings:
+        if binding.realization.mode == "deterministic_derivation":
+            outputs.pop(binding.logical_key, None)
     pending = {
         binding.logical_key: binding
         for binding in case.template.bindings
@@ -4622,7 +5128,7 @@ def _plan_derivations(
     residual: list[SemanticBinding],
     country_codes: Mapping[str, str],
 ) -> None:
-    """Execute derivations during preflight and explicitly route unsupported ones to one call."""
+    """Prove derivations before calls; defer only dependencies not yet generated."""
 
     bindings = {binding.logical_key: binding for binding in case.template.bindings}
     route_indexes = {route.logical_key: index for index, route in enumerate(routes)}
@@ -4710,23 +5216,16 @@ def _plan_derivations(
                     output=output,
                 )
             except (KeyError, ValueError) as error:
-                route_to_agent(
-                    binding,
-                    f"typed deterministic derivation is unavailable: {type(error).__name__}: "
-                    f"{error}",
-                )
+                raise ValueError(
+                    f"unproven derived binding requires contract review: {logical_key}: {error}"
+                ) from error
             else:
                 outputs[logical_key] = output
             del pending[logical_key]
             progressed = True
         if progressed:
             continue
-        for logical_key, binding in tuple(pending.items()):
-            route_to_agent(
-                binding,
-                "derivation dependency graph cannot be resolved without residual assistance",
-            )
-            del pending[logical_key]
+        raise ValueError("unresolved derived dependency graph: " + ", ".join(sorted(pending)))
 
 
 def _normalized_semantic(value: str) -> str:
@@ -4843,9 +5342,15 @@ def _package_variants(value: str) -> frozenset[str]:
         "drum": {"drum", "drums", "drm"},
         "package": {"package", "packages", "pkg"},
         "pallet": {"pallet", "pallets", "plt"},
-        "piece": {"piece", "pieces", "pcs"},
+        "piece": {"piece", "pieces", "pcs", "pces"},
         "roll": {"roll", "rolls", "rol"},
         "sack": {"sack", "sacks", "sak"},
+        "intermediate bulk container": {
+            "intermediate bulk container",
+            "intermediate bulk containers",
+            "ibc",
+            "ibcs",
+        },
     }
     values = abbreviations.get(noun, {noun, noun + "s"})
     return frozenset(_normalized_semantic(item) for item in values)
@@ -4856,10 +5361,24 @@ def _string_semantics_match(value: str, rendered: str) -> bool:
     actual = _normalized_semantic(rendered)
     if not expected or not actual:
         return False
-    if expected in actual or actual in expected:
+    if expected == "negotiable":
+        # A substring of NON-NEGOTIABLE is not positive negotiability evidence.
+        # The operative order wording also occurs as "TO THE ORDER OF".
+        if re.search(r"\b(?:NON[ -]?NEGOTIABLE|NOT\s+NEGOTIABLE)\b", rendered, re.I):
+            return False
+        return bool(
+            re.search(
+                r"\bNEGOTIABLE\b|\bORIGINAL\s+BILL\s+OF\s+LADING\b|\bTO\s+(?:THE\s+)?ORDER\b",
+                rendered,
+                re.I,
+            )
+        )
+    if expected in actual:
         return True
     if value.startswith("PACKAGE_"):
-        return any(variant in actual for variant in _package_variants(value))
+        return package_category_surface_present(rendered, value) or any(
+            variant in actual for variant in _package_variants(value)
+        )
     variants = {
         "nonnegotiable": {
             "nonnegotiable",
@@ -4868,7 +5387,6 @@ def _string_semantics_match(value: str, rendered: str) -> bool:
             "seawaybill",
             "expressrelease",
         },
-        "negotiable": {"negotiable", "originalbilloflading", "toorder"},
         "freightcollect": {"freightcollect", "collect", "destinationcollect"},
         "collect": {"collect", "destinationcollect"},
         "prepaid": {"prepaid", "freightprepaid"},
@@ -5039,6 +5557,65 @@ def _interrupted_target_semantics_match(
     return bool(expected) and expected == _normalized_semantic(rendered)
 
 
+def _composite_package_quantity_matches(
+    binding: SemanticBinding | None, target: Mapping[str, Any], path: str, rendered: str
+) -> bool:
+    """Prove the quantity next to its package category in a composite summary.
+
+    Presence of an unrelated number is insufficient. For example, `20 PKGS
+    (12 IBC TANKS + 8 PLTS)` supports 12 IBCs, not 20 IBCs.
+    """
+    allocation_match = re.fullmatch(
+        r"(documentPatch\.cargoAllocationGroups\[\d+\])\.allocations\[0\]\.packageQuantity",
+        path,
+    )
+    if allocation_match and binding is not None:
+        group = _resolve_path(target, allocation_match.group(1))
+        if len(group["allocations"]) != 1 or len(group["packageIds"]) != 1:
+            return False
+        # Only a sole allocation and its sole package have a proven equal count.
+        # A shipment total must not stand in for one of several container rows.
+        package_paths = [
+            candidate
+            for candidate in binding.target_paths
+            if re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.quantity", candidate)
+            and _resolve_path(target, candidate.removesuffix(".quantity"))["packageId"]
+            == group["packageIds"][0]
+        ]
+        if len(package_paths) != 1 or _resolve_path(target, package_paths[0]) != _resolve_path(
+            target, path
+        ):
+            return False
+        path = package_paths[0]
+    elif not re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.quantity", path):
+        return False
+    package = _resolve_path(target, path.removesuffix(".quantity"))
+    category = package.get("typeCategory")
+    description = package.get("typeDescription")
+    if category is None and not isinstance(description, str):
+        return False
+    quantity = Decimal(str(_resolve_path(target, path)))
+    variants = (
+        _package_variants(category) if category is not None else {_normalized_semantic(description)}
+    )
+    for match in re.finditer(
+        r"(?<![A-Za-z0-9])([0-9]+(?:[,.'][0-9]+)*)\s*([A-Za-z][A-Za-z \t()/-]*)",
+        " ".join(rendered.split()),
+    ):
+        words = match.group(2).split()
+        if not (
+            category is not None and package_category_surface_present(match.group(2), category)
+        ) and not any(
+            _normalized_semantic(" ".join(words[:end])) in variants
+            or (category is not None and _string_semantics_match(category, " ".join(words[:end])))
+            for end in range(1, len(words) + 1)
+        ):
+            continue
+        if quantity in _numeric_interpretations(match.group(1)):
+            return True
+    return False
+
+
 def _target_binding_semantics_valid(
     *, case: PreparedCase, outputs: Mapping[str, BindingOutput]
 ) -> tuple[bool, tuple[str, ...]]:
@@ -5054,6 +5631,18 @@ def _target_binding_semantics_valid(
         if not binding.target_paths:
             continue
         output = outputs[binding.logical_key]
+        composite_range = render_composite_range(
+            binding, case.source_target, case.target, case.source
+        )
+        if composite_range is not None:
+            if output.replacements != composite_range:
+                failures.append(f"{binding.logical_key}:composite-range-differs")
+            continue
+        measurement = _render_target_measurement(binding, case)
+        if measurement is not None:
+            if output.replacements != measurement.replacements:
+                failures.append(f"{binding.logical_key}:measurement-occurrence-differs")
+            continue
         unchanged = _unchanged_target_output(binding, case.target)
         if (
             unchanged is not None
@@ -5072,6 +5661,17 @@ def _target_binding_semantics_valid(
             target=case.target,
             output=output,
         ):
+            continue
+        if lexical_partitions.partition(binding) is not None:
+            expected = _render_target_binding(
+                binding,
+                case.target,
+                auxiliary_values=case.auxiliary_values,
+                source=case.source,
+                template=case.template,
+            )
+            if output != expected:
+                failures.append(f"{binding.logical_key}:cargo-fragment-rendering-differs")
             continue
         if binding.realization.requires_agent and binding.target_paths:
             try:
@@ -5092,7 +5692,13 @@ def _target_binding_semantics_valid(
             binding.realization.mode in deterministic_target_modes
             and not _has_semantic_equipment_values(binding, case.target)
         ):
-            expected = _render_target_binding(binding, case.target)
+            expected = _render_target_binding(
+                binding,
+                case.target,
+                auxiliary_values=case.auxiliary_values,
+                source=case.source,
+                template=case.template,
+            )
             if output.replacements != expected.replacements or canonical_json_bytes(
                 output.canonical_value
             ) != canonical_json_bytes(expected.canonical_value):
@@ -5149,6 +5755,19 @@ def _target_binding_semantics_valid(
                         or int(expected_number) not in observed_cardinalities
                     ):
                         failures.append(f"{binding.logical_key}:{path}:range-cardinality-mismatch")
+                elif binding.derivation == "number_to_words":
+                    try:
+                        matches = all(
+                            expected_number in _numeric_interpretations(value)
+                            or Decimal(_number_word_phrase(value)[0]) == expected_number
+                            for value in output.replacements.values()
+                        )
+                    except ValueError:
+                        matches = False
+                    if not matches:
+                        failures.append(f"{binding.logical_key}:{path}:number-words-mismatch")
+                elif _composite_package_quantity_matches(binding, case.target, path, rendered):
+                    continue
                 elif not any(
                     expected_number in _numeric_surface_values(value)
                     for value in output.replacements.values()
@@ -5411,6 +6030,10 @@ def _load_replayed_stage(
 
     requests, *_usage = _usage_values(source_stage)
     expected_requests = int(source_stage.status == "success")
+    if source_stage.batch_provenance is not None:
+        # The strict receipt validator proves the output projection and usage
+        # allocation. Only the first member owns the shared physical request.
+        expected_requests = int(source_stage.batch_provenance["member"] == "s0")
     if requests != expected_requests:
         raise ValueError(
             f"replay stage request count differs from its status for {case.document_id}"
@@ -5442,6 +6065,34 @@ def _load_replayed_stage(
     return projected, effective_stage, receipt
 
 
+def _validate_projected_context(
+    template: CertifiedSemanticTemplate, outputs: Mapping[str, BindingOutput]
+) -> None:
+    """A fragment owned by another binding is not an immutable literal.
+
+    Prove ownership from whole source occurrences; never infer it from arbitrary
+    numbers or from proximity. Unowned literal regions remain byte-preserved by
+    the template renderer. Shared mutable fragments need a dependency contract.
+    """
+    owners: dict[tuple[str, ...], list[tuple[str, str]]] = {}
+    for binding in template.bindings:
+        for slot in binding.occurrences:
+            tokens = tuple(row[0] for row in _token_spans(slot.source_text))
+            owners.setdefault(tokens, []).append((binding.logical_key, slot.slot_id))
+    for binding in template.bindings:
+        for _start, _end, fragment in fixed_projection_ranges(binding):
+            for key, slot_id in owners.get(fragment, ()):
+                if key == binding.logical_key:
+                    continue
+                actual = tuple(row[0] for row in _token_spans(outputs[key].replacements[slot_id]))
+                if actual != fragment:
+                    raise ValueError(
+                        "projected target context changed in another binding: "
+                        f"{binding.logical_key}: {fragment}, owner {key}; "
+                        "cross-binding dependency requires compilation review"
+                    )
+
+
 def _materialize_case(
     *,
     case: PreparedCase,
@@ -5452,18 +6103,86 @@ def _materialize_case(
 ) -> ExecutedCase:
     started = time.perf_counter()
     try:
+        _require_frozen_target(case)
         outputs = dict(plan.deterministic_outputs)
         outputs.update(_postprocess_residual_outputs(case=case, plan=plan, raw_output=raw_output))
         _reconcile_identifier_relationships(template=case.template, outputs=outputs)
-        _render_derivations(case=case, outputs=outputs, country_codes=country_codes)
+        _render_derivations(
+            case=case,
+            outputs=outputs,
+            country_codes=country_codes,
+            residual_bindings=plan.residual_bindings,
+        )
         if set(outputs) != {binding.logical_key for binding in case.template.bindings}:
             raise ValueError("binding outputs do not cover the semantic template exactly")
+        for binding in case.template.bindings:
+            if _source_container_identifier(binding) is not None and not validate_container_number(
+                _alphanumeric(str(outputs[binding.logical_key].canonical_value)).upper()
+            ):
+                raise ValueError(
+                    f"source-only container identifier is not ISO6346-valid: {binding.logical_key}"
+                )
+        for binding in case.template.bindings:
+            country = plan.independent_phone_countries.get(binding.logical_key)
+            if country is None or _explicit_unknown_placeholder(binding):
+                continue
+            output = outputs[binding.logical_key]
+            if not isinstance(output.canonical_value, str):
+                raise ValueError("independent phone must have a canonical string")
+            contact_values.validate_phone(output.canonical_value, country_code=country)
+            for replacement in output.replacements.values():
+                contact_values.validate_phone(replacement, country_code=country)
+                if _alphanumeric(replacement) != _alphanumeric(output.canonical_value):
+                    raise ValueError("rendered independent phone differs from its canonical number")
+        owned = entity_members_by_binding(case.template.auxiliary_semantic_plan)
+        for binding in case.template.bindings:
+            if (
+                binding.value_kind != "phone"
+                or binding.target_paths
+                or binding.dependency_paths
+                or binding.derivation
+                or binding.group_kind == "carrier"
+                or binding.logical_key in owned
+                or _explicit_unknown_placeholder(binding)
+            ):
+                continue
+            output = outputs[binding.logical_key]
+            if not isinstance(output.canonical_value, str):
+                raise ValueError("standalone phone requires a canonical string")
+            contact_values.validate_phone(output.canonical_value)
+            for replacement in output.replacements.values():
+                contact_values.validate_phone(replacement)
+                if _alphanumeric(replacement) != _alphanumeric(output.canonical_value):
+                    raise ValueError("rendered standalone phone differs from its canonical number")
+        for binding in case.template.bindings:
+            if (
+                binding.value_kind != "email"
+                or binding.target_paths
+                or _explicit_unknown_placeholder(binding)
+            ):
+                continue
+            output = outputs[binding.logical_key]
+            if not isinstance(output.canonical_value, str):
+                raise ValueError("source-only email requires one canonical mailbox")
+            contact_values.validate_mailbox(output.canonical_value)
+            for replacement in output.replacements.values():
+                mailbox = "".join(replacement.split())
+                contact_values.validate_mailbox(mailbox)
+                if mailbox.casefold() != output.canonical_value.casefold():
+                    raise ValueError("rendered email differs from its canonical mailbox")
         validate_auxiliary_render(
             plan=case.template.auxiliary_semantic_plan,
             bindings=case.template.bindings,
             outputs=outputs,
             target=case.target,
             country_codes=country_codes,
+            target_projection_values=projected_auxiliary_values(case.template, case.target),
+        )
+        entity_identifiers.validate(
+            *entity_identifiers.contracts(
+                case.template, case.source_target, case.target, country_codes
+            ),
+            outputs,
         )
         validate_render_coherence(
             bindings=case.template.bindings,
@@ -5494,6 +6213,17 @@ def _materialize_case(
             template=case.template.byte_template,
             bindings=slot_bindings,
         )
+        _validate_projected_context(case.template, outputs)
+        count_aliases.validate(rendered.decode("utf-8"))
+        validate_unbound_lexical_surfaces(
+            target=case.target,
+            binding_paths={p for b in case.template.bindings for p in b.target_paths},
+            rendered=rendered.decode("utf-8"),
+        )
+        if set(re.findall(rb"\bPACKAGE_[A-Z_]+\b", rendered)) - set(
+            re.findall(rb"\bPACKAGE_[A-Z_]+\b", case.source)
+        ):
+            raise ValueError("training schema package enum leaked into document text")
         carrier_valid = _carrier_unchanged(case=case, outputs=outputs)
         if not carrier_valid:
             raise ValueError("carrier-bound label or carrier slot changed")
@@ -5688,17 +6418,7 @@ def _preflight_payload(
         "documents": len(cases),
         "exactTopologyDocuments": len(cases),
         "carrierBoundDocuments": len(cases),
-        "existingTargetDocuments": sum(
-            case.target_receipt.target_origin == "existing_linguistic_target_carrier_restored"
-            for case in cases
-        ),
-        "controlledTargetDocuments": sum(
-            case.target_receipt.target_origin == "controlled_source_variant" for case in cases
-        ),
-        "plannedV5TargetDocuments": sum(
-            case.target_receipt.target_origin == "planned_v5_controlled_source_variant"
-            for case in cases
-        ),
+        "completeTargetDocuments": len(cases),
         "templateBindings": sum(len(case.template.bindings) for case in cases),
         "templateSlots": sum(len(case.template.byte_template.slots) for case in cases),
         "deterministicBindings": sum(row["deterministicBindings"] for row in rows),
@@ -5945,6 +6665,8 @@ def _training_dataset(
     records: list[dict[str, Any]] = []
     lineage: list[dict[str, Any]] = []
     for case, execution in zip(cases, executions, strict=True):
+        _require_frozen_target(case)
+        require_complete_variation(case.topology_reference_target, case.target)
         if execution.result.status != "passed" or execution.rendered is None:
             raise ValueError("training publication requires every descendant to pass")
         synthetic_id = case.target_receipt.synthetic_document_id
@@ -6153,6 +6875,11 @@ async def run_descendants(config_path: Path) -> Path:
         stage.publish_bytes(f"{prefix}/source.txt", case.source)
         stage.publish_json(f"{prefix}/source-target.json", case.source_target)
         stage.publish_json(f"{prefix}/target.json", case.target)
+        stage.publish_json(f"{prefix}/auxiliary-values.json", case.auxiliary_values)
+        stage.publish_json(
+            f"{prefix}/numeric-auxiliary.json",
+            {k: v.model_dump(mode="json") for k, v in case.numeric_auxiliary.items()},
+        )
         stage.publish_json(
             f"{prefix}/target-receipt.json", case.target_receipt.model_dump(mode="json")
         )

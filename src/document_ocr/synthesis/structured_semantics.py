@@ -42,6 +42,7 @@ from document_ocr.synthesis.run_safety import (
     IdentifierReservation,
     IdentifierReservationBundle,
     IdentifierReservationRequest,
+    IdentifierSpaceError,
     identifier_corpus_sha256,
     reserve_global_identifiers,
 )
@@ -215,6 +216,8 @@ def reserve_structured_identifiers(
         ):
             (real_containers if kind == "container" else real_generic).append(value)
 
+    _validate_generic_identifier_capacity(inventory, real_generic)
+
     containers = None
     if inventory.container_requests:
         count, _unique, digest = identifier_corpus_sha256(
@@ -283,6 +286,37 @@ def reserve_structured_identifiers(
             expected_real_corpus_sha256=digest,
         )
     return IdentifierAllocationPlan(containers=containers, generic=generic)
+
+
+def _validate_generic_identifier_capacity(
+    inventory: IdentifierRequestInventory, real_values: Sequence[str]
+) -> None:
+    """Reject provably exhausted canonical format domains before collision retries."""
+
+    def domain(value: str) -> tuple[str, ...]:
+        return tuple(
+            "letter" if "a" <= c <= "z" else "digit" if "0" <= c <= "9" else c
+            for c in canonical_formal_identifier(value)
+        )
+
+    requests: dict[tuple[str, ...], list[str]] = defaultdict(list)
+    for request in inventory.generic_requests:
+        requests[domain(inventory.generic_source_by_request[request.request_key])].append(
+            request.request_key
+        )
+    real: dict[tuple[str, ...], set[str]] = defaultdict(set)
+    for value in real_values:
+        real[domain(value)].add(canonical_formal_identifier(value))
+    for shape, keys in requests.items():
+        # Non-ASCII fixed characters can only reduce this upper bound after
+        # normalization; rejecting above it cannot discard an available domain.
+        capacity = 26 ** shape.count("letter") * 10 ** shape.count("digit")
+        available = capacity - len(real[shape])
+        if len(keys) > available:
+            raise IdentifierSpaceError(
+                f"identifier format capacity insufficient: requested {len(keys)}, "
+                f"available at most {available}; requests: {keys}"
+            )
 
 
 def _change(
@@ -420,9 +454,7 @@ def _parse_embedded_numeric_date(match: re.Match[str]) -> tuple[date, bool] | No
         return None
 
 
-def _render_embedded_numeric_date(
-    value: date, *, match: re.Match[str], month_first: bool
-) -> str:
+def _render_embedded_numeric_date(value: date, *, match: re.Match[str], month_first: bool) -> str:
     first = value.month if month_first else value.day
     second = value.day if month_first else value.month
     separator = match.group("separator")
