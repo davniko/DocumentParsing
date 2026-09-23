@@ -378,6 +378,8 @@ class DatasetFieldsConfig(_StrictModel):
 
 class PreprocessingConfig(_StrictModel):
     max_source_length: PositiveInteger
+    # Complete training targets above this inclusive token/EOS limit are excluded.
+    # Held-out overflows remain errors so evaluation membership cannot change silently.
     max_target_length: PositiveInteger
     source_overflow: Literal["error", "truncate"]
     source_add_special_tokens: bool

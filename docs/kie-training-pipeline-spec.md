@@ -120,10 +120,12 @@ run does not repeat this baseline because its on-start state is a trained checkp
 original base model.
 
 Unknown keys, YAML duplicate keys, implicit coercions, non-finite numbers, unsafe output paths,
-incompatible strategies, invalid hashes, overlapping IDs, hash mismatches, schema-invalid targets,
-and target overflow are errors. Source overflow is also an error unless truncation is explicitly
-selected. There is no automatic batch-size reduction, precision fallback, target truncation, or
-model revision drift.
+incompatible strategies, invalid hashes, overlapping IDs, hash mismatches, and schema-invalid targets
+are errors. Training records above `dataset.preprocessing.max_target_length` are excluded whole
+before model loading, with terminal counts and document IDs/lengths in `dataset-report.json`.
+Validation/test overflows remain errors so their membership is never silently changed. Source
+overflow is also an error unless truncation is explicitly selected. There is no automatic
+batch-size reduction, precision fallback, target truncation, or model revision drift.
 
 The first pilot configuration uses a deterministic seed-42 partition of a provenance-linked
 correction publication derived from the published 106-row artifact: 90 training records and 16
@@ -180,7 +182,11 @@ prompt hash, tokenizer identity/revision, preprocessing settings, and the decode
 Source tokenization uses its explicitly configured special-token behavior. Decoder targets are
 tokenized with tokenizer special tokens disabled, are rejected if their content resolves to a
 reserved BOS/EOS/PAD ID, and receive exactly one terminal EOS. Target length checks include that
-EOS. Cached files are reused only under that exact identity.
+EOS. Cached files are reused only under that exact identity. The target-length filter policy is
+also part of the identity, and filtering/reporting is applied on cache hits as well. The inspection
+section describes the immutable source files; `target_length_filter` reports original, excluded,
+and retained counts, while `token_lengths` describes the retained training/evaluation datasets.
+If the target limit excludes every training sample, preparation fails before model loading.
 
 The collator dynamically pads each batch and uses `-100` for label padding; the model creates
 shifted decoder inputs and supplies decoder BOS itself. Training samples are

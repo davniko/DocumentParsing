@@ -6,6 +6,7 @@ import hashlib
 import importlib.metadata
 import json
 import math
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -77,6 +78,7 @@ class PreparedDatasets:
     decoder_target_contract: dict[str, Any]
     cache_identity: str
     token_lengths: dict[str, dict[str, dict[str, float | int] | int]]
+    target_length_filter: dict[str, dict[str, Any]]
 
     def report(self) -> dict[str, Any]:
         return {
@@ -85,6 +87,7 @@ class PreparedDatasets:
             "decoder_target_contract": self.decoder_target_contract,
             "cache_identity": self.cache_identity,
             "token_lengths": self.token_lengths,
+            "target_length_filter": self.target_length_filter,
         }
 
 
@@ -435,16 +438,6 @@ def _tokenize_batch(
             )
         label_ids.append([*content_ids, eos_token_id])
     target_lengths = [len(item) for item in label_ids]
-    overflowing_targets = [
-        length for length in target_lengths if length > preprocessing.max_target_length
-    ]
-    if overflowing_targets:
-        raise ValueError(
-            "target token length exceeds max_target_length and target truncation is forbidden; "
-            f"maximum observed in batch={max(overflowing_targets)}, "
-            f"configured={preprocessing.max_target_length}"
-        )
-
     return {
         "document_id": list(batch["document_id"]),
         "input_ids": source_ids,
@@ -460,6 +453,44 @@ def _tokenize_batch(
     }
 
 
+def _apply_target_length_limit(
+    tokenized: Any, *, split: str, max_target_length: int
+) -> tuple[Any, dict[str, Any]]:
+    """Exclude complete over-limit training records; never alter held-out membership."""
+    lengths = list(tokenized["target_length"])
+    kept = [index for index, length in enumerate(lengths) if length <= max_target_length]
+    rejected = [index for index, length in enumerate(lengths) if length > max_target_length]
+    excluded = [
+        {"document_id": row["document_id"], "target_length": row["target_length"]}
+        for row in tokenized.select_columns(["document_id", "target_length"]).select(rejected)
+    ]
+    if rejected and split != "train":
+        raise ValueError(
+            f"{split} target token length exceeds max_target_length: "
+            f"{len(rejected)} records, maximum={max(lengths)}, configured={max_target_length}; "
+            "held-out samples must not be filtered or truncated"
+        )
+    print(
+        f"[training-data] {split}: target limit {max_target_length} tokens (including EOS); "
+        f"skipping {len(rejected):,} of {len(lengths):,} samples; retaining {len(kept):,}. "
+        "Targets are not truncated.",
+        file=sys.stderr,
+        flush=True,
+    )
+    if not kept:
+        raise ValueError(f"target-length filtering removed all {split} samples")
+    report = {
+        "policy": "exclude_training_only_v1",
+        "max_target_length": max_target_length,
+        "includes_terminal_eos": True,
+        "original_records": len(lengths),
+        "retained_records": len(kept),
+        "excluded_records": len(rejected),
+        "excluded": excluded,
+    }
+    return (tokenized.select(kept) if rejected else tokenized), report
+
+
 def prepare_datasets(
     *,
     project_root: Path,
@@ -468,7 +499,7 @@ def prepare_datasets(
     task: TrainingTask,
     tokenizer: Tokenizer,
 ) -> PreparedDatasets:
-    """Build cache-keyed Arrow datasets and fail on any implicit target truncation."""
+    """Tokenize complete targets, then exclude over-limit training rows before model loading."""
 
     try:
         from datasets import Dataset, DatasetDict
@@ -495,6 +526,7 @@ def prepare_datasets(
             if key != "reported_name_or_path"
         },
         "decoder_target_contract": decoder_target_contract,
+        "target_length_policy": "exclude_training_only_v1",
     }
     if config.dataset.splits is not None:
         # Preserve the existing pre-split cache identity exactly; adding the runtime
@@ -520,6 +552,7 @@ def prepare_datasets(
 
     prepared: dict[str, Any] = {}
     token_lengths: dict[str, dict[str, dict[str, float | int] | int]] = {}
+    target_length_filter: dict[str, dict[str, Any]] = {}
     for split in _SPLITS:
         records = records_by_split[split]
         if not records:
@@ -545,6 +578,10 @@ def prepare_datasets(
             cache_file_name=str(cache_file),
             fn_kwargs={"tokenizer": tokenizer, "config": config},
             desc=f"Tokenizing {split}",
+        )
+        tokenized, target_length_filter[split] = _apply_target_length_limit(
+            tokenized, split=split,
+            max_target_length=config.dataset.preprocessing.max_target_length,
         )
         prepared[split] = tokenized
         token_lengths[split] = {
@@ -580,4 +617,5 @@ def prepare_datasets(
         decoder_target_contract=decoder_target_contract,
         cache_identity=cache_identity,
         token_lengths=token_lengths,
+        target_length_filter=target_length_filter,
     )

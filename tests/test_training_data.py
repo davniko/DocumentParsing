@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -9,14 +10,17 @@ import pytest
 
 from document_ocr.training.collator import MetadataStrippingCollator
 from document_ocr.training.config import load_training_config
-from document_ocr.training.data import _tokenize_batch, inspect_dataset, prepare_datasets
+from document_ocr.training.data import (
+    _apply_target_length_limit,
+    _tokenize_batch,
+    inspect_dataset,
+    prepare_datasets,
+)
 from document_ocr.training.prompting import load_prompt
 from document_ocr.training.tasks import get_training_task
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = (
-    PROJECT_ROOT / "configs" / "training" / "t5gemma2_270m_lora.pilot106.yaml"
-)
+CONFIG_PATH = PROJECT_ROOT / "configs" / "training" / "t5gemma2_270m_lora.pilot106.yaml"
 
 
 class _WordTokenizer:
@@ -36,10 +40,7 @@ class _WordTokenizer:
         values = kwargs.get("text_target", text)
         if values is None:
             raise AssertionError("tokenizer input is absent")
-        encoded = [
-            [(index % 90) + 1 for index, _ in enumerate(value.split())]
-            for value in values
-        ]
+        encoded = [[(index % 90) + 1 for index, _ in enumerate(value.split())] for value in values]
         if kwargs.get("add_special_tokens"):
             encoded = [[self.bos_token_id, *item] for item in encoded]
         max_length = kwargs.get("max_length")
@@ -140,28 +141,17 @@ def test_runtime_partition_inspection_is_reported_and_source_ordered() -> None:
 
 def test_published_training_dataset_preserves_audited_latin_corrections() -> None:
     correction_dir = (
-        PROJECT_ROOT
-        / "artifacts"
-        / "kie-training"
-        / "datasets"
-        / "mpci-bl-pilot106-raw-latin-v1"
+        PROJECT_ROOT / "artifacts" / "kie-training" / "datasets" / "mpci-bl-pilot106-raw-latin-v1"
     )
-    correction_manifest = json.loads(
-        (correction_dir / "manifest.json").read_text(encoding="utf-8")
-    )
+    correction_manifest = json.loads((correction_dir / "manifest.json").read_text(encoding="utf-8"))
     source_payload = (correction_dir / "records.jsonl").read_bytes()
     assert correction_manifest["corrected_document_count"] == 5
     assert correction_manifest["corrected_target_value_count"] == 13
-    assert correction_manifest["output"]["sha256"] == hashlib.sha256(
-        source_payload
-    ).hexdigest()
+    assert correction_manifest["output"]["sha256"] == hashlib.sha256(source_payload).hexdigest()
 
     rows = {
         row["documentId"]: row
-        for row in (
-            json.loads(line)
-            for line in source_payload.decode("utf-8").splitlines()
-        )
+        for row in (json.loads(line) for line in source_payload.decode("utf-8").splitlines())
     }
 
     def pointer_value(root: Any, pointer: str) -> Any:
@@ -174,9 +164,7 @@ def test_published_training_dataset_preserves_audited_latin_corrections() -> Non
         row = rows[correction["document_id"]]
         assert pointer_value(row["target"], correction["target_path"]) == correction["after"]
         assert row["targetCorrectionSet"] == "preserve_printed_latin_v1"
-        assert all(
-            evidence in row["joinedRawText"] for evidence in correction["raw_evidence"]
-        )
+        assert all(evidence in row["joinedRawText"] for evidence in correction["raw_evidence"])
 
     original = json.loads(
         (
@@ -199,9 +187,10 @@ def test_published_training_dataset_preserves_audited_latin_corrections() -> Non
         ).read_text(encoding="utf-8")
     )
     for split in ("train", "validation"):
-        assert corrected["outputs"][split]["document_ids"] == original["outputs"][split][
-            "document_ids"
-        ]
+        assert (
+            corrected["outputs"][split]["document_ids"]
+            == original["outputs"][split]["document_ids"]
+        )
 
 
 def test_dataset_inspection_rejects_input_hash_mismatch(tmp_path: Path) -> None:
@@ -244,7 +233,7 @@ def test_dataset_inspection_rejects_input_hash_mismatch(tmp_path: Path) -> None:
         )
 
 
-def test_tokenization_refuses_source_and_target_overflow() -> None:
+def test_tokenization_refuses_source_overflow_and_keeps_complete_targets_for_filtering() -> None:
     config, _, _ = _training_components()
     config = config.model_copy(
         update={
@@ -270,8 +259,112 @@ def test_tokenization_refuses_source_and_target_overflow() -> None:
         "input_text": ["one"],
         "target_text": ["one two three"],
     }
-    with pytest.raises(ValueError, match="target token length"):
-        _tokenize_batch(batch, tokenizer=_WordTokenizer(), config=config)
+    output = _tokenize_batch(batch, tokenizer=_WordTokenizer(), config=config)
+    assert output["target_length"] == [4]
+    assert output["labels"] == [[1, 2, 3, _WordTokenizer.eos_token_id]]
+
+
+def test_target_filter_is_inclusive_order_preserving_and_never_truncates(capsys) -> None:
+    from datasets import Dataset
+
+    dataset = Dataset.from_list(
+        [
+            {"document_id": "short", "target_length": 2, "labels": [1, 99]},
+            {"document_id": "long", "target_length": 4, "labels": [1, 2, 3, 99]},
+            {"document_id": "boundary", "target_length": 3, "labels": [1, 2, 99]},
+        ]
+    )
+    retained, report = _apply_target_length_limit(dataset, split="train", max_target_length=3)
+    assert list(retained["document_id"]) == ["short", "boundary"]
+    assert list(retained["labels"]) == [[1, 99], [1, 2, 99]]
+    assert report["excluded"] == [{"document_id": "long", "target_length": 4}]
+    assert report["original_records"] == 3
+    assert report["retained_records"] == 2
+    assert report["excluded_records"] == 1
+    assert "skipping 1 of 3 samples; retaining 2" in capsys.readouterr().err
+    assert len(dataset) == 3
+    unchanged, report = _apply_target_length_limit(dataset, split="train", max_target_length=4)
+    assert unchanged is dataset
+    assert report["excluded_records"] == 0
+
+
+@pytest.mark.parametrize("split", ["validation", "test"])
+def test_target_filter_refuses_to_change_held_out_membership(split) -> None:
+    from datasets import Dataset
+
+    dataset = Dataset.from_list([{"document_id": "held-out", "target_length": 4}])
+    with pytest.raises(ValueError, match="held-out samples must not be filtered"):
+        _apply_target_length_limit(dataset, split=split, max_target_length=3)
+
+
+def test_target_filter_refuses_an_empty_training_partition() -> None:
+    from datasets import Dataset
+
+    dataset = Dataset.from_list([{"document_id": "long", "target_length": 4}])
+    with pytest.raises(ValueError, match="removed all train samples"):
+        _apply_target_length_limit(dataset, split="train", max_target_length=3)
+
+
+def test_preparation_filters_on_cache_hits_and_records_exact_exclusions(tmp_path, monkeypatch):
+    import document_ocr.training.data as data_module
+
+    config, prompt, task = _training_components()
+    records, inspection = inspect_dataset(
+        project_root=PROJECT_ROOT,
+        config=config,
+        prompt=prompt,
+        task=task,
+    )
+    train = [
+        replace(record, input_text="source", target_text=" ".join(["token"] * count))
+        for record, count in zip(records["train"][:3], (1, 2, 3), strict=True)
+    ]
+    validation = [replace(records["validation"][0], input_text="source", target_text="token")]
+    monkeypatch.setattr(
+        data_module,
+        "inspect_dataset",
+        lambda **kw: (
+            {"train": train, "validation": validation, "test": []},
+            inspection,
+        ),
+    )
+    preprocessing = config.dataset.preprocessing.model_copy(
+        update={
+            "cache_dir": str(tmp_path / "cache"),
+            "num_proc": 2,
+            "max_target_length": 3,
+        }
+    )
+    config = config.model_copy(
+        update={
+            "dataset": config.dataset.model_copy(update={"preprocessing": preprocessing}),
+        }
+    )
+    kwargs = dict(project_root=PROJECT_ROOT, config=config, prompt=prompt, task=task)
+    first = prepare_datasets(**kwargs, tokenizer=_WordTokenizer())
+    cached_tokenizer = _WordTokenizer()
+    second = prepare_datasets(**kwargs, tokenizer=cached_tokenizer)
+    assert not cached_tokenizer.calls
+    assert first.cache_identity == second.cache_identity
+    assert first.target_length_filter == second.target_length_filter
+    assert list(second.datasets["train"]["document_id"]) == [row.document_id for row in train[:2]]
+    assert second.token_lengths["train"]["target"]["max"] == 3
+    assert second.report()["target_length_filter"]["train"]["excluded"] == [
+        {"document_id": train[2].document_id, "target_length": 4},
+    ]
+    assert list(second.datasets["validation"]["document_id"]) == [validation[0].document_id]
+    expanded = config.model_copy(
+        update={
+            "dataset": config.dataset.model_copy(
+                update={
+                    "preprocessing": preprocessing.model_copy(update={"max_target_length": 4}),
+                }
+            )
+        }
+    )
+    third = prepare_datasets(**{**kwargs, "config": expanded}, tokenizer=_WordTokenizer())
+    assert third.cache_identity != first.cache_identity
+    assert len(third.datasets["train"]) == 3
 
 
 def test_decoder_targets_exclude_bos_and_end_in_exactly_one_eos() -> None:
@@ -423,9 +516,7 @@ def test_preparation_rejects_generation_capacity_below_evaluation_reference(
     config = config.model_copy(
         update={
             "dataset": config.dataset.model_copy(update={"preprocessing": preprocessing}),
-            "evaluation": config.evaluation.model_copy(
-                update={"generation_max_length": 1}
-            ),
+            "evaluation": config.evaluation.model_copy(update={"generation_max_length": 1}),
         }
     )
 

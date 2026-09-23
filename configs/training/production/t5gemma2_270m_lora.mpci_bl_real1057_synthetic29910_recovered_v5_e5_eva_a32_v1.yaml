@@ -48,10 +48,10 @@ dataset:
     target: target
     input_sha256: joinedRawTextSha256
   preprocessing:
-    # Full-union tokenizer audit: longest input/target are 19,194/8,753 tokens.
-    # Preserve every record, keep dynamic padding, and fail on any overflow.
+    # Keep source text intact. Exclude complete training records whose target
+    # exceeds 6,136 tokens including EOS; log counts and retain an exclusion receipt.
     max_source_length: 19200
-    max_target_length: 8960
+    max_target_length: 6136
     source_overflow: error
     source_add_special_tokens: true
     num_proc: 4
@@ -87,8 +87,8 @@ peft:
   ensure_weight_tying: false
 
 optimization:
-  # 30,967 train rows at effective batch 32 yield 968 optimizer updates per
-  # epoch and 4,840 updates over five epochs.
+  # Target filtering retains 30,930 train rows at effective batch 32:
+  # 967 optimizer updates per epoch and 4,835 updates over five epochs.
   num_train_epochs: 5.0
   max_steps: -1
   per_device_train_batch_size: 1
@@ -140,9 +140,9 @@ dataloader:
 evaluation:
   strategy: steps
   split: validation
-  # ceil(30,967 / 32) = 968 optimizer updates per epoch. Evaluate halfway
-  # and at each epoch end: 10 scheduled validation passes over five epochs.
-  steps: 484
+  # 967 updates/epoch cannot be split into equal integer halves. Native step
+  # scheduling gives ten evaluations at 483, 966, ..., 4,830 across 4,835 updates.
+  steps: 483
   per_device_batch_size: 2
   on_start: false
   predict_with_generate: true
@@ -158,14 +158,14 @@ evaluation:
   accumulation_steps: 1
   early_stopping_patience: null
   early_stopping_threshold: null
-  # The tenth scheduled evaluation already occurs at step 4,840. Disable the
+  # The tenth scheduled evaluation occurs at step 4,830. Disable the
   # separate post-training evaluation/prediction export to avoid an 11th pass.
   run_final_evaluation: false
   write_predictions_for: []
 
 checkpoint:
   strategy: steps
-  steps: 484
+  steps: 483
   total_limit: 2
   load_best_model_at_end: true
   metric_for_best_model: field_value_f1
