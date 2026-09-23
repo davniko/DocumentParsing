@@ -1,6 +1,8 @@
 import asyncio
 import json
 import threading
+from copy import deepcopy
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace as NS
@@ -9,7 +11,262 @@ import pytest
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.template_compiler import complete_pipeline as pipeline
+from document_ocr.synthesis.template_compiler import descendant as render
 from document_ocr.synthesis.template_compiler.complete_targets import propose_goods
+
+
+def test_composite_measurement_does_not_imply_whole_target_unit_precision():
+    from document_ocr.synthesis.template_compiler import complete_targets as targets
+
+    source = NS(template=NS(bindings=()))
+    assert targets._numeric_quantum(
+        source, "documentPatch.cargoGroups[0].grossWeight.value", 48.751
+    ) == Decimal("0.001")
+    assert targets._numeric_quantum(
+        source, "documentPatch.cargoGroups[0].grossWeight.value", 100
+    ) == Decimal(1)
+
+
+def _sampled_tare_fixture():
+    source_target = {
+        "schemaVersion": "5.0.0",
+        "documentPatch": {
+            "parties": {"carrier": {"name": "Carrier Ltd."}},
+            "references": {"billOfLadingNumber": "SOURCE"},
+        },
+    }
+    target = deepcopy(source_target)
+    target["documentPatch"]["references"]["billOfLadingNumber"] = "SYNTHETIC"
+    binding = NS(
+        logical_key="tare_0",
+        target_paths=(),
+        value_kind="decimal_measurement",
+        occurrences=(NS(slot_id="tare_slot", source_text="3,700 KGS"),),
+    )
+    contract = pipeline.numeric.NumericContract(
+        mode="sampled_equipment_tare",
+        role="tare",
+        source_value="3700",
+        target_paths=[],
+        multiplier="1",
+        divisor=1,
+        reason="Audited container tare",
+    )
+    source = NS(
+        document_id="source_1",
+        source=b"TARE 3,700 KGS",
+        source_target=source_target,
+        target=source_target,
+        template=NS(
+            carrier=NS(canonical_name="Carrier Ltd."),
+            source_sha256="a" * 64,
+            bindings=(),
+        ),
+    )
+    scenario = NS(receipt={"sampledEquipmentTares": {"tare_0": "3850"}})
+    return source, target, binding, contract, scenario
+
+
+def test_sampled_tare_receipt_survives_real_prepare_freeze_and_render():
+    source, target, binding, contract, scenario = _sampled_tare_fixture()
+    sampled_values = pipeline._scenario_equipment_tares(scenario)
+    assert sampled_values == {"tare_0": Decimal(3850)}
+    prepared = pipeline.numeric.prepare(
+        (binding,),
+        {binding.logical_key: contract},
+        source_target=source.target,
+        target=target,
+        scale=Decimal(1),
+        equipment_tare_values=sampled_values,
+    )
+    case = pipeline._prepared(
+        source,
+        target,
+        {},
+        sample_id="synthetic_1",
+        seed=7,
+        numeric_values=prepared,
+        equipment_tare_values=sampled_values,
+    )
+
+    render._require_frozen_target(case)
+    assert case.target_receipt.equipment_tare_values_sha256 == sha256_bytes(
+        canonical_json_bytes(scenario.receipt["sampledEquipmentTares"])
+    )
+    assert pipeline.numeric.render_prepared(
+        (binding,),
+        case.numeric_auxiliary,
+        source_target=case.topology_reference_target,
+        target=case.target,
+        equipment_tare_values=case.equipment_tare_values,
+    ) == {"tare_0": {"tare_slot": "3,850 KGS"}}
+    with pytest.raises(ValueError, match="changed after generation"):
+        render._require_frozen_target(
+            replace(case, equipment_tare_values={"tare_0": Decimal(3900)})
+        )
+    with pytest.raises(ValueError, match="dependency contract"):
+        pipeline.numeric.render_prepared(
+            (binding,),
+            case.numeric_auxiliary,
+            source_target=case.topology_reference_target,
+            target=case.target,
+            equipment_tare_values={"tare_0": Decimal(3900)},
+        )
+
+
+@pytest.mark.parametrize(
+    "receipt",
+    (
+        {},
+        {"sampledEquipmentTares": {"tare_0": 3850}},
+        {"sampledEquipmentTares": {"tare_0": "NaN"}},
+        {"sampledEquipmentTares": {"tare_0": "03850"}},
+        {"sampledEquipmentTares": {"tare_0": "-1"}},
+    ),
+)
+def test_scenario_tare_receipt_must_be_explicit_canonical_and_positive(receipt):
+    with pytest.raises(ValueError, match="sampled equipment tare"):
+        pipeline._scenario_equipment_tares(NS(receipt=receipt))
+
+
+@pytest.mark.parametrize("values", ({}, {"tare_0": Decimal(3850), "extra": Decimal(3900)}))
+def test_scenario_tare_receipt_must_cover_exactly_the_sampled_bindings(values):
+    source, target, binding, contract, _scenario = _sampled_tare_fixture()
+    with pytest.raises(ValueError, match="cover exactly"):
+        pipeline.numeric.prepare(
+            (binding,),
+            {binding.logical_key: contract},
+            source_target=source.target,
+            target=target,
+            scale=Decimal(1),
+            equipment_tare_values=values,
+        )
+
+
+def test_descendant_plan_receives_independent_tare_receipt(monkeypatch):
+    from document_ocr.synthesis.template_compiler import geographic_context, package_prose
+
+    source, target, binding, contract, scenario = _sampled_tare_fixture()
+    values = pipeline._scenario_equipment_tares(scenario)
+    prepared = pipeline.numeric.prepare(
+        (binding,), {binding.logical_key: contract},
+        source_target=source.target, target=target, scale=Decimal(1),
+        equipment_tare_values=values,
+    )
+    case = pipeline._prepared(
+        source, target, {}, sample_id="synthetic_1", seed=7,
+        numeric_values=prepared, equipment_tare_values=values,
+    )
+    monkeypatch.setattr(render, "numeric_bindings", lambda _template: (binding,))
+    monkeypatch.setattr(geographic_context, "source_entity_conflicts", lambda *_args: ())
+    monkeypatch.setattr(package_prose, "validate_package_masses", lambda *_args: None)
+
+    class RenderReached(Exception):
+        pass
+
+    def checked_render(bindings, numeric_values, **kwargs):
+        assert bindings == (binding,)
+        assert numeric_values == prepared
+        assert kwargs["equipment_tare_values"] is case.equipment_tare_values
+        assert pipeline.numeric.render_prepared(bindings, numeric_values, **kwargs) == {
+            "tare_0": {"tare_slot": "3,850 KGS"}
+        }
+        raise RenderReached
+
+    monkeypatch.setattr(render, "render_prepared", checked_render)
+    with pytest.raises(RenderReached):
+        render._build_initial_plan(case, seed=7, country_codes={})
+
+
+def test_residual_checkpoint_cannot_replace_independent_tare_receipt():
+    source, target, binding, contract, scenario = _sampled_tare_fixture()
+    values = pipeline._scenario_equipment_tares(scenario)
+    prepared = pipeline.numeric.prepare(
+        (binding,), {binding.logical_key: contract},
+        source_target=source.target, target=target, scale=Decimal(1),
+        equipment_tare_values=values,
+    )
+    case = pipeline._prepared(
+        source, target, {}, sample_id="synthetic_1", seed=7,
+        numeric_values=prepared, equipment_tare_values=values,
+    )
+    checkpoint = {
+        "sampleId": case.document_id,
+        "sourceDocumentId": case.source_document_id,
+        "target": case.target,
+        "targetSha256": sha256_bytes(canonical_json_bytes(case.target)),
+        "targetReceipt": case.target_receipt.model_dump(mode="json"),
+        "auxiliaryValues": {},
+        "numericAuxiliary": {
+            key: row.model_dump(mode="json") for key, row in case.numeric_auxiliary.items()
+        },
+        "cargoScenario": {"sampledEquipmentTares": {"tare_0": "3900"}},
+        "residualResponse": {"output": {}},
+    }
+    with pytest.raises(ValueError, match="sampled equipment tares differ"):
+        pipeline._reusable_residual(checkpoint, case, NS(), "prompt")
+
+
+def test_equal_container_partitions_constrain_generation_before_rendering(monkeypatch):
+    from document_ocr.synthesis.generators import DeterministicStream
+    from document_ocr.synthesis.template_compiler import complete_targets as targets
+
+    path = "documentPatch.cargoGroups[0].volume.value"
+    original = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "volume": {"value": 92.476, "unit": "cubic_metre"}}]
+        }
+    }
+    source = NS(source=b"", target=original, template=NS(bindings=()))
+    monkeypatch.setattr(targets.count_aliases, "fixed_quantities", lambda *a: {})
+    for index in range(100):
+        target = deepcopy(original)
+        targets._scale_numbers(
+            source,
+            target,
+            DeterministicStream(1, "partition", str(index)),
+            {},
+            {},
+            {path: Decimal(".002")},
+        )
+        volume = Decimal(str(target["documentPatch"]["cargoGroups"][0]["volume"]["value"]))
+        assert volume % Decimal(".002") == 0
+        assert volume / 2 == (volume / 2).quantize(Decimal(".001"))
+        assert 0 < volume <= Decimal("92.476")
+
+
+@pytest.mark.parametrize("gross_unit", ["metric_tonne", "kilogram"])
+def test_scaled_equal_net_gross_keep_equality_across_different_adapters(monkeypatch, gross_unit):
+    from document_ocr.synthesis.generators import DeterministicStream
+    from document_ocr.synthesis.template_compiler import complete_targets as targets
+
+    patch = {
+        "cargoGroups": [
+            {
+                "groupId": "g1",
+                "grossWeight": {
+                    "value": 50.729 if gross_unit == "metric_tonne" else 50729.0,
+                    "unit": gross_unit,
+                },
+                "netWeight": {"value": 50.729, "unit": "metric_tonne"},
+            }
+        ]
+    }
+    net_binding = NS(
+        target_paths=("documentPatch.cargoGroups[0].netWeight.value",),
+        realization=NS(adapter="numeric"),
+        occurrences=(NS(source_text="50.729"),),
+    )
+    source = NS(source=b"", target={"documentPatch": patch}, template=NS(bindings=(net_binding,)))
+    monkeypatch.setattr(targets.count_aliases, "fixed_quantities", lambda *a: {})
+    for index in range(30):
+        target = deepcopy(source.target)
+        targets._scale_numbers(source, target, DeterministicStream(1, "probe", str(index)), {}, {})
+        group = target["documentPatch"]["cargoGroups"][0]
+        assert Decimal(str(group["grossWeight"]["value"])) == Decimal(
+            str(group["netWeight"]["value"])
+        ) * (1 if gross_unit == "metric_tonne" else 1000)
+        assert Decimal(str(group["grossWeight"]["value"])) % Decimal("0.001") == 0
 
 
 def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeypatch):
@@ -41,11 +298,17 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
         provider_launch_authorized=True,
         spending=NS(ledger_path="budget.sqlite3", maximum_estimated_cost_usd=Decimal(1)),
         request_batch_size=2,
+        route_scenarios=None,
+        route_scenarios_run=None,
+        customs_program_registry=None,
+        cargo_sampling=None,
+        cargo_lexical_contracts=None,
+        reviewed_generation=None,
     )
     monkeypatch.setattr(pipeline, "project_root_from_config", lambda _: tmp_path)
     monkeypatch.setattr(pipeline, "load_config", lambda _: config)
     monkeypatch.setattr(pipeline, "_pinned", lambda *a: prompt)
-    monkeypatch.setattr(pipeline.render, "_validate_committed_run", lambda *a: tmp_path)
+    monkeypatch.setattr(pipeline.render, "_validate_committed_run", lambda *a, **kw: tmp_path)
     monkeypatch.setattr(
         pipeline.render,
         "_read_jsonl",
@@ -101,12 +364,16 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
         proposals.append(1)
         if len(proposals) > 1:
             raise ValueError("invalid second proposal")
-        return {}, {}, []
+        return {}, {}, {"retained": {}}
 
     monkeypatch.setattr(pipeline, "_cached_fields", request)
     monkeypatch.setattr(pipeline.targets, "complete_proposal", proposal)
     monkeypatch.setattr(
-        pipeline, "_prepared", lambda *a, **kw: NS(target_receipt=NS(model_dump=lambda **kw: {}))
+        pipeline,
+        "_prepared",
+        lambda *a, **kw: NS(
+            target_receipt=NS(model_dump=lambda **kw: {}), dangerous_goods_facts=()
+        ),
     )
     monkeypatch.setattr(
         pipeline.render,
@@ -236,7 +503,7 @@ def test_numeric_extension_requests_only_missing_keys_and_keeps_verified_contrac
         document_id="source",
         source=b"5 BOXES + 1 BOX = 6 BOXES",
         target={"documentPatch": {"quantity": 6}},
-        template=NS(),
+        template=NS(bindings=()),
     )
     monkeypatch.setattr(pipeline.numeric, "numeric_bindings", lambda _: tuple(members))
     monkeypatch.setattr(
@@ -285,7 +552,7 @@ def test_numeric_extension_requests_only_missing_keys_and_keeps_verified_contrac
 def test_pinned_numeric_catalog_has_exact_source_identity_and_complete_coverage(
     tmp_path, monkeypatch
 ):
-    template = NS(model_dump=lambda **kwargs: {"testTemplate": 1})
+    template = NS(bindings=(), model_dump=lambda **kwargs: {"testTemplate": 1})
     source = NS(source=b"original", target={"documentPatch": {}}, template=template)
     row = dict(
         sourceDocumentId="source",
@@ -295,7 +562,7 @@ def test_pinned_numeric_catalog_has_exact_source_identity_and_complete_coverage(
         contracts={},
     )
     path = tmp_path / "contracts.jsonl"
-    monkeypatch.setattr(pipeline.render, "_validate_committed_run", lambda *args: tmp_path)
+    monkeypatch.setattr(pipeline.render, "_validate_committed_run", lambda *args, **kw: tmp_path)
     monkeypatch.setattr(pipeline.numeric, "numeric_bindings", lambda *args: ())
     path.write_text(json.dumps(row) + "\n")
     assert pipeline._load_numeric_contracts(tmp_path, None, {"source": source}) == {"source": {}}

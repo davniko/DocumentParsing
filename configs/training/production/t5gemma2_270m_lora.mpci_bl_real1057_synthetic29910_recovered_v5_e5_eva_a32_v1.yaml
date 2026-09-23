@@ -1,0 +1,211 @@
+schema_version: 1
+task: bill_of_lading_relation_explicit_v5
+objective: seq2seq_teacher_forcing
+
+run:
+  run_id: t5gemma2-270m-lora-mpci-bl-real1057-synthetic29910-recovered-v5-e5-eva-a32-v1
+  output_dir: artifacts/kie-training
+
+model:
+  architecture: seq2seq_lm
+  model_type: t5gemma2
+  name_or_path: google/t5gemma-2-270m-270m
+  revision: 7c38f16641f455ef0685b18431faf1b17722d5a1
+  tokenizer_name_or_path: google/t5gemma-2-270m-270m
+  tokenizer_revision: 7c38f16641f455ef0685b18431faf1b17722d5a1
+  tokenizer_use_fast: true
+  token_env: HF_TOKEN
+  local_files_only: false
+  trust_remote_code: false
+  dtype: bfloat16
+  attention_implementation: sdpa
+  low_cpu_mem_usage: true
+  use_cache: false
+
+prompt:
+  path: prompts/kie/bill_of_lading_relation_explicit_v5.txt
+  placeholder: "{{document_text}}"
+  schema_placeholder: "{{output_schema}}"
+
+task_constraints:
+  path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-v5-v1/vocabulary/task-constraints.json
+  sha256: 6899ebf38d94714227b75149aafe0b796a13862f64b03091228214cc7dc29125
+dataset:
+  format: jsonl
+  splits:
+    train:
+    - path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-v5-v1/train.jsonl
+      sha256: e633571fa9d2f303c4a7990b31da7a5ee7f80f27ba0f9a451b2f666296ac07f6
+      records: 30967
+    validation:
+    - path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-v5-v1/validation.jsonl
+      sha256: ad8b91101922365fd7314d2030e230ab71c3592893095a0d0897fa8d76969dfe
+      records: 100
+    test: []
+  fields:
+    document_id: documentId
+    input_text: joinedRawText
+    target: target
+    input_sha256: joinedRawTextSha256
+  preprocessing:
+    # Full-union tokenizer audit: longest input/target are 19,194/8,753 tokens.
+    # Preserve every record, keep dynamic padding, and fail on any overflow.
+    max_source_length: 19200
+    max_target_length: 8960
+    source_overflow: error
+    source_add_special_tokens: true
+    num_proc: 4
+    batch_size: 16
+    load_from_cache_file: true
+    cache_dir: artifacts/kie-training/cache/tokenized
+    pad_to_multiple_of: 8
+
+peft:
+  method: lora
+  adapter_name: t5gemma2_270m_lora_mpci_bl_real1057_synthetic29910_recovered_v5_e5_eva_a32_v1
+  rank: 32
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  use_rslora: true
+  init_lora_weights: eva
+  eva:
+    # Keep rank 32 in every adapted layer; isolate activation initialization from
+    # rank redistribution. rsLoRA scaling is now 32/sqrt(32) = 5.657.
+    rho: 1.0
+    tau: 0.99
+    whiten: false
+    # Seeded train-only calibration, not the first (real-only) file block.
+    sample_count: 512
+    batch_size: 1
+    # Full sequences are forwarded. Only activation rows entering SVD are sampled.
+    tokens_per_stream: 512
+    max_forward_passes: 512
+    seed: 20260923
+  target_modules_regex: '^model\.(?:encoder\.text_model|decoder)\.layers\.[0-9]+\.(?:self_attn\.(?:q_proj|k_proj|v_proj|o_proj)|mlp\.(?:gate_proj|up_proj|down_proj))$'
+  modules_to_save: []
+  ensure_weight_tying: false
+
+optimization:
+  # 30,967 train rows at effective batch 32 yield 968 optimizer updates per
+  # epoch and 4,840 updates over five epochs.
+  num_train_epochs: 5.0
+  max_steps: -1
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 32
+  learning_rate: 0.0001
+  optimizer: adamw_torch_fused
+  optimizer_args: null
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 0.00000001
+  lr_scheduler_type: cosine
+  lr_scheduler_kwargs: {}
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  label_smoothing_factor: 0.0
+  average_tokens_across_devices: true
+  seed: 424
+  data_seed: 424
+  full_determinism: false
+  train_sampling_strategy: group_by_length
+  length_column_name: input_length
+
+runtime:
+  distributed_processes: 1
+  require_cuda: true
+  cuda_allocator_conf: expandable_segments:True
+  bf16: true
+  fp16: false
+  tf32: true
+  gradient_checkpointing: true
+  # Non-reentrant checkpointing crosses physical VRAM during the 5,400-token
+  # target stress case and enters WDDM paging. Reentrant checkpointing measured
+  # 20.90 GiB peak reserved and completed the same fused-AdamW update in 3.61 s.
+  gradient_checkpointing_use_reentrant: true
+  torch_compile: false
+  torch_compile_backend: null
+  torch_compile_mode: null
+  torch_empty_cache_steps: null
+  skip_memory_metrics: true
+
+dataloader:
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+  drop_last: false
+
+evaluation:
+  strategy: steps
+  split: validation
+  # ceil(30,967 / 32) = 968 optimizer updates per epoch. Evaluate halfway
+  # and at each epoch end: 10 scheduled validation passes over five epochs.
+  steps: 484
+  per_device_batch_size: 2
+  on_start: false
+  predict_with_generate: true
+  generation_do_sample: false
+  # Validation targets max out at 1,490 tokens. This independent ceiling retains
+  # 37% headroom while bounding malformed non-EOS generations during evaluation.
+  generation_max_length: 2048
+  generation_num_beams: 1
+  generation_repetition_penalty: 1.0
+  generation_no_repeat_ngram_size: 0
+  generation_length_penalty: 1.0
+  generation_early_stopping: false
+  accumulation_steps: 1
+  early_stopping_patience: null
+  early_stopping_threshold: null
+  # The tenth scheduled evaluation already occurs at step 4,840. Disable the
+  # separate post-training evaluation/prediction export to avoid an 11th pass.
+  run_final_evaluation: false
+  write_predictions_for: []
+
+checkpoint:
+  strategy: steps
+  steps: 484
+  total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: field_value_f1
+  greater_is_better: true
+  resume_from_checkpoint: null
+  enable_jit_checkpoint: false
+  save_only_model: false
+  save_on_each_node: false
+  restore_callback_states_from_checkpoint: true
+
+logging:
+  strategy: steps
+  steps: 5
+  first_step: true
+  report_to:
+    - mlflow
+  mlflow:
+    tracking_uri: http://mlflow-server:5000
+    experiment_name: document-ocr-kie
+    resume_run_id: null
+    log_artifacts: false
+    flatten_params: true
+    max_log_params: null
+    system_metrics: true
+    system_metrics_sampling_interval: 1
+    system_metrics_samples_before_logging: 1
+    tags:
+      pipeline: document-ocr-kie
+      task: bill-of-lading-relation-explicit-v5
+      dataset: real1057-plus-synthetic29910-recovered-exact-validation-id
+      validation: shared-real100
+      lora_rank: "32"
+      lora_alpha: "32"
+      lora_initialization: eva
+      effective_optimizer_batch: "32"
+      epochs: "5"
+      projected_optimizer_updates: "4840"
+  structured_log: logs/events.jsonl
+  disable_tqdm: false
+  log_level: info
+  include_num_input_tokens_seen: non_padding
+  filter_nan_inf: false
+  on_each_node: false

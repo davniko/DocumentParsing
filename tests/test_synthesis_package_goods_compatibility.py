@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.package_goods_compatibility import (
     apply_package_signature,
@@ -35,9 +37,7 @@ def _target(
                 "groupId": "g1",
                 "coverage": "single_package_level",
                 "packageIds": ["p1"],
-                "allocations": [
-                    {"containerNumber": "C1", "packageId": "p1", "packageQuantity": 1}
-                ],
+                "allocations": [{"containerNumber": "C1", "packageId": "p1", "packageQuantity": 1}],
             }
         ]
     return {
@@ -59,9 +59,7 @@ def _target(
 
 def _goods() -> ThermalGoodsSupport:
     return ThermalGoodsSupport(
-        frozen=(
-            ThermalGoodsIdentity("030363", "Fish", "Frozen fish", "Frozen cod", "FROZEN"),
-        ),
+        frozen=(ThermalGoodsIdentity("030363", "Fish", "Frozen fish", "Frozen cod", "FROZEN"),),
         chilled=(
             ThermalGoodsIdentity("070320", "Vegetables", "Garlic", "Fresh garlic", "CHILLED"),
         ),
@@ -81,9 +79,7 @@ def _stream(value: str) -> DeterministicStream:
 def test_ambient_goods_and_package_are_sampled_from_one_observed_heading_joint() -> None:
     support = build_package_goods_fit_support(
         source_targets={
-            "doc_fit": _target(
-                hs_code="392113", package="PACKAGE_ROLL"
-            ),
+            "doc_fit": _target(hs_code="392113", package="PACKAGE_ROLL"),
         },
         fit_document_ids=("doc_fit",),
         allowed_category_tokens=("PACKAGE_ROLL", "PACKAGE_CARTON"),
@@ -104,6 +100,88 @@ def test_ambient_goods_and_package_are_sampled_from_one_observed_heading_joint()
     assert selected.identities[0].hs6[:4] == "3921"
     assert selected.package_signature == ("PACKAGE_ROLL",)
     assert selected.basis == "fit_hs_signature_conditioned_heading_pool"
+
+
+@pytest.mark.parametrize(
+    "profile,hs,category",
+    [
+        (None, "392190", "PACKAGE_ROLL"),
+        ("FROZEN", "030363", "PACKAGE_CARTON"),
+    ],
+)
+def test_shared_identity_is_a_sampling_constraint_not_a_post_sampling_replacement(
+    profile, hs, category
+):
+    source = _target(hs_code=hs, package=category, temperature=-20 if profile else None)
+    support = build_package_goods_fit_support(
+        source_targets={"fit": source},
+        fit_document_ids=("fit",),
+        allowed_category_tokens=(category,),
+        frozen_minimum_celsius=-24,
+        frozen_maximum_celsius=-18,
+        chilled_minimum_celsius=-3,
+        chilled_maximum_celsius=5.5,
+    )
+    for seed in range(10):
+        chosen = sample_compatible_cargo(
+            support=support,
+            goods_support=_goods(),
+            profile=profile,
+            package_count=1,
+            identity_count=1,
+            stream=_stream(str(seed)),
+            excluded_hs6=set(),
+            required_hs6_by_index={0: hs},
+        )
+        assert chosen.identities[0].hs6 == hs
+        assert chosen.package_signature == (category,)
+    with pytest.raises(ValueError, match="no fit-supported candidate"):
+        sample_compatible_cargo(
+            support=support,
+            goods_support=_goods(),
+            profile=profile,
+            package_count=1,
+            identity_count=1,
+            stream=_stream("unsupported"),
+            excluded_hs6=set(),
+            required_hs6_by_index={0: "481910"},
+        )
+
+
+def test_required_goods_positions_stay_distinct_and_validate_exclusion():
+    support = build_package_goods_fit_support(
+        source_targets={"fit": _target(hs_code="392113", package="PACKAGE_ROLL")},
+        fit_document_ids=("fit",),
+        allowed_category_tokens=("PACKAGE_ROLL",),
+        frozen_minimum_celsius=-24,
+        frozen_maximum_celsius=-18,
+        chilled_minimum_celsius=-3,
+        chilled_maximum_celsius=5.5,
+    )
+    for position in (0, 1):
+        result = sample_compatible_cargo(
+            support=support,
+            goods_support=_goods(),
+            profile=None,
+            package_count=1,
+            identity_count=2,
+            stream=_stream(str(position)),
+            excluded_hs6=set(),
+            required_hs6_by_index={position: "392190"},
+        )
+        assert result.identities[position].hs6 == "392190"
+        assert len({i.hs6 for i in result.identities}) == 2
+    with pytest.raises(ValueError, match="conflict with excluded"):
+        sample_compatible_cargo(
+            support=support,
+            goods_support=_goods(),
+            profile=None,
+            package_count=1,
+            identity_count=2,
+            stream=_stream("excluded"),
+            excluded_hs6={"392190"},
+            required_hs6_by_index={0: "392190"},
+        )
 
 
 def test_multi_identity_cargo_uses_a_fit_conditioned_signature_heading_pool() -> None:
@@ -168,9 +246,7 @@ def test_ambient_heading_index_excludes_exhausted_identity_pools() -> None:
 def test_frozen_goods_use_temperature_linked_package_support_not_ambient_role_marginal() -> None:
     support = build_package_goods_fit_support(
         source_targets={
-            "doc_frozen": _target(
-                hs_code="030363", package="PACKAGE_CARTON", temperature=-20
-            ),
+            "doc_frozen": _target(hs_code="030363", package="PACKAGE_CARTON", temperature=-20),
             "doc_ambient": _target(hs_code="392113", package="PACKAGE_ROLL"),
         },
         fit_document_ids=("doc_frozen", "doc_ambient"),
@@ -234,9 +310,7 @@ def test_package_application_preserves_ids_quantities_and_group_topology() -> No
     patch = target["documentPatch"]
     assert isinstance(patch, dict)
     before = dict(patch["cargoPackages"][0])
-    apply_package_signature(
-        target=target, group_id="g1", signature=("PACKAGE_CARTON",)
-    )
+    apply_package_signature(target=target, group_id="g1", signature=("PACKAGE_CARTON",))
     after = patch["cargoPackages"][0]
     assert after["typeCategory"] == "PACKAGE_CARTON"
     assert {key: after[key] for key in ("groupId", "packageId", "quantity")} == {
@@ -281,3 +355,42 @@ def test_thermal_profile_is_selected_only_from_fit_supported_package_cardinality
         )
         == "CHILLED"
     )
+
+
+@pytest.mark.parametrize("profile,code", [(None, "481910"), ("FROZEN", "030363")])
+def test_numeric_compatibility_filters_before_drawing_without_widening(profile, code):
+    targets = {
+        "paper": _target(hs_code="481910", package="PACKAGE_CARTON"),
+        "plastic": _target(hs_code="392113", package="PACKAGE_ROLL"),
+        "frozen": _target(hs_code="030363", package="PACKAGE_CARTON", temperature=-20),
+    }
+    support = build_package_goods_fit_support(
+        source_targets=targets,
+        fit_document_ids=tuple(targets),
+        allowed_category_tokens=("PACKAGE_CARTON", "PACKAGE_ROLL"),
+        frozen_minimum_celsius=-24,
+        frozen_maximum_celsius=-18,
+        chilled_minimum_celsius=-3,
+        chilled_maximum_celsius=5.5,
+    )
+    kwargs = dict(
+        support=support,
+        goods_support=_goods(),
+        profile=profile,
+        package_count=1,
+        identity_count=1,
+        excluded_hs6=set(),
+    )
+    selected = sample_compatible_cargo(
+        **kwargs,
+        stream=_stream("allowed"),
+        allowed_heading_signatures=frozenset({(code[:4], ("PACKAGE_CARTON",))}),
+    )
+    assert selected.identities[0].hs6 == code
+    kwargs["excluded_hs6"] = set()
+    with pytest.raises(ValueError, match="no fit-supported candidate"):
+        sample_compatible_cargo(
+            **kwargs,
+            stream=_stream("empty"),
+            allowed_heading_signatures=frozenset(),
+        )

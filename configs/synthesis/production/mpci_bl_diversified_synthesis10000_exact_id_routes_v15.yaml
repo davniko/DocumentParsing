@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "task": "compiled_template_route_plan_v1",
+  "run_name": "mpci-bl-diversified-exact10k-routes-v15",
+  "output_dir": "artifacts/kie-synthesis-production/route-plans",
+  "template_run": {
+    "commit_sha256": "97d43815a6cdc8beb6b8284e5c5700ef308ba95f9f25e585c376d4e64f3f8958",
+    "path": "artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v6",
+    "transaction_sha256": "a21290c2a31ad36b8495508f2d462953e255ad810ed677ba0a7b4e04239c2a30"
+  },
+  "sample_plan_run": {
+    "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-diversified-synthesis10000-exact-id-plan-v15",
+    "commit_sha256": "2d533f89b8b48ef9dba1a0c2f55e42e2d3043d24affe7adec9420296f8477444",
+    "transaction_sha256": "d1a29bbadb293d8b563ecfabf983f6ef58327b025059eb71625707cf0722608b"
+  },
+  "sample_plan": {
+    "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-diversified-synthesis10000-exact-id-plan-v15/plan.jsonl",
+    "sha256": "9e2cf20e47f0f8c735524fac4a89b683e0f8bb5a05fdc4b2564fddffbb03c29b",
+    "records": 10000
+  },
+  "fit_records": {
+    "path": "artifacts/kie-training/datasets/mpci-bl-real1157-v5-shared-validation100-v1/train.jsonl",
+    "sha256": "7997bd97e4e9f8c3c98fbf04149e58b94a0704aaced3e694f94193f1e63d696e",
+    "records": 1057
+  },
+  "validation_records": {
+    "path": "artifacts/kie-training/datasets/mpci-bl-real1157-v5-shared-validation100-v1/validation.jsonl",
+    "sha256": "ad8b91101922365fd7314d2030e230ab71c3592893095a0d0897fa8d76969dfe",
+    "records": 100
+  },
+  "commercial_origin_prior": {
+    "method": "observed_exporter_plus_maritime_registry_mixture_v1",
+    "observed_exporter": {
+      "mixture_permyriad": 7500,
+      "weighting": "train_isolated_shipper_country_document_count_v1"
+    },
+    "maritime_registry": {
+      "mixture_permyriad": 2500,
+      "weighting": "uniform_route_feasible_iso_country_v1"
+    }
+  },
+  "registry_exploration_permyriad": 2500,
+  "maximum_candidates_per_sample": 256,
+  "seed": 20260920,
+  "iso3166_snapshot": {
+    "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+    "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
+  },
+  "route_locations": {
+    "path": "artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl",
+    "sha256": "c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278",
+    "records": 111561
+  },
+  "route_registry_manifest": {
+    "path": "artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/registry-receipt.json",
+    "sha256": "210b6675e38a150cf44d3710af3ceffa688836ece14cef1dd47775286c755dce"
+  },
+  "world_ports": {
+    "path": "artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl",
+    "sha256": "b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb",
+    "records": 3032
+  },
+  "world_port_registry_manifest": {
+    "path": "artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/registry-receipt.json",
+    "sha256": "4bfe37499b6bae3fee2125fc718f81aa9fff2d929a224f17fc310883bd805453"
+  },
+  "locality_registry": {
+    "path": "artifacts/kie-synthesis/registries/geonames-cities15000-current-v1",
+    "manifest_sha256": "bfac2357b10b5170e4461452f2c749db226f713feb6a781fd68de82f14f4dfe9"
+  },
+  "trade_flows": {
+    "path": "artifacts/kie-synthesis/registries/wits-latest-bilateral-numeric-v2/trade-flows.jsonl",
+    "sha256": "6323aa30c3ede23c1c97716de4a9e6f8eeab775439c4351899718d3ae90fecfc",
+    "records": 11645
+  },
+  "trade_flow_registry_manifest": {
+    "path": "artifacts/kie-synthesis/registries/wits-latest-bilateral-numeric-v2/registry-receipt.json",
+    "sha256": "2c7fde63c54c356d3a6e2c53152ae197041f67448df9dc4bd787d9f5e3f5e0ec"
+  }
+}

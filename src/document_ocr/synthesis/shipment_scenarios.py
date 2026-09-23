@@ -14,15 +14,22 @@ import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from dataclasses import field as dataclass_field
 from decimal import Decimal
 from typing import Any, Literal, cast
 
+from document_ocr.hashing import canonical_json_bytes
 from document_ocr.synthesis.config import RouteScenarioOriginPriorConfig
 from document_ocr.synthesis.country_registry import CountryRegistry
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.locality_registry import LocalityRecord
 from document_ocr.synthesis.routes import RouteLocation, TradeFlowRecord, weighted_index
+from document_ocr.synthesis.transshipment_routes import (
+    TransshipmentChain,
+    TransshipmentObservation,
+    reviewed_chains,
+)
 from document_ocr.synthesis.world_port_registry import WorldPortRecord
 
 _MARITIME_FUNCTION = "1"
@@ -49,6 +56,7 @@ _PARTY_ROLES = (
 _ROUTE_ROLES = (
     "placeOfReceipt",
     "portOfLoading",
+    "transshipmentPort",
     "portOfDischarge",
     "placeOfDelivery",
     "finalDestination",
@@ -91,15 +99,23 @@ class SampledScenarioLocation:
         "registry_port_exploration",
         "registry_port_no_observed_support",
         "endpoint",
+        "train_observed_transshipment_chain",
         "geonames_population_weighted",
     ]
+    subdivision_code: str | None = None
 
     def __post_init__(self) -> None:
+        if self.subdivision_code is not None and (
+            self.locode is None
+            or re.fullmatch(r"[A-Z0-9][A-Z0-9-]{0,7}", self.subdivision_code) is None
+        ):
+            raise ValueError("scenario subdivision requires a pinned port and valid code")
         if self.source in {
             "observed_port",
             "registry_port_exploration",
             "registry_port_no_observed_support",
             "endpoint",
+            "train_observed_transshipment_chain",
         }:
             if self.locode is None or self.geoname_id is not None:
                 raise ValueError("port/endpoint locations require only a UN/LOCODE identity")
@@ -113,6 +129,7 @@ class SampledScenarioLocation:
             "name": self.name,
             "countryCode": self.country_code,
             "countryName": self.country_name,
+            "subdivisionCode": self.subdivision_code,
             "source": self.source,
         }
 
@@ -214,13 +231,16 @@ class ShipmentScenario:
     loading_country_method: Literal[
         "train_empirical_conditioned_on_origin_v1",
         "commercial_origin_identity_registry_v1",
+        "train_observed_transshipment_chain_v1",
     ]
     discharge_country_method: Literal[
         "train_empirical_conditioned_on_destination_v1",
         "commercial_destination_identity_when_unobserved_v1",
+        "train_observed_transshipment_chain_v1",
     ]
-    transshipment_status: Literal["not_present"]
+    transshipment_status: Literal["not_present", "train_observed_three_port_chain_v1"]
     vessel_status: Literal["not_present", "pending_synthetic_transport_identity"]
+    transshipment_evidence_document_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.base_document_id:
@@ -229,8 +249,23 @@ class ShipmentScenario:
             raise ValueError("loading and discharge ports must differ")
         if self.loading_port.country_code == self.discharge_port.country_code:
             raise ValueError("this scenario contract is international-only")
-        if self.route_locations.get("portOfLoading") != self.loading_port or (
-            self.route_locations.get("portOfDischarge") != self.discharge_port
+        via = self.route_locations.get("transshipmentPort")
+        if self.transshipment_status == "not_present":
+            if via is not None or self.transshipment_evidence_document_id is not None:
+                raise ValueError("direct scenario cannot contain transshipment evidence")
+        elif (
+            via is None
+            or not self.transshipment_evidence_document_id
+            or via.locode is None
+            or via.locode in {self.loading_port.locode, self.discharge_port.locode}
+        ):
+            raise ValueError("transshipment scenario requires a distinct port and source evidence")
+        if (
+            "portOfLoading" in self.route_locations
+            and self.route_locations["portOfLoading"] != self.loading_port
+        ) or (
+            "portOfDischarge" in self.route_locations
+            and self.route_locations["portOfDischarge"] != self.discharge_port
         ):
             raise ValueError("route endpoints differ from route location projection")
         if self.trade_flow_year < 1900 or self.trade_flow_weight <= 0:
@@ -272,6 +307,7 @@ class ShipmentScenario:
                 "discharge": self.discharge_country_method,
             },
             "transshipmentStatus": self.transshipment_status,
+            "transshipmentEvidenceDocumentId": self.transshipment_evidence_document_id,
             "vesselStatus": self.vessel_status,
         }
 
@@ -386,9 +422,7 @@ class ScenarioSupportAudit:
             "excludedTransshipmentDocuments": self.excluded_transshipment_documents,
             "ambiguousMaritimeNameKeys": self.ambiguous_maritime_name_keys,
             "worldPortRowsInput": self.world_port_rows_input,
-            "worldPortRowsExcludedNonMaritime": (
-                self.world_port_rows_excluded_non_maritime
-            ),
+            "worldPortRowsExcludedNonMaritime": (self.world_port_rows_excluded_non_maritime),
             "worldPortRowsEligible": self.world_port_rows_eligible,
             "eligibleWorldPortLocodes": self.eligible_world_port_locodes,
             "observedExportCountries": self.observed_export_countries,
@@ -492,6 +526,9 @@ class ScenarioSupport:
     trade_destinations_by_origin: Mapping[str, tuple[TradeDestination, ...]]
     audit: ScenarioSupportAudit
     trade_flow_audit: ScenarioTradeFlowAudit
+    transshipment_chains_by_countries: Mapping[tuple[str, str], tuple[TransshipmentChain, ...]] = (
+        dataclass_field(default_factory=dict)
+    )
 
     def __post_init__(self) -> None:
         observed = {row.value for row in self.observed_export_countries}
@@ -576,8 +613,13 @@ def _categories(counter: Mapping[str, int], *, label: str) -> tuple[WeightedCate
 
 def _patch(target: Mapping[str, Any]) -> Mapping[str, Any]:
     patch = target.get("documentPatch")
-    if target.get("schemaVersion") != "3.0.0-experimental" or not isinstance(patch, Mapping):
-        raise ValueError("shipment scenarios require relation-v3 targets")
+    # Route/party locality shapes are shared by the two callers. Equipment and
+    # cargo changed in v5, but are not read or rewritten by this sampler.
+    if target.get("schemaVersion") not in {
+        "3.0.0-experimental",
+        "5.0.0-experimental",
+    } or not isinstance(patch, Mapping):
+        raise ValueError("shipment scenarios require a supported relation target documentPatch")
     return cast(Mapping[str, Any], patch)
 
 
@@ -621,7 +663,7 @@ def _concrete_party_identity_signature(
 ) -> tuple[str | None, ...] | None:
     """Return a conservative exact signature for a concrete printed identity.
 
-    A name plus at least one corroborating identity field is required.  Exact
+    A name plus at least one corroborating identity or contact field is required. Exact
     surfaces are used intentionally: fuzzy matching could collapse unrelated
     parties and silently corrupt a synthetic label.
     """
@@ -635,8 +677,19 @@ def _concrete_party_identity_signature(
             raise TypeError(f"party identity field must be text or null: {field}")
         values.append(value)
     name = values[0]
-    if name is None or not name.strip() or not any(value and value.strip() for value in values[1:]):
+    if name is None or not name.strip():
         return None
+    if not any(value and value.strip() for value in values[1:]):
+        # Some printed party blocks contain only name and contacts. Complete
+        # lexical generation already preserves equality of those objects; route
+        # sampling must not independently send their shared phone abroad.
+        # Name-only coincidences still provide insufficient identity evidence.
+        contacts = party.get("contactDetails")
+        if not isinstance(contacts, Mapping) or not any(
+            contacts.get(key) for key in ("phoneNumbers", "emailAddresses")
+        ):
+            return None
+        return (*values, canonical_json_bytes(contacts).decode("utf-8"))
     return tuple(values)
 
 
@@ -699,6 +752,7 @@ def build_scenario_support(
     localities: Sequence[LocalityRecord],
     trade_flows: Sequence[TradeFlowRecord],
     origin_prior: RouteScenarioOriginPriorConfig,
+    transshipment_observations: Sequence[TransshipmentObservation] = (),
 ) -> ScenarioSupport:
     """Fit explicit low-cardinality scenario priors on an already-isolated scope."""
 
@@ -1083,7 +1137,7 @@ def build_scenario_support(
         observed_exporter_mixture_permyriad=(origin_prior.observed_exporter.mixture_permyriad),
         maritime_registry_mixture_permyriad=(origin_prior.maritime_registry.mixture_permyriad),
     )
-    return ScenarioSupport(
+    support = ScenarioSupport(
         origin_prior=origin_prior,
         observed_export_countries=_categories(export, label="observed export countries"),
         maritime_registry_export_countries=_categories(
@@ -1162,6 +1216,38 @@ def build_scenario_support(
         audit=audit,
         trade_flow_audit=trade_flow_audit,
     )
+    chains = reviewed_chains(
+        transshipment_observations,
+        source_targets=source_targets,
+        fit_document_ids=fit_document_ids,
+        countries=country_registry,
+        maritime_ports={row.locode: row for row in maritime_locations},
+    )
+    conditioned = {}
+    for origin, destinations in support.trade_destinations_by_origin.items():
+        loading_codes = {r.value for r in support.physical_loading_countries_by_origin[origin]}
+        for destination in destinations:
+            discharge_codes = {
+                r.value
+                for r in support.physical_discharge_countries_by_destination.get(
+                    destination.country_code, (WeightedCategory(destination.country_code, 1),)
+                )
+            }
+            eligible = tuple(
+                c
+                for c in chains
+                if c.loading.country_code in loading_codes
+                and c.discharge.country_code in discharge_codes
+            )
+            if eligible:
+                conditioned[origin, destination.country_code] = eligible
+    if chains and not conditioned:
+        raise ValueError("reviewed transshipment chains lack compatible commercial-route support")
+    if conditioned and not (
+        {r.value for r in support.observed_export_countries} & {key[0] for key in conditioned}
+    ):
+        raise ValueError("transshipment support has no observed-origin mixture component")
+    return replace(support, transshipment_chains_by_countries=conditioned)
 
 
 def _sample_origin_country(
@@ -1213,8 +1299,11 @@ def _sample_trade_destination(
     *,
     commercial_origin: str,
     stream: DeterministicStream,
+    allowed: frozenset[str] | None = None,
 ) -> TradeDestination:
     rows = support.trade_destinations_by_origin.get(commercial_origin, ())
+    if allowed is not None:
+        rows = tuple(row for row in rows if row.country_code in allowed)
     if not rows:
         raise ValueError(
             f"commercial origin has no pinned bilateral trade-flow support: {commercial_origin}"
@@ -1232,6 +1321,7 @@ def _port_location(
         "registry_port_exploration",
         "registry_port_no_observed_support",
         "endpoint",
+        "train_observed_transshipment_chain",
     ],
 ) -> SampledScenarioLocation:
     return SampledScenarioLocation(
@@ -1241,6 +1331,7 @@ def _port_location(
         country_code=value.country_code,
         country_name=registry.printable_name(value.country_code),
         source=source,
+        subdivision_code=value.subdivision_code,
     )
 
 
@@ -1371,32 +1462,94 @@ def _feasible_side_categories(
     return eligible
 
 
-def sample_shipment_scenario(
+def _shared_route_owners(
+    route: Mapping[str, Any],
+    groups: tuple[tuple[str, ...], ...],
+    country_registry: CountryRegistry,
+) -> dict[str, str]:
+    """Resolve declared single-location groups before drawing their locations.
+
+    Identical source strings alone are not a declaration. Compiled callers pass
+    groups only for a physical slot explicitly shared by the named route roles.
+    """
+    order = (
+        "portOfLoading",
+        "portOfDischarge",
+        "transshipmentPort",
+        "placeOfReceipt",
+        "placeOfDelivery",
+        "finalDestination",
+    )
+    components: list[set[str]] = []
+    for group in groups:
+        members = set(group)
+        if len(members) < 2 or len(members) != len(group):
+            raise ValueError("shared route location requires distinct roles")
+        if members - set(order) or any(not route.get(role) for role in members):
+            raise ValueError("shared route location references an absent or unsupported role")
+        remaining = []
+        for component in components:
+            if component & members:
+                members |= component
+            else:
+                remaining.append(component)
+        components = [*remaining, members]
+    owners = {}
+    for component in components:
+        if len({"portOfLoading", "portOfDischarge", "transshipmentPort"} & component) > 1:
+            raise ValueError("direct-route endpoints cannot share one physical location")
+        if any(not isinstance(route[role].get("name"), str) for role in component):
+            raise ValueError("shared route location lacks printed source names")
+        names = {normalize_location_name(route[role]["name"]) for role in component}
+        if len(names) != 1:
+            raise ValueError("shared route location contradicts printed source names")
+        codes = set()
+        for role in component:
+            country = route[role].get("country")
+            if country is not None:
+                code = _resolved_country(country, country_registry)
+                if code is None:
+                    raise ValueError("shared route location has an unresolved source country")
+                codes.add(code)
+        if len(codes) > 1:
+            raise ValueError("shared route location contradicts printed source countries")
+        owner = next(role for role in order if role in component)
+        owners.update({role: owner for role in component if role != owner})
+    return owners
+
+
+def _sample_physical_endpoints(
     *,
-    base_document_id: str,
-    source_target: Mapping[str, Any],
     support: ScenarioSupport,
+    commercial_origin: str,
+    commercial_destination: str,
     country_registry: CountryRegistry,
     stream: DeterministicStream,
     registry_exploration_permyriad: int,
-) -> ShipmentScenario:
-    """Sample a complete direct-route geography while preserving source leaf topology."""
-
-    patch = _patch(source_target)
-    source_route = _location_dict(patch.get("route"))
-    if source_route.get("transshipmentPort") is not None:
-        raise ValueError("transshipment template requires a pinned connectivity provider")
-    sampled_origin = _sample_origin_country(
-        support,
-        stream=stream.derive("commercial-origin"),
-    )
-    commercial_origin = sampled_origin.country_code
-    trade_destination = _sample_trade_destination(
-        support,
-        commercial_origin=commercial_origin,
-        stream=stream.derive("commercial-destination"),
-    )
-    commercial_destination = trade_destination.country_code
+    chain: TransshipmentChain | None,
+) -> tuple[
+    SampledScenarioLocation,
+    SampledScenarioLocation,
+    Literal[
+        "train_empirical_conditioned_on_destination_v1",
+        "commercial_destination_identity_when_unobserved_v1",
+        "train_observed_transshipment_chain_v1",
+    ],
+]:
+    if chain is not None:
+        return (
+            _port_location(
+                chain.loading,
+                registry=country_registry,
+                source="train_observed_transshipment_chain",
+            ),
+            _port_location(
+                chain.discharge,
+                registry=country_registry,
+                source="train_observed_transshipment_chain",
+            ),
+            "train_observed_transshipment_chain_v1",
+        )
     loading_rows = _feasible_physical_loading_rows(
         support,
         commercial_origin=commercial_origin,
@@ -1448,17 +1601,83 @@ def sample_shipment_scenario(
         registry_exploration_permyriad=registry_exploration_permyriad,
         excluded_locodes=frozenset({loading_locode}),
     )
+    return loading, discharge, discharge_country_method
+
+
+def sample_shipment_scenario(
+    *,
+    base_document_id: str,
+    source_target: Mapping[str, Any],
+    support: ScenarioSupport,
+    country_registry: CountryRegistry,
+    stream: DeterministicStream,
+    registry_exploration_permyriad: int,
+    shared_route_locations: tuple[tuple[str, ...], ...] = (),
+) -> ShipmentScenario:
+    """Sample route geography while preserving the source's supported topology."""
+
+    patch = _patch(source_target)
+    source_route = _location_dict(patch.get("route"))
+    shared_owners = _shared_route_owners(source_route, shared_route_locations, country_registry)
+    has_transshipment = source_route.get("transshipmentPort") is not None
+    chain_support = support.transshipment_chains_by_countries
+    if has_transshipment and not chain_support:
+        raise ValueError("transshipment template requires pinned reviewed three-port chain support")
+    chain_origins = {key[0] for key in chain_support}
+    sampled_origin = _sample_origin_country(
+        support,
+        stream=stream.derive("commercial-origin"),
+        exclude=(
+            frozenset(support.trade_destinations_by_origin) - chain_origins
+            if has_transshipment
+            else frozenset()
+        ),
+    )
+    commercial_origin = sampled_origin.country_code
+    trade_destination = _sample_trade_destination(
+        support,
+        commercial_origin=commercial_origin,
+        stream=stream.derive("commercial-destination"),
+        allowed=(
+            frozenset(d for o, d in chain_support if o == commercial_origin)
+            if has_transshipment
+            else None
+        ),
+    )
+    commercial_destination = trade_destination.country_code
+    chain = None
+    if has_transshipment:
+        chains = chain_support[commercial_origin, commercial_destination]
+        chain = chains[stream.derive("transshipment-chain").randbelow(len(chains))]
+    loading, discharge, discharge_country_method = _sample_physical_endpoints(
+        support=support,
+        commercial_origin=commercial_origin,
+        commercial_destination=commercial_destination,
+        country_registry=country_registry,
+        stream=stream,
+        registry_exploration_permyriad=registry_exploration_permyriad,
+        chain=chain,
+    )
     route_locations: dict[str, SampledScenarioLocation] = {}
     if source_route.get("portOfLoading") is not None:
         route_locations["portOfLoading"] = loading
     if source_route.get("portOfDischarge") is not None:
         route_locations["portOfDischarge"] = discharge
+    if chain is not None:
+        route_locations["transshipmentPort"] = _port_location(
+            chain.transshipment,
+            registry=country_registry,
+            source="train_observed_transshipment_chain",
+        )
     for role, side, endpoint in (
         ("placeOfReceipt", "commercial_origin", loading),
         ("placeOfDelivery", "commercial_destination", discharge),
         ("finalDestination", "commercial_destination", discharge),
     ):
         if source_route.get(role) is None:
+            continue
+        if role in shared_owners:
+            route_locations[role] = replace(route_locations[shared_owners[role]], source="endpoint")
             continue
         source_value = _location_dict(source_route.get(role))
         endpoint_source = _location_dict(
@@ -1499,6 +1718,10 @@ def sample_shipment_scenario(
     party_scenarios_by_reference: dict[tuple[str, int], PartyLocalityScenario] = {}
     concrete_party_identity_owners: dict[tuple[str | None, ...], tuple[str, int]] = {}
     for role, occurrence, party in _party_rows(patch):
+        if role == "carrier":
+            # Carrier identity and registered geography belong to the template,
+            # not the commercial parties sampled for this shipment.
+            continue
         same_as = party.get("sameAs") if isinstance(party.get("sameAs"), str) else None
         country_present = isinstance(party.get("country"), str)
         city_present = isinstance(party.get("city"), str)
@@ -1511,7 +1734,7 @@ def sample_shipment_scenario(
             identity_owner = party_scenarios_by_reference.get((same_as, 0))
             if identity_owner is None:
                 raise ValueError(f"unsupported or unresolved sameAs party reference: {same_as}")
-        elif role == "notifyParties" and signature is not None:
+        elif role not in {"shipper", "consignee", "carrier"} and signature is not None:
             owner_reference = concrete_party_identity_owners.get(signature)
             if owner_reference is not None:
                 identity_owner = party_scenarios_by_reference[owner_reference]
@@ -1644,7 +1867,7 @@ def sample_shipment_scenario(
         )
         party_scenarios.append(scenario)
         party_scenarios_by_reference[(role, occurrence)] = scenario
-        if role in {"shipper", "consignee"} and signature is not None:
+        if role != "carrier" and same_as is None and signature is not None:
             concrete_party_identity_owners.setdefault(signature, (role, occurrence))
 
     place_of_issue = None
@@ -1757,12 +1980,19 @@ def sample_shipment_scenario(
         origin_prior_method=support.origin_prior.method,
         origin_prior_component=sampled_origin.component,
         origin_prior_weighting=sampled_origin.weighting,
-        loading_country_method=support.loading_country_methods_by_origin[commercial_origin],
-        discharge_country_method=discharge_country_method,
-        transshipment_status="not_present",
-        vessel_status=(
-            "pending_synthetic_transport_identity" if vessel_present else "not_present"
+        loading_country_method=(
+            "train_observed_transshipment_chain_v1"
+            if chain is not None
+            else support.loading_country_methods_by_origin[commercial_origin]
         ),
+        discharge_country_method=discharge_country_method,
+        transshipment_status=(
+            "train_observed_three_port_chain_v1" if chain is not None else "not_present"
+        ),
+        transshipment_evidence_document_id=(
+            chain.source_document_id if chain is not None else None
+        ),
+        vessel_status=("pending_synthetic_transport_identity" if vessel_present else "not_present"),
     )
 
 

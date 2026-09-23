@@ -14,10 +14,49 @@ def _compact(value: str) -> str:
 def _terminal_country(value: str, countries: Mapping[str, str]) -> str | None:
     # Resolve a complete address component, not a suffix of a locality such as
     # NEW JERSEY. A numeric postal/address prefix may share the country component.
-    component = re.split(r"[,;\n]", value.rstrip(" .;,\t\r\n"))[-1].strip()
-    component = re.sub(r"^\d[\d -]*\s+", "", component)
+    components = re.split(r"[,;\n]", value.rstrip(" .;,\t\r\n"))
+    # Registered names can themselves contain commas or wrapped lines, e.g.
+    # Korea, Republic of. Match complete suffix components, longest first;
+    # never treat an arbitrary word suffix of NEW JERSEY as a country.
+    for index in range(len(components) - 1):
+        alias = _compact(" ".join(components[index:]))
+        if alias in countries:
+            return countries[alias]
+    component = components[-1].strip()
+    without_postal_prefix = re.sub(r"^\d[\d -]*\s+", "", component)
+    if without_postal_prefix != component and len(_compact(without_postal_prefix)) <= 3:
+        # A postal component such as Dutch "1671 BD" is not Bangladesh.
+        # Short codes after numbers are ambiguous; only a complete, separately
+        # printed code or a country name supplies country evidence here.
+        return None
+    component = without_postal_prefix
     normalized = _compact(component)
     return countries.get(normalized)
+
+
+def generated_address_country(
+    value: str,
+    countries: Mapping[str, str],
+    *,
+    region_names: frozenset[str] = frozenset(),
+) -> str | None:
+    """Read an explicit trailing country in flattened generated addresses.
+
+    Longest whole-word aliases win (Congo must not shadow DR Congo). Short
+    postal letters are not country evidence. The caller supplies the sampled
+    country's registered regions so e.g. New Mexico is not read as Mexico.
+    This checks printed words only; it never geocodes a street or supplies a city.
+    Source-binding evidence deliberately keeps the stricter component parser.
+    """
+    component = value.rstrip(" .;,\t\r\n").strip()
+    words = tuple(re.finditer(r"[^\W_]+", component, re.UNICODE))
+    for word in words:
+        suffix = _compact(component[word.start() :])
+        if suffix in region_names:
+            return None
+        if len(suffix) > 3 and suffix in countries:
+            return countries[suffix]
+    return _terminal_country(value, countries)
 
 
 def address_country_context(

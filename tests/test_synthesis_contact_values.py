@@ -7,6 +7,7 @@ from document_ocr.synthesis.raw_text_template import format_envelope
 from document_ocr.synthesis.template_compiler.contact_values import (
     mailbox,
     phone,
+    phone_inside_literal_prefix,
     render_mailbox,
     source_phone_country,
     validate_mailbox,
@@ -14,6 +15,19 @@ from document_ocr.synthesis.template_compiler.contact_values import (
 )
 from document_ocr.synthesis.template_compiler.descendant import _render_direct_auxiliary
 from document_ocr.synthesis.template_compiler.synthetic_values import DeterministicValueFactory
+
+
+@pytest.mark.parametrize(
+    "source,start,value,expected",
+    [
+        (b"TEL:+201234567890", 5, "+31 20 123 4567", "31 20 123 4567"),
+        (b"TEL:+201234567890", 4, "+31 20 123 4567", "+31 20 123 4567"),
+        (b"TEL:0201234567", 4, "+31 20 123 4567", "+31 20 123 4567"),
+        (b"0201234567", 0, "+31 20 123 4567", "+31 20 123 4567"),
+    ],
+)
+def test_phone_prefix_has_exactly_one_owner(source, start, value, expected):
+    assert phone_inside_literal_prefix(source=source, byte_start=start, rendered=value) == expected
 
 
 @pytest.mark.parametrize(
@@ -172,3 +186,15 @@ def test_explicit_source_only_contact_absence_is_not_an_invented_mailbox(source)
     assert result.replacements == {"s": source}
     b.target_paths = ("documentPatch.email",)
     assert not _explicit_unknown_placeholder(b)
+
+
+def test_shared_prefix_phone_list_can_change_country_without_changing_label_shape():
+    from document_ocr.synthesis.template_compiler.contact_values import validate_party_phones
+
+    source = ["+20 3 4853366", "4853377", "4853388"]
+    target = ["+31 227 684 510", "684 511", "684 512"]
+    validate_party_phones(source, target, country_code="NL")
+    with pytest.raises(ValueError, match="contradicts sampled country"):
+        validate_party_phones(source, ["+20 3 4853366", *target[1:]], country_code="NL")
+    with pytest.raises(ValueError, match="invalid full phone"):
+        validate_party_phones([source[0]], ["684 511"], country_code="NL")

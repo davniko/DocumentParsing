@@ -12,10 +12,11 @@ import re
 from collections.abc import Mapping, Sequence
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal, InvalidOperation
 from fractions import Fraction
-from math import lcm
+from itertools import pairwise
+from math import gcd, lcm
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from document_ocr.synthesis.rendering import (
     _NUMBER,
@@ -41,6 +42,7 @@ class NumericContract(BaseModel):
         "unit_product",
         "source_scaled",
         "source_fixed",
+        "sampled_equipment_tare",
         "surface_fixed",
         "review_required",
     ]
@@ -64,6 +66,38 @@ class NumericContract(BaseModel):
     multiplier: Literal["1", "1000", "0.001", "kg_to_lb", "lb_to_kg", "cbm_to_cbf", "cbf_to_cbm"]
     divisor: int = Field(ge=1)
     reason: str
+    synthetic_unit: Literal["kilogram", "cubic_metre"] | None = None
+    printed_unit_quote: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def private_unit_is_a_synthetic_physical_choice(self) -> NumericContract:
+        if self.printed_unit_quote is not None and (
+            self.synthetic_unit is not None
+            or self.role not in {"cargo_mass", "cargo_volume", "tare"}
+        ):
+            raise ValueError(
+                "printed unit evidence requires cargo mass/volume or equipment tare "
+                "and cannot be a private unit choice"
+            )
+        if self.synthetic_unit is not None and (
+            self.mode not in (
+                {"source_fixed", "sampled_equipment_tare"}
+                if self.role == "tare"
+                else {"source_scaled", "binding_sum"}
+            )
+            or self.target_paths
+            or (self.dependency_bindings and self.mode != "binding_sum")
+            or self.multiplier != "1"
+            or self.divisor != 1
+            or self.role not in {
+                "kilogram": {"cargo_mass", "tare"},
+                "cubic_metre": {"cargo_volume"},
+            }[self.synthetic_unit]
+        ):
+            raise ValueError(
+                "private unit requires a source-only physical measurement of the same dimension"
+            )
+        return self
 
 
 class PreparedNumeric(BaseModel):
@@ -76,6 +110,17 @@ class PreparedNumeric(BaseModel):
 def measurement_unit_binding(binding: SemanticBinding) -> bool:
     return bool(
         not binding.target_paths
+        # Unit spellings overlap with geographic codes (LB = Lebanon, MT = Malta).
+        # Surface matching must not override the binding's semantic kind.
+        and binding.value_kind
+        in {
+            "decimal_measurement",
+            "temperature",
+            "other_text",
+            "operational_text",
+            "commercial_text",
+            "cargo_text",
+        }
         and binding.occurrences
         and all(
             any(
@@ -185,7 +230,49 @@ def quantum(binding: SemanticBinding, old: Decimal) -> Decimal:
     return max(surface_quantum(slot.source_text, old) for slot in binding.occurrences)
 
 
+def _word_count_surface(text: str) -> tuple[int, int, int] | None:
+    """Closed package counts only; incidental number words are not numeric facts."""
+    from .descendant import _number_word_value
+
+    match = re.fullmatch(
+        r"\s*(?P<number>[A-Za-z]+(?:[ -]+[A-Za-z]+)*)\s+"
+        r"(?:PALLETS?|CARTONS?|PACKAGES?|CRATES?|DRUMS?|BUNDLES?|CASES?|"
+        r"PIECES?|ROLLS?|SACKS?|BAGS?|BOX(?:ES)?)(?:\s+ONLY)?\s*",
+        text,
+        re.I,
+    )
+    if match is None:
+        return None
+    value = _number_word_value(match["number"])
+    if value is None:
+        return None
+    return value, match.start("number"), match.end("number")
+
+
+def render_numeric_surface(text: str, old: Decimal, new: Decimal) -> str:
+    word_count = _word_count_surface(text)
+    if word_count is None:
+        return render_number_surface(text, old, new)
+    from .descendant import _case_like, _number_to_words, _pluralize_number_word_noun
+
+    value, start, end = word_count
+    if old != value or new < 0 or new != new.to_integral_value():
+        raise ValueError("package number words disagree with the integral numeric contract")
+    if old == new:
+        return text
+    return (
+        text[:start]
+        + _case_like(text[start:end], _number_to_words(int(new)))
+        + _pluralize_number_word_noun(text[end:], number=int(new))
+    )
+
+
 def surface_quantum(text: str, old: Decimal) -> Decimal:
+    word_count = _word_count_surface(text)
+    if word_count is not None:
+        if old != word_count[0]:
+            raise ValueError("package number words disagree with the numeric source value")
+        return Decimal(1)
     options = {
         (match.start(), match.end(), precision)
         for match in _NUMBER.finditer(text)
@@ -240,9 +327,9 @@ def validate_contract(
             or contract.target_paths
             or contract.multiplier != "1"
             or contract.divisor != 1
-            or contract.role != "cargo_quantity"
+            or contract.role not in {"cargo_quantity", "cargo_mass", "cargo_volume"}
         ):
-            raise ValueError("binding sum requires distinct other cargo-quantity bindings")
+            raise ValueError("binding sum requires distinct other same-dimension cargo bindings")
         quantum(binding, _number(contract.source_value))
         return
     if contract.dependency_bindings:
@@ -263,6 +350,16 @@ def validate_contract(
         return
     old = _number(contract.source_value)
     step = quantum(binding, old)
+    if contract.mode == "sampled_equipment_tare":
+        if (
+            contract.role != "tare"
+            or old <= 0
+            or contract.target_paths
+            or contract.multiplier != "1"
+            or contract.divisor != 1
+        ):
+            raise ValueError("sampled equipment tare requires a positive source-only tare")
+        return
     if contract.mode == "target_converted":
         if source_template is None or len(contract.target_paths) != 1 or contract.divisor != 1:
             raise ValueError("converted measurement needs its source template and one target leaf")
@@ -331,7 +428,19 @@ def validate_contract(
             }
             if contract.divisor not in count_support or contract.divisor < 2:
                 raise ValueError("equal partition lacks one source occurrence per constituent")
-            if any(
+            if contract.role == "cargo_quantity":
+                if (
+                    len(contract.target_paths) != 1
+                    or not re.fullmatch(
+                        r"documentPatch\.cargoPackages\[\d+\]\.quantity",
+                        contract.target_paths[0],
+                    )
+                    or multiplier != 1
+                    or old != old.to_integral_value()
+                    or step != 1
+                ):
+                    raise ValueError("equal package partition requires one integer package total")
+            elif any(
                 not re.search(r"\.(?:grossWeight|netWeight|volume)\.value$", p)
                 for p in contract.target_paths
             ):
@@ -364,6 +473,76 @@ def validate_contract(
         raise ValueError("shipment totals cannot be silently frozen")
 
 
+def _allocate_equal_precision(
+    keys: Sequence[str], weights: Sequence[Decimal], total: Decimal, step: Decimal
+) -> dict[str, Decimal]:
+    if total / step != (total / step).to_integral_value():
+        raise ValueError("target share total exceeds printed precision")
+    units = int(total / step)
+    if units < sum(v > 0 for v in weights):
+        raise ValueError("target total cannot preserve printed nonzero constituents")
+    weight_total = sum(weights)
+    quotas = [Decimal(units) * value / weight_total for value in weights]
+    counts = [max(1 if old > 0 else 0, int(q)) for old, q in zip(weights, quotas, strict=True)]
+    while sum(counts) > units:
+        eligible = [i for i, n in enumerate(counts) if n > (1 if weights[i] > 0 else 0)]
+        selected = max(eligible, key=lambda i: (Decimal(counts[i]) - quotas[i], keys[i]))
+        counts[selected] -= 1
+    while sum(counts) < units:
+        eligible = [i for i, value in enumerate(weights) if value > 0]
+        selected = max(eligible, key=lambda i: (quotas[i] - counts[i], keys[i]))
+        counts[selected] += 1
+    return {key: Decimal(n) * step for key, n in zip(keys, counts, strict=True)}
+
+
+def _allocate_mixed_precision(
+    keys: Sequence[str], weights: Sequence[Decimal], steps: Sequence[Decimal], total: Decimal
+) -> dict[str, Decimal]:
+    """Allocate coarse printed rows first, reserving exact finer-row minima.
+
+    Decimal surface quanta form a divisibility chain. The finest nonzero tier
+    receives the remainder, so no mass/volume is lost by independently rounding
+    rows with different displayed precision. Zero source rows remain zero.
+    """
+    active = [i for i, value in enumerate(weights) if value > 0]
+    tiers = sorted({steps[i] for i in active}, reverse=True)
+    if any(a % b for a, b in pairwise(tiers)):
+        raise ValueError("target-share precision is not a decimal divisibility chain")
+    if total % tiers[-1]:
+        raise ValueError("target share total exceeds printed precision")
+    if total < sum(steps[i] for i in active):
+        raise ValueError("target total cannot preserve printed nonzero constituents")
+    result = {key: Decimal(0) for key in keys}
+    remaining = total
+    original_total = sum(weights)
+    for step in tiers:
+        members = [i for i in active if steps[i] == step]
+        finer = [i for i in active if steps[i] < step]
+        if finer:
+            ideal = total * sum(weights[i] for i in members) / original_total
+            upper = ((remaining - sum(steps[i] for i in finer)) / step).to_integral_value(
+                rounding=ROUND_FLOOR
+            )
+            units = min(
+                upper,
+                max(
+                    Decimal(len(members)), (ideal / step).to_integral_value(rounding=ROUND_HALF_UP)
+                ),
+            )
+            budget = units * step
+        else:
+            budget = remaining
+        result.update(
+            _allocate_equal_precision(
+                [keys[i] for i in members], [weights[i] for i in members], budget, step
+            )
+        )
+        remaining -= budget
+    if remaining or sum(result.values()) != total:
+        raise ValueError("target-share allocation did not conserve its total")
+    return result
+
+
 def prepare(
     bindings: Sequence[SemanticBinding],
     contracts: Mapping[str, NumericContract],
@@ -372,9 +551,21 @@ def prepare(
     target: Mapping[str, Any],
     scale: Decimal,
     source_template: CertifiedSemanticTemplate | None = None,
+    equipment_tare_values: Mapping[str, Decimal] | None = None,
 ) -> dict[str, PreparedNumeric]:
     if set(contracts) != {b.logical_key for b in bindings}:
         raise ValueError("numeric contracts do not cover every unowned numeric binding")
+    sampled_tares = {
+        key for key, contract in contracts.items() if contract.mode == "sampled_equipment_tare"
+    }
+    if equipment_tare_values is not None and set(equipment_tare_values) != sampled_tares:
+        raise ValueError("sampled equipment tare values must cover exactly the declared bindings")
+    # The identity replay validates the observed source, before any scenario exists.
+    # Every non-identity scenario must supply the physical sampler's values; absence
+    # can never silently restore the source tare during synthesis.
+    source_replay = scale == 1 and target == source_target
+    if sampled_tares and equipment_tare_values is None and not source_replay:
+        raise ValueError("sampled equipment tare values are required for a generated scenario")
     from . import package_equations
 
     # A proved equation is stronger than an independently scaled unowned count.
@@ -426,33 +617,13 @@ def prepare(
             raise ValueError(
                 "target-share constituents do not exactly account for their source total"
             )
-        steps = {quantum(b, v) for b, v in zip(members, old_values, strict=True)}
-        if len(steps) != 1:
-            raise ValueError("target-share constituents have incompatible precision")
-        step = next(iter(steps))
+        steps = [quantum(b, v) for b, v in zip(members, old_values, strict=True)]
         total = sum((_number(resolve(target, p)) for p in paths), Decimal(0)) * _number(multiplier)
-        if total / step != (total / step).to_integral_value():
-            raise ValueError("target share total exceeds printed precision")
-        units = int(total / step)
-        positive = sum(v > 0 for v in old_values)
-        if units < positive:
-            raise ValueError("target total cannot preserve printed nonzero constituents")
-        quotas = [Decimal(units) * v / source_total for v in old_values]
-        counts = [
-            max(1 if old > 0 else 0, int(q)) for old, q in zip(old_values, quotas, strict=True)
-        ]
-        while sum(counts) > units:
-            eligible = [i for i, n in enumerate(counts) if n > (1 if old_values[i] > 0 else 0)]
-            selected = max(
-                eligible, key=lambda i: (Decimal(counts[i]) - quotas[i], members[i].logical_key)
-            )
-            counts[selected] -= 1
-        while sum(counts) < units:
-            eligible = [i for i, v in enumerate(old_values) if v > 0]
-            selected = max(eligible, key=lambda i: (quotas[i] - counts[i], members[i].logical_key))
-            counts[selected] += 1
+        keys = [b.logical_key for b in members]
         share_values.update(
-            {b.logical_key: Decimal(n) * step for b, n in zip(members, counts, strict=True)}
+            _allocate_equal_precision(keys, old_values, total, steps[0])
+            if len(set(steps)) == 1
+            else _allocate_mixed_precision(keys, old_values, steps, total)
         )
     for binding in bindings:
         contract = contracts[binding.logical_key]
@@ -466,7 +637,17 @@ def prepare(
             continue
         old = _number(contract.source_value)
         step = quantum(binding, old)
-        if contract.mode == "target_equation_count":
+        if contract.mode == "sampled_equipment_tare":
+            value = (
+                old
+                if equipment_tare_values is None
+                else _number(equipment_tare_values[binding.logical_key])
+            )
+            if value <= 0 or value.quantize(step) != value:
+                raise ValueError(
+                    "sampled equipment tare must be positive and exactly representable"
+                )
+        elif contract.mode == "target_equation_count":
             value = Decimal(
                 package_equations.binding_value(
                     binding, source_target, target, contract.target_paths[0]
@@ -513,6 +694,10 @@ def prepare(
             raise ValueError("numeric binding sum references an unknown binding")
         if any(contracts[dep].role != contract.role for dep in contract.dependency_bindings):
             raise ValueError("numeric binding sum mixes incompatible quantity roles")
+        if contract.role in {"cargo_mass", "cargo_volume"}:
+            if source_template is None:
+                raise ValueError("physical binding sum requires the source template unit evidence")
+            _validate_physical_sum_units(key, contract, contracts)
         if sum(
             _number(contracts[dep].source_value) for dep in contract.dependency_bindings
         ) != _number(contract.source_value):
@@ -538,6 +723,39 @@ def prepare(
                 contract=contract, value=str(value), scenario_scale=str(scale)
             )
     return prepared
+
+
+def _validate_physical_sum_units(
+    key: str,
+    contract: NumericContract,
+    contracts: Mapping[str, NumericContract],
+) -> None:
+    """Check dimensional consistency; physical-row compilation proves source quotes."""
+    from .equipment_row_constraints import _QUOTE_UNITS, _UNITS
+
+    # Byte templates intentionally contain the original text only as span evidence;
+    # require explicit contextual quotes/private units for a dimensional sum. The
+    # regular physical-row compiler independently checks these quotes against the
+    # actual source before the scenario is accepted.
+    keys = (key, *contract.dependency_bindings)
+    units: set[tuple[str, Decimal]] = set()
+    for item in keys:
+        member = contracts[item]
+        if member.synthetic_unit is not None:
+            units.add(("mass" if member.synthetic_unit == "kilogram" else "volume", Decimal(1)))
+        elif member.printed_unit_quote is not None:
+            expected = "mass" if member.role == "cargo_mass" else "volume"
+            evidence = {
+                _UNITS[m[1].upper()] for m in _QUOTE_UNITS.finditer(member.printed_unit_quote)
+            }
+            evidence = {value for value in evidence if value[0] == expected}
+            if len(evidence) != 1:
+                raise ValueError("physical binding sum quote must declare one compatible unit")
+            units.add(evidence.pop())
+        else:
+            raise ValueError("physical binding sum needs explicit unit evidence for every member")
+    if len(units) != 1:
+        raise ValueError("physical binding sum mixes different measurement units")
 
 
 def conversion_factor(name: str) -> tuple[Decimal, str]:
@@ -610,6 +828,40 @@ def generated_measurements(
     return values
 
 
+def equal_partition_steps(
+    contracts: Mapping[str, NumericContract], template: CertifiedSemanticTemplate
+) -> dict[str, Decimal]:
+    """Total increments whose equal constituents fit every printed precision.
+
+    A pair of rows printed to 0.001 requires a total increment of 0.002, not
+    merely three decimal places. SI conversions apply before intersecting the
+    lattices. Multiple dependent totals conservatively use the same lattice,
+    so their sum also remains exactly divisible without post-generation repair.
+    """
+    averages = {
+        k: c
+        for k, c in contracts.items()
+        if c.mode == "target_average" and c.role != "cargo_quantity"
+    }
+    if not averages:
+        return {}
+    by_key = {b.logical_key: b for b in template.bindings if b.logical_key in averages}
+    steps: dict[str, list[Fraction]] = {}
+    for key, contract in averages.items():
+        step = (
+            quantum(by_key[key], _number(contract.source_value))
+            * contract.divisor
+            / _number(contract.multiplier)
+        )
+        for path in contract.target_paths:
+            steps.setdefault(path, []).append(Fraction(step))
+    return {
+        path: Decimal(lcm(*(s.numerator for s in values)))
+        / Decimal(gcd(*(s.denominator for s in values)))
+        for path, values in steps.items()
+    }
+
+
 def minimum_quantities(contracts: Mapping[str, NumericContract]) -> dict[str, int]:
     groups: dict[str, int] = {}
     for contract in contracts.values():
@@ -633,8 +885,14 @@ def quantity_multiples(
     source_target: Mapping[str, Any],
     template: CertifiedSemanticTemplate,
 ) -> dict[str, int]:
-    """Solve count divisibility implied by per-unit mass and printed total precision."""
+    """Solve count divisibility before drawing equal rows or per-unit mass totals."""
     result: dict[str, int] = {}
+    for key, contract in contracts.items():
+        if contract.mode == "target_average" and contract.role == "cargo_quantity":
+            binding = next(b for b in template.bindings if b.logical_key == key)
+            validate_contract(binding, contract, source_target, source_template=template)
+            path = contract.target_paths[0]
+            result[path] = lcm(result.get(path, 1), contract.divisor)
     for contract in contracts.values():
         if contract.mode != "unit_product":
             continue
@@ -667,6 +925,7 @@ def render_prepared(
     source_target: Mapping[str, Any],
     target: Mapping[str, Any],
     source_template: CertifiedSemanticTemplate | None = None,
+    equipment_tare_values: Mapping[str, Decimal] | None = None,
 ) -> dict[str, dict[str, str]]:
     if not bindings and not prepared:
         return {}
@@ -680,6 +939,7 @@ def render_prepared(
         target=target,
         scale=_number(next(iter(scales))),
         source_template=source_template,
+        equipment_tare_values=equipment_tare_values,
     )
     if expected != prepared:
         raise ValueError("prepared numeric auxiliary differs from its dependency contract")
@@ -687,7 +947,7 @@ def render_prepared(
         binding.logical_key: {
             slot.slot_id: slot.source_text
             if prepared[binding.logical_key].contract.mode == "surface_fixed"
-            else render_number_surface(
+            else render_numeric_surface(
                 slot.source_text,
                 _number(prepared[binding.logical_key].contract.source_value),
                 _number(prepared[binding.logical_key].value),

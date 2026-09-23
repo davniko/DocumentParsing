@@ -245,6 +245,7 @@ def test_paid_residual_projection_keeps_provider_proof_and_rejects_changed_facts
         source_document_id="source",
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=NS(model_dump=lambda **kw: facts),
     )
     plan = NS(residual_bindings=(NS(occurrences=(NS(slot_id="kept"),)),))
@@ -291,6 +292,40 @@ def test_paid_residual_projection_keeps_provider_proof_and_rejects_changed_facts
 def test_connection_failures_stop_admission_but_content_rejections_do_not():
     assert _provider_unavailable(ProviderCallError({"error": "Connection error."}))
     assert not _provider_unavailable(ValueError("wrong package count"))
+
+
+@pytest.mark.parametrize(
+    "failure_type", ["APIConnectionError", "AuthenticationError", "RateLimitError"]
+)
+@pytest.mark.parametrize("recovers", [True, False])
+def test_connection_recovery_is_explicit_bounded_and_never_retries_account_errors(
+    failure_type, recovers
+):
+    import asyncio
+
+    from document_ocr.synthesis.template_compiler.complete_pipeline import _recover_connection_once
+
+    calls = []
+    failure = dict(
+        error="Connection error.", requestSha256="a" * 64, errorCauses=[dict(type=failure_type)]
+    )
+
+    async def request():
+        calls.append(1)
+        if len(calls) == 1 or not recovers:
+            raise ProviderCallError(failure)
+        return dict(output={"value": "new"})
+
+    if failure_type == "APIConnectionError" and recovers:
+        result = asyncio.run(_recover_connection_once(request))
+        assert result["output"] == {"value": "new"}
+        assert result["transportRecovery"]["failureReceiptSha256"] == sha256_bytes(
+            canonical_json_bytes(failure)
+        )
+    else:
+        with pytest.raises(ProviderCallError):
+            asyncio.run(_recover_connection_once(request))
+    assert len(calls) == (2 if failure_type == "APIConnectionError" else 1)
 
 
 def test_aggregate_range_subcounts_require_compiled_proof_and_local_attachment():

@@ -14,7 +14,7 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Any
 
-from . import package_equations
+from . import nested_package_prose, package_equations
 from .models import AggregateRangeConstraint, CertifiedSemanticTemplate, NumericValuesConstraint
 
 _TEXT = re.compile(
@@ -265,6 +265,9 @@ def generate(
     equations = package_equations.generate(source, target)
     updates.update(equations)
     formal.update(equations)
+    nested = nested_package_prose.generate(template, source, target)
+    updates.update(nested)
+    formal.update(nested)
     return updates, frozenset(formal)
 
 
@@ -334,6 +337,8 @@ def validate(
 ) -> None:
     from . import descendant as r
 
+    if template is not None:
+        nested_package_prose.validate(template, source, target)
     equations = package_equations.generate(source, target)
     for path, text in r._flatten_leaves(source).items():
         if not isinstance(text, str) or (path_match := _TEXT.fullmatch(path)) is None:

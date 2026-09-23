@@ -416,6 +416,28 @@ class UkGlobalTariffRegistry:
             and on_date <= self._receipt.snapshot_date
         )
 
+    def global_description_path(self, hs6: str) -> tuple[str, ...]:
+        """Prove the heading-to-HS6 wording, including intermediate qualifiers.
+
+        A leaf such as 'Other' is not a standalone commodity definition. National
+        descendants carry the SID-proven ancestry; stop at the global node so
+        no national restriction is accidentally promoted into the HS identity.
+        """
+        self.require_global(hs6, on_date=self.receipt.snapshot_date)
+        paths = set()
+        for row in self._uk_by_hs6.get(hs6, ()):
+            nodes = row.description_path
+            starts = [
+                i for i, n in enumerate(nodes) if n.code == hs6[:4] + "000000" and n.suffix == "80"
+            ]
+            ends = [i for i, n in enumerate(nodes) if n.code == hs6 + "0000" and n.suffix == "80"]
+            if len(starts) != 1 or len(ends) != 1 or starts[0] > ends[0]:
+                raise HsRegistryError("HS description ancestry is not uniquely resolved: " + hs6)
+            paths.add(tuple(n.description for n in nodes[starts[0] : ends[0] + 1]))
+        if len(paths) != 1:
+            raise HsRegistryError("HS description lacks a unique complete ancestry: " + hs6)
+        return paths.pop()
+
 
 def render_hs_code_surface(
     semantic_code: str,

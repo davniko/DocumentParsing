@@ -21,6 +21,7 @@ from document_ocr.synthesis.generators import surface_pattern
 NonEmptyText = Annotated[str, StringConstraints(min_length=1)]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 SlotId = Annotated[str, StringConstraints(pattern=r"^slot_[0-9]{4}$")]
+_SLOT_ID = re.compile(r"slot_[0-9]{4}\Z")
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 _NEWLINE = re.compile(r"\r\n|\r|\n")
 _PAGE_MARKER = re.compile(rb"(?m)^--- PAGE [1-9][0-9]* ---[ \t]*(?:\r?\n|$)")
@@ -99,6 +100,10 @@ class TemplateSlot(BaseModel):
 
     @model_validator(mode="after")
     def span_and_identity_are_valid(self) -> TemplateSlot:
+        # model_copy deliberately bypasses field validation. Nested model
+        # instances still run this invariant at the compiler boundary.
+        if not isinstance(self.slot_id, str) or _SLOT_ID.fullmatch(self.slot_id) is None:
+            raise ValueError("template slot ID must use the four-digit slot namespace")
         if self.byte_end <= self.byte_start:
             raise ValueError("template slot end must be after its start")
         encoded = self.source_text.encode("utf-8")

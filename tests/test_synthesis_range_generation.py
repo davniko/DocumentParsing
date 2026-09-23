@@ -5,6 +5,7 @@ import pytest
 
 from document_ocr.synthesis.template_compiler.range_generation import (
     _apportion,
+    condition_lexical_ranges,
     formal_range_text,
     plan_ranges,
     render_composite_range,
@@ -58,6 +59,41 @@ def test_composite_range_uses_exact_static_caption_and_typed_cardinality():
     target["documentPatch"]["cargoPackages"][0]["quantity"] = 6
     with pytest.raises(ValueError, match="cardinality"):
         render_composite_range(binding, source, target, raw)
+
+
+@pytest.mark.parametrize("quantity", [2, 631, 916, 1225])
+def test_identity_range_marks_keep_arithmetic_out_of_linguistic_generation(quantity):
+    from document_ocr.synthesis.template_compiler.coherence import inclusive_range_surfaces
+    from document_ocr.synthesis.template_compiler.complete_targets import assemble_lexical_value
+
+    text = "VARDHMAN C/NO. Y6P062062 - Y6P062519 Y6P055274 - Y6P055731"
+    path = "documentPatch.cargoGroups[0].marksAndNumbers[0]"
+    source = {
+        "documentPatch": {
+            "cargoGroups": [{"marksAndNumbers": [text]}],
+            "cargoPackages": [{"quantity": 916}],
+        }
+    }
+    target = deepcopy(source)
+    target["documentPatch"]["cargoPackages"][0]["quantity"] = quantity
+    template = NS(
+        bindings=[NS(logical_key="mark", target_paths=[path], occurrences=[NS(source_text=text)])],
+        coherence_constraints=[
+            NS(
+                kind="aggregate_inclusive_range_cardinality",
+                member_logical_keys=["mark"],
+                dependency_paths=["documentPatch.cargoPackages[0].quantity"],
+            )
+        ],
+    )
+    field = dict(key="f", paths=[path], source=text, constraints=[dict(minimumWords=1)])
+    conditioned = condition_lexical_ranges(template, source, target, [field])[0]
+    assert conditioned["hostAssembly"]["mutableSource"] == "VARDHMAN"
+    assembled = assemble_lexical_value(conditioned, "NEWBRAND")
+    assert assembled.startswith("NEWBRAND C/NO. ")
+    assert sum(r.cardinality for r in inclusive_range_surfaces(assembled)) == quantity
+    assert field.get("hostAssembly") is None
+    assert "CARTON" not in assembled and "PACKAGE" not in assembled
 
 
 @pytest.mark.parametrize(

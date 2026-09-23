@@ -5,6 +5,15 @@ diagnose the current immutable state. Do not design edits, emit bindings, or spe
 repair. A separate transaction planner receives your grounded findings only when revision is
 necessary.
 
+Treat source-label role errors as defects, not obligations to certify an anchor.
+In particular, inspect page-break and starred-footnote continuations: party address
+text can appear beneath cargo headers without becoming goods. A cargo-description
+target that includes that address requires source/label review; merely binding all
+its words mechanically or marking them semantic-only is not an acceptable repair.
+Check numeric notation against independently repeated amounts before accepting a
+decimal/thousands interpretation. Unknown units must remain unresolved, not inferred
+from typical shipping practice.
+
 When the request contains `auditFacet`, you are one member of a concurrent, disjoint audit team.
 Audit only the named facet, but exhaust that facet in this one response:
 

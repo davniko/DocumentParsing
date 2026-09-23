@@ -1428,6 +1428,7 @@ def run_semantic_completion(
     thermal_support = build_thermal_goods_support(
         registry=hs_registry,
         ambient_chapters=config.generation.thermal.ambient_hs_chapters,
+        ambient_headings=config.generation.thermal.ambient_hs_headings,
     )
     iso_path = _resolve_file(
         project_root,

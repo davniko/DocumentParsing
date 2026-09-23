@@ -155,6 +155,58 @@ def test_country_code_resolution_requires_closed_same_entity_iso_evidence(
     assert resolve_geographic_members(separated, bindings, countries) is separated
 
 
+@pytest.mark.parametrize("qualifier", ["registration", "registry"])
+@pytest.mark.parametrize("suffix", ["code", "country_code"])
+def test_registration_country_code_requires_its_matching_country_owner(qualifier, suffix):
+    country_key = f"agent:customs:exporter_{qualifier}_country"
+    code_key = f"agent:customs:exporter_{qualifier}_{suffix}"
+    entity = AuxiliaryEntity(
+        entity_id="aux_entity_0123456789abcdef",
+        role="exporter",
+        relationship="independent",
+        target_party_path=None,
+        rationale="Printed registration country and corresponding ISO code.",
+        members=(
+            AuxiliaryEntityMember(logical_key=country_key, field="country"),
+            AuxiliaryEntityMember(logical_key=code_key, field="registration_identifier"),
+        ),
+    )
+    plan = AuxiliarySemanticPlan(
+        schema_version=1,
+        entities=(entity,),
+        composite_numbers=(),
+        document_sequences=(),
+        dispositions=tuple(
+            AuxiliaryBindingDisposition(
+                logical_key=member.logical_key,
+                disposition="entity_member",
+                semantic_id=entity.entity_id,
+                rationale="Same registration country declaration.",
+            )
+            for member in entity.members
+        ),
+    )
+    bindings = (_binding(country_key, "CHINA"), _binding(code_key, "CN"))
+    countries = {"china": "CN", "cn": "CN", "singapore": "SG", "sg": "SG"}
+    resolved = resolve_geographic_members(plan, bindings, countries)
+    assert resolved.entities[0].members[1].field == "country_code"
+    outputs = {
+        country_key: SimpleNamespace(canonical_value="Singapore"),
+        code_key: SimpleNamespace(canonical_value="SG"),
+    }
+    validate_auxiliary_render(
+        plan=plan, bindings=bindings, outputs=outputs, target={}, country_codes=countries
+    )
+    outputs[code_key].canonical_value = "OV"
+    with pytest.raises(ValueError, match="country code conflicts"):
+        validate_auxiliary_render(
+            plan=plan, bindings=bindings, outputs=outputs, target={}, country_codes=countries
+        )
+    # Same shape is insufficient without exact ISO/source-country equality.
+    wrong = (_binding(country_key, "CHINA"), _binding(code_key, "SG"))
+    assert resolve_geographic_members(plan, wrong, countries) is plan
+
+
 def test_plan_formalizes_word_digit_counts_and_bounded_sequences() -> None:
     bindings = (
         _binding("agent:legal:original_count", "ZERO (0)"),
@@ -277,7 +329,7 @@ def test_unrepresented_party_context_rejects_without_restoring_the_source_party(
         _validate_unrepresented_party_facets(
             source_target={"documentPatch": {"parties": {"shipper": source_party}}},
             target=target,
-            template=SimpleNamespace(auxiliary_semantic_plan=plan),
+            template=SimpleNamespace(auxiliary_semantic_plan=plan, bindings=()),
         )
 
     assert target["documentPatch"]["parties"]["shipper"] == {

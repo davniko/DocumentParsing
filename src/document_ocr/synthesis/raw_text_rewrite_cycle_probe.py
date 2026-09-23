@@ -443,7 +443,8 @@ _RAW_PACKAGE_QUANTITY = re.compile(
     r"PLASTIC|STEEL|METAL)[ \t]+)?"
     r"(?P<package>PACKAGES?|PKGS?|PCS?|PIECES?|PALLETS?|CARTONS?|DRUMS?|BAGS?|"
     r"BOX(?:ES)?|BALES?|ROLLS?|CRATES?|CASES?|BUNDLES?|SETS?|LOTS?|UNITS?|"
-    r"SACKS?|JERRICANS?|TINS?|CANS?|BARRELS?|VEHICLES?)(?![A-Z])",
+    r"SACKS?|JERRICANS?|TINS?|CANS?|BARRELS?|VEHICLES?|IBCS?|"
+    r"INTERMEDIATE[ \t]+BULK[ \t]+CONTAINERS?)(?![A-Z])",
     re.IGNORECASE,
 )
 _RAW_PACKAGE_TYPE_SURFACE = re.compile(
@@ -2694,6 +2695,13 @@ def _customs_selector_match_is_safe(raw_text: str, match: re.Match[str], surface
     semantically self-identifying.
     """
 
+    # A split HOUSE / ACID heading must start a field, not consume the final
+    # word of a warehouse name on the preceding line. The shorter ACID selector
+    # will still match its own heading and value independently.
+    if surface.strip().upper().startswith("HOUSE ") and "\n" in match.group():
+        line_start = raw_text.rfind("\n", 0, match.start()) + 1
+        if any(c.isalnum() for c in raw_text[line_start : match.start()]):
+            return False
     line_end = raw_text.find("\n", match.end())
     if line_end < 0:
         line_end = len(raw_text)

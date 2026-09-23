@@ -12,14 +12,15 @@ import json
 import re
 import resource
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
+import httpx2
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 from pydantic_ai import Agent, NativeOutput, capture_run_messages
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.usage import UsageLimits
@@ -31,13 +32,23 @@ from document_ocr.synthesis.hs_registry import (
     load_ukgt_source_pin,
 )
 from document_ocr.synthesis.linguistic_probe_runtime import model_messages, usage_receipt
+from document_ocr.synthesis.raw_text_rewrite_cycle_probe import CustomsProgramRegistry
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.vessel_name_registry import load_vessel_name_registry
 
-from . import cargo_identifiers, geographic_context
+from . import (
+    cargo_identifiers,
+    cargo_scenarios,
+    equipment_row_constraints,
+    geographic_context,
+    lexical_facts,
+)
 from . import complete_targets as targets
 from . import descendant as render
 from . import numeric_auxiliary as numeric
+from .address_localities import explicit_components, load_address_localities, normalized
+from .customs_presentation import CustomsPresentation, compile_neutral_customs
+from .dangerous_goods_realization import DangerousGoodsFact
 from .descendant_models import (
     DescendantConfig,
     PinnedCommittedRun,
@@ -46,11 +57,19 @@ from .descendant_models import (
 )
 from .models import NonEmptyText, PinnedFile, PinnedJsonl, ProviderConfig
 from .pipeline import project_root_from_config, resolve_input
+from .realization_contract import projected_auxiliary_values
 from .request_batches import (
     BatchMemberError,
     RequestBatcher,
     run_template_waves,
     validate_batch_member,
+)
+from .reviewed_generation import ReviewedGeneration
+from .route_projection import (
+    AddressCountryConflict,
+    AddressLocalityConflict,
+    RouteProjection,
+    require_route_contract,
 )
 from .spending_guard import SpendingGuard, SpendingLimitExceeded
 
@@ -89,6 +108,23 @@ class CompleteSynthesisConfig(BaseModel):
     provider_launch_authorized: bool
     spending: SpendingConfig
     request_batch_size: Annotated[int, Field(ge=2, le=16)]
+    route_scenarios_run: PinnedCommittedRun | None = None
+    route_scenarios: PinnedJsonl | None = None
+    address_admin1_registry: PinnedFile | None = None
+    customs_program_registry: PinnedFile | None = None
+    cargo_sampling: cargo_scenarios.CargoSamplingConfig | None = None
+    cargo_lexical_contracts: PinnedFile | None = None
+    reviewed_generation: PinnedFile | None = None
+
+    @model_validator(mode="after")
+    def sampled_routes_have_complete_dependencies(self) -> CompleteSynthesisConfig:
+        if (self.route_scenarios is None) != (self.route_scenarios_run is None):
+            raise ValueError("route scenario file and committed run must be supplied together")
+        if self.route_scenarios is not None and self.customs_program_registry is None:
+            raise ValueError("sampled routes require an explicit customs presentation registry")
+        if self.route_scenarios is not None and self.address_admin1_registry is None:
+            raise ValueError("sampled routes require pinned administrative-area address support")
+        return self
 
 
 def load_config(path: Path) -> CompleteSynthesisConfig:
@@ -101,7 +137,12 @@ def _generation_schema(
     fields: Sequence[Mapping[str, Any]],
     requirements: list[dict[str, Any]],
 ) -> type[BaseModel]:
-    """Put proved repair grammars in native output validation, not only prose."""
+    """Constrain finite lexical shapes; validate address semantics after decoding.
+
+    Native free-text suffix regexes caused unterminated 16k-token responses on
+    real city repairs. Check the country suffix and explicit city component in
+    the local validator instead, allowing a valid region between city/country.
+    """
     patterns = {}
     for row in requirements:
         for obligation in row["obligations"]:
@@ -150,6 +191,95 @@ def _generation_schema(
     )
 
 
+def _address_repair_requirements(
+    fields: Sequence[Mapping[str, Any]],
+    requirements: list[dict[str, Any]],
+    previous: Sequence[Mapping[str, Any]],
+    error: Exception,
+) -> list[dict[str, Any]]:
+    """Retain explicit country disambiguation across subsequent field repairs."""
+    countries = {
+        row["key"]: obligation["terminalCountry"]
+        for row in previous
+        for obligation in row["obligations"]
+        if "terminalCountry" in obligation
+    }
+    cities = {
+        row["key"]: obligation["terminalCity"]
+        for row in previous
+        for obligation in row["obligations"]
+        if "terminalCity" in obligation
+    }
+    removed = {
+        row["key"]: obligation["removeLocalityComponents"]
+        for row in previous
+        for obligation in row["obligations"]
+        if "removeLocalityComponents" in obligation
+    }
+    if isinstance(error, AddressCountryConflict):
+        owners = [f for f in fields if error.party_path + ".address" in f["paths"]]
+        if len(owners) != 1:
+            raise ValueError("conflicting address lacks a unique mutable lexical owner") from error
+        countries[owners[0]["key"]] = error.country_name
+        if isinstance(error, AddressLocalityConflict):
+            cities[owners[0]["key"]] = error.city
+            key = owners[0]["key"]
+            removed[key] = sorted(set(removed.get(key, ())) | set(error.conflicts))
+    by_key = {row["key"]: row for row in requirements}
+    for key, country in countries.items():
+        row = by_key.get(key)
+        if row is None:
+            row = {"key": key, "obligations": []}
+            requirements.append(row)
+        row["obligations"].append(
+            {
+                "terminalCountry": country,
+                "requirement": "Put the exact country name after a comma as the final "
+                "address component. "
+                "A postal code may follow it. Preserve any other required literal or partition.",
+            }
+        )
+        if key in cities:
+            row["obligations"].append({"terminalCity": cities[key]})
+        if key in removed:
+            row["obligations"].append({"removeLocalityComponents": removed[key]})
+    return requirements
+
+
+def _validate_address_repairs(
+    values: Mapping[str, str], requirements: Sequence[Mapping[str, Any]]
+) -> None:
+    for row in requirements:
+        obligations = {key: value for item in row["obligations"] for key, value in item.items()}
+        forbidden = {
+            normalized(name)
+            for obligation in row["obligations"]
+            for name in obligation.get("removeLocalityComponents", ())
+        }
+        if forbidden and forbidden.intersection(
+            map(normalized, explicit_components(values[row["key"]]))
+        ):
+            raise ValueError(
+                "address repair appended the requested city without removing "
+                "its conflicting locality: " + row["key"]
+            )
+        if country := obligations.get("terminalCountry"):
+            address = values[row["key"]]
+            country_present = re.fullmatch(
+                r"[^\r\n]+,\s*" + re.escape(country) + r"(?:\s+(?=[A-Z0-9 -]*[0-9])[A-Z0-9 -]+)?",
+                address,
+            )
+            city = obligations.get("terminalCity")
+            city_present = not city or normalized(city) in {
+                normalized(name) for name in explicit_components(address)
+            }
+            if not country_present or not city_present:
+                raise ValueError(
+                    "address repair must include the exact requested city component "
+                    "and end with its country (optionally followed by a postal code): " + row["key"]
+                )
+
+
 def _pinned(root: Path, pin: PinnedFile | PinnedJsonl) -> Path:
     path = resolve_input(root, pin.path)
     if sha256_file(path) != pin.sha256:
@@ -184,10 +314,17 @@ def _reusable_residual(
         k: v.model_dump(mode="json") for k, v in case.numeric_auxiliary.items()
     }:
         raise ValueError("residual checkpoint facts differ from their frozen receipt")
+    saved_scenario = checkpoint.get("cargoScenario")
+    if (case.equipment_tare_values or saved_scenario is not None) and (
+        not isinstance(saved_scenario, dict)
+        or saved_scenario.get("sampledEquipmentTares")
+        != render._equipment_tare_payload(case.equipment_tare_values)
+    ):
+        raise ValueError("residual checkpoint sampled equipment tares differ")
     stage = ResidualStageReceipt.model_validate_json(canonical_json_bytes(checkpoint["agentStage"]))
     if stage.document_id != case.document_id or stage.system_prompt_sha256 != prompt_sha256:
         raise ValueError("residual checkpoint stage identity or prompt differs")
-    if stage.status != "success" or not isinstance(stage.output, dict):
+    if stage.status not in {"success", "manual_review"} or not isinstance(stage.output, dict):
         return None
     expected = {s.slot_id for b in plan.residual_bindings for s in b.occurrences}
     if not expected <= set(stage.output):
@@ -212,7 +349,12 @@ def _prepared(
     sample_id: str,
     seed: int,
     numeric_values: dict[str, numeric.PreparedNumeric],
+    equipment_tare_values: Mapping[str, Decimal] | None = None,
+    customs_presentation: CustomsPresentation | None = None,
+    dangerous_goods_facts: tuple[DangerousGoodsFact, ...] = (),
 ) -> render.PreparedCase:
+    sampled_tares = dict(equipment_tare_values or {})
+    tare_payload = render._equipment_tare_payload(sampled_tares)
     old, new = render._flatten_leaves(source.target), render._flatten_leaves(target)
     digest = sha256_bytes(canonical_json_bytes(target))
     receipt = PreparedTargetReceipt.model_validate(
@@ -228,10 +370,19 @@ def _prepared(
             "proposed_target_sha256": digest,
             "prepared_target_sha256": digest,
             "auxiliary_values_sha256": sha256_bytes(canonical_json_bytes(auxiliary)),
+            "customs_presentation_sha256": (
+                customs_presentation.sha256
+                if customs_presentation is not None
+                else sha256_bytes(canonical_json_bytes([]))
+            ),
             "numeric_auxiliary_sha256": sha256_bytes(
                 canonical_json_bytes(
                     {k: v.model_dump(mode="json") for k, v in numeric_values.items()}
                 )
+            ),
+            "equipment_tare_values_sha256": sha256_bytes(canonical_json_bytes(tare_payload)),
+            "dangerous_goods_facts_sha256": sha256_bytes(
+                canonical_json_bytes([v.model_dump(mode="json") for v in dangerous_goods_facts])
             ),
             "synthetic_document_id": "syn_tpl_"
             + sha256_bytes(
@@ -259,7 +410,52 @@ def _prepared(
         receipt,
         auxiliary,
         numeric_values,
+        customs_presentation,
+        dangerous_goods_facts,
+        sampled_tares,
     )
+
+
+def _scenario_equipment_tares(
+    scenario: cargo_scenarios.CargoScenario | None,
+) -> dict[str, Decimal] | None:
+    """Read the independent scenario receipt, never reverse-engineer prepared numerics."""
+
+    if scenario is None:
+        return None
+    raw = scenario.receipt.get("sampledEquipmentTares")
+    if not isinstance(raw, dict):
+        raise ValueError("cargo scenario lacks its sampled equipment tare receipt")
+    values: dict[str, Decimal] = {}
+    for key, amount in raw.items():
+        if not isinstance(key, str) or not key or not isinstance(amount, str):
+            raise ValueError("sampled equipment tare receipt must map binding keys to strings")
+        try:
+            value = Decimal(amount)
+        except ArithmeticError as error:
+            raise ValueError(
+                "sampled equipment tare receipt contains an invalid decimal"
+            ) from error
+        if not value.is_finite() or value <= 0 or str(value) != amount:
+            raise ValueError("sampled equipment tare receipt is not canonical and positive")
+        values[key] = value
+    return values
+
+
+def _request_was_not_sent(error: BaseException) -> bool:
+    """Prove failure before HTTP transmission, with SDK retries disabled.
+
+    Read/write/protocol failures may occur after delivery and remain uncertain.
+    Follow explicit causes only: unrelated exception context is not evidence.
+    """
+    seen: set[int] = set()
+    cause: BaseException | None = error
+    while cause is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        if isinstance(cause, httpx2.TransportError):
+            return isinstance(cause, (httpx2.ConnectError, httpx2.ConnectTimeout))
+        cause = cause.__cause__
+    return False
 
 
 async def _cached_fields(
@@ -286,6 +482,18 @@ async def _cached_fields(
     if batcher is not None:
         contract["batchMember"] = batcher.member_contract(payload, output_type)
     digest = sha256_bytes(canonical_json_bytes(contract))
+    if not output_type.model_fields:
+        return {
+            "requestSha256": digest,
+            "outputSha256": sha256_bytes(canonical_json_bytes({})),
+            "output": {},
+            "usage": render._empty_usage().model_dump(mode="json"),
+            "messages": [],
+            "wallSeconds": 0,
+            "completedAt": datetime.now(UTC).isoformat(),
+            "hostOnly": True,
+            "cacheReused": False,
+        }
     path = cache / digest[:2] / f"{digest}.json"
     if path.exists():
         receipt = await asyncio.to_thread(_read_receipt, path)
@@ -383,12 +591,21 @@ async def _cached_fields(
             )
             cause = cause.__cause__ or cause.__context__
         receipt["errorCauses"] = causes
+        not_sent = not responses and _request_was_not_sent(failure)
+        receipt["transmissionEvidence"] = (
+            "httpx_connect_failure_before_http_request" if not_sent else "not_proven_unsent"
+        )
         failure_id = sha256_bytes(canonical_json_bytes(receipt))
         await asyncio.to_thread(
             _publish_receipt, cache / "failures" / f"{failure_id}.json", receipt
         )
         spending.settle(
-            reservation, Decimal(receipt["usage"]["estimatedCostUsd"]) if responses else None
+            reservation,
+            Decimal(receipt["usage"]["estimatedCostUsd"])
+            if responses
+            else Decimal(0)
+            if not_sent
+            else None,
         )
         raise ProviderCallError(receipt) from failure
     await asyncio.to_thread(_publish_receipt, path, receipt)
@@ -400,6 +617,41 @@ class ProviderCallError(RuntimeError):
     def __init__(self, receipt: dict[str, Any]) -> None:
         self.receipt = receipt
         super().__init__(receipt["error"])
+
+
+async def _recover_connection_once(
+    request: Callable[[], Awaitable[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Recover one transient connection failure with a separately budgeted call.
+
+    The operation is _cached_fields: it persists each failed receipt and retains
+    its uncertain spending reservation before raising. SDK retries remain off.
+    A second failure propagates to the existing stop boundary; account/content
+    failures never enter this recovery path.
+    """
+    try:
+        return await request()
+    except ProviderCallError as error:
+        if not any(
+            cause["type"] == "APIConnectionError" for cause in error.receipt.get("errorCauses", ())
+        ):
+            raise
+        failure_sha = sha256_bytes(canonical_json_bytes(error.receipt))
+        print(
+            json.dumps(
+                dict(event="retrying_budgeted_connection_failure", failureReceiptSha256=failure_sha)
+            ),
+            flush=True,
+        )
+        result = await request()
+        return {
+            **result,
+            "transportRecovery": dict(
+                method="one_separately_budgeted_connection_retry",
+                failureReceiptSha256=failure_sha,
+                failedRequestSha256=error.receipt["requestSha256"],
+            ),
+        }
 
 
 def _read_receipt(path: Path) -> dict[str, Any]:
@@ -472,6 +724,7 @@ async def _numeric_contracts(
                 scale=Decimal(1),
                 source_template=source.template,
             )
+            _validate_numeric_row_ownership(source, existing)
             contracts[source.document_id] = existing
             return
         paths = tuple(numeric.numeric_target_leaves(source.target))
@@ -545,6 +798,7 @@ async def _numeric_contracts(
                     scale=Decimal(1),
                     source_template=source.template,
                 )
+                _validate_numeric_row_ownership(source, parsed)
             except (ValueError, KeyError, TypeError) as error:
                 error_message = str(error)
                 payload = {
@@ -598,6 +852,22 @@ async def _numeric_contracts(
     return contracts, receipts, failures
 
 
+def _validate_numeric_row_ownership(
+    source: targets.SourceTemplate, contracts: Mapping[str, numeric.NumericContract]
+) -> None:
+    """Validate physical rows against the same inventory used by cargo sampling.
+
+    Anonymous printed containers deliberately do not appear in extraction
+    labels. Their proved private inventory must exist before checking ownership
+    of unit-less row measurements; this never enriches the source target.
+    """
+    from . import anonymous_equipment
+
+    inventory = anonymous_equipment.compile_inventory(source, contracts)
+    physical = source if inventory is None else inventory.physical_source
+    equipment_row_constraints.compile_rows(physical, contracts)
+
+
 def _load_numeric_contracts(
     root: Path, pin: PinnedCommittedRun, sources: Mapping[str, targets.SourceTemplate]
 ) -> dict[str, dict[str, numeric.NumericContract]]:
@@ -634,10 +904,78 @@ def _load_numeric_contracts(
             scale=Decimal(1),
             source_template=source.template,
         )
+        _validate_numeric_row_ownership(source, contracts)
         result[source_id] = contracts
     if set(result) != set(sources):
         raise ValueError("numeric dependency catalog does not cover selected sources")
     return result
+
+
+def _publish_generated_case(
+    staged: StagedArtifactRun, source: targets.SourceTemplate, row: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Publish one case atomically; workers own disjoint sample directories."""
+    prefix = f"cases/{row['sampleId']}"
+    artifacts = []
+
+    def publish(name: str, value: Any, *, raw: bool = False) -> None:
+        path = f"{prefix}/{name}"
+        (staged.publish_bytes if raw else staged.publish_json)(path, value)
+        artifacts.append(path)
+
+    publish("source.txt", source.source, raw=True)
+    publish("source-target.json", source.source_target)
+    for filename, key in (
+        ("target.json", "target"),
+        ("target-receipt.json", "targetReceipt"),
+        ("auxiliary-values.json", "auxiliaryValues"),
+        ("numeric-auxiliary.json", "numericAuxiliary"),
+        ("agent-stage.json", "agentStage"),
+        ("generation-ledger.json", "ledger"),
+        ("generation-attempts.json", "attempts"),
+        ("residual-attempts.json", "residualAttempts"),
+        ("goods-identities.json", "goodsIdentities"),
+        ("host-lexical-facts.json", "hostLexicalFacts"),
+        ("host-lexical-evidence.json", "hostLexicalEvidence"),
+        ("dangerous-goods-facts.json", "dangerousGoodsFacts"),
+        ("cargo-scenario.json", "cargoScenario"),
+        ("route-projection.json", "routeProjection"),
+        ("customs-presentation.json", "customsPresentation"),
+        ("render-result.json", "renderResult"),
+    ):
+        publish(filename, row[key])
+    publish("rendered.txt", row["rendered"].encode(), raw=True)
+    return tuple(artifacts)
+
+
+async def _publish_generated_cases(
+    staged: StagedArtifactRun,
+    sources: Mapping[str, targets.SourceTemplate],
+    rows: Sequence[dict[str, Any]],
+    *,
+    workers: int,
+) -> list[str]:
+    """Bound outstanding filesystem work and retain immutable plan order.
+
+    Atomic writes, byte-conflict detection and the final inventory/hash commit
+    are unchanged. No worker mutates the shared artifact list or source data.
+    """
+    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+        raise ValueError("publication workers must be a positive integer")
+    if len({row["sampleId"] for row in rows}) != len(rows):
+        raise ValueError("publication sample identities must be unique")
+    artifacts: list[str] = []
+    for offset in range(0, len(rows), workers):
+        results = await asyncio.gather(
+            *(
+                asyncio.to_thread(
+                    _publish_generated_case, staged, sources[row["sourceDocumentId"]], row
+                )
+                for row in rows[offset : offset + workers]
+            )
+        )
+        artifacts.extend(path for group in results for path in group)
+    return artifacts
 
 
 async def run(config_path: Path) -> dict[str, Any]:
@@ -658,8 +996,12 @@ async def run(config_path: Path) -> dict[str, Any]:
             canonical_json_bytes(config.provider.pricing.model_dump(mode="json"))
         ),
     )
-    template_root = render._validate_committed_run(root, config.template_run)
-    plan_root = render._validate_committed_run(root, config.sample_plan_run)
+    template_root = render._validate_committed_run(
+        root, config.template_run, workers=config.max_concurrent_requests
+    )
+    plan_root = render._validate_committed_run(
+        root, config.sample_plan_run, workers=config.max_concurrent_requests
+    )
     plan_path = _pinned(root, config.sample_plan)
     if plan_root not in plan_path.parents:
         raise ValueError("sample plan is outside committed run")
@@ -670,6 +1012,19 @@ async def run(config_path: Path) -> dict[str, Any]:
         raise ValueError("sample plan uses retired source-copy generation")
     if len({row["sampleId"] for row in all_samples}) != len(all_samples):
         raise ValueError("duplicate sample identities")
+    reviews = {}
+    if config.reviewed_generation is not None:
+        raw_reviews = json.loads(_pinned(root, config.reviewed_generation).read_bytes())
+        if not isinstance(raw_reviews, dict):
+            raise ValueError("reviewed generation must be an explicitly keyed sample mapping")
+        reviews = {
+            key: ReviewedGeneration.model_validate_json(canonical_json_bytes(value))
+            for key, value in raw_reviews.items()
+        }
+        if not set(reviews).issubset(row["sampleId"] for row in all_samples) or any(
+            key != review.sample_id for key, review in reviews.items()
+        ):
+            raise ValueError("reviewed generation contains an unknown or miskeyed sample")
     # Probes interleave all capability cohorts. Production consumes the full pinned plan.
     if config.documents == len(all_samples):
         samples = list(all_samples)
@@ -703,16 +1058,107 @@ async def run(config_path: Path) -> dict[str, Any]:
         sid: targets.load_source(template_root, sid)
         for sid in sorted({row["sourceDocumentId"] for row in samples})
     }
+    route_projections: dict[str, RouteProjection] = {}
+    address_localities = None
+    if config.route_scenarios is not None:
+        assert config.route_scenarios_run is not None
+        route_root = render._validate_committed_run(
+            root, config.route_scenarios_run, workers=config.max_concurrent_requests
+        )
+        assert config.address_admin1_registry is not None
+        address_localities = load_address_localities(
+            root, route_root, _pinned(root, config.address_admin1_registry)
+        )
+        route_file = _pinned(root, config.route_scenarios)
+        if route_root not in route_file.parents:
+            raise ValueError("route scenarios are outside their pinned committed run")
+        for row in render._read_jsonl(route_file, records=config.route_scenarios.records):
+            projection = RouteProjection.model_validate_json(canonical_json_bytes(row))
+            if projection.sample_id in route_projections:
+                raise ValueError("duplicate route projection sample identity")
+            route_projections[projection.sample_id] = projection
+        if set(route_projections) != {row["sampleId"] for row in all_samples}:
+            raise ValueError("route projections do not exactly cover the synthesis plan")
+    if (
+        any(
+            row.get("scenarioMode") in {"sampled_route", "sampled_route_and_cargo"}
+            for row in all_samples
+        )
+        and not route_projections
+    ):
+        raise ValueError("route-first sample plan is missing its sampled scenarios")
+    if (
+        any(row.get("scenarioMode") == "sampled_route_and_cargo" for row in all_samples)
+        and config.cargo_sampling is None
+    ):
+        raise ValueError("joint scenario plan is missing its cargo sampling configuration")
+    cargo_support = (
+        cargo_scenarios.load_support(root, config.cargo_sampling, hs_registry)
+        if config.cargo_sampling is not None
+        else None
+    )
+    customs_presentations: dict[str, CustomsPresentation] = {}
+    if config.customs_program_registry is not None:
+        registry = CustomsProgramRegistry.model_validate_json(
+            _pinned(root, config.customs_program_registry).read_bytes()
+        )
+        customs_presentations = {
+            sid: compile_neutral_customs(
+                source=s.source,
+                template=s.template.byte_template,
+                registry=registry,
+                static_slot_ids=frozenset(
+                    slot.slot_id
+                    for binding in s.template.bindings
+                    if binding.realization.mode == "static" and binding.group_kind != "carrier"
+                    for slot in binding.occurrences
+                ),
+            )
+            for sid, s in sources.items()
+        }
     for source in sources.values():
-        if conflicts := geographic_context.source_entity_conflicts(
-            source.template, countries
-        ):
+        from .cargo_identity_derivations import require_tariff_owners
+        from .measurement_prose import require_product_count_owners
+        from .temperature_prose import require_source_setting_owners
+
+        require_tariff_owners(source.source, source.template.bindings)
+        require_product_count_owners(source.source, source.template.bindings)
+        require_source_setting_owners(source.source, source.template, source.target)
+        if route_projections:
+            require_route_contract(source)
+        if cargo_support is not None:
+            cargo_scenarios.require_contract(source)
+        if conflicts := geographic_context.source_entity_conflicts(source.template, countries):
             raise ValueError(
                 "source auxiliary geography requires review before generation: "
                 f"{source.document_id}: {conflicts}"
             )
+    numeric_contracts = _load_numeric_contracts(root, config.numeric_contract_run, sources)
+    cargo_equipment = (
+        {
+            sid: cargo_scenarios.equipment_constraints(
+                source,
+                cargo_support.config,
+                numeric_contracts=numeric_contracts[sid],
+                tare_support=cargo_support.tares,
+            )
+            for sid, source in sources.items()
+        }
+        if cargo_support is not None
+        else {}
+    )
     identifiers = targets.reserve_identifiers(samples, sources, seed=config.seed)
     requests = {sid: targets.lexical_contract(source) for sid, source in sources.items()}
+    lexical_contracts = (
+        {
+            sid: lexical_facts.CargoLexicalContract.model_validate_json(canonical_json_bytes(raw))
+            for sid, raw in json.loads(
+                _pinned(root, config.cargo_lexical_contracts).read_bytes()
+            ).items()
+        }
+        if config.cargo_lexical_contracts is not None
+        else {}
+    )
     work = root / config.output_dir / ".work" / config.run_name
     cache = root / config.response_cache_dir
     for path in (work, cache):
@@ -723,19 +1169,21 @@ async def run(config_path: Path) -> dict[str, Any]:
         project_root=root, environment_file=config.environment_file, provider=config.provider
     )
     limiter = asyncio.Semaphore(config.max_concurrent_requests)
-    numeric_contracts = _load_numeric_contracts(root, config.numeric_contract_run, sources)
     numeric_receipts: list[dict[str, Any]] = []
 
     async def submit_batch(**kwargs: Any) -> dict[str, Any]:
-        return await _cached_fields(
-            cache=cache / "batches",
-            model=model,
-            provider=config.provider,
-            limiter=limiter,
-            authorized=config.provider_launch_authorized,
-            spending=spending,
-            **kwargs,
-        )
+        async def request() -> dict[str, Any]:
+            return await _cached_fields(
+                cache=cache / "batches",
+                model=model,
+                provider=config.provider,
+                limiter=limiter,
+                authorized=config.provider_launch_authorized,
+                spending=spending,
+                **kwargs,
+            )
+
+        return await _recover_connection_once(request)
 
     batcher = RequestBatcher(size=config.request_batch_size, submit=submit_batch)
     outcomes: list[dict[str, Any]] = []
@@ -752,6 +1200,7 @@ async def run(config_path: Path) -> dict[str, Any]:
         )
         call_traces[sample_id] = []
         source = sources[source_id]
+        projection = route_projections.get(sample_id)
         proposed = targets.structured_proposal(
             source,
             sample_id=sample_id,
@@ -762,36 +1211,160 @@ async def run(config_path: Path) -> dict[str, Any]:
             quantity_multiples=numeric.quantity_multiples(
                 numeric_contracts[source_id], source.target, source.template
             ),
+            measurement_steps=numeric.equal_partition_steps(
+                numeric_contracts[source_id], source.template
+            ),
+        )
+        if projection is not None:
+            proposed = projection.apply(source, proposed)
+        from . import transport_derivations
+
+        prepared_auxiliary = dict(projection.auxiliary_values) if projection is not None else {}
+        prepared_auxiliary.update(
+            transport_derivations.values(
+                source.template.bindings,
+                vessel_names=tuple(v.name for v in vessels.records),
+                target=proposed,
+                seed=config.seed,
+                sample_id=sample_id,
+            )
         )
         for path, value in numeric.generated_measurements(
             numeric.numeric_bindings(source.template), numeric_contracts[source_id], proposed
         ).items():
             targets._set(proposed, path, float(value))
-        goods = targets.propose_goods(
-            proposed, registry=hs_registry, sample_id=sample_id, seed=config.seed
+        fields = cargo_identifiers.conditioned_requests(
+            requests[source_id], sample_id=sample_id, seed=config.seed
         )
+        from .projected_context import condition_requests
+
+        fields = condition_requests(source, fields, proposed)
+        if projection is not None:
+            fields = tuple(
+                r for r in fields if r.get("auxiliaryKey") not in projection.auxiliary_values
+            )
+
+        if cargo_support is not None:
+            lexical_facts.require_cargo_recipes(fields, lexical_contracts.get(source_id))
+
+        def validate_cargo_wording(candidate: cargo_scenarios.CargoScenario) -> None:
+            lexical_facts.prepare(
+                source,
+                fields,
+                scenario=candidate,
+                projection=None,
+                contract=lexical_contracts.get(source_id),
+                sample_id=sample_id,
+                seed=config.seed,
+            )
+
+        cargo_scenario = (
+            await asyncio.to_thread(
+                cargo_scenarios.sample_scenario,
+                source,
+                proposed,
+                support=cargo_support,
+                sample_id=sample_id,
+                seed=config.seed,
+                prepared_equipment=cargo_equipment[source_id],
+                numeric_contracts=numeric_contracts[source_id],
+                validate_lexical=validate_cargo_wording,
+            )
+            if cargo_support is not None
+            else None
+        )
+        if cargo_scenario is not None:
+            proposed = cargo_scenario.target
+            goods = cargo_scenario.identities
+        else:
+            goods = targets.propose_goods(
+                proposed, registry=hs_registry, sample_id=sample_id, seed=config.seed
+            )
+        equipment_tare_values = _scenario_equipment_tares(cargo_scenario)
+        if checkpoint is not None and checkpoint.get("cargoScenario") is not None:
+            prior_scenario = checkpoint["cargoScenario"]
+            if not isinstance(prior_scenario, dict) or (
+                prior_scenario.get("sampledEquipmentTares")
+                != render._equipment_tare_payload(equipment_tare_values or {})
+            ):
+                raise ValueError("generation checkpoint sampled equipment tares differ")
         render._validate_target_compatibility(
             source=source.source,
             source_target=source.source_target,
             target=proposed,
             template=source.template,
+            pending_auxiliary_keys=frozenset(
+                member.logical_key
+                for entity in source.template.auxiliary_semantic_plan.entities
+                for member in entity.members
+                if projection is not None
+                and (
+                    member.logical_key in projection.auxiliary_values
+                    or member.logical_key in projected_auxiliary_values(source.template, proposed)
+                    or any(r.get("auxiliaryKey") == member.logical_key for r in requests[source_id])
+                )
+            ),
         )
-        fields = cargo_identifiers.conditioned_requests(
-            requests[source_id], sample_id=sample_id, seed=config.seed
+        fields = targets.condition_lexical_ranges(source.template, source.target, proposed, fields)
+        host_lexical = lexical_facts.prepare(
+            source,
+            fields,
+            scenario=cargo_scenario,
+            projection=projection,
+            contract=lexical_contracts.get(source_id),
+            sample_id=sample_id,
+            seed=config.seed,
         )
+        agent_fields = tuple(f for f in fields if f["key"] not in host_lexical.values)
+        review = reviews.get(sample_id)
+        if review is not None:
+            review.validate_context(
+                sample_id=sample_id,
+                source_document_id=source_id,
+                source_template_sha256=source.original_template_sha256,
+                scenario=proposed,
+                fields=agent_fields,
+            )
+            if checkpoint is None:
+                raise ValueError("reviewed correction requires its original rejected checkpoint")
+            previous_review = next(
+                (
+                    a["manualReview"]
+                    for a in reversed(checkpoint.get("attempts", ()))
+                    if "manualReview" in a
+                ),
+                None,
+            )
+            if previous_review is not None:
+                if previous_review != review.model_dump(mode="json"):
+                    raise ValueError("reviewed checkpoint differs from the pinned adjudication")
+            elif (
+                sha256_bytes(canonical_json_bytes(checkpoint)) != review.original_checkpoint_sha256
+            ):
+                raise ValueError("reviewed correction original checkpoint has changed")
+        host_preview = host_lexical.preview(source, proposed, fields)
         numeric_context = numeric.prepare(
             numeric.numeric_bindings(source.template),
             numeric_contracts[source_id],
             source_target=source.target,
-            target=proposed,
+            target=host_preview,
             scale=targets.scenario_scale(sample_id, config.seed),
             source_template=source.template,
+            equipment_tare_values=equipment_tare_values,
         )
+        if cargo_scenario is not None:
+            equipment_row_constraints.validate_prepared(
+                cargo_scenario.receipt["printedContainerRows"], numeric_context
+            )
         payload = {
             "sampleId": sample_id,
-            "structuredScenario": proposed,
+            "structuredScenario": host_preview,
             "goodsIdentities": goods,
-            "requestedFields": fields,
+            "cargoPackaging": (
+                cargo_scenario.receipt["packageSupport"] if cargo_scenario is not None else {}
+            ),
+            "requestedFields": agent_fields,
+            "hostLexicalFacts": host_lexical.values,
             "numericAuxiliary": {
                 k: v.model_dump(mode="json", exclude_defaults=True)
                 for k, v in numeric_context.items()
@@ -800,10 +1373,16 @@ async def run(config_path: Path) -> dict[str, Any]:
                 c.model_dump(mode="json") for c in source.template.coherence_constraints
             ],
         }
+        if projection is not None:
+            payload["partyGeography"] = {
+                path: geo.model_dump(mode="json")
+                for path, geo in projection.party_geography.items()
+            }
+            payload["hostAuxiliaryGeography"] = projection.auxiliary_values
         attempts = []
         residual_attempts: list[dict[str, Any]] = []
         for _attempt in range(config.generation_attempts):
-            output_type = _generation_schema(fields, payload.get("repairRequirements", []))
+            output_type = _generation_schema(agent_fields, payload.get("repairRequirements", []))
             # Resume the last accepted linguistic candidate, not an earlier
             # rejected candidate whose repair request may have since improved.
             accepted = (
@@ -816,7 +1395,21 @@ async def run(config_path: Path) -> dict[str, Any]:
                 == set(output_type.model_fields)
                 else None
             )
-            if accepted is not None:
+            if review is not None:
+                if checkpoint is None:
+                    raise ValueError("reviewed generation requires its pinned original checkpoint")
+                output_type.model_validate_json(canonical_json_bytes(review.output), strict=True)
+                attempts = [
+                    {**a, "cacheReused": True}
+                    for a in checkpoint.get("attempts", ())
+                    if "manualReview" not in a
+                ]
+                response = review.receipt(
+                    completed_at=datetime.now(UTC).isoformat(),
+                    usage=render._empty_usage().model_dump(mode="json"),
+                )
+                accepted = None  # An explicit reviewed correction, not reuse of a frozen target.
+            elif accepted is not None:
                 assert checkpoint is not None  # Accepted responses only originate in checkpoints.
                 if accepted["outputSha256"] != sha256_bytes(
                     canonical_json_bytes(accepted["output"])
@@ -825,12 +1418,15 @@ async def run(config_path: Path) -> dict[str, Any]:
                 output_type.model_validate_json(
                     canonical_json_bytes(accepted["output"]), strict=True
                 )
-                validate_batch_member(
-                    provenance=accepted["batchProvenance"],
-                    output=accepted["output"],
-                    messages=accepted["messages"],
-                    usage=accepted["usage"],
-                )
+                if not accepted.get("hostOnly"):
+                    validate_batch_member(
+                        provenance=accepted["batchProvenance"],
+                        output=accepted["output"],
+                        messages=accepted["messages"],
+                        usage=accepted["usage"],
+                    )
+                elif accepted["output"] or accepted["messages"] or accepted["usage"]["requests"]:
+                    raise ValueError("host-only generation receipt contains provider activity")
                 attempts = [{**a, "cacheReused": True} for a in checkpoint["attempts"][:-1]]
                 response = {**accepted, "cacheReused": True}
             else:
@@ -860,14 +1456,42 @@ async def run(config_path: Path) -> dict[str, Any]:
                 },
             )
             try:
+                _validate_address_repairs(response["output"], payload.get("repairRequirements", []))
                 target, auxiliary, ledger = await asyncio.to_thread(
                     targets.complete_proposal,
                     source,
                     proposed,
                     fields,
-                    response["output"],
+                    host_lexical.merge(response["output"]),
                     sample_id=sample_id,
+                    prepared_auxiliary=prepared_auxiliary,
                 )
+                if projection is not None:
+                    projection.validate_final(
+                        target,
+                        auxiliary,
+                        country_codes=countries,
+                        source_target=source.target,
+                        localities=address_localities,
+                    )
+                if cargo_scenario is not None:
+                    cargo_scenarios.validate_final(cargo_scenario, target)
+                for path, retained in ledger["retained"].items():
+                    if projection is not None and path in projection.updates:
+                        retained["reason"] = (
+                            "route/locality sampler independently selected the same value; "
+                            "see route projection"
+                        )
+                    if cargo_scenario is not None and (
+                        ".dangerousGoods[" in path
+                        or ".hsCodes[" in path
+                        or ".temperatureSetpoint" in path
+                        or path.endswith((".sizeCategory", ".typeCategory"))
+                    ):
+                        retained["reason"] = (
+                            "joint registry/fit sampler independently selected the same category "
+                            "or fact; see cargo scenario"
+                        )
                 if (
                     accepted is not None
                     and checkpoint is not None
@@ -883,7 +1507,12 @@ async def run(config_path: Path) -> dict[str, Any]:
                     target=target,
                     scale=targets.scenario_scale(sample_id, config.seed),
                     source_template=source.template,
+                    equipment_tare_values=equipment_tare_values,
                 )
+                if cargo_scenario is not None:
+                    equipment_row_constraints.validate_prepared(
+                        cargo_scenario.receipt["printedContainerRows"], numeric_values
+                    )
                 case = _prepared(
                     source,
                     target,
@@ -891,18 +1520,30 @@ async def run(config_path: Path) -> dict[str, Any]:
                     sample_id=sample_id,
                     seed=config.seed,
                     numeric_values=numeric_values,
+                    equipment_tare_values=equipment_tare_values,
+                    customs_presentation=customs_presentations.get(source_id),
+                    dangerous_goods_facts=cargo_scenario.dangerous_goods_facts
+                    if cargo_scenario is not None
+                    else (),
                 )
                 plan = await asyncio.to_thread(
                     render._build_initial_plan, case, seed=config.seed, country_codes=countries
                 )
             except (ValueError, KeyError, TypeError) as error:
+                if review is not None:
+                    raise ValueError(
+                        "explicit reviewed correction failed validation: " + str(error)
+                    ) from error
                 payload = {
                     **payload,
                     "priorOutput": response["output"],
                     "validationError": str(error),
                     "repairAttempt": _attempt + 1,
-                    "repairRequirements": targets.lexical_repair_requirements(
-                        source, proposed, fields
+                    "repairRequirements": _address_repair_requirements(
+                        agent_fields,
+                        targets.lexical_repair_requirements(source, proposed, agent_fields),
+                        payload.get("repairRequirements", []),
+                        error,
                     ),
                 }
                 await asyncio.to_thread(
@@ -1000,7 +1641,11 @@ async def run(config_path: Path) -> dict[str, Any]:
                             "instructions": (
                                 "Preserve the complete target wording, including all model/part "
                                 "identities. Do not abbreviate or paraphrase it. Put it into its "
-                                "source-owned slots; omit no target tokens. Opaque identifiers "
+                                "source-owned slots; omit no textual target tokens. Categorical "
+                                "enums are meanings, not literal text: express PACKAGE_CARTON "
+                                "as cartons, for example; never print a schema enum. Do not "
+                                "invent a new name for an already supplied party. "
+                                "Opaque identifiers "
                                 "must contain exactly the slot's alphanumericCount characters."
                             ),
                         }
@@ -1023,6 +1668,20 @@ async def run(config_path: Path) -> dict[str, Any]:
                 "residualResponse": residual,
                 "residualAttempts": residual_attempts,
                 "goodsIdentities": goods,
+                "hostLexicalFacts": host_lexical.values,
+                "hostLexicalEvidence": host_lexical.evidence,
+                "dangerousGoodsFacts": [
+                    v.model_dump(mode="json") for v in case.dangerous_goods_facts
+                ],
+                "cargoScenario": cargo_scenario.receipt if cargo_scenario is not None else None,
+                "routeProjection": projection.model_dump(mode="json")
+                if projection is not None
+                else None,
+                "customsPresentation": (
+                    customs_presentations[source_id].evidence
+                    if source_id in customs_presentations
+                    else ()
+                ),
                 "agentStage": stage.model_dump(mode="json"),
                 "renderResult": execution.result.model_dump(mode="json"),
                 "rendered": execution.rendered.decode() if execution.rendered else None,
@@ -1045,7 +1704,8 @@ async def run(config_path: Path) -> dict[str, Any]:
         try:
             if provider_stopped.is_set():
                 raise RuntimeError(
-                    "provider account failure stopped new requests; sample remains unprocessed"
+                    "provider unavailability or spending guard stopped new requests; "
+                    "sample remains unprocessed"
                 )
             result = await execute(row)
         except Exception as error:
@@ -1132,6 +1792,7 @@ async def run(config_path: Path) -> dict[str, Any]:
         output_parent=root / config.output_dir,
         run_name=config.run_name,
         transaction_sha256=sha256_bytes(canonical_json_bytes(transaction)),
+        validation_workers=config.max_concurrent_requests,
     )
     staged.recover_interrupted_temporary_files()
     artifacts = []
@@ -1153,23 +1814,13 @@ async def run(config_path: Path) -> dict[str, Any]:
         },
     )
     publish("plan.jsonl", b"".join(canonical_json_bytes(row) + b"\n" for row in samples), True)
+    artifacts.extend(
+        await _publish_generated_cases(
+            staged, sources, ordered, workers=config.max_concurrent_requests
+        )
+    )
     target_rows = []
     for row in ordered:
-        source = sources[row["sourceDocumentId"]]
-        prefix = f"cases/{row['sampleId']}"
-        publish(f"{prefix}/source.txt", source.source, True)
-        publish(f"{prefix}/source-target.json", source.source_target)
-        publish(f"{prefix}/target.json", row["target"])
-        publish(f"{prefix}/target-receipt.json", row["targetReceipt"])
-        publish(f"{prefix}/auxiliary-values.json", row["auxiliaryValues"])
-        publish(f"{prefix}/numeric-auxiliary.json", row["numericAuxiliary"])
-        publish(f"{prefix}/agent-stage.json", row["agentStage"])
-        publish(f"{prefix}/generation-ledger.json", row["ledger"])
-        publish(f"{prefix}/generation-attempts.json", row["attempts"])
-        publish(f"{prefix}/residual-attempts.json", row["residualAttempts"])
-        publish(f"{prefix}/goods-identities.json", row["goodsIdentities"])
-        publish(f"{prefix}/render-result.json", row["renderResult"])
-        publish(f"{prefix}/rendered.txt", row["rendered"].encode(), True)
         target_rows.append(
             {
                 key: row[key]
@@ -1180,9 +1831,11 @@ async def run(config_path: Path) -> dict[str, Any]:
                     "targetSha256",
                     "auxiliaryValues",
                     "numericAuxiliary",
+                    "dangerousGoodsFacts",
                 )
             }
         )
+        target_rows[-1]["equipmentTareValues"] = row["cargoScenario"]["sampledEquipmentTares"]
     publish(
         "targets.jsonl", b"".join(canonical_json_bytes(row) + b"\n" for row in target_rows), True
     )
@@ -1217,6 +1870,11 @@ async def run(config_path: Path) -> dict[str, Any]:
             },
             "residual_replay_run": pin,
             "iso3166_snapshot": config.iso3166_snapshot.model_dump(mode="json"),
+            "customs_program_registry": (
+                config.customs_program_registry.model_dump(mode="json")
+                if config.customs_program_registry is not None
+                else None
+            ),
         },
         "prompts": {"residual_renderer": config.residual_prompt.model_dump(mode="json")},
         "provider": config.provider.model_dump(mode="json"),

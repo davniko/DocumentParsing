@@ -14,6 +14,8 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from fractions import Fraction
+from math import gcd, lcm
 from typing import Any, cast
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
@@ -35,12 +37,26 @@ from document_ocr.synthesis.task_adapter import BILL_OF_LADING_V5_TASK_ADAPTER
 from document_ocr.synthesis.template_integrity import source_template_integrity_issues
 from document_ocr.synthesis.thermal_goods import classify_thermal_hs
 
-from . import cargo_identifiers, count_aliases, lexical_partitions, measurement_prose, package_prose
+from . import (
+    cargo_identifiers,
+    count_aliases,
+    lexical_partitions,
+    measurement_prose,
+    nested_package_prose,
+    package_prose,
+)
 from . import descendant as render
 from .coherence import coherence_dependency_paths, validate_render_coherence
-from .generation_contract import order_party_reference, require_complete_variation
+from .generation_contract import (
+    fixed_carrier_role_paths,
+    order_party_reference,
+    party_owned_surfaces,
+    require_complete_variation,
+    validate_party_evidence,
+)
 from .latest_target import latest_target_from_source
 from .models import CertifiedSemanticTemplate, SemanticBinding
+from .range_generation import condition_lexical_ranges as condition_lexical_ranges
 from .range_generation import formal_range_text, plan_ranges
 from .realization_contract import (
     character_partition_frames,
@@ -71,6 +87,15 @@ def load_source(root: Any, document_id: str) -> SourceTemplate:
     issues = source_template_integrity_issues(source.decode(), label)
     if issues:
         raise ValueError("source template integrity requires review: " + "; ".join(issues))
+    validate_party_evidence(
+        target=label,
+        binding_paths={path for binding in template.bindings for path in binding.target_paths},
+        party_surfaces=party_owned_surfaces(
+            template.bindings,
+            {slot.slot_id: slot.source_text for slot in template.byte_template.slots},
+            template.auxiliary_semantic_plan.entities,
+        ),
+    )
     return SourceTemplate(
         document_id,
         source,
@@ -156,7 +181,74 @@ def _numeric_quantum(source: SourceTemplate, path: str, old: int | float) -> Dec
             else:
                 precision = 10
             precisions.append(max(0, precision - 1))
-    return Decimal(1).scaleb(-min(precisions)) if precisions else Decimal(1)
+    if precisions:
+        return Decimal(1).scaleb(-min(precisions))
+    # A converted/composite measurement is not a direct numeric adapter. Its
+    # absence here does not prove integer precision in the TARGET unit (e.g.
+    # 48.751 tonnes printed as 48,751 kg). Preserve the observed target precision;
+    # numeric dependency preparation and the typed renderer still prove every
+    # printed occurrence before acceptance. Rounding those values to whole tonnes
+    # could make a generated gross weight smaller than the corresponding net.
+    return Decimal(1).scaleb(min(0, int(Decimal(str(old)).as_tuple().exponent)))
+
+
+def _equal_allocation_quantities(
+    weights: list[int], lower_bounds: list[int], total: int, equal_rows: tuple[int, ...],
+    *, independent_total: bool,
+) -> list[int]:
+    """Draw one shared count before apportioning the other observed rows.
+
+    An unlinked subtotal is its own sampling dimension, not the shipment total.
+    A linked total is already a label fact and must never be silently changed.
+    """
+    equal = set(equal_rows)
+    if (
+        len(equal) != len(equal_rows)
+        or len(equal) < 2
+        or any(i < 0 or i >= len(weights) for i in equal)
+        or len({weights[i] for i in equal}) != 1
+        or weights[equal_rows[0]] <= 0
+    ):
+        raise ValueError("invalid shared allocation equality contract")
+    if len(lower_bounds) != len(weights) or any(
+        bound < 0 or (weight == 0 and bound != 0)
+        for weight, bound in zip(weights, lower_bounds, strict=True)
+    ):
+        raise ValueError("allocation lower bounds conflict with observed row support")
+    minimum = max(1, *(lower_bounds[i] for i in equal))
+    other = [i for i, weight in enumerate(weights) if weight > 0 and i not in equal]
+    minimum_total = len(equal) * minimum + sum(lower_bounds[i] for i in other)
+    if total < minimum_total:
+        raise ValueError("new package total cannot preserve shared allocation lower bounds")
+    if not other:
+        if independent_total:
+            total = max(minimum_total, total // len(equal) * len(equal))
+        elif total % len(equal):
+            raise ValueError("linked package total is indivisible by its shared allocation count")
+        shared = total // len(equal)
+    else:
+        maximum = (total - sum(lower_bounds[i] for i in other)) // len(equal)
+        numerator = total * weights[equal_rows[0]]
+        denominator = sum(weights)
+        shared = min(maximum, max(minimum, (2 * numerator + denominator) // (2 * denominator)))
+    if independent_total and total > sum(weights):
+        raise ValueError("shared allocation constraints exceed observed source capacity")
+    result = [0] * len(weights)
+    for index in equal:
+        result[index] = shared
+    remaining = total - len(equal) * shared - sum(lower_bounds[i] for i in other)
+    if other:
+        weight_sum = sum(weights[i] for i in other)
+        raw = [divmod(remaining * weights[i], weight_sum) for i in other]
+        for index, (quotient, _) in zip(other, raw, strict=True):
+            result[index] = lower_bounds[index] + quotient
+        for index in sorted(range(len(other)), key=lambda i: (-raw[i][1], i))[
+            : total - sum(result)
+        ]:
+            result[other[index]] += 1
+    if sum(result) != total:
+        raise ValueError("shared allocation apportionment did not close its subtotal")
+    return result
 
 
 def _scale_numbers(
@@ -165,11 +257,15 @@ def _scale_numbers(
     stream: DeterministicStream,
     minimum_quantities: Mapping[str, int],
     quantity_multiples: Mapping[str, int],
+    measurement_steps: Mapping[str, Decimal] | None = None,
 ) -> None:
     # Downscaling keeps an observed shipment within its existing equipment capacity.
     # Integer indivisibility and the minimum nonzero allocation are explicit constraints.
     ratio = Decimal(600 + stream.derive("cargo-scale").randbelow(350)) / 1000
     fixed_quantities = count_aliases.fixed_quantities(source.source, source.template, source.target)
+    allocation_equalities = nested_package_prose.allocation_equalities(
+        source.template, source.target
+    )
     patch = target["documentPatch"]
     allocation_by_group = {row["groupId"]: row for row in patch.get("cargoAllocationGroups", [])}
     allocation_indices = {
@@ -195,6 +291,11 @@ def _scale_numbers(
                 if allocation["coverage"] != "one_to_one_package_allocations"
                 or row.get("packageId") == package["packageId"]
             ]
+            equal_rows = allocation_equalities.get(allocation_index, ())
+            if equal_rows and allocation["coverage"] != "one_to_one_package_allocations":
+                shared_minimum = max(1, *(bounds[i] for i in equal_rows))
+                for row_index in equal_rows:
+                    bounds[row_index] = shared_minimum
             minimum = max(minimum, sum(bounds))
         if (
             allocation is not None
@@ -219,15 +320,20 @@ def _scale_numbers(
             raise ValueError("quantity constraints exceed the observed source capacity")
         package["quantity"] = new
     for allocation in allocation_by_group.values():
+        allocation_index = allocation_indices[allocation["groupId"]]
+        equal_rows = allocation_equalities.get(allocation_index, ())
         if allocation["coverage"] in {
             "one_to_one_package_allocations",
             "container_membership_only",
         }:
-            allocation.update(
-                reconcile_allocation_group(
-                    packages=list(package_by_id.values()), allocation_group=allocation
-                )
+            reconciled = reconcile_allocation_group(
+                packages=list(package_by_id.values()), allocation_group=allocation
             )
+            if equal_rows and len(
+                {reconciled["allocations"][i].get("packageQuantity") for i in equal_rows}
+            ) != 1:
+                raise ValueError("linked package quantities contradict shared allocation equality")
+            allocation.update(reconciled)
             continue
         quantified = [row for row in allocation["allocations"] if "packageQuantity" in row]
         if not quantified:
@@ -237,7 +343,6 @@ def _scale_numbers(
                 "partially quantified allocation requires an explicit generation contract"
             )
         weights = [row["packageQuantity"] for row in quantified]
-        allocation_index = allocation_indices[allocation["groupId"]]
         lower_bounds = [
             minimum_quantities.get(
                 f"documentPatch.cargoAllocationGroups[{allocation_index}].allocations[{i}].packageQuantity",
@@ -245,6 +350,10 @@ def _scale_numbers(
             )
             for i, weight in enumerate(weights)
         ]
+        if equal_rows:
+            shared_minimum = max(1, *(lower_bounds[i] for i in equal_rows))
+            for index in equal_rows:
+                lower_bounds[index] = shared_minimum
         total = (
             max(
                 sum(lower_bounds),
@@ -253,6 +362,14 @@ def _scale_numbers(
             if allocation["coverage"] == "unlinked_package_quantities"
             else sum(package_by_id[pid]["quantity"] for pid in allocation["packageIds"])
         )
+        if equal_rows:
+            assigned_counts = _equal_allocation_quantities(
+                weights, lower_bounds, total, equal_rows,
+                independent_total=allocation["coverage"] == "unlinked_package_quantities",
+            )
+            for row, count in zip(quantified, assigned_counts, strict=True):
+                row["packageQuantity"] = count
+            continue
         positive = [i for i, w in enumerate(weights) if w > 0]
         if total < sum(lower_bounds) or not positive:
             raise ValueError("new package total cannot preserve allocation support")
@@ -265,17 +382,64 @@ def _scale_numbers(
         for i, row in enumerate(quantified):
             row["packageQuantity"] = assigned.get(i, 0)
     for index, group in enumerate(patch.get("cargoGroups", [])):
+        quanta = {
+            field: _numeric_quantum(
+                source, f"documentPatch.cargoGroups[{index}].{field}.value", group[field]["value"]
+            )
+            for field in ("grossWeight", "netWeight", "volume")
+            if field in group
+        }
+        for field, quantum in quanta.items():
+            path = f"documentPatch.cargoGroups[{index}].{field}.value"
+            if measurement_steps is not None and path in measurement_steps:
+                partition_steps = (Fraction(quantum), Fraction(measurement_steps[path]))
+                if any(step <= 0 for step in partition_steps):
+                    raise ValueError("measurement precision steps must be positive")
+                quanta[field] = Decimal(lcm(*(s.numerator for s in partition_steps))) / Decimal(
+                    gcd(*(s.denominator for s in partition_steps))
+                )
+        # Equal printed gross/net values in different units still describe one
+        # physical magnitude. Round on their common representable lattice, not
+        # independently in kg and tonnes (which can otherwise put net above gross).
+        equal_mass = None
+        mass_factors = {
+            "kilogram": Decimal(1),
+            "metric_tonne": Decimal(1000),
+            "pound": Decimal("0.45359237"),
+        }
+        if {"grossWeight", "netWeight"} <= group.keys():
+            masses = {
+                field: Decimal(str(group[field]["value"])) * mass_factors[group[field]["unit"]]
+                for field in ("grossWeight", "netWeight")
+            }
+            if masses["grossWeight"] == masses["netWeight"]:
+                steps = [Fraction(quanta[f] * mass_factors[group[f]["unit"]]) for f in masses]
+                step = Decimal(lcm(*(s.numerator for s in steps))) / Decimal(
+                    gcd(*(s.denominator for s in steps))
+                )
+                equal_mass = max(
+                    step,
+                    (masses["grossWeight"] * ratio / step).quantize(
+                        Decimal(1), rounding=ROUND_HALF_UP
+                    )
+                    * step,
+                )
         for field in ("grossWeight", "netWeight", "volume"):
             if field not in group:
                 continue
             old = group[field]["value"]
-            path = f"documentPatch.cargoGroups[{index}].{field}.value"
-            quantum = _numeric_quantum(source, path, old)
+            quantum = quanta[field]
             new_measurement = max(
-                quantum, (Decimal(str(old)) * ratio).quantize(quantum, rounding=ROUND_HALF_UP)
+                quantum,
+                (Decimal(str(old)) * ratio / quantum).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+                * quantum,
             )
+            if equal_mass is not None and field != "volume":
+                new_measurement = equal_mass / mass_factors[group[field]["unit"]]
             group[field]["value"] = (
-                int(new_measurement) if isinstance(old, int) else float(new_measurement)
+                int(new_measurement)
+                if isinstance(old, int) and new_measurement == new_measurement.to_integral_value()
+                else float(new_measurement)
             )
 
 
@@ -304,8 +468,12 @@ def _is_lexical(path: str, value: Any) -> bool:
 
 
 def lexical_contract(source: SourceTemplate) -> tuple[dict[str, Any], ...]:
+    from . import labelled_context
+
     leaves = render._flatten_leaves(source.target)
     paths = {path for path, value in leaves.items() if _is_lexical(path, value)}
+    context_paths = labelled_context.owned_paths(source)
+    paths.difference_update(context_paths)
     paths.difference_update(fixed_dimension_paths(source))
     paths.difference_update(p for b in _opaque_reference_bindings(source) for p in b.target_paths)
     formal_paths = plan_ranges(source.template, source.target, source.target).target_values
@@ -379,7 +547,12 @@ def lexical_contract(source: SourceTemplate) -> tuple[dict[str, Any], ...]:
             continue
         constraints: list[dict[str, Any]] = []
         for binding in source.template.bindings:
-            if not set(group).intersection(binding.target_paths):
+            dependent_name_mark = (
+                bool(context_paths.intersection(binding.target_paths))
+                and len(binding.dependency_paths) == 1
+                and binding.dependency_paths[0] in group
+            )
+            if not set(group).intersection(binding.target_paths) and not dependent_name_mark:
                 continue
             intervals = complete_token_intervals(binding)
             character_frames = character_partition_frames(binding)
@@ -474,6 +647,21 @@ def lexical_contract(source: SourceTemplate) -> tuple[dict[str, Any], ...]:
                             "policies": [s.render_policy for s in binding.occurrences],
                         }
                     ],
+                }
+            )
+    from . import cargo_identity_derivations
+
+    cargo_identity_derivations.validate_source(source.template.bindings, source.target)
+    for binding in source.template.bindings:
+        if binding.derivation in cargo_identity_derivations.DERIVATIONS:
+            requests.append(
+                {
+                    "key": f"field_{len(requests):04d}",
+                    "paths": [],
+                    "auxiliaryKey": binding.logical_key,
+                    "cargoIdentityPath": binding.dependency_paths[0],
+                    "source": binding.occurrences[0].source_text,
+                    "constraints": [],
                 }
             )
     return tuple(requests)
@@ -678,7 +866,15 @@ def lexical_repair_requirements(
                             for p in coherence_dependency_paths(constraint)
                         },
                         "requirement": (
-                            "Express each dependent count explicitly as a separated number and "
+                            "Preserve the supplied interval endpoints and their required "
+                            "cardinalities. Do not append package-count annotations absent "
+                            "from the source; the interval itself expresses the cardinality."
+                            if constraint.kind
+                            in {
+                                "inclusive_range_cardinality",
+                                "aggregate_inclusive_range_cardinality",
+                            }
+                            else "Express each dependent count as a separated number and "
                             "its package noun, not as part of a model number or identifier."
                         ),
                     }
@@ -697,8 +893,10 @@ def lexical_repair_requirements(
                     }
                 )
         for binding in source.template.bindings:
-            if "hostAssembly" not in request and set(binding.target_paths).intersection(
-                request["paths"]
+            if (
+                "hostAssembly" not in request
+                and "sampledContext" not in request
+                and set(binding.target_paths).intersection(request["paths"])
             ):
                 pattern = token_projection_pattern(binding)
                 if pattern is not None:
@@ -754,13 +952,16 @@ def lexical_repair_requirements(
                         ),
                     }
                 )
-        if any(".additionalInformation[" in p for p in request["paths"]):
+        if any(
+            ".additionalInformation[" in p or ".marksAndNumbers[" in p for p in request["paths"]
+        ):
             obligations.append(
                 {
                     "sourceRole": request["source"],
                     "requirement": (
                         "Keep this entry's distinct source role; do not duplicate any sibling "
-                        "additionalInformation entry or replace a declared origin with a different "
+                        "mark or additionalInformation entry, change a reference label, "
+                        "or replace a declared origin with a different "
                         "origin."
                     ),
                 }
@@ -804,6 +1005,7 @@ def structured_proposal(
     vessel_names: Sequence[str],
     minimum_quantities: Mapping[str, int] | None = None,
     quantity_multiples: Mapping[str, int] | None = None,
+    measurement_steps: Mapping[str, Decimal] | None = None,
 ) -> dict[str, Any]:
     target = deepcopy(source.target)
     references = target["documentPatch"].pop("forwardingAndExportReferences", None)
@@ -826,10 +1028,19 @@ def structured_proposal(
         )
         for path in binding.target_paths:
             _set(target, path, generated)
-    _scale_numbers(source, target, stream, minimum_quantities or {}, quantity_multiples or {})
+    _scale_numbers(
+        source,
+        target,
+        stream,
+        minimum_quantities or {},
+        quantity_multiples or {},
+        measurement_steps,
+    )
     for path, package_mass in package_prose.package_mass_values(
         source.template, source.target, target
     ).items():
+        _set(target, path, float(package_mass))
+    for path, package_mass in measurement_prose.per_package_totals(source.target, target).items():
         _set(target, path, float(package_mass))
     for path, value in plan_ranges(source.template, source.target, target).target_values.items():
         _set(target, path, value)
@@ -1018,11 +1229,12 @@ def complete_proposal(
     values: Mapping[str, str],
     *,
     sample_id: str,
+    prepared_auxiliary: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
     if set(values) != {row["key"] for row in requests}:
         raise ValueError("linguistic response does not cover the requested fields exactly")
     target = deepcopy(dict(proposal))
-    auxiliary = {}
+    auxiliary = dict(prepared_auxiliary or {})
     for request in requests:
         value = values[request["key"]]
         if not isinstance(value, str) or not value.strip() or "\n" in value or "\r" in value:
@@ -1038,6 +1250,10 @@ def complete_proposal(
         for path in request["paths"]:
             _set(target, path, value)
         if "auxiliaryKey" in request:
+            if request["auxiliaryKey"] in auxiliary:
+                raise ValueError(
+                    "host-owned auxiliary geography was incorrectly requested from the model"
+                )
             auxiliary[request["auxiliaryKey"]] = value
             if "cargoFragment" not in request:
                 binding = next(
@@ -1054,6 +1270,13 @@ def complete_proposal(
                     ) from error
     for path, text in lexical_partitions.assembled_targets(source.template, auxiliary).items():
         _set(target, path, text)
+    from . import labelled_context
+
+    context_labels = labelled_context.generated_values(source, target)
+    if any(path in context_labels for request in requests for path in request["paths"]):
+        raise ValueError("derived cargo labels were incorrectly requested from the model")
+    for path, text in context_labels.items():
+        _set(target, path, text)
     for key, value in projected_auxiliary_values(source.template, target).items():
         if key in auxiliary:
             raise ValueError("derived projection context was incorrectly requested from the model")
@@ -1066,6 +1289,9 @@ def complete_proposal(
         raise ValueError("complete generation changed printed topology")
     package_prose.validate(source.target, target, template=source.template)
     package_prose.validate_package_masses(source.template, source.target, target)
+    from . import temperature_prose
+
+    temperature_prose.validate(source.template, source.target, target)
     measurement_prose.validate(source.target, target)
     fixed_quantities = count_aliases.fixed_quantities(source.source, source.template, source.target)
     if any(render._resolve_path(target, p) != v for p, v in fixed_quantities.items()):
@@ -1088,14 +1314,17 @@ def complete_proposal(
     changes = {
         p: {"source": original[p], "accepted": v} for p, v in generated.items() if original[p] != v
     }
-    required = require_complete_variation(source.target, target)
+    required = require_complete_variation(source.target, target, bindings=source.template.bindings)
+    fixed_roles = fixed_carrier_role_paths(source.target, source.template.bindings)
     fixed_dimensions = fixed_dimension_paths(source)
     fixed_references = cargo_identifiers.fixed_references(source.target, source.template)
     retained = {
         p: {
             "value": v,
             "reason": (
-                "explicit cargo geometry retained as a constraint on the new commercial product"
+                "explicitly printed shared role of the template-bound carrier"
+                if p in fixed_roles
+                else "explicit cargo geometry constrains the new commercial product"
                 if p in fixed_dimensions
                 else "immutable printed count alias fixes this quantity before generation"
                 if p in fixed_quantities
@@ -1117,6 +1346,7 @@ def complete_proposal(
             "targetSha256": sha256_bytes(canonical_json_bytes(target)),
             "sourceTemplateSha256": source.original_template_sha256,
             "targetDerivedAuxiliaryContext": projected_auxiliary_values(source.template, target),
+            "targetDerivedLabelContext": context_labels,
             "effectiveTemplateSha256": sha256_bytes(
                 canonical_json_bytes(source.template.model_dump(mode="json"))
             ),

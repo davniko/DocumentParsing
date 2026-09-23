@@ -6,10 +6,9 @@ This module owns that one-way boundary: it performs the schema's audited DG
 migration and replaces a reviewed legacy equipment surface with its readable
 v5 size/type pair when the source supports that inference.
 
-Unknown equipment surfaces remain the v5 ``typeDescription`` fallback.  A
-temperature-bearing container with neither a resolvable equipment surface nor
-an existing fallback is rejected; inventing a size class would put an
-unobservable fact into the training target.
+Unknown equipment surfaces remain the v5 ``typeDescription`` fallback. A printed
+temperature with no printed equipment surface remains a temperature-only
+observation: inventing a size/type would put an unobservable fact into the target.
 """
 
 from __future__ import annotations
@@ -51,9 +50,7 @@ def latest_target_from_source(source_target: Mapping[str, Any]) -> dict[str, Any
         raise LatestTargetConstructionError("source target containers are not a list")
     for index, container_value in enumerate(containers):
         if not isinstance(container_value, dict):
-            raise LatestTargetConstructionError(
-                f"source target container {index} is not an object"
-            )
+            raise LatestTargetConstructionError(f"source target container {index} is not an object")
         container = cast(dict[str, Any], container_value)
         description = container.get("typeDescription")
         if description is not None and not isinstance(description, str):

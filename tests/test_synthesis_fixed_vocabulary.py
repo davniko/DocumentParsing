@@ -5,6 +5,43 @@ import pytest
 from document_ocr.synthesis.template_compiler.fixed_vocabulary import fixed_vocabulary
 
 
+def test_material_qualified_package_context_is_conditioned_before_sampling():
+    from copy import deepcopy
+
+    from document_ocr.synthesis.template_compiler.fixed_vocabulary import fixed_context
+    from document_ocr.synthesis.template_compiler.package_observations import (
+        retained_category_constraints,
+        unowned_package_observation,
+    )
+
+    b = binding(
+        "WOODEN\nPALLETS", group_kind="package", value_kind="package", logical_key="packing"
+    )
+    template = NS(bindings=(b,))
+    source = {"documentPatch": {"cargoPackages": [{"typeCategory": "PACKAGE_PALLET"}]}}
+    assert unowned_package_observation(b)
+    assert retained_category_constraints(template, source) == {0: "PACKAGE_PALLET"}
+    assert fixed_context(b, source, source)
+    target = deepcopy(source)
+    target["documentPatch"]["cargoPackages"][0]["typeCategory"] = "PACKAGE_CRATE"
+    assert not fixed_context(b, source, target)
+    b.occurrences = (NS(source_text="WOODEN PALLETS OF PHARMACEUTICALS"),)
+    assert not unowned_package_observation(b)
+
+
+def test_route_crosses_are_missing_placeholders_not_sampled_locations():
+    from document_ocr.synthesis.template_compiler.descendant import _explicit_unknown_placeholder
+
+    b = binding("XXXXXXXX", group_kind="route", value_kind="location")
+    assert _explicit_unknown_placeholder(b)
+    for text in ("XIAN", "XXX CITY", "XX", "SHA"):
+        b.occurrences = (NS(source_text=text),)
+        assert not _explicit_unknown_placeholder(b)
+    b.occurrences = (NS(source_text="XXXXXXXX"),)
+    b.target_paths = ("documentPatch.route.placeOfDelivery.name",)
+    assert not _explicit_unknown_placeholder(b)
+
+
 def test_source_only_route_is_fixed_only_for_the_complete_unchanged_scenario():
     from document_ocr.synthesis.template_compiler.fixed_vocabulary import fixed_context
 
@@ -42,7 +79,6 @@ def test_unlabeled_equipment_receipt_is_fixed_scenario_context_not_an_identifier
 @pytest.mark.parametrize(
     "text",
     [
-        "COC",
         "SEAL",
         "40' HC",
         "02 X 40`HC FCL CONTAINERS",
@@ -85,6 +121,31 @@ def test_closed_equipment_context_requires_unchanged_physical_equipment(text):
     assert fixed_context(b, source, target)
     target["documentPatch"]["containers"][0]["sizeCategory"] = "TWENTY_FOOT"
     assert not fixed_context(b, source, target)
+
+
+@pytest.mark.parametrize("text", ["COC", "SOC"])
+def test_equipment_ownership_flag_is_independent_of_unprinted_geometry(text):
+    from document_ocr.synthesis.template_compiler.fixed_vocabulary import fixed_context
+
+    b = binding(text, group_kind="equipment", value_kind="equipment", logical_key="ownership")
+    source = {"documentPatch": {"containers": [{"containerNumber": "OLD"}]}}
+    target = {"documentPatch": {"containers": [{"containerNumber": "NEW"}]}}
+    assert fixed_context(b, source, target)
+    target["documentPatch"]["containers"][0]["sizeCategory"] = "FORTY_FOOT_HIGH_CUBE"
+    assert fixed_context(b, source, target)
+    target["documentPatch"]["containers"].append({"containerNumber": "ANOTHER"})
+    assert not fixed_context(b, source, target)
+    b.dependency_paths = ("documentPatch.containers[0].containerNumber",)
+    assert not fixed_context(b, source, source)
+
+
+@pytest.mark.parametrize("text", ["COC 40HQ", "SOC 3 CONTAINERS", "COC/SOC"])
+def test_ownership_flag_does_not_hide_shipment_equipment_constraints(text):
+    from document_ocr.synthesis.template_compiler.fixed_vocabulary import fixed_context
+
+    b = binding(text, group_kind="equipment", value_kind="equipment", logical_key="ownership")
+    source = {"documentPatch": {"containers": [{"containerNumber": "OLD"}]}}
+    assert not fixed_context(b, source, source)
 
 
 def test_independent_feeder_is_fixed_but_main_vessel_alias_is_not():

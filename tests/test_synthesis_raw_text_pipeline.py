@@ -94,6 +94,9 @@ def _frozen_receipt(target: Any, **fields: Any) -> SimpleNamespace:
         compatibility_adaptations=(),
         auxiliary_values_sha256=sha256_bytes(canonical_json_bytes({})),
         numeric_auxiliary_sha256=sha256_bytes(canonical_json_bytes({})),
+        equipment_tare_values_sha256=sha256_bytes(canonical_json_bytes({})),
+        customs_presentation_sha256=sha256_bytes(canonical_json_bytes([])),
+        dangerous_goods_facts_sha256=sha256_bytes(canonical_json_bytes([])),
         **fields,
     )
 
@@ -362,7 +365,7 @@ def test_indexed_whole_container_receipt_is_rendered_without_inventing_an_identi
     )
     source_target = {
         "documentPatch": {
-            "containers": [{"containerNumber": "FBIU5385937", "typeDescription": "40RF"}]
+            "containers": [{"containerNumber": "FBIU5385937", "typeDescription": "40HC"}]
         }
     }
     target = {
@@ -385,6 +388,32 @@ def test_indexed_whole_container_receipt_is_rendered_without_inventing_an_identi
 
     assert output.replacements == {"slot_receipt": "01X40'RE"}
     assert "FBIU5385937" not in output.replacements["slot_receipt"]
+
+
+def test_receipt_repartitions_a_new_mixed_equipment_inventory():
+    binding = SimpleNamespace(
+        target_paths=("documentPatch.containers[0]", "documentPatch.containers[1]"),
+        dependency_paths=(),
+        occurrences=(SimpleNamespace(slot_id="s", source_text="2X40GP"),),
+    )
+    source = {"documentPatch": {"containers": [{"typeDescription": "40GP"}] * 2}}
+    target = {
+        "documentPatch": {
+            "containers": [
+                {"sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE", "typeCategory": "GENERAL_PURPOSE"},
+                {"sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT", "typeCategory": "GENERAL_PURPOSE"},
+            ]
+        }
+    }
+    result = descendant._render_equipment_receipt_binding(
+        binding, source_target=source, target=target
+    )
+    assert result.replacements == {"s": "1X45HC + 1X20GP"}
+    binding.occurrences = (
+        SimpleNamespace(slot_id="s", source_text="2 containers, assorted sizes"),
+    )
+    with pytest.raises(ValueError, match="equipment receipt"):
+        descendant._render_equipment_receipt_binding(binding, source_target=source, target=target)
 
 
 def test_explicit_unknown_identifier_placeholder_is_provider_free() -> None:
@@ -445,6 +474,7 @@ def test_unchanged_static_target_is_accepted_from_certified_source_surfaces() ->
         source_target=target,
         target=target,
         source=address.encode("utf-8"),
+        dangerous_goods_facts=(),
         template=SimpleNamespace(bindings=(binding,), coherence_constraints=()),
     )
     outputs = {
@@ -561,6 +591,7 @@ def test_equipment_surface_rejects_without_restoring_source_semantics(
     path = "documentPatch.containers[0].typeDescription"
     binding = SimpleNamespace(
         logical_key="anchor:documentPatch.containers[0].typeDescription",
+        derivation=None,
         value_kind="equipment",
         target_paths=(path,),
         occurrences=(SimpleNamespace(slot_id="slot_equipment"),),
@@ -626,6 +657,7 @@ def test_agent_routed_identifier_is_not_silently_reverted_before_rendering(
     source_value = "0NVI8N1MA"
     binding = SimpleNamespace(
         logical_key="anchor:documentPatch.transport.voyageNumber",
+        derivation=None,
         value_kind="identifier",
         target_paths=(path,),
         occurrences=(SimpleNamespace(slot_id="slot_voyage", source_text="0NV18N1MA"),),
@@ -690,6 +722,7 @@ def test_unrenderable_target_never_restores_a_field_or_whole_party(
     before = canonical_json_bytes(target)
     binding = SimpleNamespace(
         logical_key="test:binding",
+        derivation=None,
         target_paths=(path,),
         realization=SimpleNamespace(mode="single_surface"),
     )
@@ -729,6 +762,7 @@ def test_mutated_target_is_rejected_before_routing_or_publication() -> None:
         target_receipt=_frozen_receipt(target),
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
     )
     target["documentPatch"]["billOfLadingNumber"] = "REPLACED"
     with pytest.raises(ValueError, match="synthetic target changed after generation"):
@@ -766,6 +800,7 @@ def test_target_linked_location_code_cannot_reuse_an_unresolved_source_city() ->
     binding = SimpleNamespace(
         logical_key="aux:shipper_location",
         value_kind="location",
+        group_kind="party",
         target_paths=(),
         occurrences=(SimpleNamespace(source_text="NLRTM", slot_id="slot_location"),),
     )
@@ -833,6 +868,7 @@ def test_replay_allows_target_drift_only_when_no_residual_output_is_reused(
         target={"new": "target"},
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=SimpleNamespace(model_dump=lambda **_kwargs: {"new": "receipt"}),
     )
 
@@ -889,6 +925,7 @@ def test_replay_chain_is_explicitly_proven_and_provider_free_when_no_slot_is_reu
         target={"new": "target"},
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=SimpleNamespace(model_dump=lambda **_kwargs: {"new": "receipt"}),
     )
 
@@ -1649,10 +1686,13 @@ def test_coherence_gate_runs_before_descendant_routing(monkeypatch: pytest.Monke
     case = SimpleNamespace(
         document_id="doc_test",
         source_target=_target(7),
+        customs_presentation=None,
+        dangerous_goods_facts=(),
         topology_reference_target=_target(7),
         target=_target(9),
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=_frozen_receipt(_target(9)),
         template=SimpleNamespace(
             bindings=(_coherence_binding(),),
@@ -1684,12 +1724,15 @@ def test_changed_formal_range_uses_proven_deterministic_cardinality(
     binding = _coherence_binding()
     case = SimpleNamespace(
         document_id="doc_changed_range",
+        customs_presentation=None,
+        dangerous_goods_facts=(),
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
         topology_reference_target=_target(7),
         target=_target(9),
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=_frozen_receipt(_target(9)),
         template=SimpleNamespace(
             bindings=(binding,),
@@ -1715,12 +1758,15 @@ def test_unchanged_coherence_member_preserves_the_certified_source(
     binding = _coherence_binding()
     case = SimpleNamespace(
         document_id="doc_unchanged_range",
+        customs_presentation=None,
+        dangerous_goods_facts=(),
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
         topology_reference_target=_target(7),
         target=_target(7),
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=_frozen_receipt(_target(7)),
         template=SimpleNamespace(
             bindings=(binding,),
@@ -1751,18 +1797,22 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
         realization=SimpleNamespace(requires_agent=True, mode="agent_required"),
         target_paths=("documentPatch.transport.voyageNumber",),
         derivation=None,
+        dependency_paths=(),
         dependency_bindings=(),
         occurrences=(slot,),
         source_relationships=(),
     )
     case = SimpleNamespace(
         document_id="doc_ocr_variant",
+        customs_presentation=None,
+        dangerous_goods_facts=(),
         source=b"0NV18N1MA\n",
         source_target={"documentPatch": {"transport": {"voyageNumber": "0NVI8N1MA"}}},
         topology_reference_target={"documentPatch": {"transport": {"voyageNumber": "0NVI8N1MA"}}},
         target={"documentPatch": {"transport": {"voyageNumber": "7KCI3Z0YW"}}},
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=_frozen_receipt(
             {"documentPatch": {"transport": {"voyageNumber": "7KCI3Z0YW"}}}
         ),
@@ -1811,12 +1861,16 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
     case = SimpleNamespace(
         document_id="doc_test",
         source_document_id="doc_test",
+        customs_presentation=None,
+        dangerous_goods_facts=(),
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
+        topology_reference_target=_target(7),
         target=_target(9),
         template=template,
         auxiliary_values={},
         numeric_auxiliary={},
+        equipment_tare_values={},
         target_receipt=_frozen_receipt(
             _target(9),
             synthetic_document_id="syn_test",
@@ -1852,6 +1906,6 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
     )
 
     assert executed.result.status == "host_rejected"
-    assert executed.result.error_type == "ValueError"
+    assert executed.result.error_type == "ValueError", executed.result.error_message
     assert executed.result.error_message == "stale package range"
     assert executed.result.semantic_coherence_valid is False

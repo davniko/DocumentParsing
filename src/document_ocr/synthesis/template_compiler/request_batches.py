@@ -27,15 +27,25 @@ class BatchMemberError(RuntimeError):
 
 _BATCH_RULES = """
 Complete each independent case below using the original rules. sharedContext is a
-base context. Replace the paths listed in varyingPaths with the corresponding
-case.values (same order). Paths are arrays of object keys or zero-based indexes.
+base context. Each varyingPathGroups entry lists paths that share the same value
+within a case. Replace EVERY path in group i with case.values[i]. Paths are arrays
+of object keys or zero-based indexes. Groups never link facts between cases.
+Nulls at these varying paths are placeholders, not actual missing facts. Each
+case's partyGeography is repeated explicitly for clarity and is authoritative for
+that case. Resolve every address field's expectedGeography from its OWN case,
+never from another case or a shared placeholder.
 Return one object per case, keyed by its exact case key. Each object must use the
-named field keys; never exchange party roles or case facts. Cases must have
-independently varied identities, not numbered copies of the same organization.
+named field keys; never exchange party roles or case facts. For requestedFields,
+generate independently varied identities, not numbered copies of one organization.
+For residualBindings, target facts INCLUDING ORGANIZATION NAMES ARE ALREADY FROZEN:
+render them verbatim without inventing replacements. Only unbound auxiliary facts
+may be invented. Render categorical enums as human words, never as schema codes.
 No leading/trailing whitespace or newline characters in generated field values.
 All names/addresses must use Latin-script letters (transliterate if necessary).
-When structured party locality is absent, preserve the locality/country explicitly
-present in that party's source address; a loading port is not its postal locality.
+When partyGeography is supplied, use that party's NEW sampled city/country even
+when its training label omits those fields; replace old source-address geography.
+Otherwise preserve explicit source-address geography. A loading port is not a
+party's postal locality. hostAuxiliaryGeography is immutable host-owned context.
 Structured {generate: key} entries refer to the requested new field, whose source
 is in requestedFields. Missing rendering-constraint keys impose no extra restriction.
 Numeric auxiliary entries contain host-computed values; never recompute them.
@@ -184,23 +194,50 @@ def _leaves(value: Any, path: tuple[str | int, ...] = ()) -> dict[tuple[str | in
 def shared_context(payloads: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     if not payloads:
         raise ValueError("cannot batch empty requests")
+    # Field inventories arrive as tuples. Factoring those as opaque leaves
+    # duplicated the entire inventory whenever one party's geography changed.
+    # Normalize to the exact JSON wire representation before finding leaves.
+    payloads = [json.loads(canonical_json_bytes(payload)) for payload in payloads]
     flat = [_leaves(p) for p in payloads]
     if any(set(row) != set(flat[0]) for row in flat[1:]):
         raise ValueError("batch inputs have different topologies")
     paths = [p for p in flat[0] if any(row[p] != flat[0][p] for row in flat[1:])]
+    groups: list[list[list[str | int]]] = []
+    vectors: list[list[Any]] = []
+    by_vector: dict[bytes, int] = {}
+    for path in paths:
+        vector = [row[path] for row in flat]
+        vector_key = canonical_json_bytes(vector)
+        if vector_key not in by_vector:
+            by_vector[vector_key] = len(groups)
+            groups.append([])
+            vectors.append(vector)
+        groups[by_vector[vector_key]].append(list(path))
     result: dict[str, Any] = dict(
         sharedContext=deepcopy(payloads[0]),
-        varyingPaths=[list(p) for p in paths],
-        cases={f"s{i}": dict(values=[row[p] for p in paths]) for i, row in enumerate(flat)},
+        varyingPathGroups=groups,
+        cases={f"s{i}": dict(values=[vector[i] for vector in vectors]) for i in range(len(flat))},
     )
+    # A first-case value in the base is a misleading default for other cases,
+    # particularly an address's authoritative city/country. Preserve every value
+    # in the case columns, but make the shared varying locations unambiguous.
+    for path in paths:
+        node = result["sharedContext"]
+        for key in path[:-1]:
+            node = node[key]
+        node[path[-1]] = None
+    for index, payload in enumerate(payloads):
+        if "partyGeography" in payload:
+            result["cases"][f"s{index}"]["partyGeography"] = deepcopy(payload["partyGeography"])
     # This is a cheap exact check, not an inference about which context is relevant.
     for case, expected in zip(result["cases"].values(), payloads, strict=True):
         actual = deepcopy(result["sharedContext"])
-        for path, value in zip(paths, case["values"], strict=True):
-            node = actual
-            for key in path[:-1]:
-                node = node[key]
-            node[path[-1]] = value
+        for group, value in zip(groups, case["values"], strict=True):
+            for restored_path in group:
+                node = actual
+                for key in restored_path[:-1]:
+                    node = node[key]
+                node[restored_path[-1]] = value
         if actual != expected:
             raise ValueError("shared-context roundtrip changed a scenario")
     return result
@@ -261,8 +298,9 @@ def lexical_payload(payload: Mapping[str, Any], aliases: Mapping[str, str]) -> d
     """Send lexical facts and rendering requirements, not host audit internals.
 
     Generated target values are references to their complete source-field entries,
-    not duplicated facts. No numeric scenario value, relationship, required literal,
-    slot surface or minimum-length requirement is dropped.
+    not duplicated facts. Cross-domain requests retain the complete scenario.
+    Party-only requests retain party facts, goods, locality and rendering rules;
+    unrelated host-owned cargo arithmetic is omitted from that linguistic task.
     """
     result = deepcopy(dict(payload))
     for requirement in result.get("repairRequirements", ()):
@@ -279,6 +317,16 @@ def lexical_payload(payload: Mapping[str, Any], aliases: Mapping[str, str]) -> d
     fragment_fields: dict[str, list[str]] = {}
     for field in result.get("requestedFields", ()):
         field["key"] = aliases[field["key"]]
+        address_geographies = {
+            canonical_json_bytes(result["partyGeography"][path.removesuffix(".address")])
+            for path in field["paths"]
+            if path.endswith(".address")
+            and path.removesuffix(".address") in result.get("partyGeography", {})
+        }
+        if len(address_geographies) > 1:
+            raise ValueError("shared address field has inconsistent authoritative localities")
+        if address_geographies:
+            field["expectedGeography"] = json.loads(address_geographies.pop())
         if "cargoFragment" in field:
             for path in field["cargoFragment"]["targetPaths"]:
                 fragment_fields.setdefault(path, []).append(field["key"])
@@ -323,6 +371,27 @@ def lexical_payload(payload: Mapping[str, Any], aliases: Mapping[str, str]) -> d
                 raise ValueError("repeated residual occurrences disagree in prior output")
             aliased_output[alias] = value
         result["priorOutput"] = aliased_output
+    fields = result.get("requestedFields", ())
+    party_only = (
+        bool(fields)
+        and not result.get("coherenceConstraints")
+        and all(
+            all(path.startswith("documentPatch.parties.") for path in field["paths"])
+            if field["paths"]
+            else field.get("partyPath", "").startswith("documentPatch.parties.")
+            for field in fields
+        )
+    )
+    if party_only:
+        # Party-only generation needs complete party facts, authoritative goods,
+        # localities and rendering rules, but not host-owned cargo arithmetic.
+        # Cross-domain or explicitly constrained requests retain full context.
+        result["structuredScenario"] = {
+            "documentPatch": {"parties": result["structuredScenario"]["documentPatch"]["parties"]}
+        }
+        for key in ("numericAuxiliary", "cargoPackaging", "hostLexicalFacts"):
+            result.pop(key, None)
+        result["contextScope"] = "party_identity_with_goods_and_localities"
     return result
 
 
@@ -398,6 +467,7 @@ class RequestBatcher:
         output_type: type[BaseModel],
         system_prompt: str,
     ) -> dict[str, Any]:
+        payload = json.loads(canonical_json_bytes(payload))
         key = sha256_bytes(
             canonical_json_bytes(
                 [group, system_prompt, output_type.model_json_schema(), list(_leaves(payload))]

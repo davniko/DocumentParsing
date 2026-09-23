@@ -122,12 +122,13 @@ class PackageGoodsFitSupport:
         allowed = frozenset(self.allowed_category_tokens)
         if not allowed or len(allowed) != len(self.allowed_category_tokens):
             raise ValueError("allowed package categories must be non-empty and unique")
-        for row in (
+        rows: tuple[SignatureSupportRow | PackageSignaturePoolSupportRow, ...] = (
             *self.hs_heading_rows,
             *self.hs_signature_pool_rows,
             *self.thermal_profile_rows,
             *self.dangerous_goods_rows,
-        ):
+        )
+        for row in rows:
             if not set(row.categories) <= allowed:
                 raise ValueError("joint support contains a category outside the task vocabulary")
 
@@ -139,9 +140,7 @@ class PackageGoodsFitSupport:
             "fit_thermal_profile_joint": self.thermal_profile_rows,
             "fit_dangerous_goods_hazard_joint": self.dangerous_goods_rows,
         }[basis]
-        return tuple(
-            row for row in source if row.key == key and row.package_count == package_count
-        )
+        return tuple(row for row in source if row.key == key and row.package_count == package_count)
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,9 +454,7 @@ def build_package_goods_fit_support(
                 signature_key = (package_count, signature)
                 signature_pool_counts[signature_key] += 1
                 signature_pool_documents[signature_key].add(document_id)
-                signature_pool_headings[signature_key].update(
-                    value[:4] for value in hs6_values
-                )
+                signature_pool_headings[signature_key].update(value[:4] for value in hs6_values)
                 for heading in headings:
                     key = (heading, package_count, signature)
                     heading_counts[key] += 1
@@ -506,7 +503,8 @@ def build_package_goods_fit_support(
 
 
 class _WeightedSupportRow(Protocol):
-    occurrences: int
+    @property
+    def occurrences(self) -> int: ...
 
 
 def _weighted_row[WeightedRow: _WeightedSupportRow](
@@ -533,19 +531,68 @@ def sample_compatible_cargo(
     identity_count: int,
     stream: DeterministicStream,
     excluded_hs6: set[str],
+    allowed_heading_signatures: frozenset[tuple[str, PackageSignature]] | None = None,
+    allowed_package_categories: tuple[frozenset[str] | None, ...] | None = None,
+    required_hs6_by_index: Mapping[int, str] | None = None,
 ) -> CompatibleCargoSelection:
     """Co-sample registry goods and a complete fit-observed package signature."""
 
     if package_count <= 0 or identity_count <= 0:
         raise ValueError("compatible cargo sampling requires positive cardinalities")
+    if allowed_package_categories is not None and len(allowed_package_categories) != package_count:
+        raise ValueError("package observation domains differ from requested cardinality")
+    required = dict(required_hs6_by_index or {})
+    if any(i < 0 or i >= identity_count for i in required) or len(set(required.values())) != len(
+        required
+    ):
+        raise ValueError("shared goods constraints require distinct in-range identity positions")
+    if set(required.values()) & excluded_hs6:
+        raise ValueError("required shared goods conflict with excluded identities")
+
+    def representable(categories: PackageSignature) -> bool:
+        return allowed_package_categories is None or all(
+            domain is None or category in domain
+            for category, domain in zip(categories, allowed_package_categories, strict=True)
+        )
+
     support_key: str
+    selected: SignatureSupportRow | PackageSignaturePoolSupportRow
     if profile is not None:
-        rows = support.rows(
+        raw_rows = support.rows(
             basis="fit_thermal_profile_joint", key=profile, package_count=package_count
         )
+        pool = goods_support.thermal_candidates(profile)
+        rows = tuple(
+            row
+            for row in raw_rows
+            if representable(row.categories)
+            and all(
+                any(
+                    i.hs6 == code
+                    and (
+                        allowed_heading_signatures is None
+                        or (code[:4], row.categories) in allowed_heading_signatures
+                    )
+                    for i in pool
+                )
+                for code in required.values()
+            )
+            and sum(
+                i.hs6 not in excluded_hs6
+                and (
+                    allowed_heading_signatures is None
+                    or (i.hs6[:4], row.categories) in allowed_heading_signatures
+                )
+                for i in pool
+            )
+            >= identity_count
+        )
         selected = _weighted_row(rows, stream=stream.derive("package-signature"))
-        identity_pool: tuple[AmbientGoodsIdentity | ThermalGoodsIdentity, ...] = (
-            goods_support.thermal_candidates(profile)
+        identity_pool: tuple[AmbientGoodsIdentity | ThermalGoodsIdentity, ...] = tuple(
+            i
+            for i in pool
+            if allowed_heading_signatures is None
+            or (i.hs6[:4], selected.categories) in allowed_heading_signatures
         )
         basis: Literal[
             "fit_hs_signature_conditioned_heading_pool",
@@ -553,9 +600,9 @@ def sample_compatible_cargo(
         ] = "fit_thermal_profile_joint"
         support_key = profile
     else:
-        available_by_heading: dict[
-            str, list[AmbientGoodsIdentity | ThermalGoodsIdentity]
-        ] = defaultdict(list)
+        available_by_heading: dict[str, list[AmbientGoodsIdentity | ThermalGoodsIdentity]] = (
+            defaultdict(list)
+        )
         for value in goods_support.ambient:
             if value.hs6 not in excluded_hs6:
                 available_by_heading[value.hs6[:4]].append(value)
@@ -563,9 +610,21 @@ def sample_compatible_cargo(
             row
             for row in support.hs_signature_pool_rows
             if row.package_count == package_count
+            and representable(row.categories)
+            and all(
+                code[:4] in dict(row.heading_occurrences)
+                and any(v.hs6 == code for v in available_by_heading.get(code[:4], ()))
+                and (
+                    allowed_heading_signatures is None
+                    or (code[:4], row.categories) in allowed_heading_signatures
+                )
+                for code in required.values()
+            )
             and sum(
                 len(available_by_heading.get(heading, ()))
                 for heading, _occurrences in row.heading_occurrences
+                if allowed_heading_signatures is None
+                or (heading, row.categories) in allowed_heading_signatures
             )
             >= identity_count
         )
@@ -581,13 +640,27 @@ def sample_compatible_cargo(
         )
         identities = []
         remaining_by_heading = {
-            heading: list(values) for heading, values in available_by_heading.items()
+            heading: [v for v in values if v.hs6 not in required.values()]
+            for heading, values in available_by_heading.items()
         }
         for order in range(identity_count):
+            if order in required:
+                identities.append(
+                    next(
+                        v
+                        for v in available_by_heading[required[order][:4]]
+                        if v.hs6 == required[order]
+                    )
+                )
+                continue
             active = tuple(
                 (heading, weight)
                 for heading, weight in selected.heading_occurrences
                 if remaining_by_heading.get(heading)
+                and (
+                    allowed_heading_signatures is None
+                    or (heading, selected.categories) in allowed_heading_signatures
+                )
             )
             total_weight = sum(weight for _heading, weight in active)
             draw = stream.derive(f"heading-{order}").randbelow(total_weight)
@@ -606,8 +679,11 @@ def sample_compatible_cargo(
         if len(available) < identity_count:
             raise ValueError("compatible HS identity pool cannot satisfy distinct cardinality")
         identities = []
-        remaining = list(available)
+        remaining = [v for v in available if v.hs6 not in required.values()]
         for order in range(identity_count):
+            if order in required:
+                identities.append(next(v for v in available if v.hs6 == required[order]))
+                continue
             index = stream.derive(f"identity-{order}").randbelow(len(remaining))
             identities.append(remaining.pop(index))
     excluded_hs6.update(value.hs6 for value in identities)
@@ -655,9 +731,7 @@ def sample_dangerous_goods_package(
             categories=signature,
             occurrences=sum(
                 next(
-                    row.occurrences
-                    for row in rows_by_hazard[hazard]
-                    if row.categories == signature
+                    row.occurrences for row in rows_by_hazard[hazard] if row.categories == signature
                 )
                 for hazard in hazards
             ),

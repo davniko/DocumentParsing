@@ -101,9 +101,10 @@ def test_declared_address_facet_is_not_an_auxiliary_override(monkeypatch):
 
     member = NS(logical_key="address_suffix", field="address")
     template = NS(
+        bindings=(),
         auxiliary_semantic_plan=NS(
             entities=[NS(target_party_path="documentPatch.parties.shipper", members=[member])]
-        )
+        ),
     )
     target = {"documentPatch": {"parties": {"shipper": {"address": "NEW STREET 1000"}}}}
     monkeypatch.setattr(
@@ -156,6 +157,46 @@ def test_projected_unowned_reference_must_survive_final_document_edits():
     _validate_projected_context(template, {"reference": NS(replacements={"ref": "QBZ"})})
     with pytest.raises(ValueError, match="context changed"):
         _validate_projected_context(template, {"reference": NS(replacements={"ref": "LWL"})})
+
+
+@pytest.mark.parametrize(
+    "owner_path",
+    [
+        "documentPatch.route.portOfLoading.name",
+        "documentPatch.placeOfIssue.name",
+    ],
+)
+def test_immutable_address_locality_requires_review_before_resampling_its_place(owner_path):
+    from document_ocr.synthesis.template_compiler.descendant import _validate_projected_context
+    from document_ocr.synthesis.template_compiler.route_projection import require_route_contract
+
+    binding = _binding()
+    binding.logical_key = "address"
+    binding.target_paths = ("documentPatch.parties.shipper.address",)
+    binding.dependency_bindings = ()
+    binding.dependency_paths = ()
+    binding.derivation = None
+    binding.source_relationships = ()
+    binding.realization.target_values = (NS(source_value="OLD STREET BARCELONA"),)
+    binding.realization.slots = (
+        NS(required_target_prefix_tokens=(), required_target_suffix_tokens=("barcelona",)),
+    )
+    port = NS(
+        derivation=None,
+        logical_key="loading_port",
+        target_paths=(owner_path,),
+        occurrences=(NS(source_text="BARCELONA", slot_id="port"),),
+        realization=NS(mode="single_surface"),
+    )
+    template = NS(bindings=(binding, port))
+    output = {"loading_port": NS(replacements={"port": "Valencia"})}
+    with pytest.raises(ValueError, match="fixed lexical frame"):
+        require_route_contract(NS(source=b"", target={}, template=template))
+    with pytest.raises(ValueError, match="context changed"):
+        _validate_projected_context(template, output)
+    binding.dependency_paths = port.target_paths
+    with pytest.raises(ValueError, match="context changed"):
+        _validate_projected_context(template, output)
 
 
 def test_separately_printed_geographic_context_is_derived_before_generation():
@@ -666,6 +707,43 @@ def test_numeric_sum_includes_source_only_auxiliary_with_direct_target_path():
     ) == (Decimal("24.080"), Decimal("32.000"))
 
 
+@pytest.mark.parametrize("new_alias", [7, 8])
+def test_collection_sum_counts_shared_quantity_alias_once_after_proving_equality(new_alias):
+    from decimal import Decimal
+
+    from document_ocr.synthesis.template_compiler.descendant import _derivation_numeric_values
+
+    quantity = "documentPatch.cargoPackages[0].quantity"
+    alias = "documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity"
+    binding = NS(
+        logical_key="total",
+        derivation="sum_package_quantity",
+        dependency_paths=("documentPatch.cargoPackages",),
+        dependency_bindings=("quantity",),
+    )
+
+    def document(value, other):
+        return {
+            "documentPatch": {
+                "cargoPackages": [{"quantity": value}],
+                "cargoAllocationGroups": [{"allocations": [{"packageQuantity": other}]}],
+            }
+        }
+
+    kwargs = dict(
+        binding=binding,
+        source_target=document(1, 1),
+        target=document(7, new_alias),
+        bindings={"quantity": NS(target_paths=(quantity, alias))},
+        outputs={},
+    )
+    if new_alias == 7:
+        assert _derivation_numeric_values(**kwargs) == (Decimal(1), Decimal(7))
+    else:
+        with pytest.raises(ValueError, match="not covered"):
+            _derivation_numeric_values(**kwargs)
+
+
 def test_number_words_do_not_ignore_untyped_non_numeric_dependencies():
     from document_ocr.synthesis.template_compiler.descendant import _number_to_words_value
 
@@ -677,6 +755,64 @@ def test_number_words_do_not_ignore_untyped_non_numeric_dependencies():
     with pytest.raises(ValueError, match="not uniquely numeric"):
         _number_to_words_value(
             binding, {}, {"documentPatch": {"quantity": 3, "unknown": "PACKAGE_PALLET"}}
+        )
+
+
+@pytest.mark.parametrize("category,noun", [("PACKAGE_CARTON", "CARTONS"), ("PACKAGE_BOX", "BOXES")])
+@pytest.mark.parametrize("source_noun", ["DRUMS", "DRUM(S)"])
+def test_number_word_package_frame_changes_quantity_and_category_together(
+    category, noun, source_noun
+):
+    from document_ocr.synthesis.template_compiler.descendant import _render_one_derivation
+
+    binding = NS(
+        logical_key="package_words",
+        derivation="number_to_words",
+        dependency_bindings=(),
+        dependency_paths=(
+            "documentPatch.cargoPackages[0].quantity",
+            "documentPatch.cargoPackages[0].typeCategory",
+        ),
+        occurrences=(NS(slot_id="words", source_text="SAY TWO HUNDRED FORTY " + source_noun),),
+    )
+    case = NS(
+        source_target={
+            "documentPatch": {"cargoPackages": [{"quantity": 240, "typeCategory": "PACKAGE_DRUM"}]}
+        },
+        target={"documentPatch": {"cargoPackages": [{"quantity": 137, "typeCategory": category}]}},
+    )
+    result = _render_one_derivation(
+        binding=binding, case=case, outputs={}, bindings={}, country_codes={}
+    )
+    assert result.replacements["words"] == "SAY ONE HUNDRED THIRTY SEVEN " + noun
+
+
+@pytest.mark.parametrize("source_noun", ["WOODEN CASE", "CASE WOODEN"])
+def test_number_word_material_package_recognizes_printed_word_order(source_noun):
+    from document_ocr.synthesis.template_compiler.descendant import _render_one_derivation
+
+    binding = NS(
+        logical_key="material_words", derivation="number_to_words", dependency_bindings=(),
+        dependency_paths=(
+            "documentPatch.cargoPackages[0].quantity",
+            "documentPatch.cargoPackages[0].typeCategory",
+        ),
+        occurrences=(NS(slot_id="words", source_text="ONE (1) " + source_noun),),
+    )
+    case = NS(
+        source_target={"documentPatch": {"cargoPackages": [
+            {"quantity": 1, "typeCategory": "PACKAGE_CASE_WOODEN"}]}},
+        target={"documentPatch": {"cargoPackages": [
+            {"quantity": 2, "typeCategory": "PACKAGE_CARTON"}]}},
+    )
+    result = _render_one_derivation(
+        binding=binding, case=case, outputs={}, bindings={}, country_codes={}
+    )
+    assert result.replacements["words"] == "TWO (2) CARTONS"
+    binding.occurrences = (NS(slot_id="words", source_text="ONE (1) WOODEN CRATE"),)
+    with pytest.raises(ValueError, match="noun has no unique source proof"):
+        _render_one_derivation(
+            binding=binding, case=case, outputs={}, bindings={}, country_codes={}
         )
 
 
@@ -708,6 +844,7 @@ def test_repeated_measurement_converts_every_occurrence_and_rejects_unconverted_
         source_target=source,
         target=target,
         source=b"22.080 MT\n22080.00 KGS",
+        dangerous_goods_facts=(),
         template=NS(bindings=(binding,)),
     )
     expected = _render_target_measurement(binding, case)

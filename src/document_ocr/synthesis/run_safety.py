@@ -16,7 +16,9 @@ import stat
 import sys
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path, PurePath
 from types import MappingProxyType
 from typing import Annotated, Any, Literal
@@ -891,7 +893,17 @@ class StagedArtifactRun:
     _TRANSACTION = "_TRANSACTION.json"
     _COMMIT = "_COMMIT.json"
 
-    def __init__(self, *, output_parent: Path, run_name: str, transaction_sha256: str) -> None:
+    def __init__(
+        self,
+        *,
+        output_parent: Path,
+        run_name: str,
+        transaction_sha256: str,
+        validation_workers: int = 1,
+    ) -> None:
+        if type(validation_workers) is not int or validation_workers < 1:
+            raise ValueError("validation_workers must be a positive integer")
+        self.validation_workers = validation_workers
         if _RUN_NAME.fullmatch(run_name) is None:
             raise ValueError("run_name must be one safe path component")
         if re.fullmatch(r"[0-9a-f]{64}", transaction_sha256) is None:
@@ -991,21 +1003,7 @@ class StagedArtifactRun:
         return tuple(sorted(recovered))
 
     def _scan_artifacts(self) -> tuple[StagedArtifactReceipt, ...]:
-        root = self._target_root()
-        files: list[str] = []
-        for directory, directory_names, filenames in os.walk(root, followlinks=False):
-            directory_path = Path(directory)
-            for name in directory_names:
-                if (directory_path / name).is_symlink():
-                    raise StagedRunError("artifact tree contains a symbolic-link directory")
-            for name in filenames:
-                path = directory_path / name
-                if path.is_symlink():
-                    raise StagedRunError("artifact tree contains a symbolic-link file")
-                relative = path.relative_to(root).as_posix()
-                if relative not in {self._TRANSACTION, self._COMMIT}:
-                    files.append(relative)
-        return tuple(_artifact_receipt(root, relative) for relative in sorted(files))
+        return self._scan_root_artifacts(self._target_root(), workers=self.validation_workers)
 
     def _read_commit(self, root: Path) -> StagedCommitReceipt:
         try:
@@ -1052,7 +1050,10 @@ class StagedArtifactRun:
             marker_payload = read_regular_file_bytes(self.stage_root / self._TRANSACTION)
             if sha256_bytes(marker_payload) != receipt.transaction_marker_sha256:
                 raise StagedRunError("sealed staging transaction marker fails its receipt")
-            if self._scan_root_artifacts(self.stage_root) != receipt.artifacts:
+            if (
+                self._scan_root_artifacts(self.stage_root, workers=self.validation_workers)
+                != receipt.artifacts
+            ):
                 raise StagedRunError("sealed staging artifact inventory differs from its receipt")
             _fsync_directory(self.stage_root)
             os.rename(self.stage_root, self.final_root)
@@ -1070,18 +1071,28 @@ class StagedArtifactRun:
         marker_payload = read_regular_file_bytes(self.final_root / self._TRANSACTION)
         if sha256_bytes(marker_payload) != receipt.transaction_marker_sha256:
             raise StagedRunError("committed transaction marker fails its receipt")
-        actual = self._scan_root_artifacts(self.final_root)
+        actual = self._scan_root_artifacts(self.final_root, workers=self.validation_workers)
         if actual != receipt.artifacts:
             raise StagedRunError("committed artifact inventory differs from its receipt")
         return receipt
 
     @staticmethod
-    def _scan_root_artifacts(root: Path) -> tuple[StagedArtifactReceipt, ...]:
-        files: list[str] = []
-        for directory, directory_names, filenames in os.walk(root, followlinks=False):
+    def _scan_root_artifacts(
+        root: Path,
+        *,
+        workers: int = 1,
+    ) -> tuple[StagedArtifactReceipt, ...]:
+        if type(workers) is not int or workers < 1:
+            raise ValueError("workers must be a positive integer")
+
+        def scan_directory(
+            entry: tuple[str, list[str], list[str]],
+        ) -> list[StagedArtifactReceipt]:
+            directory, directory_names, filenames = entry
             directory_path = Path(directory)
             if any((directory_path / name).is_symlink() for name in directory_names):
                 raise StagedRunError("committed tree contains a symbolic-link directory")
+            receipts = []
             for name in filenames:
                 path = directory_path / name
                 if path.is_symlink():
@@ -1091,8 +1102,22 @@ class StagedArtifactRun:
                     StagedArtifactRun._TRANSACTION,
                     StagedArtifactRun._COMMIT,
                 }:
-                    files.append(relative)
-        return tuple(_artifact_receipt(root, relative) for relative in sorted(files))
+                    receipts.append(_artifact_receipt(root, relative))
+            return receipts
+
+        entries = os.walk(root, followlinks=False)
+        receipts: list[StagedArtifactReceipt] = []
+        if workers == 1:
+            for entry in entries:
+                receipts.extend(scan_directory(entry))
+        else:
+            # Bound queued directory work and simultaneously open files. Every
+            # byte still passes the same regular-file reader and receipt hash.
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                while batch := tuple(islice(entries, workers)):
+                    for rows in pool.map(scan_directory, batch):
+                        receipts.extend(rows)
+        return tuple(sorted(receipts, key=lambda row: row.relative_path))
 
     def validate_committed_run(self) -> StagedCommitReceipt:
         if not self.final_root.exists():

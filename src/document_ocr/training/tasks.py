@@ -103,11 +103,15 @@ class TrainingTask:
                     }
                 else:
                     del properties["typeCategory"]
+        ordered = _sorted_json_value(schema)
+        if self.name == "bill_of_lading_relation_explicit_v5":
+            properties = ordered["$defs"]["RelationExplicitDocumentPatchV5"]["properties"]
+            properties["cargoAllocationGroups"] = properties.pop("cargoAllocationGroups")
         return json.dumps(
-            schema,
+            ordered,
             allow_nan=False,
             ensure_ascii=False,
-            sort_keys=True,
+            sort_keys=False,
             separators=(",", ":"),
         )
 
@@ -192,14 +196,29 @@ def _sparse_prompt_schema(value: Any) -> Any:
     return {**wrapper, **non_null[0]}
 
 
+def _sorted_json_value(value: Any) -> Any:
+    """Preserve canonical ordering while allowing an explicit decoder field order."""
+
+    if isinstance(value, dict):
+        return {key: _sorted_json_value(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_sorted_json_value(item) for item in value]
+    return value
+
+
 def canonical_json(value: dict[str, Any]) -> str:
     """Serialize one validated target into the exact decoder representation."""
 
+    ordered = _sorted_json_value(value)
+    if value.get("schemaVersion") == "5.0.0-experimental":
+        patch = ordered.get("documentPatch")
+        if isinstance(patch, dict) and "cargoAllocationGroups" in patch:
+            patch["cargoAllocationGroups"] = patch.pop("cargoAllocationGroups")
     return json.dumps(
-        value,
+        ordered,
         allow_nan=False,
         ensure_ascii=False,
-        sort_keys=True,
+        sort_keys=False,
         separators=(",", ":"),
     )
 

@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from itertools import combinations, pairwise
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.generators import surface_pattern
@@ -30,6 +30,7 @@ from .coherence import (
     validate_coherence_contracts,
     whole_inclusive_range_surface,
 )
+from .generation_contract import party_owned_surfaces, validate_party_evidence
 from .models import (
     AgentBindingProposal,
     AgentOccurrence,
@@ -185,6 +186,9 @@ _LABELED_AUXILIARY_IDENTIFIER = re.compile(
     r"(?i)^\s*[A-Z][A-Z0-9 _./-]{1,40}[:#]\s*"
     r"(?P<value>[A-Z0-9][A-Z0-9./_-]{5,})\s*$"
 )
+_NUMBER_CAPTION_IDENTIFIER = re.compile(
+    r"(?i)^\s*(?:NO\.|NUMBER\s*[-:#])\s*(?P<value>[0-9][A-Z0-9./_-]{5,})\s*$"
+)
 _COUNTRY_CLAUSE_HEADING = re.compile(r"^\s*(?P<country>[A-Z][A-Z ]*[A-Z])\s+CLAUSE\s*$")
 _LABELED_ROUTE_TARGETS: dict[str, str] = {
     "portofdischarge": "documentPatch.route.portOfDischarge.name",
@@ -197,6 +201,24 @@ _LABELED_NEXT_LINE_TARGETS: dict[str, str] = {
     "freightpayableat": "documentPatch.freight.paymentPlace.name",
     "freightpayable": "documentPatch.freight.paymentPlace.name",
 }
+_FORM_FIELD_CAPTIONS = frozenset(
+    {
+        *_SOURCE_ONLY_FIELD_CAPTIONS,
+        *_LABELED_NEXT_LINE_TARGETS,
+        _LOADING_TERMINAL_CAPTION,
+        "originalstobereleasedat",
+        "vessel",
+        "oceanvessel",
+        "voyageno",
+        "voyagenumber",
+        "precarriageby",
+        "placeofissue",
+        "dateofissue",
+        "shipper",
+        "consignee",
+        "notifyparty",
+    }
+)
 _INLINE_LABELED_ROUTE_VALUE = re.compile(
     r"(?i)^\s*(?P<caption>PORT\s+OF\s+(?:LOADING|DISCHARGE)|PLACE\s+OF\s+DELIVERY)"
     r"\s*:\s*(?P<value>\S(?:.*\S)?)\s*$"
@@ -1875,7 +1897,42 @@ def all_risk_candidates(
     words such as ``PACKAGE``, ``BAG``, or ``PALLET``.
     """
 
+    from . import cargo_identity_derivations, shipment_totals
+
     lexical = risk_candidates(raw, owned)
+    total_risks: list[RiskCandidate] = []
+    for start, end in cargo_identity_derivations.unowned_alias_spans(raw, owned):
+        lines = line_spans(raw)
+        total_risks.append(
+            RiskCandidate(
+                risk_id=f"risk_{len(lexical) + len(total_risks) + 1:04d}",
+                kind="cargo_identity_alias",
+                line_id=lines[line_number_for_char(lines, start) - 1].line_id,
+                byte_start=len(raw[:start].encode()),
+                byte_end=len(raw[:end].encode()),
+                source_text=raw[start:end],
+            )
+        )
+    for total_match in shipment_totals.occurrences(raw):
+        start, end = total_match.span("count")
+        if _overlaps(start, end, owned):
+            continue
+        byte_start, byte_end = len(raw[:start].encode()), len(raw[:end].encode())
+        if any(r.byte_start < byte_end and r.byte_end > byte_start for r in lexical):
+            continue
+        lines = line_spans(raw)
+        total_line = lines[line_number_for_char(lines, start) - 1]
+        total_risks.append(
+            RiskCandidate(
+                risk_id=f"risk_{len(lexical) + len(total_risks) + 1:04d}",
+                kind="shipment_package_total",
+                line_id=total_line.line_id,
+                byte_start=byte_start,
+                byte_end=byte_end,
+                source_text=raw[start:end],
+            )
+        )
+    lexical = (*lexical, *total_risks)
     quantities = _structured_package_quantities(source_target)
     if not quantities:
         return lexical
@@ -2955,8 +3012,9 @@ def target_fact_components(
 ) -> tuple[tuple[str, ...], ...]:
     """Partition target paths into independently mutable facts.
 
-    Host-derived co-binding paths are one fact. Every other target path is independent even when
-    its current canonical value equals another path's value.
+    Host-derived co-binding paths are one fact. An explicitly co-bound field of
+    identical complete concrete parties is also one fact, matching the existing
+    generator identity policy. Equal isolated fields never establish identity.
     """
 
     component_by_path: dict[str, int] = {}
@@ -2965,11 +3023,48 @@ def target_fact_components(
             prior = component_by_path.setdefault(path, component_index)
             if prior != component_index:
                 raise ValueError(f"target path belongs to multiple co-binding components: {path}")
+    if len(paths) < 2:
+        return tuple((path,) for path in paths)
+    party_components: dict[str, str] = {}
+    parties = source_target.get("documentPatch", {}).get("parties", {})
+    identity_paths: dict[bytes, list[tuple[str, str]]] = defaultdict(list)
+    for path in paths:
+        match = re.fullmatch(r"(documentPatch\.parties\.([A-Za-z]+)(?:\[\d+\])?)\.(.+)", path)
+        if match is None or match[2] == "carrier":
+            continue
+        party = _resolve_target_path(source_target, match[1])
+        if (
+            not isinstance(party, Mapping)
+            or any(
+                not isinstance(party.get(field), str) or not party[field].strip()
+                for field in ("name", "address")
+            )
+            or "sameAs" in party
+        ):
+            continue
+        signature = canonical_json_bytes(party)
+        # Origin and destination roles remain independent. A repeated name or
+        # address alone cannot decide which commercial endpoint owns a party.
+        primary_matches = sum(
+            isinstance(parties.get(role), Mapping)
+            and canonical_json_bytes(parties[role]) == signature
+            for role in ("shipper", "consignee")
+        )
+        if primary_matches > 1:
+            continue
+        identity_paths[canonical_json_bytes((party, match[3]))].append((path, match[1]))
+    for members in identity_paths.values():
+        if len({owner for _, owner in members}) < 2:
+            continue
+        canonical = min(path for path, _ in members)
+        party_components.update((path, canonical) for path, _ in members)
     grouped: dict[tuple[str, int | str], list[str]] = {}
     for path in paths:
         key: tuple[str, int | str]
         if path in component_by_path:
             key = ("required", component_by_path[path])
+        elif path in party_components:
+            key = ("concrete_party_identity", party_components[path])
         else:
             key = ("single", path)
         grouped.setdefault(key, []).append(path)
@@ -4676,6 +4771,11 @@ def materialize_semantic_only_target_facts(
 
 
 def _policy_for_agent_binding(proposal: AgentBindingProposal) -> str:
+    if proposal.target_paths and all(
+        re.fullmatch(r"documentPatch\.containers\[\d+\]\.typeDescription", path)
+        for path in proposal.target_paths
+    ):
+        return "natural_text"
     return _render_policy_for_value_kind(proposal.value_kind, proposal.render_mode)
 
 
@@ -6211,6 +6311,7 @@ def _split_measurement_value_unit_overlaps(
                 "sum_tare_weight",
                 "sum_volume",
                 "sum_decimal_values",
+                "gross_minus_net_weight",
             }
         )
         if not (
@@ -11701,10 +11802,111 @@ def normalize_segmented_party_address_targets(
     return merge_drafts(output)
 
 
+def normalize_owned_party_address_components(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Join separately owned postal/address fragments into their explicit label.
+
+    Unlike adjacency completion, this handles a postcode separated from the street
+    by an independently printed city. The source already assigns the fragment to
+    this party. A unique uncovered target interval and a single address owner are
+    required; target-backed cities and referenced auxiliary facts are never stolen.
+    """
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    referenced = {key for draft in drafts for key in draft.dependency_bindings}
+    promotions: dict[str, SpanDraft] = {}
+    for owners in grouped.values():
+        owner = owners[0]
+        if not (
+            owner.render_mode == "target_binding"
+            and owner.value_kind == "address"
+            and owner.group_kind == "party"
+            and len(owner.target_paths) == 1
+            and _PARTY_ADDRESS_PATH.fullmatch(owner.target_paths[0])
+        ):
+            continue
+        value = _scalar_surface(_resolve_target_path(source_target, owner.target_paths[0]))
+        if value is None:
+            continue
+        tokens = tuple(t[0] for t in _surface_token_spans(value))
+
+        def intervals(
+            surface: str, tokens: tuple[str, ...] = tokens
+        ) -> tuple[tuple[int, int], ...]:
+            fragment = tuple(t[0] for t in _surface_token_spans(surface))
+            if not fragment:
+                return ()
+            return tuple(
+                (i, i + len(fragment))
+                for i in range(len(tokens) - len(fragment) + 1)
+                if tokens[i : i + len(fragment)] == fragment
+            )
+
+        owned = [intervals(d.source_text) for d in owners]
+        if any(len(spans) != 1 for spans in owned):
+            continue
+        covered = {i for spans in owned for start, end in spans for i in range(start, end)}
+        candidates: list[tuple[list[SpanDraft], tuple[int, int]]] = []
+        for key, rows in grouped.items():
+            first = rows[0]
+            if key in referenced or not all(
+                d.group_kind == "party"
+                and d.group_key == owner.group_key
+                and d.render_mode in {"deterministic_auxiliary", "agent_residual"}
+                and not d.target_paths
+                and not d.dependency_paths
+                and not d.dependency_bindings
+                for d in rows
+            ):
+                continue
+            if first.value_kind not in {"address", "location"} and not (
+                first.value_kind == "identifier"
+                and re.search(r"postal|postcode|zip", key, re.IGNORECASE)
+            ):
+                continue
+            spans = [intervals(d.source_text) for d in rows]
+            if any(len(value) != 1 for value in spans) or len({s[0] for s in spans}) != 1:
+                continue
+            start, end = spans[0][0]
+            if not covered.intersection(range(start, end)):
+                candidates.append((rows, (start, end)))
+        for rows, (start, end) in candidates:
+            if any(
+                other is not rows and start < right and left < end
+                for other, (left, right) in candidates
+            ):
+                continue
+            for row in rows:
+                previous = promotions.setdefault(row.draft_id, owner)
+                if previous.target_paths != owner.target_paths:
+                    raise ValueError("party component has competing explicit address owners")
+    return merge_drafts(
+        tuple(
+            replace(
+                row,
+                logical_key=promotions[row.draft_id].logical_key,
+                render_mode="target_binding",
+                value_kind="address",
+                target_paths=promotions[row.draft_id].target_paths,
+                render_policy=promotions[row.draft_id].render_policy,
+                evidence_origin="host_verified_agent_proposal",
+                rationale=row.rationale
+                + " This role-owned component uniquely completes the explicit address label; "
+                "no city or country was inferred.",
+            )
+            if row.draft_id in promotions
+            else row
+            for row in drafts
+        )
+    )
+
+
 def normalize_party_address_inline_segments(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
-    """Complete target-address tokens immediately adjacent to an owned same-line fragment.
+    """Complete target-address tokens adjacent on the owner's boundary lines.
 
     Repeated forms sometimes split one structured address into several physical slots and omit a
     middle token run. The host expands only along an exact, uniquely positioned target-token
@@ -11740,9 +11942,9 @@ def normalize_party_address_inline_segments(
             continue
         for owner in rows:
             line_number = line_number_for_char(lines, owner.char_start)
-            if line_number != line_number_for_char(lines, owner.char_end - 1):
-                continue
-            line = lines[line_number - 1]
+            last_line = line_number_for_char(lines, owner.char_end - 1)
+            source_offset = lines[line_number - 1].char_start
+            source_text = raw[source_offset : lines[last_line - 1].char_end]
             owner_tokens = tuple(
                 token for token, _start, _end in _surface_token_spans(owner.source_text)
             )
@@ -11753,7 +11955,7 @@ def normalize_party_address_inline_segments(
                 for index in range(len(target_tokens) - len(owner_tokens) + 1)
                 if target_tokens[index : index + len(owner_tokens)] == owner_tokens
             )
-            source_tokens = _surface_token_spans(line.text)
+            source_tokens = _surface_token_spans(source_text)
             source_indexes = tuple(
                 index
                 for index in range(len(source_tokens) - len(owner_tokens) + 1)
@@ -11762,8 +11964,8 @@ def normalize_party_address_inline_segments(
                     for token, _start, _end in source_tokens[index : index + len(owner_tokens)]
                 )
                 == owner_tokens
-                and line.char_start + source_tokens[index][1] >= owner.char_start
-                and line.char_start + source_tokens[index + len(owner_tokens) - 1][2]
+                and source_offset + source_tokens[index][1] >= owner.char_start
+                and source_offset + source_tokens[index + len(owner_tokens) - 1][2]
                 <= owner.char_end
             )
             if len(target_indexes) != 1 or len(source_indexes) != 1:
@@ -11790,16 +11992,16 @@ def normalize_party_address_inline_segments(
             if source_start < source_indexes[0]:
                 candidate_ranges.append(
                     (
-                        line.char_start + source_tokens[source_start][1],
-                        line.char_start + source_tokens[source_indexes[0] - 1][2],
+                        source_offset + source_tokens[source_start][1],
+                        source_offset + source_tokens[source_indexes[0] - 1][2],
                     )
                 )
             owner_source_end = source_indexes[0] + len(owner_tokens)
             if source_end > owner_source_end:
                 candidate_ranges.append(
                     (
-                        line.char_start + source_tokens[owner_source_end][1],
-                        line.char_start + source_tokens[source_end - 1][2],
+                        source_offset + source_tokens[owner_source_end][1],
+                        source_offset + source_tokens[source_end - 1][2],
                     )
                 )
             for start, end in candidate_ranges:
@@ -11814,6 +12016,8 @@ def normalize_party_address_inline_segments(
                     and not row.dependency_paths
                     and not row.dependency_bindings
                     and row.render_mode in {"deterministic_auxiliary", "agent_residual"}
+                    and start <= row.char_start
+                    and row.char_end <= end
                     for row in overlaps
                 )
                 if overlaps and not replaceable:
@@ -12350,6 +12554,26 @@ def normalize_explicit_loading_terminal_locality(
     occurrence or any partially owned line remains unchanged for semantic review.
     """
 
+    # OCR commonly puts the next field heading immediately after an empty box.
+    # A known caption is not the value of that box, regardless of capitalization.
+    drafts = tuple(
+        replace(
+            row,
+            logical_key="host:static_caption:" + row.logical_key,
+            render_mode="literal_static",
+            value_kind="other_text",
+            group_kind="document",
+            group_key="document:caption",
+            rationale="Known form caption after an empty loading-terminal field, not geography.",
+        )
+        if row.group_key == "route:loading_terminal"
+        and not row.target_paths
+        and not row.dependency_paths
+        and not row.dependency_bindings
+        and _normalized_surface(row.source_text) in _FORM_FIELD_CAPTIONS
+        else row
+        for row in drafts
+    )
     lines = line_spans(raw)
     line_by_number = {line.number: line for line in lines}
     grouped: dict[str, list[SpanDraft]] = defaultdict(list)
@@ -12420,6 +12644,8 @@ def normalize_explicit_loading_terminal_locality(
         start = value_line.char_start + left_trim
         end = value_line.char_start + right_trim
         source_text = raw[start:end]
+        if _normalized_surface(source_text) in _FORM_FIELD_CAPTIONS:
+            continue
         if not any(character.isalnum() for character in source_text):
             continue
         overlaps = tuple(row for row in working if start < row.char_end and row.char_start < end)
@@ -16253,10 +16479,69 @@ def normalize_repeated_original_status_marks(
     return merge_drafts(retained, additions)
 
 
+def normalize_projected_context(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Declare printed same-party geography and same-cargo MADE IN dependencies."""
+    from types import SimpleNamespace
+
+    from .projected_context import eligible_edges
+
+    grouped: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.logical_key].append(draft)
+    candidates = []
+    for key, rows in grouped.items():
+        first = rows[0]
+        if not any(
+            path.startswith(("documentPatch.parties.", "documentPatch.cargoGroups."))
+            or path.startswith("documentPatch.cargoGroups[")
+            for path in first.target_paths
+        ):
+            continue
+        slots = _template_slots(raw, rows)
+        candidates.append(
+            SimpleNamespace(
+                logical_key=key,
+                target_paths=first.target_paths,
+                dependency_paths=first.dependency_paths,
+                dependency_bindings=first.dependency_bindings,
+                occurrences=slots,
+                realization=binding_realization(
+                    draft=first, slots=slots, source_target=source_target
+                ),
+            )
+        )
+    additions = {b.logical_key: eligible_edges(b, candidates) for b in candidates}
+    output = []
+    for row in drafts:
+        edges = additions.get(row.logical_key, ())
+        if edges:
+            row = replace(
+                row,
+                dependency_paths=tuple(
+                    dict.fromkeys((*row.dependency_paths, *(e.target_path for e in edges)))
+                ),
+                dependency_bindings=tuple(
+                    dict.fromkeys((*row.dependency_bindings, *(e.owner_key for e in edges)))
+                ),
+            )
+        output.append(row)
+    return tuple(output)
+
+
 def normalize_structured_row_locality(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
     """Apply exact structured and caption-local joins to source ownership."""
+
+    from .cargo_span_coalescing import normalize as normalize_complete_cargo_spans
+    from .contact_values import normalize_attention_repeats
+    from .equipment_projection import normalize as normalize_equipment_projection
+
+    drafts = normalize_complete_cargo_spans(raw=raw, drafts=drafts, source_target=source_target)
+    drafts = normalize_attention_repeats(raw=raw, drafts=drafts, source_target=source_target)
+    drafts = normalize_equipment_projection(raw=raw, drafts=drafts, source_target=source_target)
 
     patch = source_target.get("documentPatch")
     packages = patch.get("cargoPackages") if isinstance(patch, Mapping) else None
@@ -16305,6 +16590,14 @@ def normalize_structured_row_locality(
         drafts=package_noun_normalized,
         source_target=source_target,
     )
+    from .equipment_projection import normalize_owned_auxiliary_receipts, normalize_receipt_suffixes
+
+    equipment_normalized = normalize_receipt_suffixes(
+        raw=raw, drafts=equipment_normalized, source_target=source_target
+    )
+    equipment_normalized = normalize_owned_auxiliary_receipts(
+        raw=raw, drafts=equipment_normalized, source_target=source_target
+    )
     container_package_normalized = normalize_container_linked_package_rows(
         raw=raw,
         drafts=equipment_normalized,
@@ -16325,9 +16618,14 @@ def normalize_structured_row_locality(
         drafts=complete_equipment_receipt_normalized,
         source_target=source_target,
     )
+    from . import shipment_totals
+
+    shipment_total_normalized = shipment_totals.normalize(
+        raw=raw, drafts=container_count_normalized, source_target=source_target
+    )
     dangerous_goods_normalized = normalize_dangerous_goods_class_locality(
         raw=raw,
-        drafts=container_count_normalized,
+        drafts=shipment_total_normalized,
         source_target=source_target,
     )
     dangerous_goods_description_normalized = normalize_labeled_dangerous_goods_descriptions(
@@ -16358,9 +16656,13 @@ def normalize_structured_row_locality(
         drafts=address_normalized,
         source_target=source_target,
     )
+    component_address_normalized = normalize_owned_party_address_components(
+        drafts=inline_address_normalized,
+        source_target=source_target,
+    )
     missing_party_location_normalized = normalize_missing_party_locations_from_entity_blocks(
         raw=raw,
-        drafts=inline_address_normalized,
+        drafts=component_address_normalized,
         source_target=source_target,
     )
     source_only_postal_city_normalized = normalize_source_only_party_postal_city_suffixes(
@@ -16444,9 +16746,14 @@ def normalize_structured_row_locality(
         drafts=labeled_vessel_normalized,
         source_target=source_target,
     )
+    from .transport_derivations import normalize_explicit_names
+
+    independent_transport_normalized = normalize_explicit_names(
+        raw=raw, drafts=inline_transport_normalized, source_target=source_target
+    )
     commercial_normalized = normalize_selected_commercial_dates_and_charges(
         raw=raw,
-        drafts=inline_transport_normalized,
+        drafts=independent_transport_normalized,
         source_target=source_target,
     )
     labeled_fact_normalized = normalize_labeled_identifiers_and_operational_facts(
@@ -16491,10 +16798,24 @@ def normalize_structured_row_locality(
     operational_normalized = normalize_selected_operational_terms(
         raw=raw, drafts=onboard_normalized
     )
-    return normalize_selected_freight_payment_locality(
+    freight_normalized = normalize_selected_freight_payment_locality(
         raw=raw,
         drafts=operational_normalized,
         source_target=source_target,
+    )
+    categorical_equipment = tuple(
+        replace(draft, render_policy="natural_text")
+        if draft.render_policy == "opaque_identifier"
+        and draft.target_paths
+        and all(
+            re.fullmatch(r"documentPatch\.containers\[\d+\]\.typeDescription", path)
+            for path in draft.target_paths
+        )
+        else draft
+        for draft in freight_normalized
+    )
+    return normalize_projected_context(
+        raw=raw, drafts=categorical_equipment, source_target=source_target
     )
 
 
@@ -16676,7 +16997,7 @@ def normalize_auxiliary_identifier_boundaries(
 def normalize_labeled_auxiliary_identifier_boundaries(
     *, raw: str, drafts: Sequence[SpanDraft]
 ) -> tuple[SpanDraft, ...]:
-    """Remove a literal ``LABEL:``/``LABEL#`` frame from a source-only identifier owner."""
+    """Separate explicit field-number captions from their source-only value."""
 
     replacements: dict[str, SpanDraft] = {}
     for row in drafts:
@@ -16689,6 +17010,8 @@ def normalize_labeled_auxiliary_identifier_boundaries(
         ):
             continue
         match = _LABELED_AUXILIARY_IDENTIFIER.fullmatch(row.source_text)
+        if match is None:
+            match = _NUMBER_CAPTION_IDENTIFIER.fullmatch(row.source_text)
         if match is None:
             continue
         start = row.char_start + match.start("value")
@@ -16846,7 +17169,10 @@ def validate_binding_realizations(
 ) -> None:
     """Reject mutable bindings whose declared semantics cannot realize their own surfaces."""
 
+    from .temperature_prose import require_temperature_classification
+
     validate_draft_source_alignment(raw=raw, drafts=drafts)
+    require_temperature_classification(drafts)
     validate_compact_equipment_locality(raw=raw, drafts=drafts, source_target=source_target)
     quantity_paths = _structured_package_quantity_paths(source_target)
     split_range_errors: list[str] = []
@@ -16884,11 +17210,114 @@ def validate_binding_realizations(
     grouped: dict[str, list[tuple[SpanDraft, TemplateSlot]]] = defaultdict(list)
     for draft, slot in zip(drafts, slots, strict=True):
         grouped[draft.logical_key].append((draft, slot))
+    from types import SimpleNamespace
+
+    from . import mixed_inventory
+
+    aggregate_keys: frozenset[str] = frozenset()
+    if (
+        sum(
+            rows[0][0].value_kind == "equipment"
+            and not rows[0][0].target_paths
+            and rows[0][0].dependency_paths == ("documentPatch.containers",)
+            and rows[0][0].derivation != "same_as_binding"
+            for rows in grouped.values()
+        )
+        >= 2
+    ):
+        aggregate_bindings = tuple(
+            SimpleNamespace(
+                logical_key=key,
+                value_kind=rows[0][0].value_kind,
+                target_paths=rows[0][0].target_paths,
+                render_mode=rows[0][0].render_mode,
+                derivation=rows[0][0].derivation,
+                dependency_paths=rows[0][0].dependency_paths,
+                dependency_bindings=rows[0][0].dependency_bindings,
+                occurrences=tuple(slot for _, slot in rows),
+            )
+            for key, rows in grouped.items()
+        )
+        aggregate = mixed_inventory.compile_bindings(
+            raw.encode(), source_target, aggregate_bindings
+        )
+        if aggregate is not None:
+            aggregate_keys = frozenset(aggregate.binding_keys)
     errors: list[str] = []
     errors.extend(split_range_errors)
     for logical_key, rows in grouped.items():
         first = rows[0][0]
+        from . import cargo_identity_derivations, dangerous_goods_realization, transport_derivations
+        from .route_derivations import DERIVATIONS as route_derivations
+        from .route_derivations import endpoint
+
+        if first.derivation == "gross_minus_net_weight":
+            from types import SimpleNamespace
+
+            from .descendant import _render_gross_minus_net_weight
+
+            candidate = SimpleNamespace(
+                **{
+                    name: getattr(first, name)
+                    for name in (
+                        "logical_key",
+                        "target_paths",
+                        "dependency_paths",
+                        "dependency_bindings",
+                        "render_mode",
+                        "value_kind",
+                        "group_kind",
+                    )
+                },
+                occurrences=tuple(slot for _, slot in rows),
+            )
+            case = SimpleNamespace(
+                source=raw.encode(),
+                source_target=source_target,
+                target=source_target,
+                template=SimpleNamespace(
+                    bindings=tuple(
+                        SimpleNamespace(target_paths=d.target_paths, occurrences=(slot,))
+                        for d, slot in zip(drafts, slots, strict=True)
+                    )
+                ),
+            )
+            try:
+                _render_gross_minus_net_weight(cast(Any, candidate), cast(Any, case))
+            except (ValueError, KeyError, IndexError) as error:
+                errors.append(f"{logical_key}: {error}")
+
+        if first.derivation in dangerous_goods_realization.DERIVATIONS:
+            declarations = {
+                f"documentPatch.cargoGroups[{gi}].dangerousGoods[{di}]"
+                for gi, group in enumerate(source_target["documentPatch"].get("cargoGroups", ()))
+                for di, _ in enumerate(group.get("dangerousGoods", ()))
+            }
+            for draft, _ in rows:
+                try:
+                    dangerous_goods_realization.explicit_surface(draft, declarations)
+                except ValueError as error:
+                    errors.append(f"{logical_key}: {error}")
+
+        if first.derivation in transport_derivations.DERIVATIONS:
+            try:
+                transport_derivations.validate(first)
+            except ValueError as error:
+                errors.append(f"{logical_key}: {error}")
+
+        if first.derivation in cargo_identity_derivations.DERIVATIONS:
+            try:
+                cargo_identity_derivations.owner(first)
+            except ValueError as error:
+                errors.append(f"{logical_key}: {error}")
+
+        if first.derivation in route_derivations:
+            try:
+                endpoint(first)
+            except (KeyError, ValueError) as error:
+                errors.append(f"{logical_key}: {error}")
         if first.derivation == "inclusive_range_cardinality":
+            expected = None
             valid_path_contract = (
                 len(first.dependency_paths) == 1
                 and first.dependency_paths[0] in quantity_paths
@@ -16897,13 +17326,44 @@ def validate_binding_realizations(
                 and first.render_mode == "deterministic_derived"
                 and first.value_kind == "integer"
             )
-            if not valid_path_contract:
+            valid_binding_contract = (
+                not first.dependency_paths
+                and not first.target_paths
+                and len(first.dependency_bindings) == 1
+                and first.dependency_bindings[0] != logical_key
+                and first.render_mode == "deterministic_derived"
+                and first.value_kind == "integer"
+            )
+            if valid_path_contract:
+                expected = quantity_paths[first.dependency_paths[0]]
+            elif valid_binding_contract:
+                from .descendant import _numeric_value
+
+                owners = grouped.get(first.dependency_bindings[0], ())
+                try:
+                    values = {_numeric_value(owner.source_text) for owner, _ in owners}
+                    if (
+                        not owners
+                        or any(
+                            owner.value_kind not in {"integer", "package"}
+                            or owner.group_kind != "cargo"
+                            for owner, _ in owners
+                        )
+                        or len(values) != 1
+                    ):
+                        raise ValueError("range needs one explicit cargo quantity binding")
+                    value = values.pop()
+                    if value <= 0 or value != value.to_integral_value():
+                        raise ValueError("range quantity binding must be a positive integer")
+                    expected = int(value)
+                except ValueError as error:
+                    errors.append(f"{logical_key}: {error}")
+            else:
                 errors.append(
-                    f"{logical_key} inclusive_range_cardinality has an invalid quantity-path "
+                    f"{logical_key} inclusive_range_cardinality has an invalid quantity-owner "
                     "contract"
                 )
-            else:
-                expected = quantity_paths[first.dependency_paths[0]]
+            if expected is not None:
                 for draft, _slot in rows:
                     range_surface = _inclusive_range_surface_match(draft.source_text)
                     observed = range_surface.cardinality if range_surface is not None else None
@@ -16923,6 +17383,20 @@ def validate_binding_realizations(
                     f"{logical_key} package_count uses scalar dependencies: "
                     + ", ".join(invalid_dependencies)
                 )
+        if first.derivation == "equipment_receipt" and logical_key not in aggregate_keys:
+            from .descendant import _number_to_words
+            from .equipment_receipts import owned_inventory, validate_source_receipt
+
+            try:
+                inventory = owned_inventory(
+                    source_target, (*first.target_paths, *first.dependency_paths)
+                )
+                for draft, _slot in rows:
+                    validate_source_receipt(
+                        draft.source_text, inventory, number_words=_number_to_words
+                    )
+            except ValueError as error:
+                errors.append(f"{logical_key}: {error}")
         if "original" in logical_key.casefold() and any(
             token in logical_key.casefold() for token in ("mark", "status")
         ):
@@ -17228,10 +17702,35 @@ def certify_template(
 
     for logical_key in graph:
         visit(logical_key)
+    from . import (
+        cargo_identity_derivations,
+        labelled_context,
+        route_derivations,
+        transport_derivations,
+    )
+
+    if any(binding.derivation in route_derivations.DERIVATIONS for binding in bindings):
+        route_derivations.validate_source(source_target, bindings)
+    transport_derivations.validate_source(bindings, source_target)
+    cargo_identity_derivations.validate_source(bindings, source_target)
+    cargo_identity_derivations.require_tariff_owners(raw.encode("utf-8"), bindings)
+    labelled_context.validate_source(bindings, source_target)
+    from .measurement_prose import require_product_count_owners
+
+    require_product_count_owners(raw.encode("utf-8"), bindings)
     auxiliary_semantic_plan = build_auxiliary_semantic_plan(
         raw=raw,
         bindings=bindings,
         source_target=source_target,
+    )
+    validate_party_evidence(
+        target=source_target,
+        binding_paths={path for binding in bindings for path in binding.target_paths},
+        party_surfaces=party_owned_surfaces(
+            bindings,
+            {slot.slot_id: slot.source_text for slot in slots},
+            auxiliary_semantic_plan.entities,
+        ),
     )
     masked = masked_source(raw, drafts)
     return CertifiedSemanticTemplate.model_validate(
@@ -17312,6 +17811,14 @@ def template_summary(template: CertifiedSemanticTemplate) -> dict[str, Any]:
         "carrier": template.carrier.canonical_name,
         "carrierFamily": template.carrier.family,
         "templateProxyId": template.capability.template_proxy_id,
+        "routeCapabilities": {
+            "transshipment": any(
+                path == "documentPatch.route.transshipmentPort"
+                or path.startswith("documentPatch.route.transshipmentPort.")
+                for binding in template.bindings
+                for path in (*binding.target_paths, *binding.dependency_paths)
+            ),
+        },
         "documentType": template.capability.document_type,
         "pages": template.capability.page_count,
         "lines": template.capability.line_count,

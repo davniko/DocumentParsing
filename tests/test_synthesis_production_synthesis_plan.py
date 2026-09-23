@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -9,8 +10,10 @@ from pydantic import ValidationError
 from document_ocr.synthesis.template_compiler.production_synthesis import (
     ProductionSynthesisPlanConfig,
     TemplateInventoryRow,
+    _cohort_repetitions,
     _even_repetitions,
     _sample_id,
+    _weighted_repetitions,
 )
 
 
@@ -83,6 +86,7 @@ def _inventory(document_id: str) -> TemplateInventoryRow:
         allocation_group_count=1,
         dangerous_goods=False,
         temperature_controlled=False,
+        transshipment=False,
         cohort="standard",
         latest_schema_compatible=True,
         latest_schema_incompatibility=None,
@@ -95,6 +99,89 @@ def test_plan_contract_requires_capability_counts_to_cover_documents() -> None:
 
     with pytest.raises(ValidationError, match=r"must sum to selection\.documents"):
         ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("weighted", [False, True])
+@pytest.mark.parametrize("requested", [0, 2, 7])
+def test_transshipment_quota_is_exact_and_never_adds_capability_to_direct_templates(
+    weighted, requested
+):
+    payload = _config()
+    selection = payload["selection"]
+    selection["transshipment_counts"] = dict(
+        standard=requested, dangerous_goods=0, temperature_controlled=0
+    )
+    if weighted:
+        selection["balancing"] = "weighted_reuse_largest_remainder_v1"
+        selection["template_weights"] = {"path": "weights.json", "sha256": "e" * 64}
+    config = ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
+    templates = (_inventory("direct"), replace(_inventory("via"), transshipment=True))
+    kwargs = dict(
+        templates=templates,
+        cohort="standard",
+        selection=config.selection,
+        weights={"direct": 1, "via": 1},
+    )
+    rows = _cohort_repetitions(**kwargs)
+    assert rows == _cohort_repetitions(**kwargs)
+    assert sum(count for row, count in rows if row.transshipment) == requested
+    assert sum(count for row, count in rows) == 7
+
+
+def test_transshipment_quota_cannot_exceed_parent_cohort_or_hide_unselected_templates():
+    payload = _config()
+    payload["selection"]["transshipment_counts"] = dict(
+        standard=8, dangerous_goods=0, temperature_controlled=0
+    )
+    with pytest.raises(ValueError, match="exceeds"):
+        ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
+    payload["selection"]["transshipment_counts"]["standard"] = 0
+    payload["selection"]["require_every_eligible_template_selected"] = True
+    config = ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
+    with pytest.raises(ValueError, match="quota cannot cover"):
+        _cohort_repetitions(
+            templates=(replace(_inventory("via"), transshipment=True),),
+            cohort="standard",
+            selection=config.selection,
+            weights={},
+        )
+
+
+def test_transshipment_quota_rejects_absent_capable_pool():
+    payload = _config()
+    payload["selection"]["transshipment_counts"] = dict(
+        standard=1, dangerous_goods=0, temperature_controlled=0
+    )
+    config = ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload))
+    with pytest.raises(ValueError, match="no eligible templates"):
+        _cohort_repetitions(
+            templates=(_inventory("direct"),),
+            cohort="standard",
+            selection=config.selection,
+            weights={},
+        )
+
+
+def test_weighted_selection_is_exact_deterministic_and_covers_rare_templates():
+    templates = tuple(_inventory("doc_" + letter) for letter in "abc")
+    kwargs = dict(
+        templates=templates,
+        requested=100,
+        weights={"doc_a": 1, "doc_b": 3, "doc_c": 6},
+        namespace="test",
+        seed=17,
+        cohort="standard",
+        require_every=True,
+    )
+    first = _weighted_repetitions(**kwargs)
+    assert first == _weighted_repetitions(**kwargs)
+    assert sum(count for _, count in first) == 100
+    assert [count for _, count in first] == [11, 30, 59]
+    assert {row.source_document_id for row, _ in first} == {"doc_a", "doc_b", "doc_c"}
+    with pytest.raises(ValueError, match="explicit positive weight"):
+        _weighted_repetitions(**{**kwargs, "weights": {"doc_a": 1}})
+    with pytest.raises(ValueError, match="cannot cover"):
+        _weighted_repetitions(**{**kwargs, "requested": 2})
 
 
 def test_plan_contract_accepts_arbitrary_reuse_count() -> None:

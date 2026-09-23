@@ -1,0 +1,88 @@
+{
+  "environment_file": ".env",
+  "inputs": {
+    "customs_program_registry": {
+      "path": "data/registries/customs-programs/document-customs-surfaces-v9.json",
+      "sha256": "59a63ff27fc44dfe9017d6d8bf143dd76e15f76555fe2a8b0847baac4efba84e"
+    },
+    "iso3166_snapshot": {
+      "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+      "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
+    },
+    "residual_replay_run": {
+      "commit_sha256": "8101b24d0e203a0a6eeb9f8d49856982d3fef07ae3219a53845d773f54fcbec0",
+      "path": "artifacts/kie-synthesis-production/complete-generation/mpci-bl-diversified-route-cargo-synthesis10000-v5",
+      "transaction_sha256": "90ad20873c2a0e56ddad11be72733a64ffea5e852525c59095f34ccaa5bdcce2"
+    },
+    "sample_plan": {
+      "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-diversified-accepted9930-v1/plan.jsonl",
+      "sha256": "a854e59d945d0e8d6a7da7c8402b7e7f9b084e8430bb82fc2504b2bdcf9e4d71",
+      "records": 9930
+    },
+    "sample_plan_run": {
+      "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-diversified-accepted9930-v1",
+      "commit_sha256": "355f0db45d4e919b595a276a3147fe5aaf38047edf31f91d68b1e0b0f77d99b3",
+      "transaction_sha256": "42d850060e6ec3587f360099edde074a57e51cef86007d1ae289a1bbd611de54"
+    },
+    "synthetic_target_run": {
+      "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-diversified-accepted9930-v1",
+      "commit_sha256": "355f0db45d4e919b595a276a3147fe5aaf38047edf31f91d68b1e0b0f77d99b3",
+      "transaction_sha256": "42d850060e6ec3587f360099edde074a57e51cef86007d1ae289a1bbd611de54"
+    },
+    "synthetic_targets": {
+      "path": "artifacts/kie-synthesis-production/synthesis-plans/mpci-bl-diversified-accepted9930-v1/targets.jsonl",
+      "sha256": "5fdd45a3b7cb702ddee1e83f5b5379ffc7cab203055942c061aeb5cde42af782",
+      "records": 9930
+    },
+    "template_run": {
+      "commit_sha256": "97d43815a6cdc8beb6b8284e5c5700ef308ba95f9f25e585c376d4e64f3f8958",
+      "path": "artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1510-v6",
+      "transaction_sha256": "a21290c2a31ad36b8495508f2d462953e255ad810ed677ba0a7b4e04239c2a30"
+    }
+  },
+  "output_dir": "artifacts/kie-synthesis-production/synthesis-runs",
+  "prompts": {
+    "residual_renderer": {
+      "path": "src/document_ocr/synthesis/template_compiler/prompts/descendant_renderer.md",
+      "sha256": "44833cd1e171642fe021bf57e8597c5c9d76f0706ebaa8d8ce5a9f5427cfcae2"
+    }
+  },
+  "provider": {
+    "api_key_env": "OPENAI_API_KEY",
+    "kind": "openai_responses",
+    "max_output_tokens": 16384,
+    "model": "gpt-5.6-luna",
+    "pricing": {
+      "cache_write_multiplier": "1.25",
+      "cached_input_usd_per_million": "0.02",
+      "currency": "USD",
+      "effective_date": "2026-09-12",
+      "input_usd_per_million": "0.2",
+      "output_usd_per_million": "1.2",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna"
+    },
+    "reasoning_effort": "low",
+    "request_timeout_seconds": 900.0,
+    "store_responses": true,
+    "transport_max_retries": 0
+  },
+  "run_name": "mpci-bl-diversified-accepted9930-v1-published",
+  "schema_version": 1,
+  "task": "bill_of_lading_compiled_raw_text_pipeline_v1",
+  "workflow": {
+    "controlled_target_seed": 20260920,
+    "documents": 9930,
+    "max_concurrent_requests": 16,
+    "max_requests_per_document": 1,
+    "provider_launch_authorized": false,
+    "publish_training_records": true,
+    "require_every_slot_bound_once": true,
+    "require_exact_literal_regions": true,
+    "require_exact_topology": true,
+    "require_line_endings_preserved": true,
+    "require_page_markers_unchanged": true,
+    "require_source_carrier": true,
+    "target_generation": "complete_latest_schema_targets_v1",
+    "target_schema_version": "5.0.0-experimental"
+  }
+}

@@ -81,9 +81,16 @@ class ProductionSynthesisSelection(BaseModel):
     documents: Annotated[int, Field(gt=0)]
     seed: Annotated[int, Field(ge=0, lt=2**64)]
     sample_namespace: NonEmptyText
+    scenario_mode: Literal["fixed_source_geography", "sampled_route", "sampled_route_and_cargo"] = (
+        "fixed_source_geography"
+    )
     exclusion_mode: ExclusionMode
     capability_counts: CapabilityCounts
-    balancing: Literal["even_reuse_within_capability_hmac_rank_v1"]
+    transshipment_counts: CapabilityCounts | None = None
+    balancing: Literal[
+        "even_reuse_within_capability_hmac_rank_v1", "weighted_reuse_largest_remainder_v1"
+    ]
+    template_weights: PinnedFile | None = None
     require_disjoint_capability_pools: Literal[True]
     require_every_eligible_template_selected: bool
 
@@ -91,6 +98,12 @@ class ProductionSynthesisSelection(BaseModel):
     def counts_cover_requested_documents(self) -> ProductionSynthesisSelection:
         if self.capability_counts.total() != self.documents:
             raise ValueError("capability counts must sum to selection.documents")
+        if self.transshipment_counts is not None:
+            for cohort, count in self.transshipment_counts.model_dump().items():
+                if count > getattr(self.capability_counts, cohort):
+                    raise ValueError("transshipment count exceeds its capability cohort count")
+        if bool(self.template_weights) != (self.balancing == "weighted_reuse_largest_remainder_v1"):
+            raise ValueError("weighted balancing requires explicit positive template weights")
         return self
 
 
@@ -131,6 +144,7 @@ class TemplateInventoryRow:
     allocation_group_count: int
     dangerous_goods: bool
     temperature_controlled: bool
+    transshipment: bool
     cohort: CapabilityCohort
     latest_schema_compatible: bool
     latest_schema_incompatibility: str | None
@@ -144,6 +158,7 @@ class TemplateInventoryRow:
             "capabilityCohort": self.cohort,
             "dangerousGoods": self.dangerous_goods,
             "temperatureControlled": self.temperature_controlled,
+            "transshipment": self.transshipment,
             "templateProxyId": self.template_proxy_id,
             "carrier": self.carrier,
             "carrierFamily": self.carrier_family,
@@ -182,9 +197,7 @@ def _validation_document_ids(
         raise ValueError("validation partition report hash differs")
     report = json.loads(read_regular_file_bytes(path))
     try:
-        ids = report["inspection"]["partition"]["outputs"][configured.split][
-            "document_ids"
-        ]
+        ids = report["inspection"]["partition"]["outputs"][configured.split]["document_ids"]
     except (KeyError, TypeError) as error:
         raise ValueError("validation partition report has an unexpected structure") from error
     if (
@@ -224,11 +237,15 @@ def _target_capabilities(target: Mapping[str, Any]) -> tuple[bool, bool, tuple[i
         isinstance(row, Mapping) and row.get("temperatureSetpoint") is not None
         for row in containers
     )
-    return dangerous_goods, temperature, (
-        len(containers),
-        len(cargo_groups),
-        len(cargo_packages),
-        len(allocations),
+    return (
+        dangerous_goods,
+        temperature,
+        (
+            len(containers),
+            len(cargo_groups),
+            len(cargo_packages),
+            len(allocations),
+        ),
     )
 
 
@@ -264,12 +281,31 @@ def _template_inventory(template_root: Path) -> tuple[TemplateInventoryRow, ...]
             latest_schema_compatible = True
             latest_schema_incompatibility = None
         dangerous_goods, temperature, topology = _target_capabilities(label)
+        labelled_transshipment = bool(
+            label["documentPatch"].get("route", {}).get("transshipmentPort")
+        )
+        route_capabilities = row.get("routeCapabilities")
+        if (
+            not isinstance(route_capabilities, dict)
+            or set(route_capabilities) != {"transshipment"}
+            or type(route_capabilities["transshipment"]) is not bool
+        ):
+            raise ValueError("catalog needs current explicit route-capability metadata")
+        transshipment = route_capabilities["transshipment"]
+        if labelled_transshipment and not transshipment:
+            raise ValueError(f"transshipment source has no compiled capability: {document_id}")
         value_kinds = row.get("valueKinds")
         if not isinstance(value_kinds, Mapping):
             raise ValueError(f"catalog value-kind summary is absent: {document_id}")
         summarized_dangerous_goods = bool(value_kinds.get("dangerous_goods", 0))
         summarized_temperature = bool(value_kinds.get("temperature", 0))
-        if dangerous_goods or temperature or summarized_dangerous_goods or summarized_temperature:
+        if (
+            dangerous_goods
+            or temperature
+            or transshipment
+            or summarized_dangerous_goods
+            or summarized_temperature
+        ):
             template = CertifiedSemanticTemplate.model_validate_json(
                 read_regular_file_bytes(case_root / "template.json"), strict=True
             )
@@ -280,6 +316,19 @@ def _template_inventory(template_root: Path) -> tuple[TemplateInventoryRow, ...]
             )
             bound_dangerous_goods = any(".dangerousGoods" in path for path in target_paths)
             bound_temperature = any(".temperatureSetpoint" in path for path in target_paths)
+            if labelled_transshipment and not any(
+                path.startswith("documentPatch.route.transshipmentPort.") for path in target_paths
+            ):
+                raise ValueError(f"transshipment source has no compiled binding: {document_id}")
+            if transshipment and not labelled_transshipment:
+                from . import route_derivations
+
+                route_derivations.validate_source(label, template.bindings)
+                physical = route_derivations.physical_source(label, template.bindings)
+                if not physical["documentPatch"].get("route", {}).get("transshipmentPort"):
+                    raise ValueError(
+                        f"transshipment metadata lacks source-only evidence: {document_id}"
+                    )
         else:
             bound_dangerous_goods = False
             bound_temperature = False
@@ -317,12 +366,55 @@ def _template_inventory(template_root: Path) -> tuple[TemplateInventoryRow, ...]
                 allocation_group_count=topology[3],
                 dangerous_goods=dangerous_goods,
                 temperature_controlled=temperature,
+                transshipment=transshipment,
                 cohort=cohort,
                 latest_schema_compatible=latest_schema_compatible,
                 latest_schema_incompatibility=latest_schema_incompatibility,
             )
         )
     return tuple(inventory)
+
+
+def _cohort_repetitions(
+    *,
+    templates: Sequence[TemplateInventoryRow],
+    cohort: CapabilityCohort,
+    selection: ProductionSynthesisSelection,
+    weights: Mapping[str, int],
+) -> tuple[tuple[TemplateInventoryRow, int], ...]:
+    total = getattr(selection.capability_counts, cohort)
+    if selection.transshipment_counts is None:
+        pools = [(tuple(templates), total)]
+    else:
+        via_count = getattr(selection.transshipment_counts, cohort)
+        pools = [
+            (tuple(row for row in templates if row.transshipment == via), count)
+            for via, count in ((True, via_count), (False, total - via_count))
+        ]
+    result: list[tuple[TemplateInventoryRow, int]] = []
+    for pool, requested in pools:
+        if selection.require_every_eligible_template_selected and requested < len(pool):
+            raise ValueError("route-topology quota cannot cover every eligible template")
+        if selection.balancing == "weighted_reuse_largest_remainder_v1":
+            rows = _weighted_repetitions(
+                templates=pool,
+                requested=requested,
+                weights=weights,
+                namespace=selection.sample_namespace,
+                seed=selection.seed,
+                cohort=cohort,
+                require_every=selection.require_every_eligible_template_selected,
+            )
+        else:
+            rows = _even_repetitions(
+                templates=pool,
+                requested=requested,
+                namespace=selection.sample_namespace,
+                seed=selection.seed,
+                cohort=cohort,
+            )
+        result.extend(rows)
+    return tuple(result)
 
 
 def _rank(*, namespace: str, seed: int, cohort: str, value: str) -> str:
@@ -363,9 +455,54 @@ def _even_repetitions(
     )
 
 
-def _sample_id(
-    *, namespace: str, seed: int, source_document_id: str, variant_index: int
-) -> str:
+def _weighted_repetitions(
+    *,
+    templates: Sequence[TemplateInventoryRow],
+    requested: int,
+    weights: Mapping[str, int],
+    namespace: str,
+    seed: int,
+    cohort: CapabilityCohort,
+    require_every: bool,
+) -> tuple[tuple[TemplateInventoryRow, int], ...]:
+    """Exact-count Hamilton allocation, with deterministic ties and optional coverage.
+
+    Categories remain joint template capabilities, so reweighting cannot pair a
+    reefer cargo with an incompatible independently drawn tank/container type.
+    """
+    if requested and not templates:
+        raise ValueError(f"no eligible templates can satisfy the {cohort} cohort")
+    if not templates:
+        return ()
+    if any(weights.get(row.source_document_id, 0) <= 0 for row in templates):
+        raise ValueError("every eligible template requires an explicit positive weight")
+    base = int(require_every)
+    remaining = requested - base * len(templates)
+    if remaining < 0:
+        raise ValueError("requested cohort cannot cover every eligible template")
+    total = sum(weights[row.source_document_id] for row in templates)
+    counts = {}
+    remainders = {}
+    for row in templates:
+        count, remainder = divmod(remaining * weights[row.source_document_id], total)
+        counts[row.source_document_id] = count + base
+        remainders[row.source_document_id] = remainder
+    ordered = sorted(
+        templates,
+        key=lambda row: (
+            -remainders[row.source_document_id],
+            _rank(namespace=namespace, seed=seed, cohort=cohort, value=row.source_document_id),
+            row.source_document_id,
+        ),
+    )
+    for row in ordered[: requested - sum(counts.values())]:
+        counts[row.source_document_id] += 1
+    return tuple(
+        (row, counts[row.source_document_id]) for row in templates if counts[row.source_document_id]
+    )
+
+
+def _sample_id(*, namespace: str, seed: int, source_document_id: str, variant_index: int) -> str:
     digest = sha256_bytes(
         canonical_json_bytes(
             [namespace, seed, source_document_id, variant_index, _TARGET_SCHEMA_VERSION]
@@ -465,6 +602,8 @@ def _plan_summary(
             "dangerousGoods": target_counts["dangerous_goods"] / len(plan_rows),
             "temperatureControlled": target_counts["temperature_controlled"] / len(plan_rows),
         },
+        "transshipmentDocuments": sum(bool(row["transshipment"]) for row in plan_rows),
+        "eligibleTransshipmentTemplates": sum(row.transshipment for row in eligible),
         "eligibleCapabilityTemplates": dict(
             sorted(Counter(row.cohort for row in eligible).items())
         ),
@@ -489,9 +628,7 @@ def _plan_summary(
         ),
         "cargoPackageCountBuckets": dict(
             sorted(
-                Counter(
-                    _bucket(cast(int, row["cargoPackageCount"])) for row in plan_rows
-                ).items()
+                Counter(_bucket(cast(int, row["cargoPackageCount"])) for row in plan_rows).items()
             )
         ),
         "documentsWithMultipleContainers": sum(
@@ -519,9 +656,7 @@ def _plan_summary(
     }
 
 
-def _analyze_plan(
-    *, project_root: Path, config: ProductionSynthesisPlanConfig
-) -> dict[str, Any]:
+def _analyze_plan(*, project_root: Path, config: ProductionSynthesisPlanConfig) -> dict[str, Any]:
     template_root = _validate_committed_run(project_root, config.template_run)
     validation_ids = _validation_document_ids(
         project_root=project_root, configured=config.validation_partition
@@ -546,12 +681,9 @@ def _analyze_plan(
         validation_excluded = tuple(
             row for row in inventory if row.template_proxy_id in validation_proxy_ids
         )
-    latest_schema_incompatible = tuple(
-        row for row in inventory if not row.latest_schema_compatible
-    )
+    latest_schema_incompatible = tuple(row for row in inventory if not row.latest_schema_compatible)
     excluded_ids = {
-        row.source_document_id
-        for row in (*validation_excluded, *latest_schema_incompatible)
+        row.source_document_id for row in (*validation_excluded, *latest_schema_incompatible)
     } | set(config.source_review_exclusions)
     excluded = tuple(row for row in inventory if row.source_document_id in excluded_ids)
     eligible = tuple(row for row in inventory if row.source_document_id not in excluded_ids)
@@ -574,23 +706,33 @@ def _analyze_plan(
     }
     if observed != expected.model_dump(mode="python"):
         raise ValueError(f"production synthesis inventory differs: {observed!r}")
+    weights: dict[str, int] = {}
+    if config.selection.template_weights is not None:
+        pin = config.selection.template_weights
+        weights_path = (project_root / pin.path).resolve(strict=True)
+        if project_root not in weights_path.parents or sha256_file(weights_path) != pin.sha256:
+            raise ValueError("template weights file identity differs")
+        weights = json.loads(read_regular_file_bytes(weights_path))
+        if not isinstance(weights, dict) or any(
+            type(v) is not int or v <= 0 for v in weights.values()
+        ):
+            raise ValueError("template weights must be positive integers")
+    if weights and set(weights) != {row.source_document_id for row in eligible}:
+        raise ValueError("template weights must cover the eligible catalog exactly")
     if config.selection.require_every_eligible_template_selected:
         requested_by_cohort = config.selection.capability_counts.model_dump(mode="python")
         for cohort, templates in capability_pools.items():
             if cast(int, requested_by_cohort[cohort]) < len(templates):
-                raise ValueError(
-                    f"{cohort} document count cannot select every eligible template"
-                )
+                raise ValueError(f"{cohort} document count cannot select every eligible template")
 
     plan_rows: list[dict[str, Any]] = []
     requested_by_cohort = config.selection.capability_counts.model_dump(mode="python")
     for cohort in ("standard", "dangerous_goods", "temperature_controlled"):
-        repetitions = _even_repetitions(
+        repetitions = _cohort_repetitions(
             templates=capability_pools[cohort],
-            requested=cast(int, requested_by_cohort[cohort]),
-            namespace=config.selection.sample_namespace,
-            seed=config.selection.seed,
             cohort=cohort,
+            selection=config.selection,
+            weights=weights,
         )
         for template, count in repetitions:
             for variant_index in range(count):
@@ -601,7 +743,10 @@ def _analyze_plan(
                     variant_index=variant_index,
                 )
                 plan_rows.append(
-                    template.plan_payload(sample_id=sample_id, variant_index=variant_index)
+                    {
+                        **template.plan_payload(sample_id=sample_id, variant_index=variant_index),
+                        "scenarioMode": config.selection.scenario_mode,
+                    }
                 )
     plan_rows.sort(
         key=lambda row: (
@@ -647,9 +792,7 @@ def _analyze_plan(
     }
 
 
-def preflight_production_synthesis_plan(
-    *, project_root: Path, config_path: Path
-) -> dict[str, Any]:
+def preflight_production_synthesis_plan(*, project_root: Path, config_path: Path) -> dict[str, Any]:
     project_root = project_root.resolve(strict=True)
     config = load_production_synthesis_plan_config(config_path.resolve(strict=True))
     analyzed = _analyze_plan(project_root=project_root, config=config)
@@ -668,6 +811,7 @@ def _template_payload(row: TemplateInventoryRow) -> dict[str, Any]:
         "carrierFamily": row.carrier_family,
         "documentType": row.document_type,
         "capabilityCohort": row.cohort,
+        "transshipment": row.transshipment,
         "pages": row.pages,
         "containerCount": row.container_count,
         "cargoGroupCount": row.cargo_group_count,
@@ -726,9 +870,7 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
     excluded = cast(tuple[TemplateInventoryRow, ...], analyzed["excluded"])
     validation_ids = cast(tuple[str, ...], analyzed["validation_ids"])
     validation_proxy_ids = cast(frozenset[str], analyzed["validation_proxy_ids"])
-    validation_excluded = cast(
-        tuple[TemplateInventoryRow, ...], analyzed["validation_excluded"]
-    )
+    validation_excluded = cast(tuple[TemplateInventoryRow, ...], analyzed["validation_excluded"])
     latest_schema_incompatible = cast(
         tuple[TemplateInventoryRow, ...], analyzed["latest_schema_incompatible"]
     )
@@ -765,9 +907,7 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
                 row.source_document_id for row in latest_schema_incompatible
             ),
             "sourceReviewExcludedTemplateDocumentIds": sorted(config.source_review_exclusions),
-            "excludedTemplateDocumentIds": sorted(
-                row.source_document_id for row in excluded
-            ),
+            "excludedTemplateDocumentIds": sorted(row.source_document_id for row in excluded),
         },
     )
     publish_json("summary.json", summary)
@@ -791,7 +931,7 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
             f"- Latest-schema incompatible source templates excluded: "
             f"**{summary['latestSchemaIncompatibleTemplates']:,}**.\n"
             "- Planner provider calls and model cost: **0 / $0**.\n"
-        ).encode()
+        ).encode(),
     )
     staged.commit(
         expected_artifacts=expected,

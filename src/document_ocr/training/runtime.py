@@ -184,8 +184,8 @@ def load_lora_model(config: TrainingConfig) -> tuple[Any, dict[str, Any]]:
 
     try:
         import torch
+        from peft import EvaConfig, TaskType, get_peft_model
         from peft import LoraConfig as PeftLoraConfig
-        from peft import TaskType, get_peft_model
         from transformers import AutoModelForSeq2SeqLM
     except ImportError as error:
         raise RuntimeError("model construction requires the 'train' dependency group") from error
@@ -274,6 +274,14 @@ def load_lora_model(config: TrainingConfig) -> tuple[Any, dict[str, Any]]:
         bias=config.peft.bias,
         use_rslora=config.peft.use_rslora,
         init_lora_weights=config.peft.init_lora_weights,
+        eva_config=(
+            EvaConfig(
+                rho=config.peft.eva.rho, tau=config.peft.eva.tau,
+                whiten=config.peft.eva.whiten, use_label_mask=True,
+                adjust_scaling_factors=False,
+            )
+            if config.peft.eva is not None else None
+        ),
         target_modules=config.peft.target_modules_regex,
         modules_to_save=config.peft.modules_to_save or None,
         ensure_weight_tying=config.peft.ensure_weight_tying,
@@ -958,6 +966,7 @@ def _source_code_identity(project_root: Path) -> list[dict[str, Any]]:
         "document_ocr.training.collator",
         "document_ocr.training.config",
         "document_ocr.training.data",
+        "document_ocr.training.eva",
         "document_ocr.training.metrics",
         "document_ocr.training.prediction",
         "document_ocr.training.prompting",
@@ -1323,6 +1332,17 @@ def run_training(
                 return_tensors="pt",
             )
         )
+        if config.peft.eva is not None:
+            from document_ocr.training.eva import initialize_eva_for_run
+
+            eva_path = run_dir / "eva-initialization.json"
+            initialize_eva_for_run(
+                path=eva_path, resuming=resume_checkpoint is not None,
+                model=model, train_dataset=prepared.datasets["train"], collator=collator,
+                peft=config.peft, dataset_identity=prepared.cache_identity,
+                device=training_arguments.device,
+            )
+            artifact_paths.append(eva_path)
         evaluation_dataset = prepared.datasets.get(config.evaluation.split)
         class SamplerAwareSeq2SeqTrainer(SamplerAwarePredictionMixin, Seq2SeqTrainer):
             pass

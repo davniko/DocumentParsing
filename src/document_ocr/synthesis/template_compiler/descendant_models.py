@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 
 from .models import NonEmptyText, PinnedFile, PinnedJsonl, ProviderConfig, Sha256
+from .reviewed_generation import ReviewedResidual
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 
@@ -30,6 +31,7 @@ class DescendantInputs(BaseModel):
     synthetic_targets: Annotated[PinnedJsonl, Field()] | None = None
     iso3166_snapshot: PinnedFile
     residual_replay_run: PinnedCommittedRun | None = None
+    customs_program_registry: PinnedFile | None = None
 
     @model_validator(mode="after")
     def input_pins_are_complete(self) -> DescendantInputs:
@@ -111,6 +113,15 @@ class PreparedTargetReceipt(BaseModel):
     numeric_auxiliary_sha256: Sha256 = Field(
         default_factory=lambda: sha256_bytes(canonical_json_bytes({}))
     )
+    equipment_tare_values_sha256: Sha256 = Field(
+        default_factory=lambda: sha256_bytes(canonical_json_bytes({}))
+    )
+    customs_presentation_sha256: Sha256 = Field(
+        default_factory=lambda: sha256_bytes(canonical_json_bytes([]))
+    )
+    dangerous_goods_facts_sha256: Sha256 = Field(
+        default_factory=lambda: sha256_bytes(canonical_json_bytes([]))
+    )
     synthetic_document_id: NonEmptyText
     topology_mismatch_count: Literal[0]
     target_leaf_count: Annotated[int, Field(ge=0)]
@@ -143,7 +154,7 @@ class ResidualStageReceipt(BaseModel):
 
     schema_version: Literal[1]
     document_id: NonEmptyText
-    status: Literal["not_required", "success", "provider_error"]
+    status: Literal["not_required", "success", "provider_error", "manual_review"]
     started_at: str | None
     completed_at: str | None
     duration_seconds: Annotated[float, Field(ge=0)]
@@ -156,9 +167,22 @@ class ResidualStageReceipt(BaseModel):
     messages: JsonValue
     usage: JsonValue
     batch_provenance: dict[str, JsonValue] | None = None
+    manual_review: ReviewedResidual | None = None
 
     @model_validator(mode="after")
     def batched_output_is_attributable(self) -> ResidualStageReceipt:
+        if (self.status == "manual_review") != (self.manual_review is not None):
+            raise ValueError("manual residual stage requires an explicit review receipt")
+        if self.manual_review is not None and (
+            self.output != self.manual_review.output
+            or self.document_id != self.manual_review.sample_id
+            or self.batch_provenance is not None
+            or self.messages
+            or not isinstance(self.usage, dict)
+            or any(self.usage[key] for key in ("requests", "inputTokens", "outputTokens"))
+            or Decimal(str(self.usage["estimatedCostUsd"])) != 0
+        ):
+            raise ValueError("manual residual review cannot claim provider output or charges")
         if self.batch_provenance is not None:
             from .request_batches import validate_batch_member
 
@@ -181,7 +205,7 @@ class ResidualReplayReceipt(BaseModel):
     source_run_commit_sha256: Sha256
     source_run_transaction_sha256: Sha256
     source_agent_stage_sha256: Sha256
-    source_status: Literal["success", "not_required"]
+    source_status: Literal["success", "not_required", "manual_review"]
     source_output_slot_count: Annotated[int, Field(ge=0)]
     replayed_output_slot_count: Annotated[int, Field(ge=0)]
     dropped_output_slot_count: Annotated[int, Field(ge=0)]
@@ -198,7 +222,10 @@ class ResidualReplayReceipt(BaseModel):
             raise ValueError("dropped slot count differs from dropped slot identifiers")
         if tuple(sorted(self.dropped_slot_ids)) != self.dropped_slot_ids:
             raise ValueError("dropped slot identifiers are not sorted")
-        if self.source_status == "success" and self.source_output_slot_count == 0:
+        if (
+            self.source_status in {"success", "manual_review"}
+            and self.source_output_slot_count == 0
+        ):
             raise ValueError("successful source stage has no output slots")
         if self.source_status == "not_required" and self.source_output_slot_count != 0:
             raise ValueError("not-required source stage has output slots")
@@ -225,6 +252,7 @@ class DescendantCaseResult(BaseModel):
     changed_target_leaf_count: Annotated[int, Field(ge=0)]
     changed_slot_count: Annotated[int, Field(ge=0)]
     unchanged_static_slot_count: Annotated[int, Field(ge=0)]
+    customs_caption_count: Annotated[int, Field(ge=0)] = 0
     carrier_unchanged: bool
     exact_topology: bool
     every_slot_bound_once: bool

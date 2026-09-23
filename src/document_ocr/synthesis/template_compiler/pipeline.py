@@ -19,6 +19,7 @@ import yaml
 
 from document_ocr.atomic import json_artifact_bytes, read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
+from document_ocr.synthesis.raw_text_rewrite_cycle_probe import CustomsProgramRegistry
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.template_integrity import source_template_integrity_issues
 
@@ -30,6 +31,7 @@ from .coherence import (
     reconcile_coherence_constraints_after_binding_revision,
     validate_coherence_contracts,
 )
+from .customs_presentation import normalize_registered_caption_ownership
 from .host import (
     SpanDraft,
     all_risk_candidates,
@@ -196,7 +198,7 @@ def _load_resume_run(
     prior_config = json.loads(read_regular_file_bytes(prior_config_path))
     if not isinstance(prior_config, Mapping):
         raise ValueError("resume config is not an object")
-    for field in ("task", "phase", "inputs", "selection_seed"):
+    for field in ("task", "phase", "inputs", "selection_seed", "customs_program_registry"):
         current_value = config.model_dump(mode="json")[field]
         if prior_config.get(field) != current_value:
             raise ValueError(f"resume run differs in pinned extraction field: {field}")
@@ -266,6 +268,13 @@ def _config_inputs(
         (compiler_prompt_path, config.prompts.compiler.sha256),
         (critic_prompt_path, config.prompts.critic.sha256),
     ]
+    if config.customs_program_registry is not None:
+        required_files.append(
+            (
+                resolve_input(project_root, config.customs_program_registry.path),
+                config.customs_program_registry.sha256,
+            )
+        )
     staged_prompt_paths: list[Path | None] = []
     for configured in (
         config.prompts.compiler_repair,
@@ -3327,7 +3336,10 @@ async def _extract_case(
     resume_run_root: Path | None = None,
     resume_result: ExtractionCaseResult | None = None,
     resume_contract_match: bool = False,
+    customs_registry: CustomsProgramRegistry | None = None,
 ) -> tuple[ExtractionCaseResult, CertifiedSemanticTemplate | None, str]:
+    if (config.customs_program_registry is None) != (customs_registry is None):
+        raise ValueError("configured customs compilation registry was not supplied to the case")
     relative_root = f"cases/{document_id}"
     existing_result_path = staged.stage_root / relative_root / "result.json"
     if existing_result_path.is_file():
@@ -3440,6 +3452,8 @@ async def _extract_case(
                 else None
             )
         )
+        if customs_registry is not None and not resume_contract_match:
+            certified_resume_mode = None  # Changed caption contracts require a fresh critic pass.
         if (
             resume_result is not None
             and resume_result.status == "certified"
@@ -3815,6 +3829,21 @@ async def _extract_case(
                 critic_attempt_calls < config.workflow.max_critic_passes
                 or terminal_confirmation_pending
             ):
+                if customs_registry is not None:
+                    try:
+                        drafts = normalize_registered_caption_ownership(
+                            raw=raw, drafts=tuple(drafts), registry=customs_registry
+                        )
+                        validate_draft_source_alignment(raw=raw, drafts=drafts)
+                        validate_binding_realizations(
+                            raw=raw, drafts=drafts, source_target=source_target
+                        )
+                    except ValueError as error:
+                        reasons.append(
+                            "registered customs ownership requires review: " + str(error)
+                        )
+                        review_required = True
+                        break
                 is_terminal_confirmation = terminal_confirmation_pending
                 terminal_confirmation_pending = False
                 stagnation_reason = _critic_stagnation_reason(
@@ -4396,6 +4425,13 @@ async def run_extraction(*, project_root: Path, config_path: Path) -> Path:
         partition_critic_above_request_bytes=(config.workflow.partition_critic_above_request_bytes),
     )
     document_limiter = asyncio.Semaphore(config.workflow.max_concurrent_documents)
+    customs_registry = (
+        CustomsProgramRegistry.model_validate_json(
+            resolve_input(project_root, config.customs_program_registry.path).read_bytes()
+        )
+        if config.customs_program_registry is not None
+        else None
+    )
     started = time.perf_counter()
     tasks = [
         asyncio.create_task(
@@ -4417,6 +4453,7 @@ async def run_extraction(*, project_root: Path, config_path: Path) -> Path:
                 resume_run_root=resume_run_root,
                 resume_result=resume_results.get(row.document_id),
                 resume_contract_match=resume_contract_match,
+                customs_registry=customs_registry,
             )
         )
         for row in manifest.rows

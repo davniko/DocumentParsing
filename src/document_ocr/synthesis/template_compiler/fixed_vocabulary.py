@@ -285,6 +285,10 @@ def fixed_context(
     if binding.group_kind == "route" and binding.value_kind == "location":
         return bool(old.get("route")) and old.get("route") == new.get("route")
     if binding.value_kind == "equipment":
+        # These state *who owns* the equipment, not its physical size/type.
+        # The same ownership role remains true for a newly sampled container.
+        if binding.group_kind == "equipment" and texts <= {"COC", "SOC"}:
+            return len(old.get("containers", ())) == len(new.get("containers", ()))
 
         def shape(patch: Mapping[str, Any]) -> list[tuple[Any, Any]]:
             return [
@@ -359,11 +363,9 @@ def fixed_context(
         new_packages = [
             (p.get("typeCategory"), p.get("typeDescription")) for p in new.get("cargoPackages", [])
         ]
-        from .descendant import _PACKAGE_SURFACES
+        from .package_observations import unowned_package_observation
 
-        labels = {word.upper() for words in _PACKAGE_SURFACES.values() for word in words}
-        labels.update({"PALLETS SLAC", "PIECE(S)", "BG"})
-        if old_packages == new_packages and texts <= labels:
+        if old_packages == new_packages and unowned_package_observation(binding):
             return True
         units = {"KGM", "KGS", "KG", "MTQ", "CBM", "LBR", "M.TON", "ADMT", "EA"}
         from .descendant import _flatten_leaves

@@ -131,10 +131,10 @@ class RelationExplicitContainerV5(RelationExplicitContainer):
         if self.temperatureSetpoint is not None:
             if semantic and self.typeCategory not in TEMPERATURE_CAPABLE_CONTAINER_TYPES:
                 raise ValueError("temperature setpoint requires temperature-capable equipment")
-            if not semantic and self.typeDescription is None:
-                raise ValueError(
-                    "temperature setpoint requires semantic equipment or a printed fallback"
-                )
+            # Extraction visibility is independent: a document can print a
+            # setpoint without a size/type. Do not require an invented equipment
+            # label. When equipment IS printed, its thermal constraint above
+            # still applies; synthesis validates an unlabelled physical choice.
         return self
 
     def application_size_type_code(self) -> str | None:
@@ -160,7 +160,13 @@ class BillOfLadingRelationExplicitV5Label(LabelSchemaModel):
     documentPatch: RelationExplicitDocumentPatchV5
 
     def canonical_target(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", exclude_none=True)
+        target = self.model_dump(mode="json", exclude_none=True)
+        patch = target["documentPatch"]
+        # Decode the referenced facts before their relations. This changes only
+        # presentation order, never the sparse schema or relation meaning.
+        if "cargoAllocationGroups" in patch:
+            patch["cargoAllocationGroups"] = patch.pop("cargoAllocationGroups")
+        return target
 
 
 def migrate_relation_v4_target_to_v5(target: Mapping[str, Any]) -> dict[str, Any]:

@@ -15,6 +15,16 @@ _EXPLICIT_RECEIVED_COUNT = re.compile(
     re.IGNORECASE,
 )
 _WEIGHT_TOTAL_CONTAINER_FIELD = re.compile(r"^\s*Weight\s+in\s+Kgs\s+Total\s*:", re.IGNORECASE)
+# Shipment declarations prove at least this many containers, even when the
+# compiler has split the count and equipment wording into separate bindings.
+# Anchor a physical line and require the actual cargo-receipt caption: a rate,
+# legal example or arbitrary mention of a container is not inventory evidence.
+_SHIPMENT_EQUIPMENT_COUNT = re.compile(
+    r"^[ \t]*(?P<count>[0-9]+)[ \t]*[X\u00d7][ \t]*(?:20|40|45)"
+    r"[ \t]*['\u2019\u2032\"]?[ \t]*(?:HC|HQ|GP|DC|RF|RH|OT|FR)?"
+    r"[ \t]*(?:FCL[ \t]+)?CONTAINERS?[ \t]+SAID[ \t]+TO[ \t]+CONTAIN\b",
+    re.IGNORECASE | re.MULTILINE,
+)
 _SAME_LINE_CONTAINER_COUNT = re.compile(
     r"(?:\(|\b)(?P<count>[0-9][0-9,]*|"
     r"(?:ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|"
@@ -187,10 +197,24 @@ def source_template_integrity_issues(
         )
     printed_counts = explicit_carrier_receipt_container_counts(raw_text)
     conflicting = sorted({count for count in printed_counts if count != labeled_count})
-    if not conflicting:
-        return ()
-    return (
-        "explicit_carrier_receipt_container_count_differs_from_labeled_containers:"
-        + ",".join(str(value) for value in conflicting)
-        + f"_vs_{labeled_count}",
+    issues = []
+    if conflicting:
+        issues.append(
+            "explicit_carrier_receipt_container_count_differs_from_labeled_containers:"
+            + ",".join(str(value) for value in conflicting)
+            + f"_vs_{labeled_count}"
+        )
+    excessive = sorted(
+        {
+            int(m["count"])
+            for m in _SHIPMENT_EQUIPMENT_COUNT.finditer(raw_text)
+            if int(m["count"]) > labeled_count
+        }
     )
+    if excessive:
+        issues.append(
+            "explicit_shipment_container_count_exceeds_labeled_containers:"
+            + ",".join(str(value) for value in excessive)
+            + f"_vs_{labeled_count}"
+        )
+    return tuple(issues)

@@ -99,6 +99,14 @@ def _slot(
     )
 
 
+def test_copied_invalid_slot_id_is_rejected_at_the_compiler_boundary() -> None:
+    source = b"ALPHA"
+    valid = _slot(source, "ALPHA")
+    copied = valid.model_copy(update={"slot_id": "slot_100000"})
+    with pytest.raises(ValueError, match="four-digit slot namespace"):
+        compile_raw_text_template(document_id="example", source=source, slots=(copied,))
+
+
 def test_template_round_trips_utf8_crlf_and_preserves_literal_bytes() -> None:
     source = "--- PAGE 1 ---\r\nSHIPPER\r\n  Ångström GmbH  \r\nKEEP—EXACT\r\n".encode()
     slot = _slot(source, "  Ångström GmbH  ")

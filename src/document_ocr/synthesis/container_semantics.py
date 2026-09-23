@@ -18,7 +18,8 @@ import unicodedata
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from functools import lru_cache
+from typing import Any, Literal
 
 from pydantic import TypeAdapter
 
@@ -65,6 +66,77 @@ _TYPE_PRINTED_SURFACE: dict[ContainerTypeCategory, str] = {
     "DRY_REAR_DISCHARGE_TANK": "DRY REAR DISCHARGE TANK",
     "AIR_SURFACE": "AIR SURFACE",
 }
+
+# ISO 6346 size digits encode length then height, not a length in feet.
+# BIC: https://www.bic-code.org/size-type-code/ and /type-code-designation/.
+_ISO_SIZES: dict[str, ContainerSizeCategory] = {
+    "22": "TWENTY_FOOT_STANDARD_HEIGHT",
+    "25": "TWENTY_FOOT_HIGH_CUBE",
+    "42": "FORTY_FOOT_STANDARD_HEIGHT",
+    "45": "FORTY_FOOT_HIGH_CUBE",
+    "55": "FORTY_FIVE_FOOT_HIGH_CUBE",
+}
+_ISO_TYPES: dict[str, ContainerTypeCategory] = {
+    **dict.fromkeys(("G0", "G1", "G2", "G3", "G9"), "GENERAL_PURPOSE"),
+    **dict.fromkeys(("V0", "V2", "V4"), "VENTILATED_GENERAL_PURPOSE"),
+    **dict.fromkeys(("B0", "B1", "B3", "B4", "B5", "B6", "B7", "B8", "B9"), "DRY_BULK"),
+    **dict.fromkeys(("S0", "S1", "S2"), "NAMED_CARGO"),
+    "R0": "REFRIGERATED",
+    "R1": "REFRIGERATED_AND_HEATED",
+    "R2": "SELF_POWERED_REFRIGERATED",
+    "R3": "SELF_POWERED_REFRIGERATED",
+    **dict.fromkeys(("H0", "H1", "H2"), "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT"),
+    **dict.fromkeys(("H5", "H6"), "INSULATED"),
+    **dict.fromkeys(("U0", "U1", "U2", "U3", "U4", "U6", "U9"), "OPEN_TOP"),
+    "P0": "PLATFORM",
+    **dict.fromkeys(("P1", "P2"), "PLATFORM_FIXED"),
+    **dict.fromkeys(("P3", "P4"), "PLATFORM_COLLAPSIBLE"),
+    "P5": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+    **dict.fromkeys(("P6", "P7", "P8", "P9"), "PLATFORM_NAMED_CARGO"),
+    **dict.fromkeys(("K0", "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8"), "PRESSURIZED_TANK"),
+    **dict.fromkeys(("N0", "N1"), "DRY_HOPPER_TANK"),
+    **dict.fromkeys(("N3", "N4", "N5"), "DRY_REAR_DISCHARGE_TANK"),
+    "A0": "AIR_SURFACE",
+}
+_COMPACT_TYPES: dict[str, ContainerTypeCategory] = {
+    "GP": "GENERAL_PURPOSE",
+    "DC": "GENERAL_PURPOSE",
+    "DV": "GENERAL_PURPOSE",
+    "VH": "VENTILATED_GENERAL_PURPOSE",
+    "BU": "DRY_BULK",
+    "SN": "NAMED_CARGO",
+    "RE": "REFRIGERATED",
+    "RF": "REFRIGERATED",
+    "RT": "REFRIGERATED_AND_HEATED",
+    "RS": "SELF_POWERED_REFRIGERATED",
+    "HI": "INSULATED",
+    "UT": "OPEN_TOP",
+    "OT": "OPEN_TOP",
+    "PL": "PLATFORM",
+    "PF": "PLATFORM_FIXED",
+    "PC": "PLATFORM_COLLAPSIBLE",
+    "PS": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+    "PT": "PLATFORM_NAMED_CARGO",
+    "KL": "PRESSURIZED_TANK",
+    "NH": "DRY_HOPPER_TANK",
+    "NN": "DRY_REAR_DISCHARGE_TANK",
+    "AS": "AIR_SURFACE",
+}
+
+
+def iso_equipment_surface(
+    size: ContainerSizeCategory, kind: ContainerTypeCategory, source: str
+) -> str | None:
+    """Render a supported four-character ISO source form, retaining its detail when valid."""
+    match = re.fullmatch(r"\s*[0-9A-Z]{2}(?P<gap>\s*)(?P<kind>[A-Z][0-9])\s*", source.upper())
+    if match is None:
+        return None
+    sizes = [code for code, value in _ISO_SIZES.items() if value == size]
+    kinds = [code for code, value in _ISO_TYPES.items() if value == kind]
+    if not sizes or not kinds:
+        raise ValueError("semantic equipment cannot be expressed by a supported ISO code")
+    detail = match["kind"] if match["kind"] in kinds else kinds[0]
+    return sizes[0] + match["gap"] + detail
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +213,10 @@ def _normalize(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).upper().translate(_PUNCTUATION_TRANSLATION)
     normalized = re.sub(r"(?<=\d)\s*[Xx]\s*(?=\d)", "X", normalized)
     normalized = re.sub(r"[^A-Z0-9]+", " ", normalized)
+    # OCR can remove this word boundary. Match the complete equipment noun,
+    # never a prefix such as TANKCONTAINERIZATION or another carrier code.
+    if "TANKCONTAINER" in normalized:
+        normalized = re.sub(r"\bTANK(?=CONTAINERS?\b)", "TANK ", normalized)
     return " ".join(normalized.split())
 
 
@@ -175,6 +251,102 @@ _CANONICAL_EQUIPMENT_PATTERNS = tuple(
 )
 
 
+def singleton_equipment_surface(text: str) -> str:
+    """Unwrap only an explicitly single-container count, not ISO digits or dimensions."""
+    counted = re.fullmatch(
+        r"(?:0*1\s*[xX\u00d7]\s*(?P<forward>(?:20|40|45).+)|"
+        r"(?P<reverse>(?:20|40|45).+?)\s*[xX\u00d7]\s*0*1)",
+        text.strip(),
+    )
+    return counted["forward"] or counted["reverse"] if counted else text
+
+
+_DIMENSIONAL_SIZE = re.compile(
+    r"(20|40|45)\s*['\u2019`]\s*[Xx\u00d7]\s*(8|9)\s*['\u2019`]\s*6\s*[\"\u201d]?"
+)
+_DIMENSIONAL_SIZES: dict[tuple[str, str], ContainerSizeCategory] = {
+    ("20", "8"): "TWENTY_FOOT_STANDARD_HEIGHT",
+    ("20", "9"): "TWENTY_FOOT_HIGH_CUBE",
+    ("40", "8"): "FORTY_FOOT_STANDARD_HEIGHT",
+    ("40", "9"): "FORTY_FOOT_HIGH_CUBE",
+    ("45", "9"): "FORTY_FIVE_FOOT_HIGH_CUBE",
+}
+
+
+def dimensional_equipment_size(value: str) -> ContainerSizeCategory | None:
+    """Read explicit length/height only, without inferring the equipment type."""
+    match = _DIMENSIONAL_SIZE.fullmatch(value.strip())
+    return _DIMENSIONAL_SIZES.get((match[1], match[2])) if match else None
+
+
+def partial_equipment_constraint(
+    container: Mapping[str, Any],
+) -> tuple[str | None, str | None, str | None]:
+    """Return printed length, type and size constraints without inventing height.
+
+    Shared by physical sampling and receipt reconciliation: an absent dimension
+    is unknown, whereas an opaque carrier code still requires source review.
+    """
+    if {"sizeCategory", "typeCategory"} & container.keys():
+        raise ValueError("partial semantic category pair is not a valid equipment label")
+    description = container.get("typeDescription")
+    if description is None:
+        # A printed setpoint constrains the sampler's thermal capability, not
+        # the extraction label's visibility or a guessed container size/type.
+        return None, None, None
+    text = description.strip()
+    unwrapped = singleton_equipment_surface(text)
+    if unwrapped != text:
+        return partial_equipment_constraint({**container, "typeDescription": unwrapped})
+    if re.fullmatch(r"(?:CONTAINER|CTNR|CTR|LCL\.?|CY/FO)", text, re.I):
+        return None, None, None
+    if re.fullmatch(r"GENERAL\s+PURPOSE(?:\s+(?:CONT\.?|CONTAINER))?", text, re.I):
+        return None, "GENERAL_PURPOSE", None
+    if re.fullmatch(r"REFRIGERATED\s+CONTAINER", text, re.I):
+        return None, "REFRIGERATED", None
+    flat = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*FLATRACK\s+COLLAPSIBLE", text, re.I)
+    if flat:
+        return flat[1], "PLATFORM_COLLAPSIBLE", None
+    high_cube = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*HIGH\s*CUBE", text, re.I)
+    if high_cube:
+        return (
+            high_cube[1],
+            None,
+            {
+                "20": "TWENTY_FOOT_HIGH_CUBE",
+                "40": "FORTY_FOOT_HIGH_CUBE",
+                "45": "FORTY_FIVE_FOOT_HIGH_CUBE",
+            }[high_cube[1]],
+        )
+    length_only = re.fullmatch(r"(?:\((20|40|45)\)|(20|40|45)\s*(?:['\u2019`]|FT)?)", text, re.I)
+    if length_only:
+        return length_only[1] or length_only[2], None, None
+    dimensional_size = dimensional_equipment_size(text)
+    if dimensional_size is not None:
+        return None, None, dimensional_size
+    reviewed = review_source_equipment_surface(
+        description, temperature_present="temperatureSetpoint" in container
+    )
+    if reviewed.size_category is not None and reviewed.type_category is not None:
+        return None, reviewed.type_category, reviewed.size_category
+    thermal_partial = re.fullmatch(
+        r"(?:(40)\s*['\u2019`]?\s*(?:RA|RK|RO|RQ)|(20|40|45)\s*['\u2019`]?\s*RFH)",
+        text,
+        re.I,
+    )
+    if (
+        thermal_partial
+        and reviewed.type_category == "REFRIGERATED"
+        and reviewed.size_category is None
+    ):
+        return thermal_partial[1] or thermal_partial[2], reviewed.type_category, None
+    raise ValueError("partial printed equipment requires a reviewed physical constraint")
+
+
+# Immutable source grammar is repeatedly evaluated for the same carrier forms
+# during scenario search. Bounded memoization avoids that work without holding
+# document objects or mutating the returned frozen observations.
+@lru_cache(maxsize=8192)
 def review_source_equipment_surface(
     printed_surface: str | None,
     *,
@@ -197,7 +369,53 @@ def review_source_equipment_surface(
     # ``CONTAINER: 1 X 20FT GENERAL PURPOSE``. The count is structural, not part of the ISO/BIC
     # equipment meaning, and may occur either at the start or after that heading.
     semantic = re.sub(r"(?:^| )[1-9][0-9]*X(?=(?:20|40|45))", " ", normalized).strip()
+    semantic = re.sub(r"\b(20|40|45)(?=DRY\b)", r"\1 ", semantic)
     tokens = frozenset(semantic.split())
+
+    # Closed carrier/EDI spellings, not a substring or an OCR correction.
+    # HMM publishes 4H dry as 12.032m / 9'6":
+    # https://www.hmm21.com/e-service/information/containerInformation.do
+    # Crane's EDI equipment list explicitly defines 40HO as high-cube open top:
+    # https://developers.craneww.com/edi/documentation/index.html
+    # CMA CGM's Directions for OOG in OT containers confirms OOG as a load
+    # qualifier, not a different equipment type. Keep that printed qualifier.
+    reviewed_pair = (
+        ("FORTY_FOOT_HIGH_CUBE", "GENERAL_PURPOSE")
+        if re.fullmatch(r"DC\s*4H(?:\s+CY\s+FO)?", semantic)
+        else ("FORTY_FOOT_HIGH_CUBE", "OPEN_TOP")
+        if re.fullmatch(r"40\s*HO", semantic)
+        else (_ISO_SIZES[{"20": "22", "40": "42"}[oog[1]]], "OPEN_TOP")
+        if (oog := re.fullmatch(r"(20|40)\s*OT\s+OOG", semantic))
+        else None
+    )
+    if reviewed_pair is not None:
+        return ReviewedEquipmentSurface(
+            printed_surface=printed_surface,
+            normalized_surface=normalized,
+            resolution="reviewed_source_grammar",
+            size_category=_SIZE_CATEGORY_ADAPTER.validate_python(reviewed_pair[0]),
+            type_category=_TYPE_CATEGORY_ADAPTER.validate_python(reviewed_pair[1]),
+            thermal_operation="not_indicated",
+            review_rule="documented_complete_carrier_equipment_surface",
+        )
+
+    iso = re.fullmatch(r"(?P<size>[0-9A-Z][0-9A-Z])\s*(?P<kind>[A-Z][0-9])", semantic)
+    if iso:
+        size, kind = _ISO_SIZES.get(iso["size"]), _ISO_TYPES.get(iso["kind"])
+        supported = size is not None and kind is not None
+        return ReviewedEquipmentSurface(
+            printed_surface=printed_surface,
+            normalized_surface=normalized,
+            resolution="reviewed_source_grammar" if supported else "unresolved_source_surface",
+            size_category=size if supported else None,
+            type_category=kind if supported else None,
+            thermal_operation=(
+                "active"
+                if kind in TEMPERATURE_CAPABLE_CONTAINER_TYPES and temperature_present
+                else "not_indicated"
+            ),
+            review_rule="iso_6346_size_type" if supported else "unsupported_iso_6346_size_type",
+        )
 
     # The synthesis renderer exposes this complete semantic phrase when a carrier-specific source
     # abbreviation cannot be projected safely. Recognize it before the corpus shorthand grammar
@@ -217,6 +435,29 @@ def review_source_equipment_surface(
                     else "not_indicated"
                 ),
                 review_rule="canonical_semantic_equipment_surface",
+            )
+
+    compact = re.fullmatch(
+        r"(?:(?P<length>20|40|45)\s*(?P<kind>[A-Z]{2})|"
+        r"(?P<reverse_kind>[A-Z]{2})\s*(?P<reverse_length>20|40|45))",
+        semantic,
+    )
+    if compact:
+        compact_kind = _COMPACT_TYPES.get(compact["kind"] or compact["reverse_kind"])
+        if compact_kind is not None:
+            compact_size = _ISO_SIZES[
+                {"20": "22", "40": "42", "45": "55"}[compact["length"] or compact["reverse_length"]]
+            ]
+            return ReviewedEquipmentSurface(
+                printed_surface,
+                normalized,
+                "reviewed_source_grammar",
+                compact_size,
+                compact_kind,
+                "active"
+                if temperature_present and compact_kind in TEMPERATURE_CAPABLE_CONTAINER_TYPES
+                else "not_indicated",
+                "explicit_length_type_group",
             )
 
     length: Literal[20, 40, 45] | None = None
@@ -247,9 +488,9 @@ def review_source_equipment_surface(
     carrier_thermal_code = next(
         (
             value
-            for value in ("HR", "RA", "RE", "RF", "RH", "RK", "RO", "RQ")
+            for value in ("HR", "RA", "RE", "RF", "RH", "RK", "RO", "RQ", "RFH")
             if value in tokens
-            or re.search(rf"(?:20|40){value}(?:\s|$)", semantic)
+            or re.search(rf"(?:20|40|45){value}(?:\s|$)", semantic)
             or semantic == f"{value}40"
         ),
         None,
@@ -258,7 +499,11 @@ def review_source_equipment_surface(
         re.search(r"\b(?:REEF|REEFER|REFRIGERATED|RF)\b", semantic)
         or carrier_thermal_code is not None
     )
-    if explicit_thermal or temperature_present or non_operating:
+    explicit_nonthermal = bool(
+        tokens & {"DRY", "GP", "DC", "DV", "OT", "OPEN", "TANK", "PLATFORM", "FLAT"}
+        or {"GENERAL", "PURPOSE"} <= tokens
+    )
+    if explicit_thermal or (temperature_present and not explicit_nonthermal) or non_operating:
         # In the observed carrier grammar, 40HR means a 40-foot high-cube
         # reefer.  It is not BIC type group HR (removable thermal equipment).
         type_category: ContainerTypeCategory = "REFRIGERATED"
@@ -303,6 +548,7 @@ def review_source_equipment_surface(
             "SD96",
             "SH",
             "ST",
+            "STD",
             "STANDARD",
             "VAN",
         }
@@ -329,12 +575,32 @@ def review_source_equipment_surface(
             review_rule="surface_has_no_reviewed_type_semantics",
         )
 
+    # Quoted dimensions normalize to ``40 X9 6``; unquoted dimensions can
+    # normalize to ``40X9 6``. X is the dimension separator, not part of height.
+    explicit_nine_six = bool(re.search(r"(?:^|[ X])9\s+6(?:\s|$)", semantic))
+    # Scan Global's BLU Brasil equipment glossary (09/2024) lists RFH as
+    # reefer equipment, without establishing height. This applies equally
+    # to every explicit length, rather than inventing a default height.
+    if carrier_thermal_code == "RFH" and not (
+        {"HIGH", "CUBE"} <= tokens
+        or tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
+        or explicit_nine_six
+    ):
+        return ReviewedEquipmentSurface(
+            printed_surface,
+            normalized,
+            "unresolved_source_surface",
+            None,
+            type_category,
+            "active" if temperature_present else "not_indicated",
+            "reviewed_reefer_type_with_unresolved_carrier_height_code",
+        )
     if length == 45:
         size_category: ContainerSizeCategory = "FORTY_FIVE_FOOT_HIGH_CUBE"
         size_rule = "explicit_45_foot"
     elif length == 20:
         high_cube = bool(({"HIGH", "CUBE"} <= tokens) or ({"HI", "CUBE"} <= tokens)) or bool(
-            tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
+            tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"} or explicit_nine_six
         )
         size_category = "TWENTY_FOOT_HIGH_CUBE" if high_cube else "TWENTY_FOOT_STANDARD_HEIGHT"
         size_rule = "explicit_20_foot_with_height_marker"
@@ -343,7 +609,7 @@ def review_source_equipment_surface(
             "HIGH" in tokens
             or "CUBE" in tokens
             or tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
-            or re.search(r"(?:^|\s)9\s+6(?:\s|$)", semantic)
+            or explicit_nine_six
         ):
             return ReviewedEquipmentSurface(
                 printed_surface=printed_surface,
@@ -354,14 +620,13 @@ def review_source_equipment_surface(
                 thermal_operation="active" if temperature_present else "not_indicated",
                 review_rule="reviewed_reefer_type_with_unresolved_carrier_height_code",
             )
-        explicit_nine_six = bool(re.search(r"(?:^|\s)9\s+6(?:\s|$)", semantic))
         carrier_high_reefer = carrier_thermal_code in {"HR", "RH"}
         high_cube = bool(
             ({"HIGH", "CUBE"} <= tokens)
             or ({"HI", "CUBE"} <= tokens)
             or tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
             or "HIGHCUBE" in tokens
-            or re.search(r"(?:40|45)(?:H|HC|HQ|SD96)(?:\s|$)", semantic)
+            or re.search(r"(?:40|45)\s*(?:H|HC|HQ|SD96)(?:\s|$)", semantic)
             or semantic in {"D40H", "HC40", "HC 40"}
             or explicit_nine_six
             or carrier_high_reefer

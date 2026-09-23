@@ -189,10 +189,31 @@ def test_compaction_preserves_nested_paths_including_punctuation():
     second = deepcopy(first)
     second["x"]["a.b[0]"][0]["value"] = 9
     result = shared_context([first, second])
-    assert result["varyingPaths"] == [["x", "a.b[0]", 0, "value"]]
-    assert result["sharedContext"] == first
+    assert result["varyingPathGroups"] == [[["x", "a.b[0]", 0, "value"]]]
+    assert result["sharedContext"] == {"x": {"a.b[0]": [{"value": None}, "same"]}, "empty": []}
     assert result["cases"]["s1"]["values"] == [9]
     assert first["x"]["a.b[0]"][0]["value"] == 2
+
+
+def test_tuple_fields_factor_locality_leaves_without_repeating_the_field_inventory():
+    first = dict(requestedFields=(dict(key="address", source="same", city="Paris"),))
+    second = dict(requestedFields=(dict(key="address", source="same", city="Lyon"),))
+    result = shared_context([first, second])
+    assert result["varyingPathGroups"] == [[["requestedFields", 0, "city"]]]
+    assert result["cases"]["s1"]["values"] == ["Lyon"]
+    assert isinstance(first["requestedFields"], tuple)
+    assert result == shared_context(json.loads(json.dumps([first, second])))
+
+
+def test_each_batch_case_carries_explicit_geography_without_first_case_defaults():
+    rows = [
+        dict(partyGeography={"shipper": dict(city="Paris", country="France")}),
+        dict(partyGeography={"shipper": dict(city="Rome", country="Italy")}),
+    ]
+    result = shared_context(rows)
+    assert result["sharedContext"]["partyGeography"]["shipper"] == dict(city=None, country=None)
+    for index, row in enumerate(rows):
+        assert result["cases"][f"s{index}"]["partyGeography"] == row["partyGeography"]
 
 
 def test_residual_compaction_uses_one_value_only_for_identical_owned_occurrences():
@@ -239,6 +260,7 @@ def test_lexical_view_keeps_required_facts_without_duplicate_source_or_audit_tex
     }
     payload = {
         "requestedFields": [field],
+        "coherenceConstraints": [{"target_paths": ["documentPatch.cargoPackages[0].quantity"]}],
         "structuredScenario": {
             "documentPatch": {
                 "parties": {"shipper": {"name": "Old Co", "country": "CHINA"}},
@@ -273,6 +295,52 @@ def test_lexical_view_keeps_required_facts_without_duplicate_source_or_audit_tex
     assert "completeTokenPartition" not in constraints
     assert output["numericAuxiliary"]["tare"]["value"] == "3700"
     assert "lengthy audit rationale" not in json.dumps(output)
+
+
+def test_equal_vectors_share_wire_values_without_linking_case_facts():
+    rows = [dict(a="Paris", b="Paris", c="Rome"), dict(a="Lyon", b="Lyon", c="Paris")]
+    result = shared_context(rows)
+    assert result["varyingPathGroups"] == [[["a"], ["b"]], [["c"]]]
+    assert result["cases"]["s0"]["values"] == ["Paris", "Rome"]
+    assert result["cases"]["s1"]["values"] == ["Lyon", "Paris"]
+
+
+def test_party_only_context_preserves_all_party_generation_dependencies():
+    payload = dict(
+        sampleId="independent-case",
+        requestedFields=[
+            dict(
+                key="f",
+                paths=["documentPatch.parties.shipper.name"],
+                source="Old",
+                constraints=[dict(minimumWords=2)],
+            )
+        ],
+        structuredScenario=dict(
+            documentPatch=dict(
+                parties=dict(shipper=dict(name="Old", country="France", city="Lyon")),
+                cargoPackages=[dict(quantity=17)],
+            )
+        ),
+        hostLexicalFacts=dict(cargo="Host-owned"),
+        cargoPackaging={},
+        numericAuxiliary={},
+        partyGeography=dict(shipper=dict(city="Lyon", country="France")),
+        hostAuxiliaryGeography=dict(exporter="France"),
+        goodsIdentities=dict(g1=[dict(requiredDescription="Paper")]),
+    )
+    original = deepcopy(payload)
+    result = lexical_payload(payload, {"f": "shipper_name"})
+    assert payload == original
+    assert set(result["structuredScenario"]["documentPatch"]) == {"parties"}
+    for key in ("sampleId", "partyGeography", "hostAuxiliaryGeography", "goodsIdentities"):
+        assert result[key] == payload[key]
+    assert result["requestedFields"][0]["constraints"] == [dict(minimumWords=2)]
+    assert result["structuredScenario"]["documentPatch"]["parties"]["shipper"] == dict(
+        name={"generate": "shipper_name"}, city="Lyon", country="France"
+    )
+    assert not {"numericAuxiliary", "hostLexicalFacts", "cargoPackaging"} & result.keys()
+    assert result["contextScope"] == "party_identity_with_goods_and_localities"
 
 
 def batch_member_fixture():
@@ -445,6 +513,40 @@ def test_partial_batches_drain_without_deadlock_and_preserve_named_ownership():
         assert len(calls) == 1 and len(results) == 5
         assert [r["output"]["f0"] for r in results] == ["New Shipper s" + str(i) for i in range(5)]
         assert sum(r["usage"]["requests"] for r in results) == 1
+
+    asyncio.run(run())
+
+
+def test_tuple_context_topologies_are_separated_before_batch_admission():
+    async def run():
+        calls = []
+
+        async def submit(**kwargs):
+            calls.append(kwargs["payload"])
+            output = {case: {"slot": "new"} for case in kwargs["payload"]["cases"]}
+            return dict(
+                output=output,
+                outputSha256=sha256_bytes(canonical_json_bytes(output)),
+                requestSha256="a" * 64,
+                usage=usage(),
+            )
+
+        batcher = RequestBatcher(size=16, submit=submit)
+        schema = create_model("Fields", slot=(str, ...))
+        await asyncio.gather(
+            *(
+                batcher.request(
+                    group="same",
+                    system_prompt="test",
+                    output_type=schema,
+                    payload={"context": ({key: "value"},)},
+                )
+                for key in ["first", "second"]
+            )
+        )
+        await batcher.drain()
+        assert len(calls) == 2
+        assert all(len(call["cases"]) == 1 for call in calls)
 
     asyncio.run(run())
 

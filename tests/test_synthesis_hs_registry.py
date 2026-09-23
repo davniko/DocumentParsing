@@ -237,6 +237,15 @@ def test_ukgt_compiler_separates_global_hs6_from_gb_extensions(tmp_path: Path) -
 
 def test_sampling_requires_explicit_exact_registry_backed_distributions(tmp_path: Path) -> None:
     registry = _compile_fixture(tmp_path)
+    global_path = registry.global_description_path("010129")
+    assert (
+        global_path[-1] == registry.require_global("010129", on_date=date(2025, 1, 1)).description
+    )
+    assert (
+        global_path[0]
+        == registry.require_global("010129", on_date=date(2025, 1, 1)).heading_description
+    )
+    assert all("slaughter" not in part.lower() for part in global_path)
     stream = DeterministicStream(seed=21, namespace="hs-test", identity="cargo-1")
 
     global_row = sample_global_hs6(

@@ -519,14 +519,17 @@ def test_concurrent_identical_stage_commits_publish_exactly_once(tmp_path: Path)
     assert (tmp_path / "concurrent/artifact.bin").read_bytes() == b"same"
 
 
+@pytest.mark.parametrize("workers", [1, 4])
 def test_staged_run_refuses_partial_extra_conflicting_and_tampered_runs(
     tmp_path: Path,
+    workers: int,
 ) -> None:
     transaction = _hash("transaction")
     run = StagedArtifactRun(
         output_parent=tmp_path,
         run_name="run",
         transaction_sha256=transaction,
+        validation_workers=workers,
     )
     run.publish_bytes("one.bin", b"one")
     with pytest.raises(StagedRunError, match="inventory mismatch"):
@@ -544,7 +547,82 @@ def test_staged_run_refuses_partial_extra_conflicting_and_tampered_runs(
             output_parent=tmp_path,
             run_name="run",
             transaction_sha256=transaction,
+            validation_workers=workers,
         )
+
+
+@pytest.mark.parametrize("workers", [0, -1, True, 1.5])
+def test_artifact_scan_rejects_invalid_concurrency(tmp_path, workers):
+    with pytest.raises(ValueError, match="positive integer"):
+        StagedArtifactRun._scan_root_artifacts(tmp_path, workers=workers)
+    with pytest.raises(ValueError, match="positive integer"):
+        StagedArtifactRun(
+            output_parent=tmp_path,
+            run_name="invalid",
+            transaction_sha256=_hash("transaction"),
+            validation_workers=workers,
+        )
+
+
+def test_parallel_artifact_scan_is_exact_and_bounded(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    from document_ocr.synthesis import run_safety
+
+    run = StagedArtifactRun(
+        output_parent=tmp_path,
+        run_name="parallel",
+        transaction_sha256=_hash("transaction"),
+        validation_workers=4,
+    )
+    paths = [f"cases/{index}/bytes.bin" for index in range(17)]
+    for index, path in enumerate(paths):
+        run.publish_bytes(path, bytes([index]) * 37)
+    expected = run._scan_root_artifacts(run.stage_root)
+    original = run_safety._artifact_receipt
+    lock = threading.Lock()
+    active = peak = 0
+
+    def measured(root, relative):
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        try:
+            time.sleep(0.005)
+            return original(root, relative)
+        finally:
+            with lock:
+                active -= 1
+
+    monkeypatch.setattr(run_safety, "_artifact_receipt", measured)
+    assert run._scan_artifacts() == expected
+    assert 1 < peak <= 4
+    run.commit(expected_artifacts=paths, metadata={})
+    assert run.validate_committed_run().artifacts == expected
+    resumed = StagedArtifactRun(
+        output_parent=tmp_path,
+        run_name="parallel",
+        transaction_sha256=_hash("transaction"),
+        validation_workers=4,
+    )
+    assert resumed.completed
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("kind", ["file", "directory"])
+def test_artifact_scan_rejects_symlinks(tmp_path, workers, kind):
+    root = tmp_path / "root"
+    root.mkdir()
+    target = tmp_path / "target"
+    if kind == "directory":
+        target.mkdir()
+    else:
+        target.write_bytes(b"outside")
+    (root / "link").symlink_to(target, target_is_directory=kind == "directory")
+    with pytest.raises(StagedRunError, match="symbolic-link"):
+        StagedArtifactRun._scan_root_artifacts(root, workers=workers)
 
 
 def test_commit_receipt_contains_only_deterministic_json(tmp_path: Path) -> None:

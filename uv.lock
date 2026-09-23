@@ -550,6 +550,7 @@ dev = [
     { name = "types-regex" },
 ]
 labeling = [
+    { name = "httpx2" },
     { name = "openai" },
     { name = "pydantic-ai-slim", extra = ["openai", "retries"] },
     { name = "python-dotenv" },
@@ -595,6 +596,7 @@ dev = [
     { name = "types-regex", specifier = ">=2026.7.19.20260720,<2027" },
 ]
 labeling = [
+    { name = "httpx2", specifier = ">=2.12,<3" },
     { name = "openai", specifier = ">=3.3.1,<3.4" },
     { name = "pydantic-ai-slim", extras = ["openai", "retries"], specifier = ">=2.33,<2.34" },
     { name = "python-dotenv", specifier = ">=1.2,<2" },

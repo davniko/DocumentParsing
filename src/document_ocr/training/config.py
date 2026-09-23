@@ -438,6 +438,19 @@ class DatasetConfig(_StrictModel):
         return "pre_split" if self.splits is not None else "runtime_partition"
 
 
+class EvaInitializationConfig(_StrictModel):
+    """Fixed-rank EVA calibration; redistribution is deliberately not enabled."""
+
+    rho: Annotated[float, Field(ge=1.0, le=1.0)]
+    tau: Annotated[float, Field(gt=0.0, le=1.0)]
+    whiten: bool
+    sample_count: PositiveInteger
+    batch_size: PositiveInteger
+    tokens_per_stream: PositiveInteger
+    max_forward_passes: Annotated[int, Field(ge=3)]
+    seed: NonNegativeInteger
+
+
 class LoraConfig(_StrictModel):
     method: Literal["lora"]
     adapter_name: NonEmptyString
@@ -446,10 +459,25 @@ class LoraConfig(_StrictModel):
     dropout: Annotated[float, Field(ge=0.0, lt=1.0)]
     bias: Literal["none", "all", "lora_only"]
     use_rslora: bool
-    init_lora_weights: bool | Literal["gaussian", "olora", "pissa"]
+    init_lora_weights: bool | Literal["gaussian", "olora", "pissa", "eva"]
+    eva: EvaInitializationConfig | None = None
     target_modules_regex: NonEmptyString
     modules_to_save: list[NonEmptyString]
     ensure_weight_tying: bool
+
+    @model_validator(mode="after")
+    def eva_contract_is_explicit(self) -> LoraConfig:
+        if (self.init_lora_weights == "eva") != (self.eva is not None):
+            raise ValueError(
+                "EVA initialization requires an explicit peft.eva block, "
+                "and only EVA may configure it"
+            )
+        if self.eva is not None:
+            if self.eva.tokens_per_stream < self.rank:
+                raise ValueError("EVA tokens_per_stream must be at least the adapter rank")
+            if self.eva.batch_size > self.eva.sample_count:
+                raise ValueError("EVA batch_size must not exceed sample_count")
+        return self
 
     @field_validator("target_modules_regex")
     @classmethod

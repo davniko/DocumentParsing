@@ -200,27 +200,52 @@ def shared_projection_ranges(
             end += 1
         ranges.append((start, end, tokens[start:end]))
         start = end
-    return tuple(ranges)
+    from .projected_context import sampled_ranges
+
+    return sampled_ranges(binding, template, target, ranges)
 
 
 def effective_realization_template(
     template: CertifiedSemanticTemplate,
 ) -> CertifiedSemanticTemplate:
-    lexical_keys = {
+    equipment_keys = {
         binding.logical_key
         for binding in template.bindings
         if binding.target_paths
-        and all(path == "documentPatch.transport.vesselName" for path in binding.target_paths)
+        and all(
+            re.fullmatch(r"documentPatch\.containers\[\d+\]\.typeDescription", path)
+            for path in binding.target_paths
+        )
         and any(slot.render_policy == "opaque_identifier" for slot in binding.occurrences)
     }
-    if not lexical_keys:
+    lexical_keys = {
+        binding.logical_key
+        for binding in template.bindings
+        if (
+            (
+                binding.target_paths
+                and all(
+                    path == "documentPatch.transport.vesselName" for path in binding.target_paths
+                )
+            )
+            or binding.derivation == "sampled_auxiliary_vessel"
+        )
+        and any(slot.render_policy == "opaque_identifier" for slot in binding.occurrences)
+    }
+    if not lexical_keys and not equipment_keys:
         return template
     payload = template.model_dump(mode="json")
     updated_slots = {}
     for binding in payload["bindings"]:
-        if binding["logical_key"] not in lexical_keys:
+        if binding["logical_key"] not in lexical_keys | equipment_keys:
             continue
-        binding["value_kind"] = "other_text"
+        # Independent feeders keep their typed physical-vessel contract. Names
+        # are lexical surfaces, not identifiers with a fixed character count.
+        if (
+            binding["logical_key"] in lexical_keys
+            and binding["derivation"] != "sampled_auxiliary_vessel"
+        ):
+            binding["value_kind"] = "other_text"
         if binding["realization"]["adapter"] == "opaque_identifier":
             binding["realization"]["adapter"] = "natural_text"
         for slot in binding["occurrences"]:

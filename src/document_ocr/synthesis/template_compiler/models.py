@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -145,6 +146,7 @@ Derivation = Literal[
     "sum_gross_weight",
     "sum_net_weight",
     "sum_tare_weight",
+    "gross_minus_net_weight",
     "sum_volume",
     "container_count",
     "package_count",
@@ -157,6 +159,19 @@ Derivation = Literal[
     "sum_monetary_amounts",
     "sum_decimal_values",
     "same_as_binding",
+    "sampled_route_name",
+    "sampled_dg_un_number",
+    "sampled_dg_primary_class",
+    "sampled_dg_packing_group",
+    "sampled_dg_shipping_name",
+    "sampled_route_country",
+    "sampled_route_country_code",
+    "sampled_route_subdivision_code",
+    "sampled_route_location",
+    "sampled_route_locode",
+    "sampled_route_terminal",
+    "sampled_auxiliary_vessel",
+    "sampled_cargo_identity",
 ]
 
 
@@ -319,6 +334,7 @@ class ExtractionConfig(BaseModel):
     resume_from: PinnedRun | None = None
     excluded_document_ids: tuple[NonEmptyText, ...] = ()
     pinned_document_ids: tuple[NonEmptyText, ...] = ()
+    customs_program_registry: PinnedFile | None = None
 
     @model_validator(mode="after")
     def selection_contract_is_consistent(self) -> ExtractionConfig:
@@ -581,12 +597,31 @@ class AgentBindingProposal(BaseModel):
 
     @model_validator(mode="after")
     def semantics_match_render_mode(self) -> AgentBindingProposal:
+        physical_owner = (
+            self.render_mode in {"deterministic_auxiliary", "agent_residual"}
+            and self.value_kind == "decimal_measurement"
+            and self.group_kind in {"cargo", "equipment"}
+            and not self.target_paths
+            and self.derivation is None
+            and not self.dependency_bindings
+            and bool(self.dependency_paths)
+            and len(set(self.dependency_paths)) == len(self.dependency_paths)
+            and (
+                self.dependency_paths == ("documentPatch.containers",)
+                or all(
+                    re.fullmatch(r"documentPatch\.containers\[\d+\]", path)
+                    for path in self.dependency_paths
+                )
+            )
+        )
         if self.render_mode == "target_binding" and not self.target_paths:
             raise ValueError("target_binding requires target_paths")
         if self.render_mode == "deterministic_derived":
             if self.derivation is None or not (self.dependency_paths or self.dependency_bindings):
                 raise ValueError("deterministic_derived requires derivation and dependencies")
-        elif self.derivation is not None or self.dependency_paths or self.dependency_bindings:
+        elif not physical_owner and (
+            self.derivation is not None or self.dependency_paths or self.dependency_bindings
+        ):
             raise ValueError("only deterministic_derived may declare derivation inputs")
         if self.render_mode == "literal_static" and self.target_paths:
             raise ValueError("literal_static bindings cannot declare target paths")
@@ -933,6 +968,8 @@ class RiskCandidate(BaseModel):
         "equipment_identifier",
         "selected_text",
         "relational_numeric_range",
+        "shipment_package_total",
+        "cargo_identity_alias",
     ]
     line_id: LineId
     byte_start: Annotated[int, Field(ge=0)]

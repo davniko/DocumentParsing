@@ -66,3 +66,20 @@ def test_source_template_integrity_rejects_only_a_proven_count_contradiction() -
     assert source_template_integrity_issues(
         "CARRIER'S RECEIPT\n(FOUR) CONTAINER(S) ONLY\n", target
     ) == ("explicit_carrier_receipt_container_count_differs_from_labeled_containers:4_vs_3",)
+
+
+def test_explicit_shipment_count_is_independent_of_compiled_binding_ownership():
+    target = {"documentPatch": {"containers": [{"containerNumber": "FFAU4350822"}]}}
+    raw = "FFAU 4350822/HC40\n02 X 40\u2019HC FCL CONTAINERS SAID TO CONTAIN 6043 PKGS"
+    assert source_template_integrity_issues(raw, target) == (
+        "explicit_shipment_container_count_exceeds_labeled_containers:2_vs_1",
+    )
+    target["documentPatch"]["containers"].append({"containerNumber": "AAAA0000000"})
+    assert source_template_integrity_issues(raw, target) == ()
+    # A subgroup is a lower bound, not a declaration of the whole inventory.
+    assert source_template_integrity_issues(
+        "1 X 40HC CONTAINER SAID TO CONTAIN 600 PKGS", target
+    ) == ()
+    assert source_template_integrity_issues(
+        "Rate for 99 X 40HC CONTAINERS SAID TO CONTAIN goods: USD 400", target
+    ) == ()

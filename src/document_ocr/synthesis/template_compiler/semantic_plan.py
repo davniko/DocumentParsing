@@ -780,9 +780,10 @@ def resolve_geographic_members(
 ) -> AuxiliarySemanticPlan:
     """Resolve separately owned geography and source-proven ISO country codes.
 
-    Registration/tax-labelled codes are never reinterpreted. An exporter CODE
+    Tax codes and unpaired registration codes are never reinterpreted. A CODE
     must be a complete ISO alphabetic code matching every country occurrence in
-    that same entity, not merely a two-letter string somewhere on the page.
+    that same entity. Registration codes additionally require the matching
+    registration-country owner, not merely a country elsewhere in the entity.
     """
     by_key = {binding.logical_key: binding for binding in bindings}
     entities = []
@@ -825,6 +826,12 @@ def resolve_geographic_members(
             if member.field == "country"
             for slot in by_key[member.logical_key].occurrences
         }
+        registration_countries = {
+            tuple(_identity_tokens(member.logical_key))
+            for member in entity.members
+            if member.field == "country"
+            and set(_identity_tokens(member.logical_key)) & {"registration", "registry"}
+        }
         members = []
         for member in entity.members:
             if member.logical_key not in candidates:
@@ -835,6 +842,16 @@ def resolve_geographic_members(
                 members.append(member.model_copy(update={"field": "region"}))
                 continue
             tokens = set(_identity_tokens(binding.logical_key))
+            ordered_tokens = tuple(_identity_tokens(binding.logical_key))
+            paired_registration_country = (
+                bool(ordered_tokens)
+                and ordered_tokens[-1] == "code"
+                and any(
+                    country_tokens[-1] == "country"
+                    and ordered_tokens[:-1] in {country_tokens, country_tokens[:-1]}
+                    for country_tokens in registration_countries
+                )
+            )
             surfaces = [slot.source_text.strip() for slot in binding.occurrences]
             if _entity_field(binding) == "postal_code":
                 members.append(member.model_copy(update={"field": "postal_code"}))
@@ -842,7 +859,8 @@ def resolve_geographic_members(
             if (
                 member.field in {"registration_identifier", "other_identifier"}
                 and "code" in tokens
-                and not tokens & {"registration", "registry", "tax", "vat", "gst"}
+                and not tokens & {"tax", "vat", "gst"}
+                and (not tokens & {"registration", "registry"} or paired_registration_country)
                 and len(countries) == 1
                 and None not in countries
                 and bool(surfaces)

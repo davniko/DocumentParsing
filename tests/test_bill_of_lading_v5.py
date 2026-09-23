@@ -20,7 +20,7 @@ def test_semantic_container_pair_projects_to_exact_application_code() -> None:
     assert semantic_container_code("TWENTY_FOOT_STANDARD_HEIGHT", "GENERAL_PURPOSE") == "22GP"
 
 
-def test_temperature_requires_complete_temperature_capable_equipment_pair() -> None:
+def test_printed_semantic_equipment_requires_a_complete_temperature_capable_pair() -> None:
     with pytest.raises(ValidationError, match="present together"):
         RelationExplicitContainerV5.model_validate(
             {"containerNumber": "CAIU7896610", "typeCategory": "REFRIGERATED"},
@@ -40,20 +40,29 @@ def test_temperature_requires_complete_temperature_capable_equipment_pair() -> N
         RelationExplicitContainerV5.model_validate(
             {
                 "containerNumber": "CAIU7896610",
-                "temperatureSetpoint": {"value": -18.0, "unit": "celsius"},
-            },
-            strict=True,
-        )
-    with pytest.raises(ValidationError, match="printed fallback"):
-        RelationExplicitContainerV5.model_validate(
-            {
-                "containerNumber": "CAIU7896610",
                 "typeDescription": "40RH",
                 "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
                 "typeCategory": "REFRIGERATED",
             },
             strict=True,
         )
+
+
+def test_printed_temperature_without_size_type_preserves_observed_label_visibility() -> None:
+    container = {
+        "containerNumber": "CAIU7896610",
+        "temperatureSetpoint": {"value": -18.0, "unit": "celsius"},
+    }
+    value = RelationExplicitContainerV5.model_validate(container, strict=True)
+    assert value.model_dump(mode="json", exclude_none=True) == container
+    target = {"schemaVersion": "5.0.0-experimental", "documentPatch": {"containers": [container]}}
+    validated = BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
+        document_id="temperature_only", target=target
+    )
+    tables = V5_ADAPTER.project(
+        document_id="temperature_only", source_row_index=0, target=validated
+    )
+    assert V5_ADAPTER.reconstruct(document_id="temperature_only", tables=tables.rows) == validated
 
 
 def test_v4_migration_and_enrichment_preserve_relational_inverse() -> None:

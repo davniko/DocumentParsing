@@ -3,9 +3,77 @@ from types import SimpleNamespace as NS
 import pytest
 
 from document_ocr.synthesis.template_compiler import descendant as r
-from document_ocr.synthesis.template_compiler.geographic_context import address_country_context
+from document_ocr.synthesis.template_compiler.geographic_context import (
+    _terminal_country,
+    address_country_context,
+    generated_address_country,
+)
 from document_ocr.synthesis.template_compiler.models import AuxiliaryEntityMember
 from document_ocr.synthesis.template_compiler.semantic_plan import resolve_geographic_members
+
+
+def test_terminal_postal_letters_are_not_country_evidence():
+    countries = {"bd": "BD", "egypt": "EG", "us": "US"}
+    assert _terminal_country("14 Oosterhaven, 1671 BD", countries) is None
+    assert _terminal_country("Main Street, 07020 US", countries) is None
+    assert _terminal_country("Main Street, US", countries) == "US"
+    assert _terminal_country("Main Street, 11211 Egypt", countries) == "EG"
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "Korea, Republic of",
+        "42 Street, Seoul, KOREA, REPUBLIC\nOF",
+        "Seoul; Korea, Republic of",
+    ],
+)
+def test_country_alias_can_span_complete_comma_and_line_components(address):
+    assert _terminal_country(address, {"korearepublicof": "KR"}) == "KR"
+
+
+def test_country_components_cannot_skip_intervening_address_text():
+    countries = {"korearepublicof": "KR", "jersey": "JE"}
+    assert _terminal_country("Korea, Commercial Street, Republic of", countries) is None
+    assert _terminal_country("Country unknown, New Jersey", countries) is None
+
+
+@pytest.mark.parametrize(
+    ("address", "expected"),
+    [
+        ("18 Ataturk Industrial Avenue Kayseri Turkey", "TR"),
+        ("14 Harbour Road Qurayyat 211 Oman", "OM"),
+        ("18 Harbour Road Democratic Republic of the Congo", "CD"),
+        ("18 Harbour Road Hong Kong China", "HK"),
+        ("18 Harbour Road, Kaohsiung, Taiwan, Province of China", "TW"),
+        ("18 Industrial Road New Mexico", None),
+        ("18 Industrial Road New Jersey", None),
+        ("18 Road, 1671 BD", None),
+        ("18 Turkey Road", None),
+        ("18 Road, US", "US"),
+    ],
+)
+def test_flattened_generated_country_preserves_long_aliases_and_region_context(address, expected):
+    countries = {
+        "turkey": "TR",
+        "oman": "OM",
+        "congo": "CG",
+        "republicofthecongo": "CG",
+        "democraticrepublicofthecongo": "CD",
+        "hongkongchina": "HK",
+        "china": "CN",
+        "mexico": "MX",
+        "jersey": "JE",
+        "bd": "BD",
+        "us": "US",
+        "taiwanprovinceofchina": "TW",
+    }
+    assert (
+        generated_address_country(
+            address, countries, region_names=frozenset({"newmexico", "newjersey"})
+        )
+        == expected
+    )
 
 
 def fixture(country_tail=", U.S.A."):

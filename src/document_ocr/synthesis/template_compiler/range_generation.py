@@ -155,6 +155,68 @@ def formal_range_text(text: str) -> bool:
     )
 
 
+def condition_lexical_ranges(
+    template: CertifiedSemanticTemplate,
+    source_target: Mapping[str, Any],
+    target: Mapping[str, Any],
+    fields: Sequence[Mapping[str, Any]],
+) -> tuple[Mapping[str, Any], ...]:
+    """Separate a new shipping-mark identity from its proven interval math.
+
+    Complete identity + package-number-caption + interval fields need no
+    linguistic inference: a synthetic mark identifies the shipment, while
+    the existing range solver supplies every endpoint.
+    Arbitrary prose, unproven intervals and existing projection frames are not
+    reinterpreted as this grammar.
+    """
+    ranges = plan_ranges(template, source_target, target).target_values
+    caption = re.compile(r"\s+(?:(?:C|CASE|PALLET|PACKAGE)(?:/|\s+)NO\.?\s*:?\s*)$", re.I)
+    result = []
+    for field in fields:
+        paths = field["paths"]
+        if (
+            not paths
+            or "hostAssembly" in field
+            or not all(
+                re.fullmatch(r"documentPatch\.cargoGroups\[\d+\]\.marksAndNumbers\[\d+\]", p)
+                and p in ranges
+                for p in paths
+            )
+        ):
+            result.append(field)
+            continue
+        old = field["source"]
+        intervals = inclusive_range_surfaces(old)
+        match = caption.search(old[: intervals[0].char_start]) if intervals else None
+        if (
+            match is None
+            or not old[: match.start()].strip()
+            or not formal_range_text(old[match.start() :])
+        ):
+            result.append(field)
+            continue
+        values = {ranges[p] for p in paths}
+        if len(values) != 1:
+            raise ValueError("one lexical range field has inconsistent interval owners")
+        new = values.pop()
+        identity = old[: match.start()]
+        if not new.startswith(identity):
+            raise ValueError("range solver changed its unowned linguistic identity")
+        result.append(
+            {
+                **field,
+                "hostRangeIdentity": True,
+                "hostAssembly": dict(
+                    prefix="",
+                    suffix=new[len(identity) :],
+                    mutableSource=identity,
+                    minimumWords=1,
+                ),
+            }
+        )
+    return tuple(result)
+
+
 def _apportion(total: int, weights: Sequence[int]) -> list[int]:
     if total < len(weights):
         raise ValueError("range cardinalities cannot preserve positive source support")

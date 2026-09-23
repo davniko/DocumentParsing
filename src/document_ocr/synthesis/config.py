@@ -918,13 +918,14 @@ class SemanticCompletionThermalConfig(_StrictModel):
         Annotated[int, Field(ge=0, le=10_000)],
     ]
     ambient_hs_chapters: tuple[Annotated[str, StringConstraints(pattern=r"^[0-9]{2}$")], ...]
+    ambient_hs_headings: tuple[Annotated[str, StringConstraints(pattern=r"^[0-9]{4}$")], ...] = ()
     frozen_minimum_celsius: float
     frozen_maximum_celsius: float
     chilled_minimum_celsius: float
     chilled_maximum_celsius: float
     step_celsius: Annotated[float, Field(gt=0)]
 
-    @field_validator("ambient_hs_chapters", mode="before")
+    @field_validator("ambient_hs_chapters", "ambient_hs_headings", mode="before")
     @classmethod
     def freeze_ambient_hs_chapters(cls, value: Any) -> Any:
         return tuple(value) if isinstance(value, list) else value
@@ -940,6 +941,8 @@ class SemanticCompletionThermalConfig(_StrictModel):
             sorted(set(self.ambient_hs_chapters))
         ):
             raise ValueError("ambient HS chapters must be non-empty, unique, and sorted")
+        if self.ambient_hs_headings != tuple(sorted(set(self.ambient_hs_headings))):
+            raise ValueError("ambient HS headings must be unique and sorted")
         for minimum, maximum, label in (
             (self.frozen_minimum_celsius, self.frozen_maximum_celsius, "frozen"),
             (self.chilled_minimum_celsius, self.chilled_maximum_celsius, "chilled"),

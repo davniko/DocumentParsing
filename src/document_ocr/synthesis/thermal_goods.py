@@ -32,6 +32,8 @@ class ThermalGoodsIdentity:
     heading_description: str
     description: str
     profile: ThermalProfile
+    observed_setpoints_celsius: tuple[float, ...] = ()
+    fit_document_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +50,8 @@ class ThermalGoodsSupport:
     chilled: tuple[ThermalGoodsIdentity, ...]
     ambient: tuple[AmbientGoodsIdentity, ...]
     ambient_chapters: tuple[str, ...]
+    ambient_headings: tuple[str, ...] = ()
+    observation_review: tuple[tuple[str, str], ...] = ()
 
     def thermal_candidates(self, profile: ThermalProfile) -> tuple[ThermalGoodsIdentity, ...]:
         return self.frozen if profile == "FROZEN" else self.chilled
@@ -86,8 +90,12 @@ def build_thermal_goods_support(
     *,
     registry: UkGlobalTariffRegistry,
     ambient_chapters: Sequence[str],
+    ambient_headings: Sequence[str] = (),
 ) -> ThermalGoodsSupport:
     chapters = tuple(sorted(set(ambient_chapters)))
+    headings = tuple(sorted(set(ambient_headings)))
+    if any(re.fullmatch(r"[0-9]{4}", value) is None for value in headings):
+        raise ValueError("ambient HS headings must be exact four-digit identities")
     if not chapters or any(re.fullmatch(r"[0-9]{2}", value) is None for value in chapters):
         raise ValueError("ambient HS chapters must be non-empty exact two-digit identities")
     frozen: list[ThermalGoodsIdentity] = []
@@ -105,7 +113,7 @@ def build_thermal_goods_support(
                 profile=profile,
             )
             (frozen if profile == "FROZEN" else chilled).append(identity)
-        elif row.chapter_code in chapters:
+        elif row.chapter_code in chapters or code[:4] in headings:
             ambient.append(
                 AmbientGoodsIdentity(
                     hs6=code,
@@ -121,6 +129,7 @@ def build_thermal_goods_support(
         chilled=tuple(chilled),
         ambient=tuple(ambient),
         ambient_chapters=chapters,
+        ambient_headings=headings,
     )
 
 

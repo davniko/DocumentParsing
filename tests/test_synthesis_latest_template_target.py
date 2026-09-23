@@ -11,7 +11,6 @@ from document_ocr.synthesis.template_compiler.descendant import (
     _equipment_semantics_match,
     _render_agent_target_binding,
     _resolve_path,
-    _typed_semantic_equipment_output_matches,
 )
 from document_ocr.synthesis.template_compiler.latest_target import (
     LatestTargetConstructionError,
@@ -25,7 +24,7 @@ _CATALOG = (
     / "artifacts/kie-synthesis-production/template-base/catalogs/"
     "mpci-bl-production-template-catalog1510-v5"
 )
-_INCOMPATIBLE = {
+_PRINTED_TEMPERATURE_WITHOUT_EQUIPMENT_TYPE = {
     "doc_243706979d0c12ffcdcd311dc31d417d9baf5c738232797cfef21ec20ade8bab",
     "doc_5734315e62a9036a810859819fdd12fa3dedf3ea9a52c51d044d01336c373fed",
     "doc_7043674b2e2f27b44082a2e7404fa807c42fe478184ead07783b73e1065ee8c5",
@@ -51,16 +50,24 @@ def test_latest_target_population_is_fail_closed_and_exact() -> None:
             compatible += 1
             assert target["schemaVersion"] == "5.0.0-experimental"
 
-    assert compatible == 1_507
-    assert incompatible == _INCOMPATIBLE
+    assert compatible == 1_510
+    assert not incompatible
 
 
-def test_latest_target_rejects_temperature_without_equipment_evidence() -> None:
-    with pytest.raises(
-        LatestTargetConstructionError,
-        match="cannot be represented faithfully",
-    ):
-        latest_target_from_source(_source_target(next(iter(_INCOMPATIBLE))))
+@pytest.mark.parametrize("document_id", sorted(_PRINTED_TEMPERATURE_WITHOUT_EQUIPMENT_TYPE))
+def test_latest_target_preserves_printed_temperature_without_inventing_equipment(
+    document_id: str,
+) -> None:
+    source = _source_target(document_id)
+    target = latest_target_from_source(source)
+    before = source["documentPatch"]["containers"]
+    after = target["documentPatch"]["containers"]
+    assert len(before) == len(after)
+    for old, new in zip(before, after, strict=True):
+        assert new["temperatureSetpoint"] == old["temperatureSetpoint"]
+        assert "typeCategory" not in new
+        assert "sizeCategory" not in new
+        assert "typeDescription" not in new
 
 
 def test_compiled_dangerous_goods_paths_resolve_their_v5_locations() -> None:
@@ -135,7 +142,7 @@ def test_incidental_short_identifier_overlap_is_not_a_runtime_relationship() -> 
     assert active["agent:equipment:container_row_number:0"] == ()
 
 
-def test_projected_equipment_surface_validates_against_its_typed_receipt() -> None:
+def test_incomplete_equipment_surface_requires_compilation_ownership_repair() -> None:
     document_id = "doc_872132b13424286de434aadcac0a823d05005bc3355ca259f946e1b32f72b138"
     source = _source_target(document_id)
     target = latest_target_from_source(source)
@@ -148,16 +155,5 @@ def test_projected_equipment_surface_validates_against_its_typed_receipt() -> No
         if row.logical_key == "anchor:documentPatch.containers[0].typeDescription"
     )
 
-    output = _render_agent_target_binding(
-        binding,
-        source_target=source,
-        target=target,
-    )
-
-    assert set(output.replacements.values()) == {"DRY 9'6"}
-    assert _typed_semantic_equipment_output_matches(
-        binding=binding,
-        source_target=source,
-        target=target,
-        output=output,
-    )
+    with pytest.raises(ValueError, match="partial equipment surface"):
+        _render_agent_target_binding(binding, source_target=source, target=target)
