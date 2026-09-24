@@ -15,7 +15,9 @@ from document_ocr.synthesis.template_compiler.descendant import (
 from document_ocr.synthesis.template_compiler.host import (
     SpanDraft,
     global_shared_temperature_paths,
+    repeated_cargo_temperature_contract,
     validate_compiled_global_shared_temperature_scope,
+    validate_repeated_cargo_temperature_scope,
     validate_signed_temperature_word_scope,
 )
 
@@ -128,3 +130,73 @@ def test_signed_temperature_word_is_one_mutable_surface() -> None:
     assert _render_signed_temperature_word_surface("PLUS 1", 1, 3) == "PLUS 3"
     with pytest.raises(ValueError, match="disagrees"):
         _render_signed_temperature_word_surface("PLUS 1", -1, 3)
+
+
+def _repeated_reefer_target() -> dict:
+    return {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "groupId": f"g{i}",
+                    "description": "Fresh apples",
+                    "hsCodes": ["08081080"],
+                    "handlingInstructions": ["VENT.: 20.0 CBM/H"],
+                    "netWeight": {"unit": "kilogram", "value": 12000},
+                    "volume": {"unit": "cubic_metre", "value": 45},
+                }
+                for i in range(1, 4)
+            ],
+            "cargoPackages": [
+                {
+                    "groupId": f"g{i}",
+                    "packageId": f"p{i}",
+                    "quantity": 1000,
+                    "typeCategory": "PACKAGE_BOX",
+                }
+                for i in range(1, 4)
+            ],
+            "cargoAllocationGroups": [
+                {"groupId": f"g{i}", "allocations": [{"containerNumber": f"ABCU000000{i}"}]}
+                for i in range(1, 4)
+            ],
+            "containers": [
+                {
+                    "containerNumber": f"ABCU000000{i}",
+                    "typeDescription": "40RQ",
+                    "temperatureSetpoint": {"unit": "celsius", "value": 1},
+                }
+                for i in range(1, 4)
+            ],
+        }
+    }
+
+
+def test_one_global_setting_requires_complete_shared_reefer_and_goods_bindings() -> None:
+    raw = "CARRYING TEMPERATURE OF PLUS 1 DEG' C"
+    target = _repeated_reefer_target()
+    contract = repeated_cargo_temperature_contract(raw, target)
+    assert set(contract) == {"value", "unit", "description", "hs", "handling"}
+    drafts = tuple(
+        NS(target_paths=paths, logical_key=name, render_mode="target_binding")
+        for name, paths in contract.items()
+    )
+    validate_repeated_cargo_temperature_scope(raw=raw, source_target=target, drafts=drafts)
+    with pytest.raises(ValueError, match="shared printed description"):
+        validate_repeated_cargo_temperature_scope(
+            raw=raw, source_target=target, drafts=drafts[0:2] + drafts[3:]
+        )
+    target["documentPatch"]["containers"][0].pop("temperatureSetpoint")
+    with pytest.raises(ValueError, match="incomplete container setpoint labels"):
+        validate_repeated_cargo_temperature_scope(raw=raw, source_target=target, drafts=drafts)
+
+
+def test_global_setting_proof_does_not_merge_distinct_cargo_or_allocations() -> None:
+    raw = "CARRYING TEMPERATURE OF PLUS 1 DEG' C"
+    target = _repeated_reefer_target()
+    target["documentPatch"]["cargoGroups"][1]["description"] = "Different goods"
+    assert repeated_cargo_temperature_contract(raw, target) == {}
+    target = _repeated_reefer_target()
+    target["documentPatch"]["cargoAllocationGroups"][1]["allocations"].append(
+        {"containerNumber": "ABCU0000001"}
+    )
+    assert repeated_cargo_temperature_contract(raw, target) == {}

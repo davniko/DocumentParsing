@@ -63,6 +63,78 @@ def test_source_screen_accepts_existing_proved_cargo_instruction_owner():
     prose.require_source_setting_owners(text.encode(), NS(bindings=(instruction, setpoint)), target)
 
 
+@pytest.mark.parametrize(
+    "surface,new_value,expected",
+    [
+        ("TEMPERATURE IS 4 DEGREES CENTIGRADE", 5, "TEMPERATURE IS 5 DEGREES CENTIGRADE"),
+        ("TEMPERATURE TO BE SET AT +21.0 C", 5, "TEMPERATURE TO BE SET AT +5.0 C"),
+    ],
+)
+def test_explicit_cargo_temperature_is_one_deterministic_text_and_setpoint_surface(
+    surface, new_value, expected
+):
+    paths = (
+        "documentPatch.cargoGroups[0].handlingInstructions[0]",
+        "documentPatch.containers[0].temperatureSetpoint.value",
+        "documentPatch.containers[0].temperatureSetpoint.unit",
+    )
+    old_value = 4 if "CENTIGRADE" in surface else 21
+    original = {paths[0]: surface, paths[1]: old_value, paths[2]: "celsius"}
+    changed = {paths[0]: expected, paths[1]: new_value, paths[2]: "celsius"}
+    assert prose.composite_instruction_contract(paths, surface, original) == paths
+    assert prose.render_composite_instruction(surface, paths, original, changed) == expected
+    changed[paths[0]] = surface
+    with pytest.raises(ValueError, match="contradicts"):
+        prose.render_composite_instruction(surface, paths, original, changed)
+
+
+def test_composite_temperature_is_prepared_before_linguistic_generation():
+    text = "TEMPERATURE IS 4 DEGREES CENTIGRADE"
+    path = "documentPatch.cargoGroups[0].handlingInstructions[0]"
+    paths = (
+        path,
+        "documentPatch.containers[0].temperatureSetpoint.value",
+        "documentPatch.containers[0].temperatureSetpoint.unit",
+    )
+    template = NS(bindings=(NS(target_paths=paths, derivation=None),))
+    old = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "handlingInstructions": [text]}],
+            "containers": [{"temperatureSetpoint": {"value": 4, "unit": "celsius"}}],
+        }
+    }
+    new = deepcopy(old)
+    new["documentPatch"]["containers"][0]["temperatureSetpoint"]["value"] = 5
+    field = dict(key="instruction", paths=[path], source=text, constraints=[])
+    plan = host.prepare(
+        NS(target=old, template=template),
+        [field],
+        scenario=CargoScenario(new, {}, (), {}),
+        projection=None,
+        contract=None,
+        sample_id="s",
+        seed=1,
+    )
+    assert plan.values["instruction"] == "TEMPERATURE IS 5 DEGREES CENTIGRADE"
+    assert plan.evidence["instruction"]["kind"] == "compiled_temperature_dependency"
+
+
+def test_single_printed_reefer_setting_must_not_be_missing_from_source_labels():
+    source = {
+        "documentPatch": {
+            "containers": [{"typeDescription": "20RF"}],
+            "cargoGroups": [{"handlingInstructions": ["TEMPERATURE IS 4 DEGREES CENTIGRADE"]}],
+        }
+    }
+    with pytest.raises(ValueError, match="without a temperatureSetpoint label"):
+        prose.require_singleton_printed_setpoint(source)
+    source["documentPatch"]["containers"][0]["temperatureSetpoint"] = {
+        "unit": "celsius",
+        "value": 4,
+    }
+    prose.require_singleton_printed_setpoint(source)
+
+
 def case(text="Cargo carrying temperature of -20 degrees Celsius."):
     path = "documentPatch.cargoGroups[0].handlingInstructions[0]"
     base = "documentPatch.containers[0].temperatureSetpoint"

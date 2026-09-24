@@ -12,11 +12,12 @@ from .models import CertifiedSemanticTemplate
 
 _MENTION = re.compile(
     r"(?<![A-Za-z0-9.,])(?P<number>[-+]?\d+(?:[.,]\d+)?)\s*"
-    r"(?:°\s*|DEGREES?\s+)?(?P<unit>CELSIUS|FAHRENHEIT|KELVIN|C|F|K)\b",
+    r"(?:°\s*|DEGREES?\s+)?(?P<unit>CENTIGRADE|CELSIUS|FAHRENHEIT|KELVIN|C|F|K)\b",
     re.I,
 )
 _UNITS = {
     "C": "celsius",
+    "CENTIGRADE": "celsius",
     "CELSIUS": "celsius",
     "F": "fahrenheit",
     "FAHRENHEIT": "fahrenheit",
@@ -53,9 +54,87 @@ _CARRYING_SETTING = re.compile(
     r"\b(?:SET\s+TEMP(?:ERATURE)?|CARRYING\s+TEMPERATURE|REEFER\s+SETTINGS)"
     r"(?:\s+CONT\.\s+NOS\.?)?\s*(?:OF\s+)?[:=]?\s*"
     r"(?P<value>[+-]?\d+(?:[.,]\d+)?)\s*(?:°\s*|DEGREES?\s+)?"
-    r"(?:CELSIUS|FAHRENHEIT|KELVIN|C|F|K)\b",
+    r"(?:CENTIGRADE|CELSIUS|FAHRENHEIT|KELVIN|C|F|K)\b",
     re.I,
 )
+
+
+def composite_instruction_contract(
+    paths: Sequence[str], surface: str, source_values: Mapping[str, Any]
+) -> tuple[str, str, str] | None:
+    """Prove one inseparable printed instruction owns its explicit setpoint.
+
+    The target's text field remains lexical, while the same physical span also
+    owns the numeric value and unit. Neither field is hidden as semantic-only.
+    """
+    text_paths = [
+        p
+        for p in paths
+        if re.fullmatch(
+            r"documentPatch\.cargoGroups\[\d+\]\."
+            r"(?:handlingInstructions|additionalInformation)\[\d+\]",
+            p,
+        )
+    ]
+    value_paths = [
+        p
+        for p in paths
+        if re.fullmatch(r"documentPatch\.containers\[\d+\]\.temperatureSetpoint\.value", p)
+    ]
+    if len(paths) != 3 or len(text_paths) != 1 or len(value_paths) != 1:
+        return None
+    text_path, value_path = text_paths[0], value_paths[0]
+    unit_path = value_path.removesuffix(".value") + ".unit"
+    if set(paths) != {text_path, value_path, unit_path}:
+        return None
+    text = source_values[text_path]
+    unit = source_values[unit_path]
+    if not isinstance(text, str) or not isinstance(unit, str):
+        return None
+    if (
+        " ".join(surface.split()).casefold() != " ".join(text.split()).casefold()
+        or not _SETTING_CAPTION.search(surface)
+        or _OTHER_TEMPERATURE_PROPERTY.search(surface)
+    ):
+        return None
+    mentions = _mentions(surface)
+    if len(mentions) != 1:
+        return None
+    try:
+        value = Decimal(str(source_values[value_path]))
+    except (ValueError, TypeError):
+        return None
+    if (
+        not value.is_finite()
+        or Decimal(mentions[0]["number"].replace(",", ".")) != value
+        or _UNITS[mentions[0]["unit"].upper()] != unit
+    ):
+        return None
+    return text_path, value_path, unit_path
+
+
+def render_composite_instruction(
+    template_surface: str,
+    paths: Sequence[str],
+    source_values: Mapping[str, Any],
+    target_values: Mapping[str, Any],
+) -> str:
+    contract = composite_instruction_contract(paths, template_surface, source_values)
+    if contract is None:
+        raise ValueError("certified temperature-instruction composite lost its source evidence")
+    text_path, value_path, unit_path = contract
+    if target_values[unit_path] != source_values[unit_path]:
+        raise ValueError("temperature-instruction unit changed outside its printed format")
+    new = Decimal(str(target_values[value_path]))
+    if not new.is_finite():
+        raise ValueError("temperature-instruction setpoint is not finite")
+    output = _render_number(template_surface, _mentions(template_surface), new)
+    target_text = target_values[text_path]
+    if not isinstance(target_text, str) or (
+        " ".join(output.split()).casefold() != " ".join(target_text.split()).casefold()
+    ):
+        raise ValueError("temperature-instruction text contradicts its sampled setpoint")
+    return output
 
 
 def require_source_setting_owners(
@@ -93,6 +172,38 @@ def require_source_setting_owners(
                 "source-only carrying-temperature setting lacks physical ownership: "
                 + match.group()
             )
+
+
+def require_singleton_printed_setpoint(source: Mapping[str, Any]) -> None:
+    """A sole reefer cannot hide an explicit carrying setting in cargo prose.
+
+    The check deliberately excludes non-reefer equipment and temperature
+    properties such as flash points. It rejects missing source annotations;
+    it does not infer a value or add a field on the compiler's behalf.
+    """
+    from document_ocr.synthesis.container_semantics import review_source_equipment_surface
+
+    patch = source["documentPatch"]
+    containers = patch.get("containers", ())
+    if len(containers) != 1 or "temperatureSetpoint" in containers[0]:
+        return
+    equipment = review_source_equipment_surface(
+        containers[0].get("typeDescription"), temperature_present=False
+    )
+    if equipment.type_category != "REFRIGERATED":
+        return
+    for group in patch.get("cargoGroups", ()):
+        for field in ("handlingInstructions", "additionalInformation"):
+            for instruction in group.get(field, ()):
+                if (
+                    _SETTING_CAPTION.search(instruction)
+                    and not _OTHER_TEMPERATURE_PROPERTY.search(instruction)
+                    and len(_mentions(instruction)) == 1
+                ):
+                    raise ValueError(
+                        "one refrigerated container has a printed carrying temperature "
+                        "without a temperatureSetpoint label"
+                    )
 
 
 def _mentions(text: str) -> tuple[re.Match[str], ...]:

@@ -1086,6 +1086,30 @@ def _render_target_binding(
     target_values = tuple(_binding_target_value(target, path) for path in binding.target_paths)
     if not target_values:
         raise ValueError("target binding has no target values")
+    if binding.realization.adapter == "temperature_instruction":
+        from .temperature_prose import (
+            composite_instruction_contract,
+            render_composite_instruction,
+        )
+
+        if len(binding.occurrences) != 1:
+            raise ValueError("temperature instruction needs one exact source span")
+        slot = binding.occurrences[0]
+        composite_source_values = {
+            row.target_path: row.source_value for row in binding.realization.target_values
+        }
+        descendant_values = dict(zip(binding.target_paths, target_values, strict=True))
+        contract = composite_instruction_contract(
+            binding.target_paths, slot.source_text, composite_source_values
+        )
+        if contract is None:
+            raise ValueError("temperature instruction lost its compiled source contract")
+        output = render_composite_instruction(
+            slot.source_text, binding.target_paths, composite_source_values, descendant_values
+        )
+        return BindingOutput(
+            replacements={slot.slot_id: output}, canonical_value=descendant_values[contract[0]]
+        )
     if len({canonical_json_bytes(value) for value in target_values}) != 1:
         raise ValueError("one deterministic binding has unequal descendant target values")
     new_value = target_values[0]

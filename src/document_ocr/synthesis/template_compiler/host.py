@@ -2976,6 +2976,154 @@ _GLOBAL_CARRYING_TEMP = re.compile(
 _SIGNED_TEMPERATURE_WORD = re.compile(
     r"\b(?P<word>PLUS|MINUS)\s+(?P<number>\d+(?:[.,]\d+)?)\s+DEG['\u2019]?\s*C\b", re.I
 )
+_REPEATED_CARGO_CARRYING = re.compile(
+    r"\bCARRYING\s+TEMPERATURE\s+OF\s+"
+    r"(?P<word>PLUS|MINUS)\s+(?P<number>\d+(?:[.,]\d+)?)\s+"
+    r"DEG['\u2019]?\s*C\b",
+    re.I,
+)
+
+
+def repeated_cargo_temperature_contract(
+    raw: str, source_target: Mapping[str, Any]
+) -> dict[str, tuple[str, ...]]:
+    """Find a printed global setting over one repeated commodity and its reefers.
+
+    Exact repeated goods, package loads, one-to-one allocation, reefer equipment,
+    and one unqualified carrying instruction are required. The function only
+    recognizes review-worthy evidence; it never adds missing source labels.
+    """
+    from document_ocr.synthesis.container_semantics import review_source_equipment_surface
+    from document_ocr.synthesis.semantic_completion_pipeline import _group_allocations
+
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return {}
+    groups, packages, containers = (
+        patch.get("cargoGroups"),
+        patch.get("cargoPackages"),
+        patch.get("containers"),
+    )
+    if (
+        not isinstance(groups, list)
+        or not isinstance(packages, list)
+        or not isinstance(containers, list)
+        or len(groups) < 2
+        or len(groups) != len(packages)
+        or len(groups) != len(containers)
+    ):
+        return {}
+    for field in ("description", "hsCodes", "handlingInstructions", "netWeight", "volume"):
+        if len({canonical_json_bytes(group.get(field)) for group in groups}) != 1:
+            return {}
+    if any(
+        len(group.get("hsCodes") or ()) != 1 or len(group.get("handlingInstructions") or ()) != 1
+        for group in groups
+    ):
+        return {}
+    if (
+        len({package.get("quantity") for package in packages}) != 1
+        or len({package.get("typeCategory") for package in packages}) != 1
+    ):
+        return {}
+    if any(
+        review_source_equipment_surface(
+            container.get("typeDescription"),
+            temperature_present="temperatureSetpoint" in container,
+        ).type_category
+        != "REFRIGERATED"
+        for container in containers
+    ):
+        return {}
+    allocation = _group_allocations(patch)
+    owned = [allocation.get(group["groupId"], ()) for group in groups]
+    if any(len(numbers) != 1 for numbers in owned) or {numbers[0] for numbers in owned} != {
+        container["containerNumber"] for container in containers
+    }:
+        return {}
+    printed = tuple(_REPEATED_CARGO_CARRYING.finditer(raw))
+    if len(printed) != 1:
+        return {}
+    observed = Decimal(printed[0]["number"].replace(",", "."))
+    if printed[0]["word"].upper() == "MINUS":
+        observed = -observed
+    settings = [container.get("temperatureSetpoint") for container in containers]
+    if any(
+        isinstance(setting, Mapping)
+        and (setting.get("unit") != "celsius" or Decimal(str(setting["value"])) != observed)
+        for setting in settings
+    ):
+        raise ValueError("repeated reefer carrying sentence contradicts a source setpoint label")
+    count = len(containers)
+    return {
+        "value": tuple(
+            f"documentPatch.containers[{index}].temperatureSetpoint.value" for index in range(count)
+        ),
+        "unit": tuple(
+            f"documentPatch.containers[{index}].temperatureSetpoint.unit" for index in range(count)
+        ),
+        "description": tuple(
+            f"documentPatch.cargoGroups[{index}].description" for index in range(count)
+        ),
+        "hs": tuple(f"documentPatch.cargoGroups[{index}].hsCodes[0]" for index in range(count)),
+        "handling": tuple(
+            f"documentPatch.cargoGroups[{index}].handlingInstructions[0]" for index in range(count)
+        ),
+    }
+
+
+def validate_repeated_cargo_temperature_scope(
+    *, raw: str, source_target: Mapping[str, Any], drafts: Sequence[SpanDraft]
+) -> None:
+    contract = repeated_cargo_temperature_contract(raw, source_target)
+    if not contract:
+        return
+    containers = source_target["documentPatch"]["containers"]
+    if any("temperatureSetpoint" not in container for container in containers):
+        raise ValueError(
+            "repeated reefer commodity has one shared printed carrying temperature "
+            "but incomplete container setpoint labels"
+        )
+    for name, paths in contract.items():
+        owners = [draft for draft in drafts if set(paths).intersection(draft.target_paths)]
+        if (
+            not owners
+            or len({draft.logical_key for draft in owners}) != 1
+            or any(draft.render_mode != "target_binding" for draft in owners)
+            or any(set(draft.target_paths) != set(paths) for draft in owners)
+        ):
+            raise ValueError(
+                "repeated reefer commodity requires one shared printed " + name + " binding"
+            )
+
+
+def validate_compiled_repeated_cargo_temperature_scope(
+    *, raw: str, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
+) -> None:
+    contract = repeated_cargo_temperature_contract(raw, source_target)
+    if not contract:
+        return
+    containers = source_target["documentPatch"]["containers"]
+    if any("temperatureSetpoint" not in container for container in containers):
+        raise ValueError(
+            "repeated reefer commodity has one shared printed carrying temperature "
+            "but incomplete container setpoint labels"
+        )
+    for name, paths in contract.items():
+        owners = [
+            binding
+            for binding in template.bindings
+            if set(paths).intersection(binding.target_paths)
+        ]
+        if (
+            len(owners) != 1
+            or set(owners[0].target_paths) != set(paths)
+            or owners[0].target_relationship != "shared_value_equality"
+            or not owners[0].realization.deterministic
+        ):
+            raise ValueError(
+                "compiled repeated reefer commodity lost its shared " + name + " binding"
+            )
 
 
 def global_shared_temperature_paths(raw: str, source_target: Mapping[str, Any]) -> tuple[str, ...]:
@@ -5044,6 +5192,16 @@ def validate_target_binding_relationships(
     for draft in drafts:
         relationship = target_path_relationship(source_target, draft.target_paths)
         if draft.render_mode == "target_binding" and relationship == "composite_target_surface":
+            from .temperature_prose import composite_instruction_contract
+
+            source_values = {
+                path: _resolve_target_path(source_target, path) for path in draft.target_paths
+            }
+            if (
+                composite_instruction_contract(draft.target_paths, draft.source_text, source_values)
+                is not None
+            ):
+                continue
             raise ValueError(
                 "direct target binding combines unequal target values: "
                 f"{draft.logical_key} ({', '.join(draft.target_paths)})"
@@ -5119,6 +5277,11 @@ def validate_repeated_binding_fact_topology(
     for draft in drafts:
         grouped_drafts[draft.logical_key].append(draft)
     aggregation_errors: list[str] = []
+    repeated_path_sets = (
+        tuple(map(frozenset, repeated_cargo_temperature_contract(raw, source_target).values()))
+        if raw is not None
+        else ()
+    )
     for logical_key, occurrences in grouped_drafts.items():
         first = occurrences[0]
         if len(occurrences) < 2 or len(first.target_paths) < 2:
@@ -5133,6 +5296,13 @@ def validate_repeated_binding_fact_topology(
         ):
             # The two document-wide printed instructions and one cargo group
             # prove shared scope; equal labels without that evidence remain rejected.
+            continue
+        if (
+            first.render_mode == "target_binding"
+            and frozenset(first.target_paths) in repeated_path_sets
+        ):
+            # Identical printed commodity, package load, one-to-one reefer
+            # allocation, and one global carrying setting prove this equality.
             continue
         if first.render_mode == "agent_residual":
             normalized_occurrences = {
@@ -11237,6 +11407,31 @@ def binding_realization(
         raise ValueError(f"unsupported render mode in realization compiler: {draft.render_mode}")
     if not snapshots:
         raise ValueError("target binding lacks target snapshots")
+    if len(slots) == 1:
+        from .temperature_prose import composite_instruction_contract
+
+        if (
+            composite_instruction_contract(
+                draft.target_paths,
+                slots[0].source_text,
+                {row.target_path: row.source_value for row in snapshots},
+            )
+            is not None
+        ):
+            return BindingRealization.model_validate(
+                {
+                    "mode": "single_surface",
+                    "adapter": "temperature_instruction",
+                    "deterministic": True,
+                    "requires_agent": False,
+                    "target_values": snapshots,
+                    "slots": (_slot_realization(slots[0], value_role="whole"),),
+                    "rationale": (
+                        "The printed handling instruction jointly realizes its exact "
+                        "temperature value and unit through a verified deterministic edit."
+                    ),
+                }
+            )
     encoded_values = {canonical_json_bytes(row.source_value) for row in snapshots}
     if len(encoded_values) != 1:
         return _agent_realization(
@@ -18009,6 +18204,9 @@ def certify_template(
 ) -> CertifiedSemanticTemplate:
     if not critic_outputs or critic_outputs[-1].verdict != "pass":
         raise ValueError("template lacks a final independent critic pass")
+    from .temperature_prose import require_singleton_printed_setpoint
+
+    require_singleton_printed_setpoint(source_target)
     validate_single_printed_hs_scope(
         raw=raw,
         source_target=source_target,
@@ -18021,6 +18219,7 @@ def certify_template(
         drafts=drafts,
         semantic_only_target_facts=semantic_only_target_facts,
     )
+    validate_repeated_cargo_temperature_scope(raw=raw, source_target=source_target, drafts=drafts)
     validate_signed_temperature_word_scope(raw=raw, source_target=source_target, drafts=drafts)
     validate_source_seal_ownership(drafts=drafts, source_target=source_target)
     validate_target_binding_relationships(drafts=drafts, source_target=source_target, raw=raw)
