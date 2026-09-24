@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from pydantic import TypeAdapter, ValidationError
 
+from document_ocr.date_evidence import date_immediately_under_declared_value
 from document_ocr.label_schemas.bill_of_lading import BillOfLadingLabel
 from document_ocr.label_schemas.bill_of_lading_v3 import (
     BillOfLadingDualCargoAnnotation,
@@ -101,6 +102,11 @@ _DATE_TOKEN = re.compile(
     r"[0-9]{1,2}(?:st|nd|rd|th)?\s*(?:,\s*|[-/.]\s*|\s+)"
     r"[0-9]{2,4}"
     r")\b"
+)
+_NONSTANDARD_ORDINAL_DATE_TOKEN = re.compile(
+    rf"(?ix)\b[0-9]{{1,2}}(?:\s*-\s*|\s*)(?:st|nd|rd|th)"
+    rf"(?:\s+day\s+of)?[\s_]+(?:{_MONTH_NAME})\.?"
+    r"\s*[-/., ]+\s*[0-9]{2,4}\b"
 )
 _NUMERIC_DATE_TOKEN = re.compile(
     r"(?<![0-9])(?P<first>[0-9]{1,2})[-/.](?P<second>[0-9]{1,2})"
@@ -1343,7 +1349,9 @@ _DATE_FORMATS = (
 
 def _parsed_dates(raw: str) -> set[date]:
     normalized = raw.strip()
-    normalized = re.sub(r"(?i)(?<=\d)-?(?:st|nd|rd|th)\b", "", normalized)
+    normalized = re.sub(r"(?i)(?<=\d)(?:\s*-\s*|\s*)?(?:st|nd|rd|th)\b", "", normalized)
+    normalized = re.sub(r"(?i)\bday\s+of\b", "", normalized)
+    normalized = normalized.replace("_", "")
     french_months = (
         (r"janv(?:ier)?", "Jan"),
         (r"f[ée]v(?:r(?:ier)?)?", "Feb"),
@@ -1472,6 +1480,26 @@ def _date_matches(
                     base_score=85,
                 )
             )
+    if not matches or all(
+        date_immediately_under_declared_value(pages[match.page_number], match.start)
+        for match in matches
+    ):
+        for page_number, source in pages.items():
+            for found in _NONSTANDARD_ORDINAL_DATE_TOKEN.finditer(source):
+                if expected not in _parsed_dates(found.group()):
+                    continue
+                matches.append(
+                    _match(
+                        path=path,
+                        page_number=page_number,
+                        source=source,
+                        start=found.start(),
+                        end=found.end(),
+                        evidence_kind="normalized",
+                        normalization_rule="normalized the printed ordinal date to ISO 8601",
+                        base_score=85,
+                    )
+                )
     return matches
 
 
@@ -2523,6 +2551,12 @@ def _validate_semantic_policy(
     source = pages[match.page_number]
     raw_line_start, raw_line_end = _line_bounds(source, match.start)
     raw_line = source[raw_line_start:raw_line_end]
+    if path in {"documentPatch.issueDate", "documentPatch.shippedOnBoardDate"} and (
+        date_immediately_under_declared_value(source, match.start)
+    ):
+        raise DeterministicAnnotationError(
+            f"document date is governed by a Declared Value caption, not {path}"
+        )
     if (
         path.endswith(".negotiability")
         and target == "non_negotiable"

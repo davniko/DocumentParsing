@@ -14,6 +14,7 @@ from itertools import combinations, pairwise
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from document_ocr.date_evidence import date_immediately_under_declared_value
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.generators import surface_pattern
 from document_ocr.synthesis.raw_text_template import (
@@ -121,6 +122,10 @@ _NEGOTIABILITY_PATH = "documentPatch.negotiability"
 _FREIGHT_PAYMENT_PATH = "documentPatch.freight.paymentArrangement"
 _PORT_OF_LOADING_PATH = "documentPatch.route.portOfLoading.name"
 _SHIPPED_ON_BOARD_DATE_PATH = "documentPatch.shippedOnBoardDate"
+_EXTRACTION_DATE_FIELDS = ("issueDate", "shippedOnBoardDate")
+_EXTRACTION_DATE_PATHS = frozenset(
+    f"documentPatch.{field}" for field in _EXTRACTION_DATE_FIELDS
+)
 _VESSEL_NAME_PATH = "documentPatch.transport.vesselName"
 _VOYAGE_NUMBER_PATH = "documentPatch.transport.voyageNumber"
 _LOADING_TERMINAL_CAPTION = "loadingpierterminal"
@@ -2904,6 +2909,58 @@ def single_printed_shared_hs_paths(raw: str, source_target: Mapping[str, Any]) -
     return tuple(f"documentPatch.cargoGroups[{index}].hsCodes[0]" for index in range(len(groups)))
 
 
+def validate_compiler_extraction_dates(
+    *,
+    raw: str,
+    source_target: Mapping[str, Any],
+    drafts: Sequence[SpanDraft],
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+) -> None:
+    """Require every labelled document date to have role-correct OCR ownership."""
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        raise ValueError("source target lacks documentPatch")
+    semantic = {fact.target_path for fact in semantic_only_target_facts}
+    for field in _EXTRACTION_DATE_FIELDS:
+        path = f"documentPatch.{field}"
+        if patch.get(field) is None:
+            continue
+        if path in semantic:
+            raise ValueError(f"document extraction date is semantic-only: {path}")
+        owners = [draft for draft in drafts if path in draft.target_paths]
+        if not owners:
+            raise ValueError(f"document extraction date lacks an OCR binding: {path}")
+        if any(date_immediately_under_declared_value(raw, draft.char_start) for draft in owners):
+            raise ValueError(f"document extraction date is bound under Declared Value: {path}")
+
+
+def validate_compiled_extraction_dates(
+    *, raw: str, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
+) -> None:
+    """Reject old catalogs that would carry an ungrounded date into synthesis."""
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        raise ValueError("source target lacks documentPatch")
+    semantic = {fact.target_path for fact in template.semantic_only_target_facts}
+    encoded = raw.encode("utf-8")
+    for field in _EXTRACTION_DATE_FIELDS:
+        path = f"documentPatch.{field}"
+        if patch.get(field) is None:
+            continue
+        if path in semantic:
+            raise ValueError(f"compiled document extraction date is semantic-only: {path}")
+        owners = [binding for binding in template.bindings if path in binding.target_paths]
+        if not owners:
+            raise ValueError(f"compiled document extraction date lacks an OCR binding: {path}")
+        for binding in owners:
+            for slot in binding.occurrences:
+                char_start = len(encoded[: slot.byte_start].decode("utf-8"))
+                if date_immediately_under_declared_value(raw, char_start):
+                    raise ValueError(
+                        f"compiled document extraction date is bound under Declared Value: {path}"
+                    )
+
+
 def validate_single_printed_hs_scope(
     *,
     raw: str,
@@ -5350,6 +5407,11 @@ def materialize_semantic_only_target_facts(
         raise ValueError("compiler semantic-only target paths must be unique")
     output: list[SemanticOnlyTargetFact] = []
     for proposal in proposals:
+        if proposal.target_path in _EXTRACTION_DATE_PATHS:
+            raise ValueError(
+                "document extraction dates require role-correct OCR evidence, "
+                "not a semantic-only target fact: " + proposal.target_path
+            )
         source_value = _resolve_target_path(source_target, proposal.target_path)
         if isinstance(source_value, (Mapping, list)):
             raise ValueError(
@@ -18207,6 +18269,12 @@ def certify_template(
     from .temperature_prose import require_singleton_printed_setpoint
 
     require_singleton_printed_setpoint(source_target)
+    validate_compiler_extraction_dates(
+        raw=raw,
+        source_target=source_target,
+        drafts=drafts,
+        semantic_only_target_facts=semantic_only_target_facts,
+    )
     validate_single_printed_hs_scope(
         raw=raw,
         source_target=source_target,
