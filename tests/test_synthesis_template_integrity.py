@@ -83,3 +83,37 @@ def test_explicit_shipment_count_is_independent_of_compiled_binding_ownership():
     assert source_template_integrity_issues(
         "Rate for 99 X 40HC CONTAINERS SAID TO CONTAIN goods: USD 400", target
     ) == ()
+
+
+def test_source_integrity_requires_container_local_full_seals_and_complete_equipment_codes():
+    target = {
+        "documentPatch": {
+            "containers": [
+                {
+                    "containerNumber": "FBIU5385937",
+                    "typeDescription": "40RF",
+                    "sealNumbers": ["96", "WHLW357402"],
+                }
+            ],
+            "cargoGroups": [{"marksAndNumbers": ["501305 / ENOS01721979"]}],
+        }
+    }
+    raw = (
+        "FBIU5385937 40RF96 WHLW357402\n"
+        "FBIU5385937/HC40\n501305 / ENOS01721979\n"
+        "SEAL/ENOS01721621\n"
+    )
+    assert source_template_integrity_issues(raw, target) == (
+        "container_adjacent_seal_pair_not_labeled:0",
+        "equipment_type_suffix_mislabeled_as_seal:0",
+    )
+    target["documentPatch"]["containers"][0].update(
+        typeDescription="40RF96",
+        sealNumbers=["501305", "ENOS01721979", "WHLW357402"],
+    )
+    assert source_template_integrity_issues(raw, target) == ()
+    target["documentPatch"]["containers"][0]["sealNumbers"][0] = "01721621"
+    assert source_template_integrity_issues(raw, target) == (
+        "container_adjacent_seal_pair_not_labeled:0",
+        "printed_seal_prefix_missing_from_label",
+    )

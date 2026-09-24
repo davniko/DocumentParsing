@@ -25,6 +25,12 @@ _SHIPMENT_EQUIPMENT_COUNT = re.compile(
     r"[ \t]*(?:FCL[ \t]+)?CONTAINERS?[ \t]+SAID[ \t]+TO[ \t]+CONTAIN\b",
     re.IGNORECASE | re.MULTILINE,
 )
+_CONTAINER_ADJACENT_SEAL_PAIR = re.compile(
+    r"(?<![A-Z0-9])(?P<first>(?:[A-Z]{2,8})?[0-9]{6})[ \t]*/[ \t]*"
+    r"(?P<second>ENOS[0-9]{8})(?![A-Z0-9])",
+    re.IGNORECASE,
+)
+_SEAL_PREFIX_LINE = re.compile(r"(?i)\bSEAL\s*/\s*(?P<value>[A-Z]+[0-9]{6,})(?![A-Z0-9])")
 _SAME_LINE_CONTAINER_COUNT = re.compile(
     r"(?:\(|\b)(?P<count>[0-9][0-9,]*|"
     r"(?:ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|"
@@ -217,4 +223,51 @@ def source_template_integrity_issues(
             + ",".join(str(value) for value in excessive)
             + f"_vs_{labeled_count}"
         )
+    if isinstance(containers, Sequence) and not isinstance(containers, (str, bytes)):
+        upper_text = raw_text.upper()
+        lines = raw_text.splitlines() if "ENOS" in upper_text and "/" in raw_text else ()
+        for index, row in enumerate(containers):
+            if not isinstance(row, Mapping) or not isinstance(row.get("containerNumber"), str):
+                continue
+            seals = row.get("sealNumbers") or ()
+            if not isinstance(seals, Sequence) or isinstance(seals, (str, bytes)):
+                continue
+            if lines:
+                number = "".join(char for char in row["containerNumber"].upper() if char.isalnum())
+                for line_index, line in enumerate(lines[:-1]):
+                    if number not in "".join(char for char in line.upper() if char.isalnum()):
+                        continue
+                    pair = _CONTAINER_ADJACENT_SEAL_PAIR.search(lines[line_index + 1])
+                    if pair and not {pair.group("first"), pair.group("second")} <= set(seals):
+                        issues.append(f"container_adjacent_seal_pair_not_labeled:{index}")
+                        break
+            description = row.get("typeDescription")
+            if (
+                isinstance(description, str)
+                and len(seals) >= 2
+                and isinstance(seals[0], str)
+                and 1 <= len(seals[0]) <= 2
+                and all(isinstance(value, str) for value in seals[:2])
+                and re.search(
+                    rf"(?<![A-Z0-9]){re.escape(row['containerNumber'])}[ \t]+"
+                    rf"{re.escape(description)}{re.escape(seals[0])}[ \t]+"
+                    rf"{re.escape(seals[1])}(?![A-Z0-9])",
+                    raw_text,
+                    re.IGNORECASE,
+                )
+            ):
+                issues.append(f"equipment_type_suffix_mislabeled_as_seal:{index}")
+        if "SEAL" in upper_text and "/" in raw_text:
+            all_seals = {
+                seal
+                for row in containers
+                if isinstance(row, Mapping)
+                for seal in (row.get("sealNumbers") or ())
+                if isinstance(seal, str)
+            }
+            for match in _SEAL_PREFIX_LINE.finditer(raw_text):
+                full = match.group("value")
+                if full not in all_seals and any(full.endswith(value) for value in all_seals):
+                    issues.append("printed_seal_prefix_missing_from_label")
+                    break
     return tuple(issues)

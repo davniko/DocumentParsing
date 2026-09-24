@@ -2736,6 +2736,15 @@ def _receipt_equipment_surface(value: Mapping[str, Any], source: str) -> str:
     # 40HQ, etc.), and ISO 6346 type codes must retain the ISO representation.
     if _equipment_semantics_match(value, source):
         return source
+    # A compact HC receipt asserts height only. Preserve its exact carrier
+    # spelling when the new unit remains high-cube, regardless of cargo type.
+    height_only = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*HC", source, re.I)
+    if height_only and value["sizeCategory"] == {
+        "20": "TWENTY_FOOT_HIGH_CUBE",
+        "40": "FORTY_FOOT_HIGH_CUBE",
+        "45": "FORTY_FIVE_FOOT_HIGH_CUBE",
+    }[height_only[1]]:
+        return source
     from document_ocr.synthesis.container_semantics import iso_equipment_surface
 
     iso = iso_equipment_surface(

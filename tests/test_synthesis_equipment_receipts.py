@@ -344,6 +344,12 @@ def test_thermal_height_is_not_lost_by_using_a_reefer_abbreviation():
     assert _equipment_semantics_match(equipment("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED"), "40' RH")
 
 
+def test_high_cube_receipt_is_height_only_and_stays_unchanged_for_reefer():
+    old = [{"typeDescription": "40RF96"}]
+    new = [equipment("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED")]
+    assert render("01X40'HC", old, new) == "01X40'HC"
+
+
 def test_length_only_receipt_does_not_require_unprinted_type_or_height():
     old = [{"typeDescription": "40 FT"}, {"typeDescription": "40 FT"}]
     new = [equipment("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED"), old[1]]

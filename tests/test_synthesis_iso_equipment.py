@@ -141,3 +141,11 @@ def test_equipment_memoization_retains_temperature_context_and_immutable_results
     assert review_source_equipment_surface("40'RFH", temperature_present=True) is active
     with pytest.raises(FrozenInstanceError):
         active.type_category = "GENERAL_PURPOSE"
+
+
+def test_complete_40rf96_code_is_high_cube_reefer_not_a_two_digit_seal():
+    resolved = review_source_equipment_surface("40RF96", temperature_present=True)
+    assert resolved.resolution == "reviewed_source_grammar"
+    assert resolved.size_category == "FORTY_FOOT_HIGH_CUBE"
+    assert resolved.type_category == "REFRIGERATED"
+    assert resolved.thermal_operation == "active"

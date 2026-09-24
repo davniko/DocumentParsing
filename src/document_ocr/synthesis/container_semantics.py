@@ -399,6 +399,21 @@ def review_source_equipment_surface(
             review_rule="documented_complete_carrier_equipment_surface",
         )
 
+    # A source carrier prints 40RF96 beside an independent 40'HC REEFER receipt.
+    # The terminal 96 is the 9'6" height in the documented reefer size code,
+    # not a two-digit container seal. Keep this observed grammar narrower than
+    # an assumed family of unobserved equipment codes.
+    if semantic == "40RF96":
+        return ReviewedEquipmentSurface(
+            printed_surface=printed_surface,
+            normalized_surface=normalized,
+            resolution="reviewed_source_grammar",
+            size_category="FORTY_FOOT_HIGH_CUBE",
+            type_category="REFRIGERATED",
+            thermal_operation="active" if temperature_present else "not_indicated",
+            review_rule="corroborated_40_foot_9_6_reefer_code",
+        )
+
     iso = re.fullmatch(r"(?P<size>[0-9A-Z][0-9A-Z])\s*(?P<kind>[A-Z][0-9])", semantic)
     if iso:
         size, kind = _ISO_SIZES.get(iso["size"]), _ISO_TYPES.get(iso["kind"])
