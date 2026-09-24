@@ -97,7 +97,13 @@ def validate_seal_realization(
                 "".join(char for char in replacement.casefold() if char.isalnum())
             )
         mode = getattr(getattr(owner, "realization", None), "mode", None)
-        if mode in {"segmented_surface", "agent_required"} and len(observed_parts) > 1:
+        if mode in {"single_surface", "repeated_surface", None} or len(observed_parts) == 1:
+            # A complete seal slot cannot silently absorb an adjacent OCR
+            # character. Source separators, including mistyped ones, must
+            # remain literal regions outside the identifier binding.
+            if all(observed == expected for observed in observed_parts):
+                continue
+        elif mode in {"segmented_surface", "agent_required"}:
             fragments_match = all(
                 observed and (observed in expected or expected in observed)
                 for observed in observed_parts
@@ -107,8 +113,6 @@ def validate_seal_realization(
             )
             if fragments_match and complete:
                 continue
-        elif all(expected in observed for observed in observed_parts):
-            continue
         raise ValueError(f"seal slot does not realize its container target: {path}")
 
 

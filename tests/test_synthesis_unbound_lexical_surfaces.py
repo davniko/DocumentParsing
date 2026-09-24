@@ -4,6 +4,11 @@ from types import SimpleNamespace as NS
 import pytest
 from pydantic import ValidationError
 
+from document_ocr.synthesis.raw_text_template import (
+    build_template_slot,
+    compile_raw_text_template,
+    render_compiled_template,
+)
 from document_ocr.synthesis.template_compiler import descendant
 from document_ocr.synthesis.template_compiler.generation_contract import (
     require_complete_variation,
@@ -100,6 +105,49 @@ def test_seal_ownership_is_leaf_level_container_local_and_covers_repeated_slots(
             target=segmented_target,
             bindings=(segmented,),
             slot_values={**segmented_values, "suffix": "STALE"},
+        )
+
+
+def test_joined_container_seal_uses_literal_separator_outside_complete_seal_slot():
+    source = b"ABCU12345607CM12345678/20GP"
+    source_seal = "CM12345678"
+    new_seal = "AB87654321"
+    start = source.index(source_seal.encode())
+    slot = build_template_slot(
+        slot_id="slot_0001",
+        byte_start=start,
+        byte_end=start + len(source_seal),
+        source_text=source_seal,
+        target_paths=("documentPatch.containers[0].sealNumbers[0]",),
+        semantic_role="container:0",
+        evidence_origin="accepted_label_evidence",
+        render_policy="opaque_identifier",
+    )
+    template = compile_raw_text_template(document_id="joined-seal", source=source, slots=(slot,))
+    rendered, proof = render_compiled_template(
+        source=source, template=template, bindings={"slot_0001": new_seal}
+    )
+    assert rendered == b"ABCU12345607AB87654321/20GP"
+    assert proof.exact_literal_regions
+    binding = NS(
+        target_paths=("documentPatch.containers[0].sealNumbers[0]",),
+        group_kind="equipment",
+        group_key="container:0",
+        realization=NS(mode="single_surface", adapter="opaque_identifier"),
+        occurrences=(slot,),
+    )
+    target = {"documentPatch": {"containers": [{"sealNumbers": [new_seal]}]}}
+    validate_seal_realization(
+        target=target,
+        bindings=(binding,),
+        slot_values={"slot_0001": new_seal},
+        rendered=rendered.decode(),
+    )
+    with pytest.raises(ValueError, match="does not realize"):
+        validate_seal_realization(
+            target=target,
+            bindings=(binding,),
+            slot_values={"slot_0001": "7" + new_seal},
         )
 
 
