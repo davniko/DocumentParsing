@@ -24,6 +24,92 @@ _PARTY_SURFACE = re.compile(
     r"^documentPatch\.parties\.(?!carrier\.)[^.]+\.(?:name|address|city|country|"
     r"contactDetails\.(?:contactName|(?:phoneNumbers|emailAddresses|websiteUrls)\[\d+\]))$"
 )
+_SEAL_PATH = re.compile(r"^documentPatch\.containers\[([0-9]+)\]\.sealNumbers\[([0-9]+)\]$")
+
+
+def validate_seal_realization(
+    *,
+    target: Mapping[str, Any],
+    bindings: Sequence[SemanticBinding],
+    slot_values: Mapping[str, str] | None = None,
+    rendered: str | None = None,
+) -> None:
+    """Every seal leaf must be rendered by its own container's target binding.
+
+    A parent container/count binding and a coincidental global string match are
+    not evidence for a child seal. Check every physical occurrence so repeated
+    pages cannot retain a stale independently generated seal. The compiled
+    renderer separately proves that every checked slot reaches final text.
+    Without slot values this is also a cheap preflight before provider calls.
+    Offline audits may additionally check the complete rendered text.
+    """
+    if rendered is not None and slot_values is None:
+        raise ValueError("rendered seal evidence requires slot values")
+    patch = target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return
+    containers = patch.get("containers")
+    if containers is None:
+        return
+    if not isinstance(containers, list):
+        raise ValueError("documentPatch.containers must be a list")
+    seal_rows = [
+        (container_index, seal_index, value)
+        for container_index, container in enumerate(containers)
+        if isinstance(container, Mapping)
+        for seal_index, value in enumerate(container.get("sealNumbers") or ())
+    ]
+    if not seal_rows:
+        return
+    rendered_compact = (
+        "".join(char for char in rendered.casefold() if char.isalnum())
+        if rendered is not None
+        else None
+    )
+    owners: dict[str, list[SemanticBinding]] = defaultdict(list)
+    for binding in bindings:
+        for path in binding.target_paths:
+            if _SEAL_PATH.fullmatch(path):
+                owners[path].append(binding)
+    for container_index, seal_index, value in seal_rows:
+        path = f"documentPatch.containers[{container_index}].sealNumbers[{seal_index}]"
+        candidates = owners.get(path, ())
+        if len(candidates) != 1:
+            raise ValueError(f"seal target requires exactly one leaf binding: {path}")
+        owner = candidates[0]
+        if owner.group_kind != "equipment" or owner.group_key != f"container:{container_index}":
+            raise ValueError(f"seal binding has wrong container ownership: {path}")
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"seal target must be a nonempty string: {path}")
+        expected = "".join(char for char in value.casefold() if char.isalnum())
+        if not expected:
+            raise ValueError(f"seal target has no identifier characters: {path}")
+        if rendered_compact is not None and expected not in rendered_compact:
+            raise ValueError(f"rendered document lacks target seal: {path}")
+        if slot_values is None:
+            continue
+        observed_parts: list[str] = []
+        for occurrence in owner.occurrences:
+            replacement = slot_values.get(occurrence.slot_id)
+            if replacement is None:
+                raise ValueError(f"seal binding has no slot output: {path} {occurrence.slot_id}")
+            observed_parts.append(
+                "".join(char for char in replacement.casefold() if char.isalnum())
+            )
+        mode = getattr(getattr(owner, "realization", None), "mode", None)
+        if mode in {"segmented_surface", "agent_required"} and len(observed_parts) > 1:
+            fragments_match = all(
+                observed and (observed in expected or expected in observed)
+                for observed in observed_parts
+            )
+            complete = any(expected in observed for observed in observed_parts) or (
+                "".join(observed_parts) == expected
+            )
+            if fragments_match and complete:
+                continue
+        elif all(expected in observed for observed in observed_parts):
+            continue
+        raise ValueError(f"seal slot does not realize its container target: {path}")
 
 
 def party_owned_surfaces(

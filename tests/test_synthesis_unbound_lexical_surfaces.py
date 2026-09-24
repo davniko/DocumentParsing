@@ -1,13 +1,147 @@
+from dataclasses import replace
 from types import SimpleNamespace as NS
 
 import pytest
 from pydantic import ValidationError
 
 from document_ocr.synthesis.template_compiler import descendant
-from document_ocr.synthesis.template_compiler.generation_contract import require_complete_variation
+from document_ocr.synthesis.template_compiler.generation_contract import (
+    require_complete_variation,
+    validate_seal_realization,
+)
 from document_ocr.synthesis.template_compiler.generation_contract import (
     validate_unbound_lexical_surfaces as validate,
 )
+from document_ocr.synthesis.template_compiler.host import (
+    SpanDraft,
+    normalize_source_seal_ownership,
+    validate_source_seal_ownership,
+)
+
+
+def test_seal_ownership_is_leaf_level_container_local_and_covers_repeated_slots():
+    target = {"documentPatch": {"containers": [{"sealNumbers": ["S001", "S002"]}]}}
+    detached = NS(
+        target_paths=("documentPatch.containers",),
+        group_kind="equipment",
+        group_key="container:0",
+        occurrences=(NS(slot_id="count"),),
+    )
+    with pytest.raises(ValueError, match="exactly one leaf binding"):
+        validate_seal_realization(
+            target=target, bindings=(detached,), slot_values={"count": "ONE CONTAINER S001 S002"}
+        )
+    bindings = (
+        NS(
+            target_paths=("documentPatch.containers[0].sealNumbers[0]",),
+            group_kind="equipment",
+            group_key="container:0",
+            occurrences=(NS(slot_id="seal0_a"), NS(slot_id="seal0_b")),
+        ),
+        NS(
+            target_paths=("documentPatch.containers[0].sealNumbers[1]",),
+            group_kind="equipment",
+            group_key="container:0",
+            occurrences=(NS(slot_id="seal1"),),
+        ),
+    )
+    values = {"seal0_a": "S001", "seal0_b": "S-001", "seal1": "S002"}
+    validate_seal_realization(target=target, bindings=bindings)
+    validate_seal_realization(target=target, bindings=bindings, slot_values=values)
+    validate_seal_realization(
+        target=target,
+        bindings=bindings,
+        slot_values=values,
+        rendered="CONTAINER 0 / S001 / S002",
+    )
+    with pytest.raises(ValueError, match="rendered document lacks target seal"):
+        validate_seal_realization(
+            target=target,
+            bindings=bindings,
+            slot_values=values,
+            rendered="CONTAINER 0 / S001 / STALE",
+        )
+    with pytest.raises(ValueError, match="does not realize"):
+        validate_seal_realization(
+            target=target,
+            bindings=bindings,
+            slot_values={**values, "seal0_b": "OLD001"},
+        )
+    with pytest.raises(ValueError, match="does not realize"):
+        validate_seal_realization(
+            target=target,
+            bindings=bindings,
+            slot_values={**values, "seal1": "S003"},
+            rendered="CONTAINER 0 / S001 / S002; CONTAINER 1 / S003",
+        )
+    with pytest.raises(ValueError, match="wrong container ownership"):
+        validate_seal_realization(
+            target=target,
+            bindings=(NS(**{**bindings[0].__dict__, "group_key": "container:1"}), bindings[1]),
+            slot_values=values,
+        )
+    segmented = NS(
+        target_paths=("documentPatch.containers[0].sealNumbers[0]",),
+        group_kind="equipment",
+        group_key="container:0",
+        realization=NS(mode="agent_required"),
+        occurrences=(NS(slot_id="prefix"), NS(slot_id="suffix"), NS(slot_id="whole")),
+    )
+    segmented_target = {"documentPatch": {"containers": [{"sealNumbers": ["071760/SIF811"]}]}}
+    segmented_values = {"prefix": "071760", "suffix": "SIF811", "whole": "071760/SIF811"}
+    validate_seal_realization(
+        target=segmented_target,
+        bindings=(segmented,),
+        slot_values=segmented_values,
+        rendered="071760 / SIF811 / 071760/SIF811",
+    )
+    with pytest.raises(ValueError, match="does not realize"):
+        validate_seal_realization(
+            target=segmented_target,
+            bindings=(segmented,),
+            slot_values={**segmented_values, "suffix": "STALE"},
+        )
+
+
+def test_compiler_promotes_only_unique_exact_container_local_seal_auxiliaries():
+    raw = "ABCU1234567 / 0010496\nEFGU7654321 / 0010493"
+    values = ("0010496", "0010493")
+    starts = tuple(raw.index(value) for value in values)
+    drafts = tuple(
+        SpanDraft(
+            draft_id=f"seal_{index}",
+            logical_key=f"source_only_seal_{index}",
+            render_mode="deterministic_auxiliary",
+            value_kind="equipment",
+            group_kind="equipment",
+            group_key=f"container:{index}",
+            target_paths=(),
+            derivation=None,
+            dependency_paths=(),
+            dependency_bindings=(),
+            char_start=start,
+            char_end=start + len(values[index]),
+            source_text=values[index],
+            evidence_origin="host_verified_agent_proposal",
+            render_policy="opaque_identifier",
+            rationale="Source-only model proposal for a printed seal.",
+        )
+        for index, start in enumerate(starts)
+    )
+    target = {"documentPatch": {"containers": [{"sealNumbers": [value]} for value in values]}}
+    with pytest.raises(ValueError, match="requires exactly one leaf binding"):
+        validate_source_seal_ownership(drafts=drafts, source_target=target)
+    promoted = normalize_source_seal_ownership(drafts=drafts, source_target=target)
+    validate_source_seal_ownership(drafts=promoted, source_target=target)
+    assert [draft.target_paths for draft in promoted] == [
+        (f"documentPatch.containers[{index}].sealNumbers[0]",) for index in range(2)
+    ]
+    wrong_scope = (drafts[0], replace(drafts[1], group_key="container:0"))
+    with pytest.raises(ValueError, match="requires exactly one leaf binding"):
+        validate_source_seal_ownership(
+            drafts=normalize_source_seal_ownership(drafts=wrong_scope, source_target=target),
+            source_target=target,
+        )
 
 
 def test_unbound_new_party_cargo_and_second_phone_cannot_escape_binding_validation():

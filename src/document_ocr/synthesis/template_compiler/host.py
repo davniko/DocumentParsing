@@ -30,7 +30,11 @@ from .coherence import (
     validate_coherence_contracts,
     whole_inclusive_range_surface,
 )
-from .generation_contract import party_owned_surfaces, validate_party_evidence
+from .generation_contract import (
+    party_owned_surfaces,
+    validate_party_evidence,
+    validate_seal_realization,
+)
 from .models import (
     AgentBindingProposal,
     AgentOccurrence,
@@ -4292,6 +4296,121 @@ def _normalize_source_only_alphanumeric_identifier_kinds(
     )
 
 
+def normalize_source_seal_ownership(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Promote exact, container-local source seal slots over detached auxiliaries.
+
+    The model may classify a printed seal as source-only even though the source
+    label contains that same seal. Promotion requires a unique auxiliary logical
+    binding in the exact container scope; ambiguous or unprinted seals remain
+    unresolved for certification review rather than being guessed.
+    """
+    patch = source_target.get("documentPatch")
+    containers = patch.get("containers") if isinstance(patch, Mapping) else None
+    if not isinstance(containers, list):
+        return tuple(drafts)
+    owned = {path for draft in drafts for path in draft.target_paths}
+    by_key: dict[str, list[SpanDraft]] = defaultdict(list)
+    for draft in drafts:
+        by_key[draft.logical_key].append(draft)
+    promotions: dict[str, str] = {}
+    for container_index, container in enumerate(containers):
+        if not isinstance(container, Mapping):
+            continue
+        seals = container.get("sealNumbers")
+        if not isinstance(seals, list):
+            continue
+        for seal_index, seal in enumerate(seals):
+            path = f"documentPatch.containers[{container_index}].sealNumbers[{seal_index}]"
+            if path in owned or not isinstance(seal, str) or not seal:
+                continue
+            source_value = _normalized_surface(seal)
+            candidates = {
+                draft.logical_key
+                for draft in drafts
+                if draft.render_mode in {"deterministic_auxiliary", "agent_residual"}
+                and draft.group_kind == "equipment"
+                and draft.group_key == f"container:{container_index}"
+                and not draft.target_paths
+                and not draft.dependency_paths
+                and not draft.dependency_bindings
+                and _normalized_surface(draft.source_text) == source_value
+            }
+            if len(candidates) != 1:
+                continue
+            logical_key = next(iter(candidates))
+            if any(
+                row.group_key != f"container:{container_index}"
+                or _normalized_surface(row.source_text) != source_value
+                for row in by_key[logical_key]
+            ):
+                continue
+            previous = promotions.setdefault(logical_key, path)
+            if previous != path:
+                raise ValueError(f"one seal binding matches multiple target leaves: {logical_key}")
+    return merge_drafts(
+        replace(
+            draft,
+            logical_key="anchor:" + promotions[draft.logical_key],
+            render_mode="target_binding",
+            value_kind="equipment",
+            target_paths=(promotions[draft.logical_key],),
+            evidence_origin="host_verified_agent_proposal",
+            render_policy="opaque_identifier",
+            rationale=(
+                draft.rationale
+                + " Host promoted the exact printed seal to its unique container-local "
+                "source-label leaf."
+            ),
+        )
+        if draft.logical_key in promotions
+        else draft
+        for draft in drafts
+    )
+
+
+def validate_source_seal_ownership(
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> None:
+    """Certification cannot infer a seal leaf from its parent container binding."""
+    patch = source_target.get("documentPatch")
+    containers = patch.get("containers") if isinstance(patch, Mapping) else None
+    if not isinstance(containers, list):
+        return
+    owners: dict[str, set[str]] = defaultdict(set)
+    for draft in drafts:
+        for path in draft.target_paths:
+            if re.fullmatch(r"documentPatch\.containers\[\d+\]\.sealNumbers\[\d+\]", path):
+                owners[path].add(draft.logical_key)
+    for container_index, container in enumerate(containers):
+        if not isinstance(container, Mapping):
+            continue
+        seals = container.get("sealNumbers")
+        if not isinstance(seals, list):
+            continue
+        for seal_index, seal in enumerate(seals):
+            path = f"documentPatch.containers[{container_index}].sealNumbers[{seal_index}]"
+            keys = owners.get(path, set())
+            if len(keys) != 1:
+                raise ValueError(f"source seal requires exactly one leaf binding: {path}")
+            if any(
+                draft.group_kind != "equipment" or draft.group_key != f"container:{container_index}"
+                for draft in drafts
+                if draft.logical_key in keys
+            ):
+                raise ValueError(f"source seal binding has wrong container ownership: {path}")
+            if isinstance(seal, str) and any(
+                draft.render_mode in {"deterministic_auxiliary", "agent_residual"}
+                and not draft.target_paths
+                and draft.group_kind == "equipment"
+                and draft.group_key == f"container:{container_index}"
+                and _normalized_surface(draft.source_text) == _normalized_surface(seal)
+                for draft in drafts
+            ):
+                raise ValueError(f"source seal also has an independent auxiliary binding: {path}")
+
+
 def normalize_deterministic_draft_semantics(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
@@ -4313,8 +4432,12 @@ def normalize_deterministic_draft_semantics(
         )
         for draft in source_kind_normalized
     )
-    package_count_normalized = _normalize_package_count_residuals(
+    seal_normalized = normalize_source_seal_ownership(
         drafts=policy_normalized,
+        source_target=source_target,
+    )
+    package_count_normalized = _normalize_package_count_residuals(
+        drafts=seal_normalized,
         source_target=source_target,
     )
     exact_residual_normalized = _normalize_exact_single_target_residuals(
@@ -17559,6 +17682,7 @@ def certify_template(
 ) -> CertifiedSemanticTemplate:
     if not critic_outputs or critic_outputs[-1].verdict != "pass":
         raise ValueError("template lacks a final independent critic pass")
+    validate_source_seal_ownership(drafts=drafts, source_target=source_target)
     validate_target_binding_relationships(drafts=drafts, source_target=source_target)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
     validate_coherence_contracts(
@@ -17681,6 +17805,11 @@ def certify_template(
                 f"derived binding {binding.logical_key} has unknown dependencies: "
                 + ", ".join(missing)
             )
+    validate_seal_realization(
+        target=source_target,
+        bindings=bindings,
+        slot_values={slot.slot_id: slot.source_text for slot in slots},
+    )
     graph = {
         binding.logical_key: binding.dependency_bindings
         for binding in bindings

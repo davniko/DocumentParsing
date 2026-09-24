@@ -3,7 +3,7 @@ task: bill_of_lading_relation_explicit_v5
 objective: seq2seq_teacher_forcing
 
 run:
-  run_id: t5gemma2-270m-lora-mpci-bl-real1057-synthetic29910-recovered-v5-e5-eva-a32-v1
+  run_id: t5gemma2-270m-mpci-bl-30k-eva-a64-runpod-b4-ga12-gc-v1
   output_dir: artifacts/kie-training
 
 model:
@@ -62,16 +62,16 @@ dataset:
 
 peft:
   method: lora
-  adapter_name: t5gemma2_270m_lora_mpci_bl_real1057_synthetic29910_recovered_v5_e5_eva_a32_v1
+  adapter_name: t5gemma2_270m_mpci_bl_30k_eva_a64_runpod_b4_ga12_gc_v1
   rank: 32
-  alpha: 32
+  alpha: 64
   dropout: 0.05
   bias: none
   use_rslora: true
   init_lora_weights: eva
   eva:
     # Keep rank 32 in every adapted layer; isolate activation initialization from
-    # rank redistribution. rsLoRA scaling is now 32/sqrt(32) = 5.657.
+    # rank redistribution. Alpha-only comparison: 64/sqrt(32) = 11.314.
     rho: 1.0
     tau: 0.99
     whiten: false
@@ -87,12 +87,12 @@ peft:
   ensure_weight_tying: false
 
 optimization:
-  # Target filtering retains 30,899 train rows at effective batch 32:
-  # 966 optimizer updates per epoch and 4,830 updates over five epochs.
+  # Target filtering retains 30,899 train rows at effective batch 48:
+  # ceil(ceil(30,899 / 4) / 12) = 644 updates/epoch; 3,220 across five epochs.
   num_train_epochs: 5.0
   max_steps: -1
-  per_device_train_batch_size: 1
-  gradient_accumulation_steps: 32
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 12
   learning_rate: 0.0001
   optimizer: adamw_torch_fused
   optimizer_args: null
@@ -119,10 +119,8 @@ runtime:
   bf16: true
   fp16: false
   tf32: true
+  # Match the active RTX PRO 6000 run: checkpointing is needed for microbatch 4.
   gradient_checkpointing: true
-  # Non-reentrant checkpointing crosses physical VRAM during the 5,400-token
-  # target stress case and enters WDDM paging. Reentrant checkpointing measured
-  # 20.90 GiB peak reserved and completed the same fused-AdamW update in 3.61 s.
   gradient_checkpointing_use_reentrant: true
   torch_compile: false
   torch_compile_backend: null
@@ -140,9 +138,9 @@ dataloader:
 evaluation:
   strategy: steps
   split: validation
-  # 966 updates/epoch: evaluate every half epoch, for ten evaluations at
-  # 483, 966, ..., 4,830 across 4,830 updates.
-  steps: 483
+  # 644 updates/epoch: evaluate every half epoch, for ten evaluations at
+  # 322, 644, ..., 3,220 across 3,220 updates.
+  steps: 322
   per_device_batch_size: 2
   on_start: false
   predict_with_generate: true
@@ -158,15 +156,15 @@ evaluation:
   accumulation_steps: 1
   early_stopping_patience: null
   early_stopping_threshold: null
-  # The tenth scheduled evaluation occurs at step 4,830. Disable the
+  # The tenth scheduled evaluation occurs at step 3,220. Disable the
   # separate post-training evaluation/prediction export to avoid an 11th pass.
   run_final_evaluation: false
   write_predictions_for: []
 
 checkpoint:
   strategy: steps
-  steps: 483
-  total_limit: 2
+  steps: 322
+  total_limit: 5
   load_best_model_at_end: true
   metric_for_best_model: field_value_f1
   greater_is_better: true
@@ -183,7 +181,7 @@ logging:
   report_to:
     - mlflow
   mlflow:
-    tracking_uri: http://mlflow-server:5000
+    tracking_uri: http://127.0.0.1:5003
     experiment_name: document-ocr-kie
     resume_run_id: null
     log_artifacts: false
@@ -198,11 +196,15 @@ logging:
       dataset: real1057-plus-synthetic29910-recovered-exact-validation-id
       validation: shared-real100
       lora_rank: "32"
-      lora_alpha: "32"
+      lora_alpha: "64"
       lora_initialization: eva
-      effective_optimizer_batch: "32"
+      effective_optimizer_batch: "48"
       epochs: "5"
-      projected_optimizer_updates: "4830"
+      projected_optimizer_updates: "3220"
+      hardware: rtx-pro-6000-blackwell-server
+      microbatch_size: "4"
+      gradient_accumulation_steps: "12"
+      gradient_checkpointing: "true"
   structured_log: logs/events.jsonl
   disable_tqdm: false
   log_level: info

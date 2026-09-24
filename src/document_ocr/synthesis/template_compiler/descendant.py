@@ -103,6 +103,7 @@ from .generation_contract import (
     leaves,
     party_owned_surfaces,
     require_complete_variation,
+    validate_seal_realization,
     validate_unbound_lexical_surfaces,
 )
 from .latest_target import latest_target_from_source
@@ -3851,6 +3852,7 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         if target.get("schemaVersion") != config.workflow.target_schema_version:
             raise ValueError(f"prepared target is not latest-schema: {sample_id}")
         _validate_canonical_target(target)
+        validate_seal_realization(target=target, bindings=template.bindings)
         proposed_sha = sha256_bytes(canonical_json_bytes(target))
         _require_source_carrier(source_target=source_target, target=target)
         require_complete_variation(comparison_source_target, target, bindings=template.bindings)
@@ -6892,6 +6894,11 @@ def _materialize_case(
                 rendered.decode("utf-8"), {f.record.un_number for f in case.dangerous_goods_facts}
             )
         count_aliases.validate(rendered.decode("utf-8"))
+        validate_seal_realization(
+            target=case.target,
+            bindings=case.template.bindings,
+            slot_values=slot_bindings,
+        )
         validate_unbound_lexical_surfaces(
             target=case.target,
             binding_paths={p for b in case.template.bindings for p in b.target_paths},
