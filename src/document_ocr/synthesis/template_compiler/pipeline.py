@@ -676,6 +676,7 @@ def _compiler_host_rejection(
             validate_repeated_binding_fact_topology(
                 drafts=normalized_proposed,
                 source_target=source_target,
+                raw=raw,
             )
         except Exception as error:
             add("binding target topology", error)
@@ -2905,7 +2906,7 @@ def _restore_state_checkpoint(
         ),
     )
     validate_draft_source_alignment(raw=raw, drafts=drafts)
-    validate_target_binding_relationships(drafts=drafts, source_target=source_target)
+    validate_target_binding_relationships(drafts=drafts, source_target=source_target, raw=raw)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
     with suppress(CoherenceReviewRequired):
         validate_coherence_contracts(
@@ -2962,7 +2963,7 @@ def _validated_compiler_state(
     # materialized transaction, not the pre-edit union; otherwise a correctly removed substring
     # anchor still rejects the replacement that made it safe.
     validate_mutable_token_boundaries(raw=raw, drafts=drafts)
-    validate_target_binding_relationships(drafts=drafts, source_target=source_target)
+    validate_target_binding_relationships(drafts=drafts, source_target=source_target, raw=raw)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
     host_refuted_semantic_only_paths = refuted_semantic_only_target_paths(drafts)
     declared_semantic_only = tuple(

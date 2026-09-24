@@ -2872,9 +2872,7 @@ _SINGLE_PRINTED_HS_LINE = re.compile(
 )
 
 
-def single_printed_shared_hs_paths(
-    raw: str, source_target: Mapping[str, Any]
-) -> tuple[str, ...]:
+def single_printed_shared_hs_paths(raw: str, source_target: Mapping[str, Any]) -> tuple[str, ...]:
     """Return HS leaves proven to share one explicit source field, or none.
 
     The evidence rule does not infer scope from equal values alone. Other cargo
@@ -2956,9 +2954,7 @@ def validate_compiled_single_printed_hs_scope(
         return
     semantic = {fact.target_path for fact in template.semantic_only_target_facts}
     owners = [
-        binding
-        for binding in template.bindings
-        if set(paths).intersection(binding.target_paths)
+        binding for binding in template.bindings if set(paths).intersection(binding.target_paths)
     ]
     if (
         semantic.intersection(paths)
@@ -2970,6 +2966,201 @@ def validate_compiled_single_printed_hs_scope(
         raise ValueError(
             "compiled template loses the one-printed-field shared HS scope; "
             "recompile or use a corrected catalog before synthesis"
+        )
+
+
+_GLOBAL_SET_TEMP = re.compile(r"\bSET TEMP:\s*(?P<number>[+-]?\d+(?:[.,]\d+)?)", re.I)
+_GLOBAL_CARRYING_TEMP = re.compile(
+    r"\bCARRYING TEMPERATURE:\s*(?P<number>[+-]?\d+(?:[.,]\d+)?)", re.I
+)
+_SIGNED_TEMPERATURE_WORD = re.compile(
+    r"\b(?P<word>PLUS|MINUS)\s+(?P<number>\d+(?:[.,]\d+)?)\s+DEG['\u2019]?\s*C\b", re.I
+)
+
+
+def global_shared_temperature_paths(raw: str, source_target: Mapping[str, Any]) -> tuple[str, ...]:
+    """Identify a one-cargo, two-global-mention setpoint shared by every reefer.
+
+    Equal source labels alone are insufficient. Both document-wide printed
+    temperature instructions must independently agree with the source labels.
+    """
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return ()
+    groups, containers = patch.get("cargoGroups"), patch.get("containers")
+    if not isinstance(groups, list) or len(groups) != 1:
+        return ()
+    if not isinstance(containers, list) or len(containers) < 2:
+        return ()
+    settings = [
+        c.get("temperatureSetpoint") if isinstance(c, Mapping) else None for c in containers
+    ]
+    if any(not isinstance(s, Mapping) or s.get("unit") != "celsius" for s in settings):
+        return ()
+    source_values: list[Decimal] = []
+    for setting in settings:
+        if not isinstance(setting, Mapping):
+            return ()
+        source_values.append(Decimal(str(setting["value"])))
+    if any(not value.is_finite() or value != source_values[0] for value in source_values):
+        return ()
+    printed = (tuple(_GLOBAL_SET_TEMP.finditer(raw)), tuple(_GLOBAL_CARRYING_TEMP.finditer(raw)))
+    if any(len(group) != 1 for group in printed):
+        return ()
+    carrying = printed[1][0]
+    if not re.match(r"\s+DEGREES\s+CELSIUS\b", raw[carrying.end() :], re.I):
+        return ()
+    if any(Decimal(group[0]["number"].replace(",", ".")) != source_values[0] for group in printed):
+        return ()
+    return tuple(
+        f"documentPatch.containers[{index}].temperatureSetpoint.value"
+        for index in range(len(containers))
+    )
+
+
+def validate_global_shared_temperature_scope(
+    *,
+    raw: str,
+    source_target: Mapping[str, Any],
+    drafts: Sequence[SpanDraft],
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+) -> None:
+    """A global printed setpoint cannot certify independently mutable labels."""
+    paths = global_shared_temperature_paths(raw, source_target)
+    if not paths:
+        return
+    mentions = (next(_GLOBAL_SET_TEMP.finditer(raw)), next(_GLOBAL_CARRYING_TEMP.finditer(raw)))
+    semantic = {fact.target_path for fact in semantic_only_target_facts}
+    owners = [draft for draft in drafts if set(paths).intersection(draft.target_paths)]
+    keys = {draft.logical_key for draft in owners}
+    if (
+        semantic.intersection(paths)
+        or len(keys) != 1
+        or not owners
+        or any(draft.render_mode != "target_binding" for draft in owners)
+        or not all(set(paths) <= set(draft.target_paths) for draft in owners)
+        or not all(
+            any(
+                draft.char_start <= match.start("number") and draft.char_end >= match.end("number")
+                for draft in owners
+            )
+            for match in mentions
+        )
+    ):
+        raise ValueError(
+            "two global carrying-temperature surfaces require one shared-value target "
+            "binding for every container setpoint; independent temperatures would be ungrounded"
+        )
+
+
+def validate_compiled_global_shared_temperature_scope(
+    *, raw: str, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
+) -> None:
+    paths = global_shared_temperature_paths(raw, source_target)
+    if not paths:
+        return
+    mentions = (next(_GLOBAL_SET_TEMP.finditer(raw)), next(_GLOBAL_CARRYING_TEMP.finditer(raw)))
+    owners = [
+        binding for binding in template.bindings if set(paths).intersection(binding.target_paths)
+    ]
+    semantic = {fact.target_path for fact in template.semantic_only_target_facts}
+    if (
+        semantic.intersection(paths)
+        or len(owners) != 1
+        or not set(paths) <= set(owners[0].target_paths)
+        or owners[0].target_relationship != "shared_value_equality"
+        or not owners[0].realization.deterministic
+        or owners[0].realization.requires_agent
+        or not all(
+            any(
+                slot.byte_start <= len(raw[: match.start("number")].encode("utf-8"))
+                and slot.byte_end >= len(raw[: match.end("number")].encode("utf-8"))
+                for slot in owners[0].occurrences
+            )
+            for match in mentions
+        )
+    ):
+        raise ValueError(
+            "compiled template loses the global shared-temperature scope; "
+            "recompile or use a corrected catalog before synthesis"
+        )
+
+
+def signed_temperature_word_contract(
+    raw: str, source_target: Mapping[str, Any]
+) -> tuple[str, int, int] | None:
+    """Locate one source sign word whose numeric owner is unambiguous."""
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping) or not isinstance(patch.get("containers"), list):
+        return None
+    owned = [
+        (index, container["temperatureSetpoint"])
+        for index, container in enumerate(patch["containers"])
+        if isinstance(container, Mapping)
+        and isinstance(container.get("temperatureSetpoint"), Mapping)
+    ]
+    matches = tuple(_SIGNED_TEMPERATURE_WORD.finditer(raw))
+    if len(owned) != 1 or len(matches) != 1:
+        return None
+    index, setting = owned[0]
+    if setting.get("unit") != "celsius":
+        return None
+    match = matches[0]
+    value = Decimal(str(setting["value"]))
+    printed = Decimal(match["number"].replace(",", "."))
+    if match["word"].upper() == "MINUS":
+        printed = -printed
+    if not value.is_finite() or printed != value:
+        raise ValueError("signed temperature word contradicts its source setpoint label")
+    return (
+        f"documentPatch.containers[{index}].temperatureSetpoint.value",
+        match.start("word"),
+        match.end("number"),
+    )
+
+
+def validate_signed_temperature_word_scope(
+    *, raw: str, source_target: Mapping[str, Any], drafts: Sequence[SpanDraft]
+) -> None:
+    contract = signed_temperature_word_contract(raw, source_target)
+    if contract is None:
+        return
+    path, start, end = contract
+    owners = [draft for draft in drafts if path in draft.target_paths]
+    if (
+        len(owners) != 1
+        or owners[0].render_mode != "target_binding"
+        or owners[0].value_kind != "temperature"
+        or owners[0].char_start != start
+        or owners[0].char_end != end
+    ):
+        raise ValueError(
+            "signed carrying-temperature word and magnitude must be one mutable "
+            "temperature binding; a fixed PLUS/MINUS word can contradict generated values"
+        )
+
+
+def validate_compiled_signed_temperature_word_scope(
+    *, raw: str, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
+) -> None:
+    contract = signed_temperature_word_contract(raw, source_target)
+    if contract is None:
+        return
+    path, start, end = contract
+    owners = [binding for binding in template.bindings if path in binding.target_paths]
+    start_byte = len(raw[:start].encode("utf-8"))
+    end_byte = len(raw[:end].encode("utf-8"))
+    if (
+        len(owners) != 1
+        or owners[0].realization.adapter != "signed_temperature_word"
+        or owners[0].realization.requires_agent
+        or len(owners[0].occurrences) != 1
+        or owners[0].occurrences[0].byte_start != start_byte
+        or owners[0].occurrences[0].byte_end != end_byte
+    ):
+        raise ValueError(
+            "compiled template leaves a temperature sign word fixed beside a mutable "
+            "setpoint; recompile or use a corrected catalog before synthesis"
         )
 
 
@@ -4848,7 +5039,7 @@ def normalize_deterministic_draft_semantics(
 
 
 def validate_target_binding_relationships(
-    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any], raw: str | None = None
 ) -> None:
     for draft in drafts:
         relationship = target_path_relationship(source_target, draft.target_paths)
@@ -4891,7 +5082,7 @@ def validate_target_binding_relationships(
             "structured facts. Conflicts: " + details
         )
 
-    validate_repeated_binding_fact_topology(drafts=drafts, source_target=source_target)
+    validate_repeated_binding_fact_topology(drafts=drafts, source_target=source_target, raw=raw)
 
     requirements = required_target_cobindings(source_target)
     co_binding_errors: list[str] = []
@@ -4915,7 +5106,7 @@ def validate_target_binding_relationships(
 
 
 def validate_repeated_binding_fact_topology(
-    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+    *, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any], raw: str | None = None
 ) -> None:
     """Reject one repeated owner that conflates independently mutable target facts.
 
@@ -4934,6 +5125,14 @@ def validate_repeated_binding_fact_topology(
             continue
         independent_components = target_fact_components(source_target, first.target_paths)
         if len(independent_components) <= 1 or first.render_mode == "deterministic_derived":
+            continue
+        if (
+            raw is not None
+            and first.render_mode == "target_binding"
+            and set(first.target_paths) == set(global_shared_temperature_paths(raw, source_target))
+        ):
+            # The two document-wide printed instructions and one cargo group
+            # prove shared scope; equal labels without that evidence remain rejected.
             continue
         if first.render_mode == "agent_residual":
             normalized_occurrences = {
@@ -10206,7 +10405,7 @@ def apply_critic_patch(
     )
     if missing:
         raise ValueError("critic patch drops target ownership: " + ", ".join(missing))
-    validate_target_binding_relationships(drafts=revised, source_target=source_target)
+    validate_target_binding_relationships(drafts=revised, source_target=source_target, raw=raw)
     if binding_contract_signature(revised) == binding_contract_signature(drafts):
         raise ValueError(
             "critic transaction is a functional no-op after host canonicalization; "
@@ -10834,6 +11033,14 @@ def _surface_match(
     if adapter == "numeric":
         span = _matching_numeric_span(source, target, integer=value_kind == "integer")
         return (source[: span[0]], source[span[1] :]) if span is not None else None
+    if adapter == "signed_temperature_word":
+        match = re.fullmatch(r"(?i)(PLUS|MINUS)\s+(\d+(?:[.,]\d+)?)", source)
+        if match is None:
+            return None
+        observed = Decimal(match[2].replace(",", "."))
+        if match[1].upper() == "MINUS":
+            observed = -observed
+        return ("", "") if observed == Decimal(str(target)) else None
     if _normalized_surface(source) == _normalized_surface(target_surface):
         return "", ""
     span = _matching_token_frame(source, target_surface)
@@ -10841,6 +11048,10 @@ def _surface_match(
 
 
 def _surface_adapter(draft: SpanDraft) -> str:
+    if draft.value_kind == "temperature" and re.fullmatch(
+        r"(?i)(?:PLUS|MINUS)\s+\d+(?:[.,]\d+)?", draft.source_text
+    ):
+        return "signed_temperature_word"
     if any(
         path.endswith(".typeDescription") and ".containers[" in path for path in draft.target_paths
     ):
@@ -17804,8 +18015,15 @@ def certify_template(
         drafts=drafts,
         semantic_only_target_facts=semantic_only_target_facts,
     )
+    validate_global_shared_temperature_scope(
+        raw=raw,
+        source_target=source_target,
+        drafts=drafts,
+        semantic_only_target_facts=semantic_only_target_facts,
+    )
+    validate_signed_temperature_word_scope(raw=raw, source_target=source_target, drafts=drafts)
     validate_source_seal_ownership(drafts=drafts, source_target=source_target)
-    validate_target_binding_relationships(drafts=drafts, source_target=source_target)
+    validate_target_binding_relationships(drafts=drafts, source_target=source_target, raw=raw)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
     validate_coherence_contracts(
         raw=raw,

@@ -194,6 +194,7 @@ def shared_setpoint_owners(
     components: list[set[int]] = []
     owners = [c.container_indices for c in cargo_setpoint_contracts(template, source)]
     owners.extend(summary_setpoint_owners(template, source))
+    owners.extend(direct_shared_setpoint_owners(template, source))
     for indices in owners:
         current = set(indices)
         overlapping = [group for group in components if group & current]
@@ -202,6 +203,47 @@ def shared_setpoint_owners(
             components.remove(group)
         components.append(current)
     return {i: tuple(sorted(group)) for group in components for i in group}
+
+
+def direct_shared_setpoint_owners(
+    template: CertifiedSemanticTemplate, source: Mapping[str, Any]
+) -> tuple[tuple[int, ...], ...]:
+    """Carry direct shared-value bindings into joint physical sampling.
+
+    Rendering already rejects unequal target values for one shared binding, but
+    the sampler needs the equality *before* it draws the container settings.
+    """
+    groups = set()
+    printed = {path for binding in template.bindings for path in binding.target_paths}
+    containers = source["documentPatch"]["containers"]
+    for binding in template.bindings:
+        if getattr(binding, "target_relationship", None) != "shared_value_equality":
+            continue
+        matches = tuple(
+            re.fullmatch(r"documentPatch\.containers\[(\d+)\]\.temperatureSetpoint\.value", path)
+            for path in binding.target_paths
+        )
+        if not any(matches):
+            continue
+        if not all(matches):
+            raise ValueError("direct shared temperature binding mixes unrelated target paths")
+        indices = tuple(sorted({int(match[1]) for match in matches if match is not None}))
+        if len(indices) < 2 or any(index >= len(containers) for index in indices):
+            raise ValueError("direct shared temperature binding has invalid owners")
+        if any(
+            f"documentPatch.containers[{index}].temperatureSetpoint.unit" not in printed
+            for index in indices
+        ):
+            raise ValueError("direct shared temperature binding lacks printed units")
+        settings = [containers[index].get("temperatureSetpoint") for index in indices]
+        if not isinstance(settings[0], Mapping) or any(
+            setting != settings[0] for setting in settings
+        ):
+            raise ValueError("direct shared temperature source setpoints disagree")
+        if not Decimal(str(settings[0]["value"])).is_finite():
+            raise ValueError("direct shared temperature source setpoint is non-finite")
+        groups.add(indices)
+    return tuple(sorted(groups))
 
 
 def summary_setpoint_owners(

@@ -122,6 +122,7 @@ SurfaceAdapter = Literal[
     "opaque_identifier",
     "date",
     "numeric",
+    "signed_temperature_word",
     "categorical",
     "package_category",
     "measurement_unit",

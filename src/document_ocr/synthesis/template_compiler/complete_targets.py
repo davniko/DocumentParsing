@@ -54,7 +54,11 @@ from .generation_contract import (
     require_complete_variation,
     validate_party_evidence,
 )
-from .host import validate_compiled_single_printed_hs_scope
+from .host import (
+    validate_compiled_global_shared_temperature_scope,
+    validate_compiled_signed_temperature_word_scope,
+    validate_compiled_single_printed_hs_scope,
+)
 from .latest_target import latest_target_from_source
 from .models import CertifiedSemanticTemplate, SemanticBinding
 from .range_generation import condition_lexical_ranges as condition_lexical_ranges
@@ -89,6 +93,12 @@ def load_source(root: Any, document_id: str) -> SourceTemplate:
     if issues:
         raise ValueError("source template integrity requires review: " + "; ".join(issues))
     validate_compiled_single_printed_hs_scope(
+        raw=source.decode("utf-8"), source_target=label, template=template
+    )
+    validate_compiled_global_shared_temperature_scope(
+        raw=source.decode("utf-8"), source_target=label, template=template
+    )
+    validate_compiled_signed_temperature_word_scope(
         raw=source.decode("utf-8"), source_target=label, template=template
     )
     validate_party_evidence(
@@ -197,8 +207,12 @@ def _numeric_quantum(source: SourceTemplate, path: str, old: int | float) -> Dec
 
 
 def _equal_allocation_quantities(
-    weights: list[int], lower_bounds: list[int], total: int, equal_rows: tuple[int, ...],
-    *, independent_total: bool,
+    weights: list[int],
+    lower_bounds: list[int],
+    total: int,
+    equal_rows: tuple[int, ...],
+    *,
+    independent_total: bool,
 ) -> list[int]:
     """Draw one shared count before apportioning the other observed rows.
 
@@ -333,9 +347,11 @@ def _scale_numbers(
             reconciled = reconcile_allocation_group(
                 packages=list(package_by_id.values()), allocation_group=allocation
             )
-            if equal_rows and len(
-                {reconciled["allocations"][i].get("packageQuantity") for i in equal_rows}
-            ) != 1:
+            if (
+                equal_rows
+                and len({reconciled["allocations"][i].get("packageQuantity") for i in equal_rows})
+                != 1
+            ):
                 raise ValueError("linked package quantities contradict shared allocation equality")
             allocation.update(reconciled)
             continue
@@ -368,7 +384,10 @@ def _scale_numbers(
         )
         if equal_rows:
             assigned_counts = _equal_allocation_quantities(
-                weights, lower_bounds, total, equal_rows,
+                weights,
+                lower_bounds,
+                total,
+                equal_rows,
                 independent_total=allocation["coverage"] == "unlinked_package_quantities",
             )
             for row, count in zip(quantified, assigned_counts, strict=True):

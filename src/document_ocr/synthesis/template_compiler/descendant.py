@@ -988,6 +988,32 @@ def _binding_target_value(target: Mapping[str, Any], path: str) -> JsonValue:
         return cast(JsonValue, equipment)
 
 
+def _render_signed_temperature_word_surface(source: str, old: Any, new: Any) -> str:
+    """Render the sign word with the number, never as a stale literal prefix."""
+    match = re.fullmatch(
+        r"(?P<word>PLUS|MINUS)(?P<space>\s+)(?P<magnitude>\d+(?:[.,]\d+)?)",
+        source,
+        re.I,
+    )
+    if match is None:
+        raise ValueError("certified signed temperature surface changed")
+    before, after = Decimal(str(old)), Decimal(str(new))
+    observed = Decimal(match["magnitude"].replace(",", "."))
+    if match["word"].upper() == "MINUS":
+        observed = -observed
+    if not before.is_finite() or not after.is_finite() or observed != before:
+        raise ValueError("signed temperature surface disagrees with its certified source")
+    word = "MINUS" if after < 0 else "PLUS"
+    if match["word"].islower():
+        word = word.lower()
+    elif match["word"].istitle():
+        word = word.title()
+    magnitude = render_number_surface(match["magnitude"], abs(before), abs(after))
+    if magnitude.startswith(("-", "+")):
+        raise ValueError("signed temperature magnitude has an extra sign")
+    return word + match["space"] + magnitude
+
+
 def _render_whole_slot(
     *, slot: TemplateSlot, binding: SemanticBinding, old_value: Any, new_value: Any
 ) -> str:
@@ -1002,6 +1028,8 @@ def _render_whole_slot(
             cast(int | float, old_value),
             cast(int | float, new_value),
         )
+    if binding.realization.adapter == "signed_temperature_word":
+        return _render_signed_temperature_word_surface(slot.source_text, old_value, new_value)
     if binding.realization.adapter == "package_category":
         if not isinstance(new_value, str):
             raise ValueError("package category target is not text")
@@ -2739,11 +2767,15 @@ def _receipt_equipment_surface(value: Mapping[str, Any], source: str) -> str:
     # A compact HC receipt asserts height only. Preserve its exact carrier
     # spelling when the new unit remains high-cube, regardless of cargo type.
     height_only = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*HC", source, re.I)
-    if height_only and value["sizeCategory"] == {
-        "20": "TWENTY_FOOT_HIGH_CUBE",
-        "40": "FORTY_FOOT_HIGH_CUBE",
-        "45": "FORTY_FIVE_FOOT_HIGH_CUBE",
-    }[height_only[1]]:
+    if (
+        height_only
+        and value["sizeCategory"]
+        == {
+            "20": "TWENTY_FOOT_HIGH_CUBE",
+            "40": "FORTY_FOOT_HIGH_CUBE",
+            "45": "FORTY_FIVE_FOOT_HIGH_CUBE",
+        }[height_only[1]]
+    ):
         return source
     from document_ocr.synthesis.container_semantics import iso_equipment_surface
 
