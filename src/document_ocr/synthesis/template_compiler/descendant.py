@@ -5088,6 +5088,27 @@ def _derivation_measurement_factor(
     value_paths: Sequence[str] = (),
     occurrences: Sequence[TemplateSlot] | None = None,
 ) -> tuple[Decimal, Decimal]:
+    return _measurement_factor_for_source(
+        binding,
+        source=case.source,
+        source_target=case.source_target,
+        target=case.target,
+        template=case.template,
+        value_paths=value_paths,
+        occurrences=occurrences,
+    )
+
+
+def _measurement_factor_for_source(
+    binding: SemanticBinding,
+    *,
+    source: bytes,
+    source_target: Mapping[str, Any],
+    target: Mapping[str, Any],
+    template: CertifiedSemanticTemplate,
+    value_paths: Sequence[str] = (),
+    occurrences: Sequence[TemplateSlot] | None = None,
+) -> tuple[Decimal, Decimal]:
     """Use explicit typed input units and adjacent printed units, never a fitted ratio."""
     from .measurement_columns import ordered_column_unit
 
@@ -5099,14 +5120,14 @@ def _derivation_measurement_factor(
         return Decimal(1), Decimal(0)
     units = set()
     numeric_values = (
-        {path: _numeric_value(_resolve_path(case.source_target, path)) for path in value_paths}
+        {path: _numeric_value(_resolve_path(source_target, path)) for path in value_paths}
         if value_paths
-        else _measurement_dependency_values(binding, case.source_target)
+        else _measurement_dependency_values(binding, source_target)
     )
     for path in numeric_values:
         unit_path = path.removesuffix(".value") + ".unit"
-        old = _resolve_path(case.source_target, unit_path)
-        if _resolve_path(case.target, unit_path) != old:
+        old = _resolve_path(source_target, unit_path)
+        if _resolve_path(target, unit_path) != old:
             raise ValueError("derived measurement cannot change its source unit contract")
         units.add(old)
     if not units:
@@ -5117,9 +5138,9 @@ def _derivation_measurement_factor(
     printed_units = set()
     for slot in binding.occurrences if occurrences is None else occurrences:
         column_unit = ordered_column_unit(
-            case.source, byte_end=slot.byte_end, surface=slot.source_text
+            source, byte_end=slot.byte_end, surface=slot.source_text
         )
-        suffix = case.source[slot.byte_end :].split(b"\n", 1)[0].decode()
+        suffix = source[slot.byte_end :].split(b"\n", 1)[0].decode()
         # Only the immediately adjacent unit is context; subsequent columns
         # or prose cannot supply a conversion for this numeric field.
         adjacent = _MEASUREMENT_ADJACENT.match(suffix)
@@ -5144,7 +5165,7 @@ def _derivation_measurement_factor(
     if factor != 1:
         for path, value in numeric_values.items():
             steps = []
-            for member in case.template.bindings:
+            for member in template.bindings:
                 if path not in member.target_paths:
                     continue
                 for slot in member.occurrences:

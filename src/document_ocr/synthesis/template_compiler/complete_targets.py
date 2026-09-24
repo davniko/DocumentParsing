@@ -15,6 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from fractions import Fraction
+from itertools import pairwise
 from math import gcd, lcm
 from typing import Any, cast
 
@@ -62,6 +63,7 @@ from .host import (
 )
 from .latest_target import latest_target_from_source
 from .models import CertifiedSemanticTemplate, SemanticBinding
+from .numeric_auxiliary import surface_quantum
 from .range_generation import condition_lexical_ranges as condition_lexical_ranges
 from .range_generation import formal_range_text, plan_ranges
 from .realization_contract import (
@@ -204,6 +206,64 @@ def _numeric_quantum(source: SourceTemplate, path: str, old: int | float) -> Dec
             precisions.append(max(0, precision - 1))
     if precisions:
         return Decimal(1).scaleb(-min(precisions))
+    # A compiled measurement may be marked agent-assisted at extraction time
+    # yet be printed by the deterministic typed-measurement renderer. Its
+    # canonical source value is a float (e.g. 7740.0), whose serialization
+    # does not imply that a grouped `7.740 KG` slot prints tenths of a kg.
+    # Use the same source unit and numeric-surface proof as that renderer.
+    if re.search(r"\.(?:grossWeight|netWeight|volume)\.value$", path):
+        proven_steps = []
+        for binding in source.template.bindings:
+            if path not in binding.target_paths:
+                continue
+            for slot in binding.occurrences:
+                try:
+                    factor, _ = render._measurement_factor_for_source(
+                        binding,
+                        source=source.source,
+                        source_target=source.target,
+                        target=source.target,
+                        template=source.template,
+                        value_paths=(path,),
+                        occurrences=(slot,),
+                    )
+                    printed = Decimal(str(old)) * factor
+                    proven_steps.append(surface_quantum(slot.source_text, printed) / factor)
+                except ValueError:
+                    # A segmented/ambiguous slot is not evidence of precision.
+                    # Another occurrence may be independently source-proven.
+                    continue
+            # OCR segmentation can split a single numeric token into adjacent
+            # slots such as `11200` + `.000`. The joined source bytes, not either
+            # component alone, prove the decimal precision.
+            ordered = sorted(binding.occurrences, key=lambda slot: slot.byte_start)
+            for left, right in pairwise(ordered):
+                if (
+                    source.source[left.byte_end : right.byte_start] not in {b".", b","}
+                    or re.fullmatch(r"\d+", left.source_text) is None
+                    or re.fullmatch(r"\d+", right.source_text) is None
+                ):
+                    continue
+                try:
+                    factor, _ = render._measurement_factor_for_source(
+                        binding,
+                        source=source.source,
+                        source_target=source.target,
+                        target=source.target,
+                        template=source.template,
+                        value_paths=(path,),
+                        occurrences=(right,),
+                    )
+                    combined = source.source[left.byte_start : right.byte_end].decode("utf-8")
+                    printed = Decimal(str(old)) * factor
+                    proven_steps.append(surface_quantum(combined, printed) / factor)
+                except ValueError:
+                    continue
+        if proven_steps:
+            # A finer repeated occurrence can support the target even when a
+            # summary occurrence rounds it. Do not force the model to infer
+            # precision absent from *every* owned surface.
+            return min(proven_steps)
     # A converted/composite measurement is not a direct numeric adapter. Its
     # absence here does not prove integer precision in the TARGET unit (e.g.
     # 48.751 tonnes printed as 48,751 kg). Preserve the observed target precision;

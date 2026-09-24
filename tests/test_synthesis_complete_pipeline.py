@@ -27,6 +27,46 @@ def test_composite_measurement_does_not_imply_whole_target_unit_precision():
     ) == Decimal(1)
 
 
+def test_measurement_quantum_uses_proven_printed_precision_across_adapters():
+    from document_ocr.synthesis.template_compiler import complete_targets as targets
+
+    path = "documentPatch.cargoGroups[0].grossWeight.value"
+    target = {"documentPatch": {"cargoGroups": [{"grossWeight": {
+        "value": 7740.0, "unit": "kilogram",
+    }}]}}
+    source = b"GROSS 7.740 KG"
+    binding = NS(
+        target_paths=(path,),
+        realization=NS(adapter="agent"),
+        occurrences=(NS(source_text="7.740", byte_start=6, byte_end=11),),
+    )
+    example = NS(source=source, target=target, template=NS(bindings=(binding,)))
+    assert targets._numeric_quantum(example, path, 7740.0) == Decimal(1)
+
+    source = b"GROSS 7740 KG\nEXACT 7740.25 KG"
+    target["documentPatch"]["cargoGroups"][0]["grossWeight"]["value"] = 7740.25
+    rounded = NS(
+        source_text="7740", byte_start=source.index(b"7740"),
+        byte_end=source.index(b"7740") + 4,
+    )
+    precise = NS(
+        source_text="7740.25", byte_start=source.index(b"7740.25"),
+        byte_end=source.index(b"7740.25") + 7,
+    )
+    binding.occurrences = (rounded, precise)
+    example = NS(source=source, target=target, template=NS(bindings=(binding,)))
+    assert targets._numeric_quantum(example, path, 7740.25) == Decimal("0.01")
+
+    source = b"GROSS 11200.000KGS"
+    target["documentPatch"]["cargoGroups"][0]["grossWeight"]["value"] = 11200.0
+    binding.occurrences = (
+        NS(source_text="11200", byte_start=6, byte_end=11),
+        NS(source_text="000", byte_start=12, byte_end=15),
+    )
+    example = NS(source=source, target=target, template=NS(bindings=(binding,)))
+    assert targets._numeric_quantum(example, path, 11200.0) == Decimal("0.001")
+
+
 def _sampled_tare_fixture():
     source_target = {
         "schemaVersion": "5.0.0",
