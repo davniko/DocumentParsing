@@ -2867,6 +2867,112 @@ def target_path_relationship(source_target: Mapping[str, Any], paths: Sequence[s
     return "composite_target_surface"
 
 
+_SINGLE_PRINTED_HS_LINE = re.compile(
+    r"(?im)^\s*H\.?S\.?\s+CODES?\s*:\s*(?P<code>\d[\d. -]{4,14}\d)\s*$"
+)
+
+
+def single_printed_shared_hs_paths(
+    raw: str, source_target: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Return HS leaves proven to share one explicit source field, or none.
+
+    The evidence rule does not infer scope from equal values alone. Other cargo
+    layouts remain under ordinary compilation and independent review.
+    """
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        return ()
+    groups = patch.get("cargoGroups")
+    if not isinstance(groups, list) or len(groups) < 2:
+        return ()
+    codes: list[str] = []
+    for group in groups:
+        if not isinstance(group, Mapping):
+            return ()
+        values = group.get("hsCodes")
+        if not isinstance(values, list) or len(values) != 1 or not isinstance(values[0], str):
+            return ()
+        codes.append(re.sub(r"\D", "", values[0]))
+    if len(set(codes)) != 1 or not 6 <= len(codes[0]) <= 10:
+        return ()
+    printed = tuple(_SINGLE_PRINTED_HS_LINE.finditer(raw))
+    if len(printed) != 1 or re.sub(r"\D", "", printed[0].group("code")) != codes[0]:
+        return ()
+    # Another occurrence may be a cargo-row code, in which case the caption is
+    # not sufficient evidence that every group is represented by one surface.
+    if raw.count(printed[0].group("code")) != 1:
+        return ()
+    return tuple(f"documentPatch.cargoGroups[{index}].hsCodes[0]" for index in range(len(groups)))
+
+
+def validate_single_printed_hs_scope(
+    *,
+    raw: str,
+    source_target: Mapping[str, Any],
+    drafts: Sequence[SpanDraft],
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+) -> None:
+    """Reject compiler drafts that lose an unambiguous shared HS dependency."""
+
+    paths = single_printed_shared_hs_paths(raw, source_target)
+    if not paths:
+        return
+    printed = next(_SINGLE_PRINTED_HS_LINE.finditer(raw))
+    semantic = {fact.target_path for fact in semantic_only_target_facts}
+    owners = {
+        path: {draft.logical_key for draft in drafts if path in draft.target_paths}
+        for path in paths
+    }
+    owner_keys = {next(iter(keys)) for keys in owners.values() if len(keys) == 1}
+    valid = (
+        not (semantic & set(paths))
+        and all(len(keys) == 1 for keys in owners.values())
+        and len(owner_keys) == 1
+        and any(
+            draft.logical_key in owner_keys
+            and draft.render_mode == "target_binding"
+            and set(paths) <= set(draft.target_paths)
+            and draft.char_start <= printed.start("code")
+            and draft.char_end >= printed.end("code")
+            for draft in drafts
+        )
+    )
+    if not valid:
+        raise ValueError(
+            "one printed HS-code field and equal cargo-group labels require one "
+            "shared-value target binding owning every group HS path; independent or "
+            "semantic-only HS leaves would create ungrounded synthetic labels"
+        )
+
+
+def validate_compiled_single_printed_hs_scope(
+    *, raw: str, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
+) -> None:
+    """Fail synthesis preflight for old catalogs with independently mutable HS leaves."""
+
+    paths = single_printed_shared_hs_paths(raw, source_target)
+    if not paths:
+        return
+    semantic = {fact.target_path for fact in template.semantic_only_target_facts}
+    owners = [
+        binding
+        for binding in template.bindings
+        if set(paths).intersection(binding.target_paths)
+    ]
+    if (
+        semantic.intersection(paths)
+        or len(owners) != 1
+        or not set(paths) <= set(owners[0].target_paths)
+        or owners[0].target_relationship != "shared_value_equality"
+        or owners[0].realization.requires_agent
+    ):
+        raise ValueError(
+            "compiled template loses the one-printed-field shared HS scope; "
+            "recompile or use a corrected catalog before synthesis"
+        )
+
+
 def required_target_cobindings(
     source_target: Mapping[str, Any],
 ) -> tuple[RequiredTargetCoBinding, ...]:
@@ -11853,7 +11959,14 @@ def normalize_segmented_party_address_targets(
             row
             for row in drafts
             if row.render_mode in {"deterministic_auxiliary", "agent_residual"}
-            and row.value_kind == "address"
+            and (
+                row.value_kind == "address"
+                or (
+                    row.value_kind == "identifier"
+                    and re.search(r"postal|postcode|zip", row.logical_key, re.IGNORECASE)
+                    and re.fullmatch(r"[0-9]{4,10}(?:-[0-9]+)?", row.source_text.strip())
+                )
+            )
             and row.group_kind == "party"
             and row.group_key == group_key
             and not row.target_paths
@@ -11910,11 +12023,14 @@ def normalize_segmented_party_address_targets(
                 row,
                 logical_key="anchor:" + promoted_path,
                 render_mode="target_binding",
+                value_kind="address",
                 group_kind=group_kind,
                 group_key=group_key,
                 target_paths=(promoted_path,),
                 evidence_origin="host_verified_agent_proposal",
-                render_policy="natural_text",
+                render_policy=(
+                    "opaque_identifier" if row.value_kind == "identifier" else "natural_text"
+                ),
                 rationale=(
                     row.rationale
                     + " Host promoted the party-scoped address fragments because their unique "
@@ -17682,6 +17798,12 @@ def certify_template(
 ) -> CertifiedSemanticTemplate:
     if not critic_outputs or critic_outputs[-1].verdict != "pass":
         raise ValueError("template lacks a final independent critic pass")
+    validate_single_printed_hs_scope(
+        raw=raw,
+        source_target=source_target,
+        drafts=drafts,
+        semantic_only_target_facts=semantic_only_target_facts,
+    )
     validate_source_seal_ownership(drafts=drafts, source_target=source_target)
     validate_target_binding_relationships(drafts=drafts, source_target=source_target)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)

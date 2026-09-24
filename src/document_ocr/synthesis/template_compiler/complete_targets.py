@@ -54,6 +54,7 @@ from .generation_contract import (
     require_complete_variation,
     validate_party_evidence,
 )
+from .host import validate_compiled_single_printed_hs_scope
 from .latest_target import latest_target_from_source
 from .models import CertifiedSemanticTemplate, SemanticBinding
 from .range_generation import condition_lexical_ranges as condition_lexical_ranges
@@ -87,6 +88,9 @@ def load_source(root: Any, document_id: str) -> SourceTemplate:
     issues = source_template_integrity_issues(source.decode(), label)
     if issues:
         raise ValueError("source template integrity requires review: " + "; ".join(issues))
+    validate_compiled_single_printed_hs_scope(
+        raw=source.decode("utf-8"), source_target=label, template=template
+    )
     validate_party_evidence(
         target=label,
         binding_paths={path for binding in template.bindings for path in binding.target_paths},

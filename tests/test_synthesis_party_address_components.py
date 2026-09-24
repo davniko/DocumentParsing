@@ -78,6 +78,47 @@ def test_competing_postal_owners_remain_unmodified():
     assert {d.draft_id: d for d in result} == {d.draft_id: d for d in (street, first, second)}
 
 
+def test_unbound_address_and_interleaved_postcode_form_one_exact_target():
+    raw = "Port Tawfik Free Zone\nArea Suez Egypt\nALEXANDRIA 55698 Egypt"
+    street = replace(
+        _draft("agent:party:consignee:address", "Port Tawfik Free Zone\nArea Suez", 0),
+        render_mode="agent_residual",
+        value_kind="address",
+    )
+    postcode = _draft("agent:party:consignee:postal_code", "55698", raw.index("55698"))
+    city = replace(
+        _draft(
+            "agent:party:consignee:city",
+            "ALEXANDRIA",
+            raw.index("ALEXANDRIA"),
+            target_paths=("documentPatch.parties.consignee.city",),
+        ),
+        value_kind="location",
+    )
+    target = {
+        "documentPatch": {
+            "parties": {
+                "consignee": {
+                    "address": "Port Tawfik Free Zone Area Suez 55698",
+                    "city": "ALEXANDRIA",
+                }
+            }
+        }
+    }
+    output = host.normalize_segmented_party_address_targets(
+        drafts=(street, city, postcode), source_target=target
+    )
+    by_id = {draft.draft_id: draft for draft in output}
+    assert by_id[street.draft_id].logical_key == by_id[postcode.draft_id].logical_key
+    assert by_id[street.draft_id].target_paths == (
+        "documentPatch.parties.consignee.address",
+    )
+    assert by_id[postcode.draft_id].value_kind == "address"
+    assert by_id[postcode.draft_id].render_policy == "opaque_identifier"
+    assert by_id[city.draft_id] == city
+    host.validate_draft_source_alignment(raw=raw, drafts=output)
+
+
 @pytest.mark.parametrize("prefix", ["NO.98, ", "2,2/"])
 def test_multiline_address_completes_exact_prefix_on_first_line(prefix):
     text = "F,FUDU BUILDING,\n98 ARGYLE STREET"

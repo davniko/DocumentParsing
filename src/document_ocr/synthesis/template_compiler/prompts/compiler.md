@@ -266,6 +266,12 @@ own typed bindings when the allowed target has no corresponding path.
   Never mark such names static or generate them independently. This contract is only
   for a complete commodity name, not dimensions, grade, quantities, packing or a
   mixed sentence. Ambiguous goods/HS associations require review, not proximity guesses.
+  When one printed HS-code field applies to several cargo groups and the source label
+  repeats the same code in those groups, that one exact code surface must own every
+  affected `documentPatch.cargoGroups[i].hsCodes[j]` path in a single target binding.
+  This is a shared-value equality constraint for future goods sampling, not a set of
+  independently mutable unprinted HS facts. Confirm document-wide scope from the
+  source layout and labels; if it is ambiguous, keep the template in review.
   Choose the exact supported derivation enum. Never independently synthesize a calculated total. A
   complete count-noun surface such as `1 container`, `ONE CONTAINER`, or `2 containers` uses
   `container_count`; the host renderer controls number formatting and singular/plural form. An
