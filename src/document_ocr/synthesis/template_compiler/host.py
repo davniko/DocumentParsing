@@ -17580,9 +17580,14 @@ def normalize_structured_row_locality(
     shipment_total_normalized = shipment_totals.normalize(
         raw=raw, drafts=container_count_normalized, source_target=source_target
     )
+    from . import package_count_surfaces
+
+    package_count_normalized = package_count_surfaces.normalize(
+        raw=raw, drafts=shipment_total_normalized, source_target=source_target
+    )
     dangerous_goods_normalized = normalize_dangerous_goods_class_locality(
         raw=raw,
-        drafts=shipment_total_normalized,
+        drafts=package_count_normalized,
         source_target=source_target,
     )
     dangerous_goods_description_normalized = normalize_labeled_dangerous_goods_descriptions(

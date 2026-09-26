@@ -2,6 +2,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+from document_ocr.synthesis.template_compiler import package_count_surfaces as package_counts
 from document_ocr.synthesis.template_compiler import shipment_totals as totals
 
 
@@ -76,3 +77,40 @@ def test_existing_item_row_count_and_allocation_alias_are_not_reinterpreted():
     binding.dependency_paths = ("documentPatch.containers",)
     with pytest.raises(ValueError, match="unrelated"):
         totals.require_owned(raw, NS(bindings=(binding,)))
+
+
+def test_small_and_headed_package_counts_receive_distinct_derived_slots():
+    raw = "No of Packgs\n3\n3 PACKAGE (S) AS PER ATTACHED SHEET.\n"
+    source = {
+        "documentPatch": {"cargoPackages": [{"quantity": 3, "typeCategory": "PACKAGE_PACKAGE"}]}
+    }
+    drafts = package_counts.normalize(raw=raw, drafts=(), source_target=source)
+    assert len(drafts) == 2
+    assert all(d.derivation == "sum_package_quantity" for d in drafts)
+    bindings = tuple(
+        NS(
+            occurrences=(NS(byte_start=d.char_start, byte_end=d.char_end),),
+            logical_key=d.logical_key,
+        )
+        for d in drafts
+    )
+    package_counts.require_owned(raw.encode(), NS(bindings=bindings), source)
+
+
+def test_different_packing_level_and_repeated_equal_rows_need_review():
+    raw = "26 SKIDS\n"
+    source = {
+        "documentPatch": {"cargoPackages": [{"quantity": 26, "typeCategory": "PACKAGE_CASE"}]}
+    }
+    assert not package_counts.normalize(raw=raw, drafts=(), source_target=source)
+    with pytest.raises(ValueError, match="lacks a compiled owner"):
+        package_counts.require_owned(raw.encode(), NS(bindings=()), source)
+    repeated = {
+        "documentPatch": {
+            "cargoPackages": [
+                {"quantity": 20, "typeCategory": "PACKAGE_PALLET"},
+                {"quantity": 20, "typeCategory": "PACKAGE_PALLET"},
+            ]
+        }
+    }
+    assert not package_counts.normalize(raw="20 PALLETS", drafts=(), source_target=repeated)

@@ -80,6 +80,68 @@ def test_overpack_sentence_requires_exact_structured_source_proof():
         equations.generate(source, source)
 
 
+def test_equal_two_level_declaration_tracks_sole_structured_package_count():
+    source = scenario(["60 PALLETS ( 60 BAGS )"], 60)
+    source["documentPatch"]["cargoPackages"][0]["typeCategory"] = "PACKAGE_BAG"
+    target = deepcopy(source)
+    target["documentPatch"]["cargoPackages"][0]["quantity"] = 36
+    expected = "36 PALLETS ( 36 BAGS )"
+    assert equations.one_to_one_target_surfaces(source, target) == {
+        "documentPatch.cargoGroups[0].additionalInformation[0]": expected
+    }
+    assert list(equations.overpack_surfaces(source, target).values()) == [expected]
+    source["documentPatch"]["cargoPackages"].append(
+        {"groupId": "g1", "quantity": 60, "typeCategory": "PACKAGE_BOX"}
+    )
+    assert equations.one_to_one_target_surfaces(source, target) == {}
+
+
+def test_compact_package_phrase_uses_shared_prepared_pallet_totals():
+    source = scenario(["64PLTS=896CTNS=17024PCES"], 896)
+    source["documentPatch"]["cargoPackages"].append(
+        {"groupId": "g1", "quantity": 17024, "typeCategory": "PACKAGE_PIECE"}
+    )
+    target = deepcopy(source)
+    target["documentPatch"]["cargoPackages"][0]["quantity"] = 724
+    target["documentPatch"]["cargoPackages"][1]["quantity"] = 13755
+    raw = b"32 PALLETS\n32 PALLETS\n"
+    bindings = tuple(
+        NS(
+            logical_key=f"pallet:{i}",
+            target_paths=(),
+            value_kind="package",
+            derivation=None,
+            occurrences=(
+                NS(source_text="32 PALLETS", byte_end=10 + i * 11, render_policy="numeric_surface"),
+            ),
+        )
+        for i in range(2)
+    )
+    template = NS(
+        bindings=bindings,
+        coherence_constraints=(),
+        auxiliary_semantic_plan=NS(dispositions=()),
+    )
+    values = {
+        "pallet:0": NS(contract=NS(role="cargo_quantity", source_value="32"), value="26"),
+        "pallet:1": NS(contract=NS(role="cargo_quantity", source_value="32"), value="26"),
+    }
+    assert equations.numeric_composite_target_surfaces(template, raw, source, target, values) == {
+        "documentPatch.cargoGroups[0].additionalInformation[0]": "52PLTS=724CTNS=13755PCES"
+    }
+
+
+def test_compact_package_phrase_requires_lexical_owner_only_when_not_preassembled():
+    path = "documentPatch.cargoGroups[0].additionalInformation[0]"
+    source = scenario(["17PALLETS=339CTNS"], 339)
+    assert equations.pending_numeric_composite_surfaces(
+        source, {path: "17PALLETS=339CTNS"}
+    ) == {}
+    assert equations.pending_numeric_composite_surfaces(
+        source, {path: "17PALLETS=271CTNS"}
+    ) == {path: "17PALLETS=271CTNS"}
+
+
 def test_pre_sampling_categories_use_the_same_proven_nested_packing_owner():
     source = scenario(["9 Pallet(s) containing 220 CARTONS"], 220)
     before = deepcopy(source)

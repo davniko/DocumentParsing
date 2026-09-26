@@ -47,6 +47,7 @@ from . import (
     equipment_row_constraints,
     geographic_context,
     lexical_facts,
+    package_equations,
 )
 from . import complete_targets as targets
 from . import descendant as render
@@ -1363,6 +1364,56 @@ async def run(config_path: Path) -> dict[str, Any]:
             sample_id=sample_id,
             seed=config.seed,
         )
+        host_preview = host_lexical.preview(source, proposed, fields)
+        numeric_context = numeric.prepare(
+            numeric.numeric_bindings(source.template),
+            numeric_contracts[source_id],
+            source_target=source.target,
+            target=host_preview,
+            scale=targets.scenario_scale(sample_id, config.seed),
+            source_template=source.template,
+            equipment_tare_values=equipment_tare_values,
+        )
+        if cargo_scenario is not None:
+            equipment_row_constraints.validate_prepared(
+                cargo_scenario.receipt["printedContainerRows"], numeric_context
+            )
+        numeric_composites = package_equations.numeric_composite_target_surfaces(
+            source.template, source.source, source.target, host_preview, numeric_context
+        )
+        numeric_composites = package_equations.pending_numeric_composite_surfaces(
+            host_preview, numeric_composites
+        )
+        if numeric_composites:
+            values = dict(host_lexical.values)
+            evidence = dict(host_lexical.evidence)
+            for path, rendered in numeric_composites.items():
+                owners = [
+                    field
+                    for field in fields
+                    if tuple(field["paths"]) == (path,)
+                    and field["source"] == render._resolve_path(source.target, path)
+                ]
+                if len(owners) != 1:
+                    raise ValueError("numeric package composite lacks one lexical owner")
+                key = owners[0]["key"]
+                if key in values and values[key] != rendered:
+                    raise ValueError("numeric package composite conflicts with host lexical fact")
+                values[key] = rendered
+                evidence[key] = {"kind": "source_proven_numeric_package_equation", "path": path}
+            host_lexical = lexical_facts.HostLexicalPlan(values=values, evidence=evidence)
+            host_preview = host_lexical.preview(source, proposed, fields)
+            rechecked = numeric.prepare(
+                numeric.numeric_bindings(source.template),
+                numeric_contracts[source_id],
+                source_target=source.target,
+                target=host_preview,
+                scale=targets.scenario_scale(sample_id, config.seed),
+                source_template=source.template,
+                equipment_tare_values=equipment_tare_values,
+            )
+            if rechecked != numeric_context:
+                raise ValueError("numeric package phrase changed its prepared quantity receipts")
         agent_fields = tuple(f for f in fields if f["key"] not in host_lexical.values)
         review = reviews.get(sample_id)
         if review is not None:
@@ -1390,20 +1441,6 @@ async def run(config_path: Path) -> dict[str, Any]:
                 sha256_bytes(canonical_json_bytes(checkpoint)) != review.original_checkpoint_sha256
             ):
                 raise ValueError("reviewed correction original checkpoint has changed")
-        host_preview = host_lexical.preview(source, proposed, fields)
-        numeric_context = numeric.prepare(
-            numeric.numeric_bindings(source.template),
-            numeric_contracts[source_id],
-            source_target=source.target,
-            target=host_preview,
-            scale=targets.scenario_scale(sample_id, config.seed),
-            source_template=source.template,
-            equipment_tare_values=equipment_tare_values,
-        )
-        if cargo_scenario is not None:
-            equipment_row_constraints.validate_prepared(
-                cargo_scenario.receipt["printedContainerRows"], numeric_context
-            )
         payload = {
             "sampleId": sample_id,
             "structuredScenario": host_preview,

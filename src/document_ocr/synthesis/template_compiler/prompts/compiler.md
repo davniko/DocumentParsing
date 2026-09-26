@@ -158,6 +158,12 @@ owned by a reusable, carrier-bound rendering contract.
   A total package row is not an additional package component: if the source label counts both
   the complete total and its components as additive rows, flag the source-label contradiction.
   Distinct rows that happen to have equal quantities remain distinct owners.
+  Every printed package count must have a mutable quantity owner, including a number under a
+  `No of Packgs` heading, a count repeated on an attachment, and a count inside a package
+  summary. Distinguish inner from outer levels. When a complete declaration proves a one-to-one
+  relation, such as `60 PALLETS (60 BAGS)` with the sole package row of 60 bags, preserve that
+  equality during generation; do not vary one count while freezing the other. If a source-only
+  count has no unique structured owner or a complete auxiliary equation, return it for review.
 - `allowedTargetPaths` is the exhaustive host-generated vocabulary of addressable paths in this
   source label. Every target or dependency path you return must be copied exactly from that list.
 - `requiredTargetCoBindings` is the exhaustive host-derived list of structured facts that must be

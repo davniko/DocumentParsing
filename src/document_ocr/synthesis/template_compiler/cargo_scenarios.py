@@ -688,6 +688,9 @@ def require_contract(source: targets.SourceTemplate) -> None:
     ):
         raise ValueError("printed HS commodity aliases lack mutable goods ownership")
     shipment_totals.require_owned(source.source, source.template)
+    from . import package_count_surfaces
+
+    package_count_surfaces.require_owned(source.source, source.template, source.target)
     temperature_prose.require_contract(source.template, source.target)
     package_equations.require_segmented_package_owner(source.source, source.template)
     package_equations.require_pallet_mark_contract(source.template, source.target)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from collections.abc import Mapping
+from decimal import Decimal
 from fractions import Fraction
 from itertools import pairwise
 from typing import Any
@@ -61,6 +62,12 @@ _PALLET_MARK = re.compile(
 _PALLET_LOT = re.compile(
     r"\s*P/NO\.?\s*:\s*[A-Z0-9]+/"
     r"(?P<count>[1-9][0-9]*)(?:-|~)(?P=count)/(?P=count)\s*",
+    re.I,
+)
+_COMPACT_LEVELS = re.compile(
+    r"(?P<outer>[1-9][0-9]*)\s*(?P<outer_unit>PLTS|PALLETS)\s*=\s*"
+    r"(?P<cartons>[1-9][0-9]*)\s*(?P<carton_unit>CTNS|CARTONS)"
+    r"(?:\s*=\s*(?P<pieces>[1-9][0-9]*)\s*(?P<piece_unit>PCES|PIECES))?",
     re.I,
 )
 
@@ -138,6 +145,16 @@ def _overpack_values(
         if len(bound) > 1:
             raise ValueError("sampled pallet and generic piece alias counts disagree")
         values[0] = values[1] = next(iter(bound)) if bound else old[0]
+    elif form == "parenthesis" and len(terms) == 2 and old[0] == old[1]:
+        # A sole structured packing level plus an equal enclosing level in the
+        # same complete declaration is a one-to-one count, not an independent
+        # immutable pallet total. Do not infer this from equality when another
+        # package fact could share the declaration's cargo group.
+        packages = [
+            p for p in source["documentPatch"].get("cargoPackages", ()) if p["groupId"] == group
+        ]
+        if len(packages) == 1 and len(changes) == 1:
+            values[0] = values[1] = next(iter(changes.values()))
     # A declared inner packing level cannot contain fewer units than its outer
     # level. Preserve the proven source nesting, not an inferred fixed ratio.
     if form in {"chain", "parenthesis"}:
@@ -164,6 +181,146 @@ def _overpack_values(
         if unit == "PACKAGE_PALLET":
             pallets[before].add(after)
     return rendered, pallets
+
+
+def one_to_one_target_surfaces(
+    source: Mapping[str, Any], target: Mapping[str, Any]
+) -> dict[str, str]:
+    """Project proved one-to-one overpack counts into extraction-facing prose.
+
+    Only a complete two-level parenthetical declaration with equal source
+    counts, one structured package row, and exactly one changed structured
+    level qualifies. Other packing hierarchies remain under their existing
+    explicit contracts.
+    """
+    result = {}
+    for group_index, group in enumerate(source.get("documentPatch", {}).get("cargoGroups", ())):
+        for index, text in enumerate(group.get("additionalInformation", ())):
+            if _LEVEL_FORMS["parenthesis"].fullmatch(text) is None:
+                continue
+            terms = list(_LEVEL.finditer(text))
+            if len(terms) != 2 or terms[0]["number"] != terms[1]["number"]:
+                continue
+            parsed = _overpack_values(source, target, group["groupId"], text)
+            if parsed is None:
+                continue
+            rendered, _ = parsed
+            same_group = [
+                package
+                for package in source["documentPatch"].get("cargoPackages", ())
+                if package["groupId"] == group["groupId"]
+            ]
+            revised_terms = list(_LEVEL.finditer(rendered))
+            if (
+                len(same_group) == 1
+                and len(revised_terms) == 2
+                and revised_terms[0]["number"] == revised_terms[1]["number"]
+                and rendered != text
+            ):
+                path = f"documentPatch.cargoGroups[{group_index}].additionalInformation[{index}]"
+                result[path] = rendered
+    return result
+
+
+def numeric_composite_target_surfaces(
+    template: Any,
+    source_text: bytes,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    numeric_values: Mapping[str, Any],
+) -> dict[str, str]:
+    """Express compact pallet/carton/piece labels using proved numeric owners.
+
+    A source-only pallet level may be sampled outside the extraction schema.
+    When that level also appears inside a labelled cargo phrase, its frozen
+    numeric receipt must supply the phrase before any linguistic generation.
+    Neither a coincidentally equal number nor a row's position is ownership.
+    """
+    from .numeric_auxiliary import numeric_bindings
+
+    source_patch = source.get("documentPatch", {})
+    target_patch = target.get("documentPatch", {})
+    if len(source_patch.get("cargoGroups", ())) != 1:
+        return {}
+    pallet_values = []
+    for binding in numeric_bindings(template):
+        prepared = numeric_values.get(binding.logical_key)
+        if prepared is None or prepared.contract.role != "cargo_quantity":
+            continue
+        if not any(
+            re.fullmatch(r"\s*[0-9]+\s*(?:PALLETS?|PLTS?)\s*", slot.source_text, re.I)
+            or (
+                re.fullmatch(r"[0-9]+", slot.source_text)
+                and re.match(rb"[ \t]+(?:PALLETS?|PLTS?)\b", source_text[slot.byte_end :], re.I)
+            )
+            for slot in binding.occurrences
+        ):
+            continue
+        old = int(prepared.contract.source_value)
+        new = Decimal(prepared.value)
+        if new != new.to_integral_value() or new <= 0:
+            raise ValueError("prepared pallet quantity is not a positive integer")
+        pallet_values.append((old, int(new)))
+
+    result = {}
+    for group_index, group in enumerate(source_patch.get("cargoGroups", ())):
+        group_id = group["groupId"]
+        for index, text in enumerate(group.get("additionalInformation", ())):
+            match = _COMPACT_LEVELS.fullmatch(text)
+            if match is None:
+                continue
+            old_outer = int(match["outer"])
+            exact = {new for old, new in pallet_values if old == old_outer}
+            if exact:
+                if len(exact) != 1:
+                    raise ValueError("compact pallet label has conflicting exact numeric owners")
+                new_outer = exact.pop()
+            elif len(pallet_values) >= 2 and sum(old for old, _ in pallet_values) == old_outer:
+                new_outer = sum(new for _, new in pallet_values)
+            else:
+                continue  # No certified mutable source-only pallet owner.
+            replacements = {"outer": new_outer}
+            for key, category in (("cartons", "PACKAGE_CARTON"), ("pieces", "PACKAGE_PIECE")):
+                if match[key] is None:
+                    continue
+                old_count = int(match[key])
+                candidates = [
+                    i
+                    for i, package in enumerate(source_patch.get("cargoPackages", ()))
+                    if package["groupId"] == group_id
+                    and package.get("typeCategory") == category
+                    and package.get("quantity") == old_count
+                ]
+                if len(candidates) != 1:
+                    raise ValueError("compact package level lacks one structured source owner")
+                current = target_patch["cargoPackages"][candidates[0]]
+                if (
+                    current.get("typeCategory") != category
+                    or type(current.get("quantity")) is not int
+                ):
+                    raise ValueError("sampled compact package level changed its category")
+                replacements[key] = current["quantity"]
+            rendered = text
+            for key in sorted(replacements, key=lambda name: match.start(name), reverse=True):
+                start, end = match.span(key)
+                rendered = rendered[:start] + str(replacements[key]) + rendered[end:]
+            result[f"documentPatch.cargoGroups[{group_index}].additionalInformation[{index}]"] = (
+                rendered
+            )
+    return result
+
+
+def pending_numeric_composite_surfaces(
+    target: Mapping[str, Any], surfaces: Mapping[str, str]
+) -> dict[str, str]:
+    """Do not seek an agent-field owner for a phrase already assembled by host prose."""
+    from .descendant import _resolve_path
+
+    return {
+        path: rendered
+        for path, rendered in surfaces.items()
+        if _resolve_path(target, path) != rendered
+    }
 
 
 def _pallet_partition(counts: list[int], pallets: Mapping[int, set[int]]) -> list[int]:

@@ -44,6 +44,7 @@ from . import (
     lexical_partitions,
     measurement_prose,
     nested_package_prose,
+    package_equations,
     package_prose,
 )
 from . import descendant as render
@@ -1152,6 +1153,8 @@ def structured_proposal(
         _set(target, path, value)
         _set(prose_source, path, value)
     for path, value in package_prose.generate(source.template, prose_source, target)[0].items():
+        _set(target, path, value)
+    for path, value in package_equations.one_to_one_target_surfaces(source.target, target).items():
         _set(target, path, value)
     patch = target["documentPatch"]
     # Chronology is a fixed scenario context, including source-only invoice,
