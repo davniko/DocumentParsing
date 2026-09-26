@@ -34,6 +34,9 @@ def test_exact_role_policy_does_not_misclassify_an_ibc_description() -> None:
         classify_package_role({"typeDescription": "1000 KG IBC (STEEL PALLETS)"}, policy)
         == "direct_goods"
     )
+    assert classify_package_role({"typeCategory": "PACKAGE_PALLET"}, policy) == "outer_transport"
+    assert classify_package_role({"typeCategory": "PACKAGE_PACKAGE"}, policy) == "generic_aggregate"
+    assert classify_package_role({"typeCategory": "PACKAGE_PIECE"}, policy) == "direct_goods"
 
 
 def test_explicit_outer_and_generic_levels_project_to_one_direct_type() -> None:
@@ -214,6 +217,44 @@ def test_removed_outer_allocation_is_not_transferred_to_inner_quantity() -> None
         }
     ]
     assert audit[0]["decision"] == "downgraded_to_container_membership"
+
+
+def test_retained_package_allocation_keeps_printed_quantity() -> None:
+    target = {
+        "schemaVersion": "3.0.0-experimental",
+        "documentPatch": {
+            "containers": [{"containerNumber": "TCLU6905627"}],
+            "cargoGroups": [{"groupId": "g1", "description": "WIDGETS"}],
+            "cargoPackages": [
+                {"packageId": "p1", "groupId": "g1", "quantity": 100, "typeDescription": "CARTONS"},
+                {"packageId": "p2", "groupId": "g1", "quantity": 2, "typeDescription": "PALLETS"},
+            ],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "coverage": "single_package_level",
+                    "packageIds": ["p1"],
+                    "allocations": [{"containerNumber": "TCLU6905627", "packageQuantity": 100}],
+                }
+            ],
+        },
+    }
+    diagnosis = diagnose_package_group("g1", target["documentPatch"]["cargoPackages"], _policy())
+
+    projected, audit = _project_relation_target(target, (diagnosis,))
+
+    assert projected["documentPatch"]["cargoPackages"] == [
+        {"packageId": "p1", "groupId": "g1", "quantity": 100, "typeDescription": "CARTONS"}
+    ]
+    assert projected["documentPatch"]["cargoAllocationGroups"] == [
+        {
+            "groupId": "g1",
+            "coverage": "single_package_level",
+            "packageIds": ["p1"],
+            "allocations": [{"containerNumber": "TCLU6905627", "packageQuantity": 100}],
+        }
+    ]
+    assert audit[0]["decision"] == "preserved"
 
 
 def test_repository_projection_config_is_pinned_and_loadable() -> None:

@@ -740,6 +740,39 @@ async def test_retryable_http_error_records_retry_after_and_maps_to_models(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("failure_kind", ["http", "transport"])
+async def test_per_request_attempt_limit_terminates_retryable_error(
+    tmp_path: Path, failure_kind: str
+) -> None:
+    raster = tmp_path / "page.png"
+    raster.write_bytes(b"png")
+    requests = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        if failure_kind == "transport":
+            raise httpx.ReadTimeout("mock timeout")
+        return httpx.Response(503, json={"error": {"message": "retry later"}})
+
+    async with VllmOcrClient(
+        make_config(max_attempts=4), max_connections=1, transport=make_transport(handler)
+    ) as client:
+        error_message = "transport request failed" if failure_kind == "transport" else "HTTP 503"
+        with pytest.raises(VllmClientError, match=error_message) as failure:
+            await client.recognize_page(
+                raster,
+                mime_type="image/png",
+                raster_sha256=raster_sha256(raster),
+                request_id="attempt-limit-page",
+                max_attempts=1,
+            )
+
+    assert requests == 1
+    assert len(failure.value.attempts) == 1
+
+
+@pytest.mark.asyncio
 async def test_terminal_http_error_does_not_retry_or_leak_response_body(
     tmp_path: Path,
 ) -> None:

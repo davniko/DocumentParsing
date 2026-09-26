@@ -304,6 +304,16 @@ def partial_equipment_constraint(
         return None, "GENERAL_PURPOSE", None
     if re.fullmatch(r"REFRIGERATED\s+CONTAINER", text, re.I):
         return None, "REFRIGERATED", None
+    tank_surface = re.sub(r"\bTANK(?=CONTAINERS?\b)", "TANK ", text, flags=re.I)
+    generic_tank = re.fullmatch(
+        r"(20|40|45)\s*(?:['\u2019`]\s*)?(?:FT\s*)?(?:ISO\s*)?TANK(?:\s*CONTAINER(?:\(S\)|S)?)?",
+        tank_surface,
+        re.I,
+    )
+    if generic_tank:
+        # Private fit/capacity support uses the available tank envelope. The
+        # extraction label remains the exact printed generic typeDescription.
+        return generic_tank[1], "PRESSURIZED_TANK", None
     flat = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*FLATRACK\s+COLLAPSIBLE", text, re.I)
     if flat:
         return flat[1], "PLATFORM_COLLAPSIBLE", None
@@ -533,8 +543,20 @@ def review_source_equipment_surface(
         type_category = "PLATFORM_NAMED_CARGO"
         type_rule = "reviewed_mafi_platform_surface"
     elif "TANK" in tokens or re.search(r"(?:20|40)TANK$", semantic):
+        if not (tokens & {"PRESSURIZED", "PRESSURISED", "PRESSURE"}):
+            # An ISO liquid tank does not assert pressure capability. The task
+            # enum has only specific tank subtypes, so retain printed wording.
+            return ReviewedEquipmentSurface(
+                printed_surface=printed_surface,
+                normalized_surface=normalized,
+                resolution="unresolved_source_surface",
+                size_category=None,
+                type_category=None,
+                thermal_operation="not_indicated",
+                review_rule="generic_tank_without_subtype_evidence",
+            )
         type_category = "PRESSURIZED_TANK"
-        type_rule = "reviewed_tank_surface"
+        type_rule = "explicit_pressurized_tank_surface"
     elif length is not None and (
         tokens
         & {
@@ -559,6 +581,7 @@ def review_source_equipment_surface(
             "HCPW",
             "HICU",
             "HQ",
+            "SD",
             "SD86",
             "SD96",
             "SH",

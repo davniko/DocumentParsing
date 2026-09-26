@@ -19,7 +19,11 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from document_ocr.label_schemas.bill_of_lading_v3 import RelationExplicitContainer
+from document_ocr.label_schemas.bill_of_lading_v3 import (
+    CargoAllocationGroup,
+    PackageId,
+    RelationExplicitContainer,
+)
 from document_ocr.label_schemas.bill_of_lading_v4 import (
     BillOfLadingRelationExplicitV4Label,
     CargoGroupV4,
@@ -128,13 +132,16 @@ class RelationExplicitContainerV5(RelationExplicitContainer):
                 "container typeDescription is a printed fallback and cannot accompany "
                 "semantic size/type categories"
             )
-        if self.temperatureSetpoint is not None:
-            if semantic and self.typeCategory not in TEMPERATURE_CAPABLE_CONTAINER_TYPES:
-                raise ValueError("temperature setpoint requires temperature-capable equipment")
-            # Extraction visibility is independent: a document can print a
-            # setpoint without a size/type. Do not require an invented equipment
-            # label. When equipment IS printed, its thermal constraint above
-            # still applies; synthesis validates an unlabelled physical choice.
+        if (
+            self.temperatureSetpoint is not None
+            and semantic
+            and self.typeCategory not in TEMPERATURE_CAPABLE_CONTAINER_TYPES
+        ):
+            raise ValueError("temperature setpoint requires temperature-capable equipment")
+        # Extraction visibility is independent: a document can print a
+        # setpoint without a size/type. Do not require an invented equipment
+        # label. When equipment IS printed, its thermal constraint above
+        # still applies; synthesis validates an unlabelled physical choice.
         return self
 
     def application_size_type_code(self) -> str | None:
@@ -145,14 +152,22 @@ class RelationExplicitContainerV5(RelationExplicitContainer):
         return _SIZE_CODE[self.sizeCategory] + _TYPE_CODE[self.typeCategory]
 
 
-# Pydantic field replacement on inherited models is intentional here; static
-# assignment compatibility cannot express a separately versioned wire model.
+class CargoAllocationGroupV5(CargoAllocationGroup):
+    # An empty list is meaningful for membership-only or unlinked quantities.
+    # Every present relation group must emit the key so the prompt schema and
+    # canonical runtime target agree on this conditionally required field.
+    packageIds: tuple[PackageId, ...] = Field()
+
+
 class RelationExplicitDocumentPatchV5(RelationExplicitDocumentPatchV4):
     containers: tuple[RelationExplicitContainerV5, ...] | None = Field(
         default=None,
         min_length=1,
     )
     cargoGroups: tuple[CargoGroupV4, ...] | None = Field(default=None, min_length=1)
+    cargoAllocationGroups: tuple[CargoAllocationGroupV5, ...] | None = Field(
+        default=None, min_length=1
+    )
 
 
 class BillOfLadingRelationExplicitV5Label(LabelSchemaModel):

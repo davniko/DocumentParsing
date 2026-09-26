@@ -1,0 +1,23 @@
+schema_version: 1
+# Final GROUND-010 dataset bytes, including relation-last label ordering.
+task: bill_of_lading_relation_explicit_v5
+
+sources:
+  - path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-v5-v1/train.jsonl
+    sha256: 70a7644834f257ff474b723da76c25280b6e0f6c52da1dc409941996612c97cf
+    records: 30966
+  - path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-v5-v1/validation.jsonl
+    sha256: e2925328e38c647f9ecc687e80947b36b499f74025bf6d75af91fdd7cea15400
+    records: 100
+
+target_field: target
+
+package_registry:
+  path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+  sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+
+container_registry:
+  path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+  sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+
+output_dir: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-v5-v1/vocabulary/ground010-v2

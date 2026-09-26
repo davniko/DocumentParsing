@@ -60,6 +60,17 @@ _OWNER = re.compile(
 )
 
 
+def supports_transshipment(bindings: Sequence[Any]) -> bool:
+    """Report compiled support from the owning target or dependency paths."""
+
+    return any(
+        path == "documentPatch.route.transshipmentPort"
+        or path.startswith("documentPatch.route.transshipmentPort.")
+        for binding in bindings
+        for path in (*binding.target_paths, *binding.dependency_paths)
+    )
+
+
 def endpoint(binding: Any) -> str:
     if binding.derivation not in DERIVATIONS:
         raise ValueError("binding is not a sampled-route derivation")

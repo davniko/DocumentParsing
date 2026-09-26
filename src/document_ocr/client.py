@@ -453,7 +453,6 @@ class VllmOcrClient:
             "repetition_detection": self.config.repetition_detection.model_dump(mode="json"),
         }
         attempts: list[RequestAttempt] = []
-        retry = self.config.retry
         for offset in range(attempt_limit):
             attempt_number = first_attempt_number + offset
             attempt_request_id = f"{request_id}-a{attempt_number}"
@@ -483,7 +482,7 @@ class VllmOcrClient:
                     ),
                 )
                 attempts.append(attempt)
-                if retryable and offset + 1 < retry.max_attempts:
+                if retryable and offset + 1 < attempt_limit:
                     await self._sleep_before_retry(offset, None)
                     continue
                 raise VllmClientError(
@@ -512,7 +511,7 @@ class VllmOcrClient:
                     error_message=f"vLLM returned HTTP {response.status_code}",
                 )
                 attempts.append(attempt)
-                if retryable and offset + 1 < retry.max_attempts:
+                if retryable and offset + 1 < attempt_limit:
                     await self._sleep_before_retry(offset, retry_after)
                     continue
                 raise VllmClientError(

@@ -1,10 +1,10 @@
 """Construct the latest task target from one compiler-pinned source label.
 
-Production templates retain their original relation-v3 label as immutable
-evidence.  Descendant synthesis, however, publishes relation-v5 targets only.
-This module owns that one-way boundary: it performs the schema's audited DG
-migration and replaces a reviewed legacy equipment surface with its readable
-v5 size/type pair when the source supports that inference.
+Historical production templates pin relation-v3 labels; reviewed derivatives
+may pin relation-v5 labels when source facts cannot be represented in v3.
+Descendant synthesis publishes relation-v5 targets only. This module owns the
+one-way boundary and replaces reviewed legacy equipment surfaces with their
+readable v5 size/type pairs when the source supports that inference.
 
 Unknown equipment surfaces remain the v5 ``typeDescription`` fallback. A printed
 temperature with no printed equipment surface remains a temperature-only
@@ -36,12 +36,16 @@ class LatestTargetConstructionError(ValueError):
 def latest_target_from_source(source_target: Mapping[str, Any]) -> dict[str, Any]:
     """Return one canonical relation-v5 target without inventing source facts."""
 
-    if source_target.get("schemaVersion") != "3.0.0-experimental":
+    version = source_target.get("schemaVersion")
+    if version == "3.0.0-experimental":
+        migrated = deepcopy(migrate_relation_v3_target_to_v4(source_target))
+        migrated["schemaVersion"] = "5.0.0-experimental"
+    elif version == "5.0.0-experimental":
+        migrated = deepcopy(dict(source_target))
+    else:
         raise LatestTargetConstructionError(
-            "production template source target is not relation-v3 provenance"
+            "production template source target must be relation-v3 or relation-v5"
         )
-    migrated = deepcopy(migrate_relation_v3_target_to_v4(source_target))
-    migrated["schemaVersion"] = "5.0.0-experimental"
     patch = migrated.get("documentPatch")
     if not isinstance(patch, dict):
         raise LatestTargetConstructionError("source target lacks documentPatch")

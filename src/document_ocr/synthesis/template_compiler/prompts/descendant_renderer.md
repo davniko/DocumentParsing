@@ -13,6 +13,9 @@ Rules:
    the value as stable non-identifying boilerplate.
 4. Keep every binding internally coherent. Repeated slots for one binding represent the same fact,
    although abbreviations, line splits, and minor document-native variants may differ.
+   If the source prints a complete party name or address in more than one party block or page,
+   each corresponding block/page must contain the complete generated value. Split a value only
+   among slots belonging to the same printed block; do not distribute its words across copies.
 5. Honor every declared source relationship. When one generated identifier embeds another, the
    replacement must retain the same exact containment relationship while using new fictitious
    values.

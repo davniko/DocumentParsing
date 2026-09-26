@@ -322,7 +322,7 @@ def test_actual_candidate_retains_fixed_tare_and_observed_equipment_pair():
         ) == {"tare": {"tare": "3800"}}
 
 
-def _mixed_sampling_fixture(*, second="1X40HC", cargo_group=False):
+def _mixed_sampling_fixture(*, second="1X45G1", cargo_group=False):
     first = "1X20ST"
     raw = (first + "\n" + second).encode()
     bindings = tuple(
@@ -340,7 +340,7 @@ def _mixed_sampling_fixture(*, second="1X40HC", cargo_group=False):
         target,
         text=raw,
         bindings=bindings,
-        equipment_surfaces=("20GP", "40OT" if second == "1X40OT" else "40HC"),
+        equipment_surfaces=("20GP", "40OT" if second == "1X40OT" else "45G1"),
     )
     second_pair = "FORTY_FOOT_STANDARD_HEIGHT|OPEN_TOP" if second == "1X40OT" else LARGE_DRY
     equipment = cargo.equipment_constraints(
@@ -1006,7 +1006,7 @@ def test_owned_count_or_partial_receipt_does_not_require_unseen_equipment_labels
 
 def test_owned_receipt_constrains_private_equipment_without_inventing_labels(monkeypatch):
     source = SimpleNamespace(
-        source=b"1X40HC",
+        source=b"1X45G1",
         target={"documentPatch": {"containers": [{"containerNumber": "ABCU1234567"}]}},
         template=SimpleNamespace(
             byte_template=None,
@@ -1017,7 +1017,7 @@ def test_owned_receipt_constrains_private_equipment_without_inventing_labels(mon
                     derivation="equipment_receipt",
                     target_paths=(),
                     dependency_paths=("documentPatch.containers[0]",),
-                    occurrences=(SimpleNamespace(slot_id="count", source_text="1X40HC"),),
+                    occurrences=(SimpleNamespace(slot_id="count", source_text="1X45G1"),),
                 )
             ],
         ),
@@ -1186,6 +1186,7 @@ def test_partial_equipment_retains_only_observed_labels(description, size):
 )
 def test_partial_equipment_constrains_candidates_before_sampling(description, expected):
     source = SimpleNamespace(
+        source=b"",
         target={"documentPatch": {"containers": [{"typeDescription": description}]}},
         template=SimpleNamespace(bindings=[]),
     )
@@ -1299,6 +1300,7 @@ def test_fixed_tare_constrains_equipment_before_sampling(monkeypatch):
 
 def test_unconstrained_equipment_remains_varied():
     source = SimpleNamespace(
+        source=b"",
         target={
             "documentPatch": {
                 "containers": [

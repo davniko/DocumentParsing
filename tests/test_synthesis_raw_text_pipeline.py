@@ -768,7 +768,9 @@ def test_mutated_target_is_rejected_before_routing_or_publication() -> None:
     with pytest.raises(ValueError, match="synthetic target changed after generation"):
         descendant._build_initial_plan(case, seed=1, country_codes={})
     with pytest.raises(ValueError, match="synthetic target changed after generation"):
-        descendant._training_dataset(cases=(case,), executions=(None,), config=None)
+        descendant._training_dataset(
+            cases=(case,), executions=(None,), config=None, country_codes={}
+        )
 
 
 def test_unknown_auxiliary_generator_cannot_keep_the_source_text(
@@ -844,7 +846,13 @@ def test_failed_numeric_derivation_cannot_keep_source_because_units_are_unchange
     with pytest.raises(ValueError):
         descendant._render_one_derivation(
             binding=binding,
-            case=SimpleNamespace(source_target=target, target=target, numeric_auxiliary={}),
+            case=SimpleNamespace(
+                source=b"",
+                source_target=target,
+                target=target,
+                template=SimpleNamespace(bindings=()),
+                numeric_auxiliary={},
+            ),
             outputs={},
             bindings={},
             country_codes={},

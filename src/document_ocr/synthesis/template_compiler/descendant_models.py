@@ -30,6 +30,7 @@ class DescendantInputs(BaseModel):
     synthetic_target_run: PinnedCommittedRun | None = None
     synthetic_targets: Annotated[PinnedJsonl, Field()] | None = None
     iso3166_snapshot: PinnedFile
+    task_package_contract: PinnedFile | None = None
     residual_replay_run: PinnedCommittedRun | None = None
     customs_program_registry: PinnedFile | None = None
 

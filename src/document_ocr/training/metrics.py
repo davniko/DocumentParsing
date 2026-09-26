@@ -76,8 +76,10 @@ def _optional_document_patch(value: dict[str, Any] | None) -> dict[str, Any] | N
 
 def _relation_explicit_facts(
     patch: dict[str, Any] | None,
+    *,
+    v5: bool = False,
 ) -> tuple[frozenset[tuple[str, ...]], frozenset[tuple[str, ...]]]:
-    """Project v3 cargo edges and anchored categories without using array positions."""
+    """Project cargo edges and anchored categories without container array positions."""
 
     if patch is None:
         return frozenset(), frozenset()
@@ -93,6 +95,35 @@ def _relation_explicit_facts(
             category = container.get("typeCategory")
             if isinstance(number, str) and isinstance(category, str):
                 categories.add(("container_type", number, category))
+            size = container.get("sizeCategory")
+            if v5 and isinstance(number, str) and isinstance(size, str):
+                categories.add(("container_size", number, size))
+
+    if v5:
+        groups = patch.get("cargoGroups")
+        if isinstance(groups, list):
+            for group in groups:
+                if not isinstance(group, dict) or not isinstance(group.get("groupId"), str):
+                    continue
+                dangerous_goods = group.get("dangerousGoods")
+                if not isinstance(dangerous_goods, list):
+                    continue
+                for index, dangerous in enumerate(dangerous_goods):
+                    if not isinstance(dangerous, dict):
+                        continue
+                    un_number = dangerous.get("unNumber")
+                    anchor = un_number if isinstance(un_number, str) else f"index:{index}"
+                    for field in ("hazardCategory", "packingGroupCategory"):
+                        value = dangerous.get(field)
+                        if isinstance(value, str):
+                            categories.add((field, group["groupId"], anchor, value))
+                    subsidiaries = dangerous.get("subsidiaryHazardCategories")
+                    if isinstance(subsidiaries, list):
+                        for value in subsidiaries:
+                            if isinstance(value, str):
+                                categories.add(
+                                    ("subsidiaryHazardCategory", group["groupId"], anchor, value)
+                                )
 
     packages = patch.get("cargoPackages")
     if isinstance(packages, list):
@@ -145,10 +176,18 @@ def _relation_explicit_facts(
                     )
                 package_id = allocation.get("packageId")
                 if isinstance(package_id, str):
-                    relations.add(
-                        ("container_has_package", group_id, container_number, package_id)
-                    )
+                    relations.add(("container_has_package", group_id, container_number, package_id))
     return frozenset(relations), frozenset(categories)
+
+
+def _is_relation_or_scaffold_path(path: str) -> bool:
+    if path.startswith("$.documentPatch.cargoAllocationGroups["):
+        return True
+    if path.startswith("$.documentPatch.cargoGroups[") and path.endswith(".groupId"):
+        return True
+    return path.startswith("$.documentPatch.cargoPackages[") and path.endswith(
+        (".groupId", ".packageId")
+    )
 
 
 def _micro_set_metrics(
@@ -201,10 +240,14 @@ def assess_prediction(
     predicted_patch = _optional_document_patch(
         predicted if predicted is not None else parsed_object
     )
-    if task.name == "bill_of_lading_relation_explicit_v3":
-        predicted_relations, predicted_categories = _relation_explicit_facts(predicted_patch)
+    if task.name in {
+        "bill_of_lading_relation_explicit_v3",
+        "bill_of_lading_relation_explicit_v5",
+    }:
+        v5 = task.name == "bill_of_lading_relation_explicit_v5"
+        predicted_relations, predicted_categories = _relation_explicit_facts(predicted_patch, v5=v5)
         reference_relations, reference_categories = _relation_explicit_facts(
-            _document_patch(reference)
+            _document_patch(reference), v5=v5
         )
     else:
         predicted_relations = reference_relations = frozenset()
@@ -261,17 +304,18 @@ def structured_metrics(
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     count = len(assessments)
     metrics = {
-            "json_valid": sum(item.json_valid for item in assessments) / count,
-            "schema_valid": sum(item.schema_valid for item in assessments) / count,
-            "canonical_exact_match": (
-                sum(item.canonical_exact_match for item in assessments) / count
-            ),
-            "field_value_accuracy": accuracy,
-            "field_value_precision": precision,
-            "field_value_recall": recall,
-            "field_value_f1": f1,
+        "json_valid": sum(item.json_valid for item in assessments) / count,
+        "schema_valid": sum(item.schema_valid for item in assessments) / count,
+        "canonical_exact_match": (sum(item.canonical_exact_match for item in assessments) / count),
+        "field_value_accuracy": accuracy,
+        "field_value_precision": precision,
+        "field_value_recall": recall,
+        "field_value_f1": f1,
     }
-    if task.name == "bill_of_lading_relation_explicit_v3":
+    if task.name in {
+        "bill_of_lading_relation_explicit_v3",
+        "bill_of_lading_relation_explicit_v5",
+    }:
         relation_precision, relation_recall, relation_f1 = _micro_set_metrics(
             [row.predicted_cargo_relation_facts for row in assessments],
             [row.reference_cargo_relation_facts for row in assessments],
@@ -286,8 +330,7 @@ def structured_metrics(
                 "cargo_relation_recall": relation_recall,
                 "cargo_relation_f1": relation_f1,
                 "cargo_relation_exact_match": sum(
-                    row.predicted_cargo_relation_facts
-                    == row.reference_cargo_relation_facts
+                    row.predicted_cargo_relation_facts == row.reference_cargo_relation_facts
                     for row in assessments
                 )
                 / count,
@@ -309,6 +352,32 @@ def structured_metrics(
                 / count,
             }
         )
+        if task.name == "bill_of_lading_relation_explicit_v5":
+            fact_precision, fact_recall, fact_f1 = _micro_set_metrics(
+                [
+                    frozenset(
+                        value
+                        for value in row.predicted_field_values
+                        if not _is_relation_or_scaffold_path(value[0])
+                    )
+                    for row in assessments
+                ],
+                [
+                    frozenset(
+                        value
+                        for value in row.reference_field_values
+                        if not _is_relation_or_scaffold_path(value[0])
+                    )
+                    for row in assessments
+                ],
+            )
+            metrics.update(
+                {
+                    "extraction_fact_precision": fact_precision,
+                    "extraction_fact_recall": fact_recall,
+                    "extraction_fact_f1": fact_f1,
+                }
+            )
     return metrics, assessments
 
 

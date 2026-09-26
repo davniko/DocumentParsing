@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -91,6 +92,65 @@ def _inventory(document_id: str) -> TemplateInventoryRow:
         latest_schema_compatible=True,
         latest_schema_incompatibility=None,
     )
+
+
+def test_inventory_derives_route_capability_from_certified_bindings(monkeypatch, tmp_path):
+    from document_ocr.synthesis.template_compiler import production_synthesis as planning
+
+    case = tmp_path / "cases" / "source"
+    case.mkdir(parents=True)
+    (case / "source-label.json").write_text(
+        json.dumps(
+            {
+                "documentPatch": {
+                    "route": {"transshipmentPort": {"name": "Singapore"}},
+                    "containers": [],
+                    "cargoGroups": [],
+                    "cargoPackages": [],
+                    "cargoAllocationGroups": [],
+                }
+            }
+        )
+    )
+    (case / "template.json").write_text("{}")
+    row = {
+        "documentId": "source",
+        "templateProxyId": "proxy",
+        "certified": True,
+        "carrier": "Carrier",
+        "carrierFamily": "CARRIER",
+        "documentType": "bill_of_lading",
+        "pages": 1,
+        "lines": 1,
+        "characters": 10,
+        "bindings": 1,
+        "occurrences": 1,
+        "deterministicBindings": 1,
+        "agentResidualBindings": 0,
+        "valueKinds": {},
+    }
+    binding = SimpleNamespace(
+        target_paths=("documentPatch.route.transshipmentPort.name",), dependency_paths=()
+    )
+    monkeypatch.setattr(planning, "_read_jsonl", lambda *args, **kwargs: (row,))
+    monkeypatch.setattr(planning, "latest_target_from_source", lambda *args: None)
+    monkeypatch.setattr(
+        planning,
+        "CertifiedSemanticTemplate",
+        SimpleNamespace(
+            model_validate_json=lambda *args, **kwargs: SimpleNamespace(
+                document_id="source", bindings=(binding,)
+            )
+        ),
+    )
+
+    assert planning._template_inventory(tmp_path)[0].transshipment is True
+    row["routeCapabilities"] = None
+    with pytest.raises(ValueError, match="route-capability metadata is invalid"):
+        planning._template_inventory(tmp_path)
+    row["routeCapabilities"] = {"transshipment": False}
+    with pytest.raises(ValueError, match="catalog route capability and compiled bindings differ"):
+        planning._template_inventory(tmp_path)
 
 
 def test_plan_contract_requires_capability_counts_to_cover_documents() -> None:
@@ -274,3 +334,49 @@ def test_review_exclusion_happens_before_sampling_without_reducing_requested_cou
             project_root=tmp_path,
             config=ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload)),
         )
+
+
+def test_package_contract_review_excludes_template_before_sampling(monkeypatch, tmp_path):
+    from document_ocr.synthesis.template_compiler import production_synthesis as planning
+
+    inventory = (
+        _inventory("validation"),
+        _inventory("safe"),
+        _inventory("review"),
+        replace(_inventory("dg"), dangerous_goods=True, cohort="dangerous_goods"),
+        replace(
+            _inventory("thermal"), temperature_controlled=True, cohort="temperature_controlled"
+        ),
+    )
+    monkeypatch.setattr(planning, "_validate_committed_run", lambda *args: tmp_path)
+    monkeypatch.setattr(planning, "_validation_document_ids", lambda **kwargs: ("validation",))
+    monkeypatch.setattr(planning, "_template_inventory", lambda *args: inventory)
+    monkeypatch.setattr(
+        planning,
+        "load_reviewed_package_contract",
+        lambda *args, **kwargs: SimpleNamespace(
+            decisions={
+                ("review", "cargo:0"): SimpleNamespace(
+                    status="review", rationale="Unresolved mixed package aggregate"
+                )
+            }
+        ),
+    )
+    (tmp_path / "contract.json").write_text("{}")
+    payload = _config()
+    payload["expected_inventory"]["excluded_templates"] = 2
+    payload["task_package_contract"] = {"path": "contract.json", "sha256": "e" * 64}
+    result = planning._analyze_plan(
+        project_root=tmp_path,
+        config=ProductionSynthesisPlanConfig.model_validate_json(json.dumps(payload)),
+    )
+
+    assert result["package_review_exclusions"] == {
+        "review": "cargo:0: Unresolved mixed package aggregate"
+    }
+    assert len(result["plan_rows"]) == 10
+    assert {row["sourceDocumentId"] for row in result["plan_rows"]} == {
+        "safe",
+        "dg",
+        "thermal",
+    }

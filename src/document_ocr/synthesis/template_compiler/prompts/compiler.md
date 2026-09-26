@@ -120,6 +120,12 @@ owned by a reusable, carrier-bound rendering contract.
   locate. If a false anchor owns that target path, override the anchor and declare the path here;
   no replacement span is then required. Never use this classification to hide a printed value,
   uncertainty, or a missing completeness pass. The critic will receive and independently audit it.
+  Route, place-of-issue, and freight extraction leaves are an exception: they must have a
+  role-correct OCR owner. If the OCR omits the value, prints it only under a different role, or
+  flattens adjacent form cells so the role cannot be established, request source-label/OCR review;
+  do not certify the leaf as semantic-only merely because the value occurs elsewhere. A missing
+  or awkward heading is acceptable when the surrounding text still identifies the role
+  unambiguously; an unrelated equal city or country is not.
 - Party extraction values require evidence owned by that exact printed party role. A city or
   country embedded in the party's address is valid evidence and needs a shared/composite or
   component realization contract; it is not a geocoding inference. Equal values under a notify
@@ -127,6 +133,16 @@ owned by a reusable, carrier-bound rendering contract.
   issue requiring review, not an unprinted fact that can be certified for extraction training.
   Do not invent source text, move evidence from another role, or treat an inferred locality as
   visible evidence to satisfy this requirement.
+- If a labelled party name includes `ON BEHALF OF`, `O/B`, `C/O`, or `AS AGENT OF`,
+  the affiliated organization is part of the same name contract. Do not generate
+  it independently as source-only text while retaining it in the name label.
+  Keep fixed relationship syntax literal where it lies outside the mutable
+  organization span. A legal suffix glued to an address in OCR belongs to the
+  name only when the evidence unambiguously supports the split; otherwise
+  request review. Do not assign the suffix to the address slot.
+- Adjacent phone and email spans without a printed separator require a reviewed
+  source derivative or review status. A generated phone/email concatenation is
+  not a valid contact rendering even if both values are individually present.
 - An address label may combine street/address and postcode fragments separated by the city or
   country in the OCR. Give all those address fragments the same target-backed logical owner;
   do not leave the address semantic-only while independently generating its postcode. Preserve
@@ -334,6 +350,12 @@ descriptive `logical_key` and `group_key` values such as `booking_reference`, `p
 For target-backed bindings, functional target ownership determines grouping; cosmetic naming is
 not a reason to override an otherwise correct anchor.
 
+If a party name or address appears in multiple complete party blocks, retain every copy and
+distinguish each complete copy from the segments *within* it. Do not treat two complete copies
+as consecutive fragments of one longer value. A genuinely incomplete page continuation is one
+fragmented copy, not a new independent copy. Preserve enough source evidence for the host to
+prove the distinction; otherwise classify the surface for bounded agent rendering.
+
 Each target path has exactly one logical owner. When one scalar is printed in several complete
 copies or as several exact contiguous token projections, put every such physical occurrence in
 one `target_binding` with that path. The source texts may differ when each is a provable token
@@ -380,6 +402,12 @@ records a source-only container attribute. The host promotes a complete, source-
 to an `equipment_receipt` with the explicit container object dependency, so the private physical
 scenario must satisfy it without introducing missing extraction fields. Do not use this row scope
 for a mixed inventory summary or an equipment fragment whose remaining words have other owners.
+Only a printed physical container attribute qualifies for this equipment ownership. A cargo or
+commodity classification in a package/weight summary is not equipment merely because it appears
+near container data. For example, a `GEN` general-cargo category following `1 PKG 19867 KG` is
+neither a container type nor a movement mode; leave a fixed category literal when it is not an
+MPCI target or a mutable dependency, and request review if its role is unclear. Never make such
+a category a synthetic container attribute.
 Respect local container-row topology even when OCR reading order places a whitespace-free compact
 equipment code such as `40HQ` just before its container number. Such a code belongs to the uniquely
 local printed container row—on the same source line or separated only by whitespace; do not attach
@@ -544,6 +572,14 @@ UN numbers or class values alone cannot distinguish repeated declarations. The s
 must contain only that property (a shipping-name slot must not swallow flashpoint,
 packing weight, packaging certification, or other dependent prose). Unsupported or
 ambiguous properties remain review cases, never fixed text in a resampled chemical scenario.
+An affirmative printed `UN Number` or `UN No.` with four digits must occur in
+the source target's dangerousGoods facts. If it does not, request label review;
+do not call the declaration an independent auxiliary and certify an ordinary-
+goods template. When the same regulatory tuple applies to more than one cargo
+group, co-bind equal DG property paths only with explicit source evidence of
+shared scope. The target must contain the DG fact on every affected cargo group,
+while repeated printed declarations remain repeated slots rather than extra
+target records.
 
 Distinguish cargo packaging tare from empty-container tare. For an explicitly printed
 packaging tare equal to the same cargo group's gross mass minus net mass, use

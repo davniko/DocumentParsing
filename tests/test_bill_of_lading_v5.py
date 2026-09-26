@@ -65,6 +65,32 @@ def test_printed_temperature_without_size_type_preserves_observed_label_visibili
     assert V5_ADAPTER.reconstruct(document_id="temperature_only", tables=tables.rows) == validated
 
 
+def test_v5_allocation_group_requires_explicit_package_membership_and_serializes_last() -> None:
+    target = {
+        "schemaVersion": "5.0.0-experimental",
+        "documentPatch": {
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "coverage": "container_membership_only",
+                    "allocations": [{"containerNumber": "CAIU7896610"}],
+                }
+            ],
+            "cargoGroups": [{"groupId": "g1", "description": "MACHINE PARTS"}],
+            "containers": [{"containerNumber": "CAIU7896610"}],
+        },
+    }
+    with pytest.raises(ValidationError, match="packageIds"):
+        BillOfLadingRelationExplicitV5Label.model_validate_json(json.dumps(target), strict=True)
+    target["documentPatch"]["cargoAllocationGroups"][0]["packageIds"] = []
+    validated = BillOfLadingRelationExplicitV5Label.model_validate_json(
+        json.dumps(target), strict=True
+    )
+    assert list(validated.canonical_target()["documentPatch"])[-1] == "cargoAllocationGroups"
+    schema = BillOfLadingRelationExplicitV5Label.model_json_schema(mode="serialization")
+    assert "packageIds" in schema["$defs"]["CargoAllocationGroupV5"]["required"]
+
+
 def test_v4_migration_and_enrichment_preserve_relational_inverse() -> None:
     source = {
         "schemaVersion": "4.0.0-experimental",

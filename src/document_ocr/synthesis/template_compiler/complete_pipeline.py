@@ -35,6 +35,11 @@ from document_ocr.synthesis.linguistic_probe_runtime import model_messages, usag
 from document_ocr.synthesis.raw_text_rewrite_cycle_probe import CustomsProgramRegistry
 from document_ocr.synthesis.run_safety import StagedArtifactRun
 from document_ocr.synthesis.vessel_name_registry import load_vessel_name_registry
+from document_ocr.training.address_projection import project_training_target
+from document_ocr.training.reviewed_package_projection import (
+    load_reviewed_package_contract,
+    project_reviewed_package_target,
+)
 
 from . import (
     cargo_identifiers,
@@ -55,6 +60,8 @@ from .descendant_models import (
     PreparedTargetReceipt,
     ResidualStageReceipt,
 )
+from .host import validate_compiled_current_container_identifier_ownership
+from .latest_target import latest_target_from_source
 from .models import NonEmptyText, PinnedFile, PinnedJsonl, ProviderConfig
 from .pipeline import project_root_from_config, resolve_input
 from .realization_contract import projected_auxiliary_values
@@ -68,8 +75,10 @@ from .reviewed_generation import ReviewedGeneration
 from .route_projection import (
     AddressCountryConflict,
     AddressLocalityConflict,
+    AddressPostalConflict,
     RouteProjection,
     require_route_contract,
+    validate_generated_postal_values,
 )
 from .spending_guard import SpendingGuard, SpendingLimitExceeded
 
@@ -115,6 +124,7 @@ class CompleteSynthesisConfig(BaseModel):
     cargo_sampling: cargo_scenarios.CargoSamplingConfig | None = None
     cargo_lexical_contracts: PinnedFile | None = None
     reviewed_generation: PinnedFile | None = None
+    task_package_contract: PinnedFile | None = None
 
     @model_validator(mode="after")
     def sampled_routes_have_complete_dependencies(self) -> CompleteSynthesisConfig:
@@ -216,6 +226,12 @@ def _address_repair_requirements(
         for obligation in row["obligations"]
         if "removeLocalityComponents" in obligation
     }
+    removed_postcodes = {
+        row["key"]: obligation["removePostalCodes"]
+        for row in previous
+        for obligation in row["obligations"]
+        if "removePostalCodes" in obligation
+    }
     if isinstance(error, AddressCountryConflict):
         owners = [f for f in fields if error.party_path + ".address" in f["paths"]]
         if len(owners) != 1:
@@ -225,6 +241,11 @@ def _address_repair_requirements(
             cities[owners[0]["key"]] = error.city
             key = owners[0]["key"]
             removed[key] = sorted(set(removed.get(key, ())) | set(error.conflicts))
+        if isinstance(error, AddressPostalConflict):
+            key = owners[0]["key"]
+            removed_postcodes[key] = sorted(
+                set(removed_postcodes.get(key, ())) | {error.postcode}
+            )
     by_key = {row["key"]: row for row in requirements}
     for key, country in countries.items():
         row = by_key.get(key)
@@ -243,6 +264,8 @@ def _address_repair_requirements(
             row["obligations"].append({"terminalCity": cities[key]})
         if key in removed:
             row["obligations"].append({"removeLocalityComponents": removed[key]})
+        if key in removed_postcodes:
+            row["obligations"].append({"removePostalCodes": removed_postcodes[key]})
     return requirements
 
 
@@ -263,6 +286,13 @@ def _validate_address_repairs(
                 "address repair appended the requested city without removing "
                 "its conflicting locality: " + row["key"]
             )
+        postcodes = {
+            code.casefold()
+            for obligation in row["obligations"]
+            for code in obligation.get("removePostalCodes", ())
+        }
+        if any(code in values[row["key"]].casefold() for code in postcodes):
+            raise ValueError("address repair retained an incompatible postal code: " + row["key"])
         if country := obligations.get("terminalCountry"):
             address = values[row["key"]]
             country_present = re.fullmatch(
@@ -1058,6 +1088,23 @@ async def run(config_path: Path) -> dict[str, Any]:
         sid: targets.load_source(template_root, sid)
         for sid in sorted({row["sourceDocumentId"] for row in samples})
     }
+    package_pin = config.task_package_contract
+    package_contract = (
+        load_reviewed_package_contract(
+            _pinned(root, package_pin),
+            expected_sha256=package_pin.sha256,
+            catalog_commit_sha256=config.template_run.commit_sha256,
+        )
+        if package_pin is not None
+        else None
+    )
+    for source_id, source in sources.items():
+        project_reviewed_package_target(
+            source_document_id=source_id,
+            source_target=source.target,
+            target=latest_target_from_source(source.target),
+            contract=package_contract,
+        )
     route_projections: dict[str, RouteProjection] = {}
     address_localities = None
     if config.route_scenarios is not None:
@@ -1121,6 +1168,7 @@ async def run(config_path: Path) -> dict[str, Any]:
         from .measurement_prose import require_product_count_owners
         from .temperature_prose import require_source_setting_owners
 
+        validate_compiled_current_container_identifier_ownership(source.template)
         require_tariff_owners(source.source, source.template.bindings)
         require_product_count_owners(source.source, source.template.bindings)
         require_source_setting_owners(source.source, source.template, source.target)
@@ -1466,6 +1514,11 @@ async def run(config_path: Path) -> dict[str, Any]:
                     sample_id=sample_id,
                     prepared_auxiliary=prepared_auxiliary,
                 )
+                validate_generated_postal_values(
+                    target,
+                    auxiliary,
+                    geography=projection.party_geography if projection is not None else None,
+                )
                 if projection is not None:
                     projection.validate_final(
                         target,
@@ -1474,6 +1527,17 @@ async def run(config_path: Path) -> dict[str, Any]:
                         source_target=source.target,
                         localities=address_localities,
                     )
+                # The full postal surface remains the render target. Check the
+                # extraction-facing address boundary before paying for render
+                # repair, and reject candidates whose projection loses the
+                # address rather than publishing an ungrounded training label.
+                project_training_target(target, country_codes=countries)
+                project_reviewed_package_target(
+                    source_document_id=source_id,
+                    source_target=source.target,
+                    target=target,
+                    contract=package_contract,
+                )
                 if cargo_scenario is not None:
                     cargo_scenarios.validate_final(cargo_scenario, target)
                 for path, retained in ledger["retained"].items():
@@ -1870,6 +1934,11 @@ async def run(config_path: Path) -> dict[str, Any]:
             },
             "residual_replay_run": pin,
             "iso3166_snapshot": config.iso3166_snapshot.model_dump(mode="json"),
+            "task_package_contract": (
+                config.task_package_contract.model_dump(mode="json")
+                if config.task_package_contract is not None
+                else None
+            ),
             "customs_program_registry": (
                 config.customs_program_registry.model_dump(mode="json")
                 if config.customs_program_registry is not None

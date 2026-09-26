@@ -12,6 +12,8 @@ from document_ocr.synthesis.template_compiler.dangerous_goods_realization import
     DangerousGoodsFact,
     compile_surfaces,
     render_facts,
+    shared_declaration_representatives,
+    validate_explicit_un_source_coverage,
     validate_un_references,
 )
 from document_ocr.synthesis.template_compiler.descendant import (
@@ -25,12 +27,78 @@ CATALOG = Path(
 ).resolve()
 SOURCE_ID = "doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5"
 DG_PATH = "documentPatch.cargoGroups[0].dangerousGoods[0]"
+REVIEWED_CATALOG = Path(
+    "artifacts/kie-synthesis-production/template-base/catalogs/"
+    "mpci-bl-production-template-catalog1507-v26-dg-grounding"
+).resolve()
+REVIEWED_SOURCE_ID = "doc_3941a8dea9764dfbbf0bc4adc915dc075063df47406afba05f1d90984757c484"
 
 
 def test_whole_rendered_text_cannot_retain_a_stale_un_in_an_unowned_region():
     validate_un_references("Hydrochloric acid, UN: 1789", {"1789"})
     with pytest.raises(ValueError, match="UN number"):
         validate_un_references("Hydrochloric acid, UN: 1789\nOld marks UN NO. 1057", {"1789"})
+
+
+def test_printed_positive_un_declaration_requires_a_source_target() -> None:
+    target = {"documentPatch": {"cargoGroups": [{"dangerousGoods": []}]}}
+    validate_explicit_un_source_coverage("UN Number\nClass\nNo dangerous goods", target)
+    with pytest.raises(ValueError, match="2556"):
+        validate_explicit_un_source_coverage("UN Number: 2556 - IMDG Class: 4.1", target)
+    target["documentPatch"]["cargoGroups"][0]["dangerousGoods"] = [{"unNumber": "2556"}]
+    validate_explicit_un_source_coverage("UN Number: 2556 - IMDG Class: 4.1", target)
+
+
+def test_reviewed_shared_dg_template_uses_one_tuple_across_two_cargo_groups() -> None:
+    source = load_source(REVIEWED_CATALOG, REVIEWED_SOURCE_ID)
+    assert source.source_target["schemaVersion"] == "5.0.0-experimental"
+    assert all(
+        group["dangerousGoods"][0]["packingGroupCategory"] == "MEDIUM_DANGER"
+        for group in source.target["documentPatch"]["cargoGroups"]
+    )
+    owners = shared_declaration_representatives(source.template, source.source_target)
+    expected = {f"documentPatch.cargoGroups[{i}].dangerousGoods[0]" for i in (0, 1)}
+    assert set(owners) == expected
+    assert len(set(owners.values())) == 1
+    surfaces = compile_surfaces(source.template)
+    assert {surface.field for surface in surfaces} == {
+        "un_number",
+        "primary_class",
+        "packing_group",
+        "shipping_name",
+    }
+    assert all(
+        set(surface.shared_target_paths) == expected - {surface.target_path}
+        for surface in surfaces
+        if surface.field != "shipping_name"
+    )
+    target = deepcopy(source.target)
+    target["documentPatch"]["cargoGroups"][1]["dangerousGoods"][0]["unNumber"] = "2555"
+    with pytest.raises(ValueError, match="same regulatory tuple"):
+        shared_declaration_representatives(source.template, target)
+
+
+def test_shared_dg_slots_reject_two_independently_sampled_registry_rows() -> None:
+    source = load_source(REVIEWED_CATALOG, REVIEWED_SOURCE_ID)
+    target = deepcopy(source.target)
+    for group in target["documentPatch"]["cargoGroups"]:
+        group["dangerousGoods"][0] = {
+            "unNumber": "1789",
+            "hazardCategory": "CORROSIVE_SUBSTANCES",
+            "packingGroupCategory": "MEDIUM_DANGER",
+        }
+    first = fact()
+    second = DangerousGoodsFact(
+        target_path="documentPatch.cargoGroups[1].dangerousGoods[0]",
+        record=first.record.model_copy(update={"record_id": "hmt_" + "b" * 64}),
+    )
+    with pytest.raises(ValueError, match="one complete regulatory tuple"):
+        render_facts(
+            source=source.source,
+            template=source.template,
+            target=target,
+            facts=(first, second),
+        )
 
 
 def fact():

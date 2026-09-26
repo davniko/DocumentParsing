@@ -28,6 +28,7 @@ def source(row):
     offsets = [text.index("3700"), text.rindex("3700")]
     binding = NS(
         logical_key="tare",
+        derivation=None,
         occurrences=tuple(
             NS(byte_start=i, byte_end=i + 4, source_text="3700", slot_id=str(n))
             for n, i in enumerate(offsets)
@@ -398,7 +399,8 @@ def partial_source(description="20' FLATRACK COLLAPSIBLE"):
     start = len(src.source)
     src.source += description.encode() + b"\n"
     src.template.bindings.append(NS(
-        logical_key="equipment", target_paths=("documentPatch.containers[0].typeDescription",),
+        logical_key="equipment", derivation=None,
+        target_paths=("documentPatch.containers[0].typeDescription",),
         occurrences=(NS(byte_start=start, byte_end=start + len(description.encode()),
                         source_text=description),),
     ))
@@ -419,6 +421,26 @@ def test_source_observed_partial_tare_retains_private_height_without_fitted_clai
     assert constraints.witness(constraints.options) == {0: Decimal(3700)}
     assert (src.source, repr(src.target)) == original
     assert "sizeCategory" not in src.target["documentPatch"]["containers"][0]
+
+
+def test_certified_ocr_joined_tank_word_proves_private_tare_pair():
+    src = partial_source("20 FT ISO TANKCONTAINER(S)")
+    src.target["documentPatch"]["containers"][0]["typeDescription"] = (
+        "20 FT ISO TANK CONTAINER(S)"
+    )
+    pair = "TWENTY_FOOT_STANDARD_HEIGHT|PRESSURIZED_TANK"
+    constraints = tares.compile_constraints(
+        src, {"tare": contract()}, tares.TareSupport({}, {}), frozenset({0}),
+        configured_pairs=frozenset({pair}),
+    )
+    assert constraints.options == {0: frozenset({pair})}
+    assert constraints.source_observed_partial_owners == (0,)
+    src.template.bindings[-1].occurrences[0].source_text = "20 FT ISO TANKTRAILER(S)"
+    with pytest.raises(ValueError, match="no exact train-only"):
+        tares.compile_constraints(
+            src, {"tare": contract()}, tares.TareSupport({}, {}), frozenset({0}),
+            configured_pairs=frozenset({pair}),
+        )
 
 
 @pytest.mark.parametrize("change", ["unowned", "wrong_span", "kind_only", "absent_domain"])

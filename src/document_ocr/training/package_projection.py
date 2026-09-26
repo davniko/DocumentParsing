@@ -233,6 +233,11 @@ def classify_package_role(package: dict[str, Any], policy: PackageRolePolicy) ->
     if not isinstance(value, str):
         raise PackageProjectionError("package type must be text or null")
     normalized = normalize_package_type(value)
+    # v5 category tokens name the same physical type as v4 descriptions. The
+    # namespace prefix is not part of the package type, and treating it as one
+    # silently made a pallet look like a direct goods package.
+    if "typeDescription" not in package and normalized.startswith("PACKAGE "):
+        normalized = normalized.removeprefix("PACKAGE ")
     if normalized in set(policy.normalized_outer_types):
         return "outer_transport"
     if normalized in set(policy.normalized_generic_types):
@@ -522,7 +527,21 @@ def _project_relation_target(
         group_id = cast(str, source_allocation["groupId"])
         diagnosis = diagnosis_by_group[group_id]
         removed = bool(diagnosis.metadata_package_ids)
-        if removed and source_allocation["coverage"] != "container_membership_only":
+        referenced_ids = set(source_allocation.get("packageIds", []))
+        referenced_ids.update(
+            allocation["packageId"]
+            for allocation in source_allocation["allocations"]
+            if allocation.get("packageId") is not None
+        )
+        # A printed allocation explicitly tied to a retained package remains
+        # valid. Only an unlinked quantity or a link to removed metadata loses
+        # its package-level meaning when the target is projected.
+        must_downgrade = (
+            removed
+            and source_allocation["coverage"] != "container_membership_only"
+            and (not referenced_ids or not referenced_ids <= set(diagnosis.retained_package_ids))
+        )
+        if must_downgrade:
             seen: set[str] = set()
             memberships: list[dict[str, Any]] = []
             for allocation in source_allocation["allocations"]:

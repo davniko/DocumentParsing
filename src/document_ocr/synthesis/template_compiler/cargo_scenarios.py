@@ -53,6 +53,7 @@ from document_ocr.synthesis.package_goods_compatibility import (
 )
 from document_ocr.synthesis.semantic_completion_pipeline import _group_allocations
 from document_ocr.synthesis.thermal_goods import (
+    AmbientGoodsIdentity,
     ThermalGoodsIdentity,
     ThermalGoodsSupport,
     build_thermal_goods_support,
@@ -77,6 +78,7 @@ from . import (
     package_equations,
     package_observations,
     package_prose,
+    tare_equations,
     temperature_prose,
     transport_derivations,
     unit_package_loads,
@@ -88,6 +90,7 @@ from .dangerous_goods_realization import (
     DangerousGoodsFact,
     compile_surfaces,
     render_facts,
+    shared_declaration_representatives,
     validate_un_references,
 )
 from .descendant_models import PinnedCommittedRun
@@ -242,12 +245,66 @@ def load_support(
     )
 
 
+def _source_proved_petroleum_tank_support(
+    source: targets.SourceTemplate, support: CargoSupport
+) -> CargoSupport:
+    """Constrain an unlabelled tank commodity to its printed petroleum family.
+
+    The source proves petroleum but not a pressure subtype or national tariff
+    extension. A private residual HS identity supplies compatible sampling;
+    it is never added to extraction labels.
+    """
+    patch = source.target["documentPatch"]
+    containers = patch.get("containers") or []
+    groups = patch.get("cargoGroups") or []
+    generic_tank = re.compile(
+        r"(?:20|40|45)\s*(?:FT\s*)?(?:ISO\s*)?TANK(?:\s*CONTAINER(?:\(S\)|S)?)?",
+        re.I,
+    )
+    if (
+        not containers
+        or len(groups) != 1
+        or groups[0].get("hsCodes")
+        or groups[0].get("dangerousGoods")
+        or any(
+            not isinstance(container.get("typeDescription"), str)
+            or generic_tank.fullmatch(container["typeDescription"]) is None
+            for container in containers
+        )
+    ):
+        return support
+    description = groups[0].get("description")
+    if not isinstance(description, str):
+        raise ValueError("generic tank with no HS has no printed commodity family")
+    if re.search(r"DISTILLATES\s*\(PETROLEUM\)", description, re.I):
+        required = "petroleum distillates"
+    elif re.search(r"PETROLEUM\s+HYDROCARBONS", description, re.I):
+        required = "petroleum hydrocarbons"
+    else:
+        raise ValueError("generic tank commodity lacks a reviewed source-proved family")
+    code = "271019"
+    row = support.hs.require_global(code, on_date=support.hs.receipt.snapshot_date)
+    identity = AmbientGoodsIdentity(
+        hs6=code,
+        chapter_description=row.chapter_description,
+        heading_description=row.heading_description,
+        description=row.description,
+    )
+    return replace(
+        support,
+        goods=replace(support.goods, ambient=(identity,)),
+        equipment_types_by_heading={"2710": frozenset({"PRESSURIZED_TANK"})},
+        descriptions={code: required},
+    )
+
+
 @dataclass(frozen=True)
 class CargoScenario:
     target: dict[str, Any]
     identities: dict[str, list[dict[str, Any]]]
     dangerous_goods_facts: tuple[DangerousGoodsFact, ...]
     receipt: dict[str, Any]
+    tare_equations: tuple[tare_equations.TareEquation, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -264,6 +321,7 @@ class EquipmentConstraints:
     anonymous_inventory: anonymous_equipment.AnonymousInventory | None = None
     mixed_inventory: mixed_inventory.MixedInventory | None = None
     package_unit_loads: tuple[unit_package_loads.PackageUnitLoad, ...] = ()
+    tare_equations: tuple[tare_equations.TareEquation, ...] = ()
 
 
 def equipment_constraints(
@@ -273,6 +331,7 @@ def equipment_constraints(
     numeric_contracts: Mapping[str, numeric_auxiliary.NumericContract] | None = None,
     tare_support: equipment_tares.TareSupport | None = None,
 ) -> EquipmentConstraints:
+    equations = tare_equations.compile_equations(source, numeric_contracts or {})
     inventory = anonymous_equipment.compile_inventory(source, numeric_contracts or {})
     if inventory is None:
         mixed = mixed_inventory.compile_inventory(source)
@@ -297,7 +356,7 @@ def equipment_constraints(
             is None
         ):
             raise ValueError("printed aggregate equipment lacks a configured joint assignment")
-        return replace(prepared, mixed_inventory=mixed)
+        return replace(prepared, mixed_inventory=mixed, tare_equations=equations)
     if set(inventory.equipment_pairs) - config.equipment_joint_weights.keys():
         raise ValueError("anonymous printed equipment is absent from configured joint support")
     prepared = _equipment_constraints(
@@ -326,6 +385,7 @@ def equipment_constraints(
         configured_weights=config.equipment_joint_weights,
         weights=tuple(weights),
         anonymous_inventory=inventory,
+        tare_equations=equations,
     )
 
 
@@ -1009,6 +1069,22 @@ def _sample_candidate(
     package_receipts = {}
     measurement_receipts = {}
     container_types: dict[str, set[str]] = {}
+    shared_dg = (
+        shared_declaration_representatives(source.template, source.target)
+        if any(group.get("dangerousGoods") for group in patch.get("cargoGroups", []))
+        else {}
+    )
+    dg_paths = tuple(
+        f"documentPatch.cargoGroups[{gi}].dangerousGoods[{di}]"
+        for gi, group in enumerate(patch.get("cargoGroups", []))
+        for di, _ in enumerate(group.get("dangerousGoods", []))
+    )
+    shipment_wide_shared_dg = (
+        len(dg_paths) > 1
+        and all(path in shared_dg for path in dg_paths)
+        and len({shared_dg[path] for path in dg_paths}) == 1
+    )
+    sampled_shared_dg: dict[str, Any] = {}
     for gi, group in enumerate(patch.get("cargoGroups", [])):
         gid = group["groupId"]
         group_stream = stream.derive(gid)
@@ -1022,16 +1098,29 @@ def _sample_candidate(
             if thermal_profile:
                 raise ValueError("temperature-controlled DG needs a chemical-property contract")
             for di, old in enumerate(declarations):
+                declaration_path = f"documentPatch.cargoGroups[{gi}].dangerousGoods[{di}]"
+                shared_owner = shared_dg.get(declaration_path)
                 method: Literal["hs_linked_exact_chemical", "general_regulatory_tuple"] = (
                     "hs_linked_exact_chemical"
                     if group.get("hsCodes")
                     else "general_regulatory_tuple"
                 )
-                value = support.dg.sample(
-                    stream=group_stream.derive(str(di)),
-                    method=method,
-                    maximum_subsidiary_hazards=len(old.get("subsidiaryHazardCategories", [])),
-                )
+                if shared_owner in sampled_shared_dg:
+                    value = sampled_shared_dg[shared_owner]
+                    if value.method != method:
+                        raise ValueError("shared DG groups require one sampling branch")
+                else:
+                    value = support.dg.sample(
+                        stream=(
+                            stream.derive("shared-dg:" + shared_owner)
+                            if shared_owner is not None
+                            else group_stream.derive(str(di))
+                        ),
+                        method=method,
+                        maximum_subsidiary_hazards=len(old.get("subsidiaryHazardCategories", [])),
+                    )
+                    if shared_owner is not None:
+                        sampled_shared_dg[shared_owner] = value
                 if value.hmt_record.technical_name_required or value.hmt_record.nos_entry:
                     raise ValueError("DG generic entry requires a technical-identity contract")
                 candidate = value.target.model_dump(mode="json", exclude_none=True)
@@ -1250,7 +1339,11 @@ def _sample_candidate(
                 else set()
             )
         identities[gid] = rows
-        for number in numbers:
+        # With no printed cargo-to-container allocation, a reviewed shared DG
+        # declaration applies to the whole shipment. Each container must fit
+        # that same regulatory cargo; no invented allocation is added to labels.
+        fit_numbers = tuple(containers) if not numbers and shipment_wide_shared_dg else numbers
+        for number in fit_numbers:
             container_types[number] = (
                 container_types[number] & eligible_types
                 if number in container_types
@@ -1416,6 +1509,7 @@ def _sample_candidate(
             equipment_receipts[number]["retentionReason"] = (
                 "partial_observation_constrains_hidden_equipment_without_inventing_labels"
             )
+    tare_equations.apply_equations(target, equipment_contract.tare_equations)
     private_net = measurement_prose.private_net_weights(source.target, proposed)
     physical_target = target
     if private_net:
@@ -1502,7 +1596,16 @@ def _sample_candidate(
             privateCargoNetKg={k: str(v) for k, v in private_net.items()},
             thermalProfile=profile,
             sharedTemperatureOwners=[list(v) for v in sorted(set(temperature_owners.values()))],
+            explicitTareEquations=[
+                {
+                    "groupId": row.group_id,
+                    "tareKilograms": str(row.tare_kilograms),
+                    "bindingKey": row.binding_key,
+                }
+                for row in equipment_contract.tare_equations
+            ],
         ),
+        equipment_contract.tare_equations,
     )
 
 
@@ -1648,6 +1751,7 @@ def sample_scenario(
 ) -> CargoScenario:
     if source.document_id in support.validation_ids:
         raise ValueError("validation source cannot enter cargo synthesis")
+    support = _source_proved_petroleum_tank_support(source, support)
     # Keep the ordinary sampler path unchanged. Anonymous-fleet preparation is
     # needed only when an actual equipment statement has no labelled inventory.
     if (prepared_equipment is not None and prepared_equipment.anonymous_inventory is None) or (
@@ -1901,6 +2005,7 @@ def validate_structured_facts(scenario: CargoScenario, target: Mapping[str, Any]
 
 def validate_final(scenario: CargoScenario, target: Mapping[str, Any]) -> None:
     validate_structured_facts(scenario, target)
+    tare_equations.validate_equations(target, scenario.tare_equations)
     observed_thermal_goods.validate_setpoints(target, scenario.identities)
     for group in target["documentPatch"].get("cargoGroups", []):
         declared_un = {d["unNumber"] for d in group.get("dangerousGoods", [])}

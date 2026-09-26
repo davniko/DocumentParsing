@@ -11,6 +11,16 @@ Return `pass` only when all of the following are true:
 
 - No shipment-specific, private, auxiliary, repeated, calculated, party, route, cargo, equipment,
   temperature, dangerous-goods, customs, commercial, or operational fact remains literal.
+- A concrete affirmative cargo `UN Number`/`UN No.` cannot be certified as
+  source-only when the source target lacks its dangerousGoods record. Check
+  every printed UN, class and packing-group value against its cargo-group
+  owner; repeated equal declarations are not extra target records.
+- For a party name with an affiliation or care-of relation, verify that the
+  affiliated organization and the target name share one mutable contract; an
+  independently sampled source-only affiliate can leave a stale label or
+  create self-affiliation. Verify legal suffixes belong to the name rather
+  than a neighboring address slot. Adjacent phone and email slots need a
+  reviewed separator before generated values can be safely inserted.
 - Every public identity, alias, domain, office, and signature relationship of the fixed carrier
   itself is owned as `carrier_static`; when `expectedCarrierName` is non-null it must agree exactly.
   A shipment-appointed local agent, delivery agent, forwarder, or issuing agent remains auxiliary
@@ -128,6 +138,10 @@ Return `pass` only when all of the following are true:
   `dependency_bindings` to manufacture a sum or total. Without distinct target paths or distinct
   logical dependencies proving every operand, preserve the explicitly printed total as a
   `deterministic_auxiliary` rather than asserting an unsupported derivation.
+- For repeated party blocks, confirm that each block which prints a complete source name or
+  address can render a complete descendant name or address on its own. A second complete block
+  is not the continuation of the first. True page continuations may split one value, but their
+  segmentation must be supported by the printed source and not inferred from slot order alone.
 - When a revision removes or reassigns segmented target ownership, account for every target token
   exposed by the transaction in the same patch. In particular, reassign all role-local street,
   state, and postal segments together; do not leave a short state/postal fragment for a later audit.
@@ -238,6 +252,11 @@ transaction over the current inventory:
   actually has an unambiguous printed surface, add the correct target binding; the host will remove
   the metadata classification after accepting that binding. Never classify an arbitrary unowned
   path or use semantic-only metadata to conceal unresolved printed evidence.
+  Do not use semantic-only metadata for route, place-of-issue, or freight extraction leaves.
+  These require an OCR span owned by the correct role. Stacked form captions and equal city names
+  in another role are not sufficient evidence by themselves; ask for review if their association
+  is ambiguous. A missing heading alone is not a defect when the value/context clearly fixes
+  the role.
 
 The host applies this transaction to the prior inventory, requires every removed target path to
 remain owned, and then sends the result through a fresh independent critic pass. Each additional

@@ -33,6 +33,7 @@ from .coherence import (
 )
 from .generation_contract import (
     party_owned_surfaces,
+    validate_compiled_party_contract,
     validate_party_evidence,
     validate_seal_realization,
 )
@@ -2934,6 +2935,57 @@ def validate_compiler_extraction_dates(
             raise ValueError(f"document extraction date is bound under Declared Value: {path}")
 
 
+_LOCATION_PAYMENT_ROOTS = (
+    "documentPatch.route.",
+    "documentPatch.placeOfIssue.",
+    "documentPatch.freight.",
+)
+
+
+def _location_payment_target_paths(source_target: Mapping[str, Any]) -> frozenset[str]:
+    patch = source_target.get("documentPatch")
+    if not isinstance(patch, Mapping):
+        raise ValueError("source target lacks documentPatch")
+    from .generation_contract import leaves
+
+    return frozenset(
+        path
+        for path in leaves(patch, "documentPatch")
+        if path.startswith(_LOCATION_PAYMENT_ROOTS)
+    )
+
+
+def validate_compiler_location_payment_grounding(
+    *,
+    source_target: Mapping[str, Any],
+    drafts: Sequence[SpanDraft],
+    semantic_only_target_facts: Sequence[SemanticOnlyTargetFact],
+) -> None:
+    """Fail closed when a route, issue-place or freight label has no OCR owner."""
+    labelled = _location_payment_target_paths(source_target)
+    owned = {path for draft in drafts for path in draft.target_paths}
+    semantic = {fact.target_path for fact in semantic_only_target_facts}
+    missing = sorted(labelled - owned)
+    if missing:
+        kind = "semantic-only" if semantic.intersection(missing) else "unbound"
+        raise ValueError(
+            f"{kind} location/payment label lacks an OCR binding: " + ", ".join(missing)
+        )
+
+
+def validate_compiled_location_payment_grounding(
+    *, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
+) -> None:
+    """Reject an older catalog that would project an ungrounded location/payment fact."""
+    labelled = _location_payment_target_paths(source_target)
+    owned = {path for binding in template.bindings for path in binding.target_paths}
+    missing = sorted(labelled - owned)
+    if missing:
+        raise ValueError(
+            "compiled location/payment label lacks an OCR binding: " + ", ".join(missing)
+        )
+
+
 def validate_compiled_extraction_dates(
     *, raw: str, source_target: Mapping[str, Any], template: CertifiedSemanticTemplate
 ) -> None:
@@ -4913,6 +4965,74 @@ def validate_source_seal_ownership(
                 raise ValueError(f"source seal also has an independent auxiliary binding: {path}")
 
 
+def _require_current_container_identifier_owner(
+    *, group_kind: str, group_key: str, logical_key: str,
+    source_text: str, target_paths: Sequence[str],
+) -> None:
+    """Check ownership, not checksum validity, of a printed shipment ID."""
+    if (
+        group_kind != "equipment"
+        or not re.fullmatch(r"container:\d+", group_key)
+        or not re.fullmatch(r"[A-Za-z]{3}[UJZujz]\d{7}", source_text.strip())
+        or "seal" in logical_key.casefold()
+    ):
+        return
+    owner = f"documentPatch.containers[{group_key.split(':', 1)[1]}].containerNumber"
+    if owner not in target_paths:
+        raise ValueError(
+            "current-shipment container identifier lacks its label-backed owner: "
+            f"{logical_key} ({source_text})"
+        )
+
+
+def validate_current_container_identifier_ownership(drafts: Sequence[SpanDraft]) -> None:
+    """Reject printed ID leaves omitted from a new compiler's target contract."""
+    for draft in drafts:
+        _require_current_container_identifier_owner(
+            group_kind=draft.group_kind,
+            group_key=draft.group_key,
+            logical_key=draft.logical_key,
+            source_text=draft.source_text,
+            target_paths=draft.target_paths,
+        )
+
+
+def validate_equipment_receipt_count_ownership(
+    drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> None:
+    """A printed count must own exactly that many shipment container rows."""
+    from .equipment_receipts import owned_inventory
+
+    for draft in drafts:
+        if draft.derivation != "equipment_receipt":
+            continue
+        count = re.fullmatch(r"\s*(\d+)\s*[xX]\s*", draft.source_text)
+        if count is None:
+            continue
+        paths = tuple(dict.fromkeys((*draft.target_paths, *draft.dependency_paths)))
+        actual = len(owned_inventory(source_target, paths))
+        if actual != int(count[1]):
+            raise ValueError(
+                "equipment receipt count is not owned by its complete container inventory: "
+                f"{draft.logical_key}: printed={count[1]} owned={actual}"
+            )
+
+
+def validate_compiled_current_container_identifier_ownership(
+    template: CertifiedSemanticTemplate,
+) -> None:
+    """Fail closed when an older catalog enters production generation."""
+    for binding in template.bindings:
+        for slot in binding.occurrences:
+            _require_current_container_identifier_owner(
+                group_kind=binding.group_kind,
+                group_key=binding.group_key,
+                logical_key=binding.logical_key,
+                source_text=slot.source_text,
+                target_paths=binding.target_paths,
+            )
+
+
 def normalize_deterministic_draft_semantics(
     *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
 ) -> tuple[SpanDraft, ...]:
@@ -5346,6 +5466,11 @@ def validate_repeated_binding_fact_topology(
         independent_components = target_fact_components(source_target, first.target_paths)
         if len(independent_components) <= 1 or first.render_mode == "deterministic_derived":
             continue
+        if raw is not None:
+            from .dangerous_goods_realization import reviewed_shared_draft_contract
+
+            if reviewed_shared_draft_contract(raw, source_target, first, tuple(occurrences)):
+                continue
         if (
             raw is not None
             and first.render_mode == "target_binding"
@@ -11096,6 +11221,72 @@ _MEASUREMENT_UNIT_SURFACES: dict[str, frozenset[str]] = {
     "celsius": frozenset({"c", "degc", "degreec", "celsius"}),
 }
 
+_EXPLICIT_MEASUREMENT_UNIT_ALIASES: dict[str, frozenset[str]] = {
+    "kilogram": frozenset({"kg", "kgs", "kilogram", "kilograms", "kilo", "kilos", "kgm"}),
+    "metric_tonne": frozenset(
+        {"mt", "mts", "metricton", "metrictons", "metrictonne", "metrictonnes", "tonne", "tonnes"}
+    ),
+    "pound": frozenset({"lb", "lbs", "lbr", "pound", "pounds"}),
+    "cubic_metre": frozenset(
+        {
+            "m3", "cbm", "cbmm3", "realcbm", "cum", "mtq", "cubicmeter",
+            "cubicmeters", "cubicmetre", "cubicmetres",
+        }
+    ),
+    "cubic_foot": frozenset({"ft3", "ftq", "cuft", "cubicfoot", "cubicfeet"}),
+    "celsius": frozenset(
+        {
+            "c", "degc", "degreec", "degreescelsius", "celsius", "celisus",
+            "cel", "degrcelsius", "degcel",
+        }
+    ),
+    "fahrenheit": frozenset({"f", "degf", "degreef", "degreesfahrenheit", "fahrenheit"}),
+}
+
+
+def validate_compiler_measurement_unit_grounding(
+    *, source_target: Mapping[str, Any], drafts: Sequence[SpanDraft]
+) -> None:
+    """Reject an explicitly bound unit that cannot support its source label.
+
+    A document may print equivalent values in two units. It is enough that one
+    bound surface explicitly names the target unit; other occurrences are then
+    checked by the existing value/derivation contracts. Unknown OCR fragments
+    remain with the ordinary compiler review rather than being guessed here.
+    """
+
+    surfaces: dict[str, list[str]] = defaultdict(list)
+    for draft in drafts:
+        if (
+            draft.render_mode == "target_binding"
+            and len(draft.target_paths) == 1
+            and _MEASUREMENT_COMPONENT_PATH.fullmatch(draft.target_paths[0]) is not None
+            and draft.target_paths[0].endswith(".unit")
+        ):
+            surfaces[draft.target_paths[0]].append(draft.source_text)
+    aliases = {
+        unit: frozenset(values)
+        for unit, values in _EXPLICIT_MEASUREMENT_UNIT_ALIASES.items()
+    }
+    for path, printed in surfaces.items():
+        target_unit = _resolve_target_path(source_target, path)
+        if not isinstance(target_unit, str):
+            raise ValueError(f"source measurement unit is not text: {path}")
+        known: set[str] = set()
+        unknown = False
+        for surface in printed:
+            token = re.sub(r"[^a-z0-9]", "", surface.casefold().replace("³", "3"))
+            matches = {unit for unit, values in aliases.items() if token in values}
+            if matches:
+                known.update(matches)
+            else:
+                unknown = True
+        if known and not unknown and target_unit not in known:
+            raise ValueError(
+                f"source measurement unit binding conflicts with target unit at {path}: "
+                f"target={target_unit!r}, printed={printed!r}"
+            )
+
 
 def _date_candidates(value: str) -> frozenset[date]:
     cleaned = " ".join(value.replace(",", " ").split())
@@ -11399,6 +11590,31 @@ def _agent_realization(
     )
 
 
+def _exact_repeated_scalar_groups(
+    slots: Sequence[TemplateSlot], target_surface: str
+) -> tuple[int, ...] | None:
+    """Prove each ordered source group realizes the entire scalar independently."""
+
+    expected = _normalized_surface(target_surface)
+    if not expected or len(slots) < 2:
+        return None
+    groups: list[int] = []
+    accumulated = ""
+    group = 0
+    for slot in slots:
+        part = _normalized_surface(slot.source_text)
+        if not part:
+            return None
+        accumulated += part
+        if not expected.startswith(accumulated):
+            return None
+        groups.append(group)
+        if accumulated == expected:
+            group += 1
+            accumulated = ""
+    return tuple(groups) if group >= 2 and not accumulated else None
+
+
 def binding_realization(
     *,
     draft: SpanDraft,
@@ -11627,6 +11843,40 @@ def binding_realization(
                     ),
                 }
             )
+    if (
+        draft.group_kind == "party"
+        and len(draft.target_paths) == 1
+        and draft.target_paths[0].startswith("documentPatch.parties.")
+        and draft.target_paths[0].endswith((".name", ".address"))
+        and adapter == "natural_text"
+        and target_surface is not None
+        and (groups := _exact_repeated_scalar_groups(slots, target_surface)) is not None
+    ):
+        segment_indexes: dict[int, int] = {}
+        plans = []
+        for slot, group in zip(slots, groups, strict=True):
+            index = segment_indexes.get(group, 0)
+            plans.append(
+                _slot_realization(slot, value_role="segment", segment_index=index).model_copy(
+                    update={"repeat_group_index": group}
+                )
+            )
+            segment_indexes[group] = index + 1
+        return BindingRealization.model_validate(
+            {
+                "mode": "segmented_surface",
+                "adapter": adapter,
+                "deterministic": True,
+                "requires_agent": False,
+                "target_values": snapshots,
+                "slots": tuple(plans),
+                "rationale": (
+                    "Each ordered source group independently normalizes to the complete "
+                    "party scalar; generation must repeat the complete descendant within "
+                    "each group."
+                ),
+            }
+        )
     return _agent_realization(
         slots=slots,
         snapshots=snapshots,
@@ -17879,6 +18129,7 @@ def validate_binding_realizations(
     from .temperature_prose import require_temperature_classification
 
     validate_draft_source_alignment(raw=raw, drafts=drafts)
+    validate_equipment_receipt_count_ownership(drafts, source_target)
     require_temperature_classification(drafts)
     validate_compact_equipment_locality(raw=raw, drafts=drafts, source_target=source_target)
     quantity_paths = _structured_package_quantity_paths(source_target)
@@ -18266,6 +18517,9 @@ def certify_template(
 ) -> CertifiedSemanticTemplate:
     if not critic_outputs or critic_outputs[-1].verdict != "pass":
         raise ValueError("template lacks a final independent critic pass")
+    from .dangerous_goods_realization import validate_explicit_un_source_coverage
+
+    validate_explicit_un_source_coverage(raw, source_target)
     from .temperature_prose import require_singleton_printed_setpoint
 
     require_singleton_printed_setpoint(source_target)
@@ -18275,6 +18529,12 @@ def certify_template(
         drafts=drafts,
         semantic_only_target_facts=semantic_only_target_facts,
     )
+    validate_compiler_location_payment_grounding(
+        source_target=source_target,
+        drafts=drafts,
+        semantic_only_target_facts=semantic_only_target_facts,
+    )
+    validate_compiler_measurement_unit_grounding(source_target=source_target, drafts=drafts)
     validate_single_printed_hs_scope(
         raw=raw,
         source_target=source_target,
@@ -18290,6 +18550,7 @@ def certify_template(
     validate_repeated_cargo_temperature_scope(raw=raw, source_target=source_target, drafts=drafts)
     validate_signed_temperature_word_scope(raw=raw, source_target=source_target, drafts=drafts)
     validate_source_seal_ownership(drafts=drafts, source_target=source_target)
+    validate_current_container_identifier_ownership(drafts)
     validate_target_binding_relationships(drafts=drafts, source_target=source_target, raw=raw)
     validate_binding_realizations(raw=raw, drafts=drafts, source_target=source_target)
     validate_coherence_contracts(
@@ -18459,6 +18720,12 @@ def certify_template(
         bindings=bindings,
         source_target=source_target,
     )
+    validate_compiled_party_contract(
+        raw=raw.encode("utf-8"),
+        source_target=source_target,
+        bindings=bindings,
+        entities=auxiliary_semantic_plan.entities,
+    )
     validate_party_evidence(
         target=source_target,
         binding_paths={path for binding in bindings for path in binding.target_paths},
@@ -18531,6 +18798,8 @@ def certify_template(
 
 
 def template_summary(template: CertifiedSemanticTemplate) -> dict[str, Any]:
+    from .route_derivations import supports_transshipment
+
     modes: dict[str, int] = defaultdict(int)
     realization_modes: dict[str, int] = defaultdict(int)
     values: dict[str, int] = defaultdict(int)
@@ -18548,12 +18817,7 @@ def template_summary(template: CertifiedSemanticTemplate) -> dict[str, Any]:
         "carrierFamily": template.carrier.family,
         "templateProxyId": template.capability.template_proxy_id,
         "routeCapabilities": {
-            "transshipment": any(
-                path == "documentPatch.route.transshipmentPort"
-                or path.startswith("documentPatch.route.transshipmentPort.")
-                for binding in template.bindings
-                for path in (*binding.target_paths, *binding.dependency_paths)
-            ),
+            "transshipment": supports_transshipment(template.bindings),
         },
         "documentType": template.capability.document_type,
         "pages": template.capability.page_count,

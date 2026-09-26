@@ -254,9 +254,13 @@ def test_iso_receipt_matches_decoded_size_not_the_first_two_digits():
 def test_iso_tank_receipts_match_spaced_and_fused_source_words(noun):
     surface = "2 X 20 FT ISO " + noun
     old = [{"typeDescription": "20 FT ISO TANK CONTAINER(S)"}] * 2
-    assert "40" in render(surface, old, [equipment("FORTY_FOOT_STANDARD_HEIGHT")] * 2)
-    with pytest.raises(ValueError, match="contradicts source count/type"):
-        render(surface, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")] * 2, old)
+    assert render(surface, old, old) == surface
+    assert (
+        render(surface, old, [equipment("TWENTY_FOOT_STANDARD_HEIGHT", "PRESSURIZED_TANK")] * 2)
+        == surface
+    )
+    with pytest.raises(ValueError, match="contradicts retained"):
+        render(surface, old, [equipment("FORTY_FOOT_STANDARD_HEIGHT")] * 2)
 
 
 def test_iso_word_does_not_allow_arbitrary_non_equipment_prose():
@@ -567,3 +571,41 @@ def test_compiler_checks_source_receipt_before_certification(surface, descriptio
     else:
         with pytest.raises(ValueError, match="binding realization contract violations"):
             validate_binding_realizations(raw=surface, drafts=(draft,), source_target=target)
+
+
+def test_compiler_count_prefix_requires_complete_inventory_ownership():
+    from dataclasses import replace
+
+    draft = SpanDraft(
+        draft_id="count",
+        logical_key="shipment-count",
+        render_mode="deterministic_derived",
+        value_kind="equipment",
+        group_kind="equipment",
+        group_key="equipment:all",
+        target_paths=(),
+        derivation="equipment_receipt",
+        dependency_paths=("documentPatch.containers[0]",),
+        dependency_bindings=(),
+        char_start=0,
+        char_end=3,
+        source_text="2 x",
+        evidence_origin="host_verified_agent_proposal",
+        render_policy="derived_surface",
+        rationale="Shipment-wide count must own both printed container rows.",
+    )
+    target = {
+        "documentPatch": {
+            "containers": [
+                {"containerNumber": "ABCU0000001"},
+                {"containerNumber": "DEFU0000002"},
+            ]
+        }
+    }
+    with pytest.raises(ValueError, match="complete container inventory"):
+        validate_binding_realizations(raw="2 x", drafts=(draft,), source_target=target)
+    validate_binding_realizations(
+        raw="2 x",
+        drafts=(replace(draft, dependency_paths=("documentPatch.containers",)),),
+        source_target=target,
+    )

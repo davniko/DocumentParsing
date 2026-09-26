@@ -69,7 +69,14 @@ from document_ocr.synthesis.rendering import (
 )
 from document_ocr.synthesis.rendering import render_number_surface
 from document_ocr.synthesis.run_safety import StagedArtifactRun
+from document_ocr.synthesis.task_adapter import BILL_OF_LADING_V5_TASK_ADAPTER
 from document_ocr.synthesis.usage_receipt import LinguisticUsageReceipt
+from document_ocr.training.address_projection import project_training_target
+from document_ocr.training.reviewed_package_projection import (
+    ReviewedPackageContract,
+    load_reviewed_package_contract,
+    project_reviewed_package_target,
+)
 from document_ocr.training.tasks import get_training_task
 
 from . import (
@@ -103,13 +110,18 @@ from .generation_contract import (
     leaves,
     party_owned_surfaces,
     require_complete_variation,
+    validate_compiled_party_contract,
+    validate_rendered_party_boundaries,
+    validate_repeated_agent_party_pages,
     validate_seal_realization,
     validate_unbound_lexical_surfaces,
 )
+from .host import validate_compiled_location_payment_grounding
 from .latest_target import latest_target_from_source
 from .models import (
     AuxiliaryEntity,
     AuxiliaryEntityMember,
+    BindingRealization,
     CertifiedSemanticTemplate,
     CoherenceConstraint,
     OpenRouterProviderConfig,
@@ -1126,6 +1138,93 @@ def _render_target_binding(
             replacements={slot.slot_id: slot.source_text for slot in slots},
             canonical_value=new_value,
         )
+    if isinstance(binding.realization, BindingRealization) and any(
+        slot.repeat_group_index is not None for slot in binding.realization.slots
+    ):
+        groups: dict[int, list[int]] = {}
+        for index, plan in enumerate(binding.realization.slots):
+            if plan.repeat_group_index is None:
+                raise ValueError("repeated binding contains an ungrouped slot")
+            groups.setdefault(plan.repeat_group_index, []).append(index)
+        grouped_replacements: dict[str, str] = {}
+        for indexes in groups.values():
+            members = tuple(binding.occurrences[index] for index in indexes)
+            if (
+                binding.realization.mode == "token_projected_surface"
+                and binding.value_kind == "address"
+                and len(members) == 2
+                and "POSTAL CODE" in members[1].source_text.upper()
+            ):
+                source_postcode = re.search(r"([0-9]+)\s*$", members[1].source_text)
+                if source_postcode is None:
+                    raise ValueError("printed postcode slot has no numeric source code")
+                proposed = _scalar_surface(new_value)
+                match = re.fullmatch(
+                    rf"(.*?)([0-9]{{{len(source_postcode[1])}}})\s*",
+                    proposed,
+                    flags=re.S,
+                )
+                if match is not None and match[1].rstrip(" ,"):
+                    grouped_replacements[members[0].slot_id] = _layout_like_source(
+                        members[0].source_text, match[1].rstrip(" ,")
+                    )
+                    grouped_replacements[members[1].slot_id] = (
+                        members[1].source_text[: source_postcode.start(1)] + match[2]
+                    )
+                else:
+                    # An alphanumeric or differently shaped postal address is
+                    # printed whole; the source's numeric-only caption is not
+                    # asserted for a code it cannot represent.
+                    grouped_replacements[members[0].slot_id] = _layout_like_source(
+                        members[0].source_text, proposed
+                    )
+                    grouped_replacements[members[1].slot_id] = ""
+                continue
+            realization = binding.realization.model_copy(
+                update={
+                    "slots": tuple(
+                        binding.realization.slots[index].model_copy(
+                            update={"repeat_group_index": None}
+                        )
+                        for index in indexes
+                    )
+                }
+            )
+            member = binding.model_copy(
+                update={
+                    "occurrences": tuple(binding.occurrences[index] for index in indexes),
+                    "realization": realization,
+                }
+            )
+            member_output = _render_target_binding(
+                member,
+                target,
+                auxiliary_values=auxiliary_values,
+                source=source,
+                template=template,
+            )
+            grouped_replacements.update(member_output.replacements)
+        if set(grouped_replacements) != {slot.slot_id for slot in slots}:
+            raise ValueError("repeated binding does not render every source slot once")
+        if (
+            binding.value_kind == "address"
+            and binding.group_kind == "party"
+            and template is not None
+        ):
+            name_ends = {
+                slot.byte_end
+                for other in template.bindings
+                if other.group_key == binding.group_key
+                and any(path.endswith(".name") for path in other.target_paths)
+                for slot in other.occurrences
+            }
+            for indexes in groups.values():
+                anchor = binding.occurrences[indexes[0]]
+                if anchor.byte_start in name_ends:
+                    grouped_replacements[anchor.slot_id] = (
+                        "\n" + grouped_replacements[anchor.slot_id]
+                    )
+        return BindingOutput(replacements=grouped_replacements, canonical_value=new_value)
     cargo_partition = lexical_partitions.partition(binding)
     if cargo_partition is not None:
         if not isinstance(new_value, str):
@@ -3852,6 +3951,15 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
             ):
                 raise ValueError(f"template/source identity differs: {source_document_id}")
             _validate_canonical_target(source_target)
+            validate_compiled_location_payment_grounding(
+                source_target=source_target, template=template
+            )
+            validate_compiled_party_contract(
+                raw=source,
+                source_target=source_target,
+                bindings=template.bindings,
+                entities=template.auxiliary_semantic_plan.entities,
+            )
             template = effective_realization_template(template)
             cached = (source, source_target, template)
             case_cache[source_document_id] = cached
@@ -5079,6 +5187,41 @@ _MEASUREMENT_UNIT_PATTERNS = tuple(
     )
 )
 _MEASUREMENT_ADJACENT = re.compile(r"^[ \t]*[A-Za-z³0-9]+")
+
+
+def _validate_description_volume_units(target: Mapping[str, Any], rendered: str) -> None:
+    """Reject one-group documents that reuse a CBM number under an imperial unit."""
+    if "cu. ft." not in rendered.casefold() and "ftq" not in rendered.casefold():
+        return
+    groups = target.get("documentPatch", {}).get("cargoGroups", ())
+    if len(groups) != 1:
+        return
+    description = groups[0].get("description", "")
+    if not isinstance(description, str) or "VOLUME" not in description.upper():
+        return
+    metric = {
+        Decimal(match.group(1).replace(",", ""))
+        for match in re.finditer(
+            r"\bVOLUME\s+([0-9][0-9,.]*)\s*(?:CBM|M³|CUBIC\s+METRES?)\b",
+            description,
+            re.IGNORECASE,
+        )
+    }
+    if not metric:
+        return
+    imperial = {
+        Decimal(match.group(1).replace(",", ""))
+        for match in re.finditer(
+            r"\b([0-9][0-9,.]*)\s*(?:cu\.\s*ft\.|FTQ)(?=$|[^A-Za-z0-9])",
+            rendered,
+            re.IGNORECASE,
+        )
+    }
+    if metric & imperial:
+        raise ValueError(
+            "the same cargo-volume number is stated as cubic metres in the "
+            "target description and cubic feet in the rendered document"
+        )
 
 
 def _derivation_measurement_factor(
@@ -6974,12 +7117,21 @@ def _materialize_case(
                 template=case.template.byte_template,
                 bindings=slot_bindings,
             )
+        validate_repeated_agent_party_pages(
+            source=case.source,
+            rendered=rendered,
+            source_target=case.source_target,
+            target=case.target,
+            bindings=case.template.bindings,
+        )
+        validate_rendered_party_boundaries(case.target, rendered.decode("utf-8"))
         _validate_projected_context(case.template, outputs)
         if case.dangerous_goods_facts:
             validate_un_references(
                 rendered.decode("utf-8"), {f.record.un_number for f in case.dangerous_goods_facts}
             )
         count_aliases.validate(rendered.decode("utf-8"))
+        _validate_description_volume_units(case.target, rendered.decode("utf-8"))
         validate_seal_realization(
             target=case.target,
             bindings=case.template.bindings,
@@ -7442,6 +7594,8 @@ def _training_dataset(
     cases: Sequence[PreparedCase],
     executions: Sequence[ExecutedCase],
     config: DescendantConfig,
+    country_codes: Mapping[str, str],
+    package_contract: ReviewedPackageContract | None = None,
 ) -> tuple[bytes, bytes, dict[str, Any]]:
     """Build the complete publishable dataset after every descendant passes."""
 
@@ -7455,6 +7609,21 @@ def _training_dataset(
         if execution.result.status != "passed" or execution.rendered is None:
             raise ValueError("training publication requires every descendant to pass")
         synthetic_id = case.target_receipt.synthetic_document_id
+        training_target, address_edits = project_training_target(
+            case.target, country_codes=country_codes
+        )
+        training_target, package_edits = project_reviewed_package_target(
+            source_document_id=case.source_document_id,
+            source_target=case.source_target,
+            target=training_target,
+            contract=package_contract,
+        )
+        if address_edits or package_edits:
+            canonical = BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
+                document_id=synthetic_id, target=training_target
+            )
+            if canonical != training_target:
+                raise ValueError("address projection changed canonical target shape")
         records.append(
             {
                 "documentId": synthetic_id,
@@ -7463,7 +7632,7 @@ def _training_dataset(
                 "splitGroupId": case.source_document_id,
                 "joinedRawText": execution.rendered.decode("utf-8"),
                 "joinedRawTextSha256": sha256_bytes(execution.rendered),
-                "target": case.target,
+                "target": training_target,
             }
         )
         lineage.append(
@@ -7506,6 +7675,18 @@ def _training_dataset(
                 "sourceTextSha256": sha256_bytes(case.source),
                 "joinedRawTextSha256": sha256_bytes(execution.rendered),
                 "preparedTargetSha256": case.target_receipt.prepared_target_sha256,
+                "trainingTargetSha256": sha256_bytes(canonical_json_bytes(training_target)),
+                "projectedAddressCount": len(address_edits),
+                "projectedPackageGroupCount": sum(
+                    bool(row["metadataPackageIds"])
+                    for row in package_edits
+                    if "metadataPackageIds" in row
+                ),
+                "taskPackageContractSha256": (
+                    config.inputs.task_package_contract.sha256
+                    if config.inputs.task_package_contract is not None
+                    else None
+                ),
                 "targetReceiptSha256": sha256_bytes(
                     canonical_json_bytes(case.target_receipt.model_dump(mode="json"))
                 ),
@@ -7624,7 +7805,27 @@ async def run_descendants(config_path: Path) -> Path:
     if sha256_file(prompt_path) != config.prompts.residual_renderer.sha256:
         raise ValueError("residual renderer prompt hash differs")
     system_prompt = prompt_path.read_text(encoding="utf-8")
+    package_pin = config.inputs.task_package_contract
+    package_contract = (
+        load_reviewed_package_contract(
+            resolve_input(project_root, package_pin.path),
+            expected_sha256=package_pin.sha256,
+            catalog_commit_sha256=config.inputs.template_run.commit_sha256,
+        )
+        if package_pin is not None
+        else None
+    )
     cases = _load_cases(project_root=project_root, config=config)
+    for case in cases:
+        projected, _ = project_reviewed_package_target(
+            source_document_id=case.source_document_id,
+            source_target=case.source_target,
+            target=case.target,
+            contract=package_contract,
+        )
+        BILL_OF_LADING_V5_TASK_ADAPTER.validate_target(
+            document_id=case.target_receipt.synthetic_document_id, target=projected
+        )
     country_path = resolve_input(project_root, config.inputs.iso3166_snapshot.path)
     countries = _country_code_map(country_path)
     plans = _build_render_plans(
@@ -7683,6 +7884,7 @@ async def run_descendants(config_path: Path) -> Path:
         ),
         "targetGeneration": config.workflow.target_generation,
         "iso3166Sha256": config.inputs.iso3166_snapshot.sha256,
+        "taskPackageContractSha256": package_pin.sha256 if package_pin is not None else None,
         "customsProgramRegistrySha256": (
             config.inputs.customs_program_registry.sha256
             if config.inputs.customs_program_registry is not None
@@ -7834,6 +8036,8 @@ async def run_descendants(config_path: Path) -> Path:
             cases=cases,
             executions=executions,
             config=config,
+            country_codes=countries,
+            package_contract=package_contract,
         )
         stage.publish_bytes("dataset/records.jsonl", records_bytes)
         stage.publish_bytes("dataset/lineage.jsonl", lineage_bytes)

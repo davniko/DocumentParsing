@@ -16,10 +16,23 @@ from document_ocr.synthesis.template_compiler.models import (
 )
 from document_ocr.synthesis.template_compiler.semantic_plan import (
     AuxiliarySemanticPlanReviewRequired,
+    _entity_field,
     build_auxiliary_semantic_plan,
     resolve_geographic_members,
     validate_auxiliary_render,
 )
+
+
+def test_isolated_postcode_is_not_treated_as_an_unstructured_address():
+    assert _entity_field(
+        _binding("agent:party:postal_code", "40472", value_kind="address")
+    ) == "postal_code"
+    assert _entity_field(
+        _binding("agent:party:state_postal", "CA 92101", value_kind="address")
+    ) == "address"
+    assert _entity_field(
+        _binding("agent:party:postal_city", "11471 CAIRO", value_kind="address")
+    ) == "address"
 
 
 def test_proven_name_suffix_is_validated_as_a_facet_not_as_the_whole_party():

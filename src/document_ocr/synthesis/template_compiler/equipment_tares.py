@@ -403,16 +403,44 @@ def _source_partial_pairs(
     if kind is None or (length is None and size is None):
         return frozenset()
     path = f"documentPatch.containers[{owner}].typeDescription"
+    # A certified binding can project OCR-joined words (for example
+    # TANKCONTAINER) onto the same target description. Only whitespace may
+    # differ; a different letter or punctuation is not source proof.
     normalized = " ".join(container["typeDescription"].casefold().split())
+    compact = "".join(normalized.split())
     proved = any(
         path in getattr(binding, "target_paths", ())
         and any(
-            " ".join(slot.source_text.casefold().split()) == normalized
+            "".join(slot.source_text.casefold().split()) == compact
             and source.source[slot.byte_start : slot.byte_end].decode() == slot.source_text
             for slot in binding.occurrences
         )
         for binding in source.template.bindings
     )
+    if not proved and len(source.target["documentPatch"]["containers"]) == 1:
+        from .descendant import _number_to_words
+        from .equipment_receipts import owned_inventory, validate_source_receipt
+
+        for binding in source.template.bindings:
+            if binding.derivation != "equipment_receipt":
+                continue
+            paths = (*binding.target_paths, *binding.dependency_paths)
+            if paths != ("documentPatch.containers",):
+                continue
+            inventory = owned_inventory(source.target, paths)
+            if len(inventory) != 1 or inventory[0] != container:
+                continue
+            if all(
+                normalized in " ".join(slot.source_text.casefold().split())
+                and source.source[slot.byte_start : slot.byte_end].decode() == slot.source_text
+                for slot in binding.occurrences
+            ):
+                for slot in binding.occurrences:
+                    validate_source_receipt(
+                        slot.source_text, inventory, number_words=_number_to_words
+                    )
+                proved = True
+                break
     if not proved:
         return frozenset()
     prefix = {"20": "TWENTY_", "40": "FORTY_FOOT_", "45": "FORTY_FIVE_"}

@@ -59,11 +59,12 @@ DgField = Literal[
 
 
 class DangerousGoodsSurface(BaseModel):
-    """A reviewed compiler binding to one fact in one regulatory tuple."""
+    """A reviewed binding to one regulatory tuple, possibly shared by cargo groups."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
     logical_key: NonEmptyText
     target_path: NonEmptyText
+    shared_target_paths: tuple[NonEmptyText, ...] = ()
     field: DgField
     subsidiary_index: Annotated[int, Field(ge=0)] | None = None
 
@@ -82,6 +83,7 @@ DERIVATIONS: Mapping[str, DgField] = {
     "sampled_dg_shipping_name": "shipping_name",
 }
 _OWNER = re.compile(r"documentPatch\.cargoGroups\[\d+\]\.dangerousGoods\[\d+\]")
+_EXPLICIT_UN_LINE = re.compile(r"(?im)^\s*UN\s*(?:NUMBER|NO\.?)\s*[:#-]?\s*([0-9]{4})\b")
 _UN_SURFACE = re.compile(r"\s*(?:UN\s*[:#-]?\s*)?\d{4}\s*", re.I)
 _CLASS_SURFACE = re.compile(r"\s*(?:(?:CLASS|CL\.?)\s*[:.]?\s*)?[1-9](?:\.[1-6])?[A-Z]?\s*", re.I)
 _OTHER_PROPERTY = re.compile(
@@ -89,6 +91,82 @@ _OTHER_PROPERTY = re.compile(
     r"P\.?G\.?\s*[:.]?\s*(?:III|II|I)\b|NET\s+WEIGHT|GROSS\s+WEIGHT)\b",
     re.I,
 )
+
+
+def validate_explicit_un_source_coverage(raw: str, source_target: Mapping[str, Any]) -> None:
+    """Fail closed when an affirmative printed UN declaration is absent from labels.
+
+    Form captions, negative DG statements and generic legal text without a
+    concrete UN number are not positive declarations. A concrete UN outside the
+    current target needs source-role review rather than silent source-only use.
+    """
+
+    printed = set(_EXPLICIT_UN_LINE.findall(raw))
+    if not printed:
+        return
+    target = {
+        dangerous["unNumber"]
+        for group in source_target["documentPatch"].get("cargoGroups", [])
+        for dangerous in group.get("dangerousGoods", [])
+        if dangerous.get("unNumber") is not None
+    }
+    if missing := printed - target:
+        raise ValueError(
+            "explicit printed DG UN number lacks a task target: " + ", ".join(sorted(missing))
+        )
+
+
+def reviewed_shared_draft_contract(
+    raw: str,
+    source_target: Mapping[str, Any],
+    draft: Any,
+    occurrences: tuple[Any, ...],
+) -> bool:
+    """Prove a repeated multi-target DG property has an explicit shared tuple.
+
+    This is a compiler acceptance contract, not a guess from equal target values.
+    The shared group annotation, repeated equal property surfaces, equal full DG
+    source records, and repeated printed UN declarations are all required.
+    """
+
+    if (
+        draft.group_kind != "dangerous_goods"
+        or draft.value_kind != "dangerous_goods"
+        or not draft.group_key.startswith("dangerous_goods:shared:")
+        or len(draft.target_paths) < 2
+        or len(occurrences) != len(draft.target_paths)
+        or not raw
+    ):
+        return False
+    owner_paths: list[str] = []
+    leaves: set[str] = set()
+    for path in draft.target_paths:
+        match = _DECLARATION.match(path)
+        if match is None:
+            return False
+        owner_paths.append(match.group(1))
+        leaves.add(path[len(match.group(1)) + 1 :])
+    if len(set(owner_paths)) != len(owner_paths) or len(leaves) != 1:
+        return False
+    if len({row.source_text.strip().casefold() for row in occurrences}) != 1:
+        return False
+    groups = source_target["documentPatch"].get("cargoGroups", [])
+    declarations = []
+    for path in owner_paths:
+        indices = tuple(int(value) for value in re.findall(r"\[([0-9]+)\]", path))
+        if len(indices) != 2:
+            return False
+        gi, di = indices
+        try:
+            declarations.append(groups[gi]["dangerousGoods"][di])
+        except (IndexError, KeyError, TypeError):
+            return False
+    if any(value != declarations[0] for value in declarations[1:]):
+        return False
+    un_number = declarations[0].get("unNumber")
+    return isinstance(un_number, str) and _EXPLICIT_UN_LINE.findall(raw) == [un_number] * len(
+        owner_paths
+    )
 
 
 def explicit_surface(binding: Any, declaration_paths: set[str]) -> DangerousGoodsSurface:
@@ -169,13 +247,24 @@ def compile_surfaces(template: CertifiedSemanticTemplate) -> tuple[DangerousGood
         if not owned and binding.group_kind != "dangerous_goods":
             continue
         if owned:
-            if len(owned) != 1 or len(binding.target_paths) != 1:
+            if len(owned) != len(binding.target_paths):
                 raise ValueError("composite DG facts require an explicit surface contract")
-            path = owned[0]
-            declaration = _DECLARATION.match(path)
+            declaration = _DECLARATION.match(owned[0])
             assert declaration is not None
             owner = declaration.group(1)
-            leaf = path[len(owner) + 1 :]
+            leaf = owned[0][len(owner) + 1 :]
+            shared_owners: list[str] = []
+            for path in owned[1:]:
+                shared = _DECLARATION.match(path)
+                assert shared is not None
+                if path[len(shared.group(1)) + 1 :] != leaf:
+                    raise ValueError("shared DG surface combines unlike regulatory properties")
+                shared_owners.append(shared.group(1))
+            if shared_owners and (
+                binding.target_relationship != "shared_value_equality"
+                or len({owner, *shared_owners}) != len(owned)
+            ):
+                raise ValueError("shared DG surface lacks equal distinct declaration owners")
             field: DgField
             index = None
             if leaf == "unNumber":
@@ -204,15 +293,57 @@ def compile_surfaces(template: CertifiedSemanticTemplate) -> tuple[DangerousGood
                     f"source-only DG fact needs compilation review: {binding.logical_key}"
                 )
             index = None
+            shared_owners = []
         output.append(
             DangerousGoodsSurface(
                 logical_key=binding.logical_key,
                 target_path=owner,
+                shared_target_paths=tuple(shared_owners),
                 field=field,
                 subsidiary_index=index,
             )
         )
     return tuple(output)
+
+
+def shared_declaration_representatives(
+    template: CertifiedSemanticTemplate, source_target: Mapping[str, Any]
+) -> dict[str, str]:
+    """Return only explicitly co-bound DG declarations that must share one tuple.
+
+    Equal source values alone never imply a shared synthetic identity. The
+    compiler must co-bind the same property paths under shared-value equality.
+    """
+
+    groups: list[frozenset[str]] = []
+    fields: dict[frozenset[str], set[DgField]] = {}
+    for surface in compile_surfaces(template):
+        if not surface.shared_target_paths:
+            continue
+        owners = frozenset((surface.target_path, *surface.shared_target_paths))
+        if any(owners & previous and owners != previous for previous in groups):
+            raise ValueError("overlapping DG shared-declaration contracts differ")
+        if owners not in fields:
+            groups.append(owners)
+        fields.setdefault(owners, set()).add(surface.field)
+    result: dict[str, str] = {}
+    for owners in groups:
+        if "un_number" not in fields[owners]:
+            raise ValueError("shared DG declarations require an owned UN-number surface")
+        source_values = []
+        cargo_groups = source_target["documentPatch"]["cargoGroups"]
+        for path in owners:
+            match = _OWNER.fullmatch(path)
+            assert match is not None
+            group_index, declaration_index = (
+                int(value) for value in re.findall(r"\[([0-9]+)\]", path)
+            )
+            source_values.append(cargo_groups[group_index]["dangerousGoods"][declaration_index])
+        if any(value != source_values[0] for value in source_values[1:]):
+            raise ValueError("shared DG source declarations are not the same regulatory tuple")
+        representative = min(owners)
+        result.update(dict.fromkeys(owners, representative))
+    return result
 
 
 def _render_field(
@@ -297,6 +428,13 @@ def render_facts(
     for surface in surfaces:
         if surface.target_path not in by_path or surface.logical_key not in bindings:
             raise ValueError("DG surface is outside its scenario or template")
+        for shared_path in surface.shared_target_paths:
+            if (
+                shared_path not in by_path
+                or by_path[shared_path].record.record_id
+                != by_path[surface.target_path].record.record_id
+            ):
+                raise ValueError("shared DG labels must use one complete regulatory tuple")
         binding = bindings[surface.logical_key]
         output = _render_field(binding, surface, by_path[surface.target_path])
         _validate_binding_format(source=source, template=template.byte_template, output=output)

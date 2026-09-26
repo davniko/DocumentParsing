@@ -12,9 +12,12 @@ from document_ocr.synthesis.template_compiler.complete_pipeline import (
 from document_ocr.synthesis.template_compiler.descendant import _validate_unrepresented_party_facets
 from document_ocr.synthesis.template_compiler.route_projection import (
     AddressCountryConflict,
+    AddressPostalConflict,
     PartyGeography,
     RouteProjection,
+    _explicit_numeric_postal_party_paths,
     require_route_contract,
+    validate_generated_postal_values,
 )
 
 
@@ -42,6 +45,19 @@ def fixture():
         rejected_candidates=(),
     )
     return source, row
+
+
+def test_compiled_route_capability_uses_owned_target_or_dependency_paths():
+    from document_ocr.synthesis.template_compiler.route_derivations import (
+        supports_transshipment,
+    )
+
+    direct = NS(target_paths=("documentPatch.route.transshipmentPort.name",), dependency_paths=())
+    latent = NS(target_paths=(), dependency_paths=("documentPatch.route.transshipmentPort",))
+    other = NS(target_paths=("documentPatch.route.portOfLoading.name",), dependency_paths=())
+    assert supports_transshipment((direct,))
+    assert supports_transshipment((latent,))
+    assert not supports_transshipment((other,))
 
 
 def test_only_declared_shared_name_slots_constrain_route_locations():
@@ -224,6 +240,73 @@ def test_ambiguous_region_country_is_explicitly_repaired_not_ignored():
         _address_repair_requirements(fields, [], requirements, ValueError("other field"))
         == requirements
     )
+
+
+def test_foreign_postcode_is_repaired_before_address_acceptance():
+    source, row = fixture()
+    path = "documentPatch.parties.consignee"
+    row = row.model_copy(
+        update={
+            "updates": {},
+            "party_geography": {
+                path: PartyGeography(
+                    country_code="US", country_name="United States", city="Birmingham"
+                )
+            },
+        }
+    )
+    target = deepcopy(source.target)
+    target["documentPatch"]["parties"]["consignee"]["address"] = (
+        "77 Foundry Road B11 4QJ, Birmingham, United States"
+    )
+    with pytest.raises(AddressPostalConflict) as caught:
+        row.validate_final(target, row.auxiliary_values)
+    fields = [dict(key="address", paths=[path + ".address"])]
+    requirements = _address_repair_requirements(fields, [], [], caught.value)
+    with pytest.raises(ValueError, match="incompatible postal code"):
+        _validate_address_repairs(
+            {"address": "77 Foundry Road B11 4QJ, Birmingham, United States"},
+            requirements,
+        )
+    corrected = "77 Foundry Road, Birmingham, United States"
+    _validate_address_repairs({"address": corrected}, requirements)
+    target["documentPatch"]["parties"]["consignee"]["address"] = corrected
+    row.validate_final(target, row.auxiliary_values)
+
+
+def test_generated_postal_placeholders_fail_without_rejecting_japanese_suffixes():
+    target = {"documentPatch": {"parties": {"consignee": {
+        "country": "United Arab Emirates", "address": "12 Harbour Road, 00000 Dubai"
+    }}}}
+    with pytest.raises(AddressPostalConflict, match="all-zero placeholder"):
+        validate_generated_postal_values(target, {})
+    target["documentPatch"]["parties"]["consignee"]["address"] = (
+        "12 Harbour Road, 809-0000 Fukuoka"
+    )
+    validate_generated_postal_values(target, {})
+    with pytest.raises(ValueError, match="postal auxiliary"):
+        validate_generated_postal_values(target, {"agent:party:postal_code": "AE-00000"})
+    target["documentPatch"]["cargoGroups"] = [
+        {"groupId": "g1", "marksAndNumbers": ["HK-00000 YUEN LONG"]}
+    ]
+    with pytest.raises(ValueError, match="cargo mark"):
+        validate_generated_postal_values(target, {})
+
+
+def test_only_explicit_numeric_postal_slots_constrain_postcode_free_routes():
+    raw = b"POSTAL CODE: 22713\nP.O. BOX 12345\n"
+    source = NS(
+        source=raw,
+        template=NS(bindings=(
+            NS(target_paths=("documentPatch.parties.consignee.address",),
+               occurrences=(NS(source_text="22713", byte_start=13, byte_end=18),)),
+            NS(target_paths=("documentPatch.parties.shipper.address",),
+               occurrences=(NS(source_text="12345", byte_start=28, byte_end=33),)),
+        )),
+    )
+    assert _explicit_numeric_postal_party_paths(source) == frozenset({
+        "documentPatch.parties.consignee"
+    })
 
 
 def test_unrepresented_context_can_only_be_pending_during_preliminary_validation():

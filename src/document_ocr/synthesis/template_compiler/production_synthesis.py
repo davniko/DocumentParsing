@@ -16,11 +16,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from document_ocr.atomic import read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.run_safety import StagedArtifactRun
+from document_ocr.training.reviewed_package_projection import load_reviewed_package_contract
 
+from .dangerous_goods_realization import validate_explicit_un_source_coverage
 from .descendant import _read_jsonl, _validate_committed_run
 from .descendant_models import PinnedCommittedRun
 from .latest_target import LatestTargetConstructionError, latest_target_from_source
 from .models import CertifiedSemanticTemplate, NonEmptyText, PinnedFile, Sha256
+from .route_derivations import supports_transshipment
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
 _TARGET_TASK = "bill_of_lading_relation_explicit_v5"
@@ -122,6 +125,7 @@ class ProductionSynthesisPlanConfig(BaseModel):
     selection: ProductionSynthesisSelection
     expected_inventory: ExpectedSelectionInventory
     source_review_exclusions: dict[NonEmptyText, NonEmptyText] = Field(default_factory=dict)
+    task_package_contract: PinnedFile | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,16 +288,20 @@ def _template_inventory(template_root: Path) -> tuple[TemplateInventoryRow, ...]
         labelled_transshipment = bool(
             label["documentPatch"].get("route", {}).get("transshipmentPort")
         )
+        route_summary_present = "routeCapabilities" in row
         route_capabilities = row.get("routeCapabilities")
-        if (
+        if route_summary_present and (
             not isinstance(route_capabilities, dict)
             or set(route_capabilities) != {"transshipment"}
             or type(route_capabilities["transshipment"]) is not bool
         ):
-            raise ValueError("catalog needs current explicit route-capability metadata")
-        transshipment = route_capabilities["transshipment"]
-        if labelled_transshipment and not transshipment:
-            raise ValueError(f"transshipment source has no compiled capability: {document_id}")
+            raise ValueError("catalog route-capability metadata is invalid")
+        reported_transshipment: bool | None
+        if route_summary_present:
+            assert isinstance(route_capabilities, dict)
+            reported_transshipment = route_capabilities["transshipment"]
+        else:
+            reported_transshipment = None
         value_kinds = row.get("valueKinds")
         if not isinstance(value_kinds, Mapping):
             raise ValueError(f"catalog value-kind summary is absent: {document_id}")
@@ -302,18 +310,33 @@ def _template_inventory(template_root: Path) -> tuple[TemplateInventoryRow, ...]
         if (
             dangerous_goods
             or temperature
-            or transshipment
+            or labelled_transshipment
+            or reported_transshipment
             or summarized_dangerous_goods
             or summarized_temperature
+            or not route_summary_present
         ):
             template = CertifiedSemanticTemplate.model_validate_json(
                 read_regular_file_bytes(case_root / "template.json"), strict=True
             )
             if template.document_id != document_id:
                 raise ValueError(f"template identity differs from catalog: {document_id}")
+            if summarized_dangerous_goods:
+                validate_explicit_un_source_coverage(
+                    read_regular_file_bytes(case_root / "source.txt").decode("utf-8"),
+                    label,
+                )
             target_paths = tuple(
                 path for binding in template.bindings for path in binding.target_paths
             )
+            transshipment = supports_transshipment(template.bindings)
+            if (
+                reported_transshipment is not None
+                and reported_transshipment != transshipment
+            ):
+                raise ValueError(
+                    f"catalog route capability and compiled bindings differ: {document_id}"
+                )
             bound_dangerous_goods = any(".dangerousGoods" in path for path in target_paths)
             bound_temperature = any(".temperatureSetpoint" in path for path in target_paths)
             if labelled_transshipment and not any(
@@ -332,6 +355,9 @@ def _template_inventory(template_root: Path) -> tuple[TemplateInventoryRow, ...]
         else:
             bound_dangerous_goods = False
             bound_temperature = False
+            transshipment = False
+        if labelled_transshipment and not transshipment:
+            raise ValueError(f"transshipment source has no compiled capability: {document_id}")
         if (dangerous_goods, temperature) != (bound_dangerous_goods, bound_temperature):
             raise ValueError(
                 f"source capability and compiled bindings differ for {document_id}: "
@@ -665,6 +691,32 @@ def _analyze_plan(*, project_root: Path, config: ProductionSynthesisPlanConfig) 
     by_id = {row.source_document_id: row for row in inventory}
     if set(config.source_review_exclusions) - set(by_id):
         raise ValueError("source review exclusions contain documents outside the pinned catalog")
+    package_review_reasons: dict[str, list[str]] = {}
+    if config.task_package_contract is not None:
+        pin = config.task_package_contract
+        contract_path = (project_root / pin.path).resolve(strict=True)
+        if project_root not in contract_path.parents:
+            raise ValueError("task package contract escapes project")
+        contract = load_reviewed_package_contract(
+            contract_path,
+            expected_sha256=pin.sha256,
+            catalog_commit_sha256=config.template_run.commit_sha256,
+        )
+        for (source_id, group_id), decision in contract.decisions.items():
+            if decision.status == "review":
+                package_review_reasons.setdefault(source_id, []).append(
+                    f"{group_id}: {decision.rationale}"
+                )
+        package_review_exclusions = {
+            source_id: "; ".join(sorted(reasons))
+            for source_id, reasons in package_review_reasons.items()
+        }
+        if set(package_review_exclusions) - set(by_id):
+            raise ValueError(
+                "package review exclusions contain documents outside the pinned catalog"
+            )
+    else:
+        package_review_exclusions = {}
     validation_catalog_ids = frozenset(by_id) & frozenset(validation_ids)
     validation_proxy_ids = frozenset(
         by_id[document_id].template_proxy_id for document_id in validation_catalog_ids
@@ -684,7 +736,7 @@ def _analyze_plan(*, project_root: Path, config: ProductionSynthesisPlanConfig) 
     latest_schema_incompatible = tuple(row for row in inventory if not row.latest_schema_compatible)
     excluded_ids = {
         row.source_document_id for row in (*validation_excluded, *latest_schema_incompatible)
-    } | set(config.source_review_exclusions)
+    } | set(config.source_review_exclusions) | set(package_review_exclusions)
     excluded = tuple(row for row in inventory if row.source_document_id in excluded_ids)
     eligible = tuple(row for row in inventory if row.source_document_id not in excluded_ids)
     capability_pools: dict[CapabilityCohort, tuple[TemplateInventoryRow, ...]] = {
@@ -771,6 +823,7 @@ def _analyze_plan(*, project_root: Path, config: ProductionSynthesisPlanConfig) 
         eligible=eligible,
         plan_rows=plan_rows,
     )
+    summary["packageReviewExcludedTemplates"] = len(package_review_exclusions)
     if summary["remainingExactValidationDocuments"]:
         raise RuntimeError("production synthesis plan contains an exact validation document")
     if (
@@ -784,6 +837,7 @@ def _analyze_plan(*, project_root: Path, config: ProductionSynthesisPlanConfig) 
         "validation_proxy_ids": validation_proxy_ids,
         "validation_excluded": validation_excluded,
         "latest_schema_incompatible": latest_schema_incompatible,
+        "package_review_exclusions": package_review_exclusions,
         "inventory": inventory,
         "excluded": excluded,
         "eligible": eligible,
@@ -878,6 +932,8 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
     summary["wallSeconds"] = time.perf_counter() - started
     publish_json("config.json", config.model_dump(mode="json"))
     publish_json("source-review-exclusions.json", config.source_review_exclusions)
+    package_review_exclusions = cast(dict[str, str], analyzed["package_review_exclusions"])
+    publish_json("package-review-exclusions.json", package_review_exclusions)
     publish_json("lineage.json", lineage)
     publish_bytes("plan.jsonl", _jsonl_bytes(plan_rows))
     publish_bytes(
@@ -907,6 +963,7 @@ def build_production_synthesis_plan(*, project_root: Path, config_path: Path) ->
                 row.source_document_id for row in latest_schema_incompatible
             ),
             "sourceReviewExcludedTemplateDocumentIds": sorted(config.source_review_exclusions),
+            "packageReviewExcludedTemplateDocumentIds": sorted(package_review_exclusions),
             "excludedTemplateDocumentIds": sorted(row.source_document_id for row in excluded),
         },
     )

@@ -1,0 +1,76 @@
+Extract key information from the complete, page-ordered raw Bill of Lading or Sea Waybill below.
+Return exactly one compact JSON object conforming to the supplied sparse schema. The raw OCR is the
+only factual source: omit unsupported values and never repair or add a value from outside knowledge.
+
+Semantic rules:
+
+- Treat every `--- PAGE N ---` section as part of one document. Repeated facts and continuation
+  pages do not create new records.
+- A party address is one joined semantic street/building/postal string. If a city or country is
+  separately emitted for that party, omit its complete locality/country component from `address`;
+  retain street names, named sites, and postal details even when they contain locality-like words.
+  Exclude party headings/names, TAX/VAT/CNPJ/ACID identifiers, communication labels/values, legal
+  clauses, and neighboring fields. Keep party roles, contact channels, route roles, issue place,
+  and freight place distinct.
+- Preserve printed country and locality text. Do not output ISO-2 or UN/LOCODE values.
+- Emit dates only under their supported B/L heading. Normalize the value to ISO date while retaining
+  the headed meaning; do not substitute invoice, export, or unrelated dates.
+- Exclude labels, boilerplate, `SHIPPER'S LOAD & COUNT`, `SAID TO CONTAIN`, `S.T.C.`, particulars
+  disclaimers, and portal/audit text from descriptions, marks, addresses, and every other field.
+- `cargoGroups` represent semantic cargo rows/groups, not physical OCR lines. Assign contiguous
+  document-local IDs `g1`, `g2`, ... in source order.
+- `cargoPackages` represent the innermost counted, source-supported package level for each
+  cargo item. Keep separate additive item or container rows, but do not also list an enclosing
+  pallet/carton, repeated receipt total, or alias as another package fact. If only one level is
+  printed, keep that level. If levels cannot be distinguished, do not guess. Assign contiguous
+  document-local IDs `p1`, `p2`, ... in source order and link each package to exactly one
+  `groupId`. `typeCategory` is a readable category
+  token from the schema/registered training labels, never a numeric or application code. When the
+  printed wording is not specific enough to support exactly one registered category, omit
+  `typeCategory` and copy only that concise wording into `typeDescription`; never emit both.
+- `cargoAllocationGroups` make container-to-package relationships explicit. Use
+  `one_to_one_package_allocations` when each source-ordered container allocation directly matches
+  one source-ordered package fact; in that case each allocation carries its exact `packageId`. Use
+  `single_package_level` when allocation quantities sum to exactly one linked package level;
+  `all_package_levels_combined` when they explicitly cover the sum of all linked levels;
+  `unlinked_package_quantities` when quantities exist but no package level is present; and
+  `container_membership_only` only when the OCR supports container membership without quantities.
+  Always include `packageIds` in each emitted allocation group: use `[]` for unlinked quantities
+  or container-only membership. Retain an exact derived quantity when every printed component
+  supports the sum, but do not infer totals from incomplete or ambiguous components. Never guess
+  an allocation or choose between duplicate equal package levels.
+- For container equipment, emit `sizeCategory` and `typeCategory` together only when the printed
+  surface unambiguously supports both semantic values. Never emit either one alone and never combine
+  them with `typeDescription`. If the complete semantic pair is not supported, preserve only the
+  concise printed equipment surface in `typeDescription`. A temperature setpoint requires printed
+  thermal/refrigerated equipment evidence or a printed equipment fallback; never infer container
+  size from words such as `REEFER` or `REFRIGERATED` alone.
+- Dangerous-goods `hazardCategory`, every member of `subsidiaryHazardCategories`, and
+  `packingGroupCategory` use the readable semantic values enumerated by the schema rather than IMDG
+  class or packing-group codes. `subsidiaryHazardCategories` is an ordered list of independently
+  printed subsidiary hazards. `packingGroupCategory` is independent of `flashPoint`; `flashPoint`
+  contains only its supported temperature. Country/locality strings remain printed text. Small
+  semantic enums such as `prepaid`, `collect`, `kilogram`, and `cubic_metre` remain readable; fixed
+  MPCI/CUSCAR wire codes are downstream concerns.
+- Keep descriptions, package quantities/types, weights, marks, seals, identifiers, dangerous-goods
+  facts, and allocations within their source-linked cargo group. Do not shift values across
+  neighboring rows or pages.
+- For cargo mass, retain an explicitly printed unit: `MT`/tonnes mean `metric_tonne`, not a
+  kilogram label with a value multiplied by 1,000. If the same shipment total is printed in
+  both tonnes and kilograms, choose a directly printed declaration and its corresponding value;
+  never combine a value from one unit with a label for the other. The `volume` field is cubic
+  metres only: use a directly printed CBM/m³ value, not an unmarked conversion from cubic feet.
+  A carrying temperature retains its printed Celsius/Fahrenheit meaning. Do not add a unit
+  where the OCR does not support one.
+
+Output JSON schema:
+```json
+{{output_schema}}
+```
+
+Raw B/L:
+```plaintext
+{{document_text}}
+```
+
+JSON:

@@ -767,6 +767,7 @@ class SlotRealization(BaseModel):
     slot_id: SlotId
     value_role: SlotValueRole
     segment_index: Annotated[int, Field(ge=0)] | None
+    repeat_group_index: Annotated[int, Field(ge=0)] | None = None
     source_token_count: Annotated[int, Field(ge=0)]
     literal_prefix: str
     literal_suffix: str
@@ -857,10 +858,32 @@ class BindingRealization(BaseModel):
             raise ValueError("target-surface realization requires target values")
         if self.mode == "generated_auxiliary" and self.target_values:
             raise ValueError("generated auxiliary realization cannot declare target values")
+        groups = tuple(slot.repeat_group_index for slot in self.slots)
+        if any(group is not None for group in groups):
+            if self.mode not in {"segmented_surface", "token_projected_surface"}:
+                raise ValueError("repeat groups require segmented or token-projected realization")
+            ordered = tuple(group for group in groups if group is not None)
+            if len(ordered) != len(groups) or ordered != tuple(sorted(ordered)):
+                raise ValueError("repeat groups must be assigned to every slot in source order")
+            assigned = tuple(dict.fromkeys(ordered))
+            if assigned != tuple(range(max(assigned) + 1)):
+                raise ValueError("repeat groups must have contiguous ordered indexes")
+            if len(set(groups)) < 2:
+                raise ValueError("repeat grouping requires at least two complete source copies")
         if self.mode == "segmented_surface":
-            indexes = tuple(slot.segment_index for slot in self.slots)
-            if indexes != tuple(range(len(self.slots))):
-                raise ValueError("segmented slots must have contiguous ordered indexes")
+            if all(group is None for group in groups):
+                indexes = tuple(slot.segment_index for slot in self.slots)
+                if indexes != tuple(range(len(self.slots))):
+                    raise ValueError("segmented slots must have contiguous ordered indexes")
+            else:
+                for group in dict.fromkeys(groups):
+                    members = tuple(
+                        slot.segment_index
+                        for slot in self.slots
+                        if slot.repeat_group_index == group
+                    )
+                    if members != tuple(range(len(members))):
+                        raise ValueError("each repeated segment group must start at zero")
         if self.mode == "token_projected_surface" and not any(
             slot.required_target_prefix_tokens or slot.required_target_suffix_tokens
             for slot in self.slots

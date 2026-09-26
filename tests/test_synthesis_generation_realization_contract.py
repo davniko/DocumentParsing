@@ -9,9 +9,213 @@ from document_ocr.synthesis.template_compiler.descendant import (
     _render_certified_date_surface,
     _render_target_binding,
     _string_semantics_match,
+    _validate_description_volume_units,
 )
-from document_ocr.synthesis.template_compiler.generation_contract import require_complete_variation
+from document_ocr.synthesis.template_compiler.generation_contract import (
+    require_complete_variation,
+    validate_compiled_party_contract,
+    validate_rendered_party_boundaries,
+    validate_repeated_agent_party_pages,
+)
+from document_ocr.synthesis.template_compiler.host import _exact_repeated_scalar_groups
 from document_ocr.synthesis.template_compiler.realization_contract import complete_token_intervals
+
+
+def test_cargo_volume_cannot_reuse_one_number_under_different_units():
+    target = {
+        "documentPatch": {
+            "cargoGroups": [{"groupId": "g1", "description": "FRESH AVOCADOS, VOLUME 43.470 CBM"}]
+        }
+    }
+    with pytest.raises(ValueError, match="same cargo-volume number"):
+        _validate_description_volume_units(target, "Gross Cargo Weight 23,677 kg. 43.470 cu. ft.")
+    _validate_description_volume_units(target, "Gross Cargo Weight 23,677 kg. 1,535.018 cu. ft.")
+    _validate_description_volume_units(target, "Gross Cargo Weight 23,677 kg. 43.470 CBM")
+
+
+def test_repeated_scalar_groups_require_complete_ordered_source_copies():
+    slots = tuple(NS(source_text=value) for value in ("ALPHA ", "STREET 1", "ALPHA ", "STREET 1"))
+    assert _exact_repeated_scalar_groups(slots, "ALPHA STREET 1") == (0, 0, 1, 1)
+    assert _exact_repeated_scalar_groups(slots[:3], "ALPHA STREET 1") is None
+    assert _exact_repeated_scalar_groups(slots[1:], "ALPHA STREET 1") is None
+
+
+def test_agent_repeated_party_page_must_retain_complete_generated_value():
+    path = "documentPatch.parties.shipper.address"
+    source = b"--- PAGE 1 ---\nOLD ROAD 1\n--- PAGE 2 ---\nOLD ROAD 1\n"
+    binding = NS(
+        realization=NS(mode="agent_required"),
+        target_paths=(path,),
+        occurrences=(NS(byte_start=15), NS(byte_start=51)),
+    )
+    source_target = {"documentPatch": {"parties": {"shipper": {"address": "OLD ROAD 1"}}}}
+    target = {"documentPatch": {"parties": {"shipper": {"address": "NEW HARBOR ROAD"}}}}
+    with pytest.raises(ValueError, match="lacks its generated target"):
+        validate_repeated_agent_party_pages(
+            source=source,
+            rendered=b"--- PAGE 1 ---\nNEW ROAD\n--- PAGE 2 ---\nNEW HARBOR ROAD\n",
+            source_target=source_target,
+            target=target,
+            bindings=(binding,),
+        )
+    validate_repeated_agent_party_pages(
+        source=source,
+        rendered=b"--- PAGE 1 ---\nNEW HARBOR ROAD\n--- PAGE 2 ---\nNEW HARBOR ROAD\n",
+        source_target=source_target,
+        target=target,
+        bindings=(binding,),
+    )
+
+
+def test_compiled_party_contract_requires_contact_separator_and_name_affiliation_ownership():
+    path = "documentPatch.parties.shipper.name"
+    source = {"documentPatch": {"parties": {"shipper": {"name": "Alpha ON BEHALF OF Beta"}}}}
+
+    def binding(key, kind, text, start, paths=(), mode="target_binding"):
+        return NS(
+            logical_key=key,
+            group_key="party:shipper:0",
+            group_kind="party",
+            value_kind=kind,
+            render_mode=mode,
+            target_paths=paths,
+            occurrences=(NS(byte_start=start, byte_end=start + len(text), source_text=text),),
+        )
+
+    name = binding("name", "organization", "Alpha", 0, (path,))
+    affiliate = binding(
+        "affiliate", "organization", "ON BEHALF OF Beta", 20, mode="deterministic_auxiliary"
+    )
+    phone = binding("phone", "phone", "034840282", 50)
+    email = binding("email", "email", "name@example.com", 59)
+    entity = NS(
+        relationship="same_as_target_party",
+        target_party_path="documentPatch.parties.shipper",
+        members=(NS(logical_key="affiliate", field="other"),),
+    )
+    with pytest.raises(ValueError, match="phone/email"):
+        validate_compiled_party_contract(
+            raw=b" " * 200,
+            source_target=source,
+            bindings=(name, affiliate, phone, email),
+            entities=(entity,),
+        )
+    email.occurrences = (NS(byte_start=60, byte_end=76, source_text="name@example.com"),)
+    with pytest.raises(ValueError, match="affiliation"):
+        validate_compiled_party_contract(
+            raw=b" " * 200,
+            source_target=source,
+            bindings=(name, affiliate, phone, email),
+            entities=(entity,),
+        )
+    affiliate.target_paths = (path,)
+    validate_compiled_party_contract(
+        raw=b" " * 200,
+        source_target=source,
+        bindings=(name, affiliate, phone, email),
+        entities=(entity,),
+    )
+
+
+def test_compiled_party_contract_rejects_a_name_suffix_swallowed_by_the_address():
+    party_path = "documentPatch.parties.consignee"
+    name_path = party_path + ".name"
+    address_path = party_path + ".address"
+    source = {
+        "documentPatch": {"parties": {"consignee": {"name": "Alpha S.A.E", "address": "Street 8"}}}
+    }
+    name = NS(
+        logical_key="name",
+        target_paths=(name_path,),
+        group_key="party:consignee:0",
+        group_kind="party",
+        value_kind="organization",
+        render_mode="target_binding",
+        occurrences=(NS(byte_start=0, byte_end=5, source_text="Alpha"),),
+    )
+    address = NS(
+        logical_key="address",
+        target_paths=(address_path,),
+        group_key="party:consignee:0",
+        group_kind="party",
+        value_kind="address",
+        realization=NS(mode="single_surface"),
+        render_mode="target_binding",
+        occurrences=(NS(byte_start=6, byte_end=21, source_text="S.A.EStreet 8"),),
+    )
+    with pytest.raises(ValueError, match="suffix is swallowed"):
+        validate_compiled_party_contract(
+            raw=b" " * 200, source_target=source, bindings=(name, address), entities=()
+        )
+    name.occurrences = (NS(byte_start=0, byte_end=11, source_text="Alpha S.A.E"),)
+    address.occurrences = (NS(byte_start=12, byte_end=20, source_text="Street 8"),)
+    validate_compiled_party_contract(
+        raw=b" " * 200, source_target=source, bindings=(name, address), entities=()
+    )
+
+
+def test_party_name_and_address_require_a_rendered_boundary():
+    source = {
+        "documentPatch": {
+            "parties": {
+                "forwardingAgent": {
+                    "name": "Northline Customs Oy",
+                    "address": "Kallionkatu 27",
+                }
+            }
+        }
+    }
+    name = NS(
+        logical_key="forwarder_name",
+        target_paths=("documentPatch.parties.forwardingAgent.name",),
+        group_key="party:forwardingAgent:0",
+        group_kind="party",
+        value_kind="organization",
+        realization=NS(mode="single_surface"),
+        occurrences=(NS(byte_start=0, byte_end=20, source_text="Northline Customs Oy"),),
+    )
+    address = NS(
+        logical_key="forwarder_address",
+        target_paths=("documentPatch.parties.forwardingAgent.address",),
+        group_key="party:forwardingAgent:0",
+        group_kind="party",
+        value_kind="address",
+        realization=NS(mode="single_surface"),
+        occurrences=(NS(byte_start=20, byte_end=34, source_text="Kallionkatu 27"),),
+    )
+    with pytest.raises(ValueError, match="name/address slots lack a literal separator"):
+        validate_compiled_party_contract(
+            raw=b"Northline Customs OyKallionkatu 27",
+            source_target=source,
+            bindings=(name, address),
+            entities=(),
+        )
+    address.occurrences = (NS(byte_start=21, byte_end=35, source_text="Kallionkatu 27"),)
+    with pytest.raises(ValueError, match="name/address slots lack a literal separator"):
+        validate_compiled_party_contract(
+            raw=b"Northline Customs Oy.Kallionkatu 27",
+            source_target=source,
+            bindings=(name, address),
+            entities=(),
+        )
+    validate_compiled_party_contract(
+        raw=b"Northline Customs Oy\nKallionkatu 27",
+        source_target=source,
+        bindings=(name, address),
+        entities=(),
+    )
+
+    with pytest.raises(ValueError, match="name and address lack a separator"):
+        validate_rendered_party_boundaries(source, "Northline Customs OyKallionkatu 27")
+    validate_rendered_party_boundaries(source, "Northline Customs Oy\nKallionkatu 27")
+    source["documentPatch"]["parties"]["forwardingAgent"]["address"] = "FW> Kallionkatu 27"
+    with pytest.raises(ValueError, match="continuation marker"):
+        validate_compiled_party_contract(
+            raw=b"Northline Customs Oy\nKallionkatu 27",
+            source_target=source,
+            bindings=(name, address),
+            entities=(),
+        )
 
 
 def test_equal_party_address_projections_share_fixed_suffix_coordinates():
@@ -68,6 +272,7 @@ def _binding():
         ),
         realization=NS(
             mode="token_projected_surface",
+            adapter="natural_text",
             target_values=(NS(source_value="OLD STREET 1000"),),
             slots=(
                 NS(required_target_prefix_tokens=(), required_target_suffix_tokens=("1000",)),
@@ -792,7 +997,9 @@ def test_number_word_material_package_recognizes_printed_word_order(source_noun)
     from document_ocr.synthesis.template_compiler.descendant import _render_one_derivation
 
     binding = NS(
-        logical_key="material_words", derivation="number_to_words", dependency_bindings=(),
+        logical_key="material_words",
+        derivation="number_to_words",
+        dependency_bindings=(),
         dependency_paths=(
             "documentPatch.cargoPackages[0].quantity",
             "documentPatch.cargoPackages[0].typeCategory",
@@ -800,10 +1007,14 @@ def test_number_word_material_package_recognizes_printed_word_order(source_noun)
         occurrences=(NS(slot_id="words", source_text="ONE (1) " + source_noun),),
     )
     case = NS(
-        source_target={"documentPatch": {"cargoPackages": [
-            {"quantity": 1, "typeCategory": "PACKAGE_CASE_WOODEN"}]}},
-        target={"documentPatch": {"cargoPackages": [
-            {"quantity": 2, "typeCategory": "PACKAGE_CARTON"}]}},
+        source_target={
+            "documentPatch": {
+                "cargoPackages": [{"quantity": 1, "typeCategory": "PACKAGE_CASE_WOODEN"}]
+            }
+        },
+        target={
+            "documentPatch": {"cargoPackages": [{"quantity": 2, "typeCategory": "PACKAGE_CARTON"}]}
+        },
     )
     result = _render_one_derivation(
         binding=binding, case=case, outputs={}, bindings={}, country_codes={}

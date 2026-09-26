@@ -107,15 +107,61 @@ def test_other_carrier_codes_are_not_inferred_from_the_new_spellings(surface):
     "surface",
     ["20 FT ISO TANK CONTAINER(S)", "20 FT ISO TANKCONTAINER(S)", "20 FT ISO TANKCONTAINERS"],
 )
-def test_tank_noun_word_boundary_cannot_change_equipment_type(surface):
+def test_generic_tank_noun_word_boundary_does_not_invent_pressure_subtype(surface):
     resolved = review_source_equipment_surface(surface, temperature_present=False)
-    assert resolved.size_category == "TWENTY_FOOT_STANDARD_HEIGHT"
-    assert resolved.type_category == "PRESSURIZED_TANK"
+    assert resolved.size_category is None
+    assert resolved.type_category is None
+    assert resolved.review_rule == "generic_tank_without_subtype_evidence"
+    from document_ocr.synthesis.container_semantics import partial_equipment_constraint
+
+    assert partial_equipment_constraint({"typeDescription": surface}) == (
+        "20", "PRESSURIZED_TANK", None
+    )
 
 
 def test_tank_word_boundary_normalization_is_not_a_substring_rewrite():
     resolved = review_source_equipment_surface("20 TANKCONTAINERIZATION", temperature_present=False)
     assert resolved.resolution == "unresolved_source_surface"
+
+
+def test_compiler_and_generation_reject_unowned_printed_shipment_container_ids():
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from document_ocr.synthesis.template_compiler.host import (
+        SpanDraft,
+        validate_compiled_current_container_identifier_ownership,
+        validate_current_container_identifier_ownership,
+    )
+
+    draft = SpanDraft(
+        draft_id="id", logical_key="container_1_identifier", render_mode="deterministic_auxiliary",
+        value_kind="identifier", group_kind="equipment", group_key="container:1",
+        target_paths=(), derivation=None, dependency_paths=(), dependency_bindings=(),
+        char_start=0, char_end=11, source_text="TRKU2030956",
+        evidence_origin="agent", render_policy="opaque_identifier", rationale="printed row",
+    )
+    with pytest.raises(ValueError, match="lacks its label-backed owner"):
+        validate_current_container_identifier_ownership((draft,))
+    binding = SimpleNamespace(
+        group_kind=draft.group_kind, group_key=draft.group_key,
+        logical_key=draft.logical_key, target_paths=draft.target_paths,
+        occurrences=(SimpleNamespace(source_text=draft.source_text),),
+    )
+    with pytest.raises(ValueError, match="lacks its label-backed owner"):
+        validate_compiled_current_container_identifier_ownership(
+            SimpleNamespace(bindings=(binding,))
+        )
+    owner = "documentPatch.containers[1].containerNumber"
+    validate_current_container_identifier_ownership(
+        (replace(draft, render_mode="target_binding", target_paths=(owner,)),)
+    )
+    validate_current_container_identifier_ownership(
+        (replace(draft, logical_key="seal:container:1"),)
+    )
+    validate_current_container_identifier_ownership(
+        (replace(draft, group_key="container:other"),)
+    )
 
 
 @pytest.mark.parametrize("length", ["20", "40", "45"])
@@ -149,3 +195,18 @@ def test_complete_40rf96_code_is_high_cube_reefer_not_a_two_digit_seal():
     assert resolved.size_category == "FORTY_FOOT_HIGH_CUBE"
     assert resolved.type_category == "REFRIGERATED"
     assert resolved.thermal_operation == "active"
+
+
+def test_source_row_standard_dry_abbreviation_matches_explicit_standard_receipt():
+    row = review_source_equipment_surface("20'SD", temperature_present=False)
+    receipt = review_source_equipment_surface(
+        "17 X 20' STD FCL CONTAINERS STC", temperature_present=False
+    )
+    assert (row.size_category, row.type_category) == (
+        "TWENTY_FOOT_STANDARD_HEIGHT",
+        "GENERAL_PURPOSE",
+    )
+    assert (row.size_category, row.type_category) == (
+        receipt.size_category,
+        receipt.type_category,
+    )

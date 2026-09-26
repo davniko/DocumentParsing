@@ -32,6 +32,20 @@ from .address_localities import AddressLocalities
 from .models import NonEmptyText, Sha256
 from .realization_contract import fixed_projection_ranges, projected_auxiliary_values
 
+_UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b", re.IGNORECASE)
+_UK_POSTCODE_COUNTRIES = frozenset({"GB", "IM", "JE", "GG"})
+_ZERO_POSTCODE = re.compile(
+    r"(?<![A-Za-z0-9-])0{4,6}(?![A-Za-z0-9])|(?<![A-Za-z0-9])[A-Z]{2}-0{4,6}(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+_COUNTRY_MARK_ZERO_POSTCODE = re.compile(r"^[A-Z]{2}-0{4,6}\s+[A-Z]", re.IGNORECASE)
+# The UPU identifies these observed destinations as not using or requiring a
+# postcode. A source form with an explicit numeric postal slot cannot express
+# such a route without fabricating a code. Other countries remain subject to
+# the generated-value guard below; this is not a global postal-code registry.
+_NO_POSTCODE_COUNTRIES = frozenset({"AE", "AO", "HK", "LY", "QA"})
+_POSTAL_CAPTION = re.compile(rb"(?i)\b(?:POSTAL|POSTCODE|ZIP)\b")
+
 
 class PartyGeography(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -63,6 +77,100 @@ class AddressLocalityConflict(AddressCountryConflict):
             f"remove those locality components and use the sampled city {city!r}, "
             f"country {country_name!r}",
         )
+
+
+class AddressPostalConflict(AddressCountryConflict):
+    def __init__(
+        self, party_path: str, country_name: str, postcode: str, *, reason: str = "UK-format"
+    ) -> None:
+        super().__init__(party_path, country_name)
+        self.postcode = postcode
+        self.args = (
+            f"generated address retains {reason} postcode {postcode!r} under "
+            f"sampled country {country_name!r}: {party_path}; remove the incompatible "
+            "postcode and use only postal detail supported by the sampled locality",
+        )
+
+
+def validate_generated_postal_values(
+    target: Mapping[str, Any],
+    auxiliary: Mapping[str, str],
+    *,
+    geography: Mapping[str, PartyGeography] | None = None,
+) -> None:
+    """Reject invented all-zero postcodes in mutable party and source-only facts."""
+    parties = target.get("documentPatch", {}).get("parties", {})
+    if not isinstance(parties, Mapping):
+        raise ValueError("generated target parties are not a mapping")
+    for role, value in parties.items():
+        if role == "carrier":
+            continue
+        rows = value if isinstance(value, list) else [value]
+        for index, party in enumerate(rows):
+            if not isinstance(party, Mapping):
+                continue
+            address = party.get("address")
+            match = _ZERO_POSTCODE.search(address) if isinstance(address, str) else None
+            if match is not None:
+                path = "documentPatch.parties." + role
+                if isinstance(value, list):
+                    path += f"[{index}]"
+                country = (
+                    geography[path].country_name
+                    if geography is not None and path in geography
+                    else party.get("country")
+                )
+                if not isinstance(country, str):
+                    raise ValueError(
+                        f"generated address contains an all-zero postcode without a "
+                        f"repairable country context: {path}"
+                    )
+                raise AddressPostalConflict(
+                    path,
+                    country,
+                    match.group(),
+                    reason="all-zero placeholder",
+                )
+    for key, value in auxiliary.items():
+        if not re.search(r"postal|postcode|zip", key, re.IGNORECASE):
+            continue
+        match = _ZERO_POSTCODE.search(value)
+        if match is not None:
+            raise ValueError(
+                f"generated postal auxiliary {key} contains an all-zero placeholder "
+                f"{match.group()!r}; provide a valid locality-supported code or use a "
+                "postal-free compatible template"
+            )
+    for group in target.get("documentPatch", {}).get("cargoGroups", ()):
+        for value in group.get("marksAndNumbers", ()):
+            if _COUNTRY_MARK_ZERO_POSTCODE.search(value):
+                raise ValueError(
+                    "generated cargo mark contains a zero-filled country/locality "
+                    f"postal component: {value!r}"
+                )
+
+
+def _explicit_numeric_postal_party_paths(source: targets.SourceTemplate) -> frozenset[str]:
+    """Identify address slots proven to be postcode-only by their printed caption."""
+    result = set()
+    for binding in source.template.bindings:
+        party_paths = {
+            path.removesuffix(".address")
+            for path in binding.target_paths
+            if path.startswith("documentPatch.parties.") and path.endswith(".address")
+        }
+        if not party_paths:
+            continue
+        for slot in binding.occurrences:
+            if re.fullmatch(r"[0-9]{4,6}", slot.source_text.strip()) is None:
+                continue
+            start = source.source.rfind(b"\n", 0, slot.byte_start) + 1
+            end = source.source.find(b"\n", slot.byte_end)
+            if end < 0:
+                end = len(source.source)
+            if _POSTAL_CAPTION.search(source.source[start:end]):
+                result.update(party_paths)
+    return frozenset(result)
 
 
 class RouteProjection(BaseModel):
@@ -124,6 +232,10 @@ class RouteProjection(BaseModel):
                 )
                 if country is not None and country != geography.country_code:
                     raise AddressCountryConflict(path, geography.country_name)
+            if isinstance(address, str) and geography.country_code not in _UK_POSTCODE_COUNTRIES:
+                postcode = _UK_POSTCODE.search(address)
+                if postcode is not None:
+                    raise AddressPostalConflict(path, geography.country_name, postcode.group())
             if localities is not None and isinstance(address, str) and geography.city is not None:
                 conflicts = localities.conflicts(
                     address,
@@ -475,6 +587,7 @@ def sample_projection(
         physical_source, source.template.bindings, support=support, countries=countries
     )
     shared_locations = _shared_route_locations(source)
+    explicit_postal_parties = _explicit_numeric_postal_party_paths(source)
     for binding in source.template.bindings:
         if binding.derivation == "sampled_route_country_code":
             owner = physical_source["documentPatch"]["route"][route_derivations.endpoint(binding)]
@@ -512,6 +625,12 @@ def sample_projection(
             if "route" not in source.target["documentPatch"]:
                 projected["documentPatch"].pop("route", None)
             context = _party_context(scenario, support=support, countries=countries, stream=attempt)
+            for path in explicit_postal_parties:
+                if path in context and context[path].country_code in _NO_POSTCODE_COUNTRIES:
+                    raise ValueError(
+                        "explicit numeric postal slot cannot represent sampled "
+                        f"postcode-free country {context[path].country_code}: {path}"
+                    )
             _validate_shared_phone_context(source, context)
             auxiliary = _auxiliary_geography(source, projected, context, country_codes)
             route_values = route_derivations.values(source.template.bindings, scenario.to_dict())

@@ -302,6 +302,19 @@ def _sequence_scope(binding: SemanticBinding) -> str:
 
 def _entity_field(binding: SemanticBinding) -> str:
     tokens = set(_identity_tokens(binding.logical_key + " " + binding.group_key))
+    # A compiler can classify an isolated postcode as address-shaped text.
+    # Keep true state/postal or postal/city composites as addresses; only a
+    # digit-bearing single code receives the postal-code field contract.
+    if (
+        binding.value_kind == "address"
+        and tokens & {"postal", "postcode", "zipcode"}
+        and all(
+            re.fullmatch(r"[A-Z0-9]{2,6}(?:[- ][A-Z0-9]{2,4})?", slot.source_text.strip(), re.I)
+            and any(char.isdigit() for char in slot.source_text)
+            for slot in binding.occurrences
+        )
+    ):
+        return "postal_code"
     if binding.value_kind in {"identifier", "location"} and tokens & {
         "postal",
         "postcode",

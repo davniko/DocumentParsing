@@ -149,6 +149,14 @@ def _semantic(text: str) -> _EquipmentShape:
         return _EquipmentShape(size, None)
     if re.fullmatch(r"(?:HI|HIGH)[ -]?CUBE", bare, re.I):
         return _EquipmentShape(None, None, high_cube=True)
+    generic_tank = re.fullmatch(
+        r"(20|40|45)\s*(?:['\u2019`]\s*)?(?:FT\s*)?(?:ISO\s*)?TANK",
+        bare,
+        re.I,
+    )
+    if generic_tank:
+        # Internal fit proxy only; task-facing generic TANK remains wording.
+        return _EquipmentShape(None, "PRESSURIZED_TANK", generic_tank[1])
     iso_code = re.fullmatch(r"\s*[0-9A-Z]{2}\s*[A-Z][0-9]\s*", words, re.I)
     if iso_code is None and set(re.findall(r"[A-Z]+", words.upper())) - _EQUIPMENT_WORDS:
         raise ValueError(f"equipment receipt includes unowned non-equipment wording: {text!r}")

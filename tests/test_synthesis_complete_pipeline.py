@@ -344,6 +344,7 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
         cargo_sampling=None,
         cargo_lexical_contracts=None,
         reviewed_generation=None,
+        task_package_contract=None,
     )
     monkeypatch.setattr(pipeline, "project_root_from_config", lambda _: tmp_path)
     monkeypatch.setattr(pipeline, "load_config", lambda _: config)
@@ -371,6 +372,17 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
         template=NS(coherence_constraints=[], bindings=[], auxiliary_semantic_plan=NS(entities=[])),
     )
     monkeypatch.setattr(pipeline.targets, "load_source", lambda *a: source)
+    monkeypatch.setattr(
+        pipeline,
+        "project_training_target",
+        lambda target, **_kwargs: (target, ()),
+    )
+    monkeypatch.setattr(pipeline, "latest_target_from_source", lambda _source: {})
+    monkeypatch.setattr(
+        pipeline,
+        "project_reviewed_package_target",
+        lambda **kwargs: (kwargs["target"], ()),
+    )
     monkeypatch.setattr(pipeline.targets, "reserve_identifiers", lambda *a, **kw: {})
     monkeypatch.setattr(pipeline.targets, "lexical_contract", lambda *a: [])
     monkeypatch.setattr(pipeline.targets, "structured_proposal", lambda *a, **kw: {})

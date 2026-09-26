@@ -65,6 +65,61 @@ def _relation_target(
     )
 
 
+def _v5_target(*, reverse: bool = False, hazard: str = "FLAMMABLE_LIQUIDS") -> str:
+    containers = [
+        {
+            "containerNumber": "MSKU1200040",
+            "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+        {
+            "containerNumber": "FCIU3651201",
+            "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+            "typeCategory": "GENERAL_PURPOSE",
+        },
+    ]
+    allocations = [
+        {"containerNumber": "MSKU1200040", "packageQuantity": 10},
+        {"containerNumber": "FCIU3651201", "packageQuantity": 20},
+    ]
+    if reverse:
+        containers.reverse()
+        allocations.reverse()
+    return canonical_json(
+        {
+            "schemaVersion": "5.0.0-experimental",
+            "documentPatch": {
+                "containers": containers,
+                "cargoGroups": [
+                    {
+                        "groupId": "g1",
+                        "description": "PAINT",
+                        "dangerousGoods": [
+                            {"unNumber": "1203", "hazardCategory": hazard}
+                        ],
+                    }
+                ],
+                "cargoPackages": [
+                    {
+                        "packageId": "p1",
+                        "groupId": "g1",
+                        "quantity": 30,
+                        "typeCategory": "PACKAGE_CARTON",
+                    }
+                ],
+                "cargoAllocationGroups": [
+                    {
+                        "groupId": "g1",
+                        "coverage": "single_package_level",
+                        "packageIds": ["p1"],
+                        "allocations": allocations,
+                    }
+                ],
+            },
+        }
+    )
+
+
 def test_structured_metrics_distinguish_json_schema_and_exactness() -> None:
     task = get_training_task("bill_of_lading_semantic_v2")
     reference = _target("ABC")
@@ -180,6 +235,34 @@ def test_relation_explicit_metrics_penalize_wrong_anchored_allocation_values() -
     assert metrics["cargo_relation_f1"] == 5 / 7
     assert metrics["cargo_relation_exact_match"] == 0.0
     assert metrics["category_value_f1"] == 1.0
+
+
+def test_v5_schema_requires_explicit_package_ids_and_diagnostics_anchor_relations() -> None:
+    task = get_training_task("bill_of_lading_relation_explicit_v5")
+    schema = json.loads(task.prompt_schema_json())
+    assert "packageIds" in schema["$defs"]["CargoAllocationGroupV5"]["required"]
+
+    reference = _v5_target()
+    reordered = _v5_target(reverse=True)
+    metrics, _ = structured_metrics([reordered], [reference], task)
+    assert metrics["schema_valid"] == 1.0
+    assert metrics["cargo_relation_f1"] == 1.0
+    assert metrics["category_value_f1"] == 1.0
+    assert metrics["field_value_f1"] < 1.0
+    assert metrics["extraction_fact_f1"] < 1.0
+
+    missing_package_ids = json.loads(reference)
+    del missing_package_ids["documentPatch"]["cargoAllocationGroups"][0]["packageIds"]
+    metrics, _ = structured_metrics([json.dumps(missing_package_ids)], [reference], task)
+    assert metrics["schema_valid"] == 0.0
+
+
+def test_v5_category_metric_detects_wrong_dangerous_goods_category() -> None:
+    task = get_training_task("bill_of_lading_relation_explicit_v5")
+    metrics, _ = structured_metrics([_v5_target(hazard="GASES")], [_v5_target()], task)
+    assert metrics["schema_valid"] == 1.0
+    assert metrics["cargo_relation_f1"] == 1.0
+    assert metrics["category_value_f1"] < 1.0
 
 
 def test_trainer_metric_callback_publishes_exact_field_value_metrics() -> None:

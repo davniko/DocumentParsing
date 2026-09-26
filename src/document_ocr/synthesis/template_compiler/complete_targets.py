@@ -53,11 +53,13 @@ from .generation_contract import (
     order_party_reference,
     party_owned_surfaces,
     require_complete_variation,
+    validate_compiled_party_contract,
     validate_party_evidence,
 )
 from .host import (
     validate_compiled_extraction_dates,
     validate_compiled_global_shared_temperature_scope,
+    validate_compiled_location_payment_grounding,
     validate_compiled_repeated_cargo_temperature_scope,
     validate_compiled_signed_temperature_word_scope,
     validate_compiled_single_printed_hs_scope,
@@ -101,6 +103,13 @@ def load_source(root: Any, document_id: str) -> SourceTemplate:
     require_singleton_printed_setpoint(label)
     validate_compiled_extraction_dates(
         raw=source.decode("utf-8"), source_target=label, template=template
+    )
+    validate_compiled_location_payment_grounding(source_target=label, template=template)
+    validate_compiled_party_contract(
+        raw=source,
+        source_target=label,
+        bindings=template.bindings,
+        entities=template.auxiliary_semantic_plan.entities,
     )
     validate_compiled_single_printed_hs_scope(
         raw=source.decode("utf-8"), source_target=label, template=template
