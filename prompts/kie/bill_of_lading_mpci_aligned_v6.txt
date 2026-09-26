@@ -5,8 +5,8 @@ outside knowledge.
 
 Semantic rules:
 
-- Treat every `--- PAGE N ---` section as one document. Repeated facts and continuation pages do
-  not create new goods items or containers.
+- Treat all `--- PAGE N ---` sections as one document. Continue extraction across pages without
+  duplicating facts.
 - Party `address` is the joined street/building/postal text. When a separately printed city or
   country is emitted, omit that complete component from `address`. Retain named sites and postal
   details. Do not mix party roles, contact channels, route places, issue place, or freight place.
