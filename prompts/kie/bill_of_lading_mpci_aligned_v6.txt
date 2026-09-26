@@ -1,41 +1,23 @@
 Extract document-supported facts from the complete, page-ordered Bill of Lading or Sea Waybill.
-Return exactly one compact JSON object conforming to the supplied sparse extraction schema. The
-raw OCR is the only factual source: omit unsupported values; never repair or add a value from
-outside knowledge.
+Return exactly one compact JSON object conforming to the supplied sparse extraction schema.
 
 Semantic rules:
 
-- Treat all `--- PAGE N ---` sections as one document. Continue extraction across pages without
-  duplicating facts.
-- Party `address` is the joined street/building/postal text. When a separately printed city or
-  country is emitted, omit that complete component from `address`. Retain named sites and postal
-  details. Do not mix party roles, contact channels, route places, issue place, or freight place.
-- Preserve printed country and locality text, not inferred ISO or UN/LOCODE codes. Emit ISO dates
-  only under their supported B/L heading. Exclude form captions and legal boilerplate from facts.
-- `containerInformation` contains each distinct printed container once, in source order.
-  `equipmentIdentifier` is its container ID. Emit `sizeCategory` and `typeCategory` together only
-  when the printed equipment surface supports both; otherwise use only concise printed
-  `typeDescription`. A printed setpoint does not authorize inventing container size/type.
-- `goodsItemDetails` contains semantic cargo groups in source order, not physical OCR lines.
-  Put each group's description, weights, HS codes, origin, marks, handling and dangerous-goods
-  facts in that group. Do not merge or shift neighboring cargo groups or pages.
-- Put the innermost counted, source-supported package level in that same goods item's
-  `numberAndTypeOfPackages`. Keep distinct additive item/container rows, but not an enclosing
-  pallet/carton, repeated receipt total or alias as another package fact. If only one level is
-  printed, keep it. `typeCategory` must be a readable category token from the supplied schema;
-  if the printed wording supports no unique category, put only that concise wording in
-  `typeOfPackages`. Do not emit both. Retain exact derived totals only when all printed
-  components support them.
-- Put container membership under the same goods item's `splitGoodsPlacement`, after its factual
-  fields. Each placement uses the exact `equipmentIdentifier` from `containerInformation`.
-  Include `packageQuantity` only if the source supports it. Preserve separate printed placement
-  rows and their order, even when two rows use the same container. Package totals and placement
-  quantities can be independent declarations: do not force them equal or invent a relation to
-  one particular package row. Omit placements not grounded in the OCR.
-- Dangerous-goods category fields use the readable schema enums, not IMDG or packing-group
-  codes. Keep each independently printed subsidiary hazard and keep packing group separate from
-  flashpoint. Units for mass, volume and temperature must match the printed value: `MT` means
-  `metric_tonne`, not a converted kilogram target; `volume` is only a printed CBM/m³ value.
+- All pages form one document. Consolidate repeated facts; retain distinct rows in source order.
+- Keep party and route roles distinct. Party `address` combines street, building and postal text;
+  separately printed city and country belong in their own fields.
+- Preserve printed locality wording and measurement units (`MT` = `metric_tonne`). Dates need
+  their matching B/L declaration; volume needs a printed CBM/m³ value.
+- Record distinct containers and semantic cargo groups in source order. Container size/type
+  categories require printed equipment evidence; otherwise use the printed `typeDescription`.
+- For each goods item, record the innermost counted package level, distinct additive rows and
+  exact totals derivable from all printed components. Use `typeOfPackages` for uncategorized
+  printed packaging.
+- Under each goods item, put printed container membership and allocation rows in
+  `splitGoodsPlacement` using a listed container's `equipmentIdentifier`. Include
+  `packageQuantity` when supported; package totals and placement quantities may be independent.
+- Use the schema's dangerous-goods categories. Keep subsidiary hazards, packing group and
+  flashpoint separate.
 
 Output JSON schema:
 ```json
