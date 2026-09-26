@@ -36,9 +36,6 @@ Semantic rules:
   codes. Keep each independently printed subsidiary hazard and keep packing group separate from
   flashpoint. Units for mass, volume and temperature must match the printed value: `MT` means
   `metric_tonne`, not a converted kilogram target; `volume` is only a printed CBM/m³ value.
-- Do not emit document-local `gN`/`pN` IDs, `coverage`, or package-to-placement bookkeeping.
-  Goods nesting and source order establish membership. Fixed MPCI/CUSCAR wire codes and form
-  wrappers are downstream concerns, not facts the model must generate.
 
 Output JSON schema:
 ```json
