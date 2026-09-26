@@ -103,11 +103,25 @@ def _source_tokens(
         except ValueError as error:
             raise ValueError(f"{context}: target is not canonical {task_name}: {error}") from error
         patch = canonical["documentPatch"]
-        for package in patch.get("cargoPackages", []):
+        packages = (
+            (
+                package
+                for goods in patch.get("goodsItemDetails", [])
+                for package in goods.get("numberAndTypeOfPackages", [])
+            )
+            if task_name == "bill_of_lading_mpci_aligned_v6"
+            else patch.get("cargoPackages", [])
+        )
+        for package in packages:
             token = package.get("typeCategory")
             if token is not None:
                 package_tokens.add(cast(str, token))
-        for container in patch.get("containers", []):
+        container_field = (
+            "containerInformation"
+            if task_name == "bill_of_lading_mpci_aligned_v6"
+            else "containers"
+        )
+        for container in patch.get(container_field, []):
             token = container.get("typeCategory")
             if token is not None:
                 container_tokens.add(cast(str, token))

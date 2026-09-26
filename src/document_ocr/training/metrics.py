@@ -7,6 +7,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
+from document_ocr.label_schemas.bill_of_lading_v3 import RelationExplicitDocumentPatch
+from document_ocr.label_schemas.bill_of_lading_v4 import RelationExplicitDocumentPatchV4
+from document_ocr.label_schemas.bill_of_lading_v5 import RelationExplicitDocumentPatchV5
+from document_ocr.label_schemas.bill_of_lading_v6 import BillOfLadingDocumentPatchV6
 from document_ocr.training.tasks import TrainingTask, canonical_json
 
 
@@ -39,6 +43,34 @@ class PredictionAssessment:
             "schema_valid": self.schema_valid,
             "canonical_exact_match": self.canonical_exact_match,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _RelationMetricProfile:
+    supported: bool
+    dangerous_goods_categories: bool
+    container_size_category: bool
+    extraction_facts: bool
+    mpci_aligned_v6: bool
+
+
+def _relation_metric_profile(task: TrainingTask) -> _RelationMetricProfile:
+    """Derive metric coverage from the registered target schema, not its task name."""
+
+    patch_model = task.target_model.model_fields["documentPatch"].annotation
+    if not isinstance(patch_model, type):
+        raise TypeError("training target documentPatch annotation must be a model class")
+    v5_schema = issubclass(patch_model, RelationExplicitDocumentPatchV5)
+    v6_schema = issubclass(patch_model, BillOfLadingDocumentPatchV6)
+    return _RelationMetricProfile(
+        supported=issubclass(patch_model, RelationExplicitDocumentPatch) or v6_schema,
+        dangerous_goods_categories=(
+            issubclass(patch_model, RelationExplicitDocumentPatchV4) or v6_schema
+        ),
+        container_size_category=v5_schema or v6_schema,
+        extraction_facts=v5_schema or v6_schema,
+        mpci_aligned_v6=v6_schema,
+    )
 
 
 def _field_value_items(value: Any, path: str = "$.documentPatch") -> set[tuple[str, str]]:
@@ -77,7 +109,7 @@ def _optional_document_patch(value: dict[str, Any] | None) -> dict[str, Any] | N
 def _relation_explicit_facts(
     patch: dict[str, Any] | None,
     *,
-    v5: bool = False,
+    profile: _RelationMetricProfile,
 ) -> tuple[frozenset[tuple[str, ...]], frozenset[tuple[str, ...]]]:
     """Project cargo edges and anchored categories without container array positions."""
 
@@ -96,10 +128,14 @@ def _relation_explicit_facts(
             if isinstance(number, str) and isinstance(category, str):
                 categories.add(("container_type", number, category))
             size = container.get("sizeCategory")
-            if v5 and isinstance(number, str) and isinstance(size, str):
+            if (
+                profile.container_size_category
+                and isinstance(number, str)
+                and isinstance(size, str)
+            ):
                 categories.add(("container_size", number, size))
 
-    if v5:
+    if profile.dangerous_goods_categories:
         groups = patch.get("cargoGroups")
         if isinstance(groups, list):
             for group in groups:
@@ -180,7 +216,96 @@ def _relation_explicit_facts(
     return frozenset(relations), frozenset(categories)
 
 
+def _mpci_aligned_facts(
+    patch: dict[str, Any] | None,
+) -> tuple[frozenset[tuple[str, ...]], frozenset[tuple[str, ...]]]:
+    """Score nested goods-to-equipment edges without redundant coverage labels."""
+
+    if patch is None:
+        return frozenset(), frozenset()
+    relations: set[tuple[str, ...]] = set()
+    categories: set[tuple[str, ...]] = set()
+    containers = patch.get("containerInformation")
+    if not isinstance(containers, list):
+        containers = []
+    for container in containers:
+        if not isinstance(container, dict):
+            continue
+        identifier = container.get("equipmentIdentifier")
+        if not isinstance(identifier, str):
+            continue
+        for field, metric_name in (
+            ("sizeCategory", "container_size"),
+            ("typeCategory", "container_type"),
+        ):
+            value = container.get(field)
+            if isinstance(value, str):
+                categories.add((metric_name, identifier, value))
+    goods_items = patch.get("goodsItemDetails")
+    if not isinstance(goods_items, list):
+        goods_items = []
+    for goods_index, goods in enumerate(goods_items):
+        if not isinstance(goods, dict):
+            continue
+        anchor = str(goods_index)
+        packages = goods.get("numberAndTypeOfPackages")
+        if not isinstance(packages, list):
+            packages = []
+        for package_index, package in enumerate(packages):
+            if isinstance(package, dict) and isinstance(package.get("typeCategory"), str):
+                categories.add(
+                    ("package_type", anchor, str(package_index), package["typeCategory"])
+                )
+        dangerous_goods = goods.get("dangerousGoods")
+        if not isinstance(dangerous_goods, list):
+            dangerous_goods = []
+        for dangerous_index, dangerous in enumerate(dangerous_goods):
+            if not isinstance(dangerous, dict):
+                continue
+            un_number = dangerous.get("unNumber")
+            dangerous_anchor = (
+                un_number if isinstance(un_number, str) else f"index:{dangerous_index}"
+            )
+            for field in ("hazardCategory", "packingGroupCategory"):
+                value = dangerous.get(field)
+                if isinstance(value, str):
+                    categories.add((field, anchor, dangerous_anchor, value))
+            subsidiaries = dangerous.get("subsidiaryHazardCategories")
+            if not isinstance(subsidiaries, list):
+                subsidiaries = []
+            for subsidiary in subsidiaries:
+                if isinstance(subsidiary, str):
+                    categories.add(
+                        ("subsidiaryHazardCategory", anchor, dangerous_anchor, subsidiary)
+                    )
+        placements = goods.get("splitGoodsPlacement")
+        if not isinstance(placements, list):
+            placements = []
+        for placement_index, placement in enumerate(placements):
+            if not isinstance(placement, dict):
+                continue
+            identifier = placement.get("equipmentIdentifier")
+            if not isinstance(identifier, str):
+                continue
+            relations.add(("goods_uses_container", anchor, identifier))
+            quantity = placement.get("packageQuantity")
+            if isinstance(quantity, int) and not isinstance(quantity, bool):
+                # The row index distinguishes two printed placements into one container.
+                relations.add(
+                    (
+                        "container_package_quantity",
+                        anchor,
+                        str(placement_index),
+                        identifier,
+                        str(quantity),
+                    )
+                )
+    return frozenset(relations), frozenset(categories)
+
+
 def _is_relation_or_scaffold_path(path: str) -> bool:
+    if path.startswith("$.documentPatch.goodsItemDetails[") and ".splitGoodsPlacement[" in path:
+        return True
     if path.startswith("$.documentPatch.cargoAllocationGroups["):
         return True
     if path.startswith("$.documentPatch.cargoGroups[") and path.endswith(".groupId"):
@@ -193,19 +318,22 @@ def _is_relation_or_scaffold_path(path: str) -> bool:
 def _micro_set_metrics(
     predicted_sets: Sequence[frozenset[tuple[str, ...]]],
     reference_sets: Sequence[frozenset[tuple[str, ...]]],
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float]:
     if len(predicted_sets) != len(reference_sets):
         raise ValueError("predicted and reference fact-set counts differ")
-    true_positive = sum(
-        len(predicted & reference)
-        for predicted, reference in zip(predicted_sets, reference_sets, strict=True)
-    )
-    predicted_total = sum(len(value) for value in predicted_sets)
-    reference_total = sum(len(value) for value in reference_sets)
+    true_positive = predicted_total = reference_total = 0
+    for predicted, reference in zip(predicted_sets, reference_sets, strict=True):
+        true_positive += len(predicted & reference)
+        predicted_total += len(predicted)
+        reference_total += len(reference)
     precision = true_positive / predicted_total if predicted_total else 0.0
     recall = true_positive / reference_total if reference_total else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    return precision, recall, f1
+    # Accuracy is micro Jaccard, not document exact match: no true-negative universe
+    # exists for sparse facts and multi-valued category/relation slots are permitted.
+    compared_total = predicted_total + reference_total - true_positive
+    accuracy = true_positive / compared_total if compared_total else 1.0
+    return precision, recall, f1, accuracy
 
 
 def assess_prediction(
@@ -215,6 +343,15 @@ def assess_prediction(
 ) -> PredictionAssessment:
     """Parse, schema-check, and compare one generated sparse target."""
 
+    return _assess_prediction(generated_text, reference_text, task, _relation_metric_profile(task))
+
+
+def _assess_prediction(
+    generated_text: str,
+    reference_text: str,
+    task: TrainingTask,
+    profile: _RelationMetricProfile,
+) -> PredictionAssessment:
     reference_value = json.loads(reference_text)
     if not isinstance(reference_value, dict):
         raise ValueError("reference decoder target must be a JSON object")
@@ -240,15 +377,18 @@ def assess_prediction(
     predicted_patch = _optional_document_patch(
         predicted if predicted is not None else parsed_object
     )
-    if task.name in {
-        "bill_of_lading_relation_explicit_v3",
-        "bill_of_lading_relation_explicit_v5",
-    }:
-        v5 = task.name == "bill_of_lading_relation_explicit_v5"
-        predicted_relations, predicted_categories = _relation_explicit_facts(predicted_patch, v5=v5)
-        reference_relations, reference_categories = _relation_explicit_facts(
-            _document_patch(reference), v5=v5
-        )
+    if profile.supported:
+        fact_projector = _mpci_aligned_facts if profile.mpci_aligned_v6 else None
+        if fact_projector is not None:
+            predicted_relations, predicted_categories = fact_projector(predicted_patch)
+            reference_relations, reference_categories = fact_projector(_document_patch(reference))
+        else:
+            predicted_relations, predicted_categories = _relation_explicit_facts(
+                predicted_patch, profile=profile
+            )
+            reference_relations, reference_categories = _relation_explicit_facts(
+                _document_patch(reference), profile=profile
+            )
     else:
         predicted_relations = reference_relations = frozenset()
         predicted_categories = reference_categories = frozenset()
@@ -282,8 +422,9 @@ def structured_metrics(
         raise ValueError("generated and reference sequence counts differ")
     if not generated_texts:
         raise ValueError("structured metrics require at least one prediction")
+    profile = _relation_metric_profile(task)
     assessments = [
-        assess_prediction(generated, reference, task)
+        _assess_prediction(generated, reference, task, profile)
         for generated, reference in zip(generated_texts, reference_texts, strict=True)
     ]
     true_positive = sum(
@@ -312,15 +453,12 @@ def structured_metrics(
         "field_value_recall": recall,
         "field_value_f1": f1,
     }
-    if task.name in {
-        "bill_of_lading_relation_explicit_v3",
-        "bill_of_lading_relation_explicit_v5",
-    }:
-        relation_precision, relation_recall, relation_f1 = _micro_set_metrics(
+    if profile.supported:
+        relation_precision, relation_recall, relation_f1, relation_accuracy = _micro_set_metrics(
             [row.predicted_cargo_relation_facts for row in assessments],
             [row.reference_cargo_relation_facts for row in assessments],
         )
-        category_precision, category_recall, category_f1 = _micro_set_metrics(
+        category_precision, category_recall, category_f1, category_accuracy = _micro_set_metrics(
             [row.predicted_category_values for row in assessments],
             [row.reference_category_values for row in assessments],
         )
@@ -329,6 +467,7 @@ def structured_metrics(
                 "cargo_relation_precision": relation_precision,
                 "cargo_relation_recall": relation_recall,
                 "cargo_relation_f1": relation_f1,
+                "cargo_relation_accuracy": relation_accuracy,
                 "cargo_relation_exact_match": sum(
                     row.predicted_cargo_relation_facts == row.reference_cargo_relation_facts
                     for row in assessments
@@ -341,6 +480,7 @@ def structured_metrics(
                 "category_value_precision": category_precision,
                 "category_value_recall": category_recall,
                 "category_value_f1": category_f1,
+                "category_value_accuracy": category_accuracy,
                 "category_value_exact_match": sum(
                     row.predicted_category_values == row.reference_category_values
                     for row in assessments
@@ -352,8 +492,8 @@ def structured_metrics(
                 / count,
             }
         )
-        if task.name == "bill_of_lading_relation_explicit_v5":
-            fact_precision, fact_recall, fact_f1 = _micro_set_metrics(
+        if profile.extraction_facts:
+            fact_precision, fact_recall, fact_f1, _ = _micro_set_metrics(
                 [
                     frozenset(
                         value

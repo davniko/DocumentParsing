@@ -13,6 +13,7 @@ EXPECTED_PACKAGES = {
     "mlflow-skinny": "3.15.1",
     "nvidia-ml-py": "13.610.43",
     "peft": "0.19.1",
+    "schedulefree": "1.4.1",
     "transformers": "5.15.0",
 }
 
@@ -29,6 +30,7 @@ def main() -> None:
         "mlflow-skinny": "mlflow",
         "nvidia-ml-py": "pynvml",
         "peft": "peft",
+        "schedulefree": "schedulefree",
         "transformers": "transformers",
     }
     for module in modules.values():

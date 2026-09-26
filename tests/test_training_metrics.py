@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
+import pytest
 
 from document_ocr.training.metrics import make_compute_metrics, structured_metrics
 from document_ocr.training.prediction import SamplerAwarePredictionMixin
@@ -94,9 +95,7 @@ def _v5_target(*, reverse: bool = False, hazard: str = "FLAMMABLE_LIQUIDS") -> s
                     {
                         "groupId": "g1",
                         "description": "PAINT",
-                        "dangerousGoods": [
-                            {"unNumber": "1203", "hazardCategory": hazard}
-                        ],
+                        "dangerousGoods": [{"unNumber": "1203", "hazardCategory": hazard}],
                     }
                 ],
                 "cargoPackages": [
@@ -118,6 +117,20 @@ def _v5_target(*, reverse: bool = False, hazard: str = "FLAMMABLE_LIQUIDS") -> s
             },
         }
     )
+
+
+def _v4_target(*, hazard: str = "FLAMMABLE_LIQUIDS") -> str:
+    target = json.loads(_relation_target())
+    target["schemaVersion"] = "4.0.0-experimental"
+    target["documentPatch"]["cargoGroups"][0]["dangerousGoods"] = [
+        {
+            "unNumber": "1203",
+            "hazardCategory": hazard,
+            "packingGroupCategory": "LOW_DANGER",
+            "subsidiaryHazardCategories": ["GASES", "CORROSIVE_SUBSTANCES"],
+        }
+    ]
+    return canonical_json(target)
 
 
 def test_structured_metrics_distinguish_json_schema_and_exactness() -> None:
@@ -233,8 +246,63 @@ def test_relation_explicit_metrics_penalize_wrong_anchored_allocation_values() -
     assert metrics["cargo_relation_precision"] == 5 / 7
     assert metrics["cargo_relation_recall"] == 5 / 7
     assert metrics["cargo_relation_f1"] == 5 / 7
+    assert metrics["cargo_relation_accuracy"] == 5 / 9
     assert metrics["cargo_relation_exact_match"] == 0.0
     assert metrics["category_value_f1"] == 1.0
+
+
+def test_v4_metrics_include_relations_and_all_modeled_dangerous_goods_categories() -> None:
+    task = get_training_task("bill_of_lading_relation_explicit_v4")
+    reference = _v4_target()
+    predicted = _v4_target(hazard="OXIDIZING_SUBSTANCES_AND_ORGANIC_PEROXIDES")
+
+    metrics, assessments = structured_metrics([predicted], [reference], task)
+
+    assert metrics["schema_valid"] == 1.0
+    assert metrics["cargo_relation_accuracy"] == 1.0
+    assert metrics["cargo_relation_precision"] == 1.0
+    assert metrics["cargo_relation_recall"] == 1.0
+    assert metrics["cargo_relation_f1"] == 1.0
+    assert metrics["category_value_precision"] == 6 / 7
+    assert metrics["category_value_recall"] == 6 / 7
+    assert metrics["category_value_f1"] == 6 / 7
+    assert metrics["category_value_accuracy"] == 6 / 8
+    assert metrics["category_value_exact_match"] == 0.0
+    assert len(assessments[0].reference_category_values) == 7
+
+
+@pytest.mark.parametrize(
+    ("task_name", "reference"),
+    [
+        ("bill_of_lading_relation_explicit_v3", _relation_target()),
+        ("bill_of_lading_relation_explicit_v4", _v4_target()),
+        ("bill_of_lading_relation_explicit_v5", _v5_target()),
+    ],
+)
+def test_trainer_metric_callback_emits_relation_and_category_metrics_for_each_schema(
+    task_name: str, reference: str
+) -> None:
+    class StubTokenizer:
+        pad_token_id: int | None = 0
+        eos_token_id: int | None = 2
+
+        def batch_decode(self, sequences: Any, **_: Any) -> list[str]:
+            return [reference for _ in sequences]
+
+    compute_metrics = make_compute_metrics(StubTokenizer(), get_training_task(task_name))
+    metrics = compute_metrics(
+        SimpleNamespace(
+            predictions=np.asarray([[1, 2, 0]], dtype=np.int64),
+            label_ids=np.asarray([[1, 2, -100]], dtype=np.int64),
+        )
+    )
+
+    for prefix in ("cargo_relation", "category_value"):
+        assert metrics[f"{prefix}_precision"] == 1.0
+        assert metrics[f"{prefix}_recall"] == 1.0
+        assert metrics[f"{prefix}_f1"] == 1.0
+        assert metrics[f"{prefix}_accuracy"] == 1.0
+    assert metrics["generation_eos_reached_fraction"] == 1.0
 
 
 def test_v5_schema_requires_explicit_package_ids_and_diagnostics_anchor_relations() -> None:
@@ -263,6 +331,24 @@ def test_v5_category_metric_detects_wrong_dangerous_goods_category() -> None:
     assert metrics["schema_valid"] == 1.0
     assert metrics["cargo_relation_f1"] == 1.0
     assert metrics["category_value_f1"] < 1.0
+    assert metrics["category_value_accuracy"] == 5 / 7
+
+
+def test_relation_and_category_accuracy_are_one_when_both_fact_sets_are_empty() -> None:
+    task = get_training_task("bill_of_lading_relation_explicit_v5")
+    target = canonical_json(
+        {
+            "schemaVersion": "5.0.0-experimental",
+            "documentPatch": {"billOfLadingNumber": "ABC"},
+        }
+    )
+
+    metrics, _ = structured_metrics([target], [target], task)
+
+    assert metrics["cargo_relation_accuracy"] == 1.0
+    assert metrics["category_value_accuracy"] == 1.0
+    assert metrics["cargo_relation_support_fraction"] == 0.0
+    assert metrics["category_value_support_fraction"] == 0.0
 
 
 def test_trainer_metric_callback_publishes_exact_field_value_metrics() -> None:
@@ -424,8 +510,7 @@ def test_prediction_publication_uses_exact_length_sampler_identity_order(
         "doc_long",
     ]
     reference_numbers = [
-        json.loads(row["reference_text"])["documentPatch"]["billOfLadingNumber"]
-        for row in rows
+        json.loads(row["reference_text"])["documentPatch"]["billOfLadingNumber"] for row in rows
     ]
     assert reference_numbers == [
         "MEDIUM",

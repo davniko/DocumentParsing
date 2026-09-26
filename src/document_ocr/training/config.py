@@ -247,6 +247,7 @@ class RelationConstraintsBuildConfig(_StrictModel):
         "bill_of_lading_relation_explicit_v3",
         "bill_of_lading_relation_explicit_v4",
         "bill_of_lading_relation_explicit_v5",
+        "bill_of_lading_mpci_aligned_v6",
     ]
     sources: list[DatasetFileConfig] = Field(min_length=1)
     target_field: NonEmptyString
@@ -498,14 +499,22 @@ class LoraConfig(_StrictModel):
         return value
 
 
+class ScheduleFreeAdamWConfig(_StrictModel):
+    warmup_steps: NonNegativeInteger
+    r: FiniteFloat
+    weight_lr_power: NonNegativeFloat
+    foreach: bool
+
+
 class OptimizationConfig(_StrictModel):
     num_train_epochs: PositiveFloat
     max_steps: int
     per_device_train_batch_size: PositiveInteger
     gradient_accumulation_steps: PositiveInteger
     learning_rate: PositiveFloat
-    optimizer: Literal["adamw_torch_fused", "adamw_torch", "adafactor"]
+    optimizer: Literal["adamw_torch_fused", "adamw_torch", "adafactor", "schedule_free_adamw"]
     optimizer_args: NonEmptyString | None
+    schedule_free_adamw: ScheduleFreeAdamWConfig | None = None
     adam_beta1: OpenUnitFloat
     adam_beta2: OpenUnitFloat
     adam_epsilon: PositiveFloat
@@ -536,6 +545,25 @@ class OptimizationConfig(_StrictModel):
         if value != -1 and value <= 0:
             raise ValueError("max_steps must be -1 or a positive integer")
         return value
+
+    @model_validator(mode="after")
+    def schedule_free_options_are_coherent(self) -> OptimizationConfig:
+        if self.optimizer == "schedule_free_adamw":
+            if self.schedule_free_adamw is None:
+                raise ValueError(
+                    "schedule_free_adamw optimizer requires schedule_free_adamw settings"
+                )
+            if self.lr_scheduler_type != "constant" or self.lr_scheduler_kwargs:
+                raise ValueError("schedule_free_adamw requires a constant external scheduler")
+            if self.warmup_ratio != 0.0:
+                raise ValueError("schedule_free_adamw uses warmup_steps, not warmup_ratio")
+            if self.optimizer_args is not None:
+                raise ValueError("schedule_free_adamw uses typed settings, not optimizer_args")
+        elif self.schedule_free_adamw is not None:
+            raise ValueError(
+                "schedule_free_adamw settings require the schedule_free_adamw optimizer"
+            )
+        return self
 
 
 class RuntimeConfig(_StrictModel):
@@ -732,6 +760,7 @@ class TrainingConfig(_StrictModel):
             "bill_of_lading_relation_explicit_v3",
             "bill_of_lading_relation_explicit_v4",
             "bill_of_lading_relation_explicit_v5",
+            "bill_of_lading_mpci_aligned_v6",
         }
         if relation_explicit != (self.task_constraints is not None):
             raise ValueError(

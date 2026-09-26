@@ -1,0 +1,22 @@
+schema_version: 1
+task: bill_of_lading_mpci_aligned_v6
+
+sources:
+  - path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-mpci-aligned-v6-v1/train.jsonl
+    sha256: 7e68d4aea96aa70eff31c6bc9464637761262f3bdc59c7338e1499987cb62f2f
+    records: 30966
+  - path: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-mpci-aligned-v6-v1/validation.jsonl
+    sha256: 44975df26f24f8176fc4fb90252a6c4edbd058bd42760aa91ab8f81d10001d33
+    records: 100
+
+target_field: target
+
+package_registry:
+  path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+  sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+
+container_registry:
+  path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+  sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+
+output_dir: artifacts/kie-training/datasets/mpci-bl-real1057-synthetic29910-recovered-mpci-aligned-v6-v1/vocabulary/v1

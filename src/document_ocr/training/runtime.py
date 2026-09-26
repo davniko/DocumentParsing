@@ -28,6 +28,7 @@ from document_ocr.training.data import PreparedDatasets, prepare_datasets
 from document_ocr.training.metrics import make_compute_metrics, structured_metrics
 from document_ocr.training.prediction import SamplerAwarePredictionMixin
 from document_ocr.training.prompting import PromptTemplate
+from document_ocr.training.schedule_free import ScheduleFreeTrainerMixin
 from document_ocr.training.tasks import TrainingTask
 
 _TRAINING_PACKAGES = (
@@ -36,6 +37,7 @@ _TRAINING_PACKAGES = (
     "mlflow-skinny",
     "nvidia-ml-py",
     "peft",
+    "schedulefree",
     "torch",
     "transformers",
 )
@@ -381,7 +383,11 @@ def build_training_arguments(config: TrainingConfig, run_dir: Path) -> Any:
         "lr_scheduler_type": config.optimization.lr_scheduler_type,
         "lr_scheduler_kwargs": config.optimization.lr_scheduler_kwargs,
         # Transformers 5 represents a ratio as a float in warmup_steps.
-        "warmup_steps": config.optimization.warmup_ratio,
+        "warmup_steps": (
+            config.optimization.schedule_free_adamw.warmup_steps
+            if config.optimization.schedule_free_adamw is not None
+            else config.optimization.warmup_ratio
+        ),
         "weight_decay": config.optimization.weight_decay,
         "max_grad_norm": config.optimization.max_grad_norm,
         "label_smoothing_factor": config.optimization.label_smoothing_factor,
@@ -1344,10 +1350,20 @@ def run_training(
             )
             artifact_paths.append(eva_path)
         evaluation_dataset = prepared.datasets.get(config.evaluation.split)
-        class SamplerAwareSeq2SeqTrainer(SamplerAwarePredictionMixin, Seq2SeqTrainer):
+        class StandardSeq2SeqTrainer(SamplerAwarePredictionMixin, Seq2SeqTrainer):
             pass
 
-        trainer = SamplerAwareSeq2SeqTrainer(
+        class ScheduleFreeSeq2SeqTrainer(
+            SamplerAwarePredictionMixin, ScheduleFreeTrainerMixin, Seq2SeqTrainer
+        ):
+            schedule_free_adamw = config.optimization.schedule_free_adamw
+
+        trainer_type = (
+            ScheduleFreeSeq2SeqTrainer
+            if config.optimization.schedule_free_adamw is not None
+            else StandardSeq2SeqTrainer
+        )
+        trainer = trainer_type(
             model=model,
             args=training_arguments,
             data_collator=collator,
