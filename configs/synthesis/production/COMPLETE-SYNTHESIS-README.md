@@ -29,6 +29,14 @@ Its immutable selection/routes are v17, with exactly 7,500 standard, 1,000 DG an
 Unresolved source contracts are explicitly reviewed/excluded, not silently fixed
 by copying source values. The 1,510-template catalog is unchanged.
 
+The current complete-synthesis loader requires an exact `cargo_sampling.commodity_phrases`
+registry pin. The v4, v5, and v6 route/cargo production configs carry the
+5,612-entry UKGT phrase registry with SHA-256
+`05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078`.
+Historical pilot/v1-v3 route/cargo configs are not current launch configs; they
+remain incompatible with the current loader (including a missing
+`address_admin1_registry`) and have no compatibility shim.
+
 **One-run budget exception:** the user authorized a $7 total cap for this v5 run
 only, preserving its existing spending ledger and valid paid work. All subsequent
 10k runs retain the $6 cap; do not propagate this exception when creating a new

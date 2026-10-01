@@ -120,6 +120,9 @@ class PreparedTargetReceipt(BaseModel):
     customs_presentation_sha256: Sha256 = Field(
         default_factory=lambda: sha256_bytes(canonical_json_bytes([]))
     )
+    route_context_presentation_sha256: Sha256 = Field(
+        default_factory=lambda: sha256_bytes(canonical_json_bytes([]))
+    )
     dangerous_goods_facts_sha256: Sha256 = Field(
         default_factory=lambda: sha256_bytes(canonical_json_bytes([]))
     )

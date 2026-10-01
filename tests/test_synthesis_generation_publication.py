@@ -25,6 +25,7 @@ FIELDS = {
     "cargo-scenario.json": "cargoScenario",
     "route-projection.json": "routeProjection",
     "customs-presentation.json": "customsPresentation",
+    "route-context-presentation.json": "routeContextPresentation",
     "render-result.json": "renderResult",
 }
 
@@ -54,8 +55,9 @@ def test_concurrent_atomic_publication_preserves_every_byte_and_plan_order(tmp_p
             output_parent=tmp_path, run_name=f"workers-{workers}", transaction_sha256="a" * 64
         )
         paths = asyncio.run(pipeline._publish_generated_cases(run, sources, rows, workers=workers))
-        assert len(paths) == len(rows) * 19
-        assert [p.split("/")[1] for p in paths[::19]] == [r["sampleId"] for r in rows]
+        per_case = len(FIELDS) + 3  # source, source target, and rendered OCR
+        assert len(paths) == len(rows) * per_case
+        assert [p.split("/")[1] for p in paths[::per_case]] == [r["sampleId"] for r in rows]
         for row in rows:
             folder = run.stage_root / "cases" / row["sampleId"]
             assert (folder / "source.txt").read_bytes() == sources["source"].source

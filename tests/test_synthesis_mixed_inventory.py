@@ -14,7 +14,7 @@ SMALL = "TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE"
 LARGE = "FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE"
 
 
-def fixture(*, first="1X20ST", second="5X40HC", count=6, owned=True):
+def fixture(*, first="1X20ST", second="5X40HC GP", count=6, owned=True):
     raw = (first + "\n" + second).encode()
     bindings = []
     start = 0
@@ -62,7 +62,7 @@ def test_mixed_source_is_a_multiset_not_original_row_assignment():
 
 
 def test_assignment_can_differ_across_synthetic_samples_without_source_claim():
-    contract = mixed.compile_inventory(fixture(first="1X20ST", second="1X40HC", count=2))
+    contract = mixed.compile_inventory(fixture(first="1X20ST", second="1X40HC GP", count=2))
     domains = {0: frozenset({SMALL, LARGE}), 1: frozenset({SMALL, LARGE})}
     choices = {
         tuple(contract.sample(domains, DeterministicStream(seed, "test", "x"))[i] for i in range(2))
@@ -118,7 +118,7 @@ def test_known_individual_types_stay_on_existing_path():
 
 def test_explicit_repeated_term_does_not_double_count_inventory():
     source = fixture()
-    raw = source.source + b"\n40HCX5"
+    raw = source.source + b"\n40HC GPX5"
     repeat = Node(
         logical_key="large-repeat",
         value_kind="equipment",
@@ -128,7 +128,7 @@ def test_explicit_repeated_term_does_not_double_count_inventory():
         dependency_paths=(),
         dependency_bindings=("large",),
         occurrences=(
-            Node(source_text="40HCX5", byte_start=len(source.source) + 1, byte_end=len(raw)),
+            Node(source_text="40HC GPX5", byte_start=len(source.source) + 1, byte_end=len(raw)),
         ),
     )
     source = replace(
@@ -141,7 +141,7 @@ def test_explicit_repeated_term_does_not_double_count_inventory():
 
 def test_duplicate_root_term_cannot_silently_be_assumed_repeated():
     source = fixture()
-    raw = source.source + b"\n40HCX5"
+    raw = source.source + b"\n40HC GPX5"
     repeat = Node(
         logical_key="large-duplicate",
         value_kind="equipment",
@@ -151,7 +151,7 @@ def test_duplicate_root_term_cannot_silently_be_assumed_repeated():
         dependency_paths=("documentPatch.containers",),
         dependency_bindings=(),
         occurrences=(
-            Node(source_text="40HCX5", byte_start=len(source.source) + 1, byte_end=len(raw)),
+            Node(source_text="40HC GPX5", byte_start=len(source.source) + 1, byte_end=len(raw)),
         ),
     )
     source = replace(

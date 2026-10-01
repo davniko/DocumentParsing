@@ -19,6 +19,11 @@ def test_route_preflight_collects_all_rejections_and_never_publishes_partial_run
         seed=7,
         registry_exploration_permyriad=2500,
         maximum_candidates_per_sample=2,
+        route_admissibility_certificates=None,
+        party_address_role_certificates=None,
+        geonames_raw_cities=None,
+        geonames_admin1_codes=None,
+        unlocode_raw_archive=None,
         model_dump=lambda **kwargs: {},
     )
     monkeypatch.setattr(plan, "project_root_from_config", lambda _: tmp_path)

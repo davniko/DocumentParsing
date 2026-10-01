@@ -34,6 +34,7 @@ _PARTY_AFFILIATION = re.compile(
 )
 _PAGE_MARKER = re.compile(rb"(?m)^--- PAGE [0-9]+ ---")
 _PARTY_CONTINUATION_MARKER = re.compile(r"(?:^|[\s,])(?:FW|CN|NP)>", re.IGNORECASE)
+_ADDRESS_COMPONENT_SEPARATOR = re.compile(r"[,;:\r\n]|\s+[-\u2013\u2014]\s+")
 
 
 def validate_rendered_party_boundaries(target: Mapping[str, Any], rendered: str) -> None:
@@ -61,6 +62,101 @@ def validate_rendered_party_boundaries(target: Mapping[str, Any], rendered: str)
         pattern = re.compile(rf"{prefix}{final}[^\w\s]{{0,3}}{first}\b", re.IGNORECASE)
         if pattern.search(rendered):
             raise ValueError(f"rendered party name and address lack a separator: {role}")
+
+
+def _contains_whole_words(surface: str, value: str) -> bool:
+    wanted = re.findall(r"\w+", value.casefold())
+    if not wanted:
+        return False
+    observed = re.findall(r"\w+", surface.casefold())
+    width = len(wanted)
+    return any(
+        observed[index : index + width] == wanted for index in range(len(observed) - width + 1)
+    )
+
+
+def _contains_address_component(surface: str, value: str) -> bool:
+    wanted = tuple(re.findall(r"\w+", value.casefold()))
+    return bool(wanted) and any(
+        tuple(re.findall(r"\w+", component.casefold())) == wanted
+        for component in _ADDRESS_COMPONENT_SEPARATOR.split(surface)
+    )
+
+
+def validate_party_address_locality_slots(
+    *, bindings: Sequence[SemanticBinding], slot_bindings: Mapping[str, str]
+) -> None:
+    """A separately owned locality cannot newly occupy an address source slot.
+
+    Segmented addresses can straddle a city/country field. Their partitioner
+    must not fill a source region, postal, or continuation slot with the
+    generated city/country merely because it is the last part of the complete
+    generated postal address.
+    """
+
+    localities: dict[str, list[SemanticBinding]] = defaultdict(list)
+    for binding in bindings:
+        if (
+            binding.group_kind == "party"
+            and binding.target_paths
+            and binding.target_paths[0].rsplit(".", 1)[-1] in {"city", "country"}
+        ):
+            localities[binding.group_key].append(binding)
+    for address in bindings:
+        if not (address.group_kind == "party" and address.value_kind == "address"):
+            continue
+        for locality in localities.get(address.group_key, ()):
+            for slot in address.occurrences:
+                rendered_address = slot_bindings[slot.slot_id]
+                for locality_slot in locality.occurrences:
+                    generated_locality = slot_bindings[locality_slot.slot_id]
+                    if not _contains_whole_words(rendered_address, generated_locality):
+                        continue
+                    source_locality = locality_slot.source_text
+                    source_address = slot.source_text
+                    if _contains_address_component(source_address, source_locality):
+                        continue
+                    if _contains_address_component(rendered_address, generated_locality) or not (
+                        _contains_whole_words(source_address, source_locality)
+                    ):
+                        raise ValueError(
+                            "generated party locality occupies a different source address role: "
+                            f"{address.group_key}/{slot.slot_id}"
+                        )
+
+
+def validate_no_new_adjacent_party_localities(
+    *, source: bytes, rendered: bytes, target: Mapping[str, Any]
+) -> None:
+    """Reject new same-party city/country repetitions in the final OCR."""
+
+    patch = target.get("documentPatch")
+    parties = patch.get("parties") if isinstance(patch, Mapping) else None
+    if not isinstance(parties, Mapping):
+        return
+    source_text = source.decode("utf-8")
+    rendered_text = rendered.decode("utf-8")
+    for role, value in parties.items():
+        party_values = value if isinstance(value, list) else [value]
+        for party in party_values:
+            if not isinstance(party, Mapping):
+                continue
+            for field in ("city", "country"):
+                locality = party.get(field)
+                if not isinstance(locality, str) or len(locality.strip()) < 3:
+                    continue
+                expression = re.compile(
+                    r"(?<!\w)"
+                    + re.escape(locality)
+                    + r"[\s,;/\-]+"
+                    + re.escape(locality)
+                    + r"(?!\w)",
+                    re.IGNORECASE,
+                )
+                if expression.search(rendered_text) and not expression.search(source_text):
+                    raise ValueError(
+                        f"new adjacent party {field} repetition in rendered OCR: {role}"
+                    )
 
 
 def validate_repeated_agent_party_pages(
@@ -101,9 +197,7 @@ def validate_repeated_agent_party_pages(
     ]
     rendered_pages = [
         rendered[start:end].decode("utf-8")
-        for start, end in zip(
-            rendered_starts, [*rendered_starts[1:], len(rendered)], strict=True
-        )
+        for start, end in zip(rendered_starts, [*rendered_starts[1:], len(rendered)], strict=True)
     ]
 
     def comparable(value: str) -> str:
@@ -123,8 +217,7 @@ def validate_repeated_agent_party_pages(
         if not expected_source or not expected_target:
             raise ValueError(f"repeated party scalar is empty: {path}")
         owned_pages = {
-            bisect.bisect_right(starts, slot.byte_start) - 1
-            for slot in binding.occurrences
+            bisect.bisect_right(starts, slot.byte_start) - 1 for slot in binding.occurrences
         }
         for page in owned_pages:
             source_has_value = expected_source in comparable(source_pages[page])
@@ -601,8 +694,17 @@ def require_complete_variation(
     target: Mapping[str, Any],
     *,
     bindings: Sequence[SemanticBinding] = (),
+    source_locked_description_paths: frozenset[str] = frozenset(),
 ) -> tuple[str, ...]:
     original, generated = leaves(source), leaves(target)
+    if any(
+        not re.fullmatch(r"documentPatch\.cargoGroups\[\d+\]\.description", path)
+        or path not in original
+        or path not in generated
+        or original[path] != generated[path]
+        for path in source_locked_description_paths
+    ):
+        raise ValueError("source-locked cargo description path is not exactly retained")
     fixed_roles = fixed_carrier_role_paths(source, bindings)
     fixed_paths = fixed_roles | {
         p for p in original if p.startswith("documentPatch.parties.carrier.")
@@ -628,6 +730,7 @@ def require_complete_variation(
         )
         and not order_party_reference(p, v)
         and p not in fixed_roles
+        and p not in source_locked_description_paths
     )
     unchanged = [
         p

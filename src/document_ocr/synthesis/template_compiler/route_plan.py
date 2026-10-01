@@ -38,9 +38,14 @@ from document_ocr.synthesis.world_port_registry import (
 from . import complete_targets as targets
 from . import descendant as render
 from .descendant_models import PinnedCommittedRun
-from .models import NonEmptyText, PinnedFile, PinnedJsonl
+from .models import CertifiedSemanticTemplate, NonEmptyText, PinnedFile, PinnedJsonl
+from .party_address_roles import PartyAddressRoleCertificate, validate_role_certificate
 from .pipeline import project_root_from_config, resolve_input
 from .route_projection import sample_projection
+from .route_source_constraints import (
+    RouteAdmissibilityCertificate,
+    load_admin1_membership,
+)
 
 
 class RoutePlanConfig(BaseModel):
@@ -67,6 +72,11 @@ class RoutePlanConfig(BaseModel):
     maximum_candidates_per_sample: Annotated[int, Field(gt=0)]
     seed: int
     transshipment_observations: PinnedJsonl | None = None
+    route_admissibility_certificates: PinnedFile | None = None
+    party_address_role_certificates: PinnedFile | None = None
+    geonames_raw_cities: PinnedFile | None = None
+    geonames_admin1_codes: PinnedFile | None = None
+    unlocode_raw_archive: PinnedFile | None = None
 
 
 def _pin(root: Path, pin: PinnedFile | PinnedJsonl) -> Path:
@@ -209,6 +219,58 @@ def run(config_path: Path) -> Path:
         sid: targets.load_source(template_root, sid)
         for sid in sorted({r["sourceDocumentId"] for r in samples})
     }
+    route_certificates = (
+        {
+            sid: RouteAdmissibilityCertificate.model_validate(value, strict=True)
+            for sid, value in json.loads(
+                _pin(root, config.route_admissibility_certificates).read_bytes()
+            ).items()
+        }
+        if config.route_admissibility_certificates is not None
+        else {}
+    )
+    party_certificates = (
+        {
+            sid: PartyAddressRoleCertificate.model_validate(value, strict=True)
+            for sid, value in json.loads(
+                _pin(root, config.party_address_role_certificates).read_bytes()
+            ).items()
+        }
+        if config.party_address_role_certificates is not None
+        else {}
+    )
+    if not set(route_certificates) <= set(sources) or not set(party_certificates) <= set(sources):
+        raise ValueError("route or party certificate names an unselected template")
+    for sid, certificate in party_certificates.items():
+        raw, _, template_bytes = render._case_files(template_root, sid)
+        validate_role_certificate(
+            certificate,
+            template=CertifiedSemanticTemplate.model_validate_json(template_bytes, strict=True),
+            source=raw,
+            template_bytes=template_bytes,
+            require_coverage=False,
+        )
+    admin1_pins = (
+        config.geonames_raw_cities,
+        config.geonames_admin1_codes,
+        config.unlocode_raw_archive,
+    )
+    if party_certificates and any(pin is None for pin in admin1_pins):
+        raise ValueError("party address roles require all three pinned admin1 registries")
+    admin1 = (
+        load_admin1_membership(
+            cities_archive=_pin(root, config.geonames_raw_cities),
+            cities_sha256=config.geonames_raw_cities.sha256,
+            admin1_codes=_pin(root, config.geonames_admin1_codes),
+            admin1_sha256=config.geonames_admin1_codes.sha256,
+            unlocode_archive=_pin(root, config.unlocode_raw_archive),
+            unlocode_sha256=config.unlocode_raw_archive.sha256,
+        )
+        if config.geonames_raw_cities is not None
+        and config.geonames_admin1_codes is not None
+        and config.unlocode_raw_archive is not None
+        else None
+    )
     implementation = {
         str(p.relative_to(root)): sha256_file(p)
         for p in sorted((root / "src/document_ocr").rglob("*.py"))
@@ -233,6 +295,9 @@ def run(config_path: Path) -> Path:
                 country_codes=codes,
                 registry_exploration_permyriad=config.registry_exploration_permyriad,
                 maximum_candidates=config.maximum_candidates_per_sample,
+                route_certificate=route_certificates.get(sample["sourceDocumentId"]),
+                party_certificate=party_certificates.get(sample["sourceDocumentId"]),
+                admin1_membership=admin1,
             )
         except ValueError as error:
             failures.append(

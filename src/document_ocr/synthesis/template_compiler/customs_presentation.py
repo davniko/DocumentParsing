@@ -153,15 +153,19 @@ class CustomsPresentation:
     def render(
         self, source: bytes, bindings: Mapping[str, str]
     ) -> tuple[bytes, TemplateRenderProof]:
+        return render_compiled_template(
+            source=source, template=self.template, bindings=self.binding_values(bindings)
+        )
+
+    def binding_values(self, bindings: Mapping[str, str]) -> dict[str, str]:
+        """Resolve original slots and registered captions without rendering twice."""
         if set(bindings) & set(self.replacements):
             raise ValueError("customs caption and value slot identities overlap")
         values = dict(bindings)
         for slot_id, original in self.retired_static_slots.items():
             if values.pop(slot_id, None) != original:
                 raise ValueError("customs extension can only retire unchanged static slots")
-        return render_compiled_template(
-            source=source, template=self.template, bindings={**values, **self.replacements}
-        )
+        return {**values, **self.replacements}
 
 
 def _multiline_caption(observed: str, rendered: str) -> str:

@@ -963,7 +963,14 @@ def test_number_words_do_not_ignore_untyped_non_numeric_dependencies():
         )
 
 
-@pytest.mark.parametrize("category,noun", [("PACKAGE_CARTON", "CARTONS"), ("PACKAGE_BOX", "BOXES")])
+@pytest.mark.parametrize(
+    "category,noun",
+    [
+        ("PACKAGE_CARTON", "CARTONS"),
+        ("PACKAGE_BOX", "BOXES"),
+        ("PACKAGE_INTERMEDIATE_BULK_CONTAINER", "IBCS"),
+    ],
+)
 @pytest.mark.parametrize("source_noun", ["DRUMS", "DRUM(S)"])
 def test_number_word_package_frame_changes_quantity_and_category_together(
     category, noun, source_noun

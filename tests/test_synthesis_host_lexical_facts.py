@@ -1,4 +1,5 @@
 import asyncio
+import re
 from copy import deepcopy
 from types import SimpleNamespace as NS
 
@@ -72,6 +73,369 @@ def test_registry_owns_commodity_no_source_contamination_or_model_override():
     with pytest.raises(ValueError, match="overwrite"):
         result.merge({"f0": "Synthetic rubber and natural latex"})
     assert source.target["documentPatch"]["cargoGroups"][0]["description"] == "NATURAL LATEX"
+
+
+def test_source_locked_cargo_fragment_preserves_printed_item_role():
+    source, _, field = cargo()
+    field.update(
+        paths=[],
+        auxiliaryKey="lexical-part:anchor:documentPatch.cargoGroups[0].description:0",
+        cargoFragment={
+            "targetPaths": ["documentPatch.cargoGroups[0].description"],
+            "index": 0,
+            "sourceParts": ["NATURAL LATEX"],
+            "contexts": [{"sourceSlot": "NATURAL LATEX"}],
+        },
+    )
+    source.target["documentPatch"]["cargoGroups"][0]["description"] = "NATURAL LATEX"
+    contract = host.CargoLexicalContract(
+        source_template_sha256=source.original_template_sha256,
+        lexical_contract_sha256=sha256_bytes(canonical_json_bytes((field,))),
+        fragments={"f0": host.FragmentRecipe(role="source_locked_item", source="NATURAL LATEX")},
+    )
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(host.targets, "lexical_contract", lambda _: (field,))
+        plan = host.prepare(
+            source,
+            [field],
+            scenario=None,
+            projection=None,
+            contract=contract,
+            sample_id="s",
+            seed=42,
+        )
+    assert plan.values == {"f0": "NATURAL LATEX"}
+    assert plan.evidence["f0"]["kind"] == "source_locked_cargo_item"
+    assert host.source_locked_description_paths([field], contract) == frozenset(
+        {"documentPatch.cargoGroups[0].description"}
+    )
+    assert (
+        host.source_locked_description_paths(
+            [field, {**field, "key": "other", "auxiliaryKey": "other"}], contract
+        )
+        == frozenset()
+    )
+    with pytest.raises(ValueError, match="overwrite"):
+        plan.merge({"f0": "NATURAL LATEX AND RUBBER"})
+    host.validate_source_locked_items(
+        [field], contract, {field["auxiliaryKey"]: "NATURAL LATEX"}, source.target
+    )
+    with pytest.raises(ValueError, match="changed after lexical generation"):
+        host.validate_source_locked_items(
+            [field], contract, {field["auxiliaryKey"]: "SYNTHETIC RUBBER"}, source.target
+        )
+    with pytest.raises(ValueError, match="recipe source changed"):
+        host.require_cargo_recipes(
+            [field],
+            contract.model_copy(
+                update={
+                    "fragments": {
+                        "f0": host.FragmentRecipe(
+                            role="source_locked_item", source="SYNTHETIC RUBBER"
+                        )
+                    }
+                }
+            ),
+        )
+
+
+def test_source_pinned_invoice_and_export_reference_follow_sampled_year():
+    source_text = b"INVOICE: F308/24\nDU-E: 24BR001148610-2\n"
+    paths = (
+        "documentPatch.forwardingAndExportReferences[0]",
+        "documentPatch.forwardingAndExportReferences[1]",
+    )
+    surfaces = ("F308/24", "24BR001148610-2")
+    captions = ("INVOICE", "DU-E")
+    positions = ("suffix", "prefix")
+    fields = [
+        {"key": f"f{i}", "paths": [path], "source": surface}
+        for i, (path, surface) in enumerate(zip(paths, surfaces, strict=True))
+    ]
+    bindings = [
+        NS(
+            target_paths=(path,),
+            occurrences=(NS(source_text=surface, byte_start=source_text.find(surface.encode())),),
+        )
+        for path, surface in zip(paths, surfaces, strict=True)
+    ]
+    source = NS(
+        source=source_text,
+        target={
+            "documentPatch": {
+                "issueDate": "2024-07-18",
+                "forwardingAndExportReferences": list(surfaces),
+            }
+        },
+        template=NS(bindings=bindings),
+    )
+    target = deepcopy(source.target)
+    target["documentPatch"]["issueDate"] = "2025-07-18"
+    contract = host.CargoLexicalContract(
+        source_template_sha256="a" * 64,
+        lexical_contract_sha256="b" * 64,
+        fragments={},
+        references={
+            f"f{i}": host.ReferenceRecipe(
+                role="date_year_locked_code",
+                source=surface,
+                date_path="documentPatch.issueDate",
+                year_position=position,
+                caption=caption,
+            )
+            for i, (surface, position, caption) in enumerate(
+                zip(surfaces, positions, captions, strict=True)
+            )
+        },
+    )
+    changed = [
+        host._dated_reference(
+            source=source,
+            target=target,
+            field=field,
+            recipe=contract.references[field["key"]],
+            sample_id="sample",
+            seed=7,
+        )
+        for field in fields
+    ]
+    assert re.fullmatch(r"[A-Z]\d{3}/25", changed[0])
+    assert re.fullmatch(r"25BR\d{9}-\d", changed[1])
+    assert changed[1][-1] == host._due_check_digit(changed[1][:2], changed[1][4:-2])
+    assert changed != list(surfaces)
+    valid_due = changed[1]
+    target["documentPatch"]["forwardingAndExportReferences"] = changed
+    host.validate_dated_references(fields, contract, target)
+    target["documentPatch"]["forwardingAndExportReferences"][1] = "24" + changed[1][2:]
+    with pytest.raises(ValueError, match="contradicts its labelled year"):
+        host.validate_dated_references(fields, contract, target)
+    target["documentPatch"]["forwardingAndExportReferences"][1] = valid_due[:-1] + str(
+        (int(valid_due[-1]) + 1) % 10
+    )
+    with pytest.raises(ValueError, match="invalid check digit"):
+        host.validate_dated_references(fields, contract, target)
+    with pytest.raises(ValueError, match="caption is not adjacent"):
+        host._dated_reference(
+            source=source,
+            target=target,
+            field={**fields[0], "paths": [paths[1]]},
+            recipe=contract.references["f0"],
+            sample_id="sample",
+            seed=7,
+        )
+
+
+def test_source_only_identifier_preserves_reviewed_frame_and_date_scope(monkeypatch):
+    source = NS(
+        target={"documentPatch": {"issueDate": "2024-07-18", "shippedOnBoardDate": "2024-07-18"}},
+        original_template_sha256="a" * 64,
+        template=NS(
+            bindings=[
+                NS(
+                    logical_key="agent:booking_reference",
+                    target_paths=(),
+                    value_kind="identifier",
+                    occurrences=(NS(source_text="SB-168/24"),),
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(host.targets, "lexical_contract", lambda _: ())
+    contract = host.CargoLexicalContract(
+        source_template_sha256=source.original_template_sha256,
+        lexical_contract_sha256=sha256_bytes(canonical_json_bytes(())),
+        fragments={},
+        auxiliary_references={
+            "agent:booking_reference": host.AuxiliaryReferenceRecipe(
+                role="source_frame_locked_identifier",
+                source="SB-168/24",
+                fixed_prefix="SB-",
+                fixed_suffix="/24",
+                required_date_year=2024,
+                date_paths=("documentPatch.issueDate", "documentPatch.shippedOnBoardDate"),
+            )
+        },
+    )
+    generated = host.source_locked_auxiliary(
+        source, contract, source.target, sample_id="sample", seed=7
+    )
+    assert re.fullmatch(r"SB-\d{3}/24", generated["agent:booking_reference"])
+    assert generated["agent:booking_reference"] != "SB-168/24"
+    host.validate_source_locked_auxiliary(source, contract, generated, source.target)
+    host.validate_source_locked_auxiliary_receipt(
+        source_target=source.target,
+        template=source.template,
+        auxiliary=generated,
+        target=source.target,
+        recipes=contract.auxiliary_references,
+    )
+    with pytest.raises(ValueError, match="fixed source grammar"):
+        host.validate_source_locked_auxiliary(
+            source, contract, {"agent:booking_reference": "SB-777/68"}, source.target
+        )
+    with pytest.raises(ValueError, match="fixed source grammar"):
+        host.validate_source_locked_auxiliary_receipt(
+            source_target=source.target,
+            template=source.template,
+            auxiliary={"agent:booking_reference": "XX-777/24"},
+            target=source.target,
+            recipes=contract.auxiliary_references,
+        )
+    with pytest.raises(ValueError, match="source-only binding"):
+        host.validate_source_locked_auxiliary_receipt(
+            source_target=source.target,
+            template=source.template,
+            auxiliary=generated,
+            target=source.target,
+            recipes={
+                "agent:uncertified_booking": contract.auxiliary_references[
+                    "agent:booking_reference"
+                ]
+            },
+        )
+    with pytest.raises(ValueError, match="sampled date year"):
+        host.source_locked_auxiliary(
+            source,
+            contract,
+            {"documentPatch": {"issueDate": "2025-01-01", "shippedOnBoardDate": "2024-07-18"}},
+            sample_id="sample",
+            seed=7,
+        )
+    with pytest.raises(ValueError, match="pinned source"):
+        host.source_locked_auxiliary(
+            source,
+            contract.model_copy(update={"source_template_sha256": "b" * 64}),
+            source.target,
+            sample_id="sample",
+            seed=7,
+        )
+
+
+def test_source_declared_no_marks_is_host_owned():
+    source, scenario, _ = cargo()
+    path = "documentPatch.cargoGroups[0].marksAndNumbers[0]"
+    source.target["documentPatch"]["cargoGroups"][0]["marksAndNumbers"] = ["N/M"]
+    scenario.target["documentPatch"]["cargoGroups"][0]["marksAndNumbers"] = ["N/M"]
+    field = dict(key="mark", paths=[path], source="N/M", constraints=[])
+    plan = host.prepare(
+        source, [field], scenario=scenario, projection=None, contract=None, sample_id="s", seed=42
+    )
+    assert plan.values == {"mark": "N/M"}
+    assert plan.evidence["mark"]["kind"] == "source_declared_no_marks"
+    with pytest.raises(ValueError, match="overwrite"):
+        plan.merge({"mark": "Synthetic rubber; product reference ABCDEF123456"})
+
+
+@pytest.mark.parametrize(
+    "field_name", ["marksAndNumbers", "additionalInformation", "handlingInstructions"]
+)
+def test_residual_cargo_role_rejects_copied_host_product(field_name):
+    source = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "description": "SILICONE ELASTOMER GEL",
+                    field_name: ["UNRELATED SOURCE VALUE"],
+                }
+            ]
+        }
+    }
+    sampled = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "description": "Polymer fittings; product reference ABCDEF123456",
+                    field_name: ["UNRELATED SOURCE VALUE"],
+                }
+            ]
+        }
+    }
+    field = dict(
+        key="role",
+        paths=[f"documentPatch.cargoGroups[0].{field_name}[0]"],
+        source="UNRELATED SOURCE VALUE",
+        constraints=[],
+    )
+    with pytest.raises(ValueError, match="copies host-owned goods description"):
+        host.validate_generated_cargo_roles(
+            fields=[field],
+            generated={"role": sampled["documentPatch"]["cargoGroups"][0]["description"]},
+            source_target=source,
+            sampled_target=sampled,
+        )
+    with pytest.raises(ValueError, match="copies host-owned goods description"):
+        host.validate_generated_cargo_roles(
+            fields=[field],
+            generated={"role": "LOT ABCDEF123456; product reference ABCDEF123456"},
+            source_target=source,
+            sampled_target=sampled,
+        )
+    host.validate_generated_cargo_roles(
+        fields=[field],
+        generated={"role": "LOT 72831"},
+        source_target=source,
+        sampled_target=sampled,
+    )
+
+
+def test_residual_cargo_role_preserves_proven_shared_description():
+    source = {
+        "documentPatch": {
+            "cargoGroups": [{"description": "FROZEN BEEF", "marksAndNumbers": ["FROZEN BEEF"]}]
+        }
+    }
+    sampled = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "description": "FROZEN LAMB; product reference ABCDEF123456",
+                    "marksAndNumbers": ["FROZEN BEEF"],
+                }
+            ]
+        }
+    }
+    field = dict(
+        key="mark",
+        paths=["documentPatch.cargoGroups[0].marksAndNumbers[0]"],
+        source="FROZEN BEEF",
+        constraints=[],
+    )
+    host.validate_generated_cargo_roles(
+        fields=[field],
+        generated={"mark": "FROZEN LAMB; product reference ABCDEF123456"},
+        source_target=source,
+        sampled_target=sampled,
+    )
+
+
+def test_independent_short_mark_may_occur_in_goods_description():
+    source = {
+        "documentPatch": {
+            "cargoGroups": [{"description": "TRANSPARENT GLUE STICK", "marksAndNumbers": ["EGYPT"]}]
+        }
+    }
+    sampled = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "description": "PLASTIC WARES FOR EGYPT MARKET; product reference ABCDEF123456",
+                    "marksAndNumbers": ["EGYPT"],
+                }
+            ]
+        }
+    }
+    field = dict(
+        key="mark",
+        paths=["documentPatch.cargoGroups[0].marksAndNumbers[0]"],
+        source="EGYPT",
+        constraints=[],
+    )
+    host.validate_generated_cargo_roles(
+        fields=[field],
+        generated={"mark": "EGYPT"},
+        source_target=source,
+        sampled_target=sampled,
+    )
 
 
 @pytest.mark.parametrize("surface", ["680DTEX", "ON SPOOL (F1635)", 'AA" GRADE)', "NATURAL LATEX"])
@@ -273,6 +637,156 @@ def test_item_fragments_need_a_source_pinned_recipe(monkeypatch):
     stale = contract.model_copy(update={"source_template_sha256": "b" * 64})
     with pytest.raises(ValueError, match="pinned source"):
         host.prepare(source, [field], contract=stale, **args)
+
+
+def test_printed_brand_fragment_is_host_generated_only_for_its_goods_owner(monkeypatch):
+    source, scenario, field = cargo()
+    field.update(
+        paths=[],
+        auxiliaryKey="lexical-part:goods:1",
+        source="BRAND: SEARA",
+        cargoFragment={
+            "targetPaths": ["documentPatch.cargoGroups[0].description"],
+            "index": 1,
+            "sourceParts": ["NATURAL LATEX", "BRAND: SEARA"],
+            "contexts": [{"sourceSlot": "BRAND: SEARA"}],
+        },
+    )
+    monkeypatch.setattr(host.targets, "lexical_contract", lambda _: (field,))
+    contract = host.CargoLexicalContract(
+        source_template_sha256=source.original_template_sha256,
+        lexical_contract_sha256=sha256_bytes(canonical_json_bytes((field,))),
+        fragments={"f0": host.FragmentRecipe(role="brand", source=field["source"])},
+    )
+    host.require_cargo_recipes([field], contract)
+    plan = host.prepare(
+        source,
+        [field],
+        scenario=scenario,
+        projection=None,
+        contract=contract,
+        sample_id="sample-1",
+        seed=42,
+    )
+    brand = plan.values["f0"]
+    assert re.fullmatch(r"BRAND: (?:[BCDFGHJKLMNPRSTV][AEIOU]){3}", brand)
+    assert brand != "BRAND: SEARA"
+    assert (
+        host.prepare(
+            source,
+            [field],
+            scenario=scenario,
+            projection=None,
+            contract=contract,
+            sample_id="sample-1",
+            seed=42,
+        ).values["f0"]
+        == brand
+    )
+    for altered in (
+        {**field, "cargoFragment": {**field["cargoFragment"], "contexts": []}},
+        {
+            **field,
+            "cargoFragment": {
+                **field["cargoFragment"],
+                "targetPaths": ["documentPatch.cargoGroups[1].marksAndNumbers[0]"],
+            },
+        },
+    ):
+        with pytest.raises(ValueError, match="source-owned description slot"):
+            host.require_cargo_recipes([altered], contract)
+
+
+def test_reviewed_split_cargo_identity_and_printed_reference_are_host_owned(monkeypatch):
+    source, scenario, field = cargo()
+    incompatible_scenario = scenario
+    scenario = CargoScenario(
+        scenario.target,
+        {"g1": [{"requiredDescription": "MIDWEIGHT INDIGO DENIM FABRIC"}]},
+        (),
+        {},
+    )
+    item = {
+        **field,
+        "key": "item",
+        "paths": [],
+        "source": "DENIM FABRIC",
+        "cargoFragment": {
+            "targetPaths": field["paths"],
+            "index": 0,
+            "sourceParts": ["DENIM FABRIC", "FABRIC NO:DYTR2298"],
+            "contexts": [{"sourceSlot": "DENIM FABRIC"}],
+        },
+    }
+    code = {
+        **field,
+        "key": "code",
+        "paths": [],
+        "source": "FABRIC NO:DYTR2298",
+        "cargoFragment": {
+            "targetPaths": field["paths"],
+            "index": 1,
+            "sourceParts": ["DENIM FABRIC", "FABRIC NO:DYTR2298"],
+            "contexts": [{"sourceSlot": "FABRIC NO:DYTR2298"}],
+        },
+    }
+    fields = [item, code]
+    monkeypatch.setattr(host.targets, "lexical_contract", lambda _: tuple(fields))
+    contract = host.CargoLexicalContract(
+        source_template_sha256=source.original_template_sha256,
+        lexical_contract_sha256=sha256_bytes(canonical_json_bytes(tuple(fields))),
+        fragments={
+            "item": host.FragmentRecipe(
+                role="identity", source="DENIM FABRIC", identity_indices=(0,)
+            ),
+            "code": host.FragmentRecipe(
+                role="labelled_reference", source="FABRIC NO:DYTR2298", identity_anchor="FABRIC"
+            ),
+        },
+    )
+    host.require_cargo_recipes(fields, contract)
+    first = host.prepare(
+        source,
+        fields,
+        scenario=scenario,
+        projection=None,
+        contract=contract,
+        sample_id="sample-1",
+        seed=42,
+    )
+    second = host.prepare(
+        source,
+        fields,
+        scenario=scenario,
+        projection=None,
+        contract=contract,
+        sample_id="sample-2",
+        seed=42,
+    )
+    assert first.values["item"] == "MIDWEIGHT INDIGO DENIM FABRIC"
+    assert first.values["code"].startswith("FABRIC NO:")
+    assert first.values["code"] != "FABRIC NO:DYTR2298"
+    assert len(first.values["code"]) == len("FABRIC NO:DYTR2298")
+    assert second.values["code"] != first.values["code"]
+    assert first.evidence["code"]["kind"] == "source_shaped_labelled_cargo_reference"
+    with pytest.raises(ValueError, match="incompatible with sampled goods identity"):
+        host.prepare(
+            source,
+            fields,
+            scenario=incompatible_scenario,
+            projection=None,
+            contract=contract,
+            sample_id="sample-bad",
+            seed=42,
+        )
+    with pytest.raises(ValueError, match="source-owned description slot"):
+        host.require_cargo_recipes(
+            [{**code, "cargoFragment": {**code["cargoFragment"], "index": 0}}], contract
+        )
+    with pytest.raises(ValueError, match="source-owned description slot"):
+        host.require_cargo_recipes(
+            [{**code, "cargoFragment": {**code["cargoFragment"], "contexts": []}}], contract
+        )
 
 
 def test_reviewed_detail_supplies_four_real_words_without_repeating_source(monkeypatch):

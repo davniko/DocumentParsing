@@ -1,13 +1,17 @@
+import json
 from copy import deepcopy
 from dataclasses import replace
+from functools import lru_cache
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import pytest
 
+from document_ocr.hashing import sha256_bytes
 from document_ocr.synthesis.dangerous_goods_registry import DangerousGoodsHmtRecord
 from document_ocr.synthesis.template_compiler.complete_pipeline import _prepared
-from document_ocr.synthesis.template_compiler.complete_targets import load_source
+from document_ocr.synthesis.template_compiler.complete_targets import load_source as _load_source
 from document_ocr.synthesis.template_compiler.dangerous_goods_realization import (
     DangerousGoodsFact,
     compile_surfaces,
@@ -32,6 +36,50 @@ REVIEWED_CATALOG = Path(
     "mpci-bl-production-template-catalog1507-v26-dg-grounding"
 ).resolve()
 REVIEWED_SOURCE_ID = "doc_3941a8dea9764dfbbf0bc4adc915dc075063df47406afba05f1d90984757c484"
+
+_HISTORICAL_CASE_HASHES = {
+    (REVIEWED_CATALOG, REVIEWED_SOURCE_ID): (
+        "8576457a326818f0532eaeb2c3bf75e366079b97442d1a145b883fc56b31915c",
+        "df5db178bbe05d1bb48dbf5dc4271f94248182df513c7010ef18b5fd5a8f2151",
+        "67f0cb87bd4b0d45d839a61f407c6584469c74ebbef91a748eadddd748a286be",
+    ),
+    (CATALOG, SOURCE_ID): (
+        "db2e9ae2f3b8b454d5a316441263f120fcff1faa25c3b43e36c5da04598ee032",
+        "0e55a15e64775c673ed93314c021b9d20487365f25797e6069558779b0d35214",
+        "870f913feb88b142f1d5fb55ae24b7094865d4aa2245e2819ec2081534546f44",
+    ),
+}
+
+
+@lru_cache(maxsize=2)
+def load_source(catalog: Path, document_id: str):
+    """Adapt exact pre-role-certificate DG fixtures without changing their catalogs."""
+    source_case = catalog / "cases" / document_id
+    files = ("source.txt", "source-label.json", "template.json")
+    payloads = tuple((source_case / name).read_bytes() for name in files)
+    hashes = tuple(sha256_bytes(payload) for payload in payloads)
+    assert hashes == _HISTORICAL_CASE_HASHES[(catalog, document_id)]
+    certificate = {
+        "schema_version": 1,
+        "document_id": document_id,
+        "admission": "source_has_no_additional_information",
+        "source_sha256": hashes[0],
+        "source_label_sha256": hashes[1],
+        "template_sha256": hashes[2],
+        "original_source_label_sha256": hashes[1],
+        "original_additional_information": [],
+        "critic_stage_sha256": None,
+        "changed_scenario_proof_sha256": None,
+        "fixed_inner_package_category": None,
+    }
+    with TemporaryDirectory(prefix="dg-historical-fixture-") as staging:
+        root = Path(staging)
+        case = root / "cases" / document_id
+        case.mkdir(parents=True)
+        for name, payload in zip(files, payloads, strict=True):
+            (case / name).write_bytes(payload)
+        (case / "goods-role-certificate.json").write_text(json.dumps(certificate))
+        return _load_source(root, document_id)
 
 
 def test_whole_rendered_text_cannot_retain_a_stale_un_in_an_unowned_region():
@@ -229,6 +277,42 @@ def test_static_dg_values_cannot_escape_fact_ownership_as_captions(text):
 def test_caption_text_does_not_override_a_nonstatic_or_dependent_contract(kwargs):
     with pytest.raises(ValueError, match="unique declaration owner"):
         compile_surfaces(caption_template("UN", **kwargs))
+
+
+def test_source_only_dg_property_requires_the_declaration_owner_group() -> None:
+    owner = "dangerous_goods:0:0"
+    declaration = SimpleNamespace(
+        logical_key="dg-un",
+        group_key=owner,
+        group_kind="dangerous_goods",
+        render_mode="target_binding",
+        target_paths=(DG_PATH + ".unNumber",),
+        dependency_paths=(),
+        dependency_bindings=(),
+        derivation=None,
+        occurrences=(SimpleNamespace(source_text="1641"),),
+    )
+    packing_group = SimpleNamespace(
+        logical_key="dg-packing-group",
+        group_key="dangerous_goods:other:0",
+        group_kind="dangerous_goods",
+        render_mode="deterministic_auxiliary",
+        target_paths=(),
+        dependency_paths=(),
+        dependency_bindings=(),
+        derivation=None,
+        occurrences=(SimpleNamespace(source_text="PACKING GROUP III"),),
+    )
+    template = SimpleNamespace(bindings=(declaration, packing_group))
+    with pytest.raises(ValueError, match="no unique declaration owner"):
+        compile_surfaces(template)
+
+    packing_group.group_key = owner
+    surfaces = compile_surfaces(template)
+    assert [(surface.logical_key, surface.target_path, surface.field) for surface in surfaces] == [
+        ("dg-un", DG_PATH, "un_number"),
+        ("dg-packing-group", DG_PATH, "packing_group"),
+    ]
 
 
 def private_fact_template(field, text, *, owner=DG_PATH, **updates):

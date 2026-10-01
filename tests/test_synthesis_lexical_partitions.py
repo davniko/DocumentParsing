@@ -22,6 +22,7 @@ def binding(mode="token_projected_surface"):
         target_paths=(PATH,),
         realization=NS(
             mode=mode,
+            adapter="natural_text",
             target_values=(NS(source_value="GENSET SWEK KIT MODEL:C1675 OPEN"),),
             slots=tuple(
                 NS(required_target_prefix_tokens=words[:a], required_target_suffix_tokens=words[b:])
@@ -85,6 +86,46 @@ def test_unproven_segment_partition_is_rejected():
     b.occurrences[0].source_text = "UNRELATED ITEM"
     with pytest.raises(ValueError, match="source-token partition"):
         parts.partition(b)
+
+
+def test_label_only_product_delimiters_do_not_enter_printed_model_slots():
+    b = binding("segmented_surface")
+    b.realization.target_values = (
+        NS(source_value="PERSONAL CAR MODEL: A; PERSONAL CAR MODEL: B"),
+    )
+    b.occurrences = tuple(
+        NS(slot_id=f"s{i}", source_text=value)
+        for i, value in enumerate(("PERSONAL CAR", "MODEL: A", "PERSONAL CAR", "MODEL: B"))
+    )
+    plan = parts.partition(b)
+    assert plan is not None
+    assert plan.source_parts == tuple(slot.source_text for slot in b.occurrences)
+    assert plan.separators == ("", " ", "; ", " ", "")
+    aux = {
+        plan.key(i): value
+        for i, value in enumerate(("ELECTRIC CAR", "MODEL: X", "ELECTRIC CAR", "MODEL: Y"))
+    }
+    target = plan.assemble(aux)
+    assert target == "ELECTRIC CAR MODEL: X; ELECTRIC CAR MODEL: Y"
+    assert parts.render_parts(plan, target, aux) == {
+        "s0": "ELECTRIC CAR",
+        "s1": "MODEL: X",
+        "s2": "ELECTRIC CAR",
+        "s3": "MODEL: Y",
+    }
+
+
+def test_printed_product_delimiter_remains_owned_by_its_slot():
+    b = binding("segmented_surface")
+    b.realization.target_values = (NS(source_value="CAR MODEL: A; CAR MODEL: B"),)
+    b.occurrences = tuple(
+        NS(slot_id=f"s{i}", source_text=value)
+        for i, value in enumerate(("CAR", "MODEL: A;", "CAR", "MODEL: B"))
+    )
+    plan = parts.partition(b)
+    assert plan is not None
+    assert plan.separators == ()
+    assert plan.source_parts[1] == "MODEL: A;"
 
 
 def test_labelled_part_numbers_repeat_by_identity_and_preserve_printed_labels():

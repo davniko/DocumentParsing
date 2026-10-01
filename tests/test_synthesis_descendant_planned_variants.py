@@ -24,8 +24,9 @@ from document_ocr.synthesis.template_compiler.latest_target import latest_target
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _PRODUCTION_CATALOG = (
     _PROJECT_ROOT / "artifacts/kie-synthesis-production/template-base/catalogs/"
-    "mpci-bl-production-template-catalog1510-v5"
+    "mpci-bl-production-template-catalog1196-v35-ground015-provisional"
 )
+_FIXTURE_SOURCE_ID = "doc_099cbb4923741d4b8f1f5f685d8ad73a73d17e92796651df73d20c2e63e6e5ad"
 
 
 def _jsonl(rows: list[dict[str, Any]]) -> bytes:
@@ -54,8 +55,10 @@ def _fixture_config(
     tmp_path: Path,
     mutate_target_rows: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> DescendantConfig:
-    catalog_row = json.loads(
-        (_PRODUCTION_CATALOG / "catalog.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    catalog_row = next(
+        row
+        for line in (_PRODUCTION_CATALOG / "catalog.jsonl").read_text(encoding="utf-8").splitlines()
+        if (row := json.loads(line))["documentId"] == _FIXTURE_SOURCE_ID
     )
     source_id = catalog_row["documentId"]
     source_case = _PRODUCTION_CATALOG / "cases" / source_id
@@ -70,6 +73,9 @@ def _fixture_config(
                 source_case / "source-label.json"
             ).read_bytes(),
             f"cases/{source_id}/template.json": (source_case / "template.json").read_bytes(),
+            f"cases/{source_id}/goods-role-certificate.json": (
+                source_case / "goods-role-certificate.json"
+            ).read_bytes(),
         },
     )
     samples = [

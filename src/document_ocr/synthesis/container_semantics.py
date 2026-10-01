@@ -340,7 +340,9 @@ def partial_equipment_constraint(
     if reviewed.size_category is not None and reviewed.type_category is not None:
         return None, reviewed.type_category, reviewed.size_category
     thermal_partial = re.fullmatch(
-        r"(?:(40)\s*['\u2019`]?\s*(?:RA|RK|RO|RQ)|(20|40|45)\s*['\u2019`]?\s*RFH)",
+        r"(?:(40)\s*['\u2019`]?\s*(?:RA|RK|RO|RQ)|"
+        r"(20|40|45)\s*['\u2019`]?\s*(?:RE|RF|RFH)|"
+        r"(?:RE|RF)\s*(20|40|45))",
         text,
         re.I,
     )
@@ -349,7 +351,11 @@ def partial_equipment_constraint(
         and reviewed.type_category == "REFRIGERATED"
         and reviewed.size_category is None
     ):
-        return thermal_partial[1] or thermal_partial[2], reviewed.type_category, None
+        return (
+            thermal_partial[1] or thermal_partial[2] or thermal_partial[3],
+            reviewed.type_category,
+            None,
+        )
     raise ValueError("partial printed equipment requires a reviewed physical constraint")
 
 
@@ -470,8 +476,21 @@ def review_source_equipment_surface(
     if compact:
         compact_kind = _COMPACT_TYPES.get(compact["kind"] or compact["reverse_kind"])
         if compact_kind is not None:
+            compact_length = compact["length"] or compact["reverse_length"]
+            # RE/RF names refrigeration, not the box height. Keep physical length
+            # for private fit decisions without asserting an unprinted category.
+            if (compact["kind"] or compact["reverse_kind"]) in {"RE", "RF"}:
+                return ReviewedEquipmentSurface(
+                    printed_surface,
+                    normalized,
+                    "unresolved_source_surface",
+                    None,
+                    compact_kind,
+                    "active" if temperature_present else "not_indicated",
+                    "explicit_length_and_reefer_type_without_height",
+                )
             compact_size = _ISO_SIZES[
-                {"20": "22", "40": "42", "45": "55"}[compact["length"] or compact["reverse_length"]]
+                {"20": "22", "40": "42", "45": "55"}[compact_length]
             ]
             return ReviewedEquipmentSurface(
                 printed_surface,
@@ -643,11 +662,12 @@ def review_source_equipment_surface(
         size_category = "TWENTY_FOOT_HIGH_CUBE" if high_cube else "TWENTY_FOOT_STANDARD_HEIGHT"
         size_rule = "explicit_20_foot_with_height_marker"
     elif length == 40:
-        if carrier_thermal_code in {"RA", "RK", "RO", "RQ"} and not (
+        if carrier_thermal_code in {"RA", "RE", "RF", "RK", "RO", "RQ"} and not (
             "HIGH" in tokens
             or "CUBE" in tokens
             or tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
             or explicit_nine_six
+            or re.search(r"(?:40|45)\s*H(?:\s|$)", semantic)
         ):
             return ReviewedEquipmentSurface(
                 printed_surface=printed_surface,

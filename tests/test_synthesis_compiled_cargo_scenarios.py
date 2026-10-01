@@ -512,9 +512,16 @@ def test_actual_candidate_enforces_package_mass_floor_without_inventing_weight_l
 
 def test_absent_cargo_labels_do_not_hide_a_source_only_cargo_statement():
     source = SimpleNamespace(
+        source=b"SOURCE-ONLY CARGO",
         target={"documentPatch": {}},
         template=SimpleNamespace(
-            bindings=(SimpleNamespace(group_kind="cargo", render_mode="agent_required"),)
+            bindings=(
+                SimpleNamespace(
+                    logical_key="agent:source_only_cargo",
+                    group_kind="cargo",
+                    render_mode="agent_required",
+                ),
+            )
         ),
     )
     with pytest.raises(ValueError, match="source-only cargo requires a physical owner"):
@@ -523,6 +530,8 @@ def test_absent_cargo_labels_do_not_hide_a_source_only_cargo_statement():
 
 def test_summary_tariff_cannot_be_independent_of_bare_product_names():
     source = SimpleNamespace(
+        source=b"AJWA DATES\nSAFAWI DATES",
+        template=SimpleNamespace(bindings=()),
         target={
             "documentPatch": {
                 "cargoGroups": [
@@ -536,7 +545,7 @@ def test_summary_tariff_cannot_be_independent_of_bare_product_names():
                 ],
                 "cargoPackages": [{"groupId": "summary", "packageId": "p", "quantity": 10}],
             }
-        }
+        },
     )
     with pytest.raises(ValueError, match="summary and bare item groups"):
         cargo.require_contract(source)
@@ -750,14 +759,52 @@ def test_equipment_weight_contract_rejects_unknown_semantics():
         cargo.CargoSamplingConfig.model_validate_json(json.dumps(value))
 
 
+def test_reviewed_commodity_phrases_require_exact_hs_source_and_complete_coverage(tmp_path):
+    import hashlib
+    import json
+
+    from document_ocr.synthesis.template_compiler.models import PinnedJsonl
+
+    source_path = ("Live animals", "Horses")
+    path_hash = hashlib.sha256(json.dumps(source_path, ensure_ascii=False).encode()).hexdigest()
+    row = {"hs6": "010121", "pathSha256": path_hash, "phrase": "Purebred live horses"}
+    file = tmp_path / "phrases.jsonl"
+    file.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    pin = PinnedJsonl(
+        path="phrases.jsonl", sha256=hashlib.sha256(file.read_bytes()).hexdigest(), records=1
+    )
+    registry = SimpleNamespace(
+        global_codes=("010121",), global_description_path=lambda code: source_path
+    )
+    assert cargo._reviewed_commodity_phrases(tmp_path, pin, registry) == {
+        "010121": "Purebred live horses"
+    }
+    changed_registry = SimpleNamespace(
+        global_codes=("010121",), global_description_path=lambda code: ("Live animals", "Other")
+    )
+    with pytest.raises(ValueError, match="path changed"):
+        cargo._reviewed_commodity_phrases(tmp_path, pin, changed_registry)
+    incomplete_registry = SimpleNamespace(
+        global_codes=("010121", "010129"), global_description_path=lambda code: source_path
+    )
+    with pytest.raises(ValueError, match="do not cover"):
+        cargo._reviewed_commodity_phrases(tmp_path, pin, incomplete_registry)
+
+
 def test_sampling_exhaustion_never_returns_the_source(monkeypatch):
     source = SimpleNamespace(
-        document_id="source", target={"documentPatch": {}}, template=SimpleNamespace(bindings=())
+        document_id="source",
+        source=b"",
+        target={"documentPatch": {}},
+        template=SimpleNamespace(bindings=()),
     )
     support = SimpleNamespace(
         validation_ids=frozenset(), config=SimpleNamespace(maximum_candidates=3), tares=None
     )
     monkeypatch.setattr(cargo, "require_contract", lambda _: None)
+    monkeypatch.setattr(
+        cargo, "_source_observed_joint_fit_support", lambda _, fit_support: (fit_support, None)
+    )
     monkeypatch.setattr(
         cargo, "equipment_constraints", lambda *a, **kw: SimpleNamespace(row_measurements=())
     )
@@ -780,14 +827,158 @@ def test_validation_documents_are_rejected_before_sampling(monkeypatch):
         cargo.sample_scenario(source, {}, support=support, sample_id="s", seed=1)
 
 
+def test_missing_joint_fit_uses_only_exact_source_owned_observation():
+    from document_ocr.hashing import canonical_json_bytes, sha256_bytes
+    from document_ocr.synthesis.package_goods_compatibility import (
+        build_package_goods_fit_support,
+    )
+    from document_ocr.synthesis.template_compiler import cargo_measurements
+
+    text = b"020714\n1\nCARTONS\n1\nCARTONS\n1\nCARTONS\n30.00\n"
+    group = {"groupId": "g1", "hsCodes": ["020714"], "netWeight": {"value": 30, "unit": "kilogram"}}
+    containers = [
+        {
+            "containerNumber": f"ABCU000000{i}",
+            "temperatureSetpoint": {"value": -20, "unit": "celsius"},
+        }
+        for i in range(3)
+    ]
+    packages = [
+        {"groupId": "g1", "packageId": f"p{i + 1}", "quantity": 1, "typeCategory": "PACKAGE_CARTON"}
+        for i in range(3)
+    ]
+    source_target = {
+        "documentPatch": {
+            "cargoGroups": [group],
+            "cargoPackages": packages,
+            "containers": containers,
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": row["containerNumber"], "packageQuantity": 1}
+                        for row in containers
+                    ],
+                }
+            ],
+        }
+    }
+    baseline = {
+        "documentPatch": {
+            "cargoGroups": [group],
+            "cargoPackages": packages[:1],
+            "containers": containers[:1],
+            "cargoAllocationGroups": [
+                {
+                    "groupId": "g1",
+                    "allocations": [
+                        {"containerNumber": containers[0]["containerNumber"], "packageQuantity": 1}
+                    ],
+                }
+            ],
+        }
+    }
+    spans = [
+        ("documentPatch.cargoGroups[0].hsCodes[0]", "020714"),
+        ("documentPatch.cargoPackages[0].quantity", "1"),
+        ("documentPatch.cargoPackages[0].typeCategory", "CARTONS"),
+        ("documentPatch.cargoPackages[1].quantity", "1"),
+        ("documentPatch.cargoPackages[1].typeCategory", "CARTONS"),
+        ("documentPatch.cargoPackages[2].quantity", "1"),
+        ("documentPatch.cargoPackages[2].typeCategory", "CARTONS"),
+        ("documentPatch.cargoGroups[0].netWeight.value", "30.00"),
+    ]
+    offset = 0
+    bindings = []
+    for path, surface in spans:
+        start = text.index(surface.encode(), offset)
+        end = start + len(surface)
+        offset = end
+        bindings.append(
+            SimpleNamespace(
+                logical_key=path,
+                render_mode="target_binding",
+                target_paths=(path,),
+                occurrences=(
+                    SimpleNamespace(
+                        slot_id=path, byte_start=start, byte_end=end, source_text=surface
+                    ),
+                ),
+            )
+        )
+    source = SimpleNamespace(
+        document_id="source-fit",
+        source=text,
+        source_target=source_target,
+        target=source_target,
+        original_template_sha256="a" * 64,
+        template=SimpleNamespace(
+            document_id="source-fit",
+            source_sha256=sha256_bytes(text),
+            bindings=tuple(bindings),
+        ),
+    )
+    thermal = SimpleNamespace(
+        frozen_minimum_celsius=-30,
+        frozen_maximum_celsius=-10,
+        chilled_minimum_celsius=0,
+        chilled_maximum_celsius=10,
+    )
+    fit = build_package_goods_fit_support(
+        source_targets={"baseline": baseline},
+        fit_document_ids=("baseline",),
+        allowed_category_tokens=("PACKAGE_CARTON",),
+        frozen_minimum_celsius=thermal.frozen_minimum_celsius,
+        frozen_maximum_celsius=thermal.frozen_maximum_celsius,
+        chilled_minimum_celsius=thermal.chilled_minimum_celsius,
+        chilled_maximum_celsius=thermal.chilled_maximum_celsius,
+    )
+    measurements = cargo_measurements.build_support(
+        {"baseline": baseline}, lower_multiplier=0.5, upper_multiplier=2
+    )
+    support = cargo.CargoSupport(
+        config=SimpleNamespace(thermal=thermal),
+        hs=SimpleNamespace(
+            receipt=SimpleNamespace(snapshot_date=date(2026, 1, 1)),
+            require_global=lambda *_args, **_kwargs: None,
+        ),
+        goods=None,
+        packages=fit,
+        equipment=None,
+        equipment_types_by_heading={},
+        dg=None,
+        validation_ids=frozenset(),
+        measurements=measurements,
+        descriptions={},
+        tares=None,
+    )
+    scoped, receipt = cargo._source_observed_joint_fit_support(source, support)
+    assert receipt is not None
+    assert receipt["sourceSha256"] == sha256_bytes(text)
+    assert receipt["sourceLabelSha256"] == sha256_bytes(canonical_json_bytes(source_target))
+    assert scoped.measurements.compatible("020714", group, packages, container_count=3)
+    assert not support.measurements.compatible("020714", group, packages, container_count=3)
+    assert scoped.packages.rows(basis="fit_thermal_profile_joint", key="FROZEN", package_count=3)
+    with pytest.raises(ValueError, match="validation source"):
+        cargo._source_observed_joint_fit_support(
+            source, replace(support, validation_ids=frozenset({"source-fit"}))
+        )
+
+
 def test_lexical_representability_is_checked_inside_local_sampling(monkeypatch):
     source = SimpleNamespace(
-        document_id="source", target={"documentPatch": {}}, template=SimpleNamespace(bindings=())
+        document_id="source",
+        source=b"",
+        target={"documentPatch": {}},
+        template=SimpleNamespace(bindings=()),
     )
     support = SimpleNamespace(
         validation_ids=frozenset(), config=SimpleNamespace(maximum_candidates=2), tares=None
     )
     monkeypatch.setattr(cargo, "require_contract", lambda _: None)
+    monkeypatch.setattr(
+        cargo, "_source_observed_joint_fit_support", lambda _, fit_support: (fit_support, None)
+    )
     monkeypatch.setattr(
         cargo, "equipment_constraints", lambda *a, **kw: SimpleNamespace(row_measurements=())
     )
@@ -885,7 +1076,7 @@ def test_normal_goods_cannot_keep_the_previous_product_under_a_new_hs_code():
 
 def test_missingness_is_not_filled_with_unrequested_training_label_fields():
     source = SimpleNamespace(
-        source=b"12 packages",
+        source=b"Cargo details not printed",
         target={"documentPatch": {"cargoPackages": [{"quantity": 12}]}},
         template=SimpleNamespace(bindings=[], coherence_constraints=[]),
     )
@@ -1319,6 +1510,32 @@ def test_unconstrained_equipment_remains_varied():
     assert not result.retained_tare_bindings
 
 
+def test_unsupported_reefer_is_not_a_sampleable_equipment_domain():
+    source = SimpleNamespace(
+        source=b"",
+        target={
+            "documentPatch": {
+                "containers": [
+                    {"sizeCategory": "FORTY_FOOT_HIGH_CUBE", "typeCategory": "REFRIGERATED"}
+                ]
+            }
+        },
+        template=SimpleNamespace(bindings=[]),
+    )
+    unsupported = "FORTY_FOOT_STANDARD_HEIGHT|REFRIGERATED"
+    supported = "FORTY_FOOT_HIGH_CUBE|REFRIGERATED"
+    result = cargo.equipment_constraints(
+        source,
+        SimpleNamespace(equipment_joint_weights={unsupported: 5, supported: 5}),
+    )
+    assert result.weights == ({supported: 5},)
+    with pytest.raises(ValueError, match="no configured representable size/type pair"):
+        cargo.equipment_constraints(
+            source,
+            SimpleNamespace(equipment_joint_weights={unsupported: 5}),
+        )
+
+
 def test_only_explicit_shared_hs_owners_merge_identity_components():
     def binding(a, b, relationship="shared_value_equality"):
         return SimpleNamespace(
@@ -1478,3 +1695,12 @@ def test_package_rendering_is_not_restricted_to_the_ten_abbreviation_categories(
     rendered = _package_candidate("CARTONS", category)
     assert "PACKAGE_" not in rendered
     assert package_category_surface_present(rendered, category)
+
+
+def test_changed_package_noun_agrees_with_owned_quantity():
+    from document_ocr.synthesis.template_compiler.descendant import _package_candidate
+
+    assert _package_candidate("BAGS", "PACKAGE_DRUM", quantity=73) == "DRUMS"
+    assert _package_candidate("BAGS", "PACKAGE_DRUM", quantity=1) == "DRUM"
+    assert _package_candidate("BAGS", "PACKAGE_BOX_PLYWOOD", quantity=73) == "PLYWOOD BOXES"
+    assert _package_candidate("CTN", "PACKAGE_DRUM", quantity=73) == "DRM"

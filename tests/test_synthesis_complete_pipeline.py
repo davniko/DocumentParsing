@@ -10,9 +10,109 @@ from types import SimpleNamespace as NS
 import pytest
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
+from document_ocr.synthesis.raw_text_template import compile_raw_text_template
 from document_ocr.synthesis.template_compiler import complete_pipeline as pipeline
 from document_ocr.synthesis.template_compiler import descendant as render
+from document_ocr.synthesis.template_compiler.address_localities import (
+    AddressLocalities,
+    normalized,
+)
 from document_ocr.synthesis.template_compiler.complete_targets import propose_goods
+
+
+def test_mutable_party_address_generation_requires_source_roles_before_provider() -> None:
+    address = NS(
+        group_kind="party",
+        value_kind="address",
+        render_mode="target_binding",
+        target_paths=("documentPatch.parties.shipper.address",),
+        logical_key="shipper_address",
+    )
+    source = NS(template=NS(bindings=(address,)))
+    sources = {"source_1": source}
+    address_request = {"source_1": ({"paths": ["documentPatch.parties.shipper.address"]},)}
+
+    with pytest.raises(ValueError, match="before provider calls"):
+        pipeline._require_party_address_role_pin(
+            sources, address_request, sampled_routes=False, has_role_pin=False
+        )
+    with pytest.raises(ValueError, match="before provider calls"):
+        pipeline._require_party_address_role_pin(
+            sources, {"source_1": ()}, sampled_routes=True, has_role_pin=False
+        )
+    pipeline._require_party_address_role_pin(
+        sources, address_request, sampled_routes=False, has_role_pin=True
+    )
+    pipeline._require_party_address_role_pin(
+        sources, {"source_1": ()}, sampled_routes=False, has_role_pin=False
+    )
+
+    source_only_address = NS(
+        group_kind="party",
+        value_kind="address",
+        render_mode="deterministic_auxiliary",
+        target_paths=(),
+        logical_key="notify_address",
+    )
+    with pytest.raises(ValueError, match="before provider calls"):
+        pipeline._require_party_address_role_pin(
+            {"source_1": NS(template=NS(bindings=(source_only_address,)))},
+            {"source_1": ({"paths": [], "auxiliaryKey": "notify_address"},)},
+            sampled_routes=False,
+            has_role_pin=False,
+        )
+
+
+def test_typed_party_slots_reject_competing_city_before_label_projection() -> None:
+    party_path = "documentPatch.parties.deliveryAgent"
+    projection = NS(
+        party_geography={
+            party_path: NS(country_code="EG", country_name="Egypt", city="6th of October City")
+        }
+    )
+    localities = AddressLocalities(
+        {
+            "EG": {
+                normalized("6th of October City"): 1,
+                normalized("Sheikh Zayed"): 2,
+            }
+        }
+    )
+    mixed = {
+        "key": "address_slot",
+        "partyPath": party_path,
+        "constraints": [
+            {"sourceAddressRoles": ["street_or_site", "building", "district_or_neighborhood"]}
+        ],
+    }
+    with pytest.raises(pipeline.AddressLocalityConflict, match="Sheikh Zayed"):
+        pipeline._validate_typed_party_slot_localities(
+            slot_fields=(mixed,),
+            response={
+                "address_slot": (
+                    "Oasis Heights Street - Building No. 12B\nDistrict 7th - Sheikh Zayed"
+                )
+            },
+            projection=projection,
+            localities=localities,
+        )
+    district = {
+        **mixed,
+        "constraints": [{"sourceAddressRoles": ["district_or_neighborhood"]}],
+    }
+    with pytest.raises(pipeline.AddressLocalityConflict, match="Sheikh Zayed"):
+        pipeline._validate_typed_party_slot_localities(
+            slot_fields=(district,),
+            response={"address_slot": "Sheikh Zayed"},
+            projection=projection,
+            localities=localities,
+        )
+    pipeline._validate_typed_party_slot_localities(
+        slot_fields=(mixed,),
+        response={"address_slot": "Oasis Heights Street\nDistrict 7th"},
+        projection=projection,
+        localities=localities,
+    )
 
 
 def test_composite_measurement_does_not_imply_whole_target_unit_precision():
@@ -31,9 +131,18 @@ def test_measurement_quantum_uses_proven_printed_precision_across_adapters():
     from document_ocr.synthesis.template_compiler import complete_targets as targets
 
     path = "documentPatch.cargoGroups[0].grossWeight.value"
-    target = {"documentPatch": {"cargoGroups": [{"grossWeight": {
-        "value": 7740.0, "unit": "kilogram",
-    }}]}}
+    target = {
+        "documentPatch": {
+            "cargoGroups": [
+                {
+                    "grossWeight": {
+                        "value": 7740.0,
+                        "unit": "kilogram",
+                    }
+                }
+            ]
+        }
+    }
     source = b"GROSS 7.740 KG"
     binding = NS(
         target_paths=(path,),
@@ -46,11 +155,13 @@ def test_measurement_quantum_uses_proven_printed_precision_across_adapters():
     source = b"GROSS 7740 KG\nEXACT 7740.25 KG"
     target["documentPatch"]["cargoGroups"][0]["grossWeight"]["value"] = 7740.25
     rounded = NS(
-        source_text="7740", byte_start=source.index(b"7740"),
+        source_text="7740",
+        byte_start=source.index(b"7740"),
         byte_end=source.index(b"7740") + 4,
     )
     precise = NS(
-        source_text="7740.25", byte_start=source.index(b"7740.25"),
+        source_text="7740.25",
+        byte_start=source.index(b"7740.25"),
         byte_end=source.index(b"7740.25") + 7,
     )
     binding.occurrences = (rounded, precise)
@@ -94,6 +205,7 @@ def _sampled_tare_fixture():
     )
     source = NS(
         document_id="source_1",
+        cargo_policy=None,
         source=b"TARE 3,700 KGS",
         source_target=source_target,
         target=source_target,
@@ -101,6 +213,9 @@ def _sampled_tare_fixture():
             carrier=NS(canonical_name="Carrier Ltd."),
             source_sha256="a" * 64,
             bindings=(),
+            byte_template=compile_raw_text_template(
+                document_id="source_1", source=b"TARE 3,700 KGS", slots=()
+            ),
         ),
     )
     scenario = NS(receipt={"sampledEquipmentTares": {"tare_0": "3850"}})
@@ -189,13 +304,21 @@ def test_descendant_plan_receives_independent_tare_receipt(monkeypatch):
     source, target, binding, contract, scenario = _sampled_tare_fixture()
     values = pipeline._scenario_equipment_tares(scenario)
     prepared = pipeline.numeric.prepare(
-        (binding,), {binding.logical_key: contract},
-        source_target=source.target, target=target, scale=Decimal(1),
+        (binding,),
+        {binding.logical_key: contract},
+        source_target=source.target,
+        target=target,
+        scale=Decimal(1),
         equipment_tare_values=values,
     )
     case = pipeline._prepared(
-        source, target, {}, sample_id="synthetic_1", seed=7,
-        numeric_values=prepared, equipment_tare_values=values,
+        source,
+        target,
+        {},
+        sample_id="synthetic_1",
+        seed=7,
+        numeric_values=prepared,
+        equipment_tare_values=values,
     )
     monkeypatch.setattr(render, "numeric_bindings", lambda _template: (binding,))
     monkeypatch.setattr(geographic_context, "source_entity_conflicts", lambda *_args: ())
@@ -222,13 +345,21 @@ def test_residual_checkpoint_cannot_replace_independent_tare_receipt():
     source, target, binding, contract, scenario = _sampled_tare_fixture()
     values = pipeline._scenario_equipment_tares(scenario)
     prepared = pipeline.numeric.prepare(
-        (binding,), {binding.logical_key: contract},
-        source_target=source.target, target=target, scale=Decimal(1),
+        (binding,),
+        {binding.logical_key: contract},
+        source_target=source.target,
+        target=target,
+        scale=Decimal(1),
         equipment_tare_values=values,
     )
     case = pipeline._prepared(
-        source, target, {}, sample_id="synthetic_1", seed=7,
-        numeric_values=prepared, equipment_tare_values=values,
+        source,
+        target,
+        {},
+        sample_id="synthetic_1",
+        seed=7,
+        numeric_values=prepared,
+        equipment_tare_values=values,
     )
     checkpoint = {
         "sampleId": case.document_id,
@@ -245,6 +376,31 @@ def test_residual_checkpoint_cannot_replace_independent_tare_receipt():
     }
     with pytest.raises(ValueError, match="sampled equipment tares differ"):
         pipeline._reusable_residual(checkpoint, case, NS(), "prompt")
+
+
+def test_published_tares_cover_source_constrained_and_joint_cargo_generation():
+    empty = sha256_bytes(canonical_json_bytes({}))
+    source_constrained = {
+        "cargoScenario": None,
+        "targetReceipt": {"equipment_tare_values_sha256": empty},
+    }
+    assert pipeline._published_tare_payload(source_constrained) == {}
+
+    sampled = {"tare_0": "3850"}
+    joint_cargo = {
+        "cargoScenario": {"sampledEquipmentTares": sampled},
+        "targetReceipt": {
+            "equipment_tare_values_sha256": sha256_bytes(canonical_json_bytes(sampled))
+        },
+    }
+    assert pipeline._published_tare_payload(joint_cargo) == sampled
+
+    with pytest.raises(ValueError, match="differ from frozen target receipt"):
+        pipeline._published_tare_payload(
+            {**source_constrained, "targetReceipt": joint_cargo["targetReceipt"]}
+        )
+    with pytest.raises(ValueError, match="lacks its sampled equipment tare receipt"):
+        pipeline._published_tare_payload({**joint_cargo, "cargoScenario": {}})
 
 
 def test_equal_container_partitions_constrain_generation_before_rendering(monkeypatch):
@@ -340,6 +496,7 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
         request_batch_size=2,
         route_scenarios=None,
         route_scenarios_run=None,
+        party_address_role_certificates=None,
         customs_program_registry=None,
         cargo_sampling=None,
         cargo_lexical_contracts=None,
@@ -367,6 +524,7 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
     monkeypatch.setattr(pipeline, "compile_uk_global_tariff_registry", lambda **kw: None)
     source = NS(
         source=b"original",
+        cargo_policy=None,
         source_target={},
         target={},
         template=NS(coherence_constraints=[], bindings=[], auxiliary_semantic_plan=NS(entities=[])),
@@ -424,7 +582,9 @@ def test_residual_exhaustion_keeps_frozen_target_and_all_costs(tmp_path, monkeyp
         pipeline,
         "_prepared",
         lambda *a, **kw: NS(
-            target_receipt=NS(model_dump=lambda **kw: {}), dangerous_goods_facts=()
+            target_receipt=NS(model_dump=lambda **kw: {}),
+            dangerous_goods_facts=(),
+            route_context_presentation=None,
         ),
     )
     monkeypatch.setattr(
@@ -748,6 +908,7 @@ def test_vessel_name_is_not_detached_from_supplied_imo_identity(monkeypatch, has
         transport["vesselImoNumber"] = "9897028"
     source = NS(
         source=b"ORIGINAL VESSEL",
+        cargo_policy=None,
         target={"documentPatch": {"transport": transport}},
         template=NS(bindings=[], coherence_constraints=[]),
     )
@@ -788,6 +949,7 @@ def test_composite_reference_block_does_not_merge_distinct_facts():
         template=NS(
             bindings=(binding,), coherence_constraints=(), auxiliary_semantic_plan=NS(entities=())
         ),
+        cargo_policy=None,
     )
     requests = lexical_contract(source)
     assert [row["paths"] for row in requests] == [[paths[0]], [paths[1]]]

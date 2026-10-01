@@ -7,11 +7,12 @@ source values, and none can consume a linguistic-generation request.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from decimal import Decimal
 from fractions import Fraction
@@ -51,6 +52,7 @@ from document_ocr.synthesis.package_goods_compatibility import (
     build_package_goods_fit_support,
     sample_compatible_cargo,
 )
+from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.semantic_completion_pipeline import _group_allocations
 from document_ocr.synthesis.thermal_goods import (
     AmbientGoodsIdentity,
@@ -63,11 +65,14 @@ from document_ocr.synthesis.thermal_goods import (
     sample_thermal_goods,
     sample_thermal_profile,
 )
-from document_ocr.synthesis.transport_capacity import capacity_limits, document_capacity_receipt
+from document_ocr.synthesis.transport_capacity import (
+    capacity_limits,
+    classify_equipment,
+    document_capacity_receipt,
+)
 
 from . import (
     anonymous_equipment,
-    cargo_identifiers,
     cargo_measurements,
     equipment_row_constraints,
     equipment_tares,
@@ -96,6 +101,7 @@ from .dangerous_goods_realization import (
 from .descendant_models import PinnedCommittedRun
 from .models import CertifiedSemanticTemplate, NonEmptyText, PinnedJsonl
 from .pipeline import resolve_input
+from .vehicle_source_evidence import vehicle_source_evidence
 
 
 class CargoSamplingConfig(BaseModel):
@@ -106,6 +112,7 @@ class CargoSamplingConfig(BaseModel):
     dangerous_goods_run: PinnedCommittedRun
     hmt: PinnedJsonl
     ecics: PinnedJsonl
+    commodity_phrases: PinnedJsonl
     thermal: SemanticCompletionThermalConfig
     transport_capacity: TransportCapacityConfig
     equipment_joint_weights: dict[NonEmptyText, Annotated[int, Field(gt=0)]]
@@ -144,6 +151,36 @@ def _records(root: Path, pin: PinnedJsonl) -> tuple[dict[str, Any], ...]:
     if sha256_file(path) != pin.sha256:
         raise ValueError(f"cargo sampling dependency hash differs: {pin.path}")
     return render._read_jsonl(path, records=pin.records)
+
+
+def _reviewed_commodity_phrases(
+    root: Path, pin: PinnedJsonl, hs: UkGlobalTariffRegistry
+) -> dict[str, str]:
+    """Use one reviewed commercial phrase per pinned HS6, never tariff prose."""
+    descriptions: dict[str, str] = {}
+    known_codes = set(hs.global_codes)
+    for row in _records(root, pin):
+        if set(row) != {"hs6", "pathSha256", "phrase"}:
+            raise ValueError("HS6 commercial phrase row has missing or unknown fields")
+        code, phrase = row["hs6"], row["phrase"]
+        if code not in known_codes or code in descriptions:
+            raise ValueError("HS6 commercial phrase identity is unknown or duplicated")
+        path = hs.global_description_path(code)
+        if row["pathSha256"] != sha256_bytes(json.dumps(path, ensure_ascii=False).encode()):
+            raise ValueError(f"HS6 commercial phrase path changed: {code}")
+        if (
+            not isinstance(phrase, str)
+            or not 3 <= len(phrase) <= 180
+            or not 2 <= len(re.findall(r"[A-Za-z0-9]+", phrase)) <= 24
+            or phrase != phrase.strip()
+            or "\n" in phrase
+            or re.search(r"heading\s*\||\b[0-9]{4,6}\b", phrase, re.I)
+        ):
+            raise ValueError(f"HS6 commercial phrase is invalid: {code}")
+        descriptions[code] = phrase
+    if set(descriptions) != known_codes:
+        raise ValueError("reviewed HS6 commercial phrases do not cover the pinned registry")
+    return descriptions
 
 
 def load_support(
@@ -240,9 +277,193 @@ def load_support(
             lower_multiplier=config.measurement_lower_multiplier,
             upper_multiplier=config.measurement_upper_multiplier,
         ),
-        {code: ": ".join(hs.global_description_path(code)) for code in hs.global_codes},
+        _reviewed_commodity_phrases(root, config.commodity_phrases, hs),
         equipment_tares.build_support(fit),
     )
+
+
+def _source_observed_joint_fit_support(
+    source: targets.SourceTemplate, support: CargoSupport
+) -> tuple[CargoSupport, dict[str, Any] | None]:
+    """Admit missing joint package/measurement support from this source only.
+
+    The compiled source is itself an observed shipment, but it is not always in
+    the real-only fit partition. A source-owned point can support its own fixed
+    package topology; it never expands another template's fit prior.
+    """
+
+    if source.document_id in support.validation_ids:
+        raise ValueError("validation source cannot establish cargo measurement fit")
+    if (
+        source.template.document_id != source.document_id
+        or source.template.source_sha256 != sha256_bytes(source.source)
+    ):
+        raise ValueError("source measurement fit has an unpinned OCR/template identity")
+    fit_target = package_observations.fit_target(source.target)
+    observed_measurements = cargo_measurements.build_support(
+        {source.document_id: fit_target},
+        lower_multiplier=support.measurements.lower_multiplier,
+        upper_multiplier=support.measurements.upper_multiplier,
+    )
+    missing_measurements = {
+        key: points
+        for key, points in observed_measurements.points.items()
+        if key not in support.measurements.points
+    }
+    thermal = support.config.thermal
+    observed_packages = build_package_goods_fit_support(
+        source_targets={source.document_id: fit_target},
+        fit_document_ids=(source.document_id,),
+        allowed_category_tokens=support.packages.allowed_category_tokens,
+        frozen_minimum_celsius=thermal.frozen_minimum_celsius,
+        frozen_maximum_celsius=thermal.frozen_maximum_celsius,
+        chilled_minimum_celsius=thermal.chilled_minimum_celsius,
+        chilled_maximum_celsius=thermal.chilled_maximum_celsius,
+    )
+
+    def missing_rows(existing: tuple[Any, ...], observed: tuple[Any, ...]) -> tuple[Any, ...]:
+        def identity(row: Any) -> tuple[Any, ...]:
+            if hasattr(row, "heading_occurrences"):
+                return row.package_count, row.categories, row.heading_occurrences
+            return row.key, row.package_count, row.categories
+
+        known = {identity(row) for row in existing}
+        return tuple(row for row in observed if identity(row) not in known)
+
+    package_rows = {
+        "hs_heading_rows": missing_rows(
+            support.packages.hs_heading_rows, observed_packages.hs_heading_rows
+        ),
+        "hs_signature_pool_rows": missing_rows(
+            support.packages.hs_signature_pool_rows, observed_packages.hs_signature_pool_rows
+        ),
+        "thermal_profile_rows": missing_rows(
+            support.packages.thermal_profile_rows, observed_packages.thermal_profile_rows
+        ),
+    }
+    if observed_packages.audit.excluded_incomplete_package_groups:
+        raise ValueError("source package signature is not fully typed in the fit vocabulary")
+    if not missing_measurements and not any(package_rows.values()):
+        return support, None
+    patch = fit_target["documentPatch"]
+    groups = patch.get("cargoGroups", ())
+    if len(groups) != 1 or groups[0].get("dangerousGoods") or not patch.get("containers"):
+        return support, None
+    group = groups[0]
+    packages = patch.get("cargoPackages", ())
+    if not packages or any(p["groupId"] != group["groupId"] for p in packages):
+        return support, None
+    source_bindings = source.template.bindings
+
+    def anchor(
+        path: str, value: Any, *, role: Literal["numeric", "hs", "category"]
+    ) -> list[dict[str, Any]]:
+        owners = [
+            binding
+            for binding in source_bindings
+            if binding.render_mode == "target_binding" and path in binding.target_paths
+        ]
+        if not owners:
+            raise ValueError(f"source physical-fit fact lacks a printed target binding: {path}")
+        evidence = []
+        for binding in owners:
+            for slot in binding.occurrences:
+                if source.source[slot.byte_start : slot.byte_end] != slot.source_text.encode():
+                    raise ValueError("source physical-fit slot differs from the pinned OCR")
+                if role == "numeric":
+                    numeric_auxiliary.surface_quantum(slot.source_text, Decimal(str(value)))
+                elif role == "hs" and str(value) not in re.sub(r"\D", "", slot.source_text):
+                    raise ValueError(
+                        f"source physical-fit HS code differs from printed slot: {path}"
+                    )
+                elif role == "category" and not package_category_surface_present(
+                    slot.source_text, str(value)
+                ):
+                    raise ValueError(
+                        f"source physical-fit package kind differs from printed slot: {path}"
+                    )
+                evidence.append(
+                    {
+                        "binding": binding.logical_key,
+                        "slot": slot.slot_id,
+                        "byteStart": slot.byte_start,
+                        "byteEnd": slot.byte_end,
+                        "surface": slot.source_text,
+                    }
+                )
+        return evidence
+
+    evidence: dict[str, list[dict[str, Any]]] = {}
+    for index, code in enumerate(group.get("hsCodes", ())):
+        support.hs.require_global(
+            re.sub(r"\D", "", code)[:6], on_date=support.hs.receipt.snapshot_date
+        )
+        path = f"documentPatch.cargoGroups[0].hsCodes[{index}]"
+        evidence[path] = anchor(path, code, role="hs")
+    for index, package in enumerate(packages):
+        if "typeCategory" not in package or "quantity" not in package:
+            raise ValueError("source physical-fit package is not fully observed")
+        for field in ("quantity", "typeCategory"):
+            path = f"documentPatch.cargoPackages[{index}].{field}"
+            evidence[path] = anchor(
+                path, package[field], role="numeric" if field == "quantity" else "category"
+            )
+    for field in sorted(cargo_measurements.MEASUREMENT_FIELDS & group.keys()):
+        path = f"documentPatch.cargoGroups[0].{field}.value"
+        evidence[path] = anchor(path, group[field]["value"], role="numeric")
+    if not evidence or not any(".hsCodes[" in path for path in evidence):
+        raise ValueError("source physical fit lacks an identified goods heading")
+    point_keys = {
+        (re.sub(r"\D", "", code)[:4], tuple(p["typeCategory"] for p in packages))
+        for code in group["hsCodes"]
+    }
+    if not set(missing_measurements) <= point_keys:
+        raise ValueError("source physical-fit observation has unexpected heading ownership")
+    expanded = {
+        **support.measurements.points,
+        **missing_measurements,
+    }
+    scoped_packages = replace(
+        support.packages,
+        fit_document_ids=tuple(
+            dict.fromkeys((*support.packages.fit_document_ids, source.document_id))
+        ),
+        hs_heading_rows=(*support.packages.hs_heading_rows, *package_rows["hs_heading_rows"]),
+        hs_signature_pool_rows=(
+            *support.packages.hs_signature_pool_rows,
+            *package_rows["hs_signature_pool_rows"],
+        ),
+        thermal_profile_rows=(
+            *support.packages.thermal_profile_rows,
+            *package_rows["thermal_profile_rows"],
+        ),
+        audit=replace(
+            support.packages.audit,
+            fit_document_count=len(set(support.packages.fit_document_ids) | {source.document_id}),
+            cargo_group_count=support.packages.audit.cargo_group_count + 1,
+            typed_package_group_count=support.packages.audit.typed_package_group_count + 1,
+            hs_heading_group_count=support.packages.audit.hs_heading_group_count + 1,
+            thermal_group_count=(
+                support.packages.audit.thermal_group_count
+                + observed_packages.audit.thermal_group_count
+            ),
+        ),
+    )
+    receipt = {
+        "sourceDocumentId": source.document_id,
+        "sourceSha256": sha256_bytes(source.source),
+        "sourceLabelSha256": sha256_bytes(canonical_json_bytes(source.source_target)),
+        "sourceTemplateSha256": source.original_template_sha256,
+        "points": [
+            {"heading": key[0], "packageSignature": list(key[1]), "measures": points}
+            for key, points in sorted(missing_measurements.items())
+        ],
+        "packageRows": {key: [asdict(row) for row in rows] for key, rows in package_rows.items()},
+        "printedEvidence": evidence,
+        "scope": "this_source_only",
+    }
+    measurements = replace(support.measurements, points=expanded)
+    return replace(support, measurements=measurements, packages=scoped_packages), receipt
 
 
 def _source_proved_petroleum_tank_support(
@@ -502,6 +723,14 @@ def _equipment_constraints(
         weights = {}
         for pair, weight in config.equipment_joint_weights.items():
             size, kind = pair.split("|")
+            if (
+                classify_equipment({"sizeCategory": size, "typeCategory": kind})
+                == "unsupported_reefer"
+            ):
+                # A configured sampling weight is not a capacity contract. Keep
+                # unsupported reefers out of the feasible domain before row
+                # measurements are conditioned or an equipment draw is made.
+                continue
             if fixed_tares and any(
                 (size, kind) != (containers[i]["sizeCategory"], containers[i]["typeCategory"])
                 for i in indices
@@ -663,7 +892,11 @@ def latent_equipment_indices(
 
 def require_contract(source: targets.SourceTemplate) -> None:
     """Reject unrepresented dependencies before starting any candidate draws."""
-    from . import cargo_identity_derivations, shipment_totals
+    from . import cargo_identity_derivations, one_to_one_pallet_bags, shipment_totals
+
+    one_to_one_pallet_bags.certify(
+        source=source.source, bindings=source.template.bindings, source_target=source.target
+    )
 
     patch = source.target["documentPatch"]
     groups = patch.get("cargoGroups", [])
@@ -691,6 +924,9 @@ def require_contract(source: targets.SourceTemplate) -> None:
     from . import package_count_surfaces
 
     package_count_surfaces.require_owned(source.source, source.template, source.target)
+    package_count_surfaces.require_number_word_package_categories(
+        source.template, source.target, source.source
+    )
     temperature_prose.require_contract(source.template, source.target)
     package_equations.require_segmented_package_owner(source.source, source.template)
     package_equations.require_pallet_mark_contract(source.template, source.target)
@@ -707,28 +943,17 @@ def require_contract(source: targets.SourceTemplate) -> None:
         raise ValueError("fixed out-of-gauge dimensions require a joint geometry/goods contract")
     if any(g.get("dangerousGoods") for g in source.target["documentPatch"].get("cargoGroups", [])):
         compile_surfaces(source.template)
+    if evidence := vehicle_source_evidence(source.source.decode("utf-8"), source.target):
+        raise ValueError(
+            "vehicle-specific cargo requires a joint vehicle/goods scenario: "
+            + ", ".join(evidence.reasons)
+        )
     for g in source.target["documentPatch"].get("cargoGroups", []):
         declarations = g.get("dangerousGoods", [])
         if any("flashPoint" in d for d in declarations):
             raise ValueError("DG flashpoint requires a formulation-property contract")
         if declarations and g.get("hsCodes") and len(g["hsCodes"]) != len(declarations):
             raise ValueError("DG/HS cardinality needs an explicit identity association contract")
-        if (
-            any(
-                cargo_identifiers.vehicle_ids(text)
-                for text in render._flatten_leaves(g).values()
-                if isinstance(text, str)
-            )
-            or any(
-                re.fullmatch(r"[A-HJ-NPR-Z0-9]{11}[0-9]{6}", text.strip(), re.I)
-                for text in g.get("marksAndNumbers", [])
-            )
-            or any(
-                p.get("typeCategory") == "PACKAGE_VEHICLE" and p["groupId"] == g["groupId"]
-                for p in source.target["documentPatch"].get("cargoPackages", [])
-            )
-        ):
-            raise ValueError("vehicle-specific cargo requires a joint vehicle/goods scenario")
     if not source.target["documentPatch"].get("cargoPackages"):
         # Label missingness is not evidence that printed packaging is absent.
         # Without a latent package owner, a new goods draw cannot establish its
@@ -1849,6 +2074,7 @@ def _sample_scenario(
     if source.document_id in support.validation_ids:
         raise ValueError("validation source cannot enter cargo synthesis")
     require_contract(source)
+    support, source_measurement_receipt = _source_observed_joint_fit_support(source, support)
     if prepared_equipment is not None and (
         prepared_equipment.template is not source.template
         or prepared_equipment.configured_weights != support.config.equipment_joint_weights
@@ -1873,6 +2099,15 @@ def _sample_scenario(
     failures: Counter[str] = Counter()
     patch = proposed["documentPatch"]
     fixed_categories = package_equations.required_package_categories(source.target)
+    from . import one_to_one_pallet_bags
+
+    pallet_bag = one_to_one_pallet_bags.certify(
+        source=source.source, bindings=source.template.bindings, source_target=source.target
+    )
+    if pallet_bag is not None:
+        previous = fixed_categories.setdefault(pallet_bag.package_index, pallet_bag.inner_category)
+        if previous != pallet_bag.inner_category:
+            raise ValueError("printed pallet/bag contract conflicts with package category")
     private_net = measurement_prose.private_net_weights(source.target, proposed)
     if any(
         g.get("dangerousGoods") and g["groupId"] in private_net
@@ -1977,6 +2212,8 @@ def _sample_scenario(
                     if package_observations.unowned_package_observation(b)
                 ],
             )
+            if source_measurement_receipt is not None:
+                scenario.receipt["sourceObservedMeasurementFit"] = source_measurement_receipt
             return scenario
     raise ValueError("no representable joint cargo scenario: " + str(dict(failures)))
 

@@ -13,7 +13,14 @@ from typing import Annotated, Any, Literal, TypeVar, cast
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator, model_validator
-from pydantic_ai import Agent, ModelProfile, ModelRetry, NativeOutput, capture_run_messages
+from pydantic_ai import (
+    Agent,
+    ModelProfile,
+    ModelRetry,
+    NativeOutput,
+    PromptedOutput,
+    capture_run_messages,
+)
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
@@ -2159,6 +2166,27 @@ def _openrouter_profile(provider: ProviderConfig) -> ModelProfile | None:
     return ModelProfile(supports_json_schema_output=True)
 
 
+def _output_spec[ModelT: BaseModel](
+    *,
+    provider: ProviderConfig,
+    output_type: type[ModelT],
+    output_name: str,
+    output_description: str,
+) -> NativeOutput[ModelT] | PromptedOutput[ModelT]:
+    if provider.kind == "openrouter" and provider.output_mode == "prompted":
+        return PromptedOutput(
+            output_type,
+            name=output_name,
+            description=output_description,
+        )
+    return NativeOutput(
+        output_type,
+        name=output_name,
+        description=output_description,
+        strict=True,
+    )
+
+
 class AgentRuntime:
     def __init__(
         self,
@@ -2817,15 +2845,15 @@ class AgentRuntime:
         schema = output_type.model_json_schema(mode="validation")
         agent = Agent[Any, OutputT](
             self._models[role],
-            output_type=NativeOutput(
-                output_type,
-                name=output_name,
-                description=output_description
+            output_type=_output_spec(
+                provider=provider,
+                output_type=output_type,
+                output_name=output_name,
+                output_description=output_description
                 or (
                     "Return the complete typed result for the pinned source document. "
                     "Do not return prose outside the schema."
                 ),
-                strict=True,
             ),
             system_prompt=system_prompt,
             model_settings=_settings(provider),

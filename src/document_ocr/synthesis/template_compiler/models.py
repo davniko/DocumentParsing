@@ -69,6 +69,9 @@ ValueKind = Literal[
     "phone",
     "url_or_domain",
     "identifier",
+    "lot_identifier_list",
+    "ped_identifier_list",
+    "original_bill_count",
     "date",
     "integer",
     "decimal_measurement",
@@ -242,6 +245,7 @@ class OpenRouterProviderConfig(BaseModel):
     data_collection: Literal["deny"]
     allow_fallbacks: Literal[False]
     provider_only: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
+    output_mode: Literal["native", "prompted"] = "native"
     native_structured_output_profile: Literal[
         "provider_default",
         "provider_verified",
@@ -264,6 +268,8 @@ class OpenRouterProviderConfig(BaseModel):
             raise ValueError(
                 "provider-verified native structured output requires exactly one source URL"
             )
+        if self.output_mode == "prompted" and verified:
+            raise ValueError("prompted output cannot use a native structured-output profile")
         return self
 
 

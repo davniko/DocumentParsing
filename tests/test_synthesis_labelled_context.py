@@ -204,6 +204,7 @@ def test_frozen_target_guard_rejects_stale_owned_marks_even_with_valid_checkpoin
         numeric_auxiliary_sha256=digest({}),
         equipment_tare_values_sha256=digest({}),
         customs_presentation_sha256=digest([]),
+        route_context_presentation_sha256=digest([]),
         dangerous_goods_facts_sha256=digest([]),
     )
     case = NS(
@@ -217,6 +218,7 @@ def test_frozen_target_guard_rejects_stale_owned_marks_even_with_valid_checkpoin
         numeric_auxiliary={},
         equipment_tare_values={},
         customs_presentation=None,
+        route_context_presentation=None,
         dangerous_goods_facts=(),
     )
     with pytest.raises(ValueError, match="conflicts with its declared context owner"):

@@ -279,8 +279,9 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
         "packing construction, and boilerplate."
     ),
     "additionalInformation": (
-        "Unique cargo-useful qualifiers only; never a duplicate, metadata dump, or product "
-        "description."
+        "Distinct source-supported goods-owned general remarks only, such as a certified "
+        "treatment claim; never product wording, packing hierarchy/capacity, duplicated "
+        "structured facts, or metadata."
     ),
     "grossWeight": (
         "Aggregate cargo mass explicitly labeled gross, with printed unit; never derive it by "

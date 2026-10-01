@@ -4,6 +4,8 @@ from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from document_ocr.synthesis.config import load_synthesis_structured_baseline_config
 from document_ocr.synthesis.transport_capacity import (
     capacity_limits,
@@ -45,6 +47,11 @@ def test_only_exact_iso_size_type_codes_resolve_to_capacity_families() -> None:
     assert classify_equipment({"typeCode": "45G1"}) == "forty_high_cube"
     assert classify_equipment({"typeCode": "L5G1"}) == "forty_five_high_cube"
     assert classify_equipment({"typeCode": "42P1"}) == "out_of_gauge"
+    assert classify_equipment({"typeCode": "22U1"}) == "twenty_open_top"
+    assert classify_equipment({"typeCode": "45U1"}) == "forty_open_top"
+    assert classify_equipment({"typeCode": "22R1"}) == "twenty_reefer"
+    assert classify_equipment({"typeCode": "45R1"}) == "forty_high_cube_reefer"
+    assert classify_equipment({"typeCode": "42R1"}) == "unsupported_reefer"
     assert classify_equipment({"typeDescription": "45G1"}) == "forty_high_cube"
     assert classify_equipment({"typeDescription": "40HQ"}) == "unclassified"
     assert classify_equipment({"typeDescription": "MERCHANT HC LTD"}) == "unclassified"
@@ -72,6 +79,56 @@ def test_relation_v5_semantic_equipment_resolves_to_capacity_families() -> None:
         == "out_of_gauge"
     )
     assert classify_equipment({"sizeCategory": "FORTY_FOOT_HIGH_CUBE"}) == "unclassified"
+    assert classify_equipment({"typeCategory": "REFRIGERATED"}) == "unsupported_reefer"
+    assert classify_equipment({"typeCategory": "OPEN_TOP"}) == "unclassified_open_top"
+    assert (
+        classify_equipment({"sizeCategory": "FORTY_FOOT_HIGH_CUBE", "typeCategory": "OPEN_TOP"})
+        == "forty_open_top"
+    )
+
+
+def test_open_top_does_not_inherit_flat_rack_payload() -> None:
+    target = _target(
+        containers=[
+            {
+                "containerNumber": "MSCU0000000",
+                "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                "typeCategory": "OPEN_TOP",
+            }
+        ],
+        groups=[{"groupId": "g1", "grossWeight": {"value": 35000, "unit": "kilogram"}}],
+    )
+    receipt = document_capacity_receipt(target, _limits())
+    assert receipt.payload_capacity_kg == Decimal("28400") * Decimal("1.05")
+    assert receipt.volume_capacity_m3 is None
+    assert receipt.violations == ("document_gross_weight_exceeds_container_payload",)
+
+
+def test_reefers_use_published_cold_box_capacity_and_unsupported_pairs_fail_closed() -> None:
+    target = _target(
+        containers=[
+            {
+                "containerNumber": "MSCU0000000",
+                "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+                "typeCategory": "REFRIGERATED",
+            }
+        ],
+        groups=[
+            {
+                "groupId": "g1",
+                "grossWeight": {"value": 20000, "unit": "kilogram"},
+                "volume": {"value": 75, "unit": "cubic_metre"},
+            }
+        ],
+    )
+    receipt = document_capacity_receipt(target, _limits())
+    assert receipt.payload_capacity_kg == Decimal("29670") * Decimal("1.05")
+    assert receipt.volume_capacity_m3 == Decimal("67.5") * Decimal("1.05")
+    assert receipt.violations == ("document_volume_exceeds_container_capacity",)
+
+    target["documentPatch"]["containers"][0]["sizeCategory"] = "FORTY_FOOT_STANDARD_HEIGHT"
+    with pytest.raises(ValueError, match="no source-supported capacity contract"):
+        document_capacity_receipt(target, _limits())
 
 
 def test_semantic_capacity_reprojection_preserves_sampled_utilization() -> None:
@@ -104,13 +161,10 @@ def test_semantic_capacity_reprojection_preserves_sampled_utilization() -> None:
     assert result.final_receipt.valid
     assert result.final_receipt.gross_payload_utilization is not None
     assert result.source_receipt.gross_payload_utilization is not None
-    assert (
-        abs(
-            result.final_receipt.gross_payload_utilization
-            - result.source_receipt.gross_payload_utilization
-        )
-        < Decimal("0.00001")
-    )
+    assert abs(
+        result.final_receipt.gross_payload_utilization
+        - result.source_receipt.gross_payload_utilization
+    ) < Decimal("0.00001")
 
 
 def test_document_capacity_is_decimal_exact_at_boundary_and_rejects_excess() -> None:
@@ -227,6 +281,101 @@ def test_group_budgets_preserve_document_capacity_and_tighten_explicit_links() -
     assert budgets["g2"]["gross"] == total_capacity * 3 / 4
     assert budgets["g1"]["gross"] <= Decimal("28300") * Decimal("1.05")
     assert budgets["g1"]["gross"] + budgets["g2"]["gross"] == total_capacity
+
+
+def test_unique_container_owners_cannot_hide_payload_overload_in_document_total() -> None:
+    target = _target(
+        containers=[
+            {"containerNumber": "MSCU0000000", "typeCode": "45G1"},
+            {"containerNumber": "MSCU0000018", "typeCode": "45G1"},
+        ],
+        groups=[
+            {"groupId": "g1", "grossWeight": {"value": 35000, "unit": "kilogram"}},
+            {"groupId": "g2", "grossWeight": {"value": 1000, "unit": "kilogram"}},
+        ],
+        allocations=[
+            {
+                "groupId": "g1",
+                "coverage": "container_membership_only",
+                "allocations": [{"containerNumber": "MSCU0000000"}],
+            },
+            {
+                "groupId": "g2",
+                "coverage": "container_membership_only",
+                "allocations": [{"containerNumber": "MSCU0000018"}],
+            },
+        ],
+    )
+
+    receipt = document_capacity_receipt(target, _limits())
+
+    assert receipt.gross_weight_kg == Decimal("36000")
+    assert receipt.payload_capacity_kg == Decimal("60249.0")
+    assert receipt.violations == ("container_gross_weight_exceeds_payload:MSCU0000000",)
+
+
+def test_container_lower_bound_sums_owned_groups_but_does_not_guess_a_split() -> None:
+    target = _target(
+        containers=[
+            {"containerNumber": "MSCU0000000", "typeCode": "45G1"},
+            {"containerNumber": "MSCU0000018", "typeCode": "45G1"},
+        ],
+        groups=[
+            {
+                "groupId": "g1",
+                "grossWeight": {"value": 18000, "unit": "kilogram"},
+                "volume": {"value": 45, "unit": "cubic_metre"},
+            },
+            {
+                "groupId": "g2",
+                "grossWeight": {"value": 18000, "unit": "kilogram"},
+                "volume": {"value": 45, "unit": "cubic_metre"},
+            },
+        ],
+        allocations=[
+            {
+                "groupId": group_id,
+                "coverage": "container_membership_only",
+                "allocations": [{"containerNumber": "MSCU0000000"}],
+            }
+            for group_id in ("g1", "g2")
+        ],
+    )
+    receipt = document_capacity_receipt(target, _limits())
+    assert receipt.violations == (
+        "container_gross_weight_exceeds_payload:MSCU0000000",
+        "container_volume_exceeds_capacity:MSCU0000000",
+    )
+
+    target["documentPatch"]["cargoAllocationGroups"][1]["allocations"].append(
+        {"containerNumber": "MSCU0000018"}
+    )
+    assert document_capacity_receipt(target, _limits()).valid
+
+
+def test_small_cargo_still_validates_container_allocation_identity() -> None:
+    target = _target(
+        containers=[
+            {"containerNumber": "MSCU0000000", "typeCode": "45G1"},
+            {"containerNumber": "MSCU0000018", "typeCode": "45G1"},
+        ],
+        groups=[{"groupId": "g1", "grossWeight": {"value": 100, "unit": "kilogram"}}],
+        allocations=[{"groupId": "g1", "allocations": [{"containerNumber": "MSCU0000018"}]}],
+    )
+    assert document_capacity_receipt(target, _limits()).valid
+
+    target["documentPatch"]["cargoAllocationGroups"][0]["allocations"][0]["containerNumber"] = (
+        "MSCU9999999"
+    )
+    with pytest.raises(ValueError, match="unknown container"):
+        document_capacity_receipt(target, _limits())
+
+    target["documentPatch"]["cargoAllocationGroups"][0]["allocations"][0]["containerNumber"] = (
+        "MSCU0000018"
+    )
+    target["documentPatch"]["containers"][1]["containerNumber"] = "MSCU0000000"
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        document_capacity_receipt(target, _limits())
 
 
 def test_vgm_is_not_mistaken_for_cargo_mass_and_oog_volume_is_receipted_unbounded() -> None:

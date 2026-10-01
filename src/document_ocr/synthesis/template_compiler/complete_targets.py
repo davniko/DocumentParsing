@@ -39,6 +39,7 @@ from document_ocr.synthesis.template_integrity import source_template_integrity_
 from document_ocr.synthesis.thermal_goods import classify_thermal_hs
 
 from . import (
+    cargo_frozen_policy,
     cargo_identifiers,
     count_aliases,
     lexical_partitions,
@@ -89,6 +90,7 @@ class SourceTemplate:
     target: dict[str, Any]
     template: CertifiedSemanticTemplate
     original_template_sha256: str
+    cargo_policy: cargo_frozen_policy.CargoFrozenSourcePolicy | None = None
 
 
 def load_source(root: Any, document_id: str) -> SourceTemplate:
@@ -96,6 +98,20 @@ def load_source(root: Any, document_id: str) -> SourceTemplate:
     template = CertifiedSemanticTemplate.model_validate_json(template_bytes, strict=True)
     if template.document_id != document_id or template.source_sha256 != sha256_bytes(source):
         raise ValueError("source/template identity differs")
+    target = latest_target_from_source(label)
+    policy = cargo_frozen_policy.load_case_policy(
+        root / "cases" / document_id,
+        document_id=document_id,
+        source=source,
+        source_target=label,
+        latest_target=target,
+        template_bytes=template_bytes,
+    )
+    from .original_bill_counts import validate_binding as validate_original_bill_count
+
+    for binding in template.bindings:
+        if binding.value_kind == "original_bill_count":
+            validate_original_bill_count(binding, source=source)
     issues = source_template_integrity_issues(source.decode(), label)
     if issues:
         raise ValueError("source template integrity requires review: " + "; ".join(issues))
@@ -137,9 +153,10 @@ def load_source(root: Any, document_id: str) -> SourceTemplate:
         document_id,
         source,
         label,
-        latest_target_from_source(label),
+        target,
         effective_realization_template(template),
         sha256_bytes(template_bytes),
+        policy,
     )
 
 
@@ -576,6 +593,8 @@ def lexical_contract(source: SourceTemplate) -> tuple[dict[str, Any], ...]:
 
     leaves = render._flatten_leaves(source.target)
     paths = {path for path, value in leaves.items() if _is_lexical(path, value)}
+    if source.cargo_policy is not None:
+        paths = {path for path in paths if not path.startswith("documentPatch.cargoGroups[")}
     context_paths = labelled_context.owned_paths(source)
     paths.difference_update(context_paths)
     paths.difference_update(fixed_dimension_paths(source))
@@ -1117,10 +1136,11 @@ def structured_proposal(
     if references is not None:
         target["documentPatch"]["forwardingAndExportReferences"] = references
     stream = DeterministicStream(seed, "complete-template-scenario-v1", sample_id)
-    for path, reference in cargo_identifiers.generate_references(
-        source.target, stream, source.template
-    ).items():
-        _set(target, path, reference)
+    if source.cargo_policy is None:
+        for path, reference in cargo_identifiers.generate_references(
+            source.target, stream, source.template
+        ).items():
+            _set(target, path, reference)
     for binding in _opaque_reference_bindings(source):
         value = render._binding_target_value(source.target, binding.target_paths[0])
         if not isinstance(value, str):
@@ -1132,14 +1152,15 @@ def structured_proposal(
         )
         for path in binding.target_paths:
             _set(target, path, generated)
-    _scale_numbers(
-        source,
-        target,
-        stream,
-        minimum_quantities or {},
-        quantity_multiples or {},
-        measurement_steps,
-    )
+    if source.cargo_policy is None:
+        _scale_numbers(
+            source,
+            target,
+            stream,
+            minimum_quantities or {},
+            quantity_multiples or {},
+            measurement_steps,
+        )
     for path, package_mass in package_prose.package_mass_values(
         source.template, source.target, target
     ).items():
@@ -1185,6 +1206,8 @@ def structured_proposal(
                 )
             for path in binding.target_paths:
                 _set(target, path, changed[0])
+    if source.cargo_policy is not None:
+        cargo_frozen_policy.require_frozen_cargo(source.target, target, source.cargo_policy)
     return target
 
 
@@ -1336,6 +1359,7 @@ def complete_proposal(
     *,
     sample_id: str,
     prepared_auxiliary: Mapping[str, str] | None = None,
+    source_locked_description_paths: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
     if set(values) != {row["key"] for row in requests}:
         raise ValueError("linguistic response does not cover the requested fields exactly")
@@ -1374,8 +1398,9 @@ def complete_proposal(
                     raise ValueError(
                         f"invalid auxiliary field {request['key']}: {error}"
                     ) from error
-    for path, text in lexical_partitions.assembled_targets(source.template, auxiliary).items():
-        _set(target, path, text)
+    if source.cargo_policy is None:
+        for path, text in lexical_partitions.assembled_targets(source.template, auxiliary).items():
+            _set(target, path, text)
     from . import labelled_context
 
     context_labels = labelled_context.generated_values(source, target)
@@ -1420,7 +1445,18 @@ def complete_proposal(
     changes = {
         p: {"source": original[p], "accepted": v} for p, v in generated.items() if original[p] != v
     }
-    required = require_complete_variation(source.target, target, bindings=source.template.bindings)
+    if source.cargo_policy is not None:
+        cargo_frozen_policy.require_frozen_cargo(source.target, target, source.cargo_policy)
+    locked_descriptions = (
+        source_locked_description_paths
+        | cargo_frozen_policy.locked_description_paths(source.target, source.cargo_policy)
+    )
+    required = require_complete_variation(
+        source.target,
+        target,
+        bindings=source.template.bindings,
+        source_locked_description_paths=locked_descriptions,
+    )
     fixed_roles = fixed_carrier_role_paths(source.target, source.template.bindings)
     fixed_dimensions = fixed_dimension_paths(source)
     fixed_references = cargo_identifiers.fixed_references(source.target, source.template)
@@ -1436,6 +1472,10 @@ def complete_proposal(
                 if p in fixed_quantities
                 else "reference code is outside mutable compiled spans; only its label is owned"
                 if p in fixed_references
+                else "explicit source-hash-pinned cargo_frozen_source capability"
+                if source.cargo_policy is not None and p.startswith(
+                    ("documentPatch.cargoGroups[", "documentPatch.cargoPackages[")
+                )
                 else _retention_reason(p, v)
             ),
         }

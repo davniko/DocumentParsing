@@ -6,6 +6,7 @@ from types import SimpleNamespace as NS
 import httpx2 as httpx
 import pytest
 from pydantic import create_model
+from pydantic_ai import NativeOutput, PromptedOutput
 
 from document_ocr.synthesis.template_compiler import complete_pipeline as p
 from document_ocr.synthesis.template_compiler.spending_guard import SpendingGuard
@@ -87,6 +88,60 @@ def test_only_typed_connection_failures_release_the_reservation(kind, not_sent):
     error.__cause__ = kind("failure")
     assert p._request_was_not_sent(error) is not_sent
     assert p._request_was_not_sent(error.__cause__) is not_sent
+
+
+@pytest.mark.parametrize(
+    "provider_kind,expected_output",
+    [("openrouter", PromptedOutput), ("openai_responses", NativeOutput)],
+)
+def test_complete_pipeline_selects_provider_compatible_output_protocol(
+    tmp_path, monkeypatch, provider_kind, expected_output
+):
+    captured = {}
+
+    class Agent:
+        def __init__(self, *args, **kwargs):
+            captured["output_type"] = kwargs["output_type"]
+
+        async def run(self, *args, **kwargs):
+            raise httpx.ConnectError("proved unsent")
+
+    monkeypatch.setattr(p, "Agent", Agent)
+    monkeypatch.setattr(p.render, "_provider_settings", lambda _: {})
+    monkeypatch.setattr(p, "usage_receipt", lambda *args, **kwargs: p.render._empty_usage())
+    provider = NS(
+        kind=provider_kind,
+        model_dump=lambda **_: {},
+        transport_max_retries=0,
+        max_output_tokens=100,
+        pricing=NS(
+            input_usd_per_million=Decimal("0.2"),
+            cached_input_usd_per_million=Decimal("0.02"),
+            cache_write_multiplier=Decimal("1.25"),
+            output_usd_per_million=Decimal("1.2"),
+        ),
+    )
+    guard = SpendingGuard(
+        tmp_path / "protocol-ledger.sqlite3", limit_usd=Decimal(1), pricing_sha256="test"
+    )
+
+    async def run():
+        with pytest.raises(p.ProviderCallError):
+            await p._cached_fields(
+                cache=tmp_path / "protocol-cache",
+                model=None,
+                provider=provider,
+                system_prompt="test",
+                payload={},
+                output_type=create_model("Fields", name=(str, ...)),
+                limiter=asyncio.Semaphore(1),
+                authorized=True,
+                spending=guard,
+            )
+
+    asyncio.run(run())
+    assert isinstance(captured["output_type"], expected_output)
+    assert guard.snapshot()["uncertainRequests"] == 0
 
 
 def test_unrelated_context_and_nested_read_failures_are_not_unsent_proof():

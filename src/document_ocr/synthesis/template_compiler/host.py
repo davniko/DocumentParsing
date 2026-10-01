@@ -124,9 +124,7 @@ _FREIGHT_PAYMENT_PATH = "documentPatch.freight.paymentArrangement"
 _PORT_OF_LOADING_PATH = "documentPatch.route.portOfLoading.name"
 _SHIPPED_ON_BOARD_DATE_PATH = "documentPatch.shippedOnBoardDate"
 _EXTRACTION_DATE_FIELDS = ("issueDate", "shippedOnBoardDate")
-_EXTRACTION_DATE_PATHS = frozenset(
-    f"documentPatch.{field}" for field in _EXTRACTION_DATE_FIELDS
-)
+_EXTRACTION_DATE_PATHS = frozenset(f"documentPatch.{field}" for field in _EXTRACTION_DATE_FIELDS)
 _VESSEL_NAME_PATH = "documentPatch.transport.vesselName"
 _VOYAGE_NUMBER_PATH = "documentPatch.transport.voyageNumber"
 _LOADING_TERMINAL_CAPTION = "loadingpierterminal"
@@ -173,6 +171,12 @@ _LABELED_COUNTRY_VALUE = re.compile(
 )
 _LABELED_COUNTRY_CODE_VALUE = re.compile(
     r"(?i)^\s*(?:[A-Z][A-Z ]{1,60}\s+)?COUNTRY\s+CODE\s*:\s*(?P<value>[A-Z]{2})\s*$"
+)
+_ACID_NUMBER_LINE = re.compile(
+    r"(?i)^\s*ACID\s+(?:NUMBER|NO\.?)\s*:\s*(?P<value>[0-9]{6,30})\s*$"
+)
+_EGYPTIAN_IMPORTER_VAT_LINE = re.compile(
+    r"(?i)^\s*EGYPTIAN\s+IMPORTER\s+VAT\s+NUMBER\s*:\s*(?P<value>[0-9]{6,30})\s*$"
 )
 _EXPORTED_FROM_COUNTRY_CONTEXT = re.compile(
     r"(?i)\b(?:THESE\s+)?COMMODITIES\s+WERE\s+EXPORTED\s+FROM\s+THE\s+$"
@@ -2949,9 +2953,7 @@ def _location_payment_target_paths(source_target: Mapping[str, Any]) -> frozense
     from .generation_contract import leaves
 
     return frozenset(
-        path
-        for path in leaves(patch, "documentPatch")
-        if path.startswith(_LOCATION_PAYMENT_ROOTS)
+        path for path in leaves(patch, "documentPatch") if path.startswith(_LOCATION_PAYMENT_ROOTS)
     )
 
 
@@ -4966,8 +4968,12 @@ def validate_source_seal_ownership(
 
 
 def _require_current_container_identifier_owner(
-    *, group_kind: str, group_key: str, logical_key: str,
-    source_text: str, target_paths: Sequence[str],
+    *,
+    group_kind: str,
+    group_key: str,
+    logical_key: str,
+    source_text: str,
+    target_paths: Sequence[str],
 ) -> None:
     """Check ownership, not checksum validity, of a printed shipment ID."""
     if (
@@ -8816,7 +8822,7 @@ def _repair_uniquely_bracketed_target_paths(
                 proposals.extend((path, start, end) for start, end in ordered_ties)
                 assigned_paths.add(path)
             continue
-        _score, start, end = ranked[0]
+        _score, start, end = path_ranking[0]
         proposals.append((path, start, end))
     span_counts = Counter((start, end) for _path, start, end in proposals)
     return tuple(
@@ -11229,15 +11235,30 @@ _EXPLICIT_MEASUREMENT_UNIT_ALIASES: dict[str, frozenset[str]] = {
     "pound": frozenset({"lb", "lbs", "lbr", "pound", "pounds"}),
     "cubic_metre": frozenset(
         {
-            "m3", "cbm", "cbmm3", "realcbm", "cum", "mtq", "cubicmeter",
-            "cubicmeters", "cubicmetre", "cubicmetres",
+            "m3",
+            "cbm",
+            "cbmm3",
+            "realcbm",
+            "cum",
+            "mtq",
+            "cubicmeter",
+            "cubicmeters",
+            "cubicmetre",
+            "cubicmetres",
         }
     ),
     "cubic_foot": frozenset({"ft3", "ftq", "cuft", "cubicfoot", "cubicfeet"}),
     "celsius": frozenset(
         {
-            "c", "degc", "degreec", "degreescelsius", "celsius", "celisus",
-            "cel", "degrcelsius", "degcel",
+            "c",
+            "degc",
+            "degreec",
+            "degreescelsius",
+            "celsius",
+            "celisus",
+            "cel",
+            "degrcelsius",
+            "degcel",
         }
     ),
     "fahrenheit": frozenset({"f", "degf", "degreef", "degreesfahrenheit", "fahrenheit"}),
@@ -11265,8 +11286,7 @@ def validate_compiler_measurement_unit_grounding(
         ):
             surfaces[draft.target_paths[0]].append(draft.source_text)
     aliases = {
-        unit: frozenset(values)
-        for unit, values in _EXPLICIT_MEASUREMENT_UNIT_ALIASES.items()
+        unit: frozenset(values) for unit, values in _EXPLICIT_MEASUREMENT_UNIT_ALIASES.items()
     }
     for path, printed in surfaces.items():
         target_unit = _resolve_target_path(source_target, path)
@@ -14885,6 +14905,189 @@ def normalize_exported_country_repeats(
     return merge_drafts(drafts, additions)
 
 
+def normalize_labeled_customs_identifier_pair(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Promote two separately printed, source-linked customs IDs without an LLM.
+
+    The VAT number and ACID must each own their complete value under an exact
+    caption. Their printed prefix relationship is preserved by the existing
+    character-level identifier solver; it is not a license to collapse them
+    into one field or infer either from an unlabelled numeric overlap.
+    """
+
+    if "ACID" not in raw.upper() or "VAT" not in raw.upper():
+        return tuple(drafts)
+    lines = line_spans(raw)
+    acid_matches = tuple(
+        (line, match)
+        for line in lines
+        if (match := _ACID_NUMBER_LINE.fullmatch(line.text)) is not None
+    )
+    vat_matches = tuple(
+        (line, match)
+        for line in lines
+        if (match := _EGYPTIAN_IMPORTER_VAT_LINE.fullmatch(line.text)) is not None
+    )
+    if len(acid_matches) != 1 or len(vat_matches) != 1:
+        return tuple(drafts)
+    (acid_line, acid_match), (vat_line, vat_match) = acid_matches[0], vat_matches[0]
+    acid_value = acid_match.group("value")
+    vat_value = vat_match.group("value")
+    if (
+        len(acid_value) <= len(vat_value)
+        or not acid_value.startswith(vat_value)
+        or acid_value.count(vat_value) != 1
+    ):
+        return tuple(drafts)
+
+    def exact_owner(line: LineSpan, match: re.Match[str]) -> SpanDraft | None:
+        start = line.char_start + match.start("value")
+        end = line.char_start + match.end("value")
+        candidates = tuple(
+            row
+            for row in drafts
+            if row.char_start == start
+            and row.char_end == end
+            and row.source_text == raw[start:end]
+            and row.render_mode in {"agent_residual", "deterministic_auxiliary"}
+            and row.value_kind == "identifier"
+            and row.group_kind == "customs"
+            and not row.target_paths
+            and not row.dependency_paths
+            and not row.dependency_bindings
+            and row.render_policy == "opaque_identifier"
+        )
+        return candidates[0] if len(candidates) == 1 else None
+
+    acid_owner = exact_owner(acid_line, acid_match)
+    vat_owner = exact_owner(vat_line, vat_match)
+    if (
+        acid_owner is None
+        or vat_owner is None
+        or acid_owner.group_key != vat_owner.group_key
+    ):
+        return tuple(drafts)
+    promoted = {acid_owner.draft_id, vat_owner.draft_id}
+    return merge_drafts(
+        replace(
+            row,
+            render_mode="deterministic_auxiliary",
+            rationale=(
+                row.rationale
+                + " Host certified this complete captioned customs identifier and its "
+                "exact VAT-prefix/ACID source relationship for deterministic generation."
+            ),
+        )
+        if row.draft_id in promoted
+        else row
+        for row in drafts
+    )
+
+
+def normalize_printed_freight_amount_total(
+    *, raw: str, drafts: Sequence[SpanDraft]
+) -> tuple[SpanDraft, ...]:
+    """Derive an explicitly printed freight total from its same-currency detail rows."""
+
+    if "Total" not in raw and "TOTAL" not in raw:
+        return tuple(drafts)
+    lines = line_spans(raw)
+    grouped: dict[tuple[str, str], list[SpanDraft]] = defaultdict(list)
+    for row in drafts:
+        tokens = set(re.findall(r"[a-z]+", row.logical_key.casefold()))
+        if (
+            row.group_kind == "commercial"
+            and "freight" in tokens
+            and "amount" in tokens
+            and row.render_mode == "deterministic_auxiliary"
+            and row.value_kind == "decimal_measurement"
+            and row.render_policy == "numeric_surface"
+            and not row.target_paths
+            and not row.derivation
+            and not row.dependency_paths
+            and not row.dependency_bindings
+        ):
+            grouped[(row.group_kind, row.group_key)].append(row)
+    replacements: dict[str, SpanDraft] = {}
+    for rows in grouped.values():
+        totals = tuple(
+            row for row in rows if "total" in re.findall(r"[a-z]+", row.logical_key.casefold())
+        )
+        details = tuple(row for row in rows if row not in totals)
+        if len(totals) != 1 or len(details) != 2:
+            continue
+        total = totals[0]
+        ordered = sorted(details, key=lambda row: row.char_start)
+        physical = (*ordered, total)
+        source_lines = tuple(line_number_for_char(lines, row.char_start) for row in physical)
+        if source_lines != tuple(range(source_lines[0], source_lines[0] + 3)):
+            continue
+        if any(
+            lines[number - 1].text.strip() != row.source_text
+            or re.fullmatch(r"[0-9][0-9,]*\.[0-9]{2}", row.source_text) is None
+            for number, row in zip(source_lines, physical, strict=True)
+        ):
+            continue
+        if source_lines[0] < 2 or lines[source_lines[0] - 2].text.strip().upper() not in {
+            "PREPAID",
+            "COLLECT",
+        }:
+            continue
+        preceding = lines[max(0, source_lines[0] - 26) : source_lines[0] - 2]
+        headings = tuple(
+            match.group("currency")
+            for line in preceding
+            if (
+                match := re.fullmatch(
+                    r"(?i)TOTAL\s+(?P<currency>[A-Z]{3})", line.text.strip()
+                )
+            )
+            is not None
+        )
+        if len(headings) != 1:
+            continue
+        currency_lines = tuple(
+            index for index, line in enumerate(preceding) if line.text.strip().upper() == "CURRENCY"
+        )
+        if len(currency_lines) != 1:
+            continue
+        currency_values = tuple(
+            line.text.strip().upper()
+            for line in preceding[currency_lines[0] + 1 :]
+            if line.text.strip()
+        )
+        if currency_values != (headings[0].upper(),) * 3:
+            continue
+        amounts = tuple(Decimal(row.source_text.replace(",", "")) for row in physical)
+        if amounts[0] + amounts[1] != amounts[2]:
+            continue
+        replacements[total.draft_id] = replace(
+            total,
+            render_mode="deterministic_derived",
+            derivation="sum_monetary_amounts",
+            dependency_bindings=tuple(row.logical_key for row in ordered),
+            rationale=(
+                total.rationale
+                + " Host proved this printed same-currency total equals the two distinct "
+                "freight amounts in the selected payment column."
+            ),
+        )
+    return tuple(replacements.get(row.draft_id, row) for row in drafts)
+
+
+def _source_labeled_country_value(lines: Sequence[LineSpan], index: int) -> str | None:
+    """Read a whole labeled country, including an OCR-wrapped COUNTRY caption."""
+
+    current = lines[index].text
+    match = _LABELED_COUNTRY_VALUE.fullmatch(current)
+    if match is None and index > 0:
+        previous = lines[index - 1].text.rstrip()
+        if previous.upper().endswith("CO") and current.lstrip().upper().startswith("UNTRY:"):
+            match = _LABELED_COUNTRY_VALUE.fullmatch(previous + current.lstrip())
+    return match.group("value") if match is not None else None
+
+
 def normalize_labeled_country_code_derivations(
     *, raw: str, drafts: Sequence[SpanDraft]
 ) -> tuple[SpanDraft, ...]:
@@ -14918,14 +15121,11 @@ def normalize_labeled_country_code_derivations(
             continue
         every_country = all(
             (
-                (
-                    match := _LABELED_COUNTRY_VALUE.fullmatch(
-                        lines[line_number_for_char(lines, row.char_start) - 1].text
-                    )
-                )
+                (value := _source_labeled_country_value(
+                    lines, line_number_for_char(lines, row.char_start) - 1
+                ))
                 is not None
-                and _normalized_surface(match.group("value"))
-                == _normalized_surface(row.source_text)
+                and _normalized_surface(value) == _normalized_surface(row.source_text)
             )
             for row in rows
         )
@@ -16698,6 +16898,49 @@ def normalize_abbreviated_container_counts(
     return merge_drafts(retained, additions)
 
 
+def normalize_plain_container_count_receipts(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Classify a source-pinned plain per-row count separately from equipment type."""
+
+    patch = source_target.get("documentPatch")
+    containers = patch.get("containers") if isinstance(patch, Mapping) else None
+    if not isinstance(containers, list) or not containers:
+        return tuple(drafts)
+    changed: dict[str, SpanDraft] = {}
+    for row in drafts:
+        if not (
+            row.render_mode == "deterministic_derived"
+            and row.derivation == "equipment_receipt"
+            and row.value_kind == "equipment"
+            and not row.target_paths
+            and not row.dependency_bindings
+            and re.fullmatch(r"(?i)1\s+Container", row.source_text) is not None
+            and raw[row.char_start : row.char_end] == row.source_text
+            and len(row.dependency_paths) == 1
+        ):
+            continue
+        container_path = row.dependency_paths[0]
+        match = re.fullmatch(r"documentPatch\.containers\[(\d+)\]", container_path)
+        if match is None or int(match.group(1)) >= len(containers):
+            continue
+        if not isinstance(containers[int(match.group(1))], Mapping):
+            continue
+        changed[row.draft_id] = replace(
+            row,
+            value_kind="integer",
+            target_paths=(container_path,),
+            derivation="container_count",
+            render_policy="numeric_surface",
+            rationale=(
+                row.rationale
+                + " Host proved this plain one-container row counts its owned structured "
+                "container without asserting a printed equipment type."
+            ),
+        )
+    return tuple(changed.get(row.draft_id, row) for row in drafts)
+
+
 def normalize_source_only_package_nouns(
     *, raw: str, drafts: Sequence[SpanDraft]
 ) -> tuple[SpanDraft, ...]:
@@ -17341,6 +17584,129 @@ def normalize_original_bill_count_repeats(
     return merge_drafts(drafts, additions)
 
 
+def normalize_original_bill_count_ownership(
+    *, raw: str, drafts: Sequence[SpanDraft], source_target: Mapping[str, Any]
+) -> tuple[SpanDraft, ...]:
+    """Separate selected original-copy counts from document negotiability."""
+
+    from .original_bill_counts import parse_count
+
+    lines = line_spans(raw)
+    count_spans: set[tuple[int, int]] = set()
+    for index, line in enumerate(lines):
+        if not _is_original_count_caption(line.text):
+            continue
+        value_line = next(
+            (candidate for candidate in lines[index + 1 :] if candidate.text.strip()), None
+        )
+        if value_line is None:
+            continue
+        span = _trimmed_line_span(value_line)
+        if span is None:
+            continue
+        try:
+            parse_count(raw[span[0] : span[1]])
+        except ValueError:
+            continue
+        count_spans.add(span)
+    if not count_spans:
+        return tuple(drafts)
+    replacements: dict[str, SpanDraft] = {}
+    for draft in drafts:
+        if (draft.char_start, draft.char_end) not in count_spans or (
+            _NEGOTIABILITY_PATH not in draft.target_paths
+        ):
+            continue
+        if draft.target_paths != (_NEGOTIABILITY_PATH,):
+            raise ValueError("original-bill count shares a negotiability binding with another fact")
+        replacements[draft.draft_id] = replace(
+            draft,
+            logical_key="aux:document:original_bill_count",
+            render_mode="deterministic_auxiliary",
+            value_kind="original_bill_count",
+            group_kind="legal",
+            group_key="legal:original_bill_count",
+            target_paths=(),
+            derivation=None,
+            dependency_paths=(),
+            dependency_bindings=(),
+            evidence_origin="host_verified_agent_proposal",
+            render_policy="natural_text",
+            rationale=(
+                "Selected original-bill count under its explicit caption is a fixed private "
+                "shipment fact, not another negotiability realization."
+            ),
+        )
+    if not replacements:
+        return tuple(drafts)
+    old_count_keys = {draft.logical_key for draft in drafts if draft.draft_id in replacements}
+    normalized = tuple(replacements.get(draft.draft_id, draft) for draft in drafts)
+    distinct_status: list[SpanDraft] = []
+    for draft in normalized:
+        if (
+            draft.logical_key in old_count_keys
+            and _NEGOTIABILITY_PATH in draft.target_paths
+        ):
+            if (
+                draft.target_paths != (_NEGOTIABILITY_PATH,)
+                or _resolve_target_path(source_target, _NEGOTIABILITY_PATH)
+                != "non_negotiable"
+                or re.fullmatch(r"(?i)NON[- ]NEGOTIABLE\s+COPY", draft.source_text) is None
+            ):
+                raise ValueError("remaining negotiability owner is not a selected status")
+            draft = replace(
+                draft,
+                logical_key="agent:document_negotiability_status",
+                group_key="legal:negotiability",
+                rationale=(
+                    "Printed NON-NEGOTIABLE COPY owns document negotiability independently "
+                    "of the number of original bills."
+                ),
+            )
+        distinct_status.append(draft)
+    normalized = tuple(distinct_status)
+    if any(_NEGOTIABILITY_PATH in draft.target_paths for draft in normalized):
+        return normalized
+    if _resolve_target_path(source_target, _NEGOTIABILITY_PATH) != "non_negotiable":
+        raise ValueError("original-bill count was the sole negotiability owner")
+    status_spans = tuple(
+        span
+        for line in lines
+        if re.fullmatch(r"(?i)NON[- ]NEGOTIABLE\s+COPY", line.text.strip()) is not None
+        and (span := _trimmed_line_span(line)) is not None
+    )
+    if len(status_spans) != 1 or any(
+        start < draft.char_end and draft.char_start < end
+        for start, end in status_spans
+        for draft in normalized
+    ):
+        raise ValueError("selected negotiability status has no unique free source span")
+    start, end = status_spans[0]
+    status = SpanDraft(
+        draft_id="host_original_count_negotiability_status_"
+        + sha256_bytes(raw[start:end].encode())[:16],
+        logical_key="agent:document_negotiability_status",
+        render_mode="agent_residual",
+        value_kind="legal_text",
+        group_kind="legal",
+        group_key="legal:negotiability",
+        target_paths=(_NEGOTIABILITY_PATH,),
+        derivation=None,
+        dependency_paths=(),
+        dependency_bindings=(),
+        char_start=start,
+        char_end=end,
+        source_text=raw[start:end],
+        evidence_origin="host_verified_agent_proposal",
+        render_policy="natural_text",
+        rationale=(
+            "Standalone selected NON-NEGOTIABLE COPY status owns negotiability, "
+            "not the original-copy count."
+        ),
+    )
+    return merge_drafts(normalized, (status,))
+
+
 def normalize_repeated_original_status_marks(
     *, raw: str, drafts: Sequence[SpanDraft]
 ) -> tuple[SpanDraft, ...]:
@@ -17575,6 +17941,11 @@ def normalize_structured_row_locality(
         drafts=complete_equipment_receipt_normalized,
         source_target=source_target,
     )
+    container_count_normalized = normalize_plain_container_count_receipts(
+        raw=raw,
+        drafts=container_count_normalized,
+        source_target=source_target,
+    )
     from . import shipment_totals
 
     shipment_total_normalized = shipment_totals.normalize(
@@ -17584,6 +17955,12 @@ def normalize_structured_row_locality(
 
     package_count_normalized = package_count_surfaces.normalize(
         raw=raw, drafts=shipment_total_normalized, source_target=source_target
+    )
+    package_count_normalized = package_count_surfaces.normalize_number_word_package_categories(
+        drafts=package_count_normalized, source_target=source_target, raw=raw
+    )
+    package_count_normalized = package_count_surfaces.normalize_sum_package_categories(
+        raw=raw, drafts=package_count_normalized, source_target=source_target
     )
     dangerous_goods_normalized = normalize_dangerous_goods_class_locality(
         raw=raw,
@@ -17672,13 +18049,21 @@ def normalize_structured_row_locality(
         raw=raw,
         drafts=registration_type_normalized,
     )
-    country_code_normalized = normalize_labeled_country_code_derivations(
+    customs_identifier_normalized = normalize_labeled_customs_identifier_pair(
         raw=raw,
         drafts=labeled_registration_type_normalized,
     )
-    export_country_normalized = normalize_exported_country_repeats(
+    country_code_normalized = normalize_labeled_country_code_derivations(
+        raw=raw,
+        drafts=customs_identifier_normalized,
+    )
+    freight_amount_normalized = normalize_printed_freight_amount_total(
         raw=raw,
         drafts=country_code_normalized,
+    )
+    export_country_normalized = normalize_exported_country_repeats(
+        raw=raw,
+        drafts=freight_amount_normalized,
     )
     measurement_normalized = normalize_selected_measurement_units(
         raw=raw,
@@ -17735,6 +18120,11 @@ def normalize_structured_row_locality(
     original_count_normalized = normalize_original_bill_count_repeats(
         raw=raw,
         drafts=form_title_normalized,
+    )
+    original_count_normalized = normalize_original_bill_count_ownership(
+        raw=raw,
+        drafts=original_count_normalized,
+        source_target=source_target,
     )
     original_status_normalized = normalize_repeated_original_status_marks(
         raw=raw,
@@ -18678,6 +19068,35 @@ def certify_template(
                 f"derived binding {binding.logical_key} has unknown dependencies: "
                 + ", ".join(missing)
             )
+    if any(binding.value_kind == "lot_identifier_list" for binding in bindings):
+        from .source_only_lot_ids import validate_binding as validate_lot_identifier_list
+
+        source_bytes = raw.encode("utf-8")
+        for binding in bindings:
+            if binding.value_kind == "lot_identifier_list":
+                validate_lot_identifier_list(binding, source=source_bytes, target=source_target)
+    if any(binding.value_kind == "ped_identifier_list" for binding in bindings):
+        from .source_only_ped_ids import validate_binding as validate_ped_identifier_list
+
+        source_bytes = raw.encode("utf-8")
+        for binding in bindings:
+            if binding.value_kind == "ped_identifier_list":
+                validate_ped_identifier_list(binding, source=source_bytes, target=source_target)
+    if any(binding.value_kind == "original_bill_count" for binding in bindings):
+        from .original_bill_counts import validate_binding as validate_original_bill_count
+
+        source_bytes = raw.encode("utf-8")
+        for binding in bindings:
+            if binding.value_kind == "original_bill_count":
+                validate_original_bill_count(binding, source=source_bytes)
+    from . import one_to_one_pallet_bags
+
+    one_to_one_pallet_bags.certify(
+        source=raw.encode("utf-8"), bindings=bindings, source_target=source_target
+    )
+    from .package_sum_certificate import certify_source as certify_package_sums
+
+    certify_package_sums(bindings=bindings, source_target=source_target)
     validate_seal_realization(
         target=source_target,
         bindings=bindings,
@@ -18741,7 +19160,7 @@ def certify_template(
         ),
     )
     masked = masked_source(raw, drafts)
-    return CertifiedSemanticTemplate.model_validate(
+    template = CertifiedSemanticTemplate.model_validate(
         {
             "schema_version": 6,
             "compiler": "carrier_bound_semantic_template_v6",
@@ -18800,6 +19219,13 @@ def certify_template(
             ),
         }
     )
+    # The compiler can otherwise certify a source-only DG surface whose group
+    # key differs from its printed UN/class declaration. Such a template has a
+    # byte-perfect roundtrip but cannot assign a generated chemical fact later.
+    from .dangerous_goods_realization import compile_surfaces
+
+    compile_surfaces(template)
+    return template
 
 
 def template_summary(template: CertifiedSemanticTemplate) -> dict[str, Any]:

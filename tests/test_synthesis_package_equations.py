@@ -642,7 +642,7 @@ def test_derived_package_noun_preserves_meaning_and_rejects_mixed_owners():
         binding=binding, case=case, outputs={}, bindings={}, country_codes={}
     )
     assert output.canonical_value == "PACKAGE_CARTON"
-    assert output.replacements == {"slot": "CTNS"}
+    assert output.replacements == {"slot": "CARTONS"}
     target["documentPatch"]["cargoPackages"][1] = {"quantity": 40, "typeCategory": "PACKAGE_BAG"}
     with pytest.raises(ValueError, match="equal owned package categories"):
         r._render_one_derivation(

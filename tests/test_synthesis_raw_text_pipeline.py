@@ -96,6 +96,7 @@ def _frozen_receipt(target: Any, **fields: Any) -> SimpleNamespace:
         numeric_auxiliary_sha256=sha256_bytes(canonical_json_bytes({})),
         equipment_tare_values_sha256=sha256_bytes(canonical_json_bytes({})),
         customs_presentation_sha256=sha256_bytes(canonical_json_bytes([])),
+        route_context_presentation_sha256=sha256_bytes(canonical_json_bytes([])),
         dangerous_goods_facts_sha256=sha256_bytes(canonical_json_bytes([])),
         **fields,
     )
@@ -386,7 +387,7 @@ def test_indexed_whole_container_receipt_is_rendered_without_inventing_an_identi
         target=target,
     )
 
-    assert output.replacements == {"slot_receipt": "01X40'RE"}
+    assert output.replacements == {"slot_receipt": "01X40' STANDARD HEIGHT REFRIGERATED"}
     assert "FBIU5385937" not in output.replacements["slot_receipt"]
 
 
@@ -1695,6 +1696,7 @@ def test_coherence_gate_runs_before_descendant_routing(monkeypatch: pytest.Monke
         document_id="doc_test",
         source_target=_target(7),
         customs_presentation=None,
+        route_context_presentation=None,
         dangerous_goods_facts=(),
         topology_reference_target=_target(7),
         target=_target(9),
@@ -1733,6 +1735,7 @@ def test_changed_formal_range_uses_proven_deterministic_cardinality(
     case = SimpleNamespace(
         document_id="doc_changed_range",
         customs_presentation=None,
+        route_context_presentation=None,
         dangerous_goods_facts=(),
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
@@ -1767,6 +1770,7 @@ def test_unchanged_coherence_member_preserves_the_certified_source(
     case = SimpleNamespace(
         document_id="doc_unchanged_range",
         customs_presentation=None,
+        route_context_presentation=None,
         dangerous_goods_facts=(),
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),
@@ -1801,6 +1805,7 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
     binding = SimpleNamespace(
         binding_id="binding_voyage",
         logical_key="anchor:documentPatch.transport.voyageNumber",
+        group_kind="transport",
         value_kind="identifier",
         realization=SimpleNamespace(requires_agent=True, mode="agent_required"),
         target_paths=("documentPatch.transport.voyageNumber",),
@@ -1813,6 +1818,7 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
     case = SimpleNamespace(
         document_id="doc_ocr_variant",
         customs_presentation=None,
+        route_context_presentation=None,
         dangerous_goods_facts=(),
         source=b"0NV18N1MA\n",
         source_target={"documentPatch": {"transport": {"voyageNumber": "0NVI8N1MA"}}},
@@ -1870,6 +1876,7 @@ def test_final_coherence_failure_is_a_host_rejection(monkeypatch: pytest.MonkeyP
         document_id="doc_test",
         source_document_id="doc_test",
         customs_presentation=None,
+        route_context_presentation=None,
         dangerous_goods_facts=(),
         source=b"PACKAGE 1-7\n",
         source_target=_target(7),

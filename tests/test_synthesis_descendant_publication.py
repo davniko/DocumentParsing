@@ -40,6 +40,7 @@ def case(index, *, replay):
         dangerous_goods_facts=(model({"un": "1234"}),),
         target_receipt=model({"hash": index}),
         customs_presentation=NS(evidence={"neutral": True}, template=model({"slots": []})),
+        route_context_presentation=None,
     )
     plan = NS(routes=(model({"route": index}),))
     execution = NS(

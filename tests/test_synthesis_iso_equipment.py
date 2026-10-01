@@ -36,6 +36,46 @@ def test_iso_thermal_detail_and_carrier_shorthand_are_distinct():
     assert iso.thermal_operation == carrier.thermal_operation == "active"
 
 
+@pytest.mark.parametrize(
+    "surface,length",
+    [
+        ("40RE", "40"),
+        ("40RF", "40"),
+        ("40 RF", "40"),
+        ("RF40", "40"),
+        ("20RF", "20"),
+        ("45RF", "45"),
+    ],
+)
+def test_compact_reefer_without_height_is_type_only(surface, length):
+    from document_ocr.synthesis.container_semantics import partial_equipment_constraint
+    from document_ocr.synthesis.template_compiler.descendant import _equipment_semantics_match
+
+    reviewed = review_source_equipment_surface(surface, temperature_present=True)
+    assert reviewed.type_category == "REFRIGERATED"
+    assert reviewed.size_category is None
+    assert reviewed.resolution == "unresolved_source_surface"
+    assert reviewed.thermal_operation == "active"
+    assert partial_equipment_constraint({"typeDescription": surface}) == (
+        length,
+        "REFRIGERATED",
+        None,
+    )
+    assert not _equipment_semantics_match(
+        {"sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT", "typeCategory": "REFRIGERATED"},
+        surface,
+    )
+
+
+@pytest.mark.parametrize("surface", ["40'X9'6\" REEFER CONTAINER", "40'H RF CONTAINER"])
+def test_explicit_high_reefer_keeps_high_cube_semantics(surface):
+    reviewed = review_source_equipment_surface(surface, temperature_present=True)
+    assert (reviewed.size_category, reviewed.type_category) == (
+        "FORTY_FOOT_HIGH_CUBE",
+        "REFRIGERATED",
+    )
+
+
 def test_expected_temperature_type_cannot_make_dry_text_match():
     from document_ocr.synthesis.template_compiler.descendant import _equipment_semantics_match
 

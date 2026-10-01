@@ -62,6 +62,7 @@ from document_ocr.synthesis.raw_text_template import (
     TemplateSlot,
     printed_topology_mismatches,
     render_compiled_template,
+    validate_no_new_duplicate_commas,
     validate_slot_replacements,
 )
 from document_ocr.synthesis.rendering import (
@@ -80,12 +81,15 @@ from document_ocr.training.reviewed_package_projection import (
 from document_ocr.training.tasks import get_training_task
 
 from . import (
+    cargo_frozen_policy,
     contact_values,
     count_aliases,
     entity_identifiers,
     geographic_context,
     labelled_context,
     lexical_partitions,
+    source_only_lot_ids,
+    source_only_ped_ids,
 )
 from .coherence import (
     coherence_dependency_paths,
@@ -111,6 +115,8 @@ from .generation_contract import (
     party_owned_surfaces,
     require_complete_variation,
     validate_compiled_party_contract,
+    validate_no_new_adjacent_party_localities,
+    validate_party_address_locality_slots,
     validate_rendered_party_boundaries,
     validate_repeated_agent_party_pages,
     validate_seal_realization,
@@ -130,6 +136,8 @@ from .models import (
     SourceBindingRelationship,
 )
 from .numeric_auxiliary import PreparedNumeric, numeric_bindings, render_prepared, surface_quantum
+from .party_address_roles import binding_slot_values, known_slot_value_keys
+from .party_mark_contract import validate_party_mark_preflight
 from .pipeline import project_root_from_config, resolve_input
 from .range_generation import plan_ranges, render_composite_range
 from .realization_contract import (
@@ -139,6 +147,7 @@ from .realization_contract import (
     shared_projection_ranges,
     token_projection_intervals,
 )
+from .route_context_presentation import RouteContextPresentation, compile_route_context
 from .semantic_plan import (
     disposition_by_binding,
     entity_members_by_binding,
@@ -301,6 +310,9 @@ class PreparedCase:
     customs_presentation: CustomsPresentation | None = None
     dangerous_goods_facts: tuple[DangerousGoodsFact, ...] = ()
     equipment_tare_values: Mapping[str, Decimal] = field(default_factory=dict)
+    route_context_presentation: RouteContextPresentation | None = None
+    cargo_policy: cargo_frozen_policy.CargoFrozenSourcePolicy | None = None
+    source_locked_auxiliary_keys: frozenset[str] = frozenset()
 
 
 def _equipment_tare_payload(values: Mapping[str, Decimal]) -> dict[str, str]:
@@ -362,6 +374,13 @@ def _require_frozen_target(case: PreparedCase) -> None:
     )
     if customs_hash != receipt.customs_presentation_sha256:
         raise ValueError("customs presentation contract changed after preparation")
+    route_context_hash = (
+        case.route_context_presentation.sha256
+        if case.route_context_presentation is not None
+        else sha256_bytes(canonical_json_bytes([]))
+    )
+    if route_context_hash != receipt.route_context_presentation_sha256:
+        raise ValueError("route-context presentation contract changed after preparation")
     facts = [fact.model_dump(mode="json") for fact in case.dangerous_goods_facts]
     if sha256_bytes(canonical_json_bytes(facts)) != receipt.dangerous_goods_facts_sha256:
         raise ValueError("dangerous goods registry facts changed after preparation")
@@ -972,6 +991,16 @@ def _package_surface(value: Any) -> str:
     return value.removeprefix("PACKAGE_").replace("_", " ")
 
 
+def _number_word_package_surface(value: Any) -> str:
+    # These schema-order names are not the natural printed noun order. Keep
+    # count-in-words declarations idiomatic when their category changes.
+    if value == "PACKAGE_DRUM_FIBRE":
+        return "FIBRE DRUM"
+    if value == "PACKAGE_INTERMEDIATE_BULK_CONTAINER":
+        return "IBC"
+    return _package_surface(value)
+
+
 def _semantic_equipment_value(target: Mapping[str, Any], path: str) -> dict[str, str] | None:
     match = re.fullmatch(r"documentPatch\.containers\[([0-9]+)\]\.typeDescription", path)
     if match is None:
@@ -998,6 +1027,25 @@ def _binding_target_value(target: Mapping[str, Any], path: str) -> JsonValue:
         if equipment is None:
             raise
         return cast(JsonValue, equipment)
+
+
+def _package_quantity_for_category_paths(
+    target: Mapping[str, Any], paths: Sequence[str]
+) -> int | None:
+    category_paths = tuple(
+        path
+        for path in paths
+        if re.fullmatch(r"documentPatch\.cargoPackages\[[0-9]+\]\.typeCategory", path)
+    )
+    if not category_paths:
+        return None
+    quantities: list[int] = []
+    for path in dict.fromkeys(category_paths):
+        quantity = _resolve_path(target, path.removesuffix(".typeCategory") + ".quantity")
+        if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity < 1:
+            raise ValueError("package category lacks a positive owned quantity")
+        quantities.append(quantity)
+    return sum(quantities)
 
 
 def _render_signed_temperature_word_surface(source: str, old: Any, new: Any) -> str:
@@ -1027,7 +1075,12 @@ def _render_signed_temperature_word_surface(source: str, old: Any, new: Any) -> 
 
 
 def _render_whole_slot(
-    *, slot: TemplateSlot, binding: SemanticBinding, old_value: Any, new_value: Any
+    *,
+    slot: TemplateSlot,
+    binding: SemanticBinding,
+    old_value: Any,
+    new_value: Any,
+    package_quantity: int | None = None,
 ) -> str:
     realization = next(row for row in binding.realization.slots if row.slot_id == slot.slot_id)
     if binding.realization.adapter == "date":
@@ -1045,7 +1098,7 @@ def _render_whole_slot(
     if binding.realization.adapter == "package_category":
         if not isinstance(new_value, str):
             raise ValueError("package category target is not text")
-        return _package_candidate(slot.source_text, new_value)
+        return _package_candidate(slot.source_text, new_value, quantity=package_quantity)
     if binding.realization.adapter == "measurement_unit":
         if old_value != new_value:
             raise ValueError(
@@ -1087,6 +1140,50 @@ def _partition_target_surface(value: str, slots: Sequence[TemplateSlot]) -> tupl
     return tuple(" ".join(words) for words in _allocate_words(chunks, weights))
 
 
+def _source_literal_comma_at(
+    source: bytes, template: CertifiedSemanticTemplate, byte_offset: int
+) -> bool:
+    if byte_offset < 0 or byte_offset >= len(source) or source[byte_offset] != ord(","):
+        return False
+    # Certified slots are sorted and disjoint. A comma in another mutable slot
+    # is not a source literal and must not alter this binding's proposed value.
+    slots = template.byte_template.slots
+    low, high = 0, len(slots)
+    while low < high:
+        middle = (low + high) // 2
+        if slots[middle].byte_start <= byte_offset:
+            low = middle + 1
+        else:
+            high = middle
+    return low == 0 or slots[low - 1].byte_end <= byte_offset
+
+
+def _segment_without_repeated_literal_comma(
+    *,
+    surface: str,
+    slot: TemplateSlot,
+    source: bytes,
+    template: CertifiedSemanticTemplate,
+) -> str:
+    # A source-authentic doubled comma is left alone. Only a newly proposed
+    # comma at a boundary already occupied by an immutable comma is redundant.
+    if (
+        surface.startswith(",")
+        and not slot.source_text.startswith(",")
+        and _source_literal_comma_at(source, template, slot.byte_start - 1)
+    ):
+        surface = surface[1:]
+    if (
+        surface.endswith(",")
+        and not slot.source_text.endswith(",")
+        and _source_literal_comma_at(source, template, slot.byte_end)
+    ):
+        surface = surface[:-1]
+    if not surface:
+        raise ValueError("segmented surface has no content beyond its literal comma")
+    return surface
+
+
 def _render_target_binding(
     binding: SemanticBinding,
     target: Mapping[str, Any],
@@ -1096,6 +1193,15 @@ def _render_target_binding(
     template: CertifiedSemanticTemplate | None = None,
 ) -> BindingOutput:
     target_values = tuple(_binding_target_value(target, path) for path in binding.target_paths)
+    typed_address = binding_slot_values(binding, auxiliary_values)
+    if typed_address is not None and not target_values:
+        return BindingOutput(
+            replacements={
+                slot.slot_id: _layout_like_source(slot.source_text, typed_address[slot.slot_id])
+                for slot in binding.occurrences
+            },
+            canonical_value=" ".join(typed_address[slot.slot_id] for slot in binding.occurrences),
+        )
     if not target_values:
         raise ValueError("target binding has no target values")
     if binding.realization.adapter == "temperature_instruction":
@@ -1125,6 +1231,16 @@ def _render_target_binding(
     if len({canonical_json_bytes(value) for value in target_values}) != 1:
         raise ValueError("one deterministic binding has unequal descendant target values")
     new_value = target_values[0]
+    if typed_address is not None:
+        if not isinstance(new_value, str) or not new_value.strip():
+            raise ValueError("typed party address lacks a target address value")
+        return BindingOutput(
+            replacements={
+                slot.slot_id: _layout_like_source(slot.source_text, typed_address[slot.slot_id])
+                for slot in binding.occurrences
+            },
+            canonical_value=new_value,
+        )
     source_values = tuple(row.source_value for row in binding.realization.target_values)
     old_value = source_values[0]
     slots = binding.occurrences
@@ -1238,12 +1354,18 @@ def _render_target_binding(
     mode = binding.realization.mode
     replacements: dict[str, str] = {}
     if mode in {"single_surface", "repeated_surface"}:
+        package_quantity = (
+            _package_quantity_for_category_paths(target, binding.target_paths)
+            if binding.realization.adapter == "package_category"
+            else None
+        )
         for slot in slots:
             replacements[slot.slot_id] = _render_whole_slot(
                 slot=slot,
                 binding=binding,
                 old_value=old_value,
                 new_value=new_value,
+                package_quantity=package_quantity,
             )
             if binding.value_kind == "phone" and source is not None:
                 replacements[slot.slot_id] = contact_values.phone_inside_literal_prefix(
@@ -1287,7 +1409,15 @@ def _render_target_binding(
                 offset += width
             return BindingOutput(replacements=replacements, canonical_value=new_value)
         surfaces = _partition_target_surface(_scalar_surface(new_value), slots)
+        if source is None or template is None:
+            raise ValueError("segmented surface requires its certified source and template")
         for slot, surface in zip(slots, surfaces, strict=True):
+            surface = _segment_without_repeated_literal_comma(
+                surface=surface,
+                slot=slot,
+                source=source,
+                template=template,
+            )
             replacements[slot.slot_id] = _layout_like_source(slot.source_text, surface)
     elif mode == "token_projected_surface":
         target_surface = _scalar_surface(new_value)
@@ -1427,6 +1557,14 @@ def _render_direct_auxiliary(
 ) -> BindingOutput:
     if _explicit_unknown_placeholder(binding):
         return _preserved_source_output(binding)
+    if binding.value_kind == "original_bill_count":
+        from .original_bill_counts import validate_binding as validate_original_bill_count
+
+        count = validate_original_bill_count(binding)
+        return BindingOutput(
+            replacements={slot.slot_id: slot.source_text for slot in binding.occurrences},
+            canonical_value=count,
+        )
     first = binding.occurrences[0]
     policy = first.render_policy
     if binding.value_kind == "date" or policy == "date_surface":
@@ -1721,10 +1859,21 @@ _PACKAGE_SURFACES = {
     "PACKAGE_CASE": ("CASE", "CASES"),
     "PACKAGE_CRATE": ("CRT", "CRATE", "CRATES"),
     "PACKAGE_DRUM": ("DRM", "DRUM", "DRUMS"),
+    "PACKAGE_DRUM_FIBRE": ("FIBRE DRUM", "FIBRE DRUMS"),
+    "PACKAGE_INTERMEDIATE_BULK_CONTAINER": ("IBC", "IBCS"),
     "PACKAGE_PACKAGE": ("PKG", "PKGS", "PACKAGE", "PACKAGES"),
     "PACKAGE_PALLET": ("PLT", "PLTS", "PALLET", "PALLETS"),
     "PACKAGE_ROLL": ("ROLL", "ROLLS"),
 }
+_PACKAGE_ABBREVIATIONS = frozenset(
+    {"BBL", "BX", "BXS", "CTN", "CTNS", "CRT", "DRM", "IBC", "IBCS", "PKG", "PKGS", "PLT", "PLTS"}
+)
+_FULL_PACKAGE_SURFACES = frozenset(
+    surface
+    for variants in _PACKAGE_SURFACES.values()
+    for surface in variants
+    if surface not in _PACKAGE_ABBREVIATIONS
+)
 
 
 def _ascii_word(value: str) -> str:
@@ -1846,7 +1995,7 @@ def _render_certified_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
     return prefix + rendered + suffix
 
 
-def _package_candidate(source: str, value: str) -> str:
+def _package_candidate(source: str, value: str, *, quantity: int | None = None) -> str:
     # Abbreviations are optional presentation choices, not the package vocabulary.
     # Every validated category has a complete readable surface, including material
     # qualifiers (e.g. FIBRE DRUM), which must never be dropped to fit an old alias.
@@ -1887,6 +2036,20 @@ def _package_candidate(source: str, value: str) -> str:
             + ")"
             + optional_plural.group("trailing")
         )
+    source_noun = source.strip().upper()
+    if source_noun in _FULL_PACKAGE_SURFACES and " OR " not in readable:
+        plural = quantity != 1 if quantity is not None else source_noun.endswith("S")
+        if plural:
+            head, separator, tail = readable.rpartition(" ")
+            ending = (
+                tail[:-1] + "IES"
+                if tail.endswith("Y") and len(tail) > 1 and tail[-2] not in "AEIOU"
+                else tail + "ES"
+                if tail.endswith(("S", "X", "Z", "CH", "SH"))
+                else tail + "S"
+            )
+            return _layout_like_source(source, head + separator + ending)
+        return _layout_like_source(source, readable)
     source_length = len(_alphanumeric(source))
     candidate = min(
         candidates,
@@ -2266,9 +2429,12 @@ def _render_agent_target_binding(
             canonical_value=target_canonical,
         )
     if binding.value_kind == "package" and len(values) == 1 and isinstance(values[0], str):
+        package_quantity = _package_quantity_for_category_paths(target, binding.target_paths)
         return BindingOutput(
             replacements={
-                slot.slot_id: _package_candidate(slot.source_text, values[0])
+                slot.slot_id: _package_candidate(
+                    slot.source_text, values[0], quantity=package_quantity
+                )
                 for slot in binding.occurrences
             },
             canonical_value=values[0],
@@ -2347,6 +2513,29 @@ def _render_agent_target_binding(
 
 def _direct_auxiliary_route(binding: SemanticBinding) -> tuple[bool, str]:
     """Prove that a source-only field has an audited deterministic generator."""
+
+    if binding.value_kind == "original_bill_count":
+        from .original_bill_counts import validate_binding as validate_original_bill_count
+
+        try:
+            validate_original_bill_count(binding)
+        except ValueError as error:
+            return False, str(error)
+        return True, "source-caption-certified private original-bill count remains fixed"
+
+    if binding.value_kind == "lot_identifier_list":
+        try:
+            source_only_lot_ids.validate_binding(binding)
+        except ValueError as error:
+            return False, str(error)
+        return True, "source-certified goods-owned LOT identifier list generator is available"
+
+    if binding.value_kind == "ped_identifier_list":
+        try:
+            source_only_ped_ids.validate_binding(binding)
+        except ValueError as error:
+            return False, str(error)
+        return True, "source-certified consignment PED reference list generator is available"
 
     slots = binding.occurrences
     first = slots[0]
@@ -3175,6 +3364,12 @@ def _build_initial_plan(
     case: PreparedCase, *, seed: int, country_codes: Mapping[str, str]
 ) -> RenderPlan:
     _require_frozen_target(case)
+    validate_party_mark_preflight(
+        template=case.template,
+        source_target=case.source_target,
+        target=case.target,
+        auxiliary_values=case.auxiliary_values,
+    )
     dg_outputs = _dangerous_goods_outputs(case)
     if conflicts := geographic_context.source_entity_conflicts(case.template, country_codes):
         raise ValueError("source auxiliary geography requires review: " + "; ".join(conflicts))
@@ -3284,7 +3479,43 @@ def _build_initial_plan(
         composite_range = render_composite_range(
             binding, case.source_target, case.target, case.source
         )
-        if binding.logical_key in dg_outputs:
+        if binding_slot_values(binding, case.auxiliary_values) is not None:
+            eager_output = _render_target_binding(
+                binding,
+                case.target,
+                auxiliary_values=case.auxiliary_values,
+                source=case.source,
+                template=case.template,
+            )
+            route = "deterministic"
+            reason = "source-certified party-address components occupy exact printed slots"
+        elif binding.value_kind == "lot_identifier_list":
+            rendered = source_only_lot_ids.render_binding(
+                binding, stream=stream, source=case.source, target=case.target
+            )
+            eager_output = BindingOutput(
+                replacements={binding.occurrences[0].slot_id: rendered},
+                canonical_value=rendered,
+            )
+            _validate_binding_format(
+                source=case.source, template=case.template.byte_template, output=eager_output
+            )
+            route = "deterministic"
+            reason = "source-certified goods-owned LOT identifiers vary independently"
+        elif binding.value_kind == "ped_identifier_list":
+            rendered = source_only_ped_ids.render_binding(
+                binding, stream=stream, source=case.source, target=case.target
+            )
+            eager_output = BindingOutput(
+                replacements={binding.occurrences[0].slot_id: rendered},
+                canonical_value=rendered,
+            )
+            _validate_binding_format(
+                source=case.source, template=case.template.byte_template, output=eager_output
+            )
+            route = "deterministic"
+            reason = "source-certified PED references vary as one consignment list"
+        elif binding.logical_key in dg_outputs:
             eager_output = dg_outputs[binding.logical_key]
             route = "deterministic"
             reason = "exact dangerous goods fact from the complete sampled regulatory tuple"
@@ -3301,6 +3532,33 @@ def _build_initial_plan(
             eager_output = measurement_output
             route = "deterministic"
             reason = "each measurement occurrence has source-proven units and arithmetic"
+        elif (
+            case.cargo_policy is not None
+            and binding.logical_key in case.cargo_policy.fixed_source_binding_keys
+        ):
+            eager_output = _preserved_source_output(binding)
+            route = "deterministic"
+            reason = "exact source-only cargo logistics statement fixed by reviewed policy"
+        elif binding.logical_key in case.source_locked_auxiliary_keys:
+            if (
+                binding.realization.mode != "generated_auxiliary"
+                or binding.target_paths
+                or binding.logical_key not in case.auxiliary_values
+            ):
+                raise ValueError(
+                    "source-locked auxiliary receipt does not own a generated binding: "
+                    + binding.logical_key
+                )
+            eager_output = _render_text_candidate(
+                binding, case.auxiliary_values[binding.logical_key]
+            )
+            _validate_binding_format(
+                source=case.source,
+                template=case.template.byte_template,
+                output=eager_output,
+            )
+            route = "deterministic"
+            reason = "pinned source-frame auxiliary receipt supplies this exact identifier"
         elif (
             binding.logical_key in projected_context
             and binding.logical_key not in case.numeric_auxiliary
@@ -3768,14 +4026,64 @@ def _case_files(template_root: Path, document_id: str) -> tuple[bytes, dict[str,
     source_path = root / "source.txt"
     label_path = root / "source-label.json"
     template_path = root / "template.json"
-    for path in (source_path, label_path, template_path):
+    certificate_path = root / "goods-role-certificate.json"
+    for path in (source_path, label_path, template_path, certificate_path):
         if path.is_symlink() or not path.is_file():
             raise ValueError(f"template case input is not a regular file: {path}")
     source = read_regular_file_bytes(source_path)
-    source_target = json.loads(read_regular_file_bytes(label_path))
+    label_bytes = read_regular_file_bytes(label_path)
+    template_bytes = read_regular_file_bytes(template_path)
+    certificate_bytes = read_regular_file_bytes(certificate_path)
+    from .goods_role_certificate import GoodsRoleCertificate, validate_case
+
+    certificate = GoodsRoleCertificate.model_validate_json(certificate_bytes, strict=True)
+    original_label = review = proof = lexical_contract = compiler_draft = None
+    if certificate.admission in {
+        "certified_private_cargo_roles",
+        "certified_description_reference",
+        "certified_three_set_vehicle_consolidation",
+    }:
+        original_label_path = root / "goods-role-original-label.json"
+        review_path = root / "goods-role-critic-stage.json"
+        proof_path = root / "goods-role-changed-proof.json"
+        for path in (original_label_path, review_path, proof_path):
+            if path.is_symlink() or not path.is_file():
+                raise ValueError(f"certified goods role proof is not a regular file: {path}")
+        original_label = read_regular_file_bytes(original_label_path)
+        review = read_regular_file_bytes(review_path)
+        proof = read_regular_file_bytes(proof_path)
+        if certificate.admission == "certified_description_reference":
+            lexical_contract_path = root / "goods-role-reviewed-lexical-contract.json"
+            if lexical_contract_path.is_symlink() or not lexical_contract_path.is_file():
+                raise ValueError(
+                    "certified goods lexical contract is not a regular file: "
+                    f"{lexical_contract_path}"
+                )
+            lexical_contract = read_regular_file_bytes(lexical_contract_path)
+        if certificate.admission == "certified_three_set_vehicle_consolidation":
+            compiler_draft_path = root / "goods-role-compiler-draft.json"
+            if compiler_draft_path.is_symlink() or not compiler_draft_path.is_file():
+                raise ValueError(
+                    "certified goods compiler draft is not a regular file: "
+                    f"{compiler_draft_path}"
+                )
+            compiler_draft = read_regular_file_bytes(compiler_draft_path)
+    validate_case(
+        document_id=document_id,
+        source=source,
+        source_label_bytes=label_bytes,
+        template_bytes=template_bytes,
+        certificate_bytes=certificate_bytes,
+        original_source_label_bytes=original_label,
+        critic_stage_bytes=review,
+        changed_scenario_proof_bytes=proof,
+        reviewed_lexical_contract_bytes=lexical_contract,
+        compiler_draft_bytes=compiler_draft,
+    )
+    source_target = json.loads(label_bytes)
     if not isinstance(source_target, dict):
         raise ValueError(f"source label is not an object: {document_id}")
-    return source, source_target, read_regular_file_bytes(template_path)
+    return source, source_target, template_bytes
 
 
 def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[PreparedCase, ...]:
@@ -3824,6 +4132,8 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
     if sha256_file(target_path) != synthetic_targets.sha256:
         raise ValueError("synthetic-target file hash differs")
     targets: dict[str, tuple[str, dict[str, Any]]] = {}
+    cargo_policy_sha_by_sample: dict[str, str | None] = {}
+    source_locked_auxiliary_recipes_by_sample: dict[str, dict[str, Any]] = {}
     auxiliary_by_sample: dict[str, dict[str, str]] = {}
     numeric_by_sample: dict[str, dict[str, PreparedNumeric]] = {}
     tares_by_sample: dict[str, dict[str, Decimal]] = {}
@@ -3841,6 +4151,20 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         if sha256_bytes(canonical_json_bytes(target)) != row.get("targetSha256"):
             raise ValueError(f"synthetic-target row hash differs: {sample_id}")
         targets[sample_id] = (source_id, target)
+        policy_sha = row.get("cargoFrozenPolicySha256")
+        if policy_sha is not None and (
+            not isinstance(policy_sha, str)
+            or re.fullmatch(r"[0-9a-f]{64}", policy_sha) is None
+        ):
+            raise ValueError(f"synthetic-target cargo policy hash is invalid: {sample_id}")
+        cargo_policy_sha_by_sample[sample_id] = policy_sha
+        source_locked_recipes = row.get("sourceLockedAuxiliaryRecipes", {})
+        if not isinstance(source_locked_recipes, dict) or any(
+            not isinstance(key, str) or not isinstance(recipe, dict)
+            for key, recipe in source_locked_recipes.items()
+        ):
+            raise ValueError(f"invalid source-locked auxiliary receipt: {sample_id}")
+        source_locked_auxiliary_recipes_by_sample[sample_id] = source_locked_recipes
         auxiliary = row.get("auxiliaryValues", {})
         if not isinstance(auxiliary, dict) or any(
             not isinstance(k, str) or not isinstance(v, str) or not v.strip()
@@ -3940,6 +4264,7 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
 
     prepared: list[PreparedCase] = []
     case_cache: dict[str, tuple[bytes, dict[str, Any], CertifiedSemanticTemplate]] = {}
+    cargo_policy_cache: dict[str, cargo_frozen_policy.CargoFrozenSourcePolicy | None] = {}
     latest_target_cache: dict[str, dict[str, Any]] = {}
     for sample_id, source_document_id, planned_target, target_origin in planned_inputs:
         cached = case_cache.get(source_document_id)
@@ -3950,6 +4275,11 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 source
             ):
                 raise ValueError(f"template/source identity differs: {source_document_id}")
+            from .original_bill_counts import validate_binding as validate_original_bill_count
+
+            for binding in template.bindings:
+                if binding.value_kind == "original_bill_count":
+                    validate_original_bill_count(binding, source=source)
             _validate_canonical_target(source_target)
             validate_compiled_location_payment_grounding(
                 source_target=source_target, template=template
@@ -3961,9 +4291,22 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 entities=template.auxiliary_semantic_plan.entities,
             )
             template = effective_realization_template(template)
+            comparison_source_target = latest_target_from_source(source_target)
+            latest_target_cache[source_document_id] = comparison_source_target
+            cargo_policy_cache[source_document_id] = cargo_frozen_policy.load_case_policy(
+                template_root / "cases" / source_document_id,
+                document_id=source_document_id,
+                source=source,
+                source_target=source_target,
+                latest_target=comparison_source_target,
+                template_bytes=template_bytes,
+            )
             cached = (source, source_target, template)
             case_cache[source_document_id] = cached
         source, source_target, template = cached
+        cargo_policy = cargo_policy_cache[source_document_id]
+        if cargo_policy_sha_by_sample[sample_id] != cargo_frozen_policy.policy_sha256(cargo_policy):
+            raise ValueError(f"synthetic-target cargo policy receipt differs: {sample_id}")
         customs_presentation = None
         if customs_registry is not None:
             if source_document_id not in customs_cache:
@@ -3979,12 +4322,29 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                     ),
                 )
             customs_presentation = customs_cache[source_document_id]
-        comparison_source_target = latest_target_cache.get(source_document_id)
-        if comparison_source_target is None:
+        cached_comparison_target = latest_target_cache.get(source_document_id)
+        if cached_comparison_target is None:
             comparison_source_target = latest_target_from_source(source_target)
             latest_target_cache[source_document_id] = comparison_source_target
+        else:
+            comparison_source_target = cached_comparison_target
         target = deepcopy(planned_target)
         auxiliary_values = auxiliary_by_sample[sample_id]
+        from . import lexical_facts
+
+        source_locked_recipes = {
+            key: lexical_facts.AuxiliaryReferenceRecipe.model_validate_json(
+                canonical_json_bytes(recipe), strict=True
+            )
+            for key, recipe in source_locked_auxiliary_recipes_by_sample[sample_id].items()
+        }
+        lexical_facts.validate_source_locked_auxiliary_receipt(
+            source_target=comparison_source_target,
+            template=template,
+            auxiliary=auxiliary_values,
+            target=target,
+            recipes=source_locked_recipes,
+        )
         numeric_auxiliary = numeric_by_sample[sample_id]
         equipment_tare_values = tares_by_sample[sample_id]
         dangerous_goods_facts = dg_by_sample[sample_id]
@@ -3996,6 +4356,8 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         projection_values = projected_auxiliary_values(template, target)
         known_auxiliary.update(projection_values)
         known_auxiliary.update(lexical_partitions.known_keys(template))
+        known_auxiliary.update(known_slot_value_keys(template))
+        known_auxiliary.update(source_locked_recipes)
         from .route_derivations import DERIVATIONS as route_derivations
 
         route_keys = {b.logical_key for b in template.bindings if b.derivation in route_derivations}
@@ -4028,7 +4390,18 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
         validate_seal_realization(target=target, bindings=template.bindings)
         proposed_sha = sha256_bytes(canonical_json_bytes(target))
         _require_source_carrier(source_target=source_target, target=target)
-        require_complete_variation(comparison_source_target, target, bindings=template.bindings)
+        if cargo_policy is not None:
+            cargo_frozen_policy.require_frozen_cargo(
+                comparison_source_target, target, cargo_policy
+            )
+        require_complete_variation(
+            comparison_source_target,
+            target,
+            bindings=template.bindings,
+            source_locked_description_paths=cargo_frozen_policy.locked_description_paths(
+                comparison_source_target, cargo_policy
+            ),
+        )
         _validate_target_compatibility(
             source=source,
             source_target=source_target,
@@ -4078,6 +4451,13 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 )
             )[:40]
         )
+        route_context_presentation = compile_route_context(
+            source=source,
+            template=template.byte_template,
+            source_target=source_target,
+            target=target,
+            customs=customs_presentation,
+        )
         receipt = PreparedTargetReceipt.model_validate(
             {
                 "schema_version": 1,
@@ -4094,6 +4474,11 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 "customs_presentation_sha256": (
                     customs_presentation.sha256
                     if customs_presentation is not None
+                    else sha256_bytes(canonical_json_bytes([]))
+                ),
+                "route_context_presentation_sha256": (
+                    route_context_presentation.sha256
+                    if route_context_presentation is not None
                     else sha256_bytes(canonical_json_bytes([]))
                 ),
                 "numeric_auxiliary_sha256": sha256_bytes(
@@ -4132,6 +4517,9 @@ def _load_cases(*, project_root: Path, config: DescendantConfig) -> tuple[Prepar
                 equipment_tare_values=equipment_tare_values,
                 customs_presentation=customs_presentation,
                 dangerous_goods_facts=dangerous_goods_facts,
+                route_context_presentation=route_context_presentation,
+                cargo_policy=cargo_policy,
+                source_locked_auxiliary_keys=frozenset(source_locked_recipes),
             )
         )
     return tuple(prepared)
@@ -4853,7 +5241,7 @@ def _number_word_phrase(value: str) -> tuple[int, int, int]:
 
 def _pluralize_number_word_noun(value: str, *, number: int) -> str:
     match = re.match(
-        r"(?i)^(?P<gap>\s*)(?P<noun>container|package|pallet|carton|crate|drum|"
+        r"(?i)^(?P<gap>\s*)(?P<noun>ibc|container|package|pallet|carton|crate|drum|"
         r"bundle|case|piece|roll|sack|bag|box)(?P<suffix>\(s\)|es|s)?(?![A-Za-z])",
         value,
     )
@@ -5033,6 +5421,8 @@ def _derivation_numeric_values(
         target_values.extend(new_values.values())
     for path in () if source_values else binding.dependency_paths:
         names = filters[derivation]
+        if derivation == "sum_package_quantity" and path.endswith(".typeCategory"):
+            continue  # The category governs the printed noun, not the numeric sum.
         if path.endswith(".unit") and names == frozenset({"value"}):
             if _resolve_path(source_target, path) != _resolve_path(target, path):
                 raise ValueError("measurement derivation units changed without a conversion")
@@ -5102,11 +5492,27 @@ def _render_proven_numeric_derivation(
     target_value: Decimal,
     source_uncertainty: Decimal = Decimal(0),
     occurrences: Sequence[TemplateSlot] | None = None,
+    source_word_spans: Mapping[str, tuple[int, int]] | None = None,
 ) -> BindingOutput:
     """Source arithmetic disambiguates punctuation; never infer an arbitrary ratio."""
     replacements = {}
     canonical = None
     for slot in binding.occurrences if occurrences is None else occurrences:
+        if source_word_spans is not None and slot.slot_id in source_word_spans:
+            if (
+                source_value != source_value.to_integral_value()
+                or target_value != target_value.to_integral_value()
+            ):
+                raise ValueError("source-proved number words require integral quantities")
+            start, end = source_word_spans[slot.slot_id]
+            replacement = (
+                slot.source_text[:start]
+                + _case_like(slot.source_text[start:end], _number_to_words(int(target_value)))
+                + _pluralize_number_word_noun(slot.source_text[end:], number=int(target_value))
+            )
+            replacements[slot.slot_id] = _layout_like_source(slot.source_text, replacement)
+            canonical = target_value
+            continue
         if source_value == int(source_value) and target_value == int(target_value):
             alias = count_aliases.render_pair(
                 slot.source_text, int(source_value), int(target_value)
@@ -5280,9 +5686,7 @@ def _measurement_factor_for_source(
     source_unit = units.pop()
     printed_units = set()
     for slot in binding.occurrences if occurrences is None else occurrences:
-        column_unit = ordered_column_unit(
-            source, byte_end=slot.byte_end, surface=slot.source_text
-        )
+        column_unit = ordered_column_unit(source, byte_end=slot.byte_end, surface=slot.source_text)
         suffix = source[slot.byte_end :].split(b"\n", 1)[0].decode()
         # Only the immediately adjacent unit is context; subsequent columns
         # or prose cannot supply a conversion for this numeric field.
@@ -5754,9 +6158,14 @@ def _render_one_derivation(
                 for s in binding.occurrences
             ):
                 raise ValueError("shared package noun contradicts its source category")
+            package_quantity = _package_quantity_for_category_paths(
+                case.target, binding.dependency_paths
+            )
             return BindingOutput(
                 replacements={
-                    s.slot_id: _package_candidate(s.source_text, target_category)
+                    s.slot_id: _package_candidate(
+                        s.source_text, target_category, quantity=package_quantity
+                    )
                     for s in binding.occurrences
                 },
                 canonical_value=target_category,
@@ -5777,29 +6186,71 @@ def _render_one_derivation(
             raise ValueError(f"country is absent from the pinned ISO registry: {country!r}")
         return _render_same_value(binding, code)
     if derivation == "number_to_words":
+        from . import package_count_surfaces
+
         quantities = tuple(
             path
             for path in binding.dependency_paths
             if re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.quantity", path)
         )
+        aliases = tuple(
+            path
+            for path in binding.dependency_paths
+            if re.fullmatch(
+                r"documentPatch\.cargoAllocationGroups\[\d+\]\.allocations\[\d+\]\.packageQuantity",
+                path,
+            )
+        )
         if (
             quantities
             and not binding.dependency_bindings
             and all(
-                re.fullmatch(r"documentPatch\.cargoPackages\[\d+\]\.(quantity|typeCategory)", path)
+                path in aliases
+                or re.fullmatch(
+                    r"documentPatch\.cargoPackages\[\d+\]\.(quantity|typeCategory)", path
+                )
                 for path in binding.dependency_paths
             )
         ):
+            source_quantity = sum(
+                (Decimal(str(_resolve_path(case.source_target, path))) for path in quantities),
+                Decimal(0),
+            )
+            target_quantity = sum(
+                (Decimal(str(_resolve_path(case.target, path))) for path in quantities),
+                Decimal(0),
+            )
+            if any(
+                Decimal(str(_resolve_path(document, path))) != total
+                for document, total in (
+                    (case.source_target, source_quantity),
+                    (case.target, target_quantity),
+                )
+                for path in aliases
+            ):
+                raise ValueError("number-word allocation alias disagrees with package total")
+            source_word_spans = {}
+            for slot in binding.occurrences:
+                if any(character.isdigit() for character in slot.source_text):
+                    continue
+                try:
+                    parsed, _, _ = _number_word_phrase(slot.source_text)
+                except ValueError:
+                    parsed = None
+                if parsed == source_quantity:
+                    continue
+                _, start, end = package_count_surfaces.source_number_word_phrase(
+                    slot.source_text,
+                    int(source_quantity),
+                    source=getattr(case, "source", None),
+                    source_target=case.source_target,
+                )
+                source_word_spans[slot.slot_id] = (start, end)
             rendered = _render_proven_numeric_derivation(
                 binding,
-                source_value=sum(
-                    (Decimal(str(_resolve_path(case.source_target, path))) for path in quantities),
-                    Decimal(0),
-                ),
-                target_value=sum(
-                    (Decimal(str(_resolve_path(case.target, path))) for path in quantities),
-                    Decimal(0),
-                ),
+                source_value=source_quantity,
+                target_value=target_quantity,
+                source_word_spans=source_word_spans,
             )
             category_paths = tuple(
                 p for p in binding.dependency_paths if p.endswith(".typeCategory")
@@ -5848,7 +6299,7 @@ def _render_one_derivation(
                         ].count(")"):
                             end += 1
                         noun = _pluralize_number_word_noun(
-                            _package_surface(new_kind),
+                            _number_word_package_surface(new_kind),
                             number=int(_numeric_value(rendered.canonical_value)),
                         )
                         replacements[slot.slot_id] = (
@@ -5905,11 +6356,27 @@ def _render_one_derivation(
         numeric_auxiliary=case.numeric_auxiliary,
     )
     factor, uncertainty = _derivation_measurement_factor(binding, case)
-    return _render_proven_numeric_derivation(
+    rendered = _render_proven_numeric_derivation(
         binding,
         source_value=source_base * factor,
         target_value=target_base * factor,
         source_uncertainty=uncertainty,
+    )
+    if derivation != "sum_package_quantity":
+        return rendered
+    from . import package_count_surfaces
+
+    return BindingOutput(
+        replacements=package_count_surfaces.render_sum_package_nouns(
+            binding=binding,
+            template=case.template,
+            source=case.source,
+            source_target=case.source_target,
+            target=case.target,
+            replacements=rendered.replacements,
+            target_quantity=int(target_base),
+        ),
+        canonical_value=rendered.canonical_value,
     )
 
 
@@ -5987,13 +6454,21 @@ def _plan_derivations(
         )
 
     def dependencies_preserve_source(binding: SemanticBinding) -> bool:
-        from . import cargo_identity_derivations, transport_derivations
+        from . import cargo_identity_derivations, package_count_surfaces, transport_derivations
         from .route_derivations import DERIVATIONS
 
         if binding.derivation in (
             DERIVATIONS | transport_derivations.DERIVATIONS | cargo_identity_derivations.DERIVATIONS
         ):
             return False  # Its latent country/LOCODE is part of the pinned scenario too.
+        if binding.derivation == "sum_package_quantity" and (
+            package_count_surfaces.sum_package_categories_changed(
+                paths=binding.dependency_paths,
+                source_target=case.source_target,
+                target=case.target,
+            )
+        ):
+            return False
         for path in binding.dependency_paths:
             try:
                 source_value = _binding_target_value(case.source_target, path)
@@ -7099,6 +7574,9 @@ def _materialize_case(
         }
         if len(slot_bindings) != len(case.template.byte_template.slots):
             raise ValueError("slot bindings do not cover every template slot exactly once")
+        validate_party_address_locality_slots(
+            bindings=case.template.bindings, slot_bindings=slot_bindings
+        )
         semantic_valid, semantic_failures = _target_binding_semantics_valid(
             case=case, outputs=outputs, country_codes=country_codes
         )
@@ -7109,13 +7587,26 @@ def _materialize_case(
         )
         if not relationships_valid:
             raise ValueError("source relationships failed: " + ", ".join(relationship_failures))
-        if case.customs_presentation is not None:
-            rendered, proof = case.customs_presentation.render(case.source, slot_bindings)
+        presentation = case.route_context_presentation or case.customs_presentation
+        if presentation is not None:
+            rendered, proof = presentation.render(case.source, slot_bindings)
         else:
             rendered, proof = render_compiled_template(
                 source=case.source,
                 template=case.template.byte_template,
                 bindings=slot_bindings,
+            )
+        if b",," in rendered:
+            if presentation is None:
+                comma_template = case.template.byte_template
+                comma_bindings = slot_bindings
+            else:
+                comma_template = presentation.template
+                comma_bindings = presentation.binding_values(slot_bindings)
+            validate_no_new_duplicate_commas(
+                source=case.source,
+                template=comma_template,
+                bindings=comma_bindings,
             )
         validate_repeated_agent_party_pages(
             source=case.source,
@@ -7125,12 +7616,47 @@ def _materialize_case(
             bindings=case.template.bindings,
         )
         validate_rendered_party_boundaries(case.target, rendered.decode("utf-8"))
+        validate_no_new_adjacent_party_localities(
+            source=case.source, rendered=rendered, target=case.target
+        )
         _validate_projected_context(case.template, outputs)
         if case.dangerous_goods_facts:
             validate_un_references(
                 rendered.decode("utf-8"), {f.record.un_number for f in case.dangerous_goods_facts}
             )
         count_aliases.validate(rendered.decode("utf-8"))
+        from . import source_only_package_assertions
+
+        source_only_package_assertions.validate(
+            source=case.source,
+            rendered=rendered,
+            source_target=case.source_target,
+            target=case.target,
+        )
+        from . import one_to_one_pallet_bags
+
+        one_to_one_pallet_bags.validate_descendant(
+            source=case.source,
+            rendered=rendered,
+            bindings=case.template.bindings,
+            source_target=case.source_target,
+            target=case.target,
+        )
+        from . import source_only_route_assertions
+
+        source_only_route_assertions.validate(
+            source=case.source,
+            rendered=rendered,
+            source_target=case.source_target,
+            target=case.target,
+            template=case.template,
+        )
+        from . import cargo_description_measurement_assertions, cargo_description_role
+
+        cargo_description_role.validate(
+            source_target=case.source_target, template=case.template, target=case.target
+        )
+        cargo_description_measurement_assertions.validate(case.target)
         _validate_description_volume_units(case.target, rendered.decode("utf-8"))
         validate_seal_realization(
             target=case.target,
@@ -7603,8 +8129,17 @@ def _training_dataset(
     lineage: list[dict[str, Any]] = []
     for case, execution in zip(cases, executions, strict=True):
         _require_frozen_target(case)
+        if case.cargo_policy is not None:
+            cargo_frozen_policy.require_frozen_cargo(
+                case.topology_reference_target, case.target, case.cargo_policy
+            )
         require_complete_variation(
-            case.topology_reference_target, case.target, bindings=case.template.bindings
+            case.topology_reference_target,
+            case.target,
+            bindings=case.template.bindings,
+            source_locked_description_paths=cargo_frozen_policy.locked_description_paths(
+                case.topology_reference_target, case.cargo_policy
+            ),
         )
         if execution.result.status != "passed" or execution.rendered is None:
             raise ValueError("training publication requires every descendant to pass")
@@ -7738,9 +8273,16 @@ def _publish_prepared_case(
         stage.publish_json(
             f"{prefix}/customs-presentation.json", case.customs_presentation.evidence
         )
+    if case.route_context_presentation is not None:
+        stage.publish_json(
+            f"{prefix}/route-context-presentation.json",
+            case.route_context_presentation.evidence,
+        )
+    presentation = case.route_context_presentation or case.customs_presentation
+    if presentation is not None:
         stage.publish_json(
             f"{prefix}/render-byte-template.json",
-            case.customs_presentation.template.model_dump(mode="json"),
+            presentation.template.model_dump(mode="json"),
         )
     stage.publish_json(
         f"{prefix}/numeric-auxiliary.json",

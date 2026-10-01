@@ -2664,8 +2664,9 @@ def _validate_semantic_policy(
         target
     ):
         raise DeterministicAnnotationError(
-            "cargo description contains packing-construction text; keep product wording in "
-            "description and move useful packing qualifiers to additionalInformation"
+            "cargo description contains standalone packing-construction text; keep only "
+            "source-supported product wording in description, and omit packing overflow "
+            "from the sparse task-facing text fields"
         )
     if path.endswith(".verifiedGrossMass.value") and not re.search(
         r"(?ix)\bVGM\b|\bVERIFIED\s+GROSS(?:\s+MASS)?\b",

@@ -32,6 +32,12 @@ EquipmentFamily = Literal[
     "forty_standard",
     "forty_high_cube",
     "forty_five_high_cube",
+    "twenty_open_top",
+    "forty_open_top",
+    "unclassified_open_top",
+    "twenty_reefer",
+    "forty_high_cube_reefer",
+    "unsupported_reefer",
     "out_of_gauge",
     "unclassified",
 ]
@@ -42,6 +48,22 @@ _MASS_TO_KG = {
     "pound": Decimal("0.45359237"),
 }
 _VOLUME_TO_M3 = {"cubic_metre": Decimal("1")}
+# Maersk's published open-top maxima are 28,310 kg (20') and 28,400 kg
+# (40' HC), whereas 47,300 kg is for a high flat rack, not an open top.
+# Unknown open-top lengths use the lower of the two published ceilings.
+# https://www.maersk.com/support/faqs/2023/10/09/cargo-weight-limit
+_OPEN_TOP_PUBLISHED_PAYLOAD_KG: dict[EquipmentFamily, Decimal] = {
+    "twenty_open_top": Decimal("28310"),
+    "forty_open_top": Decimal("28400"),
+    "unclassified_open_top": Decimal("28310"),
+}
+# The same Maersk equipment table publishes these two reefer pairs. Other
+# semantic size/reefer pairs have no corresponding limit in that table and
+# must be reviewed, rather than being assigned a dry-box volume or payload.
+_REEFER_PUBLISHED_LIMITS: dict[EquipmentFamily, tuple[Decimal, Decimal]] = {
+    "twenty_reefer": (Decimal("27770"), Decimal("28.3")),
+    "forty_high_cube_reefer": (Decimal("29670"), Decimal("67.5")),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,12 +211,19 @@ _SEMANTIC_SIZE_FAMILY: dict[str, EquipmentFamily] = {
 }
 _OUT_OF_GAUGE_SEMANTIC_TYPES = frozenset(
     {
-        "OPEN_TOP",
         "PLATFORM",
         "PLATFORM_FIXED",
         "PLATFORM_COLLAPSIBLE",
         "PLATFORM_COMPLETE_SUPERSTRUCTURE",
         "PLATFORM_NAMED_CARGO",
+    }
+)
+_REFRIGERATED_SEMANTIC_TYPES = frozenset(
+    {
+        "REFRIGERATED",
+        "REFRIGERATED_AND_HEATED",
+        "SELF_POWERED_REFRIGERATED",
+        "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
     }
 )
 
@@ -212,12 +241,32 @@ def _semantic_equipment_family(container: Mapping[str, Any]) -> EquipmentFamily 
     if size is None and type_category is None:
         return None
     if (
+        isinstance(type_category, str)
+        and type_category in _REFRIGERATED_SEMANTIC_TYPES
+        and size not in CONTAINER_SIZE_CATEGORIES
+    ):
+        return "unsupported_reefer"
+    if type_category == "OPEN_TOP" and size not in CONTAINER_SIZE_CATEGORIES:
+        return "unclassified_open_top"
+    if (
         not isinstance(size, str)
         or size not in CONTAINER_SIZE_CATEGORIES
         or not isinstance(type_category, str)
         or type_category not in CONTAINER_TYPE_CATEGORIES
     ):
         return "unclassified"
+    if type_category == "OPEN_TOP":
+        if size in {"TWENTY_FOOT_STANDARD_HEIGHT", "TWENTY_FOOT_HIGH_CUBE"}:
+            return "twenty_open_top"
+        if size in {"FORTY_FOOT_STANDARD_HEIGHT", "FORTY_FOOT_HIGH_CUBE"}:
+            return "forty_open_top"
+        return "unclassified_open_top"
+    if type_category in _REFRIGERATED_SEMANTIC_TYPES:
+        if size == "TWENTY_FOOT_STANDARD_HEIGHT":
+            return "twenty_reefer"
+        if size == "FORTY_FOOT_HIGH_CUBE":
+            return "forty_high_cube_reefer"
+        return "unsupported_reefer"
     if type_category in _OUT_OF_GAUGE_SEMANTIC_TYPES:
         return "out_of_gauge"
     return _SEMANTIC_SIZE_FAMILY[size]
@@ -248,8 +297,20 @@ def classify_equipment(container: Mapping[str, Any]) -> EquipmentFamily:
     if code is None:
         return "unclassified"
     length_code, height_code, type_code = code[0], code[1], code[2]
-    if type_code in {"P", "U"}:
+    if type_code == "P":
         return "out_of_gauge"
+    if type_code == "U":
+        if length_code == "2":
+            return "twenty_open_top"
+        if length_code == "4":
+            return "forty_open_top"
+        return "unclassified_open_top"
+    if type_code == "R":
+        if length_code == "2" and height_code in {"0", "2"}:
+            return "twenty_reefer"
+        if length_code == "4" and height_code == "5":
+            return "forty_high_cube_reefer"
+        return "unsupported_reefer"
     if length_code == "L" and height_code == "5":
         return "forty_five_high_cube"
     if length_code == "2" and height_code in {"0", "2"}:
@@ -293,6 +354,8 @@ def equipment_capacity(
     container: Mapping[str, Any], limits: TransportCapacityLimits
 ) -> EquipmentCapacity:
     family = classify_equipment(container)
+    if family == "unsupported_reefer":
+        raise ValueError("reefer size/type pair has no source-supported capacity contract")
     values: dict[EquipmentFamily, tuple[Decimal, Decimal | None]] = {
         "twenty_standard": (
             limits.twenty_standard_payload_kg,
@@ -310,6 +373,14 @@ def equipment_capacity(
             limits.forty_five_high_cube_payload_kg,
             limits.forty_five_high_cube_volume_m3,
         ),
+        "twenty_open_top": (_OPEN_TOP_PUBLISHED_PAYLOAD_KG["twenty_open_top"], None),
+        "forty_open_top": (_OPEN_TOP_PUBLISHED_PAYLOAD_KG["forty_open_top"], None),
+        "unclassified_open_top": (
+            _OPEN_TOP_PUBLISHED_PAYLOAD_KG["unclassified_open_top"],
+            None,
+        ),
+        "twenty_reefer": _REEFER_PUBLISHED_LIMITS["twenty_reefer"],
+        "forty_high_cube_reefer": _REEFER_PUBLISHED_LIMITS["forty_high_cube_reefer"],
         # Out-of-gauge equipment has no meaningful enclosed-volume ceiling.
         "out_of_gauge": (limits.out_of_gauge_payload_kg, None),
         "unclassified": (
@@ -323,10 +394,16 @@ def equipment_capacity(
         "forty_standard",
         "forty_high_cube",
         "forty_five_high_cube",
+        "twenty_open_top",
+        "forty_open_top",
+        "unclassified_open_top",
+        "twenty_reefer",
+        "forty_high_cube_reefer",
     }:
         multiplier = Decimal(1) + limits.published_reference_margin_fraction
         payload *= multiplier
-        volume = cast(Decimal, volume) * multiplier
+        if volume is not None:
+            volume *= multiplier
     return EquipmentCapacity(family=family, payload_kg=payload, volume_m3=volume)
 
 
@@ -386,10 +463,49 @@ def _sum_present(values: Sequence[Decimal | None]) -> Decimal | None:
     return sum(present, start=Decimal(0)) if present else None
 
 
+def _uniquely_owned_container_measures(
+    patch: Mapping[str, Any],
+    capacities: Mapping[str, EquipmentCapacity],
+    group_totals: Mapping[str, Mapping[str, Decimal | None]],
+) -> dict[str, dict[str, Decimal]]:
+    """Compute only masses/volumes provably owned by one container.
+
+    A group linked to several containers has no printed mass split, so its
+    per-container share cannot be inferred from package counts. Single-
+    container documents are already covered by the aggregate gate.
+    """
+
+    owned: dict[str, set[str]] = {}
+    for row in cast(Sequence[Mapping[str, Any]], patch.get("cargoAllocationGroups") or ()):
+        group_id = cast(str, row["groupId"])
+        if group_id not in group_totals:
+            raise ValueError(f"cargo allocation references unknown group: {group_id}")
+        numbers = owned.setdefault(group_id, set())
+        for allocation in cast(Sequence[Mapping[str, Any]], row.get("allocations") or ()):
+            number = cast(str, allocation["containerNumber"])
+            if number not in capacities:
+                raise ValueError(f"cargo allocation references unknown container: {number}")
+            numbers.add(number)
+
+    floors = {
+        number: {"gross": Decimal(0), "net": Decimal(0), "volume": Decimal(0)}
+        for number in capacities
+    }
+    for group_id, measures in group_totals.items():
+        linked = owned.get(group_id, set())
+        if len(linked) != 1:
+            continue
+        owner = next(iter(linked))
+        for name, value in measures.items():
+            if value is not None:
+                floors[owner][name] += value
+    return floors
+
+
 def document_capacity_receipt(
     target: Mapping[str, Any], limits: TransportCapacityLimits
 ) -> TransportCapacityReceipt:
-    """Validate aggregate cargo measures against the source equipment topology."""
+    """Validate aggregate and exact single-container cargo ownership limits."""
 
     patch = cast(Mapping[str, Any], target["documentPatch"])
     containers = cast(Sequence[Mapping[str, Any]], patch.get("containers") or ())
@@ -416,6 +532,22 @@ def document_capacity_receipt(
             violations.append("document_net_weight_exceeds_container_payload")
     if volume_capacity is not None and volume is not None and volume > volume_capacity:
         violations.append("document_volume_exceeds_container_capacity")
+    if len(containers) > 1 and group_totals and patch.get("cargoAllocationGroups"):
+        by_number = {
+            cast(str, row["containerNumber"]): capacity
+            for row, capacity in zip(containers, capacities, strict=True)
+        }
+        if len(by_number) != len(containers):
+            raise ValueError("container identifiers must be unique for capacity validation")
+        floors = _uniquely_owned_container_measures(patch, by_number, group_totals)
+        for number, capacity in by_number.items():
+            values = floors[number]
+            if values["gross"] > capacity.payload_kg:
+                violations.append(f"container_gross_weight_exceeds_payload:{number}")
+            if values["net"] > capacity.payload_kg:
+                violations.append(f"container_net_weight_exceeds_payload:{number}")
+            if capacity.volume_m3 is not None and values["volume"] > capacity.volume_m3:
+                violations.append(f"container_volume_exceeds_capacity:{number}")
 
     def utilization(value: Decimal | None, capacity: Decimal | None) -> Decimal | None:
         return value / capacity if value is not None and capacity is not None else None
@@ -514,9 +646,7 @@ def reproject_measures_for_semantic_equipment(
             or assigned_receipt.payload_capacity_kg is None
         ):
             raise ValueError("payload violation has no source and assigned capacity")
-        mass_scale = (
-            assigned_receipt.payload_capacity_kg / source_receipt.payload_capacity_kg
-        )
+        mass_scale = assigned_receipt.payload_capacity_kg / source_receipt.payload_capacity_kg
         changed.extend(
             _scale_measure_values(
                 assigned_target,
@@ -575,7 +705,11 @@ def numeric_fit_envelope_violations(
     net = _sum_present([row["net"] for row in totals.values()])
     volume = _sum_present([row["volume"] for row in totals.values()])
     payload_cap = limits.unclassified_payload_kg * len(containers)
-    has_out_of_gauge = any(classify_equipment(row) == "out_of_gauge" for row in containers)
+    has_out_of_gauge = any(
+        classify_equipment(row)
+        in {"out_of_gauge", "twenty_open_top", "forty_open_top", "unclassified_open_top"}
+        for row in containers
+    )
     volume_cap = None if has_out_of_gauge else limits.unclassified_volume_m3 * len(containers)
     violations: list[str] = []
     if gross is not None and gross > payload_cap:

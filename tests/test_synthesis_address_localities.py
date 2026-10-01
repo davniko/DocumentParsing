@@ -1,8 +1,15 @@
+import hashlib
+import json
+import zipfile
 from types import SimpleNamespace as NS
 
 import pytest
 
-from document_ocr.synthesis.template_compiler.address_localities import AddressLocalities
+from document_ocr.synthesis.template_compiler import address_localities
+from document_ocr.synthesis.template_compiler.address_localities import (
+    AddressLocalities,
+    normalized,
+)
 from document_ocr.synthesis.template_compiler.complete_pipeline import (
     _address_repair_requirements,
     _generation_schema,
@@ -30,6 +37,127 @@ def test_explicit_city_conflict_is_detected_without_matching_street_names():
     assert not data.conflicts(
         "41 Havenstraat, 3201 Spijkenisse, Netherlands", country="NL", city="Spijkenisse"
     )
+
+
+def test_competing_city_in_hyphenated_district_or_after_expected_city_is_rejected():
+    data = AddressLocalities(
+        {
+            "EG": {
+                normalized("6th of October City"): frozenset({1}),
+                normalized("Sheikh Zayed"): frozenset({2}),
+            }
+        }
+    )
+    assert data.conflicts(
+        "Oasis Heights Street - Building No. 12B\nDistrict 7th - Sheikh Zayed",
+        country="EG",
+        city="6th of October City",
+    ) == ("Sheikh Zayed",)
+    assert data.conflicts(
+        "Oasis Heights Street - Sheikh Zayed",
+        country="EG",
+        city="6th of October City",
+    ) == ("Sheikh Zayed",)
+    assert not data.conflicts(
+        "Sheikh Zayed Street",
+        country="EG",
+        city="6th of October City",
+    )
+
+
+def test_source_pinned_city_alternates_share_identity() -> None:
+    rows = [
+        NS(
+            canonical_name="6th of October City",
+            ascii_name="6th of October City",
+            geoname_id=1,
+            country_code="EG",
+            feature_code="PPL",
+        ),
+        NS(
+            canonical_name="Ash-Shaykh Zayid",
+            ascii_name="Ash-Shaykh Zayid",
+            geoname_id=2,
+            country_code="EG",
+            feature_code="PPL",
+        ),
+    ]
+    data = AddressLocalities.from_registry(
+        NS(country_codes=["EG"], rows_for_country=lambda _: rows, entry=lambda i: rows[i - 1]),
+        alternate_names=((2, "Sheikh Zayed City"), (2, "Sheikh Zayed")),
+    )
+    assert data.conflicts(
+        "Road\nDistrict 7th - Sheikh Zayed",
+        country="EG",
+        city="6th of October City",
+    ) == ("Sheikh Zayed",)
+    assert normalized("6th of October City") != normalized("10th of October City")
+    assert data.conflicts(
+        "12 Oasis Street, 6th of October City, Sheikh Zayed, Egypt",
+        country="EG",
+        city="6th of October City",
+    ) == ("Sheikh Zayed",)
+
+
+def test_route_pinned_raw_city_aliases_are_loaded_and_hash_checked(tmp_path, monkeypatch) -> None:
+    root = tmp_path.resolve()
+    archive = root / "cities15000.zip"
+    parts = [""] * 19
+    parts[0:4] = ["2", "Ash-Shaykh Zayid", "Ash-Shaykh Zayid", "Sheikh Zayed City"]
+    parts[8] = "EG"
+    with zipfile.ZipFile(archive, "w") as zipped:
+        zipped.writestr("cities15000.txt", "\t".join(parts) + "\n")
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    route = root / "route"
+    route.mkdir()
+    (root / "compiled").mkdir()
+    (route / "transaction.json").write_text(
+        json.dumps(
+            {
+                "config": {
+                    "locality_registry": {"path": "compiled", "manifest_sha256": "receipt"},
+                    "geonames_raw_cities": {"path": archive.name, "sha256": digest},
+                }
+            }
+        )
+    )
+    admin1 = root / "admin1.txt"
+    admin1.write_text("")
+    row = NS(
+        geoname_id=2,
+        canonical_name="Ash-Shaykh Zayid",
+        ascii_name="Ash-Shaykh Zayid",
+        country_code="EG",
+        feature_code="PPL",
+    )
+    registry = NS(
+        country_codes=("EG",),
+        rows_for_country=lambda _: (row,),
+        entry=lambda identifier: row if identifier == 2 else None,
+        receipt=NS(archive_sha256=digest, locality_audit=NS(accepted_records=1)),
+    )
+
+    def load_registry(*, root, expected_receipt_sha256):
+        assert root == tmp_path / "compiled"
+        assert expected_receipt_sha256 == "receipt"
+        return registry
+
+    monkeypatch.setattr(address_localities, "load_geonames_locality_registry", load_registry)
+    index = address_localities.load_address_localities(root, route, admin1)
+    assert normalized("Sheikh Zayed") in index.names["EG"]
+
+    (route / "transaction.json").write_text(
+        json.dumps(
+            {
+                "config": {
+                    "locality_registry": {"path": "compiled", "manifest_sha256": "receipt"},
+                    "geonames_raw_cities": {"path": archive.name, "sha256": "0" * 64},
+                }
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="archive differs from its pin"):
+        address_localities.load_address_localities(root, route, admin1)
 
 
 def test_locality_ascii_aliases_share_identity():

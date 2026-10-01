@@ -76,6 +76,14 @@ Return `pass` only when all of the following are true:
   direct package-quantity and package-category leaf owners. Do not combine those scalar leaves
   into `package_count` merely because their spans are adjacent. `package_count` means the
   cardinality of a structured package collection, never the value of a package `quantity` leaf.
+  A generic `N PACKAGES` phrase may bind `N` to quantity and keep `PACKAGES` literal when a
+  separate typed phrase (for example, `N BAGS`) owns the package category. The generic noun
+  remains true when that typed category changes; do not require a second category owner for it.
+  A source-only outer package level can have a certified one-to-one relationship to modeled
+  inner packages. In that case, deriving its count from the inner quantity is valid only when
+  the source, private package constraint, and changed-count render prove that relationship.
+  Its printed outer noun may remain fixed when the synthesis domain explicitly fixes that
+  outer category; do not demand independent variation merely because it is shipment-specific.
   A complete `N container(s)` surface that does not also say package(s) uses `container_count`;
   never reinterpret it as a combined receipt. `equipment_receipt` is reserved for surfaces that
   also carry equipment semantics, such as `1 X 40HC`.

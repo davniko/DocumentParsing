@@ -128,7 +128,58 @@ def partition(binding: SemanticBinding) -> CargoPartition | None:
                 offset = min(offset, len(before) - len(prefix))
         character_edges[edge] = offset
     parts = tuple(original[character_edges[a] : character_edges[b]].strip() for a, b in regions)
+    separated = (
+        _source_proven_segment_separators(original, parts, regions, intervals, binding)
+        if binding.realization.mode == "segmented_surface" and ";" in original
+        else None
+    )
+    if separated is not None:
+        source_parts, separators = separated
+        return CargoPartition(
+            binding, regions, intervals, source_parts, mutable, separators=separators
+        )
     return CargoPartition(binding, regions, intervals, parts, mutable)
+
+
+def _source_proven_segment_separators(
+    original: str,
+    parts: tuple[str, ...],
+    regions: tuple[tuple[int, int], ...],
+    intervals: tuple[tuple[int, int], ...],
+    binding: SemanticBinding,
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Separate label-only product delimiters from independently printed slots.
+
+    The target may join separately printed products with semicolons. Such a
+    delimiter is label syntax, not part of the preceding product's model name.
+    Admit this only when every region maps one-to-one to a source slot and the
+    resulting fragment matches that slot apart from OCR line wrapping.
+    """
+    if intervals != regions or len(parts) != len(binding.occurrences):
+        return None
+    detached = frozenset(
+        i
+        for i, (part, slot) in enumerate(zip(parts[:-1], binding.occurrences[:-1], strict=True))
+        if part.endswith(";") and not slot.source_text.rstrip().endswith(";")
+    )
+    if not detached:
+        return None
+    source_parts = tuple(
+        part[:-1] if i in detached else part for i, part in enumerate(parts)
+    )
+    def normalized(value: str) -> str:
+        return " ".join(value.split()).casefold()
+    if any(
+        normalized(part) != normalized(slot.source_text)
+        for part, slot in zip(source_parts, binding.occurrences, strict=True)
+    ):
+        return None
+    separators = ("", *("; " if i in detached else " " for i in range(len(parts) - 1)), "")
+    if separators[0] + "".join(
+        part + separator for part, separator in zip(source_parts, separators[1:], strict=True)
+    ) != original:
+        return None
+    return source_parts, separators
 
 
 def _repeated_fragment_partition(binding: SemanticBinding, original: str) -> CargoPartition | None:

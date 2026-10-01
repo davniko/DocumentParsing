@@ -50,7 +50,6 @@ def _stream(identity: str) -> DeterministicStream:
     [
         ("40HR", True, "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED", "active"),
         ("40 RH", True, "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED", "active"),
-        ("40 RF", True, "FORTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED", "active"),
         ("40NOR", False, "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED", "non_operating"),
         ("20' REEFER", True, "TWENTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED", "active"),
         ("40HQ", False, "FORTY_FOOT_HIGH_CUBE", "GENERAL_PURPOSE", "not_indicated"),
@@ -457,15 +456,15 @@ def test_real_equipment_audit_has_reviewed_temperature_distribution() -> None:
     assert len(documents_with_temperature) == 45
     assert support.audit == support.audit.__class__(
         input_rows=2115,
-        type_resolved_rows=1937,
-        resolved_rows=1926,
-        unresolved_rows=189,
+        type_resolved_rows=1936,
+        resolved_rows=1922,
+        unresolved_rows=193,
         temperature_rows=53,
         type_resolved_temperature_rows=52,
-        resolved_temperature_rows=44,
+        resolved_temperature_rows=42,
         non_operating_reefer_rows=7,
-        type_support_rows=8,
-        joint_support_rows=16,
+        type_support_rows=7,
+        joint_support_rows=13,
     )
 
 

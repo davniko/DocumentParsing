@@ -315,6 +315,7 @@ def lexical_payload(payload: Mapping[str, Any], aliases: Mapping[str, str]) -> d
                     unique_slots[alias] = {**slot, "slotId": alias}
             binding["slots"] = list(unique_slots.values())
     fragment_fields: dict[str, list[str]] = {}
+    party_address_parts: dict[str, list[str]] = {}
     for field in result.get("requestedFields", ()):
         field["key"] = aliases[field["key"]]
         address_geographies = {
@@ -323,6 +324,16 @@ def lexical_payload(payload: Mapping[str, Any], aliases: Mapping[str, str]) -> d
             if path.endswith(".address")
             and path.removesuffix(".address") in result.get("partyGeography", {})
         }
+        if field.get("partyAddressSlot"):
+            owner = field.get("partyPath")
+            if owner in result.get("partyGeography", {}):
+                address_geographies.add(
+                    canonical_json_bytes(result["partyGeography"][owner])
+                )
+            if field.get("partyAddressTargetPath") is not None:
+                party_address_parts.setdefault(field["partyAddressTargetPath"], []).append(
+                    field["key"]
+                )
         if len(address_geographies) > 1:
             raise ValueError("shared address field has inconsistent authoritative localities")
         if address_geographies:
@@ -352,6 +363,13 @@ def lexical_payload(payload: Mapping[str, Any], aliases: Mapping[str, str]) -> d
             node = node[int(key) if isinstance(node, list) else key]
         key = int(keys[-1]) if isinstance(node, list) else keys[-1]
         node[key] = {"generateParts": fields}
+    for path, fields in party_address_parts.items():
+        node = result["structuredScenario"]
+        keys = re.findall(r"[^.\[\]]+", path)
+        for key in keys[:-1]:
+            node = node[int(key) if isinstance(node, list) else key]
+        key = int(keys[-1]) if isinstance(node, list) else keys[-1]
+        node[key] = {"generateAddressSlots": fields}
     if "numericAuxiliary" in result:
         result["numericAuxiliary"] = {
             key: {

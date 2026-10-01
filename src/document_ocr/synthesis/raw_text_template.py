@@ -95,6 +95,7 @@ class TemplateSlot(BaseModel):
         "numeric_surface",
         "categorical_surface",
         "derived_surface",
+        "optional_literal",
     ]
     format_envelope: SlotFormatEnvelope
 
@@ -186,9 +187,7 @@ class PrintedTopologyMismatch(BaseModel):
     target_count: Annotated[int, Field(ge=0)]
 
 
-def _printed_field_inventory(
-    value: object, path: str = ""
-) -> Counter[tuple[str, str]]:
+def _printed_field_inventory(value: object, path: str = "") -> Counter[tuple[str, str]]:
     inventory: Counter[tuple[str, str]] = Counter()
     if isinstance(value, Mapping):
         for key, child in value.items():
@@ -257,9 +256,7 @@ def _edge_whitespace(value: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return tuple(leading), tuple(trailing)
 
 
-def format_envelope(
-    source_text: str, *, render_policy: str
-) -> SlotFormatEnvelope:
+def format_envelope(source_text: str, *, render_policy: str) -> SlotFormatEnvelope:
     """Capture format metadata without retaining any additional source value."""
 
     if not source_text:
@@ -351,6 +348,14 @@ def compile_raw_text_template(
 
 
 def _validate_format(slot: TemplateSlot, replacement: str) -> None:
+    if slot.render_policy == "optional_literal":
+        if slot.format_envelope.newline_sequence or replacement not in {
+            slot.source_text,
+            "",
+            ".",
+        }:
+            raise ValueError(f"optional literal {slot.slot_id} must omit one inline clause")
+        return
     envelope = format_envelope(replacement, render_policy=slot.render_policy)
     expected = slot.format_envelope
     if envelope.newline_sequence != expected.newline_sequence:
@@ -359,10 +364,10 @@ def _validate_format(slot: TemplateSlot, replacement: str) -> None:
         raise ValueError(f"slot {slot.slot_id} replacement changes leading whitespace")
     if envelope.trailing_whitespace_by_line != expected.trailing_whitespace_by_line:
         raise ValueError(f"slot {slot.slot_id} replacement changes trailing whitespace")
-    if (
-        expected.case_profile in {"upper", "lower"}
-        and envelope.case_profile not in {expected.case_profile, "uncased"}
-    ):
+    if expected.case_profile in {"upper", "lower"} and envelope.case_profile not in {
+        expected.case_profile,
+        "uncased",
+    }:
         raise ValueError(f"slot {slot.slot_id} replacement changes the source case profile")
     if (
         expected.exact_surface_pattern is not None
@@ -390,6 +395,47 @@ def validate_slot_replacements(
         raise ValueError(f"replacement references unknown template slots: {unknown}")
     for slot_id, replacement in replacements.items():
         _validate_format(slots[slot_id], replacement)
+
+
+def validate_no_new_duplicate_commas(
+    *,
+    source: bytes,
+    template: CompiledRawTextTemplate,
+    bindings: Mapping[str, str],
+) -> None:
+    """Reject generated doubled commas while allowing source-authentic ones.
+
+    Literal gaps and slot outputs are compared in their certified source order.
+    This is used only when the completed output contains ``,,`` so ordinary
+    renders do not pay for an additional slot traversal.
+    """
+
+    previous_source_end = b""
+    previous_output_end = b""
+
+    def observe(original: bytes, rendered: bytes) -> None:
+        nonlocal previous_source_end, previous_output_end
+        if not rendered:
+            return
+        if rendered.count(b",,") > original.count(b",,"):
+            raise ValueError("slot introduces a doubled comma absent from its source span")
+        if (
+            previous_output_end == b","
+            and rendered.startswith(b",")
+            and not (previous_source_end == b"," and original.startswith(b","))
+        ):
+            raise ValueError("render introduces a doubled comma at a template boundary")
+        previous_source_end = original[-1:]
+        previous_output_end = rendered[-1:]
+
+    cursor = 0
+    for slot in template.slots:
+        literal = source[cursor : slot.byte_start]
+        observe(literal, literal)
+        observe(source[slot.byte_start : slot.byte_end], bindings[slot.slot_id].encode("utf-8"))
+        cursor = slot.byte_end
+    final_literal = source[cursor:]
+    observe(final_literal, final_literal)
 
 
 def render_compiled_template(

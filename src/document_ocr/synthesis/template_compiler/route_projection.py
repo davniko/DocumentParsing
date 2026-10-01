@@ -26,11 +26,19 @@ from document_ocr.synthesis.shipment_scenarios import (
 )
 
 from . import complete_targets as targets
-from . import contact_values, geographic_context, route_derivations, transport_derivations
+from . import (
+    contact_values,
+    geographic_context,
+    route_derivations,
+    route_source_constraints,
+    transport_derivations,
+)
 from . import descendant as render
 from .address_localities import AddressLocalities
 from .models import NonEmptyText, Sha256
+from .party_address_roles import PartyAddressRoleCertificate
 from .realization_contract import fixed_projection_ranges, projected_auxiliary_values
+from .route_source_constraints import Admin1Membership, RouteAdmissibilityCertificate
 
 _UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b", re.IGNORECASE)
 _UK_POSTCODE_COUNTRIES = frozenset({"GB", "IM", "JE", "GG"})
@@ -360,8 +368,27 @@ def _auxiliary_geography(
     return result
 
 
-def require_route_contract(source: targets.SourceTemplate) -> None:
+def require_route_contract(
+    source: targets.SourceTemplate,
+    *,
+    route_certificate: RouteAdmissibilityCertificate | None = None,
+    party_certificate: PartyAddressRoleCertificate | None = None,
+) -> None:
     """An untyped auxiliary route is not permission to sample an unrelated port."""
+    if route_source_constraints.requires_certificate(source.source) and route_certificate is None:
+        raise ValueError("country-specific loading policy requires a source route certificate")
+    if route_certificate is not None and (
+        route_certificate.source_document_id != source.document_id
+        or route_certificate.source_sha256 != sha256_bytes(source.source)
+        or route_certificate.template_sha256 != source.original_template_sha256
+    ):
+        raise ValueError("route certificate differs from its source/template preimage")
+    if party_certificate is not None and (
+        party_certificate.source_document_id != source.document_id
+        or party_certificate.source_sha256 != sha256_bytes(source.source)
+        or party_certificate.template_sha256 != source.original_template_sha256
+    ):
+        raise ValueError("party address certificate differs from its source/template preimage")
     contact_values.require_contact_name_coverage(source.source, source.template, source.target)
     for binding in source.template.bindings:
         if binding.derivation in route_derivations.DERIVATIONS:
@@ -402,6 +429,31 @@ def require_route_contract(source: targets.SourceTemplate) -> None:
         mutable_context = {
             edge.tokens for edge in declared_edges(binding, source.template.bindings)
         }
+        fixed_admin1_fragments: tuple[tuple[str, ...], ...] = ()
+        if party_certificate is not None:
+            matching = [
+                group for group in party_certificate.groups
+                if group.binding_id == binding.binding_id
+            ]
+            if len(matching) > 1:
+                raise ValueError("party address certificate repeats a binding")
+            if matching:
+                fixed_admin1_fragments = tuple(
+                    tuple(token.lower() for token in re.findall(r"[A-Za-z0-9]+", frame.source_text))
+                    for frame in matching[0].fixed_admin1_frames
+                    if source.source[frame.byte_start : frame.byte_end]
+                    == frame.source_text.encode("utf-8")
+                    and all(
+                        not (
+                            slot.byte_start < frame.byte_end
+                            and frame.byte_start < slot.byte_end
+                        )
+                        or slot.slot_id == frame.source_only_slot_id
+                        for slot in source.template.byte_template.slots
+                    )
+                )
+                if len(fixed_admin1_fragments) != len(matching[0].fixed_admin1_frames):
+                    raise ValueError("party immutable-admin1 frame differs from source bytes")
         for _, _, fragment in fixed_projection_ranges(binding):
             if fragment in mutable_context:
                 continue
@@ -419,6 +471,7 @@ def require_route_contract(source: targets.SourceTemplate) -> None:
                     for path in binding.target_paths
                 )
                 and fragment not in {("no",), ("rd", "no"), ("po",), ("of",), ("du",)}
+                and fragment not in fixed_admin1_fragments
             ):
                 # An omitted region/postcode is still a geographic fact. A
                 # country/city sampler cannot preserve arbitrary address words
@@ -533,6 +586,38 @@ def _shared_route_locations(source: targets.SourceTemplate) -> tuple[tuple[str, 
     return tuple(groups)
 
 
+def _fixed_admin1_auxiliary(
+    source: targets.SourceTemplate,
+    certificate: PartyAddressRoleCertificate | None,
+) -> dict[str, str]:
+    """Keep a certified source-only state slot exactly as printed."""
+
+    if certificate is None:
+        return {}
+    by_id = {binding.binding_id: binding for binding in source.template.bindings}
+    result: dict[str, str] = {}
+    for group in certificate.groups:
+        for frame in group.fixed_admin1_frames:
+            if frame.source_only_binding_id is None:
+                continue
+            binding = by_id.get(frame.source_only_binding_id)
+            if (
+                binding is None
+                or binding.target_paths
+                or binding.value_kind != "location"
+                or len(binding.occurrences) != 1
+                or binding.occurrences[0].slot_id != frame.source_only_slot_id
+                or binding.occurrences[0].source_text != frame.source_text
+                or source.source[frame.byte_start : frame.byte_end]
+                != frame.source_text.encode("utf-8")
+            ):
+                raise ValueError("fixed admin1 auxiliary lacks exact source-slot ownership")
+            if binding.logical_key in result and result[binding.logical_key] != frame.source_text:
+                raise ValueError("fixed admin1 auxiliary has conflicting printed values")
+            result[binding.logical_key] = frame.source_text
+    return result
+
+
 def _validate_shared_phone_context(
     source: targets.SourceTemplate, context: Mapping[str, PartyGeography]
 ) -> None:
@@ -567,10 +652,25 @@ def sample_projection(
     country_codes: Mapping[str, str],
     registry_exploration_permyriad: int,
     maximum_candidates: int,
+    route_certificate: RouteAdmissibilityCertificate | None = None,
+    party_certificate: PartyAddressRoleCertificate | None = None,
+    admin1_membership: Admin1Membership | None = None,
 ) -> RouteProjection:
-    require_route_contract(source)
+    require_route_contract(
+        source, route_certificate=route_certificate, party_certificate=party_certificate
+    )
     if maximum_candidates < 1:
         raise ValueError("route candidate limit must be positive")
+    if route_certificate is not None:
+        route_source_constraints.validate_certificate(
+            route_certificate, source=source, support=support, countries=countries
+        )
+        support = route_source_constraints.condition_support(
+            support,
+            route_certificate,
+            party_certificate=party_certificate,
+            admin1=admin1_membership,
+        )
     known_auxiliary = {
         member.logical_key
         for entity in source.template.auxiliary_semantic_plan.entities
@@ -612,6 +712,13 @@ def sample_projection(
                 registry_exploration_permyriad=registry_exploration_permyriad,
                 shared_route_locations=shared_locations,
             )
+            if route_certificate is not None:
+                route_source_constraints.validate_scenario(
+                    route_certificate,
+                    scenario.to_dict(),
+                    party_certificate=party_certificate,
+                    admin1=admin1_membership,
+                )
             projected = project_scenario_target(source_target=physical_source, scenario=scenario)
             projected_route = projected["documentPatch"].get("route", {})
             for role in (
@@ -633,6 +740,10 @@ def sample_projection(
                     )
             _validate_shared_phone_context(source, context)
             auxiliary = _auxiliary_geography(source, projected, context, country_codes)
+            fixed_admin1 = _fixed_admin1_auxiliary(source, party_certificate)
+            if auxiliary.keys() & fixed_admin1.keys():
+                raise ValueError("fixed admin1 and sampled geography own the same auxiliary")
+            auxiliary.update(fixed_admin1)
             route_values = route_derivations.values(source.template.bindings, scenario.to_dict())
             if auxiliary.keys() & route_values.keys():
                 raise ValueError("party and route contracts own the same auxiliary surface")

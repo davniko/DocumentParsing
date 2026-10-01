@@ -13,6 +13,7 @@ import re
 import resource
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from copy import deepcopy
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -21,7 +22,7 @@ from typing import Annotated, Any, Literal, cast
 import httpx2
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
-from pydantic_ai import Agent, NativeOutput, capture_run_messages
+from pydantic_ai import Agent, NativeOutput, PromptedOutput, capture_run_messages
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.usage import UsageLimits
 
@@ -42,6 +43,8 @@ from document_ocr.training.reviewed_package_projection import (
 )
 
 from . import (
+    cargo_description_role,
+    cargo_frozen_policy,
     cargo_identifiers,
     cargo_scenarios,
     equipment_row_constraints,
@@ -52,7 +55,12 @@ from . import (
 from . import complete_targets as targets
 from . import descendant as render
 from . import numeric_auxiliary as numeric
-from .address_localities import explicit_components, load_address_localities, normalized
+from .address_localities import (
+    AddressLocalities,
+    explicit_components,
+    load_address_localities,
+    normalized,
+)
 from .customs_presentation import CustomsPresentation, compile_neutral_customs
 from .dangerous_goods_realization import DangerousGoodsFact
 from .descendant_models import (
@@ -63,7 +71,18 @@ from .descendant_models import (
 )
 from .host import validate_compiled_current_container_identifier_ownership
 from .latest_target import latest_target_from_source
-from .models import NonEmptyText, PinnedFile, PinnedJsonl, ProviderConfig
+from .models import CertifiedSemanticTemplate, NonEmptyText, PinnedFile, PinnedJsonl, ProviderConfig
+from .party_address_roles import (
+    PartyAddressGroupRole,
+    PartyAddressRoleCertificate,
+    address_lexical_owner,
+    propose_address_label_from_source_projection,
+    role_values_cover_repetitions,
+    slot_request_fields,
+    slot_value_key,
+    validate_address_label_context,
+    validate_role_certificate,
+)
 from .pipeline import project_root_from_config, resolve_input
 from .realization_contract import projected_auxiliary_values
 from .request_batches import (
@@ -73,6 +92,7 @@ from .request_batches import (
     validate_batch_member,
 )
 from .reviewed_generation import ReviewedGeneration
+from .route_context_presentation import RouteContextCache, compile_route_context
 from .route_projection import (
     AddressCountryConflict,
     AddressLocalityConflict,
@@ -80,6 +100,14 @@ from .route_projection import (
     RouteProjection,
     require_route_contract,
     validate_generated_postal_values,
+)
+from .route_source_constraints import (
+    Admin1Membership,
+    RouteAdmissibilityCertificate,
+    load_admin1_membership,
+)
+from .route_source_constraints import (
+    validate_scenario as validate_source_route_scenario,
 )
 from .spending_guard import SpendingGuard, SpendingLimitExceeded
 
@@ -120,6 +148,8 @@ class CompleteSynthesisConfig(BaseModel):
     request_batch_size: Annotated[int, Field(ge=2, le=16)]
     route_scenarios_run: PinnedCommittedRun | None = None
     route_scenarios: PinnedJsonl | None = None
+    route_admissibility_certificates: PinnedFile | None = None
+    party_address_role_certificates: PinnedFile | None = None
     address_admin1_registry: PinnedFile | None = None
     customs_program_registry: PinnedFile | None = None
     cargo_sampling: cargo_scenarios.CargoSamplingConfig | None = None
@@ -135,6 +165,11 @@ class CompleteSynthesisConfig(BaseModel):
             raise ValueError("sampled routes require an explicit customs presentation registry")
         if self.route_scenarios is not None and self.address_admin1_registry is None:
             raise ValueError("sampled routes require pinned administrative-area address support")
+        if self.route_scenarios is None and (
+            self.route_admissibility_certificates is not None
+            or self.party_address_role_certificates is not None
+        ):
+            raise ValueError("route and party certificates require sampled route projections")
         return self
 
 
@@ -244,9 +279,7 @@ def _address_repair_requirements(
             removed[key] = sorted(set(removed.get(key, ())) | set(error.conflicts))
         if isinstance(error, AddressPostalConflict):
             key = owners[0]["key"]
-            removed_postcodes[key] = sorted(
-                set(removed_postcodes.get(key, ())) | {error.postcode}
-            )
+            removed_postcodes[key] = sorted(set(removed_postcodes.get(key, ())) | {error.postcode})
     by_key = {row["key"]: row for row in requirements}
     for key, country in countries.items():
         row = by_key.get(key)
@@ -309,6 +342,283 @@ def _validate_address_repairs(
                     "address repair must include the exact requested city component "
                     "and end with its country (optionally followed by a postal code): " + row["key"]
                 )
+
+
+def _sampled_party_locality(
+    projection: RouteProjection,
+    party_path: str,
+    target: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    matches: list[Mapping[str, Any]] = []
+    requested_role = party_path.removeprefix("documentPatch.parties.").split("[", 1)[0]
+    for row in projection.scenario.get("partyLocalities", ()):
+        if not isinstance(row, Mapping) or not isinstance(row.get("role"), str):
+            raise ValueError("sampled party locality has an invalid route receipt")
+        if row["role"] != requested_role:
+            continue
+        base = "documentPatch.parties." + row["role"]
+        party = render._resolve_path(target, base)
+        path = base + f"[{row['occurrence']}]" if isinstance(party, list) else base
+        if path == party_path:
+            locality = row.get("locality")
+            if not isinstance(locality, Mapping):
+                raise ValueError("sampled party lacks a pinned locality identity")
+            matches.append(locality)
+    if len(matches) != 1:
+        raise ValueError("source-role address lacks one sampled party locality")
+    return matches[0]
+
+
+def _party_slot_generation_fields(
+    source: targets.SourceTemplate,
+    certificate: PartyAddressRoleCertificate,
+    agent_fields: Sequence[Mapping[str, Any]],
+    projection: RouteProjection,
+    admin1_membership: Admin1Membership | None,
+    target: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    aliases = _duplicate_party_address_slot_aliases(source, certificate, agent_fields, target)
+    fields = tuple(
+        field
+        for field in slot_request_fields(certificate, source.template, agent_fields)
+        if field["key"] not in aliases
+    )
+    result = []
+    for field in fields:
+        row = deepcopy(field)
+        slot_contract = row["constraints"][0]
+        if slot_contract["administrativeLevel"] is not None:
+            if slot_contract["administrativeLevel"] != 1 or admin1_membership is None:
+                raise ValueError("sampled administrative-address role lacks pinned region support")
+            locality = _sampled_party_locality(projection, row["partyPath"], target)
+            code, name = admin1_membership.region_for_locality(locality)
+            slot_contract["requiredAdministrativeRegion"] = name
+            slot_contract["requiredAdministrativeRegionCode"] = code
+        result.append(row)
+    return tuple(result)
+
+
+def _validate_typed_party_slot_localities(
+    *,
+    slot_fields: Sequence[Mapping[str, Any]],
+    response: Mapping[str, str],
+    projection: RouteProjection,
+    localities: AddressLocalities | None,
+) -> None:
+    """Check physical address slots before label projection loses line boundaries."""
+
+    if slot_fields and localities is None:
+        raise ValueError("typed party slots require the pinned locality registry")
+    if localities is None:
+        return
+    for field in slot_fields:
+        value = response.get(field["key"])
+        party_path = field["partyPath"]
+        geography = projection.party_geography.get(party_path)
+        if not isinstance(value, str) or geography is None:
+            raise ValueError("typed party slot lacks a generated value or sampled owner")
+        if geography.city is None:
+            continue
+        roles = frozenset(field["constraints"][0]["sourceAddressRoles"])
+        include_first = bool(
+            roles.intersection(
+                {"district_or_neighborhood", "administrative_region", "city", "country"}
+            )
+            and not roles.intersection({"street_or_site", "building"})
+        )
+        conflicts = localities.conflicts(
+            value,
+            country=geography.country_code,
+            city=geography.city,
+            country_name=geography.country_name,
+            include_first=include_first,
+        )
+        if conflicts:
+            raise AddressLocalityConflict(
+                party_path, geography.country_name, geography.city, conflicts
+            )
+
+
+def _duplicate_party_address_slot_aliases(
+    source: targets.SourceTemplate,
+    certificate: PartyAddressRoleCertificate,
+    agent_fields: Sequence[Mapping[str, Any]],
+    proposed: Mapping[str, Any],
+) -> dict[str, str]:
+    """Reuse a generated component only for the same exact party and slot role."""
+
+    bindings = {binding.binding_id: binding for binding in source.template.bindings}
+    owners: dict[tuple[bytes, bytes, tuple[str, ...]], PartyAddressGroupRole] = {}
+    aliases = {}
+    for group in certificate.groups:
+        if group.address_target_path is None or group.fixed_admin1_frames:
+            continue
+        binding = bindings[group.binding_id]
+        if address_lexical_owner(group, binding, agent_fields) is None:
+            continue
+        party_path = group.address_target_path.removesuffix(".address")
+        source_party = render._resolve_path(source.target, party_path)
+        sampled_party = render._resolve_path(proposed, party_path)
+        if not isinstance(source_party, Mapping) or not isinstance(sampled_party, Mapping):
+            raise ValueError("source-role address owner is not a party")
+        if not all(
+            isinstance(party.get(field), str) and party[field].strip()
+            for party in (source_party, sampled_party)
+            for field in ("name", "address")
+        ):
+            continue
+        shape = tuple(
+            json.dumps(
+                slot.model_dump(mode="json", exclude={"slot_id", "evidence"}),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            for slot in group.slots
+        )
+        key = (canonical_json_bytes(source_party), canonical_json_bytes(sampled_party), shape)
+        previous = owners.setdefault(key, group)
+        if previous is group:
+            continue
+        for slot, owner_slot in zip(group.slots, previous.slots, strict=True):
+            aliases[slot_value_key(group.binding_id, slot.slot_id)] = slot_value_key(
+                previous.binding_id, owner_slot.slot_id
+            )
+    return aliases
+
+
+def _validate_shared_party_address_values(
+    source_target: Mapping[str, Any],
+    proposed: Mapping[str, Any],
+    generated: Sequence[tuple[str, str]],
+) -> None:
+    """One source party repeated in the target cannot acquire two new addresses."""
+
+    by_identity: dict[tuple[tuple[Any, ...], tuple[Any, ...]], tuple[str, ...]] = {}
+    for party_path, address in generated:
+        source_party = render._resolve_path(source_target, party_path)
+        sampled_party = render._resolve_path(proposed, party_path)
+        if not isinstance(source_party, Mapping) or not isinstance(sampled_party, Mapping):
+            raise ValueError("generated address owner is not a party")
+        source_identity = tuple(source_party.get(field) for field in ("name", "address"))
+        sampled_identity = tuple(
+            sampled_party.get(field) for field in ("name", "address", "city", "country")
+        )
+        if not all(isinstance(value, str) and value.strip() for value in source_identity):
+            continue
+        if not all(isinstance(value, str) and value.strip() for value in sampled_identity):
+            continue
+        key = (source_identity, sampled_identity)
+        actual = tuple(token.casefold() for token in re.findall(r"\w+", address))
+        prior = by_identity.setdefault(key, actual)
+        if prior != actual:
+            raise ValueError("one repeated party acquired conflicting generated address values")
+
+
+def _assemble_party_slot_response(
+    *,
+    source: targets.SourceTemplate,
+    certificate: PartyAddressRoleCertificate,
+    agent_fields: Sequence[Mapping[str, Any]],
+    slot_fields: Sequence[Mapping[str, Any]],
+    response: Mapping[str, str],
+    proposed: Mapping[str, Any],
+    projection: RouteProjection,
+    admin1_membership: Admin1Membership | None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    aliases = _duplicate_party_address_slot_aliases(source, certificate, agent_fields, proposed)
+    if aliases.keys() & response.keys():
+        raise ValueError("provider supplied a deterministically owned duplicate party slot")
+    expanded = dict(response)
+    for alias, owner_key in aliases.items():
+        if owner_key not in response:
+            raise ValueError("duplicate party address slot lacks its generated owner")
+        expanded[alias] = response[owner_key]
+    slot_request_keys = {field["key"] for field in slot_fields} | aliases.keys()
+    ordinary = {key: value for key, value in expanded.items() if key not in slot_request_keys}
+    auxiliary = {key: expanded[key] for key in slot_request_keys}
+    bindings = {binding.binding_id: binding for binding in source.template.bindings}
+    prepared = deepcopy(dict(proposed))
+    generated_party_addresses: list[tuple[str, str]] = []
+    for group in certificate.groups:
+        binding = bindings[group.binding_id]
+        owner = address_lexical_owner(group, binding, agent_fields)
+        if owner is None:
+            continue
+        values = {
+            slot.slot_id: expanded[slot_value_key(group.binding_id, slot.slot_id)]
+            for slot in group.slots
+        }
+        party_path = (
+            group.address_target_path.removesuffix(".address")
+            if group.address_target_path is not None
+            else owner.get("partyPath")
+        )
+        if not isinstance(party_path, str):
+            raise ValueError("source-role address has no target-party path")
+        geography = projection.party_geography.get(party_path)
+        if geography is None:
+            raise ValueError("source-role address has no sampled party geography")
+        source_party = render._resolve_path(source.target, party_path)
+        if not isinstance(source_party, Mapping):
+            raise ValueError("source-role address owner is not a party")
+        geography_changed = any(
+            source_party.get(field)
+            != getattr(geography, field if field == "city" else "country_name")
+            for field in ("city", "country")
+            if source_party.get(field) is not None
+        )
+        admin_names: dict[int, str] = {}
+        if any(slot.administrative_level is not None for slot in group.slots):
+            if admin1_membership is None:
+                raise ValueError("source administrative role lacks a pinned registry")
+            locality = _sampled_party_locality(projection, party_path, proposed)
+            _, admin_names[1] = admin1_membership.region_for_locality(locality)
+        joined = role_values_cover_repetitions(
+            group,
+            values,
+            geography_changed=geography_changed,
+            sampled_city=geography.city,
+            sampled_country=geography.country_name,
+            administrative_names_by_level=admin_names,
+        )
+        if group.address_target_path is None:
+            candidate = joined
+        else:
+            source_address = render._resolve_path(source.target, group.address_target_path)
+            if not isinstance(source_address, str):
+                raise ValueError("source address label is not textual")
+            candidate = propose_address_label_from_source_projection(
+                group, source_target_address=source_address, values=values
+            )
+            for path in group.binding_target_paths:
+                if path.endswith(".address"):
+                    targets._set(prepared, path, candidate)
+            validate_address_label_context(
+                group,
+                source_target_address=source_address,
+                candidate=candidate,
+                values=values,
+            )
+        actual = render._render_target_binding(
+            binding,
+            prepared,
+            auxiliary_values=auxiliary,
+            source=source.source,
+            template=source.template,
+        )
+        if set(actual.replacements) != set(values) or any(
+            tuple(part.casefold() for part in re.findall(r"\w+", actual.replacements[slot_id]))
+            != tuple(part.casefold() for part in re.findall(r"\w+", value))
+            for slot_id, value in values.items()
+        ):
+            raise ValueError("certified address slots do not render their generated values")
+        previous = ordinary.get(owner["key"])
+        if previous is not None and previous != candidate:
+            raise ValueError("one shared lexical address has conflicting source-role values")
+        ordinary[owner["key"]] = candidate
+        generated_party_addresses.append((party_path, candidate))
+    _validate_shared_party_address_values(source.target, proposed, generated_party_addresses)
+    return ordinary, auxiliary
 
 
 def _pinned(root: Path, pin: PinnedFile | PinnedJsonl) -> Path:
@@ -382,12 +692,24 @@ def _prepared(
     numeric_values: dict[str, numeric.PreparedNumeric],
     equipment_tare_values: Mapping[str, Decimal] | None = None,
     customs_presentation: CustomsPresentation | None = None,
+    sampled_discharge_country_code: str | None = None,
+    route_context_cache: RouteContextCache | None = None,
     dangerous_goods_facts: tuple[DangerousGoodsFact, ...] = (),
+    source_locked_auxiliary_keys: frozenset[str] = frozenset(),
 ) -> render.PreparedCase:
     sampled_tares = dict(equipment_tare_values or {})
     tare_payload = render._equipment_tare_payload(sampled_tares)
     old, new = render._flatten_leaves(source.target), render._flatten_leaves(target)
     digest = sha256_bytes(canonical_json_bytes(target))
+    route_context_presentation = compile_route_context(
+        source=source.source,
+        template=source.template.byte_template,
+        source_target=source.source_target,
+        target=target,
+        customs=customs_presentation,
+        sampled_discharge_country_code=sampled_discharge_country_code,
+        cache=route_context_cache,
+    )
     receipt = PreparedTargetReceipt.model_validate(
         {
             "schema_version": 1,
@@ -404,6 +726,11 @@ def _prepared(
             "customs_presentation_sha256": (
                 customs_presentation.sha256
                 if customs_presentation is not None
+                else sha256_bytes(canonical_json_bytes([]))
+            ),
+            "route_context_presentation_sha256": (
+                route_context_presentation.sha256
+                if route_context_presentation is not None
                 else sha256_bytes(canonical_json_bytes([]))
             ),
             "numeric_auxiliary_sha256": sha256_bytes(
@@ -444,6 +771,9 @@ def _prepared(
         customs_presentation,
         dangerous_goods_facts,
         sampled_tares,
+        route_context_presentation,
+        source.cargo_policy,
+        source_locked_auxiliary_keys,
     )
 
 
@@ -471,6 +801,24 @@ def _scenario_equipment_tares(
             raise ValueError("sampled equipment tare receipt is not canonical and positive")
         values[key] = value
     return values
+
+
+def _published_tare_payload(row: Mapping[str, Any]) -> dict[str, str]:
+    """Project the prepared tare context, including the no-scenario case."""
+
+    scenario = row["cargoScenario"]
+    if scenario is None:
+        payload: dict[str, str] = {}
+    elif isinstance(scenario, dict) and isinstance(scenario.get("sampledEquipmentTares"), dict):
+        payload = scenario["sampledEquipmentTares"]
+    else:
+        raise ValueError("cargo scenario lacks its sampled equipment tare receipt")
+    receipt = row["targetReceipt"]
+    if not isinstance(receipt, dict) or sha256_bytes(canonical_json_bytes(payload)) != receipt.get(
+        "equipment_tare_values_sha256"
+    ):
+        raise ValueError("published equipment tare values differ from frozen target receipt")
+    return payload
 
 
 def _request_was_not_sent(error: BaseException) -> bool:
@@ -577,7 +925,11 @@ async def _cached_fields(
     ) / 1_000_000
     agent = Agent(
         model,
-        output_type=NativeOutput(output_type, strict=True),
+        output_type=(
+            PromptedOutput(output_type)
+            if provider.kind == "openrouter"
+            else NativeOutput(output_type, strict=True)
+        ),
         system_prompt=system_prompt,
         model_settings=render._provider_settings(provider),
         retries=0,
@@ -972,6 +1324,7 @@ def _publish_generated_case(
         ("cargo-scenario.json", "cargoScenario"),
         ("route-projection.json", "routeProjection"),
         ("customs-presentation.json", "customsPresentation"),
+        ("route-context-presentation.json", "routeContextPresentation"),
         ("render-result.json", "renderResult"),
     ):
         publish(filename, row[key])
@@ -1007,6 +1360,50 @@ async def _publish_generated_cases(
         )
         artifacts.extend(path for group in results for path in group)
     return artifacts
+
+
+def _require_party_address_role_pin(
+    sources: Mapping[str, targets.SourceTemplate],
+    requests: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    sampled_routes: bool,
+    has_role_pin: bool,
+) -> None:
+    """Reject flat party-address generation before creating a provider model.
+
+    A source-preserving address with no route projection and no lexical request
+    needs no new role certificate. Any mutable address being sampled or
+    generated does: slot positions alone do not encode street/locality roles.
+    """
+
+    if has_role_pin:
+        return
+    uncertified: list[str] = []
+    for source_id, source in sources.items():
+        address_bindings = [
+            binding
+            for binding in source.template.bindings
+            if binding.group_kind == "party"
+            and binding.value_kind == "address"
+            and binding.render_mode not in {"carrier_static", "literal_static"}
+        ]
+        if not address_bindings:
+            continue
+        address_paths = {path for binding in address_bindings for path in binding.target_paths}
+        address_keys = {binding.logical_key for binding in address_bindings}
+        mutable_request = any(
+            address_paths.intersection(field.get("paths", ()))
+            or field.get("auxiliaryKey") in address_keys
+            for field in requests[source_id]
+        )
+        if sampled_routes or mutable_request:
+            uncertified.append(source_id)
+    if uncertified:
+        preview = ", ".join(sorted(uncertified)[:5])
+        raise ValueError(
+            "party address generation requires source-role certificates before provider calls: "
+            f"{len(uncertified)} source(s); first: {preview}"
+        )
 
 
 async def run(config_path: Path) -> dict[str, Any]:
@@ -1089,6 +1486,13 @@ async def run(config_path: Path) -> dict[str, Any]:
         sid: targets.load_source(template_root, sid)
         for sid in sorted({row["sourceDocumentId"] for row in samples})
     }
+    for row in samples:
+        source_id = row["sourceDocumentId"]
+        cargo_frozen_policy.require_plan_mode(
+            source_document_id=source_id,
+            scenario_mode=row.get("scenarioMode"),
+            policy=sources[source_id].cargo_policy,
+        )
     package_pin = config.task_package_contract
     package_contract = (
         load_reviewed_package_contract(
@@ -1107,12 +1511,88 @@ async def run(config_path: Path) -> dict[str, Any]:
             contract=package_contract,
         )
     route_projections: dict[str, RouteProjection] = {}
+    route_certificates: dict[str, RouteAdmissibilityCertificate] = {}
+    party_certificates: dict[str, PartyAddressRoleCertificate] = {}
+    admin1_membership = None
     address_localities = None
     if config.route_scenarios is not None:
         assert config.route_scenarios_run is not None
         route_root = render._validate_committed_run(
             root, config.route_scenarios_run, workers=config.max_concurrent_requests
         )
+        route_transaction = json.loads((route_root / "transaction.json").read_bytes())
+        route_configuration = route_transaction["config"]
+        if (
+            route_configuration["template_run"] != config.template_run.model_dump(mode="json")
+            or route_configuration["sample_plan_run"]
+            != config.sample_plan_run.model_dump(mode="json")
+            or route_configuration["sample_plan"] != config.sample_plan.model_dump(mode="json")
+        ):
+            raise ValueError("route-plan provenance differs from the synthesis catalog or plan")
+        for key in (
+            "route_admissibility_certificates",
+            "party_address_role_certificates",
+        ):
+            pin = getattr(config, key)
+            if route_configuration.get(key) != (
+                pin.model_dump(mode="json") if pin is not None else None
+            ):
+                raise ValueError(f"route-plan {key} differs from synthesis certificate pin")
+        route_certificates = (
+            {
+                sid: RouteAdmissibilityCertificate.model_validate(value, strict=True)
+                for sid, value in json.loads(
+                    _pinned(root, config.route_admissibility_certificates).read_bytes()
+                ).items()
+            }
+            if config.route_admissibility_certificates is not None
+            else {}
+        )
+        party_certificates = (
+            {
+                sid: PartyAddressRoleCertificate.model_validate(value, strict=True)
+                for sid, value in json.loads(
+                    _pinned(root, config.party_address_role_certificates).read_bytes()
+                ).items()
+            }
+            if config.party_address_role_certificates is not None
+            else {}
+        )
+        if not set(route_certificates) <= set(sources) or not set(party_certificates) <= set(
+            sources
+        ):
+            raise ValueError("route or party certificate names an unselected source")
+        if config.party_address_role_certificates is not None and set(party_certificates) != set(
+            sources
+        ):
+            raise ValueError("role-aware generation requires party certificates for all sources")
+        for sid, certificate in party_certificates.items():
+            raw, _, template_bytes = render._case_files(template_root, sid)
+            validate_role_certificate(
+                certificate,
+                template=CertifiedSemanticTemplate.model_validate_json(template_bytes, strict=True),
+                source=raw,
+                template_bytes=template_bytes,
+                require_coverage=True,
+            )
+        if party_certificates:
+            from .route_plan import RoutePlanConfig
+
+            route_config = RoutePlanConfig.model_validate(route_configuration, strict=True)
+            if (
+                route_config.geonames_raw_cities is None
+                or route_config.geonames_admin1_codes is None
+                or route_config.unlocode_raw_archive is None
+            ):
+                raise ValueError("route-plan party certificates lack pinned admin1 support")
+            admin1_membership = load_admin1_membership(
+                cities_archive=_pinned(root, route_config.geonames_raw_cities),
+                cities_sha256=route_config.geonames_raw_cities.sha256,
+                admin1_codes=_pinned(root, route_config.geonames_admin1_codes),
+                admin1_sha256=route_config.geonames_admin1_codes.sha256,
+                unlocode_archive=_pinned(root, route_config.unlocode_raw_archive),
+                unlocode_sha256=route_config.unlocode_raw_archive.sha256,
+            )
         assert config.address_admin1_registry is not None
         address_localities = load_address_localities(
             root, route_root, _pinned(root, config.address_admin1_registry)
@@ -1124,6 +1604,14 @@ async def run(config_path: Path) -> dict[str, Any]:
             projection = RouteProjection.model_validate_json(canonical_json_bytes(row))
             if projection.sample_id in route_projections:
                 raise ValueError("duplicate route projection sample identity")
+            route_certificate = route_certificates.get(projection.source_document_id)
+            if route_certificate is not None:
+                validate_source_route_scenario(
+                    route_certificate,
+                    projection.scenario,
+                    party_certificate=party_certificates.get(projection.source_document_id),
+                    admin1=admin1_membership,
+                )
             route_projections[projection.sample_id] = projection
         if set(route_projections) != {row["sampleId"] for row in all_samples}:
             raise ValueError("route projections do not exactly cover the synthesis plan")
@@ -1146,6 +1634,7 @@ async def run(config_path: Path) -> dict[str, Any]:
         else None
     )
     customs_presentations: dict[str, CustomsPresentation] = {}
+    route_context_cache = RouteContextCache()
     if config.customs_program_registry is not None:
         registry = CustomsProgramRegistry.model_validate_json(
             _pinned(root, config.customs_program_registry).read_bytes()
@@ -1174,8 +1663,12 @@ async def run(config_path: Path) -> dict[str, Any]:
         require_product_count_owners(source.source, source.template.bindings)
         require_source_setting_owners(source.source, source.template, source.target)
         if route_projections:
-            require_route_contract(source)
-        if cargo_support is not None:
+            require_route_contract(
+                source,
+                route_certificate=route_certificates.get(source.document_id),
+                party_certificate=party_certificates.get(source.document_id),
+            )
+        if cargo_support is not None and source.cargo_policy is None:
             cargo_scenarios.require_contract(source)
         if conflicts := geographic_context.source_entity_conflicts(source.template, countries):
             raise ValueError(
@@ -1192,12 +1685,19 @@ async def run(config_path: Path) -> dict[str, Any]:
                 tare_support=cargo_support.tares,
             )
             for sid, source in sources.items()
+            if source.cargo_policy is None
         }
         if cargo_support is not None
         else {}
     )
     identifiers = targets.reserve_identifiers(samples, sources, seed=config.seed)
     requests = {sid: targets.lexical_contract(source) for sid, source in sources.items()}
+    _require_party_address_role_pin(
+        sources,
+        requests,
+        sampled_routes=config.route_scenarios is not None,
+        has_role_pin=config.party_address_role_certificates is not None,
+    )
     lexical_contracts = (
         {
             sid: lexical_facts.CargoLexicalContract.model_validate_json(canonical_json_bytes(raw))
@@ -1278,10 +1778,23 @@ async def run(config_path: Path) -> dict[str, Any]:
                 sample_id=sample_id,
             )
         )
-        for path, value in numeric.generated_measurements(
-            numeric.numeric_bindings(source.template), numeric_contracts[source_id], proposed
-        ).items():
-            targets._set(proposed, path, float(value))
+        source_locked_auxiliary = lexical_facts.source_locked_auxiliary(
+            source,
+            lexical_contracts.get(source_id),
+            proposed,
+            sample_id=sample_id,
+            seed=config.seed,
+        )
+        if prepared_auxiliary.keys() & source_locked_auxiliary.keys():
+            raise ValueError("source-locked auxiliary collides with route or transport facts")
+        prepared_auxiliary.update(source_locked_auxiliary)
+        if source.cargo_policy is None:
+            for path, value in numeric.generated_measurements(
+                numeric.numeric_bindings(source.template), numeric_contracts[source_id], proposed
+            ).items():
+                targets._set(proposed, path, float(value))
+        else:
+            cargo_frozen_policy.require_frozen_cargo(source.target, proposed, source.cargo_policy)
         fields = cargo_identifiers.conditioned_requests(
             requests[source_id], sample_id=sample_id, seed=config.seed
         )
@@ -1293,8 +1806,9 @@ async def run(config_path: Path) -> dict[str, Any]:
                 r for r in fields if r.get("auxiliaryKey") not in projection.auxiliary_values
             )
 
-        if cargo_support is not None:
+        if cargo_support is not None and source.cargo_policy is None:
             lexical_facts.require_cargo_recipes(fields, lexical_contracts.get(source_id))
+        lexical_contract = lexical_contracts.get(source_id) if source.cargo_policy is None else None
 
         def validate_cargo_wording(candidate: cargo_scenarios.CargoScenario) -> None:
             lexical_facts.prepare(
@@ -1302,7 +1816,8 @@ async def run(config_path: Path) -> dict[str, Any]:
                 fields,
                 scenario=candidate,
                 projection=None,
-                contract=lexical_contracts.get(source_id),
+                contract=lexical_contract,
+                proposed_target=candidate.target,
                 sample_id=sample_id,
                 seed=config.seed,
             )
@@ -1319,12 +1834,19 @@ async def run(config_path: Path) -> dict[str, Any]:
                 numeric_contracts=numeric_contracts[source_id],
                 validate_lexical=validate_cargo_wording,
             )
-            if cargo_support is not None
+            if cargo_support is not None and source.cargo_policy is None
             else None
         )
         if cargo_scenario is not None:
             proposed = cargo_scenario.target
             goods = cargo_scenario.identities
+        elif source.cargo_policy is not None:
+            goods = {
+                group["groupId"]: [
+                    {"reason": "explicit source-hash-pinned cargo_frozen_source capability"}
+                ]
+                for group in proposed["documentPatch"].get("cargoGroups", [])
+            }
         else:
             goods = targets.propose_goods(
                 proposed, registry=hs_registry, sample_id=sample_id, seed=config.seed
@@ -1360,7 +1882,8 @@ async def run(config_path: Path) -> dict[str, Any]:
             fields,
             scenario=cargo_scenario,
             projection=projection,
-            contract=lexical_contracts.get(source_id),
+            contract=lexical_contract,
+            proposed_target=proposed,
             sample_id=sample_id,
             seed=config.seed,
         )
@@ -1370,7 +1893,11 @@ async def run(config_path: Path) -> dict[str, Any]:
             numeric_contracts[source_id],
             source_target=source.target,
             target=host_preview,
-            scale=targets.scenario_scale(sample_id, config.seed),
+            scale=(
+                Decimal(1)
+                if source.cargo_policy is not None
+                else targets.scenario_scale(sample_id, config.seed)
+            ),
             source_template=source.template,
             equipment_tare_values=equipment_tare_values,
         )
@@ -1408,13 +1935,58 @@ async def run(config_path: Path) -> dict[str, Any]:
                 numeric_contracts[source_id],
                 source_target=source.target,
                 target=host_preview,
-                scale=targets.scenario_scale(sample_id, config.seed),
+                scale=(
+                    Decimal(1)
+                    if source.cargo_policy is not None
+                    else targets.scenario_scale(sample_id, config.seed)
+                ),
                 source_template=source.template,
                 equipment_tare_values=equipment_tare_values,
             )
             if rechecked != numeric_context:
                 raise ValueError("numeric package phrase changed its prepared quantity receipts")
         agent_fields = tuple(f for f in fields if f["key"] not in host_lexical.values)
+        party_certificate = party_certificates.get(source_id)
+        slot_fields: tuple[dict[str, Any], ...] = ()
+        provider_fields = agent_fields
+        if party_certificate is not None:
+            if projection is None:
+                raise ValueError("source-role generation lacks a sampled party route")
+            slot_fields = _party_slot_generation_fields(
+                source,
+                party_certificate,
+                agent_fields,
+                projection,
+                admin1_membership,
+                host_preview,
+            )
+            address_bindings = {
+                binding.binding_id: binding
+                for binding in source.template.bindings
+                if binding.group_kind == "party" and binding.value_kind == "address"
+            }
+            address_keys = {
+                owner["key"]
+                for group in party_certificate.groups
+                if (
+                    owner := address_lexical_owner(
+                        group, address_bindings[group.binding_id], agent_fields
+                    )
+                )
+                is not None
+            }
+            unowned = {
+                field["key"]
+                for field in agent_fields
+                if any(path.endswith(".address") for path in field["paths"])
+                and field["key"] not in address_keys
+            }
+            if unowned:
+                raise ValueError("linguistic party addresses lack exact source-role owners")
+            provider_fields = (
+                *(field for field in agent_fields if field["key"] not in address_keys),
+                *slot_fields,
+            )
         review = reviews.get(sample_id)
         if review is not None:
             review.validate_context(
@@ -1422,7 +1994,7 @@ async def run(config_path: Path) -> dict[str, Any]:
                 source_document_id=source_id,
                 source_template_sha256=source.original_template_sha256,
                 scenario=proposed,
-                fields=agent_fields,
+                fields=provider_fields,
             )
             if checkpoint is None:
                 raise ValueError("reviewed correction requires its original rejected checkpoint")
@@ -1448,7 +2020,7 @@ async def run(config_path: Path) -> dict[str, Any]:
             "cargoPackaging": (
                 cargo_scenario.receipt["packageSupport"] if cargo_scenario is not None else {}
             ),
-            "requestedFields": agent_fields,
+            "requestedFields": provider_fields,
             "hostLexicalFacts": host_lexical.values,
             "numericAuxiliary": {
                 k: v.model_dump(mode="json", exclude_defaults=True)
@@ -1458,6 +2030,11 @@ async def run(config_path: Path) -> dict[str, Any]:
                 c.model_dump(mode="json") for c in source.template.coherence_constraints
             ],
         }
+        product_only_paths = cargo_description_role.requested_product_only_paths(
+            source.target, source.template, agent_fields
+        )
+        if product_only_paths:
+            payload["productOnlyDescriptionPaths"] = product_only_paths
         if projection is not None:
             payload["partyGeography"] = {
                 path: geo.model_dump(mode="json")
@@ -1467,7 +2044,7 @@ async def run(config_path: Path) -> dict[str, Any]:
         attempts = []
         residual_attempts: list[dict[str, Any]] = []
         for _attempt in range(config.generation_attempts):
-            output_type = _generation_schema(agent_fields, payload.get("repairRequirements", []))
+            output_type = _generation_schema(provider_fields, payload.get("repairRequirements", []))
             # Resume the last accepted linguistic candidate, not an earlier
             # rejected candidate whose repair request may have since improved.
             accepted = (
@@ -1542,14 +2119,63 @@ async def run(config_path: Path) -> dict[str, Any]:
             )
             try:
                 _validate_address_repairs(response["output"], payload.get("repairRequirements", []))
+                lexical_facts.validate_generated_cargo_roles(
+                    fields=provider_fields,
+                    generated=response["output"],
+                    source_target=source.target,
+                    sampled_target=host_preview,
+                )
+                generated_values = dict(response["output"])
+                prepared_with_slots = dict(prepared_auxiliary)
+                if party_certificate is not None:
+                    if projection is None:
+                        raise ValueError("source-role generation lost its sampled party route")
+                    _validate_typed_party_slot_localities(
+                        slot_fields=slot_fields,
+                        response=response["output"],
+                        projection=projection,
+                        localities=address_localities,
+                    )
+                    generated_values, address_auxiliary = _assemble_party_slot_response(
+                        source=source,
+                        certificate=party_certificate,
+                        agent_fields=agent_fields,
+                        slot_fields=slot_fields,
+                        response=response["output"],
+                        proposed=host_preview,
+                        projection=projection,
+                        admin1_membership=admin1_membership,
+                    )
+                    if prepared_with_slots.keys() & address_auxiliary.keys():
+                        raise ValueError("source-role slots collide with other auxiliary facts")
+                    prepared_with_slots.update(address_auxiliary)
                 target, auxiliary, ledger = await asyncio.to_thread(
                     targets.complete_proposal,
                     source,
                     proposed,
                     fields,
-                    host_lexical.merge(response["output"]),
+                    host_lexical.merge(generated_values),
                     sample_id=sample_id,
-                    prepared_auxiliary=prepared_auxiliary,
+                    prepared_auxiliary=prepared_with_slots,
+                    source_locked_description_paths=lexical_facts.source_locked_description_paths(
+                        fields, lexical_contract
+                    ),
+                )
+                if source.cargo_policy is not None:
+                    cargo_frozen_policy.require_frozen_cargo(
+                        source.target, target, source.cargo_policy
+                    )
+                lexical_facts.validate_source_locked_items(
+                    fields, lexical_contracts.get(source_id), auxiliary, target
+                )
+                lexical_facts.validate_dated_references(
+                    fields, lexical_contracts.get(source_id), target
+                )
+                lexical_facts.validate_source_locked_auxiliary(
+                    source, lexical_contracts.get(source_id), auxiliary, target
+                )
+                cargo_description_role.validate(
+                    source_target=source.target, template=source.template, target=target
                 )
                 validate_generated_postal_values(
                     target,
@@ -1606,7 +2232,11 @@ async def run(config_path: Path) -> dict[str, Any]:
                     numeric_contracts[source_id],
                     source_target=source.target,
                     target=target,
-                    scale=targets.scenario_scale(sample_id, config.seed),
+                    scale=(
+                        Decimal(1)
+                        if source.cargo_policy is not None
+                        else targets.scenario_scale(sample_id, config.seed)
+                    ),
                     source_template=source.template,
                     equipment_tare_values=equipment_tare_values,
                 )
@@ -1614,6 +2244,14 @@ async def run(config_path: Path) -> dict[str, Any]:
                     equipment_row_constraints.validate_prepared(
                         cargo_scenario.receipt["printedContainerRows"], numeric_values
                     )
+                discharge_country_code = None
+                if projection is not None:
+                    discharge_port = projection.scenario.get("dischargePort")
+                    if not isinstance(discharge_port, dict):
+                        raise ValueError("sampled route lacks its physical discharge port")
+                    discharge_country_code = discharge_port.get("countryCode")
+                    if not isinstance(discharge_country_code, str) or not discharge_country_code:
+                        raise ValueError("sampled route lacks its discharge-country code")
                 case = _prepared(
                     source,
                     target,
@@ -1623,9 +2261,16 @@ async def run(config_path: Path) -> dict[str, Any]:
                     numeric_values=numeric_values,
                     equipment_tare_values=equipment_tare_values,
                     customs_presentation=customs_presentations.get(source_id),
+                    sampled_discharge_country_code=discharge_country_code,
+                    route_context_cache=route_context_cache,
                     dangerous_goods_facts=cargo_scenario.dangerous_goods_facts
                     if cargo_scenario is not None
                     else (),
+                    source_locked_auxiliary_keys=frozenset(
+                        lexical_contracts[source_id].auxiliary_references
+                    )
+                    if source_id in lexical_contracts
+                    else frozenset(),
                 )
                 plan = await asyncio.to_thread(
                     render._build_initial_plan, case, seed=config.seed, country_codes=countries
@@ -1640,11 +2285,22 @@ async def run(config_path: Path) -> dict[str, Any]:
                     "priorOutput": response["output"],
                     "validationError": str(error),
                     "repairAttempt": _attempt + 1,
-                    "repairRequirements": _address_repair_requirements(
-                        agent_fields,
-                        targets.lexical_repair_requirements(source, proposed, agent_fields),
-                        payload.get("repairRequirements", []),
-                        error,
+                    "repairRequirements": (
+                        []
+                        if party_certificate is not None
+                        and isinstance(error, AddressCountryConflict)
+                        else _address_repair_requirements(
+                            provider_fields,
+                            [
+                                item
+                                for item in targets.lexical_repair_requirements(
+                                    source, proposed, agent_fields
+                                )
+                                if item["key"] in {f["key"] for f in provider_fields}
+                            ],
+                            payload.get("repairRequirements", []),
+                            error,
+                        )
                     ),
                 }
                 await asyncio.to_thread(
@@ -1760,6 +2416,14 @@ async def run(config_path: Path) -> dict[str, Any]:
                 "target": target,
                 "targetSha256": sha256_bytes(canonical_json_bytes(target)),
                 "auxiliaryValues": auxiliary,
+                "sourceLockedAuxiliaryRecipes": {
+                    key: recipe.model_dump(mode="json")
+                    for key, recipe in (
+                        lexical_contracts[source_id].auxiliary_references.items()
+                        if source_id in lexical_contracts
+                        else ()
+                    )
+                },
                 "numericAuxiliary": {
                     k: v.model_dump(mode="json") for k, v in numeric_values.items()
                 },
@@ -1775,12 +2439,18 @@ async def run(config_path: Path) -> dict[str, Any]:
                     v.model_dump(mode="json") for v in case.dangerous_goods_facts
                 ],
                 "cargoScenario": cargo_scenario.receipt if cargo_scenario is not None else None,
+                "cargoFrozenPolicySha256": cargo_frozen_policy.policy_sha256(source.cargo_policy),
                 "routeProjection": projection.model_dump(mode="json")
                 if projection is not None
                 else None,
                 "customsPresentation": (
                     customs_presentations[source_id].evidence
                     if source_id in customs_presentations
+                    else ()
+                ),
+                "routeContextPresentation": (
+                    case.route_context_presentation.evidence
+                    if case.route_context_presentation is not None
                     else ()
                 ),
                 "agentStage": stage.model_dump(mode="json"),
@@ -1931,12 +2601,14 @@ async def run(config_path: Path) -> dict[str, Any]:
                     "target",
                     "targetSha256",
                     "auxiliaryValues",
+                    "sourceLockedAuxiliaryRecipes",
                     "numericAuxiliary",
                     "dangerousGoodsFacts",
+                    "cargoFrozenPolicySha256",
                 )
             }
         )
-        target_rows[-1]["equipmentTareValues"] = row["cargoScenario"]["sampledEquipmentTares"]
+        target_rows[-1]["equipmentTareValues"] = _published_tare_payload(row)
     publish(
         "targets.jsonl", b"".join(canonical_json_bytes(row) + b"\n" for row in target_rows), True
     )

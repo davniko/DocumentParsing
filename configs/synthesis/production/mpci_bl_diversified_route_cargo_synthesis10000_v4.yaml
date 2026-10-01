@@ -132,6 +132,11 @@
       "sha256": "51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f",
       "records": 3480
     },
+    "commodity_phrases": {
+      "path": "artifacts/kie-synthesis-production/registries/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl",
+      "sha256": "05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078",
+      "records": 5612
+    },
     "thermal": {
       "document_prevalence_permyriad": 1500,
       "prevalence_method": "exact_hmac_ranked_quota_over_eligible_documents_v1",

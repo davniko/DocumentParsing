@@ -18,6 +18,7 @@ from .models import SemanticBinding
 _CATEGORIES = {s: k for k, values in _PACKAGE_SURFACES.items() for s in values}
 # Printed singular/plural notation is a surface variant, not another package level.
 _CATEGORIES.update({s + "(S)": k for s, k in list(_CATEGORIES.items()) if s + "S" in _CATEGORIES})
+_CATEGORIES.update({s + "(ES)": k for s, k in list(_CATEGORIES.items()) if s + "ES" in _CATEGORIES})
 _NOUN = "|".join(re.escape(s) for s in sorted(_CATEGORIES, key=lambda s: (-len(s), s)))
 
 
