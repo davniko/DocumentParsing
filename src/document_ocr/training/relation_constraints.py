@@ -109,7 +109,7 @@ def _source_tokens(
                 for goods in patch.get("goodsItemDetails", [])
                 for package in goods.get("numberAndTypeOfPackages", [])
             )
-            if task_name == "bill_of_lading_mpci_aligned_v6"
+            if task_name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
             else patch.get("cargoPackages", [])
         )
         for package in packages:
@@ -118,7 +118,7 @@ def _source_tokens(
                 package_tokens.add(cast(str, token))
         container_field = (
             "containerInformation"
-            if task_name == "bill_of_lading_mpci_aligned_v6"
+            if task_name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
             else "containers"
         )
         for container in patch.get(container_field, []):

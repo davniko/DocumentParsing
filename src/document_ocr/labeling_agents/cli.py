@@ -44,9 +44,12 @@ class _ArgumentParser(argparse.ArgumentParser):
 def _parser() -> argparse.ArgumentParser:
     parser = _ArgumentParser(
         prog="document-kie-label-agents",
-        description="Inventory, prepare, preflight, run, or publish a PydanticAI labeling run.",
+        description="Direct OCR extraction/refinement, or frozen historical labeling runs.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    from document_ocr.labeling_agents.direct_cli import add_commands
+
+    add_commands(commands)
     for name, help_text in (
         ("inventory", "validate all source work items and report the inventory digest"),
         ("prepare", "freeze the deterministic selection, prompts, config, and work items"),
@@ -134,6 +137,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         return error.code if isinstance(error.code, int) else _EXIT_USAGE
 
     command = cast(str, arguments.command)
+    if command in {"extract", "refine", "schema"}:
+        from document_ocr.labeling_agents.direct_cli import execute
+
+        try:
+            _emit(sys.stdout, execute(arguments))
+            return _EXIT_SUCCESS
+        except Exception as error:
+            _emit(
+                sys.stderr,
+                {
+                    "status": "error",
+                    "command": command,
+                    "error_type": type(error).__name__,
+                    "message": str(error),
+                },
+            )
+            return _EXIT_OPERATION
     config_path = cast(Path, arguments.config)
     project_root = Path.cwd().resolve(strict=True)
     try:

@@ -67,7 +67,9 @@ def test_compact_reefer_without_height_is_type_only(surface, length):
     )
 
 
-@pytest.mark.parametrize("surface", ["40'X9'6\" REEFER CONTAINER", "40'H RF CONTAINER"])
+@pytest.mark.parametrize(
+    "surface", ["40'X9'6\" REEFER CONTAINER", "40'H RF CONTAINER", '40" REEFER HIGH CUBIC']
+)
 def test_explicit_high_reefer_keeps_high_cube_semantics(surface):
     reviewed = review_source_equipment_surface(surface, temperature_present=True)
     assert (reviewed.size_category, reviewed.type_category) == (
@@ -145,7 +147,10 @@ def test_other_carrier_codes_are_not_inferred_from_the_new_spellings(surface):
 
 @pytest.mark.parametrize(
     "surface",
-    ["20 FT ISO TANK CONTAINER(S)", "20 FT ISO TANKCONTAINER(S)", "20 FT ISO TANKCONTAINERS"],
+    [
+        "20 FT ISO TANK CONTAINER(S)", "20 FT ISO TANKCONTAINER(S)",
+        "20 FT ISO TANKCONTAINERS", "20TANK CONTAINER", "20TANKCONTAINER", "20TANK",
+    ],
 )
 def test_generic_tank_noun_word_boundary_does_not_invent_pressure_subtype(surface):
     resolved = review_source_equipment_surface(surface, temperature_present=False)

@@ -19,6 +19,7 @@ from document_ocr.label_schemas.bill_of_lading_v3 import (
 from document_ocr.label_schemas.bill_of_lading_v4 import BillOfLadingRelationExplicitV4Label
 from document_ocr.label_schemas.bill_of_lading_v5 import BillOfLadingRelationExplicitV5Label
 from document_ocr.label_schemas.bill_of_lading_v6 import BillOfLadingMPCIAlignedV6Label
+from document_ocr.label_schemas.bill_of_lading_v7 import BillOfLadingExtractionV7Label
 from document_ocr.training.config import TrainingConfig, resolve_config_path
 
 Canonicalizer = Callable[[dict[str, Any]], dict[str, Any]]
@@ -36,6 +37,7 @@ class RelationExplicitTaskConstraints(BaseModel):
         "bill_of_lading_relation_explicit_v4",
         "bill_of_lading_relation_explicit_v5",
         "bill_of_lading_mpci_aligned_v6",
+        "bill_of_lading_extraction_v7",
     ]
     basePromptSchemaSha256: Sha256
     targetSchemaSha256: Sha256
@@ -80,7 +82,9 @@ class TrainingTask:
             if not isinstance(definitions, dict):
                 raise ValueError("relation-explicit prompt schema has no $defs map")
             container_definition = (
-                "ContainerInformationV6"
+                "ContainerInformationV7"
+                if self.name == "bill_of_lading_extraction_v7"
+                else "ContainerInformationV6"
                 if self.name == "bill_of_lading_mpci_aligned_v6"
                 else "RelationExplicitContainerV5"
                 if self.name == "bill_of_lading_relation_explicit_v5"
@@ -92,7 +96,9 @@ class TrainingTask:
                     self.constraints.containerCategoryTokens,
                 ),
                 (
-                    "NumberAndTypeOfPackagesV6"
+                    "PackagesV7"
+                    if self.name == "bill_of_lading_extraction_v7"
+                    else "NumberAndTypeOfPackagesV6"
                     if self.name == "bill_of_lading_mpci_aligned_v6"
                     else "CargoPackageFact",
                     self.constraints.packageCategoryTokens,
@@ -120,6 +126,10 @@ class TrainingTask:
             properties = ordered["$defs"]["GoodsItemDetailsV6"]["properties"]
             if "splitGoodsPlacement" in properties:
                 properties["splitGoodsPlacement"] = properties.pop("splitGoodsPlacement")
+        if self.name == "bill_of_lading_extraction_v7":
+            properties = ordered["$defs"]["GoodsItemDetailsV7"]["properties"]
+            if "splitGoodsPlacement" in properties:
+                properties["splitGoodsPlacement"] = properties.pop("splitGoodsPlacement")
         return json.dumps(
             ordered,
             allow_nan=False,
@@ -137,7 +147,7 @@ class TrainingTask:
         container_tokens = set(self.constraints.containerCategoryTokens)
         container_field = (
             "containerInformation"
-            if self.name == "bill_of_lading_mpci_aligned_v6"
+            if self.name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
             else "containers"
         )
         for container in patch.get(container_field, []):
@@ -152,7 +162,7 @@ class TrainingTask:
                 for goods in patch.get("goodsItemDetails", [])
                 for package in goods.get("numberAndTypeOfPackages", [])
             )
-            if self.name == "bill_of_lading_mpci_aligned_v6"
+            if self.name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
             else patch.get("cargoPackages", [])
         )
         for package in packages:
@@ -241,7 +251,7 @@ def canonical_json(value: dict[str, Any]) -> str:
         patch = ordered.get("documentPatch")
         if isinstance(patch, dict) and "cargoAllocationGroups" in patch:
             patch["cargoAllocationGroups"] = patch.pop("cargoAllocationGroups")
-    if value.get("schemaVersion") == "6.0.0-experimental":
+    if value.get("schemaVersion") in {"6.0.0-experimental", "7.0.0"}:
         patch = ordered.get("documentPatch")
         if isinstance(patch, dict):
             for goods in patch.get("goodsItemDetails", []):
@@ -309,6 +319,14 @@ def _canonicalize_bill_of_lading_mpci_aligned_v6(value: dict[str, Any]) -> dict[
     return canonical
 
 
+def _canonicalize_bill_of_lading_extraction_v7(value: dict[str, Any]) -> dict[str, Any]:
+    label = BillOfLadingExtractionV7Label.model_validate_json(canonical_json(value), strict=True)
+    canonical = label.canonical_target()
+    if canonical != value:
+        raise ValueError("target differs from the task schema's canonical sparse representation")
+    return canonical
+
+
 _TASKS = {
     "bill_of_lading_semantic_v2": TrainingTask(
         name="bill_of_lading_semantic_v2",
@@ -334,6 +352,11 @@ _TASKS = {
         name="bill_of_lading_mpci_aligned_v6",
         canonicalizer=_canonicalize_bill_of_lading_mpci_aligned_v6,
         target_model=BillOfLadingMPCIAlignedV6Label,
+    ),
+    "bill_of_lading_extraction_v7": TrainingTask(
+        name="bill_of_lading_extraction_v7",
+        canonicalizer=_canonicalize_bill_of_lading_extraction_v7,
+        target_model=BillOfLadingExtractionV7Label,
     ),
 }
 

@@ -215,7 +215,10 @@ def _normalize(value: str) -> str:
     normalized = re.sub(r"[^A-Z0-9]+", " ", normalized)
     # OCR can remove this word boundary. Match the complete equipment noun,
     # never a prefix such as TANKCONTAINERIZATION or another carrier code.
-    if "TANKCONTAINER" in normalized:
+    if "TANK" in normalized:
+        # A joined length must not hide TANK and let the generic CONTAINER noun
+        # select a dry-box type. This is a word boundary, not a pressure subtype.
+        normalized = re.sub(r"\b(20|40|45)(?=TANK(?:CONTAINERS?)?\b)", r"\1 ", normalized)
         normalized = re.sub(r"\bTANK(?=CONTAINERS?\b)", "TANK ", normalized)
     return " ".join(normalized.split())
 
@@ -304,7 +307,7 @@ def partial_equipment_constraint(
         return None, "GENERAL_PURPOSE", None
     if re.fullmatch(r"REFRIGERATED\s+CONTAINER", text, re.I):
         return None, "REFRIGERATED", None
-    tank_surface = re.sub(r"\bTANK(?=CONTAINERS?\b)", "TANK ", text, flags=re.I)
+    tank_surface = re.sub(r"(?<![A-Z])TANK(?=CONTAINERS?\b)", "TANK ", text, flags=re.I)
     generic_tank = re.fullmatch(
         r"(20|40|45)\s*(?:['\u2019`]\s*)?(?:FT\s*)?(?:ISO\s*)?TANK(?:\s*CONTAINER(?:\(S\)|S)?)?",
         tank_surface,
@@ -317,7 +320,7 @@ def partial_equipment_constraint(
     flat = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*FLATRACK\s+COLLAPSIBLE", text, re.I)
     if flat:
         return flat[1], "PLATFORM_COLLAPSIBLE", None
-    high_cube = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*HIGH\s*CUBE", text, re.I)
+    high_cube = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*HIGH\s*CU(?:BE|BIC)", text, re.I)
     if high_cube:
         return (
             high_cube[1],
@@ -387,6 +390,10 @@ def review_source_equipment_surface(
     semantic = re.sub(r"(?:^| )[1-9][0-9]*X(?=(?:20|40|45))", " ", normalized).strip()
     semantic = re.sub(r"\b(20|40|45)(?=DRY\b)", r"\1 ", semantic)
     tokens = frozenset(semantic.split())
+    # Real carrier equipment wording also spells HIGH CUBE as HIGH CUBIC.
+    # Interpret the paired height phrase; CUBIC alone remains a volume word.
+    if {"HIGH", "CUBIC"} <= tokens:
+        tokens = tokens | {"CUBE"}
 
     # Closed carrier/EDI spellings, not a substring or an OCR correction.
     # HMM publishes 4H dry as 12.032m / 9'6":

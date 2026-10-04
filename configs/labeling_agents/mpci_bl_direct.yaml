@@ -1,0 +1,8 @@
+# Single-document direct-labeling pilot. No call runs until extract/refine is invoked.
+model: gpt-6-luna
+reasoning_effort: high
+max_output_tokens: 32768
+timeout_seconds: 300.0
+concurrency: 16
+package_registry: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+package_registry_sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f

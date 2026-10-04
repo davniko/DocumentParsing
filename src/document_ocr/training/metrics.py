@@ -11,6 +11,7 @@ from document_ocr.label_schemas.bill_of_lading_v3 import RelationExplicitDocumen
 from document_ocr.label_schemas.bill_of_lading_v4 import RelationExplicitDocumentPatchV4
 from document_ocr.label_schemas.bill_of_lading_v5 import RelationExplicitDocumentPatchV5
 from document_ocr.label_schemas.bill_of_lading_v6 import BillOfLadingDocumentPatchV6
+from document_ocr.label_schemas.bill_of_lading_v7 import BillOfLadingDocumentPatchV7
 from document_ocr.training.tasks import TrainingTask, canonical_json
 
 
@@ -61,7 +62,7 @@ def _relation_metric_profile(task: TrainingTask) -> _RelationMetricProfile:
     if not isinstance(patch_model, type):
         raise TypeError("training target documentPatch annotation must be a model class")
     v5_schema = issubclass(patch_model, RelationExplicitDocumentPatchV5)
-    v6_schema = issubclass(patch_model, BillOfLadingDocumentPatchV6)
+    v6_schema = issubclass(patch_model, (BillOfLadingDocumentPatchV6, BillOfLadingDocumentPatchV7))
     return _RelationMetricProfile(
         supported=issubclass(patch_model, RelationExplicitDocumentPatch) or v6_schema,
         dangerous_goods_categories=(
