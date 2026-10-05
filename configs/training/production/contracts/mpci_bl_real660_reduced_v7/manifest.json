@@ -1,0 +1,35 @@
+{
+  "configSha256": "c8bf28ea3e1fe5886b903f3984322bc00af88612354a1b81efd1a340701a6419",
+  "output": {
+    "bytes": 1486,
+    "containerCategoryTokens": 4,
+    "packageCategoryTokens": 43,
+    "path": "task-constraints.json",
+    "sha256": "ab776ab0b2f33d522e85062af104cfa20aecd5301bf67de45fd30d0e977d8de6"
+  },
+  "publicationStatus": "complete",
+  "registries": {
+    "container": {
+      "path": "data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json",
+      "sha256": "aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb"
+    },
+    "package": {
+      "path": "artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json",
+      "sha256": "2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f"
+    }
+  },
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "path": "data/curated/mpci-bl-real-v7-reviewed-r12-reduced-660/train.jsonl",
+      "records": 600,
+      "sha256": "3643a0b1f69d0213c637888c42abbb2f0d6e1e96060646e34598606b19c48d7c"
+    },
+    {
+      "path": "data/curated/mpci-bl-real-v7-reviewed-r12-reduced-660/validation.jsonl",
+      "records": 60,
+      "sha256": "b189c59c15910f05573d8d20ab3ef404b5117b420898c564fa5a6d6477641bdf"
+    }
+  ],
+  "task": "bill_of_lading_extraction_v7_reduced"
+}

@@ -1,0 +1,22 @@
+schema_version: 1
+task: bill_of_lading_extraction_v7_reduced
+
+sources:
+  - path: data/curated/mpci-bl-real-v7-reviewed-r12-reduced-660/train.jsonl
+    sha256: 3643a0b1f69d0213c637888c42abbb2f0d6e1e96060646e34598606b19c48d7c
+    records: 600
+  - path: data/curated/mpci-bl-real-v7-reviewed-r12-reduced-660/validation.jsonl
+    sha256: b189c59c15910f05573d8d20ab3ef404b5117b420898c564fa5a6d6477641bdf
+    records: 60
+
+target_field: target
+package_registry:
+  path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+  sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+container_registry:
+  path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+  sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+
+# Keep the small runtime contract with the config so a clone can load it;
+# source registries are required only to rebuild this hash-pinned contract.
+output_dir: configs/training/production/contracts/mpci_bl_real660_reduced_v7

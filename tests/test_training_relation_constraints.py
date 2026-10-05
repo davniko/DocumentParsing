@@ -18,6 +18,7 @@ from document_ocr.training.tasks import RelationExplicitTaskConstraints, get_tra
         "bill_of_lading_relation_explicit_v5",
         "bill_of_lading_mpci_aligned_v6",
         "bill_of_lading_extraction_v7",
+        "bill_of_lading_extraction_v7_reduced",
     ],
 )
 def test_build_relation_constraints_validates_targets_and_publishes_exact_union(
@@ -60,7 +61,10 @@ def test_build_relation_constraints_validates_targets_and_publishes_exact_union(
     if task_name != "bill_of_lading_relation_explicit_v5":
         for row in rows:
             row["target"] = project_relation_v5_target_to_v6(row["target"])
-            if task_name == "bill_of_lading_extraction_v7":
+            if task_name in {
+                "bill_of_lading_extraction_v7",
+                "bill_of_lading_extraction_v7_reduced",
+            }:
                 row["target"]["schemaVersion"] = "7.0.0"
     source.write_bytes(b"".join(canonical_json_bytes(row) + b"\n" for row in rows))
     package_registry = tmp_path / "package.json"

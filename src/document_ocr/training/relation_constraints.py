@@ -109,7 +109,12 @@ def _source_tokens(
                 for goods in patch.get("goodsItemDetails", [])
                 for package in goods.get("numberAndTypeOfPackages", [])
             )
-            if task_name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
+            if task_name
+            in {
+                "bill_of_lading_mpci_aligned_v6",
+                "bill_of_lading_extraction_v7",
+                "bill_of_lading_extraction_v7_reduced",
+            }
             else patch.get("cargoPackages", [])
         )
         for package in packages:
@@ -118,7 +123,12 @@ def _source_tokens(
                 package_tokens.add(cast(str, token))
         container_field = (
             "containerInformation"
-            if task_name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
+            if task_name
+            in {
+                "bill_of_lading_mpci_aligned_v6",
+                "bill_of_lading_extraction_v7",
+                "bill_of_lading_extraction_v7_reduced",
+            }
             else "containers"
         )
         for container in patch.get(container_field, []):
@@ -186,9 +196,7 @@ def build_relation_constraints(
             "schemaVersion": 1,
             "task": config.task,
             "basePromptSchemaSha256": task.base_prompt_schema_sha256(),
-            "targetSchemaSha256": sha256_bytes(
-                canonical_json_bytes(task.target_model.model_json_schema(mode="serialization"))
-            ),
+            "targetSchemaSha256": sha256_bytes(canonical_json_bytes(task.target_schema())),
             "packageRegistrySha256": config.package_registry.sha256,
             "containerRegistrySha256": config.container_registry.sha256,
             "packageCategoryTokens": tuple(sorted(package_tokens)),

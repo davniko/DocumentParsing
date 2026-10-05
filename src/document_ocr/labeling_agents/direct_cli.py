@@ -26,7 +26,7 @@ from document_ocr.semantic_v3.transform import CategoryRegistry
 def add_commands(commands: Any) -> None:
     for name, help_text in (
         ("extract", "one OCR-only direct extraction call; save draft labels without review"),
-        ("refine", "review a saved V7 draft with at most two section correction waves"),
+        ("refine", "review a saved V7 draft with one correction and final verification"),
         ("schema", "export described extraction schema without any provider request"),
     ):
         parser = commands.add_parser(name, help=help_text)

@@ -16,7 +16,6 @@ from document_ocr.label_schemas.bill_of_lading import (
     AddressText,
     ApplicationText,
     BillOfLadingRoute,
-    BillOfLadingTransport,
     CargoMass,
     CargoText,
     ContactDetails,
@@ -71,7 +70,8 @@ class LocationV7(SemanticLocation):
             "Country explicitly supported by this location's OCR wording or country "
             "code, including an unambiguous national adjective. Normalize to the "
             "conventional English short country name in uppercase. A city alone or "
-            "another party's country does not establish this location's country."
+            "another party's country does not establish this location's country. "
+            "Generic contractual coverage of a country is not shipment-route evidence."
         ),
     )
 
@@ -91,9 +91,11 @@ class ContactsV7(ContactDetails):
         default=None,
         min_length=1,
         description=(
-            "All distinct party-owned telephone numbers, including uncaptioned "
+            "Distinct party-owned telephone numbers, including uncaptioned "
             "continuation lines, one per entry. Preserve spelling and printed "
-            "prefixes; never supply omitted prefixes. A number explicitly labeled for "
+            "prefixes. Extract independently printed numbers; omit standalone abbreviated "
+            "suffixes and extension fragments rather than expanding them into inferred "
+            "numbers. A number explicitly labeled for "
             "both telephone and fax qualifies. A number labeled only FAX is excluded, "
             "even beside a separate TEL number on the same physical line."
         ),
@@ -167,7 +169,7 @@ class RouteV7(BillOfLadingRoute):
     )
 
 
-class TransportV7(BillOfLadingTransport):
+class TransportV7(LabelSchemaModel):
     """Main-carriage vessel and voyage, separate from pre-carriage and transshipment legs."""
 
     vesselName: ApplicationText | None = Field(
@@ -199,6 +201,12 @@ class TransportV7(BillOfLadingTransport):
             "ports and party countries do not establish the flag."
         ),
     )
+
+    @model_validator(mode="after")
+    def contains_transport(self) -> TransportV7:
+        if not self.model_dump(exclude_none=True):
+            raise ValueError("transport must contain at least one OCR-supported value")
+        return self
 
 
 class MassV7(Mass):
@@ -308,10 +316,10 @@ class FreightV7(FreightTerms):
             description=(
                 "Selected freight terms: prepaid=paid at origin; collect=payable at "
                 "destination; third_party=explicit third-party payer; "
-                "payable_elsewhere=explicit other payment place/arrangement. Empty "
-                "Empty payment captions, including a freight-advance receipt box, "
-                "do not select a value. A reference to charter-party terms alone "
-                "does not state the payment arrangement."
+                "payable_elsewhere=explicit payment at a place other than origin or "
+                "destination. A payment locality alone belongs in paymentPlace; "
+                "'as arranged' leaves the arrangement unspecified. Empty payment "
+                "captions and charter-party references do not select a value."
             ),
         )
     )
@@ -592,8 +600,11 @@ class ExtractionPartiesV7(LabelSchemaModel):
         description=(
             "Named consignee or named bank/entity in a TO ORDER OF clause; omit the "
             "order preamble from its identity. Bare TO ORDER supplies no named "
-            "consignee. Negotiability is separate; never invent a consignee to meet "
-            "form submission rules."
+            "consignee. Preserve the order instruction as negotiability=negotiable "
+            "even though it is removed from the name; never invent a consignee to meet "
+            "form submission rules. Use information printed directly in the consignee "
+            "block; do not import contacts or other details from the goods area. "
+            "This role-specific boundary takes precedence over general continuation rules."
         ),
     )
     notifyParties: tuple[ExtractionPartyV7, ...] | None = Field(
@@ -657,13 +668,15 @@ class ExtractionPartiesV7(LabelSchemaModel):
 class GoodsItemDetailsV7(LabelSchemaModel):
     """One goods identity/accounting entry, potentially placed in several containers.
 
-    Separate independently quantified different products/specifications/lots. Repeated portions
-    of one shared product are one goods item with placements, even with per-container weights.
-    Multiple product names or HS codes alone do not force a split; repeated copies add no goods.
-    Establish identities across the complete document before assigning portions. A product
-    separately accounted anywhere retains that identity in mixed portions; shared amounts
-    remain unallocated. Combine product names into one joint entry only when they are
-    accounted together throughout, without separately established product accounting.
+    Goods boundaries follow product-owned accounting across the complete document:
+    distinct products with their own package quantities, gross masses and/or volumes
+    support separate entries. Product names, models, lots or HS codes alone do not.
+    A jointly accounted assortment with shared totals is one entry with its complete
+    description. A grand total does not erase separately accounted product rows.
+    Container-specific quantities, weights and volumes can be portions of that same
+    goods item; packaging levels and repeated copies do not create goods identities.
+    Establish product ownership before assigning portions; genuinely shared amounts
+    remain unallocated rather than guessed into separate goods.
     """
 
     description: CargoText | None = Field(
@@ -676,7 +689,10 @@ class GoodsItemDetailsV7(LabelSchemaModel):
             "description column may also contain shipment quantities/masses, destinations "
             "and shipment/administrative references: these are separate facts, not product "
             "wording. Exclude "
-            "extracted HS/DG codes and generic disclaimers."
+            "extracted HS/DG codes and generic disclaimers. Condition means an observed "
+            "condition of this cargo, not a carrier's standard damage/liability clause. "
+            "Package capacity requires an explicit per-package relation; a repeated "
+            "count beside a package name does not establish capacity."
         ),
     )
     grossWeight: CargoMassV7 | None = Field(
@@ -713,12 +729,10 @@ class GoodsItemDetailsV7(LabelSchemaModel):
             "numbers and origin wording. Consignee/project shorthand can be a cargo mark "
             "in a combined equipment/marks panel; establish its identifying function "
             "rather than requiring a separate marks caption. Standalone customs/"
-            "administrative references, "
-            "package-type captions, container IDs and seals have other meanings. A "
-            "combined marks/container heading does not turn customs identifiers into "
-            "marks. For doubtful column ownership inspect the PDF layout and complete "
-            "block before assigning. Product wording also printed "
-            "on package labels still belongs in description."
+            "administrative references, package-type captions, container IDs and seals "
+            "have other meanings. For doubtful column ownership inspect the PDF layout "
+            "and complete block before assigning. Product wording also printed on "
+            "package labels still belongs in description."
         ),
     )
     hsCodes: tuple[HsCode, ...] | None = Field(
@@ -726,7 +740,7 @@ class GoodsItemDetailsV7(LabelSchemaModel):
         min_length=1,
         description=(
             "All distinct printed HS/customs commodity codes for this goods item, "
-            "including multiple codes. Remove presentation dots/spaces only; retain all"
+            "including multiple codes. Remove presentation dots, spaces and hyphens; retain all"
             " 6-18 digits and leading zeros. Do not pad, truncate or infer a code from "
             "product identity."
         ),
@@ -790,7 +804,7 @@ class GoodsItemDetailsV7(LabelSchemaModel):
 
 
 def _unique_references(values: tuple[str, ...]) -> tuple[str, ...]:
-    """Keep the reference constraint on its field so section models inherit it."""
+    """Keep uniqueness on the field so section extraction inherits it."""
     if len(values) != len(set(values)):
         raise ValueError("references must be unique and source ordered")
     return values
@@ -826,8 +840,10 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
         default=None,
         description=(
             "B/L issue date normalized to YYYY-MM-DD, not departure/ETD or on-board "
-            "date. Establish day/month order from an explicit format or unambiguous "
-            "dates in the same source convention, never from country, issuer or language. "
+            "date. Four-digit-year-first YYYY/MM/DD and YYYY-MM-DD use year-month-day. "
+            "For other numeric dates, establish day/month order from an explicit format "
+            "or unambiguous dates in the same source convention, never from country, "
+            "issuer or language. "
             "If both orders remain possible, absence is the correct target."
         ),
     )
@@ -835,7 +851,9 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
         default=None,
         description=(
             "Explicit shipped/on-board date normalized to YYYY-MM-DD, not a generic "
-            "issue/sailing date. Establish day/month order from source format evidence, "
+            "issue/sailing date. Four-digit-year-first YYYY/MM/DD and YYYY-MM-DD use "
+            "year-month-day. For other numeric dates, establish day/month order from "
+            "source format evidence, "
             "not country, issuer or language. If both orders remain possible, absence "
             "is the correct target."
         ),
@@ -843,13 +861,16 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
     negotiability: Literal["negotiable", "non_negotiable"] | None = Field(
         default=None,
         description=(
-            "Read the actual consignee instruction: TO ORDER, TO THE ORDER OF or "
-            "equivalent order-consignment wording means negotiable; a named consignee "
-            "without order wording means non_negotiable. An explicit sea waybill/"
-            "non-negotiable issuance also supports non_negotiable. If neither consignee "
-            "instruction nor issuance declaration is available, leave absent. Generic "
-            "form captions, contract wording about order/assigns and copy stamps do not "
-            "supply the instruction. Conflicting shipment declarations require review."
+            "Classify from the OCR consignee instruction, before removing its order "
+            "preamble from the party name. TO ORDER, TO THE ORDER (OF), THE ORDER OF, "
+            "or a populated CONSIGNED TO ORDER OF field means negotiable, with or "
+            "without a named bank/company. This instruction takes precedence over "
+            "non-negotiable copy stamps or document titles for this extraction target. "
+            "A named consignee without order wording means non_negotiable. Conditional "
+            "captions (if/unless/only if), unselected OR ORDER alternatives, and legal "
+            "boilerplate are not order instructions. If the consignee instruction is "
+            "absent, use an explicit sea-waybill/non-negotiable issuance declaration; "
+            "otherwise leave absent. Conflicting actual consignee instructions need review."
         ),
     )
     placeOfIssue: LocationV7 | None = Field(
@@ -902,25 +923,25 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
         default=None,
         min_length=1,
         description=(
-            "Distinct explicit shipment/commercial/customs references (booking, "
-            "invoice, order, vendor, ACID, party tax/import/export IDs including those "
-            "inside party blocks) in source order, "
-            "retaining captions with values. This is not an inventory of every identifier: "
-            "exclude B/L/vessel IMO or Lloyds/voyage/container/seal IDs, HS/DG codes, "
-            "shipping marks and product "
-            "lot/model identifiers belonging to their dedicated facts/description. Exclude "
-            "bare numbers, country/type metadata and unrelated company registrations. "
-            "An identifier invalid for its dedicated field is not reassigned here."
+            "Distinct explicit shipment/commercial/customs references (booking, invoice, "
+            "order, vendor, ACID, party tax/import/export IDs including those inside "
+            "party blocks) in source order, retaining captions with values. Exclude "
+            "B/L/vessel IMO or Lloyds/voyage/container/seal IDs, HS/DG codes, shipping "
+            "marks and product lot/model identifiers belonging to their dedicated "
+            "facts/description. Bare numbers, country/type metadata and unrelated "
+            "company registrations are not shipment references. An identifier invalid "
+            "for its dedicated field is not reassigned here."
         ),
     )
     goodsItemDetails: tuple[GoodsItemDetailsV7, ...] | None = Field(
         default=None,
         min_length=1,
         description=(
-            "Complete source-ordered goods entries, including attachments. Different "
-            "quantified products remain separate; shared product container portions "
-            "become placements, not duplicate goods. Multiple HS codes alone do not "
-            "split a goods item."
+            "Complete source-ordered goods accounting entries, including attachments. "
+            "Separate products only when product-owned package quantities, gross masses "
+            "or volumes establish their independent accounting. Shared assortments use "
+            "one complete description; container portions use placements. Multiple "
+            "product names or HS codes alone do not split goods."
         ),
     )
 

@@ -41,8 +41,11 @@ def target() -> dict:
     }
 
 
-def test_full_postal_contract_and_relation_metrics_round_trip() -> None:
-    task = get_training_task("bill_of_lading_extraction_v7")
+@pytest.mark.parametrize(
+    "task_name", ["bill_of_lading_extraction_v7", "bill_of_lading_extraction_v7_reduced"]
+)
+def test_full_postal_contract_and_relation_metrics_round_trip(task_name: str) -> None:
+    task = get_training_task(task_name)
     source = target()
     assert task.canonicalize(source) == source
     wire = canonical_json(source)
@@ -84,6 +87,44 @@ def test_no_cargo_overflow_or_dangling_placement() -> None:
         task.canonicalize(source)
 
 
+@pytest.mark.parametrize(
+    "field", ["vesselFlagCountry", "marksAndNumbers", "forwardingAndExportReferences"]
+)
+@pytest.mark.parametrize("explicit_null", [False, True])
+def test_full_annotation_fields_survive_canonicalization(field: str, explicit_null: bool) -> None:
+    source = target()
+    patch = source["documentPatch"]
+    if field == "vesselFlagCountry":
+        owner = patch["transport"] = {"vesselName": "EXAMPLE"}
+        value = "EGYPT"
+    elif field == "marksAndNumbers":
+        owner, value = patch["goodsItemDetails"][0], ["N/M"]
+    else:
+        owner, value = patch, ["INV: 123"]
+    owner[field] = None if explicit_null else value
+    task = get_training_task("bill_of_lading_extraction_v7")
+    if explicit_null:
+        with pytest.raises(ValueError, match="canonical sparse"):
+            task.canonicalize(source)
+        from document_ocr.label_schemas.bill_of_lading_v7 import BillOfLadingExtractionV7Label
+
+        result = BillOfLadingExtractionV7Label.model_validate_json(
+            json.dumps(source)
+        ).canonical_target()
+        assert task.canonicalize(result) == result
+    else:
+        result = task.canonicalize(source)
+    result_owner = result["documentPatch"]
+    if field == "vesselFlagCountry":
+        result_owner = result_owner["transport"]
+    elif field == "marksAndNumbers":
+        result_owner = result_owner["goodsItemDetails"][0]
+    if explicit_null:
+        assert field not in result_owner
+    else:
+        assert result_owner[field] == value
+
+
 def test_training_prompt_matches_target_and_keeps_ocr_literal() -> None:
     root = Path(__file__).resolve().parents[1]
     task = get_training_task("bill_of_lading_extraction_v7")
@@ -101,6 +142,49 @@ def test_training_prompt_matches_target_and_keeps_ocr_literal() -> None:
     assert "addressLine" in props and "country" in props
     assert "city" not in props and "address" not in props
     assert "additionalInformation" not in schema["$defs"]["GoodsItemDetailsV7"]["properties"]
+    assert "marksAndNumbers" in schema["$defs"]["GoodsItemDetailsV7"]["properties"]
+    transport = schema["$defs"]["TransportV7"]["properties"]
+    assert "vesselFlagCountry" in transport and "vesselImoNumber" in transport
+    assert (
+        "forwardingAndExportReferences"
+        in schema["$defs"]["BillOfLadingDocumentPatchV7"]["properties"]
+    )
     raw = "UNIT 4\nNEWBERG OR 97132\nUSA"
     assert raw in prompt.render(raw)
     assert "{{output_schema}}" not in prompt.text
+
+
+@pytest.mark.parametrize(
+    "definition,path,field,value",
+    [
+        ("ExtractionPartiesV7", ["parties"], "carrier", {"name": "CARRIER LTD"}),
+        ("TransportV7", ["transport"], "vesselFlagCountry", "EGYPT"),
+        ("GoodsItemDetailsV7", ["goodsItemDetails", 0], "marksAndNumbers", ["N/M"]),
+        ("BillOfLadingDocumentPatchV7", [], "forwardingAndExportReferences", ["INV: 123"]),
+    ],
+)
+def test_reduced_contract_rejects_dropped_fields_without_changing_annotation_scope(
+    definition: str, path: list, field: str, value: object
+) -> None:
+    from jsonschema import Draft202012Validator, ValidationError
+
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    full_task = get_training_task("bill_of_lading_extraction_v7")
+    source = target()
+    assert task.canonicalize(source) == source
+    prompt_schema = json.loads(task.prompt_schema_json())
+    assert field not in prompt_schema["$defs"][definition]["properties"]
+    assert field in json.loads(full_task.prompt_schema_json())["$defs"][definition]["properties"]
+    owner = source["documentPatch"]
+    for key in path:
+        if isinstance(key, str) and key not in owner:
+            owner[key] = {}
+        owner = owner[key]
+    owner[field] = value
+    assert full_task.canonicalize(source) == source
+    with pytest.raises(ValueError, match="outside reduced V7"):
+        task.canonicalize(source)
+    for schema in (task.target_schema(), prompt_schema):
+        with pytest.raises(ValidationError):
+            Draft202012Validator(schema).validate(source)
+    assert field in full_task.target_schema()["$defs"][definition]["properties"]

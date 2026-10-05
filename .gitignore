@@ -18,6 +18,9 @@ htmlcov/
 artifacts/
 data/
 scratch/
+# Generated analysis inventories, review copies, figures and reports
+/docs/analysis/
+/analysis/
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal

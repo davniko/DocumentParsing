@@ -8,11 +8,29 @@ from typing import Any
 from document_ocr.labeling_agents.direct_cargo import identifier_present
 from document_ocr.labeling_agents.direct_models import ReviewFinding, Section
 
+_ORDER_INSTRUCTION = re.compile(
+    r"^[ \t]*(?:[\"'\u201c\u201d\u2018\u2019])?(?:CONSIGNEE[ \t]*:[ \t]*)?"
+    r"(?:TO\s+(?:THE\s+)?ORDER\b|THE\s+ORDER\s+OF\b|CONSIGNED\s+TO\s+ORDER\s+OF\b)"
+    r"[^\r\n]*",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def order_consignment_candidates(ocr: str) -> list[str]:
+    """Find affirmative order wording for ownership review, not automatic labeling.
+
+    Anchoring excludes conditional consignee captions and narrative boilerplate.
+    Newlines within a short instruction are allowed. The reviewer still establishes
+    that the instruction belongs to the consignee and that an OF field is populated.
+    No fixed character window, party-name lookup or PDF-only evidence is used.
+    """
+    return list(dict.fromkeys(match.group().strip() for match in _ORDER_INSTRUCTION.finditer(ocr)))
+
 
 def source_fidelity_findings(
     candidate: dict[str, Any], ocr: str, section: Section
 ) -> list[ReviewFinding]:
-    """Flag absent HS digit sequences and main-carriage names/identifiers.
+    """Flag absent identifiers and missed affirmative order-consignment wording.
 
     Formatting separators may differ. A successful match establishes only literal
     support; the reviewer must still decide field meaning, ownership and completeness.
@@ -25,8 +43,8 @@ def source_fidelity_findings(
             for code in goods.get("hsCodes") or []:
                 if not isinstance(code, str) or not code.isascii() or not code.isdigit():
                     continue  # The application schema reports malformed value types.
-                # Do not match a prefix/suffix of a longer continuous or dotted code.
-                pattern = r"(?<![\w.])" + r"[.\s]*".join(code) + r"(?!\w|\.\d)"
+                # Match presentation separators, never a prefix/suffix of a longer code.
+                pattern = r"(?<![\w.-])" + r"[.\s-]*".join(code) + r"(?!\w|[.-]\d)"
                 values.append((f"goodsItemDetails[{index}].hsCodes", code, pattern))
     elif section == "route_transport":
         transport = patch.get("transport") or {}
@@ -56,6 +74,28 @@ def source_fidelity_findings(
         for field, value, pattern in values
         if re.search(pattern, ocr, flags=re.IGNORECASE) is None
     ]
+    if section == "metadata_freight" and patch.get("negotiability") != "negotiable":
+        instructions = order_consignment_candidates(ocr)
+        if instructions:
+            findings.append(
+                ReviewFinding(
+                    field="negotiability",
+                    issue="wrong_value",
+                    explanation=(
+                        "OCR contains affirmative order-consignment wording: "
+                        + repr(instructions)
+                        + ". Check its consignee ownership and any named continuation; "
+                        "the normalized consignee name alone loses this instruction."
+                    ),
+                    suggestedCorrection=(
+                        "Set negotiability to negotiable when this is the actual consignee "
+                        "instruction, including a populated Consigned to order of field. "
+                        "Copy/document titles do not override it under the target policy. "
+                        "If the wording belongs elsewhere or the OF field is empty, explain "
+                        "that ownership instead. This diagnostic does not edit labels."
+                    ),
+                )
+            )
     identifiers = []
     if section == "equipment":
         for i, row in enumerate(patch.get("containerInformation") or []):

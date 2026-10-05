@@ -234,6 +234,12 @@ async def test_extraction_sends_literal_ocr_descriptions_and_returns_plain_draft
         assert canonical["properties"]["typeDescription"]["type"] == "null"
         assert {"type": "null"} in printed["properties"]["typeDescription"]["anyOf"]
         assert "additionalInformation" not in by_title["GoodsItemDetailsV7"]["properties"]
+        assert "marksAndNumbers" in by_title["GoodsItemDetailsV7"]["properties"]
+        assert "vesselFlagCountry" in by_title["TransportV7"]["properties"]
+        assert (
+            "forwardingAndExportReferences"
+            in schema["$defs"]["BillOfLadingDocumentPatchV7"]["properties"]
+        )
         assert "city" not in by_title["ExtractionPartyV7"]["properties"]
         return response(label())
 
@@ -572,7 +578,7 @@ async def test_invalid_draft_is_reviewable_but_never_exported_as_valid(tmp_path,
 @pytest.mark.asyncio
 async def test_section_constraint_cannot_be_overridden_by_semantic_pass(tmp_path):
     candidate = label()
-    candidate["documentPatch"]["forwardingAndExportReferences"] = ["INV: 123", "INV: 123"]
+    candidate["documentPatch"]["goodsItemDetails"][0]["hsCodes"] = ["520511", "520511"]
     original = copy.deepcopy(candidate)
     calls = []
 
@@ -580,18 +586,17 @@ async def test_section_constraint_cannot_be_overridden_by_semantic_pass(tmp_path
         source = text(messages)
         if "Findings:" in source:
             calls.append(source)
-            assert "references must be unique" in source
-            return correction(
-                messages,
-                {"billOfLadingNumber": "BL001", "forwardingAndExportReferences": ["INV: 123"]},
-            )
+            assert "hsCodes values must be unique" in source
+            goods = copy.deepcopy(candidate["documentPatch"]["goodsItemDetails"])
+            goods[0]["hsCodes"] = ["520511"]
+            return correction(messages, {"goodsItemDetails": goods})
         return response({"response": {"status": "pass", "findings": []}})
 
-    subject = flow(tmp_path, responder, ocr=OCR + "\nINV: 123\n")
+    subject = flow(tmp_path, responder, ocr=OCR + "\nHS CODE: 520511\n")
     result = await subject.refine(candidate)
     assert candidate == original
     assert len(calls) == 1
-    assert result["target"]["documentPatch"]["forwardingAndExportReferences"] == ["INV: 123"]
+    assert result["target"]["documentPatch"]["goodsItemDetails"][0]["hsCodes"] == ["520511"]
     assert result["status"] == "reviewed_candidate"
 
 
@@ -729,7 +734,7 @@ async def test_source_map_only_repair_cannot_modify_target_facts(tmp_path):
     def reviewer(messages, info):
         if "Findings:" in text(messages):
             goods = copy.deepcopy(label()["documentPatch"]["goodsItemDetails"])
-            goods[0]["marksAndNumbers"] = ["YARN"]
+            goods[0]["handlingInstructions"] = ["KEEP DRY"]
             return correction(messages, {"goodsItemDetails": goods})
         return response({"response": {"status": "pass", "findings": []}})
 
@@ -758,10 +763,7 @@ async def test_source_map_only_repair_cannot_modify_target_facts(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("declare_removal", [False, True])
-async def test_correction_reversal_is_declared_and_reviewed_against_last_wave(
-    tmp_path, declare_removal
-):
+async def test_final_review_reports_reversal_without_applying_another_edit(tmp_path):
     wave = 0
     checked = []
 
@@ -771,14 +773,9 @@ async def test_correction_reversal_is_declared_and_reviewed_against_last_wave(
         if "Findings:" in source:
             wave += 1
             values = {"billOfLadingNumber": "BL001"}
-            if wave == 1:
-                values["freight"] = {"paymentArrangement": "prepaid"}
-            result = correction(messages, values)
-            if wave == 2 and not declare_removal:
-                raw = json.loads(result.parts[0].content)
-                raw["response"]["decisions"][0]["changedFields"] = []
-                result = response(raw)
-            return result
+            assert wave == 1, "Final verification must never trigger a second correction"
+            values["freight"] = {"paymentArrangement": "prepaid"}
+            return correction(messages, values)
         if "Assigned section: metadata_freight." in source:
             marker = "Changes in the last correction wave (audit both directions):\n"
             if marker in source:
@@ -803,18 +800,13 @@ async def test_correction_reversal_is_declared_and_reviewed_against_last_wave(
 
     subject = flow(tmp_path, responder)
     result = await subject.refine(label())
-    if declare_removal:
-        assert result["status"] == "reviewed_candidate"
-        assert checked[-1] == [
-            {"field": "freight.paymentArrangement", "before": "prepaid", "after": None}
-        ]
-    else:
-        assert result["status"] == "needs_adjudication"
-        assert result["target"]["documentPatch"]["freight"]["paymentArrangement"] == "prepaid"
-        assert (
-            "changed-field mismatch"
-            in result["reviews"]["metadata_freight"]["findings"][0]["explanation"]
-        )
+    assert wave == 1
+    assert result["status"] == "needs_adjudication"
+    assert result["target"]["documentPatch"]["freight"]["paymentArrangement"] == "prepaid"
+    assert checked == [
+        [{"field": "freight.paymentArrangement", "before": None, "after": "prepaid"}]
+    ]
+    assert result["reviews"]["metadata_freight"]["findings"][0]["suggestedCorrection"] == "Remove"
 
 
 @pytest.mark.asyncio
@@ -826,7 +818,7 @@ async def test_cross_section_relocation_is_joint_audited_and_preserves_other_fac
     decision_mode,
 ):
     candidate = label()
-    candidate["documentPatch"]["forwardingAndExportReferences"] = ["ITEM CODE: ZX-42"]
+    candidate["documentPatch"]["originalBillOfLadingNumber"] = "ITEM CODE: ZX-42"
     counts = {}
 
     def responder(messages, info):
@@ -845,7 +837,7 @@ async def test_cross_section_relocation_is_joint_audited_and_preserves_other_fac
                 if k in (*SECTION_FIELDS["metadata_freight"], *SECTION_FIELDS["cargo"])
             }
             if decision_mode != "reject":
-                values["forwardingAndExportReferences"] = None
+                values["originalBillOfLadingNumber"] = None
                 values["goodsItemDetails"][0]["description"] += " ITEM CODE: ZX-42"
             decisions = [
                 {
@@ -872,7 +864,7 @@ async def test_cross_section_relocation_is_joint_audited_and_preserves_other_fac
                         "status": "corrections_needed",
                         "findings": [
                             {
-                                "field": "forwardingAndExportReferences",
+                                "field": "originalBillOfLadingNumber",
                                 "issue": "wrong_owner",
                                 "explanation": "Product code has a goods owner.",
                                 "reassignTo": "cargo",
@@ -896,7 +888,7 @@ async def test_cross_section_relocation_is_joint_audited_and_preserves_other_fac
     assert actual["parties"] == candidate["documentPatch"]["parties"]
     assert actual["containerInformation"] == candidate["documentPatch"]["containerInformation"]
     if decision_mode in ("accept", "revise"):
-        assert "forwardingAndExportReferences" not in actual
+        assert "originalBillOfLadingNumber" not in actual
         assert actual["goodsItemDetails"][0]["description"] == "YARN ITEM CODE: ZX-42"
     else:
         assert actual == candidate["documentPatch"]
@@ -974,7 +966,8 @@ def test_review_contracts_enforce_disjoint_cargo_responsibilities():
     CargoRelationFinding(field="goodsItemDetails.splitGoodsPlacement", **common)
     CargoRelationFinding(field="goodsItemDetails.grossWeight", **common)
     with pytest.raises(ValidationError):
-        CargoRelationFinding(field="marksAndNumbers", **common)
+        CargoRelationFinding(field="hsCodes", **common)
+    CargoFactFinding(field="marksAndNumbers", **common)
     with pytest.raises(ValidationError):
         CargoFactFinding(field="goodsItemDetails.splitGoodsPlacement", **common)
     with pytest.raises(ValidationError):
@@ -1344,7 +1337,10 @@ def test_review_status_and_schema_command_without_credentials(tmp_path, monkeypa
     assert output.is_file()
 
 
-@pytest.mark.parametrize("printed", ["001234560000", "00.12.34.56.00.00", "00 12 34\n56 00 00"])
+@pytest.mark.parametrize(
+    "printed",
+    ["001234560000", "00.12.34.56.00.00", "00 12 34\n56 00 00", "00.12.34-56-00.00"],
+)
 def test_literal_fidelity_accepts_formatting_but_not_changed_digits(printed):
     candidate = label()
     goods = candidate["documentPatch"]["goodsItemDetails"][0]
@@ -1373,29 +1369,87 @@ def test_literal_fidelity_accepts_formatting_but_not_changed_digits(printed):
     )
 
 
-@pytest.mark.asyncio
-async def test_model_pass_cannot_override_literal_gate_and_unchanged_issue_is_not_retried(tmp_path):
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "TO ORDER",
+        "TO THE ORDER",
+        "TO ORDER OF BANK",
+        "TO THE ORDER OF BANK",
+        "THE ORDER OF BANK",
+        "Consigned to order of\nBANK",
+        "TO\nTHE ORDER OF BANK",
+        "CONSIGNEE: TO ORDER OF BANK",
+    ],
+)
+def test_order_instruction_survives_name_normalization_and_copy_title(instruction):
     candidate = label()
-    candidate["documentPatch"]["goodsItemDetails"][0]["hsCodes"] = ["00123456000000"]
+    candidate["documentPatch"]["parties"]["consignee"] = {"name": "BANK"}
+    ocr = "NON-NEGOTIABLE COPY\nConsignee\n" + instruction + "\nNotify\nBUYER"
+    for wrong in (None, "non_negotiable"):
+        candidate["documentPatch"]["negotiability"] = wrong
+        findings = source_fidelity_findings(candidate, ocr, "metadata_freight")
+        assert len(findings) == 1 and findings[0].field == "negotiability"
+        assert candidate["documentPatch"]["negotiability"] == wrong
+    candidate["documentPatch"]["negotiability"] = "negotiable"
+    assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
+
+
+@pytest.mark.parametrize(
+    "ocr",
+    [
+        'Consignee (if "To Order" so indicate)\nBANK',
+        "Consignee (non-negotiable unless consigned to order)\nBANK",
+        'Consignee (negotiable only if consigned "to order")\nBANK',
+        "CONSIGNEE OR ORDER\nBANK",
+        "Consigned (not to Order)\nBANK",
+        "If this is a negotiable (To Order / of) Bill of lading, surrender it.",
+        "PURCHASE ORDER NO: 1234\nDelivery order",
+        "Consignee\nBANK",
+    ],
+)
+def test_conditional_order_caption_is_not_an_actual_instruction(ocr):
+    candidate = label()
+    candidate["documentPatch"]["negotiability"] = "non_negotiable"
+    assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("section", ["cargo", "metadata_freight"])
+async def test_model_pass_cannot_override_literal_gate_and_unchanged_issue_is_not_retried(
+    tmp_path, section
+):
+    candidate = label()
+    if section == "cargo":
+        candidate["documentPatch"]["goodsItemDetails"][0]["hsCodes"] = ["00123456000000"]
+        evidence, issue = "HS: 00.12.34.56.00.00", "unsupported"
+    else:
+        candidate["documentPatch"]["negotiability"] = "non_negotiable"
+        evidence, issue = "\nConsignee\nTO ORDER OF BANK\nNotify\nBUYER", "wrong_value"
 
     def responder(messages, info):
         if "Findings:" in text(messages):
             return correction(
-                messages, {"goodsItemDetails": candidate["documentPatch"]["goodsItemDetails"]}
+                messages,
+                {
+                    k: v
+                    for k, v in candidate["documentPatch"].items()
+                    if k in SECTION_FIELDS[section]
+                },
             )
         return response({"response": {"status": "pass", "findings": []}})
 
     subject = flow(tmp_path, responder)
-    subject.ocr += "HS: 00.12.34.56.00.00"
+    subject.ocr += evidence
     result = await subject.refine(candidate)
     assert result["status"] == "needs_adjudication"
-    assert result["reviews"]["cargo"]["findings"][0]["issue"] == "unsupported"
+    assert result["reviews"][section]["findings"][0]["issue"] == issue
     assert sum(r["stage"] == "corrector" for r in subject.receipts) == 1
     assert result["target"] == candidate  # Diagnostics are not automatic edits.
 
 
 @pytest.mark.asyncio
-async def test_new_final_review_finding_gets_one_more_wave_and_then_stops(tmp_path):
+async def test_new_final_review_finding_is_retained_without_another_edit(tmp_path):
     count = 0
 
     def responder(messages, info):
@@ -1424,11 +1478,12 @@ async def test_new_final_review_finding_gets_one_more_wave_and_then_stops(tmp_pa
 
     subject = flow(tmp_path, responder)
     result = await subject.refine(label())
-    assert count == 2
+    assert count == 1
     assert result["status"] == "needs_adjudication"
-    assert [r["wave"] for r in result["correctionDecisions"]] == [1, 2]
+    assert [r["wave"] for r in result["correctionDecisions"]] == [1]
     assert (subject.output_dir / "wave-1-target.json").exists()
-    assert (subject.output_dir / "wave-2-target.json").exists()
+    assert not (subject.output_dir / "wave-2-target.json").exists()
+    assert result["reviews"]["parties"]["findings"][0]["field"] == "parties.shipper.new_defect_1"
 
 
 @pytest.mark.asyncio

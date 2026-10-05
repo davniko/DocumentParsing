@@ -24,6 +24,14 @@ from document_ocr.training.config import TrainingConfig, resolve_config_path
 
 Canonicalizer = Callable[[dict[str, Any]], dict[str, Any]]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+_V7_TASKS = {"bill_of_lading_extraction_v7", "bill_of_lading_extraction_v7_reduced"}
+_MPCI_ALIGNED_TASKS = {"bill_of_lading_mpci_aligned_v6", *_V7_TASKS}
+_V7_REDUCED_FIELDS = {
+    "BillOfLadingDocumentPatchV7": "forwardingAndExportReferences",
+    "ExtractionPartiesV7": "carrier",
+    "TransportV7": "vesselFlagCountry",
+    "GoodsItemDetailsV7": "marksAndNumbers",
+}
 
 
 class RelationExplicitTaskConstraints(BaseModel):
@@ -38,6 +46,7 @@ class RelationExplicitTaskConstraints(BaseModel):
         "bill_of_lading_relation_explicit_v5",
         "bill_of_lading_mpci_aligned_v6",
         "bill_of_lading_extraction_v7",
+        "bill_of_lading_extraction_v7_reduced",
     ]
     basePromptSchemaSha256: Sha256
     targetSchemaSha256: Sha256
@@ -64,10 +73,22 @@ class TrainingTask:
     target_model: type[BaseModel]
     constraints: RelationExplicitTaskConstraints | None = None
 
+    def target_schema(self) -> dict[str, Any]:
+        """Return the task's target contract, distinct from full annotation scope."""
+
+        schema = self.target_model.model_json_schema(mode="serialization")
+        if self.name == "bill_of_lading_extraction_v7_reduced":
+            for definition, field in _V7_REDUCED_FIELDS.items():
+                node = schema["$defs"][definition]
+                del node["properties"][field]
+                if field in node.get("required", []):
+                    node["required"].remove(field)
+        return schema
+
     def _base_prompt_schema(self) -> dict[str, Any]:
         return cast(
             dict[str, Any],
-            _sparse_prompt_schema(self.target_model.model_json_schema(mode="serialization")),
+            _sparse_prompt_schema(self.target_schema()),
         )
 
     def base_prompt_schema_sha256(self) -> str:
@@ -83,7 +104,7 @@ class TrainingTask:
                 raise ValueError("relation-explicit prompt schema has no $defs map")
             container_definition = (
                 "ContainerInformationV7"
-                if self.name == "bill_of_lading_extraction_v7"
+                if self.name in _V7_TASKS
                 else "ContainerInformationV6"
                 if self.name == "bill_of_lading_mpci_aligned_v6"
                 else "RelationExplicitContainerV5"
@@ -97,7 +118,7 @@ class TrainingTask:
                 ),
                 (
                     "PackagesV7"
-                    if self.name == "bill_of_lading_extraction_v7"
+                    if self.name in _V7_TASKS
                     else "NumberAndTypeOfPackagesV6"
                     if self.name == "bill_of_lading_mpci_aligned_v6"
                     else "CargoPackageFact",
@@ -126,7 +147,7 @@ class TrainingTask:
             properties = ordered["$defs"]["GoodsItemDetailsV6"]["properties"]
             if "splitGoodsPlacement" in properties:
                 properties["splitGoodsPlacement"] = properties.pop("splitGoodsPlacement")
-        if self.name == "bill_of_lading_extraction_v7":
+        if self.name in _V7_TASKS:
             properties = ordered["$defs"]["GoodsItemDetailsV7"]["properties"]
             if "splitGoodsPlacement" in properties:
                 properties["splitGoodsPlacement"] = properties.pop("splitGoodsPlacement")
@@ -146,9 +167,7 @@ class TrainingTask:
         package_tokens = set(self.constraints.packageCategoryTokens)
         container_tokens = set(self.constraints.containerCategoryTokens)
         container_field = (
-            "containerInformation"
-            if self.name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
-            else "containers"
+            "containerInformation" if self.name in _MPCI_ALIGNED_TASKS else "containers"
         )
         for container in patch.get(container_field, []):
             token = container.get("typeCategory")
@@ -162,7 +181,7 @@ class TrainingTask:
                 for goods in patch.get("goodsItemDetails", [])
                 for package in goods.get("numberAndTypeOfPackages", [])
             )
-            if self.name in {"bill_of_lading_mpci_aligned_v6", "bill_of_lading_extraction_v7"}
+            if self.name in _MPCI_ALIGNED_TASKS
             else patch.get("cargoPackages", [])
         )
         for package in packages:
@@ -176,9 +195,7 @@ class TrainingTask:
             raise ValueError("task-constraints artifact names a different training task")
         if self.base_prompt_schema_sha256() != constraints.basePromptSchemaSha256:
             raise ValueError("task-constraints base prompt schema SHA-256 differs from code")
-        target_schema_sha256 = sha256_bytes(
-            canonical_json_bytes(self.target_model.model_json_schema(mode="serialization"))
-        )
+        target_schema_sha256 = sha256_bytes(canonical_json_bytes(self.target_schema()))
         if target_schema_sha256 != constraints.targetSchemaSha256:
             raise ValueError("task-constraints target schema SHA-256 differs from code")
         return TrainingTask(self.name, self.canonicalizer, self.target_model, constraints)
@@ -327,6 +344,22 @@ def _canonicalize_bill_of_lading_extraction_v7(value: dict[str, Any]) -> dict[st
     return canonical
 
 
+def _canonicalize_bill_of_lading_extraction_v7_reduced(value: dict[str, Any]) -> dict[str, Any]:
+    canonical = _canonicalize_bill_of_lading_extraction_v7(value)
+    patch = canonical["documentPatch"]
+    scopes = [
+        ("BillOfLadingDocumentPatchV7", patch),
+        ("ExtractionPartiesV7", patch.get("parties", {})),
+        ("TransportV7", patch.get("transport", {})),
+        *(("GoodsItemDetailsV7", goods) for goods in patch.get("goodsItemDetails", [])),
+    ]
+    for definition, owner in scopes:
+        field = _V7_REDUCED_FIELDS[definition]
+        if field in owner:
+            raise ValueError(f"field is outside reduced V7 training scope: {definition}.{field}")
+    return canonical
+
+
 _TASKS = {
     "bill_of_lading_semantic_v2": TrainingTask(
         name="bill_of_lading_semantic_v2",
@@ -356,6 +389,11 @@ _TASKS = {
     "bill_of_lading_extraction_v7": TrainingTask(
         name="bill_of_lading_extraction_v7",
         canonicalizer=_canonicalize_bill_of_lading_extraction_v7,
+        target_model=BillOfLadingExtractionV7Label,
+    ),
+    "bill_of_lading_extraction_v7_reduced": TrainingTask(
+        name="bill_of_lading_extraction_v7_reduced",
+        canonicalizer=_canonicalize_bill_of_lading_extraction_v7_reduced,
         target_model=BillOfLadingExtractionV7Label,
     ),
 }

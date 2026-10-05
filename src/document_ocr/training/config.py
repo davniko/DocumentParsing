@@ -249,6 +249,7 @@ class RelationConstraintsBuildConfig(_StrictModel):
         "bill_of_lading_relation_explicit_v5",
         "bill_of_lading_mpci_aligned_v6",
         "bill_of_lading_extraction_v7",
+        "bill_of_lading_extraction_v7_reduced",
     ]
     sources: list[DatasetFileConfig] = Field(min_length=1)
     target_field: NonEmptyString
@@ -763,6 +764,7 @@ class TrainingConfig(_StrictModel):
             "bill_of_lading_relation_explicit_v5",
             "bill_of_lading_mpci_aligned_v6",
             "bill_of_lading_extraction_v7",
+            "bill_of_lading_extraction_v7_reduced",
         }
         if relation_explicit != (self.task_constraints is not None):
             raise ValueError(

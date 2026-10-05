@@ -33,7 +33,9 @@ SECTION_FIELDS: dict[Section, tuple[str, ...]] = {
 SECTION_PRIORITIES: dict[Section, str] = {
     "parties": (
         "Check each role's identity, complete postal block and all owned contacts, including "
-        "continuations elsewhere in the OCR. Separate postal zones from company names and "
+        "continuations where the role definition permits them. Consignee details are "
+        "restricted to its own printed block, not the goods area. Separate postal zones "
+        "from company names and "
         "tax data from addresses. Look for competing addresses rather than concatenating "
         "them. Distinguish owned contact homepages from links to specific legal/help content."
         " When role captions conflict, inspect the printed caption and its connected block; "
@@ -54,12 +56,13 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "Distinguish the carrier's B/L identifier from booking, customs, uploaded-file and "
         "electronic-platform references. Check date roles and selected freight terms, not "
         "empty form alternatives. Check negotiability against the actual consignee "
-        "instruction, including when the candidate omits it. Review all explicit "
-        "references and their owner/type; "
-        "identifiers with other dedicated fields are not missing export references. "
-        "Formatting variants of one reference are not different facts."
-        " When correcting an identifier's field, retain its supported former value in the "
-        "proper reference field as part of the same correction."
+        "instruction in OCR, including when the candidate omits it or the party name "
+        "has already lost its TO ORDER preamble. A populated Consigned to order of "
+        "field is an instruction, not an unselected conditional caption; follow the "
+        "schema's precedence over copy/document titles. Review explicit references "
+        "and their owner/type; identifiers with dedicated fields are not export "
+        "references. Formatting variants are not different facts. When correcting "
+        "ownership, retain a supported fact in its proper field as part of the same correction."
     ),
     "equipment": (
         "Inventory distinct containers and every owned seal, including joined or repeated "
@@ -78,9 +81,9 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "Grouping, shipment counts/masses/volumes and container allocations belong exclusively "
         "to the cargo-accounting reviewer, which resolves their shared row ownership. "
         "Inspect existing lists before "
-        "calling a handling instruction missing. Trace page continuations before assigning "
-        "text to a marks column. Layout establishes associations; field meaning decides "
-        "whether text is product identity, markings, quantity, reference or destination."
+        "calling a handling instruction missing. Layout establishes associations; "
+        "extract product wording even when printed in a package-label block. Field meaning "
+        "distinguishes product identity, markings, quantities, references and destinations."
     ),
 }
 

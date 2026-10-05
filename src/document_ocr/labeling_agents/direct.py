@@ -1,4 +1,4 @@
-"""Direct V7 extraction, scoped review and at most two correction waves.
+"""Direct V7 extraction, one scoped correction and non-editing final review.
 
 No dataset mutation or gold publication happens here. OCR is always a text message;
 only candidates/schemas/findings use JSON. Code owns receipts and stage transitions.
@@ -1015,10 +1015,9 @@ class DirectLabelingFlow:
         self,
         candidate: dict[str, Any],
         reviews: dict[Section, SectionReview],
-        wave: int,
-        attempted: set[str],
     ) -> tuple[dict[str, Any], dict[Section, SectionReview], list[dict[str, Any]]]:
         """Commit independent supported corrections and recheck their dependency scopes."""
+        wave = 1
         previous = deepcopy(candidate)
         replacements: dict[Section, BaseModel] = {}
         replacement_cargo_map: CargoSourceMap | None = None
@@ -1040,18 +1039,6 @@ class DirectLabelingFlow:
                 for s in scopes
                 for i, f in enumerate(reviews[s].findings)
             ]
-            fingerprint = json.dumps(
-                {
-                    "values": {s: section_values(candidate, s) for s in scopes},
-                    "findings": findings,
-                },
-                sort_keys=True,
-                ensure_ascii=False,
-                allow_nan=False,
-            )
-            if fingerprint in attempted:
-                continue
-            attempted.add(fingerprint)
             context = (
                 "\n\n".join(
                     self._section_context(candidate, s, correction_scope=scopes) for s in scopes
@@ -1218,7 +1205,7 @@ class DirectLabelingFlow:
         return candidate, reviews, correction_records
 
     async def refine(self, target: Draft) -> dict[str, Any]:
-        """Review every section; adjudicate actionable findings in at most two waves."""
+        """Review, correct once and leave final findings for manual adjudication."""
         candidate = draft_value(target)
         atomic_publish_bytes(
             self.output_dir / "initial-target.json", (encoded(candidate) + "\n").encode()
@@ -1229,15 +1216,8 @@ class DirectLabelingFlow:
             {s: r.model_dump(mode="json") for s, r in reviews.items()},
         )
         correction_records: list[dict[str, Any]] = []
-        attempted: set[str] = set()
-        for wave in (1, 2):
-            if not any(
-                f.suggestedCorrection for review in reviews.values() for f in review.findings
-            ):
-                break
-            candidate, reviews, records = await self._correction_wave(
-                candidate, reviews, wave, attempted
-            )
+        if any(f.suggestedCorrection for review in reviews.values() for f in review.findings):
+            candidate, reviews, records = await self._correction_wave(candidate, reviews)
             correction_records.extend(records)
         atomic_publish_json(self.output_dir / "correction-decisions.json", correction_records)
         validation_error = None

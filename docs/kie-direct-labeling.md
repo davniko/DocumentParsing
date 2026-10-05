@@ -54,7 +54,11 @@ discarded or conflated with those remaining issues.
 ## The maintained entry points
 
 - [Extraction models](../src/document_ocr/label_schemas/bill_of_lading_v7.py)
-  define the V7 target: 20 described models and 85 described properties.
+  define the full annotation target, including vessel flag, marks/numbers and
+  forwarding/export references. The 2026-10-05 R8 dataset removes these fields
+  only as a training projection; subsequent annotation retains them by explicit
+  user instruction. Dataset snapshots retain their recorded contracts. See the
+  [current baseline policy](kie-real-baseline-label-policy-2026-10-05.md).
 - [Section/review models](../src/document_ocr/labeling_agents/direct_models.py)
   derive section views from the extraction model rather than duplicating field
   definitions. Review findings and layout requests have their own small models.
@@ -127,8 +131,9 @@ Core agreed semantics are recorded directly on the models:
   package capacity belong in `description`; there is no `additionalInformation`.
   Different independently quantified products remain separate. Shared product
   portions across containers use placements. Multiple HS codes alone do not split
-  goods. Marks, administrative references and carrier boilerplate have distinct
-  ownership and must not spill into product descriptions.
+  goods. Marks and administrative references retain their own fields in full
+  annotations; the reduced training projection removes them without moving them
+  or carrier boilerplate into product descriptions.
 - Packages/placements: inner package level; outer levels are not a second target
   package level. Exact totals require complete, nonduplicated same-level portions.
   Unknown per-container quantities remain absent. Membership is not inferred from
@@ -146,7 +151,7 @@ Core agreed semantics are recorded directly on the models:
 - Identifiers, dates and rare fields: preserve printed identifiers under explicit
   separator rules; no invented check digits or HS extensions. Dates are ISO when
   unambiguous; ambiguous dates require review. Master/original B/L references,
-  vessel flag, consolidator, goods origin and payment alternatives need their own
+  consolidator, goods origin and payment alternatives need their own
   role evidence. DG categories are normalized from printed declarations, not
   enriched from a registry lookup.
 
@@ -167,7 +172,7 @@ plain OCR → one extraction → draft target
                               → one further actionable correction wave at most
 ```
 
-The five review scopes are parties; route/transport; metadata/freight/references;
+The five review scopes are parties; route/transport; metadata/freight;
 equipment; and cargo facts. Each receives the full OCR, its field
 definitions and its candidate section. Cargo/equipment also receive each other's
 candidate fields as explicitly read-only association context. Parties and metadata
@@ -224,8 +229,8 @@ Cross-section transfers join the source and destination into one correction scop
 both ends commit together. These are not JSON patches or replacement OCR.
 They may reject a mistaken reviewer suggestion. Mixed actionable/ambiguous findings
 can retain supported corrections without resolving an unrelated ambiguity.
-The flow allows at most two correction waves, skipping unchanged candidate/finding
-pairs, with edits limited to the adjudicated findings, including within a corrected
+The flow allows one correction wave, with edits limited to the adjudicated
+findings, including within a corrected
 text field; unrelated new suspicions belong in subsequent review. It
 validates dependent scopes together, validates the full target and re-reviews
 affected scopes. A bad equipment/cargo change cannot discard a valid independent
@@ -270,8 +275,9 @@ complete annotations; structural tests alone do not establish that.
 - `refine` starts with five concurrent reviews, then one focused cargo-association
   review. The latter checks local product/container portions and can request
   continuation pages; equal grand totals cannot establish correct allocation.
-  Correction is restricted to flagged sections and at most two waves; affected
-  dependency groups are re-reviewed (including their focused cargo check).
+  Correction is restricted to flagged sections and one editing wave; affected
+  dependency groups are re-reviewed (including their focused cargo check). Final
+  findings remain in the manual queue and never trigger a second editing wave.
   Each review/correction call allows at most one additional PDF-assisted request. There is
   no autonomous retry loop, bulk launch or stronger-model fallback.
 - Every run requires a fresh output directory. OCR, config, schema, prompts,
@@ -339,7 +345,11 @@ documents the latest field-policy clarifications, changed-field correction guard
 immediately preceding-wave re-review, and frozen fresh 50-document replay. Auditor
 decisions retain explanations and exact changed paths; independent re-review receives
 the changes without the previous auditor's verdict anchoring its judgment. Known
-unresolved components go to an explicit review queue after at most two waves.
+unresolved components went to an explicit review queue after at most two waves.
+The subsequent batch004 policy reduces this to one editing wave followed by
+non-editing verification and manual adjudication. Field clarifications cover
+hyphenated HS notation, year-first dates, selected freight terms, package capacity,
+generic contractual country mentions, and the user-directed consignee-block boundary.
 
 R5 finished with 50 application-valid candidates, 43 automated passes/seven holds,
 and 140/140 named source checks. Independent inspection and finite manual pilot

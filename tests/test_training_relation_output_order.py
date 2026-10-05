@@ -14,6 +14,7 @@ def test_v5_decoder_places_relations_after_facts_without_changing_values():
             "cargoAllocationGroups": [
                 {
                     "groupId": "g1",
+                    "packageIds": [],
                     "coverage": "container_membership_only",
                     "allocations": [{"containerNumber": "CAIU7896610"}],
                 }

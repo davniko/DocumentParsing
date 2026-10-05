@@ -40,7 +40,12 @@ CargoAccountingValues = create_model(
 
 
 class CargoProduct(LabelSchemaModel):
-    """One distinct goods identity; repeated container portions share this identity."""
+    """One independently accounted goods identity, not each name in a product list.
+
+    Jointly accounted assortments are one identity with a complete description.
+    Separate product-owned counts, gross masses or volumes establish independent
+    accounting; container portions, packaging levels and multiple HS codes do not.
+    """
 
     key: str = Field(min_length=1, description="Unique local key used by statements, e.g. g1.")
     description: str = Field(
