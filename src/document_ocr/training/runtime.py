@@ -973,6 +973,7 @@ def _source_code_identity(project_root: Path) -> list[dict[str, Any]]:
         "document_ocr.training.config",
         "document_ocr.training.data",
         "document_ocr.training.eva",
+        "document_ocr.training.metric_matching",
         "document_ocr.training.metrics",
         "document_ocr.training.prediction",
         "document_ocr.training.prompting",

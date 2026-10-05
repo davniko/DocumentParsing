@@ -184,3 +184,72 @@ training-speed improvement. 152 relevant tests pass, with existing multiprocessi
 fork deprecation warnings. An old V5 ordering-test fixture was corrected to include
 its already-required empty `packageIds` list; no V5 runtime contract was changed.
 Machine-readable preflight receipts are under the now-ignored R12 analysis folder.
+
+### Local run and order-independent evaluation
+
+The local Docker configuration is
+`configs/training/production/t5gemma2_270m_lora.mpci_bl_real660_reduced_v7_e5_eva_a32_r32_local_schedulefree_v1.yaml`.
+It preserves the RunPod config's dataset, schema/prompt, rank32/alpha32, EVA,
+ScheduleFree AdamW, learning rate, five epochs, gradient checkpointing, and length
+limits. Train microbatch1 and accumulation32 give effective batch32, 19 updates
+per epoch and95 total. Plain step-based evaluation and saving both run every9
+updates: ten evaluations at9,18,...,90. Internal optimizer warmup is5 updates
+(ceil5% of95); no external warmup or decay is added. Evaluation microbatch2 and
+best-checkpoint selection by field F1 remain unchanged. The run/adapter names are
+distinct, and MLflow uses the local Compose service `http://mlflow-server:5000`.
+The RunPod config and dataset JSONLs were not modified.
+
+The old field scorer used positional list paths. Reversing every list in all660
+correct labels yielded field F1 **0.855245**, relation F1 **0.705634**, and document
+exact match **0.404545**, despite identical facts. Metrics now match list items
+one-to-one within their own parent. Exact entity identifiers, goods descriptions,
+and party names anchor row matching when available; remaining rows maximize exact
+nested leaf agreement with a deterministic rectangular assignment. Nested lists
+are matched recursively. Missing and extra occurrences stay distinct, including
+repeated placement quantities. Rows cannot distribute their fields among multiple
+partners, and items cannot move between unrelated parent fields. Scalar values
+remain exact, not fuzzy. DG category occurrences also retain their aligned row
+identity instead of collapsing repeated rows with the same UN number.
+
+The same aligned view feeds field, extraction-fact, category and cargo-relation
+metrics. Canonical exact match ignores list order for schema-valid targets. Schema
+validity itself is unchanged, including historical schema-specific constraints.
+Original generated/reference JSON and dataset order remain unchanged; diagnostic
+scoring paths use reference indices, with unmatched predictions appended after
+them. This changes shared evaluation/reward/analysis scoring wherever it calls
+`assess_prediction` or `structured_metrics`, not teacher-forcing loss or training
+labels. Historical metrics must be rescored before a like-for-like comparison.
+Stored historical prediction flags were not rewritten; analysis tools that verify
+those flags can report exact-match drift until an explicit rescoring is performed.
+The new matching module is included in training's loaded-source hash receipts.
+
+Validation includes all660 labels with reordered lists through the real Trainer
+metric callback in the rebuilt image: every correctness metric is1.0. Three
+independent permutations on each side preserve scores when all660 B/L numbers
+are deliberately wrong; another test changes all660 descriptions and641 package
+quantities, again retaining identical scores over three independent permutations.
+Unit checks cover nested goods/containers/packages/DG, swapped ownership, missing
+goods, duplicate seals and placement rows, invalid predictions, and scalar type
+distinctions. The assignment solver matches exhaustive optima on161 small square
+and rectangular matrices, including a case where greedy matching fails.
+
+The targeted host suite passes100 tests; the rebuilt CUDA training image passes
+104 tests, including the Torch-dependent analysis checks (11.17s). The actual Docker
+tokenizer preparation
+retains600/60 with zero filtering or truncation (9.38s cached); the actual CUDA
+Transformers argument builder confirms95 updates, eval/save9, warmup5. No model
+weights or training were started. Benchmarks over660 records (seven repetitions,
+median; traced Python memory separately) show correct reordered labels at0.3414s
+old /0.3261s new, peak20.95MB /12.98MB. Reordered labels with one deliberate error
+per document take0.3540s old /0.4881s new, peak21.11MB /21.74MB. The latter's extra
+matching work is about0.20ms per document, approximately12ms per60-document eval;
+it is CPU scoring overhead, not GPU memory or forward-pass cost. Lint/type checks
+pass; existing multiprocessing fork deprecation warnings remain.
+
+Start from the repository root (Compose also starts MLflow on localhost:5000):
+
+```bash
+docker compose --profile training run --rm --build kie-trainer train \
+  --config configs/training/production/t5gemma2_270m_lora.mpci_bl_real660_reduced_v7_e5_eva_a32_r32_local_schedulefree_v1.yaml \
+  --project-root /workspace
+```

@@ -12,6 +12,7 @@ from document_ocr.label_schemas.bill_of_lading_v4 import RelationExplicitDocumen
 from document_ocr.label_schemas.bill_of_lading_v5 import RelationExplicitDocumentPatchV5
 from document_ocr.label_schemas.bill_of_lading_v6 import BillOfLadingDocumentPatchV6
 from document_ocr.label_schemas.bill_of_lading_v7 import BillOfLadingDocumentPatchV7
+from document_ocr.training.metric_matching import UNMATCHED, align_list_items, unordered_key
 from document_ocr.training.tasks import TrainingTask, canonical_json
 
 
@@ -75,6 +76,8 @@ def _relation_metric_profile(task: TrainingTask) -> _RelationMetricProfile:
 
 
 def _field_value_items(value: Any, path: str = "$.documentPatch") -> set[tuple[str, str]]:
+    if value is UNMATCHED:
+        return set()
     if isinstance(value, dict):
         field_values: set[tuple[str, str]] = set()
         for key in sorted(value):
@@ -149,7 +152,7 @@ def _relation_explicit_facts(
                     if not isinstance(dangerous, dict):
                         continue
                     un_number = dangerous.get("unNumber")
-                    anchor = un_number if isinstance(un_number, str) else f"index:{index}"
+                    anchor = f"{index}:{un_number}" if isinstance(un_number, str) else str(index)
                     for field in ("hazardCategory", "packingGroupCategory"):
                         value = dangerous.get(field)
                         if isinstance(value, str):
@@ -265,7 +268,9 @@ def _mpci_aligned_facts(
                 continue
             un_number = dangerous.get("unNumber")
             dangerous_anchor = (
-                un_number if isinstance(un_number, str) else f"index:{dangerous_index}"
+                f"{dangerous_index}:{un_number}"
+                if isinstance(un_number, str)
+                else str(dangerous_index)
             )
             for field in ("hazardCategory", "packingGroupCategory"):
                 value = dangerous.get(field)
@@ -291,7 +296,7 @@ def _mpci_aligned_facts(
             relations.add(("goods_uses_container", anchor, identifier))
             quantity = placement.get("packageQuantity")
             if isinstance(quantity, int) and not isinstance(quantity, bool):
-                # The row index distinguishes two printed placements into one container.
+                # Aligned row indices preserve repeated placements into one container.
                 relations.add(
                     (
                         "container_package_quantity",
@@ -372,39 +377,55 @@ def _assess_prediction(
         except ValueError:
             predicted = None
     schema_valid = predicted is not None
-    generated_canonical = canonical_json(predicted) if predicted is not None else None
+    exact_match = predicted is not None and unordered_key(predicted) == unordered_key(reference)
     # Exact field-value scoring remains informative when one unrelated field makes an
     # otherwise parseable prediction schema-invalid. Schema validity is reported separately.
     predicted_patch = _optional_document_patch(
         predicted if predicted is not None else parsed_object
     )
+    reference_patch = _document_patch(reference)
+    if exact_match:
+        # Entirely correct permutations need no assignment or duplicate projections.
+        predicted_patch = reference_patch
+    elif predicted_patch is not None:
+        predicted_patch, reference_patch, _ = align_list_items(predicted_patch, reference_patch)
     if profile.supported:
         fact_projector = _mpci_aligned_facts if profile.mpci_aligned_v6 else None
         if fact_projector is not None:
-            predicted_relations, predicted_categories = fact_projector(predicted_patch)
-            reference_relations, reference_categories = fact_projector(_document_patch(reference))
-        else:
-            predicted_relations, predicted_categories = _relation_explicit_facts(
-                predicted_patch, profile=profile
+            reference_relations, reference_categories = fact_projector(reference_patch)
+            predicted_relations, predicted_categories = (
+                (reference_relations, reference_categories)
+                if exact_match
+                else fact_projector(predicted_patch)
             )
+        else:
             reference_relations, reference_categories = _relation_explicit_facts(
-                _document_patch(reference), profile=profile
+                reference_patch, profile=profile
+            )
+            predicted_relations, predicted_categories = (
+                (reference_relations, reference_categories)
+                if exact_match
+                else _relation_explicit_facts(predicted_patch, profile=profile)
             )
     else:
         predicted_relations = reference_relations = frozenset()
         predicted_categories = reference_categories = frozenset()
+    reference_fields = frozenset(_field_value_items(reference_patch))
+    predicted_fields = (
+        reference_fields
+        if exact_match
+        else frozenset(_field_value_items(predicted_patch))
+        if predicted_patch is not None
+        else frozenset()
+    )
     return PredictionAssessment(
         generated_text=generated_text,
         reference_text=reference_canonical,
         json_valid=json_valid,
         schema_valid=schema_valid,
-        canonical_exact_match=generated_canonical == reference_canonical,
-        predicted_field_values=(
-            frozenset(_field_value_items(predicted_patch))
-            if predicted_patch is not None
-            else frozenset()
-        ),
-        reference_field_values=frozenset(_field_value_items(_document_patch(reference))),
+        canonical_exact_match=exact_match,
+        predicted_field_values=predicted_fields,
+        reference_field_values=reference_fields,
         predicted_cargo_relation_facts=predicted_relations,
         reference_cargo_relation_facts=reference_relations,
         predicted_category_values=predicted_categories,
@@ -417,7 +438,7 @@ def structured_metrics(
     reference_texts: Sequence[str],
     task: TrainingTask,
 ) -> tuple[dict[str, float], list[PredictionAssessment]]:
-    """Compute document validity/exactness and micro exact field-value metrics."""
+    """Compute exact-value metrics with one-to-one, order-independent list scoring."""
 
     if len(generated_texts) != len(reference_texts):
         raise ValueError("generated and reference sequence counts differ")

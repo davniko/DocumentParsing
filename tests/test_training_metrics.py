@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+import itertools
 import json
+import random
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -8,6 +11,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+from document_ocr.training.metric_matching import _maximum_weight_pairs, unordered_key
 from document_ocr.training.metrics import make_compute_metrics, structured_metrics
 from document_ocr.training.prediction import SamplerAwarePredictionMixin
 from document_ocr.training.runtime import _predict_and_publish
@@ -222,8 +226,8 @@ def test_relation_explicit_metrics_ignore_array_position_but_anchor_entities() -
 
     metrics, assessments = structured_metrics([prediction], [reference], task)
 
-    assert metrics["canonical_exact_match"] == 0.0
-    assert metrics["field_value_f1"] < 1.0
+    assert metrics["canonical_exact_match"] == 1.0
+    assert metrics["field_value_f1"] == 1.0
     assert metrics["cargo_relation_precision"] == 1.0
     assert metrics["cargo_relation_recall"] == 1.0
     assert metrics["cargo_relation_f1"] == 1.0
@@ -316,8 +320,8 @@ def test_v5_schema_requires_explicit_package_ids_and_diagnostics_anchor_relation
     assert metrics["schema_valid"] == 1.0
     assert metrics["cargo_relation_f1"] == 1.0
     assert metrics["category_value_f1"] == 1.0
-    assert metrics["field_value_f1"] < 1.0
-    assert metrics["extraction_fact_f1"] < 1.0
+    assert metrics["field_value_f1"] == 1.0
+    assert metrics["extraction_fact_f1"] == 1.0
 
     missing_package_ids = json.loads(reference)
     del missing_package_ids["documentPatch"]["cargoAllocationGroups"][0]["packageIds"]
@@ -349,6 +353,198 @@ def test_relation_and_category_accuracy_are_one_when_both_fact_sets_are_empty() 
     assert metrics["category_value_accuracy"] == 1.0
     assert metrics["cargo_relation_support_fraction"] == 0.0
     assert metrics["category_value_support_fraction"] == 0.0
+
+
+def _v7_target() -> dict[str, Any]:
+    return {
+        "schemaVersion": "7.0.0",
+        "documentPatch": {
+            "billOfLadingNumber": "ABC",
+            "containerInformation": [
+                {"equipmentIdentifier": "MSKU1200040", "sealNumbers": ["SEAL-A", "SEAL-B"]},
+                {"equipmentIdentifier": "FCIU3651201", "sealNumbers": ["SEAL-C"]},
+            ],
+            "goodsItemDetails": [
+                {
+                    "description": "PAINT",
+                    "hsCodes": ["320810", "320820"],
+                    "dangerousGoods": [
+                        {"unNumber": "1263", "hazardCategory": "FLAMMABLE_LIQUIDS"},
+                        {"hazardCategory": "GASES"},
+                    ],
+                    "numberAndTypeOfPackages": [
+                        {"packageQuantity": 20, "typeCategory": "PACKAGE_CARTON"},
+                        {"packageQuantity": 3, "typeCategory": "PACKAGE_DRUM"},
+                    ],
+                    "splitGoodsPlacement": [
+                        {"equipmentIdentifier": "MSKU1200040", "packageQuantity": 10},
+                        {"equipmentIdentifier": "MSKU1200040", "packageQuantity": 10},
+                        {"equipmentIdentifier": "FCIU3651201", "packageQuantity": 3},
+                    ],
+                },
+                {
+                    "description": "MACHINERY",
+                    "numberAndTypeOfPackages": [{"packageQuantity": 2}],
+                    "splitGoodsPlacement": [{"equipmentIdentifier": "FCIU3651201"}],
+                },
+            ],
+        },
+    }
+
+
+def _shuffle_lists(value: Any, rng: random.Random) -> Any:
+    if isinstance(value, dict):
+        return {key: _shuffle_lists(child, rng) for key, child in value.items()}
+    if isinstance(value, list):
+        result = [_shuffle_lists(child, rng) for child in value]
+        rng.shuffle(result)
+        return result
+    return value
+
+
+@pytest.mark.parametrize(
+    "task_name", ["bill_of_lading_extraction_v7", "bill_of_lading_extraction_v7_reduced"]
+)
+@pytest.mark.parametrize("errors", [False, True])
+def test_all_metrics_ignore_nested_list_permutations_with_partial_credit(
+    task_name: str, errors: bool
+) -> None:
+    reference = _v7_target()
+    prediction = copy.deepcopy(reference)
+    if errors:
+        patch = prediction["documentPatch"]
+        patch["billOfLadingNumber"] = "WRONG"
+        patch["containerInformation"][0]["sealNumbers"][0] = "WRONG-SEAL"
+        goods = patch["goodsItemDetails"][0]
+        goods["numberAndTypeOfPackages"][1]["packageQuantity"] = 4
+        goods["splitGoodsPlacement"][0]["packageQuantity"] = 11
+        goods["dangerousGoods"][1]["hazardCategory"] = "CORROSIVE_SUBSTANCES"
+    task = get_training_task(task_name)
+    baseline, _ = structured_metrics([json.dumps(prediction)], [json.dumps(reference)], task)
+    assert baseline["canonical_exact_match"] == int(not errors)
+    for prefix in ("field_value", "extraction_fact", "category_value", "cargo_relation"):
+        assert (baseline[f"{prefix}_f1"] < 1.0) == errors
+    for seed in range(15):
+        rng = random.Random(seed)
+        metrics, _ = structured_metrics(
+            [json.dumps(_shuffle_lists(prediction, rng))],
+            [json.dumps(_shuffle_lists(reference, rng))],
+            task,
+        )
+        assert metrics == baseline
+
+
+def test_list_matching_preserves_entity_ownership_and_missing_duplicate_occurrences() -> None:
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    reference = _v7_target()
+    wire = json.dumps(reference)
+    prediction = copy.deepcopy(reference)
+    containers = prediction["documentPatch"]["containerInformation"]
+    containers[0]["sealNumbers"], containers[1]["sealNumbers"] = (
+        containers[1]["sealNumbers"],
+        containers[0]["sealNumbers"],
+    )
+    metrics, _ = structured_metrics([json.dumps(prediction)], [wire], task)
+    assert metrics["canonical_exact_match"] == 0
+    assert metrics["field_value_f1"] < 1
+
+    prediction = copy.deepcopy(reference)
+    goods = prediction["documentPatch"]["goodsItemDetails"]
+    goods[0]["splitGoodsPlacement"], goods[1]["splitGoodsPlacement"] = (
+        goods[1]["splitGoodsPlacement"],
+        goods[0]["splitGoodsPlacement"],
+    )
+    metrics, _ = structured_metrics([json.dumps(prediction)], [wire], task)
+    assert metrics["cargo_relation_f1"] < 1
+
+    prediction = copy.deepcopy(reference)
+    prediction["documentPatch"]["goodsItemDetails"][0]["splitGoodsPlacement"].pop(0)
+    metrics, assessments = structured_metrics([json.dumps(prediction)], [wire], task)
+    assert metrics["schema_valid"] == 1
+    assert metrics["field_value_precision"] == 1
+    assert metrics["field_value_recall"] < 1
+    assert metrics["cargo_relation_precision"] == 1
+    assert metrics["cargo_relation_recall"] < 1
+    row = assessments[0]
+    assert len(row.reference_field_values) - len(row.predicted_field_values) == 2
+    assert len(row.reference_cargo_relation_facts) - len(row.predicted_cargo_relation_facts) == 1
+    assert json.loads(row.reference_text) == reference
+    assert json.loads(row.generated_text) == prediction
+
+    extra, _ = structured_metrics([wire], [json.dumps(prediction)], task)
+    assert extra["field_value_precision"] < 1
+    assert extra["field_value_recall"] == 1
+    assert extra["cargo_relation_precision"] < 1
+
+
+def test_list_matching_retains_scalar_multiplicity_and_invalid_structure_penalties() -> None:
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    reference = _v7_target()
+    prediction = copy.deepcopy(reference)
+    prediction["documentPatch"]["containerInformation"][0]["sealNumbers"].append("SEAL-A")
+    metrics, _ = structured_metrics([json.dumps(prediction)], [json.dumps(reference)], task)
+    assert metrics["schema_valid"] == 0
+    assert metrics["field_value_precision"] < 1
+    assert metrics["field_value_recall"] == 1
+    assert metrics["canonical_exact_match"] == 0
+    assert unordered_key([1]) != unordered_key([True])
+    assert unordered_key([1]) != unordered_key([1.0])
+    assert unordered_key([-0.0]) != unordered_key([0.0])
+    assert unordered_key(["A", "A"]) != unordered_key(["A"])
+
+
+def test_notify_party_list_matching_keeps_addresses_with_the_named_party() -> None:
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    reference = _v7_target()
+    reference["documentPatch"]["parties"] = {
+        "notifyParties": [
+            {"name": "COMPANY A", "addressLine": "1 ROAD", "country": "CHINA"},
+            {"name": "COMPANY B", "addressLine": "2 STREET", "country": "EGYPT"},
+        ]
+    }
+    prediction = copy.deepcopy(reference)
+    parties = prediction["documentPatch"]["parties"]["notifyParties"]
+    parties[0]["name"], parties[1]["name"] = parties[1]["name"], parties[0]["name"]
+    scores, rows = structured_metrics([json.dumps(prediction)], [json.dumps(reference)], task)
+    assert scores["schema_valid"] == 1
+    misses = rows[0].reference_field_values - rows[0].predicted_field_values
+    assert len(misses) == 4  # Wrong address and country for each named party.
+    assert all(path.endswith((".addressLine", ".country")) for path, _ in misses)
+
+
+def test_matching_missing_goods_does_not_shift_other_goods_or_category_ownership() -> None:
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    reference = _v7_target()
+    prediction = copy.deepcopy(reference)
+    prediction["documentPatch"]["goodsItemDetails"].pop(0)
+    metrics, _ = structured_metrics([json.dumps(prediction)], [json.dumps(reference)], task)
+    assert metrics["field_value_precision"] == 1
+    assert metrics["field_value_recall"] < 1
+    assert metrics["cargo_relation_precision"] == 1
+    assert metrics["cargo_relation_recall"] < 1
+
+
+def test_assignment_is_globally_optimal_not_greedy_and_handles_rectangular_lists() -> None:
+    rng = random.Random(13)
+    matrices = [[[9, 8], [8, 0]]]
+    for rows in range(1, 5):
+        for columns in range(1, 5):
+            matrices.extend(
+                [[rng.randrange(10) for _ in range(columns)] for _ in range(rows)]
+                for _ in range(10)
+            )
+    for weights in matrices:
+        pairs = _maximum_weight_pairs(weights)
+        assert len({i for i, _ in pairs}) == len(pairs)
+        assert len({j for _, j in pairs}) == len(pairs)
+        oriented = weights if len(weights) <= len(weights[0]) else list(zip(*weights, strict=True))
+        optimum = max(
+            sum(oriented[i][j] for i, j in enumerate(partners))
+            for partners in itertools.permutations(range(len(oriented[0])), len(oriented))
+        )
+        assert sum(weights[i][j] for i, j in pairs) == optimum
+    assert _maximum_weight_pairs([]) == []
+    assert _maximum_weight_pairs([[]]) == []
 
 
 def test_trainer_metric_callback_publishes_exact_field_value_metrics() -> None:
