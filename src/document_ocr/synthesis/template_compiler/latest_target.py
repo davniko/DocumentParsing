@@ -52,6 +52,9 @@ def latest_target_from_source(source_target: Mapping[str, Any]) -> dict[str, Any
     containers = patch.get("containers") or []
     if not isinstance(containers, list):
         raise LatestTargetConstructionError("source target containers are not a list")
+    parties = patch.get("parties")
+    carrier = parties.get("carrier") if isinstance(parties, dict) else None
+    carrier_name = carrier.get("name") if isinstance(carrier, dict) else None
     for index, container_value in enumerate(containers):
         if not isinstance(container_value, dict):
             raise LatestTargetConstructionError(f"source target container {index} is not an object")
@@ -64,6 +67,7 @@ def latest_target_from_source(source_target: Mapping[str, Any]) -> dict[str, Any
         reviewed = review_source_equipment_surface(
             description,
             temperature_present=container.get("temperatureSetpoint") is not None,
+            carrier_name=carrier_name if isinstance(carrier_name, str) else None,
         )
         if reviewed.size_category is not None and reviewed.type_category is not None:
             container.pop("typeDescription", None)

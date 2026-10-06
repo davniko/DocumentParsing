@@ -56,13 +56,14 @@ class ContainerInformationV6(LabelSchemaModel):
         if self.sealNumbers is not None and len(self.sealNumbers) != len(set(self.sealNumbers)):
             raise ValueError("sealNumbers must be unique and source ordered")
         semantic = self.sizeCategory is not None or self.typeCategory is not None
-        if semantic and (self.sizeCategory is None or self.typeCategory is None):
-            raise ValueError("container sizeCategory and typeCategory must be present together")
+        # Extraction can know the equipment family without a printed length.
+        # A complete submission code is a downstream requirement, not a reason
+        # to discard a known fact or invent the other dimension here.
         if semantic and self.typeDescription is not None:
             raise ValueError("typeDescription is a fallback, not a second equipment category")
         if (
             self.temperatureSetpoint is not None
-            and semantic
+            and self.typeCategory is not None
             and self.typeCategory not in TEMPERATURE_CAPABLE_CONTAINER_TYPES
         ):
             raise ValueError("temperature setpoint requires temperature-capable equipment")

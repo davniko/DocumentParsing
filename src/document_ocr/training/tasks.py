@@ -260,8 +260,8 @@ def _sorted_json_value(value: Any) -> Any:
     return value
 
 
-def canonical_json(value: dict[str, Any]) -> str:
-    """Serialize one validated target into the exact decoder representation."""
+def canonical_json(value: dict[str, Any], *, pretty: bool = False) -> str:
+    """Serialize a target with stable field order and selectable decoder whitespace."""
 
     ordered = _sorted_json_value(value)
     if value.get("schemaVersion") == "5.0.0-experimental":
@@ -279,7 +279,8 @@ def canonical_json(value: dict[str, Any]) -> str:
         allow_nan=False,
         ensure_ascii=False,
         sort_keys=False,
-        separators=(",", ":"),
+        separators=(",", ": " if pretty else ":"),
+        indent=2 if pretty else None,
     )
 
 

@@ -18,6 +18,7 @@ from document_ocr.synthesis.task_adapter import BILL_OF_LADING_V5_TASK_ADAPTER
 def test_semantic_container_pair_projects_to_exact_application_code() -> None:
     assert semantic_container_code("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED") == "45RE"
     assert semantic_container_code("TWENTY_FOOT_STANDARD_HEIGHT", "GENERAL_PURPOSE") == "22GP"
+    assert semantic_container_code("FORTY_FIVE_FOOT_HIGH_CUBE", "GENERAL_PURPOSE") == "L5GP"
 
 
 def test_printed_semantic_equipment_requires_a_complete_temperature_capable_pair() -> None:

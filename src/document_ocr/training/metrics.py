@@ -346,10 +346,27 @@ def assess_prediction(
     generated_text: str,
     reference_text: str,
     task: TrainingTask,
+    *,
+    case_sensitive: bool = True,
 ) -> PredictionAssessment:
     """Parse, schema-check, and compare one generated sparse target."""
 
-    return _assess_prediction(generated_text, reference_text, task, _relation_metric_profile(task))
+    return _assess_prediction(
+        generated_text, reference_text, task, _relation_metric_profile(task),
+        case_sensitive=case_sensitive,
+    )
+
+
+def _casefold_values(value: Any) -> Any:
+    """Ignore letter case only, never keys, punctuation, whitespace or JSON types."""
+
+    if isinstance(value, str):
+        return value.casefold()
+    if isinstance(value, dict):
+        return {key: _casefold_values(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_casefold_values(child) for child in value]
+    return value
 
 
 def _assess_prediction(
@@ -357,6 +374,8 @@ def _assess_prediction(
     reference_text: str,
     task: TrainingTask,
     profile: _RelationMetricProfile,
+    *,
+    case_sensitive: bool = True,
 ) -> PredictionAssessment:
     reference_value = json.loads(reference_text)
     if not isinstance(reference_value, dict):
@@ -384,6 +403,11 @@ def _assess_prediction(
         predicted if predicted is not None else parsed_object
     )
     reference_patch = _document_patch(reference)
+    if not case_sensitive:
+        # Normalize before entity/list alignment so case cannot change row ownership.
+        # Raw schema validity and canonical exact match intentionally remain unchanged.
+        predicted_patch = _casefold_values(predicted_patch)
+        reference_patch = _casefold_values(reference_patch)
     if exact_match:
         # Entirely correct permutations need no assignment or duplicate projections.
         predicted_patch = reference_patch
@@ -437,8 +461,10 @@ def structured_metrics(
     generated_texts: Sequence[str],
     reference_texts: Sequence[str],
     task: TrainingTask,
+    *,
+    case_sensitive: bool = True,
 ) -> tuple[dict[str, float], list[PredictionAssessment]]:
-    """Compute exact-value metrics with one-to-one, order-independent list scoring."""
+    """Score values and unordered lists; optionally ignore case, but no other edits."""
 
     if len(generated_texts) != len(reference_texts):
         raise ValueError("generated and reference sequence counts differ")
@@ -446,7 +472,7 @@ def structured_metrics(
         raise ValueError("structured metrics require at least one prediction")
     profile = _relation_metric_profile(task)
     assessments = [
-        _assess_prediction(generated, reference, task, profile)
+        _assess_prediction(generated, reference, task, profile, case_sensitive=case_sensitive)
         for generated, reference in zip(generated_texts, reference_texts, strict=True)
     ]
     true_positive = sum(
@@ -543,7 +569,9 @@ def structured_metrics(
     return metrics, assessments
 
 
-def make_compute_metrics(tokenizer: DecoderTokenizer, task: TrainingTask) -> Any:
+def make_compute_metrics(
+    tokenizer: DecoderTokenizer, task: TrainingTask, *, case_sensitive: bool = True,
+) -> Any:
     """Create the Transformers Trainer metric callback without retaining model inputs."""
 
     def compute_metrics(evaluation_prediction: Any) -> Mapping[str, float]:
@@ -562,7 +590,9 @@ def make_compute_metrics(tokenizer: DecoderTokenizer, task: TrainingTask) -> Any
         labels_for_decode[labels_for_decode == -100] = pad_token_id
         generated_texts = tokenizer.batch_decode(predictions, skip_special_tokens=True)
         reference_texts = tokenizer.batch_decode(labels_for_decode, skip_special_tokens=True)
-        metrics, _ = structured_metrics(generated_texts, reference_texts, task)
+        metrics, _ = structured_metrics(
+            generated_texts, reference_texts, task, case_sensitive=case_sensitive,
+        )
         generated_token_counts = (predictions != pad_token_id).sum(axis=1)
         eos_reached = (predictions == eos_token_id).any(axis=1)
         metrics.update(

@@ -197,9 +197,10 @@ def test_star_reversed_receipt_is_an_exact_counted_inventory_not_an_opaque_code(
         render("40HQ*3", old, new)
 
 
-def test_reviewed_ec_carrier_token_has_same_receipt_semantics_as_source_parser():
+def test_unreviewed_carrier_token_cannot_silently_become_standard_dry_equipment():
     old = [equipment("FORTY_FOOT_STANDARD_HEIGHT")]
-    assert "20" in render("1 x 40EC", old, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")])
+    with pytest.raises(ValueError, match="unreviewed type wording"):
+        render("1 x 40EC", old, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")])
 
 
 @pytest.mark.parametrize("description", ["DC 4H", "DC 4H CY / FO"])
@@ -259,8 +260,10 @@ def test_iso_tank_receipts_match_spaced_and_fused_source_words(noun):
         render(surface, old, [equipment("TWENTY_FOOT_STANDARD_HEIGHT", "PRESSURIZED_TANK")] * 2)
         == surface
     )
-    with pytest.raises(ValueError, match="contradicts retained"):
-        render(surface, old, [equipment("FORTY_FOOT_STANDARD_HEIGHT")] * 2)
+    # A fully classified equipment receipt is mutable with its sampled type.
+    changed = render(surface, old, [equipment("FORTY_FOOT_STANDARD_HEIGHT")] * 2)
+    assert "TANK" not in changed
+    assert "40" in changed and changed.startswith("2 X ")
 
 
 def test_iso_word_does_not_allow_arbitrary_non_equipment_prose():
@@ -272,13 +275,16 @@ def test_iso_word_does_not_allow_arbitrary_non_equipment_prose():
         )
 
 
-def test_rfh_receipt_preserves_the_unknown_source_height():
+def test_rfh_receipt_rewrites_height_when_it_departs_from_standard_policy():
     source = [{"typeDescription": "40'RFH"}]
     assert render("1 X 40'RFH", source, source) == "1 X 40'RFH"
-    for size in ("FORTY_FOOT_STANDARD_HEIGHT", "FORTY_FOOT_HIGH_CUBE"):
-        assert render("1 X 40'RFH", source, [equipment(size, "REFRIGERATED")]) == "1 X 40'RFH"
-    with pytest.raises(ValueError, match="contradicts retained"):
-        render("1 X 40'RFH", source, [equipment("FORTY_FOOT_HIGH_CUBE")])
+    assert (
+        render("1 X 40'RFH", source, [equipment("FORTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED")])
+        == "1 X 40'RFH"
+    )
+    changed = render("1 X 40'RFH", source, [equipment("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED")])
+    assert changed == "1 X 40' HIGH CUBE REFRIGERATED"
+    assert "REFRIGERATED" not in render("1 X 40'RFH", source, [equipment("FORTY_FOOT_HIGH_CUBE")])
 
 
 def test_overlapping_partial_receipt_terms_have_distinct_source_owners():
@@ -473,7 +479,7 @@ def test_whole_inventory_receipt_supplies_missing_physical_evidence(surface, old
     [
         (
             "1X40HR",
-            [{"typeDescription": "40RQ"}],
+            [{"typeDescription": "40RF"}],
             [equipment("FORTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED")],
         ),
         ("1X40HR", [{}], [equipment("FORTY_FOOT_HIGH_CUBE")]),
@@ -482,8 +488,20 @@ def test_whole_inventory_receipt_supplies_missing_physical_evidence(surface, old
     ],
 )
 def test_retained_receipt_constrains_every_private_equipment_candidate(surface, old, bad):
-    with pytest.raises(ValueError, match="contradicts retained whole-inventory receipt"):
+    with pytest.raises(
+        ValueError,
+        match=r"contradicts (?:retained whole-inventory receipt|source count/type inventory)",
+    ):
         render(surface, old, bad)
+
+
+def test_newly_resolved_alias_can_change_height_only_with_updated_receipt():
+    value = render(
+        "1X40HR",
+        [{"typeDescription": "40RQ"}],
+        [equipment("FORTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED")],
+    )
+    assert value == "1X40RE"
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,7 @@ import asyncio
 import copy
 import inspect
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -46,6 +47,7 @@ from document_ocr.labeling_agents.direct_models import (
     DirectLabelingConfig,
     SectionReview,
 )
+from document_ocr.labeling_agents.target_normalization import normalize_target_casing
 
 ROOT = Path(__file__).resolve().parents[1]
 OCR = (
@@ -227,9 +229,11 @@ async def test_extraction_sends_literal_ocr_descriptions_and_returns_plain_draft
         assert "Vocabulary:" in package["description"]
         canonical, printed = schema["$defs"]["ContainerInformationV7"]["anyOf"]
         for name in ("sizeCategory", "typeCategory"):
-            assert canonical["properties"][name]["type"] == "string"
-            assert None not in canonical["properties"][name]["enum"]
-            assert "anyOf" not in canonical["properties"][name]
+            alternatives = canonical["properties"][name]["anyOf"]
+            assert {"type": "null"} in alternatives
+            assert any(
+                value.get("type") == "string" and value.get("enum") for value in alternatives
+            )
             assert printed["properties"][name]["type"] == "null"
         assert canonical["properties"]["typeDescription"]["type"] == "null"
         assert {"type": "null"} in printed["properties"]["typeDescription"]["anyOf"]
@@ -241,7 +245,9 @@ async def test_extraction_sends_literal_ocr_descriptions_and_returns_plain_draft
             in schema["$defs"]["BillOfLadingDocumentPatchV7"]["properties"]
         )
         assert "city" not in by_title["ExtractionPartyV7"]["properties"]
-        return response(label())
+        draft = label()
+        draft["documentPatch"]["parties"]["shipper"]["name"] = "Exporter Ltd"
+        return response(draft)
 
     subject = flow(tmp_path, responder)
     result = await subject.extract()
@@ -250,6 +256,59 @@ async def test_extraction_sends_literal_ocr_descriptions_and_returns_plain_draft
     assert json.loads((subject.output_dir / "status.json").read_text())["status"] == "draft"
     assert subject.receipts[0]["status"] == "completed"
     assert (subject.output_dir / "ocr.txt").read_text() == OCR
+    assert json.loads((subject.output_dir / "extraction-casing-edits.json").read_text()) == [
+        {
+            "path": "documentPatch.parties.shipper.name",
+            "before": "Exporter Ltd",
+            "after": "EXPORTER LTD",
+        }
+    ]
+
+
+def test_target_casing_is_scoped_idempotent_and_preserves_identifiers():
+    target = label()
+    patch = target["documentPatch"]
+    patch["billOfLadingNumber"] = "Case-Sensitive/001"
+    patch["negotiability"] = "non_negotiable"
+    patch["route"] = {"portOfLoading": {"name": "Nansha", "country": "CHINA"}}
+    patch["parties"]["shipper"].update(
+        name="Straße Export Ltd",
+        addressLine="12 Rue du Port, Paris, France",
+        contactDetails={
+            "contactName": "Marie Dupont",
+            "emailAddresses": ["Marie@Example.fr"],
+            "websiteUrls": ["https://example.fr/CaseSensitive"],
+            "phoneNumbers": ["123 ext. 45"],
+        },
+    )
+    patch["parties"]["notifyParties"] = [{"sameAs": "shipper"}]
+    goods = patch["goodsItemDetails"][0]
+    goods.update(
+        description="Cotton yarn",
+        grossWeight={"value": 10, "unit": "kilogram"},
+        marksAndNumbers=["BrandKey-xA"],
+        handlingInstructions=["Keep dry"],
+    )
+    before = copy.deepcopy(target)
+    actual, receipts = normalize_target_casing(target)
+    assert target == before
+    assert normalize_target_casing(actual) == (actual, [])
+    assert actual["documentPatch"]["route"]["portOfLoading"]["name"] == "NANSHA"
+    assert actual["documentPatch"]["parties"]["shipper"]["name"] == "STRASSE EXPORT LTD"
+    assert len(receipts) == 6
+    for change in receipts:
+        assert change["after"] == change["before"].upper()
+    # Restore the complete text leaves; every other key/value/order must be unchanged.
+    for change in receipts:
+        keys = re.findall(r"[^.\[\]]+", change["path"])
+        parent = actual
+        for key in keys[:-1]:
+            parent = parent[int(key)] if isinstance(parent, list) else parent[key]
+        key = int(keys[-1]) if isinstance(parent, list) else keys[-1]
+        parent[key] = change["before"]
+    assert actual == before
+    with pytest.raises(ValueError, match="V7"):
+        normalize_target_casing({"schemaVersion": "6.0.0", "documentPatch": {}})
 
 
 @pytest.mark.asyncio
@@ -463,13 +522,22 @@ async def test_reviews_check_absent_sections_and_clean_result_never_becomes_gold
 
     subject = flow(tmp_path, responder)
     candidate = BillOfLadingExtractionV7Label.model_validate_json(
-        '{"schemaVersion":"7.0.0","documentPatch":{"billOfLadingNumber":"BL001"}}'
+        '{"schemaVersion":"7.0.0","documentPatch":{"billOfLadingNumber":"BL001",'
+        '"placeOfIssue":{"name":"Shanghai"}}}'
     )
     result = await subject.refine(candidate)
     assert len(subject.receipts) == 7
     assert set(result["reviews"]) == set(SECTION_FIELDS)
     assert result["status"] == "reviewed_candidate"
     assert result["goldApproved"] is False
+    assert result["target"]["documentPatch"]["placeOfIssue"]["name"] == "SHANGHAI"
+    assert result["casingNormalizations"] == [
+        {
+            "path": "documentPatch.placeOfIssue.name",
+            "before": "Shanghai",
+            "after": "SHANGHAI",
+        }
+    ]
 
 
 @pytest.mark.asyncio

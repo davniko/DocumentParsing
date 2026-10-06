@@ -72,6 +72,10 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "whose ID is absent from OCR cannot form an ID-required target; its omission "
         "is valid, not an unresolved missing field. Use goods only as "
         "read-only association context."
+        " Use the complete shipment-owned specification before applying equipment defaults; "
+        "tariff examples and cargo/package dimensions are not container specifications. "
+        "For an opaque or apparently corrupted equipment code, compare owned repeated "
+        "declarations and request PDF layout/source clarification when needed."
         " A continuation marker can refer back to transport or another block; column position "
         "alone does not turn its text into an equipment identifier."
     ),

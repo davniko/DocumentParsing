@@ -46,7 +46,10 @@ def test_source_only_equipment_owner_becomes_executable_without_extra_labels():
 @pytest.mark.parametrize("length,kind", [("20", "GP"), ("40", "HC")])
 def test_split_source_only_type_modifier_joins_its_existing_physical_receipt(length, kind):
     raw, source, originals = auxiliary_receipt_fixture(f"1x{length}'{kind}")
-    source["documentPatch"]["containers"][0]["typeDescription"] = length
+    # Explicit owned HC wording must be reconciled into the source annotation
+    # before compilation; a bare length now carries the standard-height policy.
+    source_value = length + kind if kind == "HC" else length
+    source["documentPatch"]["containers"][0]["typeDescription"] = source_value
     first = replace(
         originals[0],
         char_end=16,
@@ -62,7 +65,7 @@ def test_split_source_only_type_modifier_joins_its_existing_physical_receipt(len
     assert len(result) == 1
     assert result[0].source_text == f"1x{length}'{kind}"
     assert result[0].dependency_paths == first.dependency_paths
-    assert source["documentPatch"]["containers"][0]["typeDescription"] == length
+    assert source["documentPatch"]["containers"][0]["typeDescription"] == source_value
     host.validate_binding_realizations(raw=raw, drafts=result, source_target=source)
     assert normalize_receipt_suffixes(raw=raw, drafts=result, source_target=source) == result
     for invalid in (
@@ -73,6 +76,11 @@ def test_split_source_only_type_modifier_joins_its_existing_physical_receipt(len
         assert normalize_receipt_suffixes(
             raw=raw, drafts=(first, invalid), source_target=source
         ) == (first, invalid)
+    if kind == "HC":
+        source["documentPatch"]["containers"][0]["typeDescription"] = length
+        assert normalize_receipt_suffixes(
+            raw=raw, drafts=(first, last), source_target=source
+        ) == (first, last)
 
 
 @pytest.mark.parametrize("surface", ["40 UNKNOWN", "HC", "1X20GP + 1X40HC", "2X40HQ"])

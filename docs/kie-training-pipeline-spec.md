@@ -77,13 +77,28 @@ One model example is exactly:
 
 ```text
 encoder input = prompt template with one page-ordered raw-OCR document injected
-decoder target = canonical compact JSON for one sparse semantic document patch
+decoder target = schema-validated JSON for one sparse semantic document patch
 ```
 
 The source image, PDF, evidence sidecar, warnings, MPCI projection, and application defaults never
 enter the target. The input remains the exact `joinedRawText` already published by the label run,
-including its explicit page markers. The target remains `target`, serialized with sorted keys,
-compact separators, UTF-8 characters, and no null scaffolding.
+including its explicit page markers. The target remains `target`, serialized with stable keys
+(including task-defined relations-last ordering), UTF-8 characters, and no null scaffolding.
+`dataset.preprocessing.target_format` selects `compact` (default, one line) or `pretty`
+(two-space indentation). It changes decoder whitespace only, not the JSON values or encoder
+prompt. The format is part of the tokenization cache identity. Length limits are measured after
+serialization, including terminal EOS, and held-out generation capacity must cover the longest
+reference in the selected format.
+
+New V7 labeling runs finish with an explicit casing projection: human-readable
+party/contact names, postal addresses, country/location names, vessels, cargo
+descriptions/handling text and package/equipment descriptions use uppercase.
+`labeling_agents.target_normalization` owns the field allowlist and records exact
+edits. Identifier fields, emails, URLs, phone strings, enum tokens, units and raw
+OCR are unchanged. This is a dataset-publication rule, not a hidden metric or
+training-loader rewrite. Equipment fallbacks are separately reconciled with
+source-supported vocabulary; incomplete size/type evidence retains the printed
+fallback. Both finalizers run after direct extraction and after its review cycle.
 
 For the Bill-of-Lading task, every source target is strictly validated as `BillOfLadingLabel`
 before tokenization. A later invoice, packing-list, COO, or other task registers a separate target
@@ -249,8 +264,15 @@ Generated evaluation output is scored with:
   plus per-document category exact match and support fraction.
 
 An extracted field-value is one scalar leaf below `documentPatch`, identified by its full JSON
-path (including list indexes) and compared as one canonical JSON value. It receives credit only
-when both its path and complete value match exactly; token overlap receives no partial credit.
+path and compared as one canonical JSON value after one-to-one unordered list alignment. Rows
+keep their owned child fields, and duplicate occurrences are not collapsed. By default both path
+and complete value must match exactly; token overlap receives no partial credit.
+`evaluation.case_sensitive: false` ignores only string-value casing, before list alignment,
+for field, fact, category and relation metrics. It preserves JSON keys, whitespace, punctuation,
+digits and scalar types. Schema validation and canonical document exact match remain strict;
+neither saved predictions nor labels are rewritten. The same setting is used by the Trainer
+callback and the independent prediction-publication check. Compare historical runs by rescoring
+their saved predictions under the same case policy, not by mixing old and new logged scores.
 `schemaVersion` is structural metadata and is excluded. Field-value accuracy is exact matches over
 the union of predicted and reference field paths, while precision and recall use predicted and
 reference field-value counts respectively. Canonical JSON exact match remains the stricter
@@ -263,7 +285,8 @@ container membership, allocation quantities, and direct container/package links 
 graph facts keyed by `groupId`, `packageId`, and container number. Category metrics key package
 categories by group/package identity and container categories by container number. Both are set
 comparisons, so a semantically identical array permutation does not masquerade as a relationship
-error. Strict leaf/path F1 remains index-sensitive and is reported alongside them.
+error. Leaf/path F1 also uses one-to-one unordered list alignment, without moving values across
+owners or unrelated fields.
 
 Loss is still logged, but loss alone is insufficient for structured extraction. Optional final
 prediction JSONL files retain document ID, generated text, reference text, parse/schema status, and

@@ -913,8 +913,11 @@ def _write_prediction_rows(
     generated_texts: Sequence[str],
     reference_texts: Sequence[str],
     task: TrainingTask,
+    case_sensitive: bool = True,
 ) -> dict[str, float]:
-    metrics, assessments = structured_metrics(generated_texts, reference_texts, task)
+    metrics, assessments = structured_metrics(
+        generated_texts, reference_texts, task, case_sensitive=case_sensitive,
+    )
     if len(document_ids) != len(assessments):
         raise RuntimeError("prediction count differs from the source split record count")
     lines = []
@@ -934,6 +937,7 @@ def _predict_and_publish(
     split: str,
     metric_key_prefix: str,
     predictions_dir: Path,
+    case_sensitive: bool = True,
 ) -> tuple[dict[str, Any], Path]:
     ordered_prediction = trainer.predict_with_identities(
         dataset,
@@ -948,6 +952,7 @@ def _predict_and_publish(
         generated_texts=generated,
         reference_texts=references,
         task=task,
+        case_sensitive=case_sensitive,
     )
     metrics = cast(dict[str, Any], _json_ready(output.metrics))
     for name, expected in independently_computed.items():
@@ -1372,7 +1377,9 @@ def run_training(
             eval_dataset=evaluation_dataset,
             processing_class=tokenizer,
             compute_metrics=(
-                make_compute_metrics(tokenizer, task)
+                make_compute_metrics(
+                    tokenizer, task, case_sensitive=config.evaluation.case_sensitive,
+                )
                 if config.evaluation.predict_with_generate and evaluation_dataset is not None
                 else None
             ),
@@ -1401,6 +1408,7 @@ def run_training(
                     split=evaluation_split,
                     metric_key_prefix="eval",
                     predictions_dir=predictions_dir,
+                    case_sensitive=config.evaluation.case_sensitive,
                 )
                 trainer.log_metrics("eval", evaluation_metrics)
                 artifact_paths.append(prediction_path)
@@ -1433,6 +1441,7 @@ def run_training(
                 split=split,
                 metric_key_prefix=split,
                 predictions_dir=predictions_dir,
+                case_sensitive=config.evaluation.case_sensitive,
             )
             trainer.log_metrics(split, metrics)
             trainer.save_metrics(split, metrics)

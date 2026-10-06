@@ -380,6 +380,7 @@ class DatasetFieldsConfig(_StrictModel):
 
 
 class PreprocessingConfig(_StrictModel):
+    target_format: Literal["compact", "pretty"] = "compact"
     max_source_length: PositiveInteger
     # Complete training targets above this inclusive token/EOS limit are excluded.
     # Held-out overflows remain errors so evaluation membership cannot change silently.
@@ -613,6 +614,8 @@ class DataloaderConfig(_StrictModel):
 
 
 class EvaluationConfig(_StrictModel):
+    # Applies to string values in scoring only; JSON keys/schema validation remain strict.
+    case_sensitive: bool = True
     strategy: Literal["no", "steps", "epoch"]
     split: Literal["train", "validation"]
     steps: PositiveInteger | None

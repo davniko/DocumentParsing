@@ -75,6 +75,37 @@ def test_legacy_party_fields_are_not_accepted(field: str) -> None:
         get_training_task("bill_of_lading_extraction_v7").canonicalize(source)
 
 
+@pytest.mark.parametrize(
+    "equipment",
+    [
+        {"typeCategory": "GENERAL_PURPOSE"},
+        {"typeCategory": "REFRIGERATED", "temperatureSetpoint": {"value": 1, "unit": "celsius"}},
+        {"sizeCategory": "FORTY_FOOT_HIGH_CUBE"},
+        {"sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT", "typeCategory": "PRESSURIZED_TANK"},
+    ],
+)
+def test_equipment_extracts_known_categories_without_inventing_other_dimensions(equipment):
+    from jsonschema import Draft202012Validator
+
+    source = target()
+    source["documentPatch"]["containerInformation"][0].update(equipment)
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    assert task.canonicalize(source) == source
+    Draft202012Validator(json.loads(task.prompt_schema_json())).validate(source)
+    invalid = copy.deepcopy(source)
+    invalid["documentPatch"]["containerInformation"][0]["typeDescription"] = "CONTAINER"
+    with pytest.raises(ValueError, match="fallback"):
+        task.canonicalize(invalid)
+    if equipment.get("typeCategory") in {"GENERAL_PURPOSE", "PRESSURIZED_TANK"}:
+        invalid = copy.deepcopy(source)
+        invalid["documentPatch"]["containerInformation"][0]["temperatureSetpoint"] = {
+            "value": 1,
+            "unit": "celsius",
+        }
+        with pytest.raises(ValueError, match="temperature-capable"):
+            task.canonicalize(invalid)
+
+
 def test_no_cargo_overflow_or_dangling_placement() -> None:
     task = get_training_task("bill_of_lading_extraction_v7")
     source = target()

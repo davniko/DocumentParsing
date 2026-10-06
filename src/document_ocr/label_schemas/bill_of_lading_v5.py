@@ -66,7 +66,8 @@ _SIZE_CODE: dict[ContainerSizeCategory, str] = {
     "TWENTY_FOOT_HIGH_CUBE": "25",
     "FORTY_FOOT_STANDARD_HEIGHT": "42",
     "FORTY_FOOT_HIGH_CUBE": "45",
-    "FORTY_FIVE_FOOT_HIGH_CUBE": "55",
+    # The pinned MPCI form accepts carrier/legacy ISO L5, not the newer ISO 55.
+    "FORTY_FIVE_FOOT_HIGH_CUBE": "L5",
 }
 
 _TYPE_CODE: dict[ContainerTypeCategory, str] = {
@@ -118,7 +119,9 @@ class RelationExplicitContainerV5(RelationExplicitContainer):
             "Readable MPCI/BIC equipment family: general-purpose, ventilated, dry-bulk, "
             "named-cargo, refrigerated/thermal, insulated, open-top, platform, tank, or "
             "air/surface. This is the semantic class inferred from the printed equipment "
-            "surface; downstream code projection is deterministic."
+            "surface; downstream code projection is deterministic. PRESSURIZED_TANK is "
+            "the MPCI KL liquid/gas tank family, including non-regulated liquid tanks; "
+            "it does not assert a measured pressure."
         ),
     )
 

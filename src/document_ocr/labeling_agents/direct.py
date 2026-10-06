@@ -55,6 +55,8 @@ from document_ocr.labeling_agents.direct_models import (
     Section,
     SectionReview,
 )
+from document_ocr.labeling_agents.equipment_normalization import reconcile_equipment_categories
+from document_ocr.labeling_agents.target_normalization import normalize_target_casing
 from document_ocr.semantic_v3.transform import CategoryRegistry
 
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
@@ -158,15 +160,13 @@ def described_schema(output_model: type[BaseModel], registry: CategoryRegistry) 
     container = schema.get("$defs", {}).get("ContainerInformationV7")
     if container is not None:
         # Native JSON Schema does not infer Python model validators. Express the
-        # existing pair-or-printed-text contract with supported nested anyOf,
+        # category-or-printed-text contract with supported nested anyOf,
         # avoiding if/then and keeping the emitted label shape unchanged.
         canonical, printed = deepcopy(container), deepcopy(container)
         for field in ("sizeCategory", "typeCategory"):
             definition = canonical["properties"][field]
-            nonnull = [s for s in definition.pop("anyOf") if s.get("type") != "null"]
-            if len(nonnull) != 1:
-                raise ValueError(f"expected one non-null container category schema: {field}")
-            definition.update(nonnull[0])
+            # Known family and known dimensions are independent extraction facts.
+            # Keep the nullable schema; a missing length must not force a guess.
             printed["properties"][field] = {
                 "type": "null",
                 "description": definition["description"],
@@ -706,6 +706,13 @@ class DirectLabelingFlow:
     async def extract(self) -> BillOfLadingExtractionV7Label:
         """One OCR-only call returning direct draft labels; no automatic review or training."""
         target = await self._call("extractor", BillOfLadingExtractionV7Label)
+        normalized, equipment = reconcile_equipment_categories(
+            target.canonical_target(), source_text=self.ocr
+        )
+        normalized, changes = normalize_target_casing(normalized)
+        target = BillOfLadingExtractionV7Label.model_validate_json(encoded(normalized))
+        atomic_publish_json(self.output_dir / "extraction-casing-edits.json", changes)
+        atomic_publish_json(self.output_dir / "extraction-equipment-decisions.json", equipment)
         atomic_publish_bytes(
             self.output_dir / "target.json", (encoded(target.canonical_target()) + "\n").encode()
         )
@@ -1221,7 +1228,13 @@ class DirectLabelingFlow:
             correction_records.extend(records)
         atomic_publish_json(self.output_dir / "correction-decisions.json", correction_records)
         validation_error = None
+        casing_changes: list[dict[str, Any]] = []
+        equipment_decisions: tuple[dict[str, Any], ...] = ()
         try:
+            candidate, equipment_decisions = reconcile_equipment_categories(
+                candidate, source_text=self.ocr
+            )
+            candidate, casing_changes = normalize_target_casing(candidate)
             validated = BillOfLadingExtractionV7Label.model_validate_json(encoded(candidate))
             self._check_package_tokens(validated.canonical_target())
             candidate = validated.canonical_target()
@@ -1236,6 +1249,8 @@ class DirectLabelingFlow:
             "validationError": validation_error,
             "reviews": {s: r.model_dump(mode="json") for s, r in reviews.items()},
             "correctionDecisions": correction_records,
+            "casingNormalizations": casing_changes,
+            "equipmentNormalizations": equipment_decisions,
             "layoutAssistedSections": sorted(self.layout_sections),
             "calls": len(self.receipts),
         }

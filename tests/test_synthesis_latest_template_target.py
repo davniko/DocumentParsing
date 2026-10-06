@@ -111,6 +111,49 @@ def test_equipment_matcher_uses_the_same_reviewed_grammar_as_v5_enrichment() -> 
     )
 
 
+def test_source_carrier_context_resolves_only_its_documented_equipment_vocabulary() -> None:
+    source = {
+        "schemaVersion": "5.0.0-experimental",
+        "documentPatch": {
+            "parties": {"carrier": {"name": "CMA CGM S.A."}},
+            "containers": [{"containerNumber": "CGMU5543425", "typeDescription": "40RA"}],
+        },
+    }
+    target = latest_target_from_source(source)
+    assert target["documentPatch"]["containers"][0] == {
+        "containerNumber": "CGMU5543425",
+        "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+        "typeCategory": "REFRIGERATED",
+    }
+    source["documentPatch"]["parties"]["carrier"]["name"] = "ANOTHER LINE"
+    unchanged = latest_target_from_source(source)
+    assert unchanged["documentPatch"]["containers"] == source["documentPatch"]["containers"]
+
+
+@pytest.mark.parametrize(
+    "surface,carrier,size,kind",
+    [
+        ("22GO", "OTHER", "TWENTY_FOOT_STANDARD_HEIGHT", "GENERAL_PURPOSE"),
+        ("40RQ", "OTHER", "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED"),
+        ("20BX", "TARROS S.P.A.", "TWENTY_FOOT_STANDARD_HEIGHT", "GENERAL_PURPOSE"),
+        ("20HO", "TARROS S.P.A.", "TWENTY_FOOT_HIGH_CUBE", "OPEN_TOP"),
+    ],
+)
+def test_new_aliases_reach_compiler_source_projection(surface, carrier, size, kind):
+    source = {
+        "schemaVersion": "5.0.0-experimental",
+        "documentPatch": {
+            "parties": {"carrier": {"name": carrier}},
+            "containers": [{"containerNumber": "CGMU5543425", "typeDescription": surface}],
+        },
+    }
+    target = latest_target_from_source(source)
+    assert target["documentPatch"]["containers"][0] == {
+        "containerNumber": "CGMU5543425", "sizeCategory": size, "typeCategory": kind,
+    }
+    assert source["documentPatch"]["containers"][0]["typeDescription"] == surface
+
+
 def test_composite_range_coherence_validates_without_modifying_target() -> None:
     document_id = "doc_2520425e6bd3a4ea5b06ec6e83322468a17a78668d3e8900188e7d14f8d685a7"
     source = _source_target(document_id)

@@ -406,8 +406,9 @@ def _shuffle_lists(value: Any, rng: random.Random) -> Any:
     "task_name", ["bill_of_lading_extraction_v7", "bill_of_lading_extraction_v7_reduced"]
 )
 @pytest.mark.parametrize("errors", [False, True])
+@pytest.mark.parametrize("case_sensitive", [True, False])
 def test_all_metrics_ignore_nested_list_permutations_with_partial_credit(
-    task_name: str, errors: bool
+    task_name: str, errors: bool, case_sensitive: bool,
 ) -> None:
     reference = _v7_target()
     prediction = copy.deepcopy(reference)
@@ -420,7 +421,9 @@ def test_all_metrics_ignore_nested_list_permutations_with_partial_credit(
         goods["splitGoodsPlacement"][0]["packageQuantity"] = 11
         goods["dangerousGoods"][1]["hazardCategory"] = "CORROSIVE_SUBSTANCES"
     task = get_training_task(task_name)
-    baseline, _ = structured_metrics([json.dumps(prediction)], [json.dumps(reference)], task)
+    baseline, _ = structured_metrics(
+        [json.dumps(prediction)], [json.dumps(reference)], task, case_sensitive=case_sensitive,
+    )
     assert baseline["canonical_exact_match"] == int(not errors)
     for prefix in ("field_value", "extraction_fact", "category_value", "cargo_relation"):
         assert (baseline[f"{prefix}_f1"] < 1.0) == errors
@@ -430,11 +433,15 @@ def test_all_metrics_ignore_nested_list_permutations_with_partial_credit(
             [json.dumps(_shuffle_lists(prediction, rng))],
             [json.dumps(_shuffle_lists(reference, rng))],
             task,
+            case_sensitive=case_sensitive,
         )
         assert metrics == baseline
 
 
-def test_list_matching_preserves_entity_ownership_and_missing_duplicate_occurrences() -> None:
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_list_matching_preserves_entity_ownership_and_missing_duplicate_occurrences(
+    case_sensitive: bool,
+) -> None:
     task = get_training_task("bill_of_lading_extraction_v7_reduced")
     reference = _v7_target()
     wire = json.dumps(reference)
@@ -444,7 +451,9 @@ def test_list_matching_preserves_entity_ownership_and_missing_duplicate_occurren
         containers[1]["sealNumbers"],
         containers[0]["sealNumbers"],
     )
-    metrics, _ = structured_metrics([json.dumps(prediction)], [wire], task)
+    metrics, _ = structured_metrics(
+        [json.dumps(prediction)], [wire], task, case_sensitive=case_sensitive,
+    )
     assert metrics["canonical_exact_match"] == 0
     assert metrics["field_value_f1"] < 1
 
@@ -477,12 +486,17 @@ def test_list_matching_preserves_entity_ownership_and_missing_duplicate_occurren
     assert extra["cargo_relation_precision"] < 1
 
 
-def test_list_matching_retains_scalar_multiplicity_and_invalid_structure_penalties() -> None:
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_list_matching_retains_scalar_multiplicity_and_invalid_structure_penalties(
+    case_sensitive: bool,
+) -> None:
     task = get_training_task("bill_of_lading_extraction_v7_reduced")
     reference = _v7_target()
     prediction = copy.deepcopy(reference)
     prediction["documentPatch"]["containerInformation"][0]["sealNumbers"].append("SEAL-A")
-    metrics, _ = structured_metrics([json.dumps(prediction)], [json.dumps(reference)], task)
+    metrics, _ = structured_metrics(
+        [json.dumps(prediction)], [json.dumps(reference)], task, case_sensitive=case_sensitive,
+    )
     assert metrics["schema_valid"] == 0
     assert metrics["field_value_precision"] < 1
     assert metrics["field_value_recall"] == 1
@@ -491,6 +505,62 @@ def test_list_matching_retains_scalar_multiplicity_and_invalid_structure_penalti
     assert unordered_key([1]) != unordered_key([1.0])
     assert unordered_key([-0.0]) != unordered_key([0.0])
     assert unordered_key(["A", "A"]) != unordered_key(["A"])
+
+
+def test_case_insensitive_scoring_changes_values_only_and_keeps_raw_schema_checks() -> None:
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    reference = _v7_target()
+
+    def change_case(value: Any) -> Any:
+        if isinstance(value, str):
+            return value.lower()
+        if isinstance(value, dict):
+            return {key: change_case(child) for key, child in value.items()}
+        if isinstance(value, list):
+            return [change_case(child) for child in reversed(value)]
+        return value
+
+    prediction = change_case(reference)
+    wire = json.dumps(reference)
+    generated = json.dumps(prediction)
+    strict, _ = structured_metrics([generated], [wire], task)
+    insensitive, assessments = structured_metrics(
+        [generated], [wire], task, case_sensitive=False,
+    )
+    assert strict["field_value_f1"] < 1
+    for family in ("field_value", "extraction_fact", "category_value", "cargo_relation"):
+        assert insensitive[f"{family}_f1"] == 1
+    assert insensitive["schema_valid"] == strict["schema_valid"] == 0
+    assert insensitive["canonical_exact_match"] == strict["canonical_exact_match"] == 0
+    assert assessments[0].generated_text == generated
+    assert json.loads(assessments[0].reference_text) == reference
+
+    for value in ("B/L 1", "B/L 1 ", "B/L-1", "B/L 2", 1, True):
+        gold = _target("B/L 1")
+        candidate = json.loads(gold)
+        candidate["documentPatch"]["billOfLadingNumber"] = value
+        score, _ = structured_metrics([json.dumps(candidate)], [gold],
+                                      get_training_task("bill_of_lading_semantic_v2"),
+                                      case_sensitive=False)
+        assert score["field_value_f1"] == int(value == "B/L 1")
+
+    candidate = json.loads(_target("ABC"))
+    candidate["documentPatch"] = {"billofladingnumber": "abc"}
+    score, _ = structured_metrics([json.dumps(candidate)], [_target("ABC")],
+                                  get_training_task("bill_of_lading_semantic_v2"),
+                                  case_sensitive=False)
+    assert score["field_value_f1"] == 0
+
+
+def test_pretty_target_preserves_values_and_decoder_field_order() -> None:
+    target = _v7_target()
+    original = copy.deepcopy(target)
+    compact = canonical_json(target)
+    pretty = canonical_json(target, pretty=True)
+    assert "\n" not in compact and "\n  " in pretty
+    assert json.loads(compact) == json.loads(pretty) == original == target
+    for goods in json.loads(pretty)["documentPatch"]["goodsItemDetails"]:
+        assert list(goods)[-1] == "splitGoodsPlacement"
 
 
 def test_notify_party_list_matching_keeps_addresses_with_the_named_party() -> None:

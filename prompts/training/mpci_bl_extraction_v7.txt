@@ -1,5 +1,5 @@
 Extract bill-of-lading facts from the OCR into the sparse JSON schema below.
-Extract only schema fields, using supported values and their document roles. Keep complete postal wording in addressLine with comma-separated components, including city and country; names and contacts have separate fields. Extract locality names without generic facility wording and normalize explicitly supported route countries to uppercase English names.
+Extract only schema fields, using supported values and their document roles. Use uppercase for human-readable names, addresses, locations and cargo text; preserve identifier, email and URL casing and schema enum/unit formats. Keep complete postal wording in addressLine with comma-separated components, including city and country; names and contacts have separate fields. Extract locality names without generic facility wording and normalize explicitly supported route countries to uppercase English names.
 Keep product identity and specifications in description. Associate quantities, measurements and container placements with their supported goods item. Preserve printed units; exact totals may be derived from complete printed components.
 
 Output schema:

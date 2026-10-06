@@ -505,6 +505,32 @@ def test_arrow_preprocessing_is_cache_keyed_and_complete(tmp_path: Path) -> None
     assert first.token_lengths["train"]["source_truncated_records"] == 0
     assert list((tmp_path / "cache").glob("train-*.arrow"))
 
+    pretty_config = config.model_copy(update={
+        "dataset": config.dataset.model_copy(update={
+            "preprocessing": preprocessing.model_copy(update={"target_format": "pretty"}),
+        }),
+    })
+    compact_rows, _ = inspect_dataset(
+        project_root=PROJECT_ROOT, config=config, prompt=prompt, task=task,
+    )
+    pretty_rows, _ = inspect_dataset(
+        project_root=PROJECT_ROOT, config=pretty_config, prompt=prompt, task=task,
+    )
+    for compact_row, pretty_row in zip(compact_rows["train"], pretty_rows["train"], strict=True):
+        assert compact_row.document_id == pretty_row.document_id
+        assert compact_row.input_text == pretty_row.input_text
+        assert json.loads(compact_row.target_text) == json.loads(pretty_row.target_text)
+        assert "\n" in pretty_row.target_text
+    pretty = prepare_datasets(
+        project_root=PROJECT_ROOT, config=pretty_config, prompt=prompt, task=task,
+        tokenizer=_WordTokenizer(),
+    )
+    assert pretty.cache_identity != first.cache_identity
+    assert len(pretty.datasets["train"]) == len(first.datasets["train"])
+    for labels in pretty.datasets["train"]["labels"]:
+        assert labels[-1] == _WordTokenizer.eos_token_id
+        assert _WordTokenizer.bos_token_id not in labels
+
 
 def test_preparation_rejects_generation_capacity_below_evaluation_reference(
     tmp_path: Path,

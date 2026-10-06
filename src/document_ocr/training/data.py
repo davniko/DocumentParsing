@@ -212,7 +212,10 @@ def _read_source_file(
                 raise ValueError(f"{context}: target schema validation failed: {error}") from error
 
             rendered_input = prompt.render(raw_input)
-            target_text = canonical_json(canonical_target)
+            target_text = canonical_json(
+                canonical_target,
+                pretty=config.dataset.preprocessing.target_format == "pretty",
+            )
             normalized.append(
                 NormalizedRecord(
                     document_id=document_id,

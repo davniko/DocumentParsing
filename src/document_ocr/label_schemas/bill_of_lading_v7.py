@@ -57,7 +57,7 @@ class LocationV7(SemanticLocation):
     name: ApplicationText | None = Field(
         default=None,
         description=(
-            "Locality name supported by this location's OCR phrase. Preserve its "
+            "Uppercase locality name supported by this location's OCR phrase. Preserve its "
             "spelling and distinguishing locality words; omit the country name or "
             "adjective and generic facility descriptors such as seaport, airport or "
             "terminal. Retain words that are part of the locality's actual name, "
@@ -82,7 +82,8 @@ class ContactsV7(ContactDetails):
     contactName: ApplicationText | None = Field(
         default=None,
         description=(
-            "Explicitly identified contact person names, in source order, separated by "
+            "Explicitly identified contact person names in uppercase, in source order, "
+            "separated by "
             "'; ' when several are printed. Uncaptioned identity names belong in the "
             "party name."
         ),
@@ -175,7 +176,8 @@ class TransportV7(LabelSchemaModel):
     vesselName: ApplicationText | None = Field(
         default=None,
         description=(
-            "Printed main-carriage vessel name, excluding a separate voyage number and "
+            "Printed main-carriage vessel name in uppercase, excluding a separate voyage "
+            "number and "
             "field caption."
         ),
     )
@@ -294,7 +296,7 @@ class OriginV7(GoodsOrigin):
         default=None,
         description=(
             "Printed goods-origin place/country name, typically an origin or "
-            "manufacture declaration; retain source wording."
+            "manufacture declaration; retain source wording in uppercase."
         ),
     )
     identifier: ApplicationText | None = Field(
@@ -402,28 +404,43 @@ class ContainerInformationV7(ContainerInformationV6):
     typeDescription: ApplicationText | None = Field(
         default=None,
         description=(
-            "Printed equipment wording when a complete supported size/type category "
-            "pair cannot be established. Exclusive with the canonical pair; an ID alone"
-            " implies no type."
+            "Printed equipment wording in uppercase when neither supported category can "
+            "be established. Exclusive with sizeCategory/typeCategory. An ID alone "
+            "implies no equipment category."
         ),
     )
     sizeCategory: ContainerSizeCategory | None = Field(
         default=None,
         description=(
-            "Printed length/height class. Standard=8ft6; high cube=9ft6. Select "
-            "supported 20/40/45-foot class only with typeCategory; otherwise retain "
-            "printed wording as typeDescription."
+            "Container length/height class. Standard=8ft6; high cube=9ft6. Read the "
+            "complete specification owned by this container, including repeated equipment "
+            "declarations. For a printed 20/40-foot length, use standard height unless "
+            "an owned height marker or defined carrier/ISO code specifies otherwise. "
+            "Omit this field when length is absent; typeCategory can still be populated. "
+            "20ST/40ST are standard-height dry; "
+            "40H/HC/HQ and 45HC are high-cube dry of the stated length. ISO 45G1 "
+            "is 40-foot high cube; L5G1/55G1 is 45-foot high cube. Cargo volume and "
+            "tariff examples are not container dimensions."
         ),
     )
     typeCategory: ContainerTypeCategory | None = Field(
         default=None,
         description=(
-            "Printed equipment family; emit only together with sizeCategory, otherwise "
-            "use typeDescription. GP/DRY=general purpose; complete 40HC/HQ=40ft "
-            "high-cube GP unless specialized type is explicit. RE=reefer, "
-            "RT=reefer/heated, RS=self-powered reefer, HR=removable thermal equipment, "
+            "Equipment family, independent of whether length is printed. Generic 20/40-foot "
+            "container/box wording and GP/DRY/DY/BX mean general purpose unless an "
+            "owned specialized equipment declaration says otherwise. 40HC/HQ=40ft "
+            "high-cube GP unless specialized type is explicit. Complete carrier "
+            "40HR/40RH/40RQ means high-cube reefer; CMA CGM 40RA also means high-cube reefer. "
+            "ISO detail O may represent zero when the size prefix is valid (22GO=22G0). "
+            "Carrier codes such as 20HO require their own definition. "
+            "RF/RE/NOR are refrigerated; NOR means non-operating and supplies no "
+            "temperature setting. Only explicit owned instructions supply a setpoint. "
+            "TARROS 20HO is source-adjudicated as 20ft high-cube open top. "
+            "For ISO type groups, RE=reefer, RT=reefer/heated, RS=self-powered reefer, "
+            "HR=removable thermal equipment, "
             "HI=insulated, UT=open top; VH=ventilated, BU=dry bulk, SN=named cargo, "
-            "PL/PF/PC/PS/PT=platform variants, KL=pressurized tank, NH/NN=dry tank "
+            "PL/PF/PC/PS/PT=platform variants, TK/TANK/KL=the MPCI liquid/gas tank "
+            "family PRESSURIZED_TANK (not a pressure measurement), NH/NN=dry tank "
             "discharge variants, AS=air/surface. Unknown tokens, including GEN, do not "
             "establish a family."
         ),
@@ -479,7 +496,7 @@ class PackagesV7(NumberAndTypeOfPackagesV6):
     typeOfPackages: PackageTypeText | None = Field(
         default=None,
         description=(
-            "Complete printed package-type wording when no supplied category applies. "
+            "Complete printed package-type wording in uppercase when no supplied category applies. "
             "Exclusive with typeCategory; not the goods description."
         ),
     )
@@ -525,7 +542,8 @@ class ExtractionPartyV7(LabelSchemaModel):
     name: ApplicationText | None = Field(
         default=None,
         description=(
-            "Printed party identity, preserving spelling and uncaptioned personal names"
+            "Printed party identity in uppercase, preserving spelling and uncaptioned "
+            "personal names"
             " under the company. Follow linked identity continuations even after a page "
             "break or tax/contact lines. Preserve A ON BEHALF OF B in a shared named-party "
             "postal block, not in a carrier signature's agent/principal clause; separate "
@@ -539,7 +557,7 @@ class ExtractionPartyV7(LabelSchemaModel):
     addressLine: AddressText | None = Field(
         default=None,
         description=(
-            "Complete party-owned postal address including buildings, districts, "
+            "Complete party-owned postal address in uppercase, including buildings, districts, "
             "localities, postcode and country wherever printed. Write one line with "
             "comma-space separators between distinct postal components. Rejoin wrapped "
             "words/identifiers; ordinary word boundaries retain a space. Preserve wording, numbers "
@@ -558,7 +576,7 @@ class ExtractionPartyV7(LabelSchemaModel):
         default=None,
         description=(
             "Recognizable postal country name or code printed for this party, "
-            "preserving source form. Include country in addressLine too. Clear "
+            "preserving source wording in uppercase. Include country in addressLine too. Clear "
             "aliases/demonyms may support the country; no geocoding from city, "
             "telephone or company name, and no guessed repair of malformed country "
             "text."
@@ -682,7 +700,8 @@ class GoodsItemDetailsV7(LabelSchemaModel):
     description: CargoText | None = Field(
         default=None,
         description=(
-            "Complete product-owned wording: identity, brand, model/product/article codes, "
+            "Complete product-owned wording in uppercase: identity, brand, "
+            "model/product/article codes, "
             "composition, "
             "specifications, condition, lot qualifiers, proper shipping name and "
             "printed package capacity. Join lines with spaces in source order. A "
@@ -749,7 +768,7 @@ class GoodsItemDetailsV7(LabelSchemaModel):
         default=None,
         min_length=1,
         description=(
-            "Explicit goods/shipment-specific carriage, storage, handling or delivery "
+            "Uppercase goods/shipment-specific carriage, storage, handling or delivery "
             "instructions in source order. Generic "
             "carrier responsibility/disclaimer text, including shipper's load/stow/count/"
             "seal declarations, is not a goods-specific handling instruction."
