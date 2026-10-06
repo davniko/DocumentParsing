@@ -558,10 +558,9 @@ class ExtractionPartyV7(LabelSchemaModel):
         default=None,
         description=(
             "Complete party-owned postal address in uppercase, including buildings, districts, "
-            "localities, postcode and country wherever printed. Write one line with "
-            "comma-space separators between distinct postal components. Rejoin wrapped "
-            "words/identifiers; ordinary word boundaries retain a space. Preserve wording, numbers "
-            "and order, and existing internal punctuation. Include "
+            "localities, postcode and country wherever printed. Preserve printed punctuation "
+            "and delimiters; join physical lines with a space, without adding commas. "
+            "Preserve wording, numbers and order. Include "
             "owned continuations after contacts/customs text or page headers, and postal "
             "department/landmark text; exclude names, contacts, tax/registration data, "
             "captions and formatting markers. Keep postcode/address values but omit "

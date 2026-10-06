@@ -1,0 +1,69 @@
+schema_version: 1
+backend: paddleocr
+
+# Filename retained so the launch command stays unchanged.
+# Previously retained maritime sources, published curation exclusions, <=5 pages.
+# Hard links to original PDFs; selection.json records provenance and all 660 current IDs.
+sources:
+  - type: local
+    root: /mnt/d/Projects/DocumentParsing/data/corpora/paddle-bl-swb-filtered-max5/files
+    include_glob: "**/*.pdf"
+    dataset_version: paddle-bl-swb-filtered-max5-2e6bf377275e72d8c1fd1a5382c1d1791a03a514e0701523e12b5b6cfa6a4ffe
+    require_content_sha256: true
+exclusions: []
+expected_source_documents: 1918
+expected_unique_documents: 1918
+
+output:
+  root: /mnt/d/Projects/DocumentParsing/artifacts/paddle-ocr
+  retain_page_images: true
+  parquet_compression: zstd
+  write_batch_rows: 1024
+run:
+  run_id: filtered-bl-swb-max5-1918-ppocr6-v1
+  fail_fast: false
+  resume: true
+  expected_pages: 3717
+raster:
+  dpi: 200
+  max_side_pixels: 3500
+  max_pixels: 12250000
+  max_pages_per_document: 5
+  max_pdf_bytes: 20000000
+  max_cached_documents_per_process: 2
+  image_format: png
+  jpeg_quality: null
+  draw_annotations: true
+  reject_xfa: true
+paddle:
+  device: gpu:0
+  cpu_threads: 4
+  enable_mkldnn: false
+  mkldnn_cache_capacity: 4
+  models_directory: /mnt/d/Projects/DocumentParsing/data/models/paddle-ocr
+  detection:
+    name: PP-OCRv6_medium_det
+    repository: PaddlePaddle/PP-OCRv6_medium_det
+    revision: 8e0f56fb2ef86b461d99cfc7ac5c137738985f61
+  recognition:
+    name: PP-OCRv6_medium_rec
+    repository: PaddlePaddle/PP-OCRv6_medium_rec
+    revision: e5a92bcbc5cc1b494628e458d267778f0704fd7c
+  # The null optional models disable their preprocessing explicitly.
+  # Enabling them requires a pinned ModelSpec, just like detection/recognition.
+  document_orientation: null
+  document_unwarping: null
+  textline_orientation: null
+  recognition_batch_size: 16
+  orientation_batch_size: 16
+  detection_limit_side_len: 64
+  detection_limit_type: min
+  detection_max_side_limit: 3500
+  detection_threshold: 0.3
+  detection_box_threshold: 0.6
+  detection_unclip_ratio: 1.5
+  recognition_score_threshold: 0.0
+  return_word_boxes: false
+concurrency:
+  renderer_processes: 2
+  prefetch_pages: 4

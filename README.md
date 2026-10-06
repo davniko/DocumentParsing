@@ -20,8 +20,10 @@ The project decisions extracted from the planning conversation are in
 No repository setup, configuration validation, source inventory, test, or CPU renderer probe starts
 vLLM, downloads GLM-OCR, or uses a GPU. The benchmark command also never starts a server; it only
 contacts the endpoint in the selected configuration. A model download and GPU allocation happen
-only after an operator explicitly runs `docker compose up`. Do not run that command while other
-scheduled GPU work is active.
+only after an operator explicitly starts the relevant inference runtime. GLM uses
+`docker compose up`; the optional Paddle path below uses `document-ocr paddle run`.
+Do not start GPU inference while other scheduled GPU work is active. Paddle's separate
+`prepare-models` command downloads weights but does not load them or allocate GPU memory.
 
 Real-document access and permission to send document content to any service remain separate
 governance gates. The extraction path targets a self-hosted endpoint. AWS and vLLM credentials are
@@ -58,6 +60,98 @@ uv sync --frozen
 ```
 
 This resolves Python packages only; it does not install vLLM or download the model.
+
+## Structured PaddleOCR extraction
+
+This is an independent, local structured-output path alongside GLM-OCR. It saves recognized
+text lines, confidence scores, polygons, boxes, page geometry and native Paddle results. It
+does **not** join OCR into document text, render positional training inputs, align to GLM text,
+or modify existing datasets/labels. The original PDFs are read-only.
+
+The configuration [`configs/paddle_ocr.all_originals.local.yaml`](configs/paddle_ocr.all_originals.local.yaml)
+was narrowed in place to the approved **B/L + sea-waybill, at-most-five-page selection**:
+**1,918 unique PDFs / 3,717 pages**, including all **600 train + 60 validation** sources.
+There are 1,489 BLC, 426 SWB and three dual-classified BLC/SWB PDFs. The pool is the previously
+retained 2,174 real records plus one current reviewed source absent from that historical set.
+Published R5-R11 curation exclusions and the five-page limit remove 257 documents in total
+(145 published exclusions and 133 over-length documents, overlapping by 21).
+This reuses existing decisions; it is not a fresh semantic certification of the entire pool.
+
+The source view `data/corpora/paddle-bl-swb-filtered-max5/files/` contains hard links to the
+original snapshot PDFs, not another payload copy. Its neighboring `selection.json` records every
+original alias, historical document ID, current split, exclusion and input receipt. All selected
+PDF hashes were verified, and the actual PDFium page counts were checked by Paddle inventory.
+The old all-originals preflight remains untouched; the new selection has a separate run ID so its
+immutable inventory cannot be mixed with the old one. The config filename and launch command
+remain unchanged. Expected source/page counts fail on inventory drift.
+
+Use the isolated, locked Linux x86-64/Python 3.12 environment. It avoids Paddle's NumPy/PyYAML
+constraints changing the training environment. The GPU extra pins Paddle 3.3.1/CUDA 12.6; the
+CPU extra is mutually exclusive. PaddleOCR 3.7.0, PaddleX 3.7.2 and both PP-OCRv6-medium model
+revisions are pinned. See the [official OCR API](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html).
+
+From the repository root, after the current GPU training has finished:
+
+```bash
+uv sync --project environments/paddle-ocr --extra gpu --frozen && \
+PYTHONPATH=src environments/paddle-ocr/.venv/bin/python -m document_ocr.cli paddle prepare-models \
+  --config configs/paddle_ocr.all_originals.local.yaml && \
+PYTHONPATH=src environments/paddle-ocr/.venv/bin/python -m document_ocr.cli paddle run \
+  --config configs/paddle_ocr.all_originals.local.yaml --project-root .
+```
+
+No Docker or vLLM server is needed for Paddle. Model downloads are separate from inference;
+all inference uses local files. `inventory` validates sources without loading OCR models,
+`validate-config` checks configuration, and `status` verifies committed artifacts. These commands
+also accept `--config`. Repeat `run` to resume: successful pages are verified and skipped, failed
+pages retried. A run directory is immutable with respect to configuration, models, code and source
+inventory; use a new `run.run_id` when intentionally changing these. A failed page prevents the
+completion manifest from being published. There is no automatic GPU-to-CPU fallback.
+
+Output lives under `artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1/`:
+
+- `inventory.json`: PDF hashes, every source alias, exclusions and page counts.
+- `provenance.json`: configuration, code, model-file and runtime identities.
+- `pages/<pdf-hash>/<page-number>.json`: normalized lines, detections, geometry and artifact receipts.
+- `native/`: native JSON results, plus the actual coordinate image if preprocessing changes it.
+- `rasters/`: original page rasters when `output.retain_page_images` is enabled.
+- `pages.parquet`, `lines.parquet`: queryable tables published only once all eligible pages succeed.
+- `manifest.json`: completion marker and artifact checksums; `errors/`: failed-attempt diagnostics.
+
+Coordinates are pixels with a top-left origin. `page_index` is zero-based, `page_number` is
+one-based. Line order is Paddle's emitted order, not a semantic table/reading-order guarantee.
+Recognition-filtered polygons are matched back to detection indices; unrecognized detections
+are retained separately. Confidence is the recognizer's score, not a guarantee of transcription
+accuracy. When orientation correction/unwarping is enabled, boxes refer to the saved
+`preprocessed_page` image, **not** directly to the original PDF frame. Unwarping is not an affine
+transform. With preprocessing disabled, the shared renderer's raster metadata describes the frame.
+
+All source paths, exclusions, raster bounds/DPI, model revisions, device, CPU threads, optional
+orientation/unwarping models, detector thresholds/resize limits, recognition batch size/threshold,
+word boxes, renderer processes, prefetch bound and output retention/compression are configurable.
+Optional preprocessing is enabled by supplying its pinned model specification instead of `null`.
+`return_word_boxes` preserves Paddle's word data in native JSON; the normalized table remains
+line-level. No recognized line is suppressed by the supplied confidence threshold (`0.0`).
+
+Processing keeps one model instance alive, batches recognition crops, and overlaps inference with
+two process-isolated renderers through a four-page bounded queue. It does not load all page images
+into memory or instantiate a model for every document. These concurrency/batch limits are explicit
+configuration, not GPU auto-tuning. For CPU use, install `--extra cpu`, set `paddle.device: cpu`, and
+keep `enable_mkldnn: false`: the real-page probe found a oneDNN/PIR incompatibility in this pinned
+runtime when MKLDNN was enabled. The GPU configuration also explicitly disables MKLDNN.
+
+Implementation validation (2026-10-06): 126 targeted tests passed, covering filtered-box alignment,
+empty/malformed results, source aliases, changed-config rejection, interrupted-run recovery,
+artifact corruption, image retention and transformed coordinate frames. A CPU end-to-end probe
+processed three original PDFs / seven pages into 676 lines, then verified an exact resume in
+1.08 seconds. Peak process-tree RSS was 2.18 GiB. Median direct Paddle inference was 49.66 seconds
+versus 49.04 seconds including structured publication on the same benchmark page (three paired
+repetitions; the small difference is timing variation, not a claimed speedup). A further real-page
+probe checked orientation plus 94 word regions. The locked CUDA build imports successfully;
+GPU inference/throughput was not tested while training was active. These checks establish the
+integration/data-preservation path, not perfect OCR transcription accuracy. Detailed probe data:
+[`report.json`](artifacts/paddle-ocr-validation-20261006/report.json) and
+[`optional-report.json`](artifacts/paddle-ocr-validation-20261006/optional-report.json).
 
 ## Configure and inventory
 

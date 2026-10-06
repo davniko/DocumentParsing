@@ -113,6 +113,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
+    from document_ocr.paddle_ocr.cli import add_commands
+
+    add_commands(commands.add_parser("paddle", help="extract structured PaddleOCR results"))
+
     validate = commands.add_parser(
         "validate-config",
         help="strictly validate a pipeline YAML configuration",
@@ -368,6 +372,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return error.code if isinstance(error.code, int) else _EXIT_USAGE
 
     command = cast(str, arguments.command)
+    if command == "paddle":
+        from document_ocr.paddle_ocr.cli import execute
+
+        return execute(arguments)
     try:
         payload = asyncio.run(_dispatch(arguments))
     except _CommandFailure as error:
