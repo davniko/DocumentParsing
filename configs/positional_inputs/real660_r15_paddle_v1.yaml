@@ -1,0 +1,26 @@
+schema_version: 1
+source_dataset: data/curated/mpci-bl-real-v7-reviewed-r15-address-punctuation-660
+output_dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
+paddle_run: artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1
+selection_manifest: data/corpora/paddle-bl-swb-filtered-max5/selection.json
+selection_sha256: 2e6bf377275e72d8c1fd1a5382c1d1791a03a514e0701523e12b5b6cfa6a4ffe
+splits:
+  - name: train
+    records: 600
+    sha256: d59f9d617d93dbb1b11b3ebb11ce283532292a5f886dc999ff394a569f17533a
+  - name: validation
+    records: 60
+    sha256: 96b1dc7f74bb7258ecb00bb1b41e68ebd8a419e5da34a377e0a2aeefd0d6cd47
+alignment:
+  grid_size: 1000
+  # Height-relative tolerances exercised in the full 660-document feasibility probe.
+  horizontal_gap_heights: 8.0
+  vertical_gap_heights: 3.0
+  vertical_overlap_tolerance: 0.5
+  context_lines: 2
+  context_radius_heights: 6.0
+  context_margin_heights: 2.0
+  left_alignment_weight: 0.25
+  # Hitting a search limit produces an explicit unresolved line, never a guessed match.
+  max_group_regions: 32
+  max_search_states: 10000
