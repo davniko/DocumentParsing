@@ -132,7 +132,9 @@ class ModelConfig(_StrictModel):
 class PromptConfig(_StrictModel):
     path: NonEmptyString
     placeholder: Literal["{{document_text}}"]
-    schema_placeholder: Literal["{{output_schema}}"]
+    schema_placeholder: Literal["{{output_schema}}"] | None = Field(
+        description="Schema marker, or null for an input-only document-text template."
+    )
 
     @field_validator("path")
     @classmethod

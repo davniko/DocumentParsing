@@ -300,6 +300,24 @@ def test_prompt_is_literal_single_placeholder_template(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="unsupported template expression"):
         load_prompt(PROJECT_ROOT, bad_config, task)
 
+    input_path = tmp_path / "input-only.txt"
+    input_path.write_text("{{document_text}}\n", encoding="utf-8")
+    input_config = config.prompt.model_copy(
+        update={"path": str(input_path), "schema_placeholder": None}
+    )
+    input_prompt = load_prompt(PROJECT_ROOT, input_config, task)
+    for document in ("--- PAGE 1 ---\nOCR || 123,456", "  OCR\n", "{{output_schema}} {raw}"):
+        assert input_prompt.render(document) == document
+    assert input_prompt.sha256 != prompt.sha256
+    assert input_prompt.output_schema_sha256 == prompt.output_schema_sha256
+    for invalid in ("Instructions: {{document_text}}", "{{document_text}}{{output_schema}}"):
+        input_path.write_text(invalid, encoding="utf-8")
+        with pytest.raises(ValueError, match="input-only prompt must contain only"):
+            load_prompt(PROJECT_ROOT, input_config, task)
+    input_path.write_text("{{document_text}}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="output_schema"):
+        load_prompt(PROJECT_ROOT, config.prompt.model_copy(update={"path": str(input_path)}), task)
+
 
 def test_relation_v5_prompt_encodes_independent_dg_and_equipment_contracts() -> None:
     baseline = load_training_config(CONFIG_PATH)

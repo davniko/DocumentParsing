@@ -37,7 +37,7 @@ def load_prompt(
     config: PromptConfig,
     task: TrainingTask,
 ) -> PromptTemplate:
-    """Load a UTF-8 template and bind its task-derived output schema."""
+    """Load a schema-bearing prompt or an explicitly input-only template."""
 
     configured_path = resolve_config_path(project_root, config.path)
     if configured_path.is_symlink():
@@ -60,21 +60,27 @@ def load_prompt(
         raise ValueError("prompt must not contain a NUL character")
     if template_text.count(config.placeholder) != 1:
         raise ValueError(f"prompt must contain exactly one {config.placeholder!r} placeholder")
-    if template_text.count(config.schema_placeholder) != 1:
-        raise ValueError(
-            f"prompt must contain exactly one {config.schema_placeholder!r} placeholder"
-        )
-    residual = template_text.replace(config.placeholder, "").replace(
-        config.schema_placeholder, ""
-    )
-    if "{{" in residual or "}}" in residual:
-        raise ValueError("prompt contains an unsupported template expression")
-    if not residual.strip():
-        raise ValueError("prompt must contain instructions outside its placeholders")
-
     output_schema = task.prompt_schema_json()
     output_schema_encoded = output_schema.encode("utf-8")
-    text = template_text.replace(config.schema_placeholder, output_schema)
+    if config.schema_placeholder is None:
+        if template_text.strip() != config.placeholder:
+            raise ValueError("input-only prompt must contain only the document-text placeholder")
+        # A template file's terminal newline is not part of the model input.
+        # Preserve document whitespace exactly, including its own final newline.
+        text = config.placeholder
+    else:
+        if template_text.count(config.schema_placeholder) != 1:
+            raise ValueError(
+                f"prompt must contain exactly one {config.schema_placeholder!r} placeholder"
+            )
+        residual = template_text.replace(config.placeholder, "").replace(
+            config.schema_placeholder, ""
+        )
+        if "{{" in residual or "}}" in residual:
+            raise ValueError("prompt contains an unsupported template expression")
+        if not residual.strip():
+            raise ValueError("prompt must contain instructions outside its placeholders")
+        text = template_text.replace(config.schema_placeholder, output_schema)
     encoded = text.encode("utf-8")
 
     return PromptTemplate(
