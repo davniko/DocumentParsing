@@ -1,7 +1,7 @@
 dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
 output: artifacts/kie-synthesis-production/curated-v7-expansion100-v1
-ownership: configs/synthesis/contracts/curated_v7_expansion100/ownership.yaml
-auxiliary: configs/synthesis/contracts/curated_v7_expansion100/auxiliary.yaml
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
 environment_file: .env
 task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
 task_constraints_sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
@@ -13,12 +13,21 @@ casing:
   - uppercase
   - title
 positions:
-  output_subdirectory: positions-v2
+  output_subdirectory: positions-reflow-v1
   seed: 20261007
   scale_min: 0.95
   scale_max: 1.05
   max_translation: 20
   scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 0
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
 concurrency: 8
 budget_usd: 5.0
 provider:
@@ -1764,5 +1773,5 @@ capabilities:
     family: ambient
   doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
     family: ambient
-source_contracts: artifacts/kie-synthesis-production/curated-v7-expansion100-v1/sources
-historical_catalog: artifacts/kie-synthesis-production/curated-v7-expansion100-v1/catalog
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases

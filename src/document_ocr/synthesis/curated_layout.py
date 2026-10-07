@@ -15,6 +15,8 @@ from collections import Counter
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
+from document_ocr.synthesis.curated_reflow_policy import ReflowPolicy
+
 GRID = 1000
 METHOD = "source_anchors_coherent_page_v1"
 
@@ -29,6 +31,7 @@ class PositionPolicy(BaseModel):
     scale_max: float = Field(ge=1)
     max_translation: float = Field(ge=0, le=GRID)
     scale_attempts: int = Field(ge=0, le=1024)
+    reflow: ReflowPolicy | None = None
 
 
 def _geometry(points, boxes) -> tuple[np.ndarray, np.ndarray]:

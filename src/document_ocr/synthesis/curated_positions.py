@@ -1,7 +1,8 @@
 """Transfer measured source layout through exact synthetic text edits.
 
-Coordinates describe inherited layout anchors, not measured synthetic glyphs.
-No text matching, target labels, PDF reflow or invented missing boxes are used.
+Coordinates describe source-conditioned layout, not measured synthetic glyphs.
+Optional joint page reflow uses exact edit ownership and measured source boxes;
+no text matching, target labels or invented missing source boxes are used.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_layout import GRID, METHOD, PositionPolicy, augment_page
 from document_ocr.synthesis.curated_position_regions import place_region
 from document_ocr.synthesis.curated_publication import _write_new_or_identical
+from document_ocr.synthesis.curated_reflow import ReflowEngine
 
 
 @dataclass(frozen=True)
@@ -379,10 +381,10 @@ def augment_positions(
     verify_preservation(rendered, text, set(coordinates))
     return text, {
         **receipt,
-        "method": METHOD,
+        "method": "source_conditioned_reflow_coherent_page_v1" if policy.reflow else METHOD,
         "anchorPositionedSha256": receipt["positionedSha256"],
         "positionedSha256": digest(text.encode()),
-        "policy": policy.model_dump(),
+        "policy": policy.model_dump(mode="json"),
         "pages": pages,
         "lines": lines,
     }
@@ -397,22 +399,26 @@ def position_campaign(campaign) -> dict:
     if digest(payload) != manifest["files"]["dataset.jsonl"]:
         raise ValueError("plain publication hash mismatch")
     policy = PositionPolicy.model_validate(campaign.config["positions"])
+    reflow = ReflowEngine(campaign.root, policy.reflow) if policy.reflow else None
     published = [json.loads(line) for line in payload.splitlines()]
     if len({r["documentId"] for r in published}) != len(published):
         raise ValueError("duplicate published sample identity")
     dataset = campaign.root / campaign.config["dataset"]
     alignments = {
         sid: json.loads((dataset / "alignments" / f"{sid}.json").read_bytes())
-        for sid in {r["sourceDocumentId"] for r in published}
+        for sid in sorted({r["sourceDocumentId"] for r in published})
     }
     geometry, provenance = load_page_geometry(campaign.root, dataset, alignments)
     output = root / policy.output_subdirectory
     output.mkdir(exist_ok=True)
     rows, receipts, counts, modes = [], {}, Counter(), Counter()
+    reflow_status, reflow_failures, held_groups = Counter(), Counter(), Counter()
+    baseline_known = 0
     changed_points = 0
     gallery = [
         "# Synthetic augmented source-anchored positions\n\n"
-        "Coherent per-page scale/translation; approximate inherited layout, "
+        "Source-conditioned page layout followed by coherent scale/translation; "
+        "approximate geometry, "
         "not measured synthetic glyphs. "
         "Plain OCR and extraction targets are unchanged.\n"
     ]
@@ -436,8 +442,26 @@ def position_campaign(campaign) -> dict:
             page_boxes=geometry[sid],
             page_dimensions=provenance["pageDimensions"][sid],
         )
+        baseline_known += sum(line["xy"] is not None for line in receipt["lines"])
+        effective_geometry = geometry[sid]
+        if reflow is not None:
+            text, receipt, effective_geometry = reflow.apply(
+                source=source_row["joinedRawText"],
+                rendered=row["joinedRawText"],
+                proof=candidate["proof"],
+                alignment=alignment,
+                receipt=receipt,
+                boxes=geometry[sid],
+                dimensions=provenance["pageDimensions"][sid],
+                sample_id=sample_id,
+            )
+            reflow_status.update(p["status"] for p in receipt["reflowPages"])
+            reflow_failures.update(
+                f[0] for p in receipt["reflowPages"] for f in p.get("failures", [])
+            )
+            held_groups.update(g["reason"] for p in receipt["reflowPages"] for g in p["heldGroups"])
         text, receipt = augment_positions(
-            row["joinedRawText"], receipt, geometry[sid], policy, sample_id
+            row["joinedRawText"], receipt, effective_geometry, policy, sample_id
         )
         modes.update(p["mode"] for p in receipt["pages"])
         changed_points += sum(p["changed_points"] for p in receipt["pages"])
@@ -447,7 +471,7 @@ def position_campaign(campaign) -> dict:
         counts.update(receipt["counts"])
         _write_new_or_identical(
             output / f"{sample_id}.json",
-            (json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode(),
+            (json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(),
         )
         gallery.append(f"\n## {sample_id}\n\n```text\n{text.rstrip()}\n```\n")
     data = (
@@ -455,13 +479,18 @@ def position_campaign(campaign) -> dict:
     ).encode()
     md = "\n".join(gallery).encode()
     result = {
-        "method": METHOD,
-        "policy": policy.model_dump(),
+        "method": "source_conditioned_reflow_coherent_page_v1" if reflow else METHOD,
+        "policy": policy.model_dump(mode="json"),
         "provenance": provenance,
         "pageModes": dict(modes),
         "changedPoints": changed_points,
         "records": len(rows),
         "counts": dict(counts),
+        "baselineKnownLines": baseline_known,
+        "knownLines": sum(v for k, v in counts.items() if k != "unpositioned"),
+        "reflowPages": dict(reflow_status),
+        "reflowRejections": dict(reflow_failures),
+        "heldGroups": dict(held_groups),
         "sourceManifestSha256": digest((root / "manifest.json").read_bytes()),
         "datasetSha256": digest(data),
         "gallerySha256": digest(md),
@@ -470,6 +499,6 @@ def position_campaign(campaign) -> dict:
     _write_new_or_identical(output / "dataset.jsonl", data)
     _write_new_or_identical(output / "samples.md", md)
     _write_new_or_identical(
-        output / "manifest.json", (json.dumps(result, indent=2) + "\n").encode()
+        output / "manifest.json", (json.dumps(result, indent=2, sort_keys=True) + "\n").encode()
     )
     return {**result, "seconds": time.perf_counter() - start}

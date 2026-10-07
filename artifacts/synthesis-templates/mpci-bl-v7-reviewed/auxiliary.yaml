@@ -616,7 +616,28 @@ sources:
       count: 1
       value:
         text: 'IMPORT REFERENCE '
-  doc_24c81b104b2fe30e4152b1606e1a4c31bd89a5014a1faaec51fa9093b6cff000: {}
+  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
+    bindings:
+      agent:party:shipper:tax_id:
+        identifier: registration
+      agent:customs:export_reference:
+        identifier: registration
+      agent:customs:government_reference:
+        identifier: registration
+      agent:reference:government:ein:0:
+        identifier: registration
+    spans:
+    - quote: 'THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED
+        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS.
+
+        DIVERSION CONTRARY TO U.S. LAW PROHIBITED.'
+      count: 1
+      value:
+        text: THESE COMMODITIES ARE SUBJECT TO APPLICABLE EXPORT REGULATIONS.
+    - quote: 'EIN: '
+      count: 1
+      value:
+        text: 'COMPANY REGISTRATION: '
   doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
     bindings:
       agent:shipper_fax:
@@ -644,7 +665,25 @@ sources:
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
-  doc_2bbbb552bc5859d97400d352a2f3c68724706b4bc47fc181b6de25d9e3c89e41: {}
+  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9:
+    bindings:
+      agent:consignee_vat_number:
+        identifier: registration
+      agent:acid_number:
+        identifier: import_reference
+      agent:exporter_id:
+        identifier: registration
+      agent:importer_id:
+        identifier: registration
+    spans:
+    - quote: ACID NUMBER AND HS CODE
+      count: 1
+      value:
+        text: IMPORT REFERENCE AND HS CODE
+    - quote: 'VAT# '
+      count: 2
+      value:
+        text: 'COMPANY REGISTRATION: '
   doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
     bindings:
       agent:shipper_tax_identifier:
@@ -743,7 +782,16 @@ sources:
       count: 1
       value:
         text: at the port of discharge to be at Receiver
-  doc_4072d87614d209dbbf8c821deaf27052e67ee5575f921d883f208759c6517af8: {}
+  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
+    bindings:
+      agent:shipper_tax_id:
+        identifier: registration
+      agent:consignee_tax_id:
+        identifier: registration
+      agent:notify_tax_id:
+        identifier: registration
+      agent:acid_number:
+        identifier: import_reference
   doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66:
     bindings:
       agent:acid_reference:
@@ -774,7 +822,20 @@ sources:
         phone: documentPatch.parties.deliveryAgent
       agent:agent_contact_fax_2:
         phone: documentPatch.parties.deliveryAgent
-  doc_44a6df44720605e77dd83ffc0cf301e7f1a9a9ac5bb0685490ae465072055886: {}
+  doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
+    bindings:
+      agent:consignee_tax_id:
+        identifier: registration
+      agent:acid_reference:
+        identifier: import_reference
+      agent:foreign_exporter_registration_type:
+        text: COMPANY REGISTRATION NUMBER
+      agent:foreign_exporter_id:
+        identifier: registration
+      agent:foreign_exporter_country:
+        text: '{origin_country}'
+      agent:foreign_exporter_country_code:
+        text: '{origin_code}'
   doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885:
     bindings:
       agent:party:shipper:tax_id:
@@ -798,7 +859,22 @@ sources:
       count: 1
       value:
         text: EXPORTER REGISTRATION
-  doc_4e21727ffeec68eafddc5083c1036c541b0836d6fbc61ecba46973430933f19b: {}
+  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565:
+    bindings:
+      agent:party:issuing-agent:trade-label:
+        text: EXPORT SERVICES
+      agent:party:consignee:importer-tax-id:
+        identifier: registration
+      agent:party:shipper:exporter-tax-id:
+        identifier: registration
+      agent:party:shipper:exporter-country:
+        text: '{origin_country}'
+      agent:party:shipper:exporter-country-code:
+        text: '{origin_code}'
+      agent:party:consignee:delivery-agent-reference:
+        identifier: import_reference
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: shipping_mark
   doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b:
     bindings:
       agent:shipment_agent:organization:
@@ -1052,57 +1128,37 @@ sources:
         text: ORIGIN AGENCY ({origin_country})
       agent:commercial:collection_unit:maersk_egypt_agency:
         text: DESTINATION AGENCY ({destination_country})
-  doc_8c6da3ddb7c7d91a71a36c0a181ce2158d206bd9bddc6e6471176cc0a56dc912:
+  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40:
     bindings:
-      agent:source:vat_number:
+      agent:party:shipper:0:fax:
+        phone: documentPatch.parties.shipper
+      agent:tax:shipper-exporter:
         identifier: registration
-      agent:source:invoice_date:
-        date: '2023-08-12'
-        format: '%d-%m-%Y'
-      agent:source:shipping_bill_date:
-        date: '2023-08-12'
-        format: '%d-%m-%Y'
-      agent:source:iec_number:
+      agent:tax:consignee:0:
         identifier: registration
-      agent:source:acid_number:
+      agent:tax:notify:0:
+        identifier: registration
+      agent:customs:acid_number:
         identifier: import_reference
-      agent:source:importer_tax_id:
+      agent:customs:importer_tax_number:
         identifier: registration
-      agent:source:foreign_exporter_registration_type:
-        text: COMPANY REGISTRATION NUMBER
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
-        identifier: shipping_mark
-      agent:source:foreign_exporter_country:
-        party_location: documentPatch.parties.notifyParties[0]
-        field: country
-      agent:source:foreign_exporter_country_code:
-        party_location: documentPatch.parties.notifyParties[0]
-        field: country_code
+      anchor:documentPatch.shippedOnBoardDate:
+        date: '2023-01-02'
+        format: '%d.%m.%Y'
+        publish_target: documentPatch.shippedOnBoardDate
+      anchor:documentPatch.issueDate:
+        date: '2023-01-02'
+        format: '%d.%m.%Y'
+        publish_target: documentPatch.issueDate
     spans:
-    - quote: at any port of discharge in Egypt
+    - quote: at Alexandria terminal
       count: 1
       value:
-        text: at the port of discharge
-    - quote: bound to Egypt
+        text: at {destination_port} terminal
+    - quote: ACID DETAILS
       count: 1
       value:
-        text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
-      count: 1
-      value:
-        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
-    - quote: 'VAT NUMBER : '
-      count: 1
-      value:
-        text: 'COMPANY REGISTRATION: '
-    - quote: 'IEC '
-      count: 1
-      value:
-        text: 'COMPANY REGISTRATION: '
+        text: IMPORT REFERENCE DETAILS
   doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f:
     bindings:
       agent:forwarding_agent_tax_id:
@@ -1305,7 +1361,35 @@ sources:
       count: 1
       value:
         text: 'COMPANY REGISTRATION:'
-  doc_c32d1614c68365733b1268b558ba57ca9c332c81045faed9a9d7c5a190844203: {}
+  doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
+    bindings:
+      agent:source:iec_number:
+        identifier: registration
+      agent:source:acid_number:
+        identifier: import_reference
+      agent:source:tax_id:
+        identifier: registration
+      agent:source:foreign_exporter_id:
+        identifier: registration
+      agent:source:foreign_exporter_country:
+        text: '{origin_country}'
+      agent:source:foreign_exporter_country_code:
+        text: '{origin_code}'
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: commercial_reference
+      reviewed:source_reference_date:0:
+        date: '2025-02-18'
+        format: '%d.%m.%Y'
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        identifier: commercial_reference
+      reviewed:source_reference_date:1:
+        date: '2025-02-19'
+        format: '%d.%m.%Y'
+    spans:
+    - quote: 'IEC NO. '
+      count: 1
+      value:
+        text: 'COMPANY REGISTRATION: '
   doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6:
     bindings:
       agent:notify:tax_identifier:
@@ -1440,7 +1524,25 @@ sources:
         text: '{origin_country}'
       agent:customs:exporter_country:expanded:
         text: '{origin_country}'
-  doc_b94ea1c18029a12f078fd09418a721eb52d155dcb947729f182b0b2df65f74ee: {}
+  doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
+    bindings:
+      agent:consignee_tax_id:
+        identifier: registration
+      agent:acid_number:
+        identifier: import_reference
+      agent:importer_tax_id:
+        identifier: registration
+      agent:exporter_tax_id:
+        identifier: registration
+      agent:exporter_country:
+        text: '{origin_country}'
+      agent:exporter_country_code:
+        text: '{origin_code}'
+    spans:
+    - quote: at Alexandria terminal
+      count: 1
+      value:
+        text: at {destination_port} terminal
   doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
     bindings:
       agent:customs:acid:
@@ -1455,7 +1557,37 @@ sources:
         text: '{origin_country}'
       agent:customs:foreign_exporter_country_code:
         text: '{origin_code}'
-  doc_93985d0795ad38b290476c2e68924d73fb486fb5d1cca3628d71bcd1b9f3ae1b: {}
+  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0:
+    bindings:
+      agent:shipment:shipper:tax_id:
+        identifier: registration
+      agent:shipment:customs:acid:
+        identifier: import_reference
+      agent:shipment:customs:importer_tax_id:
+        identifier: registration
+      agent:shipment:customs:foreign_exporter_registration_type:
+        text: COMPANY REGISTRATION NUMBER
+      agent:shipment:customs:foreign_exporter_country:
+        text: '{origin_country}'
+      agent:shipment:customs:foreign_exporter_country_code:
+        text: '{origin_code}'
+    spans:
+    - quote: at any port of discharge in Egypt
+      count: 1
+      value:
+        text: at the port of discharge
+    - quote: bound to Egypt
+      count: 1
+      value:
+        text: bound to the destination
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
+      count: 1
+      value:
+        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
   doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc:
     bindings:
       agent:consignee:vat_number:
@@ -1627,53 +1759,56 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country
     spans: []
-  doc_a5f088c96c8547cbc77085ec258175644936f628eecd2f8bc4e4ae438fe5d858: {}
-  doc_bee16be0a60037fe3626d63585734487afeb283a354ef2979cab83dc0a82efc3:
+  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
     bindings:
-      agent:shipper_gstin:
+      agent:shipper_vat_identifier:
         identifier: registration
-      agent:notify_party_vat_number:
+      agent:consignee_importer_tax_id:
         identifier: registration
-      agent:notify_party_registration_number:
+      agent:notify_importer_tax_id:
         identifier: registration
-      agent:sb_number_date:
-        date: '2023-12-30'
-        format: '%d.%m.%Y'
-      agent:invoice_date:
-        date: '2023-12-29'
-        format: '%d/%m/%Y'
-      agent:acid_identifier:
+      agent:destination_office_phone:
+        target: documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:destination_office_email:
+        target: documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:cargo_acid_identifier:
         identifier: import_reference
-      agent:tax_identifier:
+      agent:cargo_importer_tax_id:
         identifier: registration
-      agent:foreign_forwarder_registration_type:
-        text: COMPANY REGISTRATION NUMBER
-      agent:shipper_gst_registration_id_for_forwarder:
+      agent:foreign_exporter_vat_number:
         identifier: registration
-      agent:etd_date:
-        date: '2024-01-20'
-        format: '%d-%b-%y'
-      agent:eta_date:
-        date: '2024-02-04'
-        format: '%d-%b-%y'
-      agent:forwarding_agent_vat_number:
-        identifier: registration
-      agent:forwarding_agent_country_code:
-        text: '{origin_code}'
     spans:
-    - quote: 'GSTIN NO.: '
-      count: 2
-      value:
-        text: 'COMPANY REGISTRATION: '
-    - quote: 'Vat Number :'
-      count: 2
-      value:
-        text: 'COMPANY REGISTRATION: '
-    - quote: 'VAT NUMBER: '
+    - quote: 'VAT '
       count: 1
       value:
         text: 'COMPANY REGISTRATION: '
-  doc_24c091c863feb5d61516da466cd436eae72f2710957a76a94b925537ee1d85bd: {}
+  doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
+    bindings:
+      agent:document:booking_reference:
+        identifier: booking
+        prefix: BKG-
+      agent:cargo:g1:acid_number:
+        identifier: import_reference
+      agent:party:importer:tax_id:
+        identifier: registration
+      agent:party:exporter:tax_id:
+        identifier: registration
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.consignee.name
+  doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
+    bindings:
+      agent:party:shipper:fax:0:
+        phone: documentPatch.parties.shipper
+      agent:party:consignee:tax_id:0:
+        identifier: registration
+      agent:party:notify:tax_id:0:
+        identifier: registration
+      agent:customs:acid:
+        identifier: import_reference
+      agent:customs:importer_tax_number:
+        identifier: registration
+      agent:customs:exporter_registration_number:
+        identifier: registration
   doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671:
     bindings:
       agent:shipper_vat_identifier:
@@ -1838,7 +1973,25 @@ sources:
       count: 1
       value:
         text: IMPORT REFERENCE AND HS CODE
-  doc_d1c9357dba1380a4dc2eba4e115be167c08cebeeefbf321f24ba05499f485f29: {}
+  doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9:
+    bindings:
+      agent:source:operational_clause:free_turkish_port:
+        text: FREE IN {origin_port}
+      agent:source:acid:
+        identifier: import_reference
+      agent:source:egyptian_importer_tax_id:
+        identifier: registration
+      agent:source:foreign_exporter_registration_type:
+        text: COMPANY REGISTRATION NUMBER
+      agent:source:foreign_exporter_id:
+        identifier: registration
+      agent:source:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:source:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+    spans: []
   doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870:
     bindings:
       agent:acid_reference:
@@ -1861,265 +2014,5 @@ sources:
         text: '{origin_country}'
       agent:cargo:exporter_country_code:
         text: '{origin_code}'
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
-        target: documentPatch.parties.consignee.name
-  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
-    bindings:
-      agent:party:shipper:tax_id:
-        identifier: registration
-      agent:customs:export_reference:
-        identifier: registration
-      agent:customs:government_reference:
-        identifier: registration
-      agent:reference:government:ein:0:
-        identifier: registration
-    spans:
-    - quote: 'THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED
-        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS.
-
-        DIVERSION CONTRARY TO U.S. LAW PROHIBITED.'
-      count: 1
-      value:
-        text: THESE COMMODITIES ARE SUBJECT TO APPLICABLE EXPORT REGULATIONS.
-    - quote: 'EIN: '
-      count: 1
-      value:
-        text: 'COMPANY REGISTRATION: '
-  doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
-    bindings:
-      agent:party:shipper:fax:0:
-        phone: documentPatch.parties.shipper
-      agent:party:consignee:tax_id:0:
-        identifier: registration
-      agent:party:notify:tax_id:0:
-        identifier: registration
-      agent:customs:acid:
-        identifier: import_reference
-      agent:customs:importer_tax_number:
-        identifier: registration
-      agent:customs:exporter_registration_number:
-        identifier: registration
-  doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9:
-    bindings:
-      agent:source:operational_clause:free_turkish_port:
-        text: FREE IN {origin_port}
-      agent:source:acid:
-        identifier: import_reference
-      agent:source:egyptian_importer_tax_id:
-        identifier: registration
-      agent:source:foreign_exporter_registration_type:
-        text: COMPANY REGISTRATION NUMBER
-      agent:source:foreign_exporter_id:
-        identifier: registration
-      agent:source:foreign_exporter_country:
-        party_location: documentPatch.parties.shipper
-        field: country
-      agent:source:foreign_exporter_country_code:
-        party_location: documentPatch.parties.shipper
-        field: country_code
-    spans: []
-  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
-    bindings:
-      agent:shipper_vat_identifier:
-        identifier: registration
-      agent:consignee_importer_tax_id:
-        identifier: registration
-      agent:notify_importer_tax_id:
-        identifier: registration
-      agent:destination_office_phone:
-        target: documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
-      agent:destination_office_email:
-        target: documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
-      agent:cargo_acid_identifier:
-        identifier: import_reference
-      agent:cargo_importer_tax_id:
-        identifier: registration
-      agent:foreign_exporter_vat_number:
-        identifier: registration
-    spans:
-    - quote: 'VAT '
-      count: 1
-      value:
-        text: 'COMPANY REGISTRATION: '
-  doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
-    bindings:
-      agent:consignee_tax_id:
-        identifier: registration
-      agent:acid_number:
-        identifier: import_reference
-      agent:importer_tax_id:
-        identifier: registration
-      agent:exporter_tax_id:
-        identifier: registration
-      agent:exporter_country:
-        text: '{origin_country}'
-      agent:exporter_country_code:
-        text: '{origin_code}'
-    spans:
-    - quote: at Alexandria terminal
-      count: 1
-      value:
-        text: at {destination_port} terminal
-  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565:
-    bindings:
-      agent:party:issuing-agent:trade-label:
-        text: EXPORT SERVICES
-      agent:party:consignee:importer-tax-id:
-        identifier: registration
-      agent:party:shipper:exporter-tax-id:
-        identifier: registration
-      agent:party:shipper:exporter-country:
-        text: '{origin_country}'
-      agent:party:shipper:exporter-country-code:
-        text: '{origin_code}'
-      agent:party:consignee:delivery-agent-reference:
-        identifier: import_reference
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
-        identifier: shipping_mark
-  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
-    bindings:
-      agent:shipper_tax_id:
-        identifier: registration
-      agent:consignee_tax_id:
-        identifier: registration
-      agent:notify_tax_id:
-        identifier: registration
-      agent:acid_number:
-        identifier: import_reference
-  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9:
-    bindings:
-      agent:consignee_vat_number:
-        identifier: registration
-      agent:acid_number:
-        identifier: import_reference
-      agent:exporter_id:
-        identifier: registration
-      agent:importer_id:
-        identifier: registration
-    spans:
-    - quote: ACID NUMBER AND HS CODE
-      count: 1
-      value:
-        text: IMPORT REFERENCE AND HS CODE
-    - quote: 'VAT# '
-      count: 2
-      value:
-        text: 'COMPANY REGISTRATION: '
-  doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
-    bindings:
-      agent:source:iec_number:
-        identifier: registration
-      agent:source:acid_number:
-        identifier: import_reference
-      agent:source:tax_id:
-        identifier: registration
-      agent:source:foreign_exporter_id:
-        identifier: registration
-      agent:source:foreign_exporter_country:
-        text: '{origin_country}'
-      agent:source:foreign_exporter_country_code:
-        text: '{origin_code}'
-      anchor:documentPatch.forwardingAndExportReferences[0]:
-        identifier: commercial_reference
-      reviewed:source_reference_date:0:
-        date: '2025-02-18'
-        format: '%d.%m.%Y'
-      anchor:documentPatch.forwardingAndExportReferences[1]:
-        identifier: commercial_reference
-      reviewed:source_reference_date:1:
-        date: '2025-02-19'
-        format: '%d.%m.%Y'
-    spans:
-    - quote: 'IEC NO. '
-      count: 1
-      value:
-        text: 'COMPANY REGISTRATION: '
-  doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
-    bindings:
-      agent:consignee_tax_id:
-        identifier: registration
-      agent:acid_reference:
-        identifier: import_reference
-      agent:foreign_exporter_registration_type:
-        text: COMPANY REGISTRATION NUMBER
-      agent:foreign_exporter_id:
-        identifier: registration
-      agent:foreign_exporter_country:
-        text: '{origin_country}'
-      agent:foreign_exporter_country_code:
-        text: '{origin_code}'
-  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0:
-    bindings:
-      agent:shipment:shipper:tax_id:
-        identifier: registration
-      agent:shipment:customs:acid:
-        identifier: import_reference
-      agent:shipment:customs:importer_tax_id:
-        identifier: registration
-      agent:shipment:customs:foreign_exporter_registration_type:
-        text: COMPANY REGISTRATION NUMBER
-      agent:shipment:customs:foreign_exporter_country:
-        text: '{origin_country}'
-      agent:shipment:customs:foreign_exporter_country_code:
-        text: '{origin_code}'
-    spans:
-    - quote: at any port of discharge in Egypt
-      count: 1
-      value:
-        text: at the port of discharge
-    - quote: bound to Egypt
-      count: 1
-      value:
-        text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
-      count: 1
-      value:
-        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
-  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40:
-    bindings:
-      agent:party:shipper:0:fax:
-        phone: documentPatch.parties.shipper
-      agent:tax:shipper-exporter:
-        identifier: registration
-      agent:tax:consignee:0:
-        identifier: registration
-      agent:tax:notify:0:
-        identifier: registration
-      agent:customs:acid_number:
-        identifier: import_reference
-      agent:customs:importer_tax_number:
-        identifier: registration
-      anchor:documentPatch.shippedOnBoardDate:
-        date: '2023-01-02'
-        format: '%d.%m.%Y'
-        publish_target: documentPatch.shippedOnBoardDate
-      anchor:documentPatch.issueDate:
-        date: '2023-01-02'
-        format: '%d.%m.%Y'
-        publish_target: documentPatch.issueDate
-    spans:
-    - quote: at Alexandria terminal
-      count: 1
-      value:
-        text: at {destination_port} terminal
-    - quote: ACID DETAILS
-      count: 1
-      value:
-        text: IMPORT REFERENCE DETAILS
-  doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
-    bindings:
-      agent:document:booking_reference:
-        identifier: booking
-        prefix: BKG-
-      agent:cargo:g1:acid_number:
-        identifier: import_reference
-      agent:party:importer:tax_id:
-        identifier: registration
-      agent:party:exporter:tax_id:
-        identifier: registration
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         target: documentPatch.parties.consignee.name

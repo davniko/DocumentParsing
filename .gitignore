@@ -15,7 +15,20 @@ htmlcov/
 !.env.example
 
 # Runtime artifacts and downloaded documents
-artifacts/
+artifacts/*
+# Keep reusable template declarations/versioned inventory alongside local assets.
+# Source OCR, targets, measured geometry and generated campaign outputs stay local.
+!artifacts/synthesis-templates/
+artifacts/synthesis-templates/*
+!artifacts/synthesis-templates/README.md
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/
+artifacts/synthesis-templates/mpci-bl-v7-reviewed/*
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/README.md
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/manifest.json
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/selection-history.yaml
+!artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
 data/
 scratch/
 # Generated analysis inventories, review copies, figures and reports

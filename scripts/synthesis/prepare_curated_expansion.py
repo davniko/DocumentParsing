@@ -190,7 +190,10 @@ def admit_reviewed():
                 {"documentId": sid, "status": "held", "error": str(error), "missing": unresolved}
             )
             continue
-        save(OUT / "sources" / sid / "contract.json", {**hashes, "contract": contract})
+        save(
+            ROOT / config["source_contracts"] / sid / "contract.json",
+            {**hashes, "contract": contract},
+        )
         ownership["sources"][sid] = declarations
         report.append(
             {
@@ -342,9 +345,9 @@ def stage_replacements(path: Path):
             targetSha256=digest(row["target"]),
             contract=contract,
         )
-        save(OUT / "sources" / new / "contract.json", envelope)
+        save(ROOT / config["source_contracts"] / new / "contract.json", envelope)
         save(OUT / "sources" / new / "draft.json", {**envelope, "missing": [], "error": None})
-        save(OUT / "catalog" / new / "template.json", historical)
+        save(ROOT / config["historical_catalog"] / new / "template.json", historical)
         config["source_ids"][config["source_ids"].index(old)] = new
         del config["capabilities"][old]
         config["capabilities"][new] = item.get("capability", {"family": "ambient"})

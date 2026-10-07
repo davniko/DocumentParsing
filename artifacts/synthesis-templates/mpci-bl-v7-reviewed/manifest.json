@@ -1,0 +1,3285 @@
+{
+  "schemaVersion": 1,
+  "description": "Reusable admitted current-schema templates; campaign outputs/calls/reviews remain separate.",
+  "sourceCount": 100,
+  "cases": {
+    "doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "vehicle",
+        "identity_count": 1,
+        "allowed_hs_headings": [
+          "8429"
+        ],
+        "allowed_package_categories": [
+          "PACKAGE_VEHICLE"
+        ],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": 1,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        },
+        "physical_profile": "source_whole_units",
+        "allowed_hs_codes": [
+          "842952"
+        ]
+      },
+      "files": {
+        "alignment.json": "8c99b4d36602566f4a3337905e54c33732b4899c1c0f6d20f77a3aac853cce51",
+        "contract.json": "b61263ad2e5d759498d92ec806fe110ebfe4914d27d6679a48d3d8d216c53e92",
+        "source-positioned.txt": "0343a90dc2fade88eadc36ed4f75fa40622409aeedc09584527becc9af7a37f5",
+        "source.txt": "598555f6b87d7a0c54ec20dec3aa2816e99761b38d496b4e10763b2fda6ff81e",
+        "target.json": "e906864f3d8e84cddc0b235468d3fc87d615eff92c71bddd53446143f4f51f27",
+        "template.json": "13054e35698e272906529da37969e83dc5bc19811862d1e71caf9d0296655997"
+      },
+      "sourceInputSha256": "598555f6b87d7a0c54ec20dec3aa2816e99761b38d496b4e10763b2fda6ff81e",
+      "targetSha256": "8b19732ce445a8eab22d911449b35708e5dadb06de745f88e54ce2a26c438d50"
+    },
+    "doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 2,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "d8c1502cdc3d631fc52442b355fd79e2303fabce56d14cc031206951270f1312",
+        "contract.json": "21256c6d569f5c2292bbb89fd1d1aa57b9c30b9866b0ed2fbdf72e2da128a671",
+        "source-positioned.txt": "b1111ff4e68d09e124e66fb30e6409983a49dd176f36f6636b1f5ffc74383664",
+        "source.txt": "ffef8e7bedad04e34f6c357769e41afa995eb63f286187f28de60ac80364260e",
+        "target.json": "c7af72d4f63fa17d0e6e8dd9b9aca840d9c4036cc55cb07f6c21651fd0598637",
+        "template.json": "dd22b830dd44a52e27af524c11492ed4a14700f904df552830e8ca31c660306d"
+      },
+      "sourceInputSha256": "ffef8e7bedad04e34f6c357769e41afa995eb63f286187f28de60ac80364260e",
+      "targetSha256": "0f8320776e70ab96a8c21ed398ccf959403afee08b7edcdbc22a3a19031ad0d1"
+    },
+    "doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "b41ea4b5e9e9359773dce3fda7c584ff621afdbf7dbe4430aefc765a5f1a4eb0",
+        "contract.json": "83032bbcb91a8b0566af02a04af6398ea92e42976a9abc372d0b3e044772a8e8",
+        "source-positioned.txt": "1a9a2041cddee2107f6b9c3180f729ce674d0818a4b07ba0f4c35ee60b3eaac7",
+        "source.txt": "2ce7994362a47f78310c5be21499c04172fdba895813b989022e70050d80980c",
+        "target.json": "cd948bfb258ef319e3ff40f39d893e766753097ac0b099047f453d02215f4948",
+        "template.json": "595903e8a7c740c2a340ffc5b98414612b8b0d86d0bdfe1861e7d648290c15d2"
+      },
+      "sourceInputSha256": "2ce7994362a47f78310c5be21499c04172fdba895813b989022e70050d80980c",
+      "targetSha256": "c0ab209a76d38e443ad6592cc2a16a5c1c2116352dffa5450eb84197e349b620"
+    },
+    "doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "vehicle",
+        "identity_count": 1,
+        "allowed_hs_headings": [
+          "8701"
+        ],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": 3,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        },
+        "physical_profile": "source_whole_units",
+        "allowed_hs_codes": [
+          "870194"
+        ]
+      },
+      "files": {
+        "alignment.json": "527e2d6cfa63622cf5840639fb695c909cadfa3cdcba8b2641eed020313f78a5",
+        "contract.json": "0a1ec71f60b0c0b32b33d2330706f60a23413b1cb5ded94f1aae857dde6575a5",
+        "source-positioned.txt": "0f51ef8b3914b0d82a0bedd861cb5f4a034b11150e1000eb3a9f54f519c42cd1",
+        "source.txt": "bda8749e69fb6c79bbd2ea0dd8486e36c0532e99aa141dd353ccc9b4bb56cf42",
+        "target.json": "cb9eb1466a2c4079c268733cfdd84f5f275d1859ae2ea07367234e37799c7578",
+        "template.json": "b33b6f938d36c3d1a8758b44657d57b4a366cfd870b02302238e8732837a211a"
+      },
+      "sourceInputSha256": "bda8749e69fb6c79bbd2ea0dd8486e36c0532e99aa141dd353ccc9b4bb56cf42",
+      "targetSha256": "443af6eb5c3823bdbfe7dfeb1bc5584191d47adbd66abb023a250db7571f9aaa"
+    },
+    "doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        },
+        "required_private_measures": [
+          "grossWeight"
+        ]
+      },
+      "files": {
+        "alignment.json": "d78262cb36be3daa8f7be2e71a8c1f8ce86c92436274f10163244684314483a0",
+        "contract.json": "af1ed8d56377cd02d5c3d3f0b95df12fc717e0fc3b747cd7fd01293ad4a24a91",
+        "source-positioned.txt": "4aeac35971884f7a48e68f0d8266d365c0770f466fd894cd9f90fbd3354be509",
+        "source.txt": "caee20e00bbb105e20912d8c7696dc72938767533dd98bea392e82acf72f26b0",
+        "target.json": "f57108619c51a43b93d1ad25b3f0dd1f136caeba5efc0f70ba7e773ca1151e7f",
+        "template.json": "ac152d660707285b3417207b31e9e073847dbd2ddc4dd071f905285a8d90552c"
+      },
+      "sourceInputSha256": "caee20e00bbb105e20912d8c7696dc72938767533dd98bea392e82acf72f26b0",
+      "targetSha256": "f88c573ba96fd8defea81aef92849530a379b84afa8351248443fcbc964641cc"
+    },
+    "doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "d7d3ee0cf3f96457fe3330ab44e60e5d11d596340f0adc821e495c4d8264384e",
+        "contract.json": "1a48dd7fa494fde10ef825620b7b58a43611c7f3aadb5134311e6055d1ed9db8",
+        "source-positioned.txt": "2ff229787dd155458adbefd38089206b0bbde5ab31ce42c73e5629e0ea8446b0",
+        "source.txt": "6ad8b614c98186c0cd75c399663a28424b3bcc2f504adf9ac56f761191a9e454",
+        "target.json": "becb7a4ddb7e286825963974ca55582df56820e18b1009d4dadf4e0779084ac3",
+        "template.json": "1e08621c7fc62fa61473781d12591857b369266ae0c2b3c571a73719bba9b073"
+      },
+      "sourceInputSha256": "6ad8b614c98186c0cd75c399663a28424b3bcc2f504adf9ac56f761191a9e454",
+      "targetSha256": "b0584cd53c85786346eba2fdca28615bfcedd240215ed29a0aef871b0d919893"
+    },
+    "doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "chilled",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "e296303ec5dccf4f84acb7dac9abf0ebe84a16c9ff04432960c6d18200056c75",
+        "contract.json": "63b4a9127178157043b00e6863f745456745f615563a3f7372f1f571194726bc",
+        "source-positioned.txt": "261cf405ebb40b3acb06e11994e339c8471a5fc17ed847490c83f3f2affe12ab",
+        "source.txt": "7ac74d9ab8216b575fa8283174b29539be846ab7e0b6708d9ee7e2c072c98ecf",
+        "target.json": "6ee3ab30f42812007f657848b0102825fe31eb18fe69275ffda7fb6f59a1f7cd",
+        "template.json": "ff34ab45fd028949431d549de7c62dde2c89786a9402b307d648aab3dc2c45e1"
+      },
+      "sourceInputSha256": "7ac74d9ab8216b575fa8283174b29539be846ab7e0b6708d9ee7e2c072c98ecf",
+      "targetSha256": "1aa8cf528a6775b8f495be439da3bed82aa53888d0452d743247352175100bce"
+    },
+    "doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "53aee665fd30cbffa12b4ba16e083947c4a65b956a11770662b4c55c6e64ae29",
+        "contract.json": "16da27f8c5b5517d2b873c3deab0acea37fa4f2ccb3dc77493e4fa11315fe243",
+        "source-positioned.txt": "99ea521aa470bd6310e6ca9e5cba12fd85243a5260b483572cf44c607301339f",
+        "source.txt": "881067ef233f0699cf16914fea8ec54eebde0899b4940a4c3697913a60f5dad4",
+        "target.json": "2e0a8d8148034f84618c0fb2740fd5cbc01bdca0236128324de0094ffb3073ae",
+        "template.json": "dde2339acebae58dd43848ffe29aead774c0e515a4068ca4d3d146724fc4b39b"
+      },
+      "sourceInputSha256": "881067ef233f0699cf16914fea8ec54eebde0899b4940a4c3697913a60f5dad4",
+      "targetSha256": "b9ff434ee3f4a289e51638f7de820e26dd18df46ad285765ce659d70a7878836"
+    },
+    "doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 4,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "b496516626b36e4e8b6aab93df8641784ba1d63fc2f4fc4a5c035a73e473c9cd",
+        "contract.json": "4794dc3f4b53ea0ceceb190246d33858b49f17ed527f4c88e2dd49e478908232",
+        "source-positioned.txt": "b90d375e366c9e501654ace992ac257c2090722c86d96714929836e4021fa3b8",
+        "source.txt": "d76d0c9c7d94e1005e460228dc87ec03374e946d3174a601301bd19d5e7d0c1e",
+        "target.json": "98a6df952bf4486e42ac56536d083c8a1acf9e4af2d32eb4f0f36eeeee8dcea7",
+        "template.json": "9100f03454a3bc4605b668d075625538516370d42fbebd025eebfb5732d55e52"
+      },
+      "sourceInputSha256": "d76d0c9c7d94e1005e460228dc87ec03374e946d3174a601301bd19d5e7d0c1e",
+      "targetSha256": "e92923bb459f57cb03736d58c1f6b7aed909fc81c846a9405d7a125aff58721a"
+    },
+    "doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "2da4dae15962bf52b842537cdd31249f2e7ae505a96349ddb6dd2a4f95630c35",
+        "contract.json": "6e6130329142bfb0e3e7c2fd4eb9ab8fe73edafa19c4ba73006481f6875ca7b0",
+        "source-positioned.txt": "fc20d56b5db7e73654a14507b202dc747386d423af70245685c96947333c7746",
+        "source.txt": "4bacd05796de6d06235a68fe20968e72b42c7e79cad5f22b18459379c81465f7",
+        "target.json": "400ee596f23bbf36508257a1ef06fa82b633d60c9c72150e23a35199691a208f",
+        "template.json": "686c92eca6d44c9661af2cf875fc29721b1ed8bf3d5e3efec4591036803e3bcd"
+      },
+      "sourceInputSha256": "4bacd05796de6d06235a68fe20968e72b42c7e79cad5f22b18459379c81465f7",
+      "targetSha256": "2eaad83089dad9db4ec00bc2666a8a1a5029b409c218a8a6b732e4065e119b7d"
+    },
+    "doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "2b2c6ba4d71c9152fb745d6de018656f34c32e637ceba1acc1d661f56a64cf14",
+        "contract.json": "64be57262842e431d4584f389f32a27867af967844965a4a06e4f74247e9bd83",
+        "source-positioned.txt": "ab272bfc5a54c8be9f3a24494f661eab06fea9da23988b279e06a348ae32811d",
+        "source.txt": "08097205e58d2431bc0acc10d9324c039d65e25e5856114474862223ed6f978c",
+        "target.json": "40bac9fa7bdcff645c47e4cc79bafb11739ccdd6d2ee20f0216ef40351f728d1",
+        "template.json": "9256b2b617eccbb265f0caf9e0f1102f8299aea10799bb3d26a81ce6c3794fc5"
+      },
+      "sourceInputSha256": "08097205e58d2431bc0acc10d9324c039d65e25e5856114474862223ed6f978c",
+      "targetSha256": "5fea681af86d2c306d5e2f94447f8162f34ea705108522cc9e16f83ee53da201"
+    },
+    "doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "774fb7474fdcbab27306ace6e9f64387c2643c1e5bc444fe62dfb8583153a819",
+        "contract.json": "dad7fde7cd99432eb6c033f2c45df6f5f5c21a2f27d078a44c981aad63ef07c7",
+        "source-positioned.txt": "55faeab20e291ad836d9bb176854f52b9179faa8c5fad93e7ffd9af1461df759",
+        "source.txt": "798ab362e72420646a59d902c7cc37d02c8cc8e461ff2159cdb48d91949f4f57",
+        "target.json": "aadcc9a2fd75173e5c3e364da69e95730855475f9249ea37c4a465264531c34d",
+        "template.json": "2bdd0f7bcda054f9e782f5e1685fd19d9beaaebad1f27655074c83306803b145"
+      },
+      "sourceInputSha256": "798ab362e72420646a59d902c7cc37d02c8cc8e461ff2159cdb48d91949f4f57",
+      "targetSha256": "9679a94e2c141e5a335c41246c8701fb0d031fd2e2d47e1efc6336b336a4d9fb"
+    },
+    "doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "frozen",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "9e831c6c6435806bc1776ac6fe788ab794faec94569159a010aba51ac2313406",
+        "contract.json": "463ac69c826876d51f8175fad77e6527c631578369604afc304304183d9dec11",
+        "source-positioned.txt": "271c11cbc5d7c77774aa0bf05bf43f7543ce37d3772a168d30761445d2e3056c",
+        "source.txt": "9e94ac7ffe6cae11898ff506cbc64e613bfc4ad0629d4f0866b97136cdad56c3",
+        "target.json": "3604d52aff76c4a206ad613468aad2669619efc4a60ec0c1f081e53837194d2b",
+        "template.json": "7b9efd4c8a454cd2b336bb577fa16d62a9ab41917b22d2db6abc7177bf42d151"
+      },
+      "sourceInputSha256": "9e94ac7ffe6cae11898ff506cbc64e613bfc4ad0629d4f0866b97136cdad56c3",
+      "targetSha256": "5bf18bc34cf01075b9c56b1f78749c307e0a90237ba4796e914b8dd4117882c7"
+    },
+    "doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "b808b41f5a33f73a53cfa326aaccecb36642dc0e540ff8cdb5cbc5c9dc09a24d",
+        "contract.json": "bd803c4514de20e139e45a5cbc674b06ca29cb216b04c60b4e2df2ab344bc811",
+        "source-positioned.txt": "a101d07aa1a067d0b624f6f9bc1c39a1dee239ecb8e5fcdd61cc8905c0fc5c59",
+        "source.txt": "2989bd768d16142461caa3c329a409e04b58521b14eb3ab43b85f1871dfacce0",
+        "target.json": "a7c4f56da4038cbc4e12a3ab049e09ffb39f47e503d289e00cd72aeb5e69fc22",
+        "template.json": "b83fc64b5a71670fd7f583de29b8008db0f05304986b197c4956ab12ebc97c01"
+      },
+      "sourceInputSha256": "2989bd768d16142461caa3c329a409e04b58521b14eb3ab43b85f1871dfacce0",
+      "targetSha256": "89c9e83adc76575c7e152861e17c6e74a33d57986b229dc3f974cede9ed40b8f"
+    },
+    "doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "8cb891a67d2ddc10dc28db00b4bc883c0a966b04d468cabfa56bb5d634dc1f35",
+        "contract.json": "ecfc8d3203c722be3f7318e45999eacdb2adf912e5929191ae636c12ac1695b3",
+        "source-positioned.txt": "c36a826a93359fa5a8a5c750ac6f1b519b6a956d2e8d52d2e3920d4582cec935",
+        "source.txt": "0a91a50491fcfd9fc8eeeac6a67357ebb0e2cf38892d56616672cfbf65bd9924",
+        "target.json": "eee4e6451c18b7899ae07618ef8511f17ea81a262dda6bbed7f7c941549ab186",
+        "template.json": "316ccae748b924293b8dac9add48d35c9d7ab62990746bd4717cce39cf9002a9"
+      },
+      "sourceInputSha256": "0a91a50491fcfd9fc8eeeac6a67357ebb0e2cf38892d56616672cfbf65bd9924",
+      "targetSha256": "1fb1e94ed18551857af369b09d8d7c99750118280b022b93d7bd306fd0da8fa9"
+    },
+    "doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "vehicle",
+        "identity_count": 1,
+        "allowed_hs_headings": [
+          "8701"
+        ],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": 3,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        },
+        "physical_profile": "source_whole_units",
+        "allowed_hs_codes": [
+          "870193"
+        ]
+      },
+      "files": {
+        "alignment.json": "4617932e20a3b687bf6dd0c40c751558f7ec911b5f779bb252f0dd35a4b48748",
+        "contract.json": "dce12e261cafc0f35f2433a9b0ffc5514ca573fd4354ea6c90b53eefcc69f8e5",
+        "source-positioned.txt": "fc00a83d5bafbe79de137f2cbd243c9d6b8153864c5ec48744ff0ac8e2d5aa0a",
+        "source.txt": "f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7",
+        "target.json": "3d41c2e91fa3dc0867718daa0a25485d1cb616168ae8906cd800637dba19665d",
+        "template.json": "f8f12b164fb2496a059752d88b7d553f34611fb7eea80a58c1b2193b8ee9e824"
+      },
+      "sourceInputSha256": "f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7",
+      "targetSha256": "1ed62be3220391e6ab5fcdb896e44238e0f1fdb3beeb06004dd10f9df31f63a7"
+    },
+    "doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "dg_chemical",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "7cccbedc69dca32e37f162dca1f0f334fdc6c96782bbce8b8ad54e6f5547734a",
+        "contract.json": "6d2b1ace859aa624f492a01cdd09ccea9b967ccd2dd19b5f280111e4d8d87683",
+        "source-positioned.txt": "1c71246766ee80486c4a5214ba768991abd6c2666945b69f4f55ccdaf7fa7062",
+        "source.txt": "183ba7bbbc268978d3a645f3304d3c548f1c4542d29574106a2b6bad96df8252",
+        "target.json": "3b1ff2fdefbdde50e252bd84a7dd068c7ea8ce277cf7c70a21bfde16ee3921e8",
+        "template.json": "c7a392b6a3f8d0c8f97cd7b881bc399e56d25b9f87de760d23760b767622f591"
+      },
+      "sourceInputSha256": "183ba7bbbc268978d3a645f3304d3c548f1c4542d29574106a2b6bad96df8252",
+      "targetSha256": "2ae1876e2e21142c4ad1bfee996bf2c6952cbee4a4ce3a4fc8c82851e44dbb22"
+    },
+    "doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "dg_vehicle",
+        "identity_count": 1,
+        "allowed_hs_headings": [
+          "8703"
+        ],
+        "allowed_hs_codes": [
+          "870323"
+        ],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": 1,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        },
+        "physical_profile": "reviewed_whole_units",
+        "reviewed_whole_unit_donors": {
+          "doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984": {
+            "target_sha256": "b0bd10754dc6e8545882fcaed23191c25e09fb0996b80c174acc5f76ad823790",
+            "whole_unit_count": 1,
+            "source_text_literals": [
+              "1 Package(s) of 01 UNIT NEW LAND ROVER RANGE ROVER VELAR 250 PS",
+              "HS CODE: 8703231900",
+              "Gross Cargo Weight: 1,996.000 kgs. 15.582 cu. m."
+            ],
+            "rationale": "Current-training whole petrol passenger vehicle with explicit authoritative HS6, unit count, gross mass, cube and equipment. Transfer this joint physical bundle without extrapolating the original unclassified Range Rover's 2708kg load to unrelated engine classes. Retain the receiving source's explicit unpackaged handling and liquid-fuel UN3166 declaration; no electric or hybrid identity."
+          }
+        }
+      },
+      "files": {
+        "alignment.json": "0fc4b287e6afa1758bb0f9fb6b94e373678772aee101bf9c4d0940c430fb6528",
+        "contract.json": "58d56ec06964fd2eaf841db1f84792953dd8a8f6ae56e42ee427cdc9edf98a8d",
+        "source-positioned.txt": "1ea499097dba00af0f07c27c0c9ed1ae72ff925775c184a308e0c0d149c54013",
+        "source.txt": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
+        "target.json": "cefc1c7fbc6991f65cb9a5db824fce7bd25889522a8b0560d5f4bc3567516be1",
+        "template.json": "f1bd9265a38739c8fccca04c3d7eed4d8437c2d56361fe39c15df4e25dbb62a8"
+      },
+      "sourceInputSha256": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
+      "targetSha256": "f4fc3f7316491b08df696c2b5aad371b92d9388c061878c15f44fdd452912fed"
+    },
+    "doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "chilled",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "477dca6348ca0ea32e7ea83017f567e588a598a1db72cb25abbf49c4312731fe",
+        "contract.json": "609a7f8eac489eb58ef5826fae89df05b52efc25362b83411067a6807ae9317d",
+        "source-positioned.txt": "bd3209a8231edc8af1b9827aaf275fec876f9acc3a56841b058f8e5544bb6d06",
+        "source.txt": "f9de6d952731876566c1071717ec0395e1bcf7c3b7fa979a51b42904f9538c58",
+        "target.json": "bb845612a1e65ba02ebdbc2c58d82d8cb1565f1d805102b99d3f3724d641018b",
+        "template.json": "926cfae2b91979aa542fbf69637d489659c0711c93a666f042a546b495dbf6a8"
+      },
+      "sourceInputSha256": "f9de6d952731876566c1071717ec0395e1bcf7c3b7fa979a51b42904f9538c58",
+      "targetSha256": "4ffc1ddfd113d14c91f20e1ef7f6c7eb632ba8792e6815e20736ae1e196460d4"
+    },
+    "doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "chilled",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "afdddae1d5054cada5831e94155a0dd2af1e4e0c48ff6a9fa8f658566c36be93",
+        "contract.json": "f8f0c3ecbd3075f168a3f8e6352ec119694244935f72d5ed81f6a34dbed4b6b3",
+        "source-positioned.txt": "cdc674578532a4933c85fe7c1b827c6a2474722e8f5a6dfb17b5e541b1b768ac",
+        "source.txt": "ffdf0b80b8e2ac4ce95b69473fbfad4ee8421f4906199c8365e477f47fb21207",
+        "target.json": "5ec525f4f6916294524fc58529fa8d6bc15fcbb3057d96b9f0560de73c5817c0",
+        "template.json": "fea3512eeb90e07cee4dd9a03db2f6ed87d697cbdf843865758b2a6c149b9f23"
+      },
+      "sourceInputSha256": "ffdf0b80b8e2ac4ce95b69473fbfad4ee8421f4906199c8365e477f47fb21207",
+      "targetSha256": "8b4d9049bac300db0976f58a3ad0856f2217e36715d271f1e7b246d2a19f18ce"
+    },
+    "doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "c518209f2d77a233bf144e20f718ddf5debdd8656142c99ea740ff11a0287cc6",
+        "contract.json": "426133ea92ddb7f0143c7cd8868f278b58e66c96296e371b4ac37a4f11533387",
+        "source-positioned.txt": "6871cb64ffbfbd0ccf34c890bf6fad4b5ea305225060badcdd6b72f0408f8c6a",
+        "source.txt": "42e0c69ce236f19a982df2fee3863ef18a45965623f5594b77c2156e1c4fd789",
+        "target.json": "5864afb4fc79b4aa03a0f0ec01e801e24d4c82a4c967f5799cb13bd2e2d0ff3c",
+        "template.json": "9fefde321d6939461bbb9c41c594997f8c1e97d910a3e910688929ff16e218e5"
+      },
+      "sourceInputSha256": "42e0c69ce236f19a982df2fee3863ef18a45965623f5594b77c2156e1c4fd789",
+      "targetSha256": "fa211225a97c2c25215bc47425d20ecbb8a061c5838ea17fc51823467c3ca09a"
+    },
+    "doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "b533be9c0d70a0bd2a33565356cdb3e45a6616545e7e15dbdd4b1a04297ff876",
+        "contract.json": "c35746f44dd7ba98df1f6c7befe9d752a6f9a40bad07f6be62a5143c2760e089",
+        "source-positioned.txt": "2d039ff91ff683d71b59eb30dadce9bcf0fbac6551aad9d280a710645477ed77",
+        "source.txt": "40765a298fb46429e6d10c6f6b87cbc7ae16c80764d4c847865dfbc6a6acac4c",
+        "target.json": "86344ab1d8de5d2532f557ee7255898d02f193d453066fce410c73d446bbb858",
+        "template.json": "9116bd78fcf6fa9f3bd6490f10f63764480568c3f656d18179c8a3ab85481486"
+      },
+      "sourceInputSha256": "40765a298fb46429e6d10c6f6b87cbc7ae16c80764d4c847865dfbc6a6acac4c",
+      "targetSha256": "e6ee58322ab89307bc3e75d6301b871f81722a4077700f2e1978f8b7eb804b7a"
+    },
+    "doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "8f6418d21d206ad22ebb56ee4f0627f54457d113aeb463cdda0fbb1c8e101189",
+        "contract.json": "f77686935f0463d8168d264f2a316446dead0c976f29bd776354d0d2af4408f8",
+        "source-positioned.txt": "36ac44f1c26e44df2ab17310542c48d5785c46c25c76d3e69595388ebdd63872",
+        "source.txt": "2970b444defbcc398ec9805b14c7136031a6a210108aaaa80f0b7c89d98e87bc",
+        "target.json": "d764d3340cbb298b2976d896006f6120d1f8ec1f5258a06352bdf1bed12160da",
+        "template.json": "91994e9477e887c58cb0f84a6b511d4173d66b1a13ec41f33c7baf4e7bf1d355"
+      },
+      "sourceInputSha256": "2970b444defbcc398ec9805b14c7136031a6a210108aaaa80f0b7c89d98e87bc",
+      "targetSha256": "ed455262f628c8ed4f0800c55855881a89d2348c62f05e0ccb5c2a65edbfc46a"
+    },
+    "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 1,
+        "allowed_hs_headings": [],
+        "allowed_package_categories": [],
+        "allowed_equipment_pairs": [],
+        "origin_country": null,
+        "destination_country": null,
+        "fixed_package_quantity": null,
+        "quantity_multiple": 1,
+        "party_sides": {
+          "documentPatch.parties.forwardingAgent": "origin"
+        }
+      },
+      "files": {
+        "alignment.json": "1cc40cd014317cc256a6ec7ffd68a14add4a6c4f4a110c00827cbaccd80aabd5",
+        "contract.json": "3be77d24fd3842c1077300b1e4163bf5b9f044af06848eb5efdd4180fab6d224",
+        "source-positioned.txt": "249ae8806523469a95a6ddf7c9f09b116f7b5b86ca4690c3b59e122ffffcb5f3",
+        "source.txt": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
+        "target.json": "ad6507a04a8980a0e0eb47143eff239ee1fedfaf77f3bc228cef148717a0fffb",
+        "template.json": "5a219616056b25cc791301036fc83a7343698179b3aeb50691ce3b4983623043"
+      },
+      "sourceInputSha256": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
+      "targetSha256": "0377dac10e5474d997f7f053320b9667836ca13141879a2b1da8de55cb9c056b"
+    },
+    "doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "physical_profile": "source_bundle",
+        "allowed_hs_headings": [
+          "8534",
+          "8541",
+          "8542"
+        ],
+        "route_topology": {
+          "nodes": {
+            "hub": {
+              "port_ids": [
+                "DEHAM",
+                "HKHKG",
+                "TRALI",
+                "TRMER"
+              ]
+            }
+          },
+          "fields": {
+            "portOfLoading": "hub",
+            "transshipmentPort": "hub",
+            "portOfDischarge": "destination",
+            "placeOfReceipt": "origin",
+            "placeOfDelivery": "destination"
+          },
+          "issue_node": "hub",
+          "rationale": "Reviewed printed port roles and repeated from/to/via declarations; endpoints vary internationally. Ports are synthetic geography, not scheduled carrier services."
+        },
+        "allowed_package_categories": [
+          "PACKAGE_BOX"
+        ]
+      },
+      "files": {
+        "alignment.json": "24536fa7982674fdf0527f4744fdaa5b23840304b2fe312334deae2a7c3217db",
+        "contract.json": "d816cfd99c1449fb9b9798a54d52537783aef9d3e82ba0b042dadcb9697cfda3",
+        "source-positioned.txt": "ab532fb9d06d33a5a99c882a36afe25a04acb73753c3a03eb2b339745513861e",
+        "source.txt": "3588c553d81094f19c14db0fd5de3ff18bd5393f60cd80d4bd739c72420e6252",
+        "target.json": "8d85e0e3d0f03cc348cbc57929c0ce7f35e3d684b1ac861ad70b56a13adeeb11",
+        "template.json": "b57093663d572ee697854d6d9a8fd6ad696256e511527369d4083c76295fc410"
+      },
+      "sourceInputSha256": "3588c553d81094f19c14db0fd5de3ff18bd5393f60cd80d4bd739c72420e6252",
+      "targetSha256": "e557f45e1b8b37ae3450b3dc9d366e3f2064002775b9bc54adb54d7fbe063913"
+    },
+    "doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "nodes": {
+            "hub": {
+              "port_ids": [
+                "DEHAM",
+                "HKHKG",
+                "TRALI",
+                "TRMER"
+              ]
+            }
+          },
+          "fields": {
+            "portOfLoading": "origin",
+            "transshipmentPort": "hub",
+            "portOfDischarge": "destination"
+          },
+          "issue_node": "origin",
+          "rationale": "Reviewed printed port roles and repeated from/to/via declarations; endpoints vary internationally. Ports are synthetic geography, not scheduled carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "0e3731745c612d470450e49423c2649ac91b548e16d5271dec7c53d27910922e",
+        "contract.json": "7e46826efc06595fad2850b7eaf67faba3064b3739b8823e20fb913a4ff2795f",
+        "source-positioned.txt": "9802ba87e5616e5451c37300744dbb749ffec4d566eabc89da7b2e7ce5b2253b",
+        "source.txt": "ba129bff72e9f31a4153452569f7c4052dbba82a648d2623c3530af013de029c",
+        "target.json": "36d85dd0e86add74505d553443488dfa44b086e5267a8ef3a839340e565e162a",
+        "template.json": "c397a705811cfdaa29d20cb800fa2359def4ce1ab568633258759b089cb5bcd7"
+      },
+      "sourceInputSha256": "ba129bff72e9f31a4153452569f7c4052dbba82a648d2623c3530af013de029c",
+      "targetSha256": "0641a5d5579e7c4ddec38a2e3e414d45a90f1fa50fa927c1e007f368c042545f"
+    },
+    "doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "289ac6d3d91c96fdaacfc671f290c57cd051e954a8208cb61635f36d5617d67c",
+        "contract.json": "e196dcfd7480372102480593edc4f716f583b2dea15d096e6e89d3b15251bf33",
+        "source-positioned.txt": "edd8da234456e843f6ae10bc8c5fdf69aac103841163f2a7430354dc5d7865dd",
+        "source.txt": "374c96017985829c09fe76b55b4201560e07933815c41cb00f407a060adfb61c",
+        "target.json": "4ae3efa6ac054f18544b1869a2425ea073b59e7e8668e2da54538ce2f9e59631",
+        "template.json": "e3be5873313732fabd9dce4030426be5bb021e1b15b7a460093f6785f6d368d6"
+      },
+      "sourceInputSha256": "374c96017985829c09fe76b55b4201560e07933815c41cb00f407a060adfb61c",
+      "targetSha256": "3afe36d7d6e24ac7ea324622766f7ea74c02279c766166a54b87b5d667f4d864"
+    },
+    "doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "25e85cb0ed400383eb7a720cf2ea089ced3aa2cdda80d7b2575dceb07a6486d2",
+        "contract.json": "6e5897c085b3f49c27dad84211e8b18f00bae6f5908b917dd018c90609ffd62e",
+        "source-positioned.txt": "52286cd5f3194d1f3264e725feacbcd009aface241d1ed62b46406c1f92e4cba",
+        "source.txt": "34147a9056aa07ad74e2abd65372b530b8eb846d8605e1a9d4bf576b794a7937",
+        "target.json": "3857fd3e6a8d9328ad190842bb4f6125ce458475a41c58ef7067f9f7b5c095db",
+        "template.json": "ac84e7630b1a2182a8e43f11c04cd7d9feb186a112ffc42f68554027183206c4"
+      },
+      "sourceInputSha256": "34147a9056aa07ad74e2abd65372b530b8eb846d8605e1a9d4bf576b794a7937",
+      "targetSha256": "754753e6ccaab081849921d6ff98e9ea81ceb6571b5923e02dbe89b6f3aa35e4"
+    },
+    "doc_1f166783ba401a283cf52679d7f13894c143e245992cc4bab1eb9cea384db720": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "delivery"
+          },
+          "nodes": {
+            "delivery": {
+              "kind": "port",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.shipper": "origin",
+            "documentPatch.parties.consignee": "delivery",
+            "documentPatch.parties.notifyParties[0]": "delivery",
+            "documentPatch.parties.deliveryAgent": "destination"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "42b96d33f72a1dcb70cf0f6b5efd069dea5a0bf816c228c720bf5c0492fc146c",
+        "contract.json": "7c296a00d1783aac68d307f12b6c001154f03d33ef10a726f3bb9581bb8159fb",
+        "source-positioned.txt": "6a2eecc87beac0ba4a32c85c48324ea261580115d46be76ca9095be82bc68c91",
+        "source.txt": "655bdceaac038b7c86d696146f56f9fb957ff338322a9d28319de44279184642",
+        "target.json": "81e7768385a9dc091324118d74a58ab33198bee3c60b36bc7b8bf4c2d3dabb28",
+        "template.json": "d7ae4937f2f517908d2f210f09dcbfbcd8b9986e0f1e88c1088c67b39868b29e"
+      },
+      "sourceInputSha256": "655bdceaac038b7c86d696146f56f9fb957ff338322a9d28319de44279184642",
+      "targetSha256": "ce3d605df8e1b1d889b59f2323704f5ce64510b2f01d040cf5193311ecca8f6b"
+    },
+    "doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "delivery"
+          },
+          "nodes": {
+            "delivery": {
+              "kind": "locality",
+              "country_from": "destination"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.forwardingAgent": "origin"
+          },
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "3beda1f11457a2ae5091e200481bd75afa7fefeb8bdcaa4a1acfc2c7e4dcb800",
+        "contract.json": "3030f7d600821f910085a8a35dc4e7a561a590feafeef300b799f4b6d7e3e353",
+        "source-positioned.txt": "d1504d65e26d40cb03701e550bfcd9228b13bddc48e67fbccc4632c915f97c8b",
+        "source.txt": "bf5d62d247afbfee8b4a73dbce716172ede9d0d2091bf5e46c96f262629ef7ed",
+        "target.json": "9226e8a39568174ad15e7007b291d44bbef5f5112931e1c5574cb0461307c4d6",
+        "template.json": "6d804f882c520180f5e1cfd3cd3b88d7f5423629ce32288ae46b57510966c253"
+      },
+      "sourceInputSha256": "bf5d62d247afbfee8b4a73dbce716172ede9d0d2091bf5e46c96f262629ef7ed",
+      "targetSha256": "7f88f6a127478cf6aee51624b795943a586c5d0f7247aacfa088489e54a0c2e7"
+    },
+    "doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "payment",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "2c028c2e00fb021c491d0c16df0d7e9ac464f196797caa777a2b3bc583a4b072",
+        "contract.json": "5c4fcc04914fe8778bd02af19ba56ea2993c192f9f3493c794948e6380d0c139",
+        "source-positioned.txt": "1dd371b20c67c5eb0b4320856e57a72ece7ef6265f4188a70d84f0926c4d1d54",
+        "source.txt": "89fd2bbc09d374fab2c95c320968d106d6f1ea475d83472f2ff481ecad62523d",
+        "target.json": "19947c2cc7b843205987615a063d6165fc0ab74fd18627edc0750a60373a78e4",
+        "template.json": "7684fe4133cffbffff4f4852f4e25ef995c17c77f946a2492b633809dfeaea1d"
+      },
+      "sourceInputSha256": "89fd2bbc09d374fab2c95c320968d106d6f1ea475d83472f2ff481ecad62523d",
+      "targetSha256": "b5d3cb55daac34246048b3b9e5897e22b83b6de9efd49d8896dce2292ece8864"
+    },
+    "doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "35f86c74a233cad40e3c8e8f39a0aba3561c79bf1f047d57a2a7ba58c5f88db2",
+        "contract.json": "b3f74140f15843c0855540167d4b402936d273e283044a250515202bdd82d100",
+        "source-positioned.txt": "fca4690f091bc689624af6eac38e9620579012b7d35a27730d8f3b97e51b5127",
+        "source.txt": "82d2d5c61f8ab8cf0c307d8b1fbd7af33d720b40c51ab037abc995c689b41b6d",
+        "target.json": "96ae81c40d5932fc6f51743be90c6c52ed77db8feed51780985a2bcf00ffebf4",
+        "template.json": "8fce8f6dc888700d6e3cf56325c8cc089ebda99c7a324bebeab10ede31c5bc7a"
+      },
+      "sourceInputSha256": "82d2d5c61f8ab8cf0c307d8b1fbd7af33d720b40c51ab037abc995c689b41b6d",
+      "targetSha256": "a8a226cd9fa8ab24b8d0487c4db8466ba091149f4018d2e72456dbf7dc397150"
+    },
+    "doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "delivery"
+          },
+          "nodes": {
+            "delivery": {
+              "kind": "locality",
+              "country_from": "destination"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        },
+        "required_private_measures": [
+          "volume"
+        ]
+      },
+      "files": {
+        "alignment.json": "ca0d03a9103b94abb57fc51874fdee6dee1ca48895b3223188200480fc6a19dc",
+        "contract.json": "8917af74881f1b7dcc300adaea16678618de71c210913589112f6a8cba428ece",
+        "source-positioned.txt": "7e05fcd9d9a2107d954af2a1eecd8763517dfc7b91c008acf809cfb7d9b8df4d",
+        "source.txt": "ea2f131a479d0598fae2d1cafc6720352250ad5fa8b2a569f362650d9fd63de0",
+        "target.json": "c40a0e1027b6b68c1b33b4181adb6041e5b025279f13c47f366e7ece7de658bf",
+        "template.json": "17dda959f6e66bd002866aea61d2304c6b701e96a34bd4571433f0b618f94dfb"
+      },
+      "sourceInputSha256": "ea2f131a479d0598fae2d1cafc6720352250ad5fa8b2a569f362650d9fd63de0",
+      "targetSha256": "bde18eb52ea6744c25cec7e0d89583c033964c1ab41df635ea3fddebd2d8e882"
+    },
+    "doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "payment",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "c791c39c099fa1a580d71f9bf732659dc77fd9a65ab3d8f1b422f86ee0af800f",
+        "contract.json": "bd15b3ffe1db97af4ab6480998cd1509624b9d38b181574c30c8f7988c9aa804",
+        "source-positioned.txt": "0b3bdf5ff88dffd9bd933bfaac190304f6cde3dbfca79897bc107e7ed9dfa723",
+        "source.txt": "7a7a1f4c7aedd71abf46f31247291090d441f2d021153bd841b4adbf92b061c4",
+        "target.json": "d83cb0c46d4ca7731a90bda8780b6e474563c1540b528f7ea65808adbf950ad8",
+        "template.json": "34890a0d855dff294b10342a241d9794fe070da6f315c12a0846815ebed0eb95"
+      },
+      "sourceInputSha256": "7a7a1f4c7aedd71abf46f31247291090d441f2d021153bd841b4adbf92b061c4",
+      "targetSha256": "04be76195a3efe49af3d49e2d853f22f39adf1cefc2cac4bd7b05a0227d2632a"
+    },
+    "doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.notifyParties[0]": "payment"
+          },
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        },
+        "required_private_measures": [
+          "volume"
+        ]
+      },
+      "files": {
+        "alignment.json": "a0f4956333475da0bfdfe7ba59b2fd68d9513efb183be0280460001679cbcf05",
+        "contract.json": "be71d59a3917a4258536d5e0848771fae5ca7f610ae2c48d33ca2673f2c6dbbc",
+        "source-positioned.txt": "11f09c4bad25401c8dff07b0bc90f81c77c04a0f9910141a3d647f56c593950c",
+        "source.txt": "bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690",
+        "target.json": "a00cc7441e228877ea2724fbdc64c88b60f1908ce60346ec94be881552211089",
+        "template.json": "3e12c028ce1287f69acb1b5ca67870af36c89005be377c49ffc0e3ed186b42f1"
+      },
+      "sourceInputSha256": "bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690",
+      "targetSha256": "6c9ed16bb1168bf7a1e93b463b9e79e37c350ca242ded468a155f66725f074b1"
+    },
+    "doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "2c7cd769382a55b4d608bd53a67d9dc1cde63aff22399331181bf69250c635e3",
+        "contract.json": "14be1d4c35cf019149d664b2937f77cb3ba853c96361873e9923b1eb05f6006a",
+        "source-positioned.txt": "b22cacea5857cc8b32bbd659ff3badb04602ca14c9fcc49cccc30763cb633ded",
+        "source.txt": "acbe909c8f6705461e1ac204e2f284f1b4e31a37f3fdc0f4073f8085d43188ba",
+        "target.json": "fe81ffbf3e5c9130b775fb3fbe4ff3379e72afc5d61579688baa6d9fd45b422a",
+        "template.json": "46cf8f4a663ddaab72f0f0a8fe0ce3e75d67289acb271698f3228ec355dd0940"
+      },
+      "sourceInputSha256": "acbe909c8f6705461e1ac204e2f284f1b4e31a37f3fdc0f4073f8085d43188ba",
+      "targetSha256": "b6cd7d0fa48a1eee31fff47261b3ebd47696141ecf248b9ffd8f643fe7e4ee23"
+    },
+    "doc_36d2930f49cb3d8d79acd2968fea98a5b6e279ce3b37c7752660333cab609b47": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "117924489e6fa559d0d42af2a7a4a961af493d8d965586ff200e44f047244d5d",
+        "contract.json": "26ced35c3302701cc0f2d3c30ab6ab03afc03a56c57d3c7e749440350f7725ec",
+        "source-positioned.txt": "7835747d0660a4fdda631803a9892554f5dd8d5fb5e3f51ef70d377e4e5109ec",
+        "source.txt": "8b44d49203520ed94ee31ecc912a39d7cc5a0b8489c05bb68e2b06399c1cffde",
+        "target.json": "6d830470ea798e376b0429463fdf12ba7b9c8090c455a63ad1dfa95129f86609",
+        "template.json": "46119a6a94f94cac1af0d8ecddafeefc63c09fa21bab76f4839f01a268eda21b"
+      },
+      "sourceInputSha256": "8b44d49203520ed94ee31ecc912a39d7cc5a0b8489c05bb68e2b06399c1cffde",
+      "targetSha256": "44a8a374d7f9aafe969e37ce613ed0affd4bb12f4609e30f0897e095e5160f63"
+    },
+    "doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "fc03d4288aec1e07dbdb34987d677ff95a33c32c4a22daeffd19d31fa93bd8f7",
+        "contract.json": "5343158a5e41ada11edb58a5ef9f1485b893ad16aad6bd0b003ad10c9fd8b1db",
+        "source-positioned.txt": "f074841afb40970126ac967a04f0a3249dbc08b5ef91086dfd624fea6c06f005",
+        "source.txt": "7fbac22528efb2442c556df4d0c311fb31545ad2d6b7af40541303d7d62d2d8d",
+        "target.json": "83611deae5dbf954297fc4d6a65aae9cfa4d887c6f1d878ac3e7604c9078bc4d",
+        "template.json": "37ce184cb33e8b88a3e0ccfc720e4f0ebc8c0a7700ebdd65733ed259999ea672"
+      },
+      "sourceInputSha256": "7fbac22528efb2442c556df4d0c311fb31545ad2d6b7af40541303d7d62d2d8d",
+      "targetSha256": "3d892f1bbddbd6b0e914c9e50d9c715248703f519500eeb0a85e7dffdc4fb644"
+    },
+    "doc_3d0d37486449c3c49624bfe731eeb881647ea6763af6b75719ecf9fce89aa70c": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "payment": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "088b7d8f536f8b0a991c2ea857d9db9e8b1c76e6d4a47bc17c317c2f4ce507dc",
+        "contract.json": "e225563821e0db281ddd62aee830d4bef6834bbcd06e5ddc5fc063afe5e9b7cb",
+        "source-positioned.txt": "6a4848165fc6077c80bbac33556aee7664afa4b9f9d3256471c37ea24cc89f1d",
+        "source.txt": "6484a30e9acfc228927b10bdae80e9d7b2b5bbff7c3f301346ee24e53bc83731",
+        "target.json": "ca8363b6a4031327943e8139c293fad9f99d8138b59019f53e38b652d316fdfc",
+        "template.json": "a455aaa246e53f51bb4d8b0ddce4ce3f11fc8acd2835835f514616147b38896a"
+      },
+      "sourceInputSha256": "6484a30e9acfc228927b10bdae80e9d7b2b5bbff7c3f301346ee24e53bc83731",
+      "targetSha256": "86409a78d6ee2975f55a95089b72ff13c8854ff5707cd1a443263a074bb85cb4"
+    },
+    "doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "payment",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "a1a215d00bd99128495f0131f490ea1f961741462f28407756b12ee850957f9f",
+        "contract.json": "ffd758873ca661b256be23a51288e39e4f19703cb1726ec2ad244bbca4dac9b7",
+        "source-positioned.txt": "0dfbfaff01ae48e696589191aa2534e0451dcb801502d47df3960d2b4ad3c82c",
+        "source.txt": "a656513c940ae9c83bc01bb7a9972cabf1bd160192208626c5e881ef01ffea98",
+        "target.json": "b5847bc948e430e99b6265aea445e4c157e245fb0cb2add66d96ac4b7763bb4e",
+        "template.json": "02b587c21265169e2bfe129f041a5305b364584532d3b9213fb05821e32d31d1"
+      },
+      "sourceInputSha256": "a656513c940ae9c83bc01bb7a9972cabf1bd160192208626c5e881ef01ffea98",
+      "targetSha256": "be86859b146ea929e2509b389cc55077ef2f185a7d9f4e391fcb6f48e630d0c2"
+    },
+    "doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "8ffd10292ae32c9f2fac163257dd9cec8432a5c562ec5a40359d7446b31791eb",
+        "contract.json": "5be6609c087a0ac663205a9af2e90347dd306f59582fd29cf856107e8d6d9530",
+        "source-positioned.txt": "40c5e75e3862069417a19c111193c297bad350d97dd29a4135fc87b593764078",
+        "source.txt": "c9b909e8cfbb9010eb320a61bbbfd5c635b13bac366d57213679fec7079821bb",
+        "target.json": "3e35b67250d4399201033ca9a70bce590777344769464049dab129683eac89a5",
+        "template.json": "dbb908f29545dd671cf362a44c45e97ad1b1c88bd7de0b3c740e3ae4e76a6ab4"
+      },
+      "sourceInputSha256": "c9b909e8cfbb9010eb320a61bbbfd5c635b13bac366d57213679fec7079821bb",
+      "targetSha256": "983916fc7d49d8c773fbb3467734f8ff2c3bdff1d9910bf0b39fac375ecceade"
+    },
+    "doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "9e4f4faf09d8120d589b9c14cb26b17c19367d96449c2844263f67daad6cf07c",
+        "contract.json": "c8f9196bbca9d263716e37a43947aa0b233e6b1ddea8d814789423cb64353ff8",
+        "source-positioned.txt": "b55f01b51f4d31ccb99c485d3f116d372fc08cd0daeaf209d5c5dc4272367d9a",
+        "source.txt": "ab9c44fb7b8c3b3f73ad5e4ff16be63de536e7e7fa9c00d229306898662bfa40",
+        "target.json": "52bda39ebb350f9bd49aa20de0a2042325b783449cabb7ebe28e17f9d303fb6a",
+        "template.json": "d648a7c9b2ab0d16502cffbdc5b5adc1a1feba348c880136ae2daa4574564568"
+      },
+      "sourceInputSha256": "ab9c44fb7b8c3b3f73ad5e4ff16be63de536e7e7fa9c00d229306898662bfa40",
+      "targetSha256": "95f634ec4bcea69486258c1f3ee6e4bcdf3e56b16769e3bc904fee76d6f11d7e"
+    },
+    "doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "vehicle",
+        "physical_profile": "source_whole_units",
+        "fixed_package_quantity": 6,
+        "allowed_hs_headings": [
+          "8427"
+        ],
+        "allowed_hs_codes": [
+          "842710"
+        ],
+        "allowed_package_categories": [
+          "PACKAGE_PACKAGE"
+        ],
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "delivery"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "delivery": {
+              "kind": "locality",
+              "country_from": "destination"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "eda3faafdb2fc0aa163fbb8ef076f88e809a778e805a2f67f36b6053f9d67600",
+        "contract.json": "389aa370653be00492fbf46846632a23bbb7933788ec28d6f8922a8adb94be75",
+        "source-positioned.txt": "adf203acd09b656afcae445d375ff3c7146c2ee67b606e9a13726dbbe7858039",
+        "source.txt": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
+        "target.json": "4e4dc2ca1c1a2df8d087089ad75eab052111c6bae0a2936a079f233ac615b974",
+        "template.json": "e015b86e18f2a17a6fd90371b828496d9e2da02e67a7d1d1348e6346188a743f"
+      },
+      "sourceInputSha256": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
+      "targetSha256": "947e788482c6946b8253fee21f8255294ba7c348acc78eb2b4ccf0606d7c34f5"
+    },
+    "doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "17e5b0a4270c3b041836ce03e51f1c215c637da430810c7901ec2b1fe82b616d",
+        "contract.json": "ea4d1dcfdd92498055712160e0916d6331e57e250ce61fcaa34984c30549b4c2",
+        "source-positioned.txt": "67be0441462b5b10a37db0932a94d45daa55740c6094935252432aa13296303a",
+        "source.txt": "098f6bafe9639889561e7e70d1395c8927ff978b8b7d54969eb9bc908694a8c4",
+        "target.json": "b205559489cdee5986b8247e882312eb9121609230153c1931d6e3d5dfc7c347",
+        "template.json": "710b865c04da7ba1ebbda9468287b3d401e116c5ecee418d28803dac77332a77"
+      },
+      "sourceInputSha256": "098f6bafe9639889561e7e70d1395c8927ff978b8b7d54969eb9bc908694a8c4",
+      "targetSha256": "cd015fdbb3269b2aba238336ed7f47328c0730b0d68a27eb55f524046a659eac"
+    },
+    "doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "97a58ebe4170ea02adb3e2058a071a7a90e283fc7d57c108ff7000932908e24b",
+        "contract.json": "eb2b56509ce2584568a4209c880bb8568cb13ee2d4b3385c4992f617ae47234b",
+        "source-positioned.txt": "e08a4cc62513c68163453eb8efb3c5c985620241db7b07e37bbc960bf2f591f8",
+        "source.txt": "a3989cf20bf8d98734650dc0792c5e41ba5377b8e9e22a895d993c8f55762091",
+        "target.json": "7ef000241122451e0832a691954c22681d324abbf55bc3d43751239ad3183efb",
+        "template.json": "9da8406fdd09c960ea065ba7f07c70521acfe1dcac5fccc3b967b9621b78e7b5"
+      },
+      "sourceInputSha256": "a3989cf20bf8d98734650dc0792c5e41ba5377b8e9e22a895d993c8f55762091",
+      "targetSha256": "00a4c11e394707bd004ca566cf2d8f23c8be80e02c51c99eba086dfee64444ba"
+    },
+    "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 2,
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "ad9db94186695370faf2b0e5167119205020727445e571638c1187fdf7e1473d",
+        "contract.json": "3b419d567905f089524c7b2ca9e7cc0ad5060c7123e4bd3ea0e828e226ade2b3",
+        "source-positioned.txt": "3e8c43388085bb9ee25a88a79d967658ac142fb372297b615ad9f79bbba57241",
+        "source.txt": "e0548a5a6ddcafbc25e5e24d6e33812939e4927d250a68b4ee329c138a0ba41a",
+        "target.json": "513873a10142179b0a297e306efd88e9caa9fc16f19f3afefe91bca258cc6b5d",
+        "template.json": "644c88126bb0fa51db528525054dcbd8293c0df8c5076efab039b512b73e9010"
+      },
+      "sourceInputSha256": "e0548a5a6ddcafbc25e5e24d6e33812939e4927d250a68b4ee329c138a0ba41a",
+      "targetSha256": "58acffa5cf588acebaec71df9d5fdcb79f7b7f965749747ea85f79170ce55322"
+    },
+    "doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "finalDestination": "final"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "independent"
+            },
+            "final": {
+              "kind": "locality",
+              "country_from": "destination"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.shipper": "receipt",
+            "documentPatch.parties.notifyParties[0]": "receipt"
+          },
+          "location_nodes": {},
+          "issue_node": "receipt",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "03f38b9d50bb5b64c1553d2ebe45fec2559f298f111ed8e3676db3a55a1e60ff",
+        "contract.json": "e45fac6fde8df3e4fde326153b2147306907879ef77336e33d1d3092485f189e",
+        "source-positioned.txt": "8228e6d9c41822c8612db4d73650ed71724b2ce192d4b7b75d4f09cf9f2dd24b",
+        "source.txt": "6f9ffebae25866cc5956370be47502cf7813f5116d5ea13102217638cef35c09",
+        "target.json": "45363a6f36051c169b72361c081dfaea44fb292ed5da697ff91a1af870c0e67a",
+        "template.json": "8b3759c4e7921f67766b82b95717be1045a198971589cde9c37d70afea3d86bf"
+      },
+      "sourceInputSha256": "6f9ffebae25866cc5956370be47502cf7813f5116d5ea13102217638cef35c09",
+      "targetSha256": "3a99d82fd2bf05c86e82f60fbbb15ee5caf51363093e3f4d918798482f8cf150"
+    },
+    "doc_6826506aea2aa821aec274d2197753bd8d933e1ff004825ed06968a4b9416d2d": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "a0b181d66faf5292dd8ef52feaa8b5c2d9361e81e205bc78e9b77bf392842460",
+        "contract.json": "c0e93b2a2f5aa10ad6c7dd781dd28b546abbc85755ce7d74564eecc834b61e11",
+        "source-positioned.txt": "419914e43ecf987e781a66c5a36e9c5b0a4a7516380f5570104e48f2913d61df",
+        "source.txt": "317ef874e8f54c2a5b240cd1562f3daa41e9dcda9a30146eafdf91826f56388b",
+        "target.json": "3fb2a37758969a46173f42ced6c19f86503406845d8d8a9381e96e0ba6d4ea6a",
+        "template.json": "77de763a5080e48ce740ad5229d22cef8710a334bb96afd3b32f29768f47e80b"
+      },
+      "sourceInputSha256": "317ef874e8f54c2a5b240cd1562f3daa41e9dcda9a30146eafdf91826f56388b",
+      "targetSha256": "8e04dabfc6f0f0e8cac6e376517e7cf11080149ef41f724feb12b1e48de6b77e"
+    },
+    "doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "df5c3cffba12ca296f11f0a16f8dada73e4646e5c5d6a05318b8439237fa128f",
+        "contract.json": "b56fad82292e13ee4bafa3ba2132fc2a1b004a5a4b7ea5a852c02ce40b9c7adc",
+        "source-positioned.txt": "0e1dd9c04a20606dccf72661eb8c4878df921bda174572a49ffceffe947f96f9",
+        "source.txt": "e202215c8464f8626f16eb7b9a633eecae267fc493cf5a02991639beabe9abd3",
+        "target.json": "403781c8fc4e8fb76cca97cec5ae000ad7480cbfd26ee4a130840fa8fdcf30a3",
+        "template.json": "24f19b72ef7e099954f7eca59334fa70a8d399c1f5028ca37f27408b5a2c1293"
+      },
+      "sourceInputSha256": "e202215c8464f8626f16eb7b9a633eecae267fc493cf5a02991639beabe9abd3",
+      "targetSha256": "06831ab98ceb8897c620807ba4bfdffa3a080536cb1726b0f8d664a5bcd3f0e7"
+    },
+    "doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "bff7d16eb08f30696d031b4fb208034521b21498edf516fdb110a0d66ac3863c",
+        "contract.json": "d687514fc6c734154f0b9c401571c2857eef39ee34f4c8378cfd241e27d74bdc",
+        "source-positioned.txt": "097e1e0f1965de25236dbcab135d2516f6027cbbbec9740d2391cd5c3cdaa7ca",
+        "source.txt": "b1fda9a2cfa8ebc2c9abbdef33f5851692d90888a6700ec0297dd84eba59dfbd",
+        "target.json": "6844496bff69fbd4d0b6dd723f29e5cc1db28f5b678592599d140e1f793ea892",
+        "template.json": "fc80baae248ce5805ea05c6abcd01225ad2f22688d3fb6e3901e61dfe0142b03"
+      },
+      "sourceInputSha256": "b1fda9a2cfa8ebc2c9abbdef33f5851692d90888a6700ec0297dd84eba59dfbd",
+      "targetSha256": "5867d43dff6710d5926fc3bb36ca75c571d617af5638afb836cc3419250149b0"
+    },
+    "doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "cac65e260c251395219e9f42aeb0f7b19c6b9fabe1b63009f4daeace3279a0a8",
+        "contract.json": "3e098dcbec026701b24e1649d6eb927713435506c78ef4ecc31483e6835cbdc1",
+        "source-positioned.txt": "9038344b4bc37947fa8da807ce81e9332bab4c82f3e9a65e9189d450105ed5a8",
+        "source.txt": "65f4d7c92ec38315452d7bc03f6ea1cabd7c04e29385a99d5aa85eb66bb1491f",
+        "target.json": "72f5dc9275159af17b235a56900e9164c9ffb19194d8b25449b566bf38ee1fa7",
+        "template.json": "d0b68749a316d1a0cded111dd7619a718d088f5827f7db1923cdf820b2f9f177"
+      },
+      "sourceInputSha256": "65f4d7c92ec38315452d7bc03f6ea1cabd7c04e29385a99d5aa85eb66bb1491f",
+      "targetSha256": "5280e7af24e06717c35a0cf54634b4bae7b73fb1159afd76fd245c374b8ef647"
+    },
+    "doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "fad3b014147c7dc560397d75aa461fe0fc203a32874e4e06774d7cd45a167a48",
+        "contract.json": "f58a2565eb250e56fb9fa49fadc02a1c65dee81554c958765c238574547cd31a",
+        "source-positioned.txt": "11fded29fa85c7308b2104bc025f0e575c6eb6c5cc11c1464b2d106089ad98aa",
+        "source.txt": "798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4",
+        "target.json": "7f7dd0e3c4d020723cfbb424a22f4f2028e853a913c88185573223f2f7580fe3",
+        "template.json": "6ee20065ee76c6b80594e272a0bb7f560cc7dbe0a04ca9fe371a9a184a44173e"
+      },
+      "sourceInputSha256": "798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4",
+      "targetSha256": "65c79950115aa7dfeee20c3d8c263204c2d04c0dcafa9f1ccf24214324ab7dc2"
+    },
+    "doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "48fcde610b4a03e2c5c24b642ced80db956fca96e579b6380f6e4d7b667a999d",
+        "contract.json": "bf675a594c9027503a8e4fecb67a5811ffd442c86b823d927e4674abd0304179",
+        "source-positioned.txt": "2015f8938fd26d24c485b8ca1d1e3eeb0ff7f9b62ffd5f6cee1347c4f6e5b2e6",
+        "source.txt": "b607c8c9ceb69674f69f549b9ae60252231d71d892b9c09d936aef22b40b7f81",
+        "target.json": "91714b0bd1cc019449d8620af62200abf7d31e2e638af26636b572acbf004ae1",
+        "template.json": "b7fc866d8c30622bd71de97916d22dfc0ebc7a5286975f3fe508b28b6e0dd9e2"
+      },
+      "sourceInputSha256": "b607c8c9ceb69674f69f549b9ae60252231d71d892b9c09d936aef22b40b7f81",
+      "targetSha256": "7d64b43f3fbc56bceac940e962cd8927a6c06de045acce17e78506d5ea25a1c5"
+    },
+    "doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "f0321f6f883a3eda2dc438d99e6c7ca4a90b82f9b48271e2fb358ac349ff77ee",
+        "contract.json": "2d1659a184154b4cd1a1828430cd7cb5418d3f4d4c7930fe767eee9f9bbf880e",
+        "source-positioned.txt": "82724a599261ab0de8cc88a559d88b4c6864f45f39ee8a98037e8c87707da0b6",
+        "source.txt": "cc1a9dc19107f7a29277a03a3f598a31141801e4bfee1b118f9b049e789df283",
+        "target.json": "55281674ea57c0206ca20870a4ab85f701caefc9455bdcc2455aba17e6a3a689",
+        "template.json": "6414773541135df86c6989e2735e63da4b6f5400fbb4541ffd05ea8d11e75805"
+      },
+      "sourceInputSha256": "cc1a9dc19107f7a29277a03a3f598a31141801e4bfee1b118f9b049e789df283",
+      "targetSha256": "cb81544a7d72705600039723def9b72df33923d5d930e9152ba1716ce2134334"
+    },
+    "doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.notifyParties[0]": "third_party"
+          },
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "60db7767ce9a9e54567289392356070695e670aaea94b5b3aaf004ff587bc830",
+        "contract.json": "1a59d044f01d84a2a57975cfb3ede3ff760e6be4a154c83d6dc354436d1de9b1",
+        "source-positioned.txt": "495bcb05f92faa3f20b5e2c8fd1bbfbb096f51d1bae9a166b68907357c9c55ab",
+        "source.txt": "1bb37e6a9678a5cb206a714c736bdce281ae6920c41d37cd178f40648707b3ed",
+        "target.json": "9ff659b0142ab9e0e966ae59a1fb3d6c6c867b35729af613c2b64520d6e1ac19",
+        "template.json": "5fd29e5a86df39a0aac0ab0b66f1451d9b7a91b725aac9a76dc43fc769905bb3"
+      },
+      "sourceInputSha256": "1bb37e6a9678a5cb206a714c736bdce281ae6920c41d37cd178f40648707b3ed",
+      "targetSha256": "369a5163c4c2c0bf62313ab7fe34306b45206bbb0bede57a569a0b9be67a3112"
+    },
+    "doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "receipt"
+          },
+          "issue_node": "receipt",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "d61d70c2431903b65c4e74d6463b03048e522ba6fb71be175a8759044ebb5770",
+        "contract.json": "88b278d88eb677b02a795eac7af5ee93d84141b08e66ae3fd979876d9b2e74ee",
+        "source-positioned.txt": "76c8d94d27e978cf916987cb9180ac84229aa21b2bd957a404c3c8c80c051d99",
+        "source.txt": "4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1",
+        "target.json": "852ea00ad6b0fa5dab5304ede734402738692e58eda7ea43a968fa1ea441773c",
+        "template.json": "6a203bf1f575b96cf0b1c9c121add4cee587ac9d17c1b2710241bb38144d5486"
+      },
+      "sourceInputSha256": "4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1",
+      "targetSha256": "441ee35e7a906e1d3fa7ef57239e0845054dec4706880624956c1b0c1f4385d2"
+    },
+    "doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "63133bbde82181dfe3afc173ca7739881ff974facd4bfefdd421465dcc7ad1f3",
+        "contract.json": "af4a64b9af8f2922ec157f8526313a11d1fe90aee8c4a364f017f4291a0f5320",
+        "source-positioned.txt": "f85eab89ca6c7aadab6c64d7240a65990a817c52a1b0d4326308d74c871d0641",
+        "source.txt": "7b2b4add62d54c14901a4010b7704c3fb270dc387f269561da9d3aec4a482afa",
+        "target.json": "ad65845633fd644980780c6f60074d8f7740b880328b8425d5c845039fb158a6",
+        "template.json": "cf222b1a4bfcf226daffae9af0ef35333b67fc3d2de1df01f97efe380af61093"
+      },
+      "sourceInputSha256": "7b2b4add62d54c14901a4010b7704c3fb270dc387f269561da9d3aec4a482afa",
+      "targetSha256": "20beac5e16af70e1257820a84f4fd07139217e0526699db500d8d3cf6bbf2e07"
+    },
+    "doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "322f2ea788814efa97dbf3d17669b01cf701db89fa8bbf151918c6ca3bc0aa53",
+        "contract.json": "df9fb65a92d4017d9c0b02a3eadcc012a8fdac9408bee79591b1e0e4c1be3153",
+        "source-positioned.txt": "8e5073baeec2ed6795a1dda36597291ca50e212cf2d182069c20812959454980",
+        "source.txt": "f27e2a240eadc40e4a3b92dae5fdc0bc8032d77bf70a3c47d9da398e50c4ace7",
+        "target.json": "e48d04fed5fb4f94337d03493345ff83d2ae2ab9d27f7c0425a7e64c7151b2a2",
+        "template.json": "25c7bc1d00cc48a27129314064e6dd0c1b14d7436861657caeb5370115b0d6b4"
+      },
+      "sourceInputSha256": "f27e2a240eadc40e4a3b92dae5fdc0bc8032d77bf70a3c47d9da398e50c4ace7",
+      "targetSha256": "8fed0968f3cdb61d6c646f8b511fd9fe48e85ada35be36433df88512adea7b0b"
+    },
+    "doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "c0246023afbadfbaeb21ae97a52564ebaa708206e28b957073feff24d7fc5091",
+        "contract.json": "fe91fb851d5eaf90d5d4eb4332af868aa3f38406fb6be01500a5b8f7a257bcf4",
+        "source-positioned.txt": "64255f3d2472c4c956c99178852554d28e258d3d7320cddd12047f45e93d773b",
+        "source.txt": "7665b6937098c458e3c81dfbc5f720ddc86a08539c0de1a9a0fc27876c2c6371",
+        "target.json": "a894a72dab540a589a1a756b43b128a852ac933bc797186eb29c1f96cb78012c",
+        "template.json": "b2f23288ab8ca24c95633679b49647f08bc42d4595dbdc9d862566ac70877d7d"
+      },
+      "sourceInputSha256": "7665b6937098c458e3c81dfbc5f720ddc86a08539c0de1a9a0fc27876c2c6371",
+      "targetSha256": "66108a65012fbcf874b749bc37d64f870584e62dbdfa3e8ba16b30f3c60cb0f7"
+    },
+    "doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "bf9df8fb25ddebde107fb5c70247f5e895f09fa7991aa0dc6e295ecffd01173e",
+        "contract.json": "f347641cebf0b3e2452dbb326734e9118dd0732ad2bd45ff4517762dbb6473a1",
+        "source-positioned.txt": "236769ce2988d7687ee62dba48b3238d9bca2c8a8f07fe49b6f9fe2a40fa4461",
+        "source.txt": "e6bc5677d8a1273d173e238e8ce862e6e80bc1bf880e2b1874a53a95f5d3c476",
+        "target.json": "731d18a4ef4d8d18def3c63ce789e9583a3ff7bbf215a08f56fc15a95cc6478d",
+        "template.json": "d8215f3bd6c1df021041b8b85ec5841b60e3c85c8d6453bd3cb12f719fba031a"
+      },
+      "sourceInputSha256": "e6bc5677d8a1273d173e238e8ce862e6e80bc1bf880e2b1874a53a95f5d3c476",
+      "targetSha256": "50fc874299dafefc663c2543bc5acf50b33588e3fb1c8f5a3d1571286c3bb787"
+    },
+    "doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "c4060fbde5ece0b835adb49503612c968eeb3011dd8f4470c0dcd0f65e5250d0",
+        "contract.json": "b44e51391d9caecdf454eef0a2cfc4ab32820144197a54067580969eb0340904",
+        "source-positioned.txt": "81fedc2e069cdabba6855f154d3bf75df7216675896de3ab2357e3ced30ab125",
+        "source.txt": "2304e41162ccb2b8e890547de28199016cd3ba8038496922cb25feff594f2a8d",
+        "target.json": "68edacdc1d5ecbefd88ef81dd6d635ddc8dcfc0981f0d0d77068a0852d6ae1a6",
+        "template.json": "97f50823053bc0069b7c3dbd3e9be64940c2675bfe45412f04b64bee3e3f1278"
+      },
+      "sourceInputSha256": "2304e41162ccb2b8e890547de28199016cd3ba8038496922cb25feff594f2a8d",
+      "targetSha256": "f12572b196c2b938791dc5c5d66fee0ea2e09f6f9192d95df6c9a621368577dd"
+    },
+    "doc_a65cb58e57acb4f70bc4227864cf653d982426479fe9da2cbe21329f717e100c": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {},
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "252bef46b39b5a6c69892df7f63b9aa3ef59b83c08ad48f556b77a999555e8b7",
+        "contract.json": "3bb37dfb21e196c7ba089b205c18f67fae90bf4e39a795a616bf51ba8a7836d7",
+        "source-positioned.txt": "ef6d0913c67331ad711b9f23da5750ef7faa5250c4b5c366258e3e24aa15234c",
+        "source.txt": "cedc5076fa5360154444e4e05e33b87bce317c0266ca2bacf4908396725ecebb",
+        "target.json": "eb34eb1def5698e5602699eda465da847b9bde1fa956e7831464bb089ff8e3ce",
+        "template.json": "d0173c700c32a68f7c6f8989bacd273cac95d72d6c6ca13e1a79b99ec8695b4f"
+      },
+      "sourceInputSha256": "cedc5076fa5360154444e4e05e33b87bce317c0266ca2bacf4908396725ecebb",
+      "targetSha256": "11485d7ad075a8bf532fe1ad8263d71b3df4d75f6d6cea10e15cf1e965530f3e"
+    },
+    "doc_a7ede7d8228b5677c41f6f8e8ba9a724eec8e7fc87984d802b5653166c58f149": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "delivery"
+          },
+          "nodes": {
+            "delivery": {
+              "kind": "locality",
+              "country_from": "destination"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "996fcdfa2985f4308a1cbca6d28f523cb9595fe3fd72c2388d071cfcb9b48a25",
+        "contract.json": "e04cad515b094d04df526c938563437382ab2eb7f85a0104173b85c246c2a154",
+        "source-positioned.txt": "f55ec8370abb0573e004e37212fd8c1ba39102cc3f4a8ac1e1ae82ddcd3feaf1",
+        "source.txt": "82194284b9e4baaf776709efc24f8657e43202bd0e2efbacb39867c5602f0a6a",
+        "target.json": "a9461f745a6be4e751e0a36fd991b964ffb9953a67464fc7c04b26fce9a45ea9",
+        "template.json": "70e852d00d601a7f9dfa6cc3887b166743f44aaf443737dd946e90077145629e"
+      },
+      "sourceInputSha256": "82194284b9e4baaf776709efc24f8657e43202bd0e2efbacb39867c5602f0a6a",
+      "targetSha256": "806cb4f61f0dd9ffe9b171e789993082b89d2ca98f6add606a0374fa22994943"
+    },
+    "doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "physical_profile": "source_bundle",
+        "fixed_package_quantity": 1,
+        "allowed_hs_headings": [
+          "8708"
+        ],
+        "allowed_hs_codes": [
+          "870899"
+        ],
+        "allowed_package_categories": [
+          "PACKAGE_LOT"
+        ],
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "3e83d0be91be2e7bfeb70a8a69c5dafbf64fba275f580d7ae7d1a744fdcf5426",
+        "contract.json": "626ed5242e3b30ca33a4fa62ac249c9d1d7785e633a6230bc5c46ed3be9c7fae",
+        "source-positioned.txt": "e31de5ac633f7125d259098b1e4975229be76c21e0e98c91dc858225c86ce94e",
+        "source.txt": "484b6e8908f017aa325ad134563dfea312010f4a66b3db5787848d7018f80eb3",
+        "target.json": "f8107931adf6d71b12cccf6f901fdb08822a5f0d81097e21a37dd7e959517c99",
+        "template.json": "2d87564265c21db91110c82117fcd41fe8a6f5129b1e760cd0c93e30a5648456"
+      },
+      "sourceInputSha256": "484b6e8908f017aa325ad134563dfea312010f4a66b3db5787848d7018f80eb3",
+      "targetSha256": "ff324b208a3f870e48c97dc968dae47415e7f17aacce5d63446f8dfc45ca9498"
+    },
+    "doc_b9603de62c87f239f82034a16c6da13a35efa97235c4921da5164c8e1efa4fe5": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 6,
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "0ba4831687d30e7e2b550b5702e50da237bb4ffdb97e900095329b535c6ed831",
+        "contract.json": "53981f5ce6751bcf4bf8d9ab8ea13081fc985468c2be660ccf6915c78ddded21",
+        "source-positioned.txt": "a63a417d7532f921d64db5f79ad7db4f18362173f48417d52eb2922fe9a8a8a7",
+        "source.txt": "6c81c0f00349f7a3f41fd4a57ec49ec0cf4aa3d4d1b75fd092d3da7c9036de75",
+        "target.json": "e9d564997c08bfc50f9bcdc2e22e27d6d3c9a9d9037da10a2fde9f28b368737c",
+        "template.json": "986898497a0c9e5c234cf192e2c9f227e4c9f46308785dce6ce6eef7a490a08a"
+      },
+      "sourceInputSha256": "6c81c0f00349f7a3f41fd4a57ec49ec0cf4aa3d4d1b75fd092d3da7c9036de75",
+      "targetSha256": "735b45d5b561517dccfa988b67e8798656ffb8e20e9b94cf30934891d6555e86"
+    },
+    "doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "chilled",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "c7855bc20870140e1c6ab417d4d4c99e42cd3cac2661fb4f59bbee4b4fa22a33",
+        "contract.json": "06d8bee11a734cd90c81e0e3574f2aa781e77b42447732bff2c86538f5a4a83a",
+        "source-positioned.txt": "face7ce77dcaeeb2022d5eacac69d25a15c550a470cbc52d125a54657b57229f",
+        "source.txt": "2d39c25a2cbec59e4d23153de792e1b1072fbfaa3614e238c23fdbf71574bf86",
+        "target.json": "ac73d00b428f81c771d38a5b7adfd38f12cbe9a50da8145349edb15ef37dd930",
+        "template.json": "9af2d9e8468e406d6431bf5b8364836584f75887bf8cd3997d6d808719f6aecb"
+      },
+      "sourceInputSha256": "2d39c25a2cbec59e4d23153de792e1b1072fbfaa3614e238c23fdbf71574bf86",
+      "targetSha256": "422e15e3a5cdbe4d76ab3d14337df624d886e955589ce296a05671311f5ba6d4"
+    },
+    "doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "frozen",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "independent"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "4b7629a86b718c969a29ab6b5b9947e7fa9f564cee58768e137800c549b1da57",
+        "contract.json": "8aad12472b489d4d1dddd758f2f4d0e64a568c3cb3d7ec5c8bea873524b596b8",
+        "source-positioned.txt": "c2f5f653d3feb2da197551d9adc78e6a6b91430b772e3c9f8cdcfa05d85900b3",
+        "source.txt": "0d08e624b43a386ebb1c6729958b6d0164ef9a8d6de1e486bd565fb03acd6129",
+        "target.json": "f1726858c77dcdb059b327abadf9f80696d39e2c1bdcc91ada25f3d9c3aa8bd8",
+        "template.json": "792b60444e8d06cd1c6b3883531accb82de115bfeec554b43f4a6a6233bb438a"
+      },
+      "sourceInputSha256": "0d08e624b43a386ebb1c6729958b6d0164ef9a8d6de1e486bd565fb03acd6129",
+      "targetSha256": "713c9cc69b5db31b659e5fdcb075071da8de281fe4c44d9838c84196a45bb1f5"
+    },
+    "doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 2,
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "receipt",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "c37bab0a919932be27464d99c9950761a4ef79c700f8c4fb70e09225e2bba00a",
+        "contract.json": "6b07900bc90dc5bbd355fa3531da4810e43529996bbd1bc8308d879cd7f2e044",
+        "source-positioned.txt": "e7b3d706507e3d68a8d88636d74813a7798fbf88b214ccb121ade960eedf80b1",
+        "source.txt": "2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003",
+        "target.json": "48e3de36f547ffdb46e33fa32960f2d14d20cda903464718fd2b3f7829211765",
+        "template.json": "0519270fe0ebda73f5beea339fbd6a5f95badde051cff807256e0804edb6d102"
+      },
+      "sourceInputSha256": "2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003",
+      "targetSha256": "57d137bad948e9dedb3d19deca7d8a8ac496614d075011321ad8fd211b430304"
+    },
+    "doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.notifyParties[0]": "third_party"
+          },
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "92d65af43f231de77ca48c17bfebd1d2479968478150190a0116906356a61179",
+        "contract.json": "bd2988f65f74c9ff256d4dd81517aa8d35d660d024c117876fadcc747b7d43e0",
+        "source-positioned.txt": "70ecfde6a079161933bffc61871a42b6f9c33b2b6da0e7def249c86f6d38963e",
+        "source.txt": "9a33244ca1e0a945d48d1ea5205d752e192c448d700bd0d63074551ae05424a8",
+        "target.json": "feb332a15677f5b8b514103668508d7f01af0545a2437f834207c7fbc2dd82ed",
+        "template.json": "589f3edb902b70c444de7465776af1520dc8ecd8b8056fd3453e6e45c9e5d6be"
+      },
+      "sourceInputSha256": "9a33244ca1e0a945d48d1ea5205d752e192c448d700bd0d63074551ae05424a8",
+      "targetSha256": "6b0729c6d90830307aeb027d47024a4f61f84d3e1cf840e5849388005629d1d5"
+    },
+    "doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination",
+            "finalDestination": "final"
+          },
+          "nodes": {
+            "final": {
+              "kind": "locality",
+              "country_from": "destination"
+            },
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.shipper": "third_party"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "aec5be97f1575bfd79845b99a1296ae1b95b752f040b250097d1f4e5269149cb",
+        "contract.json": "cf8ee3c6d65b2190d1e09abe096126a0de4f9a542a2cc8d6c3269bb105ac1e2c",
+        "source-positioned.txt": "8f020ec593565069da31f0199fa6d28afdfc4e13430807dae8c1c901dea1deb5",
+        "source.txt": "9ccc66ee4d2b0cdb5813f4c61ecea630a50263955f733f11fba0a5deffc3f0da",
+        "target.json": "0df82e8009f1ed65c3771f820f3c41d21ab9b8961ac6e64347781c916162b602",
+        "template.json": "43f8aae757a8c62262ee31055e52e383ad09ed00036253a5dd3c5fde10fd7f14"
+      },
+      "sourceInputSha256": "9ccc66ee4d2b0cdb5813f4c61ecea630a50263955f733f11fba0a5deffc3f0da",
+      "targetSha256": "711bf3dac829842ad1c6a746dec7f3ee1c20441486803b580f7c19aa7e4f2b2e"
+    },
+    "doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 3,
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "transshipmentPort": "hub",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "hub": {
+              "kind": "port",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "add68f4ba19ffb365b64faae8b40975045c3e51f3557d7c8bba9916368ed088c",
+        "contract.json": "1f1ac0c2bf83dc22e77b3814d4dd1d520c1adc132ea6f66f0f2fc6d86c885aa7",
+        "source-positioned.txt": "bba96e5c693a9d8118a6f1dc3b346912bcf386e958bafbf9dd4bded909874209",
+        "source.txt": "0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795",
+        "target.json": "df087c33589dcce81a3ca5497a12b3728d6e7468ab59f9a82d224cfdb0331d3d",
+        "template.json": "e8c17dca0177adf390fb6df2f4a70dd36b6f0a5e6fee333b00c3b347aa5af96b"
+      },
+      "sourceInputSha256": "0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795",
+      "targetSha256": "a3d7e4f2601ac0c36fbe4438f42f16fb76ab81d2988c9ad1fc41ac89da3c5690"
+    },
+    "doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "41ebda0a007742088ad0003d36001dd264d03d931880b929f6773e92503503c6",
+        "contract.json": "aca05280cbc7fd3e6e42422d6537e5c0ab3765669ef309a5d0a3ea112d0a2c2b",
+        "source-positioned.txt": "c61c07af3a98955c8f90bda8455ed43abbd3fe3690c2c66d3d4156d845141fbe",
+        "source.txt": "5b7dbb62bfdb9a148200d9b54cff5cb9c80a37f41c31506b4d62d32967f403ee",
+        "target.json": "390ab0fc9268959ef366259061e659b140d45a2f239e1f22b1cf43c4642f453c",
+        "template.json": "edcef2b50c1affc195332b4a8cfe9f26b4afda0734147a1ddceac6339b9a577d"
+      },
+      "sourceInputSha256": "5b7dbb62bfdb9a148200d9b54cff5cb9c80a37f41c31506b4d62d32967f403ee",
+      "targetSha256": "ee5cc2727f245a0d4cf0f1890ab0ff1f206210e449a4171a09d353425c0d6e12"
+    },
+    "doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "24876249649009e057059f9599abacade896b9175d1ba79ac60f5441fea06db9",
+        "contract.json": "b81f9422ed3d2b038c0b89a457059fb680f3441a43ccf935d6d292a0a8942c5a",
+        "source-positioned.txt": "3158425c08532bd9b11409a23d981472d23471835c33dec03bb940c9941004b2",
+        "source.txt": "b4875191dea2869b159f6eeaca2f82b02a1e39c924042938b3e9040fb7d901a1",
+        "target.json": "7aa282bd642d8bdf4b58f97357e85fd212347c6346f78fd2ac048bd448e1618b",
+        "template.json": "e0ac0ecc10bbcdd226ce2582d3b1e2a67c0f1c6a94cabcf7cbbedd8551f4f82f"
+      },
+      "sourceInputSha256": "b4875191dea2869b159f6eeaca2f82b02a1e39c924042938b3e9040fb7d901a1",
+      "targetSha256": "20c6d891b50f518d56fdcc1c63a229cc4901f80f2173ef7d946391c2702a2135"
+    },
+    "doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "physical_profile": "source_bundle",
+        "fixed_package_quantity": 6,
+        "allowed_hs_headings": [
+          "8429"
+        ],
+        "allowed_hs_codes": [
+          "842951"
+        ],
+        "allowed_package_categories": [
+          "PACKAGE_PACKAGE"
+        ],
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "f5fd50f114fc93b5483e4a4c189f457f772c4104ccdb32fea287e8bc5f753788",
+        "contract.json": "90a802451efc688deca7be10dc6ba7b6ca86810d687358d3cf70acc321368e2d",
+        "source-positioned.txt": "d170a42bb423c68db5c32c2f7ffaefed5ff9821c28e0b98b88dad9a5c1a6d10e",
+        "source.txt": "dc073748c007dd89cd63248329d2cd5fc936ac2bc591eb6f5ddd9008cc5f52f6",
+        "target.json": "0f267737d326a345c60f02fa26dc1ecd614e2637df3c3c6c151fa32ab4ea4844",
+        "template.json": "eb36327b124f65fefb689a45b8f232428e8464add5a98bab49c5b662fb127ebb"
+      },
+      "sourceInputSha256": "dc073748c007dd89cd63248329d2cd5fc936ac2bc591eb6f5ddd9008cc5f52f6",
+      "targetSha256": "0a7c5db51c914908e154f5a769512cce62ba510be2a2f3380b5cedbefc360a03"
+    },
+    "doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "8eba7f706f4f6ed6391e0567d20eebd5e2ed52754153dedbb5a9b88f2d22970d",
+        "contract.json": "28025cab9b3905d264589a64ed1f60e2fb9fcfb2e460ae01c601189415113617",
+        "source-positioned.txt": "e93a41faee0e69be6060333b83e6d0668d22ca550dc766d5f19cda5e17a0a158",
+        "source.txt": "31e3f5c4337a2c6b7449734c65a4840751709eb76045955c9dc446f368246ef1",
+        "target.json": "1b29de39513f6ac07d699e1f6fa5ede7b9c369546fca168d824123810a816f38",
+        "template.json": "6947e269e6e9ebc3df206853b0e77de9f040b67e114f314ed8bf1f4aa8575c39"
+      },
+      "sourceInputSha256": "31e3f5c4337a2c6b7449734c65a4840751709eb76045955c9dc446f368246ef1",
+      "targetSha256": "9d496c2e6f3ab52559ef1bbf165fa5d32875abb1bb6ab7c3eb14c5663715ed20"
+    },
+    "doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "90ce3a542f5660621defb4a88d66637f0f19866da26ab7d3d0cb072bb0907849",
+        "contract.json": "801f76f2fbbc3125cabaa1fa4e6ce5db158e973a0d825c760c588595cf8cd269",
+        "source-positioned.txt": "8ec99e83762b5a0dedbed7f3e5f4506fd3041f8d52fe9b650b5ec2994039acf3",
+        "source.txt": "69f87c8a6fe9915ee338594c43ad76ba95d73a4b9836714b27e938bc565445a4",
+        "target.json": "dedbd287292fb34bfbaaf853738b1ea9e18d720ea01fae62aec04ca3dc293768",
+        "template.json": "3ef5f00e76a25c5d6f534260e4ec2efe308deb5406af0184d437f2b62c638f00"
+      },
+      "sourceInputSha256": "69f87c8a6fe9915ee338594c43ad76ba95d73a4b9836714b27e938bc565445a4",
+      "targetSha256": "8455ecdd36f985ef0dc8afd79a5ee2bcae260a48368840beb66228890a3fb2e5"
+    },
+    "doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "payment",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        },
+        "required_private_measures": [
+          "volume"
+        ]
+      },
+      "files": {
+        "alignment.json": "22a631f39ce7bdc4f72d2d6a2326c62b0c4785b919189fa9647d5b57433271a5",
+        "contract.json": "3c51b4815d92f859e9ed47a2adaf5a4e650b8346c3636b80905bd9c60e4ce334",
+        "source-positioned.txt": "5f6e235ae1be6fe76af5be076c08a4bfce822d80a28fa7d158a4c3c4fc06ca38",
+        "source.txt": "98f7227feefc79e9374883d6b98da1a2fcd9e7d1c5e0dbcf3025d254a9ad8d94",
+        "target.json": "9c77c0cedde8569fcc6946682deeda6ca25b5167b6633fb97a1c2fc94ae35dd4",
+        "template.json": "57cc6c7eb2d9487ff0c62ae6a1940c3ef605df768f8145d3aa798b10189f302d"
+      },
+      "sourceInputSha256": "98f7227feefc79e9374883d6b98da1a2fcd9e7d1c5e0dbcf3025d254a9ad8d94",
+      "targetSha256": "b73644621f6bafe37c917b39c91c43eda79c778288412aa6f1ff981e456a5e42"
+    },
+    "doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.notifyParties[1]": "third_party"
+          },
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "4dbdf2127325600116e34c18d3c296a585357398ed9892966629c41aa0dc3255",
+        "contract.json": "b7adf6537a5524e3dd6a947dd77fbdf06b30254bc3c94fdad99f2104b76fd5ba",
+        "source-positioned.txt": "3e302549ea5a2c9c38979f196cdb9871e8a50f9c850e10cbd83bc14e50c62ba1",
+        "source.txt": "6d0a0c32b5c909318ee794a1642164f57c75955046d264d5e1731fad7d53010e",
+        "target.json": "31e7ac9d6cc9a8595adbe8fbc9d02acfd8077336f42afb8086abdd83bc5c215a",
+        "template.json": "317551b6c377e2672e7cb1494a181b850663e8101d260d627a9f4011baa8958c"
+      },
+      "sourceInputSha256": "6d0a0c32b5c909318ee794a1642164f57c75955046d264d5e1731fad7d53010e",
+      "targetSha256": "c8572cdca471846222358826faa380f68f8f8c805124ea7376f4bd3f4c472a64"
+    },
+    "doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "121530b42b20724c7ae1f0c98bbbebbb4ee92301ddde73c750e3c86e24cd6e96",
+        "contract.json": "9e1d20d6377049a9958af89d13153bf6bdb2f6e61ce63675ee1bd2f9ff3ac12e",
+        "source-positioned.txt": "35ac10e081d52d80ea7b066173298a6aa671a752efb1ba84e671de47e6ce6d04",
+        "source.txt": "cd77894d30ff14bb07ac4911a1a806da587daaaee259a2ce4e25a102db232b60",
+        "target.json": "9dfb24390792d17f6d225ae21861ebc65172f54714e693fab9ab722edb30d082",
+        "template.json": "654ee3e606201c5070ef05d4c7817649f850276faa68eceb2dd8242b72806ac8"
+      },
+      "sourceInputSha256": "cd77894d30ff14bb07ac4911a1a806da587daaaee259a2ce4e25a102db232b60",
+      "targetSha256": "cf93e822856620a575852c11319f15b6fc1f461539da653f147aa40fbe6333df"
+    },
+    "doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "6028a89dcef06f43625a00664c0dc921406ba7e181074241ce522a9dc10032d0",
+        "contract.json": "4f2a69d7253ffc8177e4808534aa738ef19d0d1399b9436a64775f7a2402b180",
+        "source-positioned.txt": "79665511d3952346fa7c318d8c937ff85699cca7f1766eff7f1108a4bdc28e1e",
+        "source.txt": "51736dd68184092af4c6b1c2ecb49315275709544c06e1354ae31af4a7b66d13",
+        "target.json": "f22cc7dff7804148d2577223684d316ec1c6ae41513c0b86273a6831138b9789",
+        "template.json": "6de715c9aff404caa4c71005bc7e0545baa3f7e58d2ded773bc0a1413429ab25"
+      },
+      "sourceInputSha256": "51736dd68184092af4c6b1c2ecb49315275709544c06e1354ae31af4a7b66d13",
+      "targetSha256": "b4831cfafb673a8db3db03274a229f305850ba74f911cf3194bb7ba41dcd1393"
+    },
+    "doc_678e2007fc5f522280e74c9937c7569cabc18930d4f6df9a5851c5a065450e49": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "9dd33369f8cc8897302df5d940d2a20abf754e73357ce3711d5ecf7fbaef47e5",
+        "contract.json": "d7ce3bcbc91c98b6624c2b2c6e561fb94798f2a75506433c56ab433227ba8e14",
+        "source-positioned.txt": "3f6781ce258fc03b8feb6ef3bfe36bc559c9ae2b91a2f2a2ed8ac905eaac0b5e",
+        "source.txt": "8eb03349d1ca566f41ec3fb1450ed8110afa869b6ee1ede257938f49d824b55a",
+        "target.json": "3f084d2a165fccddb342750bee3afca923703cc7b2d8b9c66cf381f5cab0fd2b",
+        "template.json": "60214cc559df515a08e88056b04b74420ba7fc5a2751df70ececa8d0daf927c6"
+      },
+      "sourceInputSha256": "8eb03349d1ca566f41ec3fb1450ed8110afa869b6ee1ede257938f49d824b55a",
+      "targetSha256": "13a9cc8fe8598f5bd449bd1805985959e181a5514130b72a6087a2e8b855a758"
+    },
+    "doc_67b1e5a1803b8c7a266988ad23e39a23a182996a721cb5a6791abc892c07d3da": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "goods_origin_identifiers": {
+          "documentPatch.goodsItemDetails[0].origin.identifier": {
+            "kind": "unlocode",
+            "node": "origin"
+          }
+        },
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.shipper": "third_party"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "e1467adfa8ec128f325f95212028ab2b3edf674f6ab0e3fabf1c947f4072e4bb",
+        "contract.json": "c3069579e5b7303dfa950bf738989b9af2466a7d8dee86494fae0a92d95c8e46",
+        "source-positioned.txt": "f712fee1ea9d435eb122520adcaa1ff08f33ac5fb3b3bc97f590b7042790d642",
+        "source.txt": "3e7bef66521d4c326ff9b7fe029c097fd2d77c5850ea48a8dcf14604083d9310",
+        "target.json": "1d70519de1aac87fb2be889784737d6f2792b183be6d5951417f13a4ef42588e",
+        "template.json": "5997fcac7af4efb39b505420ad33af9a6eafd057fb054e0597889b1c781201a9"
+      },
+      "sourceInputSha256": "3e7bef66521d4c326ff9b7fe029c097fd2d77c5850ea48a8dcf14604083d9310",
+      "targetSha256": "92004f2edfde16b1b0d2c372e1eb03caa9a5dcac274bcd75c91f385cdfd46e90"
+    },
+    "doc_6e9952c654c60496917c25ab27e11153539616ec8dd2ba01c480f28de75eac99": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "9dcebe0c88ed09feaa6685636273996345d1208f359da8dba126de64b1d5e012",
+        "contract.json": "ed96343a7438081e9ec12be02d9752b17139b682cafc2b21672e225f4ac700dd",
+        "source-positioned.txt": "3f9af6878ed3a6b15789f01d20ae0526919cd737b204770b5f0f08cac1f7ce7e",
+        "source.txt": "2c260bb63d69cbe3f6f65ddda9fdcace6d23c434e9edd02524fa5acefed2e920",
+        "target.json": "ad17040e795b02b2d7a55d404c15d8310b617f76c1d7175487360d55ae686b37",
+        "template.json": "89f69c5a8601ddc801d264b4be584647af5c4fdfa3cb2354278572213a5ee152"
+      },
+      "sourceInputSha256": "2c260bb63d69cbe3f6f65ddda9fdcace6d23c434e9edd02524fa5acefed2e920",
+      "targetSha256": "118febe661110748f09c92c4ec5e7fdd9b8a57b4101dacfe945cd67ec864086f"
+    },
+    "doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {},
+          "party_nodes": {
+            "documentPatch.parties.forwardingAgent": "origin"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "d2763382227cfeadfa186b32ff656078002c86171432070d0175d41eac4c6dc4",
+        "contract.json": "b598f98960d81a5ff8b0e3d00e6bc7a8c23909d78a170d8c8e63d15b491e8da0",
+        "source-positioned.txt": "b098b527aefe06697f848911bbc12a5b7241725132f4c981515beaae5ce9b6c6",
+        "source.txt": "7836ac0c4dcafc85c5adaaf5bf3a0e9dcae748899d1ca3f67a244ccbcdc7854d",
+        "target.json": "1fa2b465a76e11034909ef541e4fa2c210a6e8d3e4d85267d9884af2216cd491",
+        "template.json": "40e0455c97f265f58a108c038e0c8a2a18c6623f4af90283efa2178b9a3e6aed"
+      },
+      "sourceInputSha256": "7836ac0c4dcafc85c5adaaf5bf3a0e9dcae748899d1ca3f67a244ccbcdc7854d",
+      "targetSha256": "4ccc68ea6965bc9cf48048f20fea524e7f9b4dfa1bbf33d3eb3280309fbfc212"
+    },
+    "doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "9f57adcee9156417a6ee359317cada5f81d411c9d8f48b8d825bfc4732445a87",
+        "contract.json": "59ad46c9375da5931af527e7c2c15aa6a3c7daabdf7e0740fd7be8f4dc2d26af",
+        "source-positioned.txt": "92e00bde3ecab5717df0b0dc6b21bc2a27fb5a65f72c795a561143e01881e394",
+        "source.txt": "03f4651c952622a33e5426e3aff8415955c07197918aa0f5bbaa7b20f7ad900a",
+        "target.json": "e1a465e8384eac18f25b0509ba4b3f368238017fbd270781213f317a4b245477",
+        "template.json": "10812089933412ed632f151388c19263831d64d6e15fd11ca4e037a357987490"
+      },
+      "sourceInputSha256": "03f4651c952622a33e5426e3aff8415955c07197918aa0f5bbaa7b20f7ad900a",
+      "targetSha256": "b8ae799b84e635ab1f863b085b643f862b99a9a55fb4477d7a956c9fc4254e68"
+    },
+    "doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "475f1fe16c09c43f779bfb68be1c790093fcec6d405d0f6dcf1b86d392ca5769",
+        "contract.json": "15b2759a0f9c88539eeabdc95d802791449a708a6e983530e3b81b3d4f6c594d",
+        "source-positioned.txt": "76e220bb6b60b0fc0af11fa2146c9c0c2d94766b5f3eb74fa67def5e5271c90e",
+        "source.txt": "fce3b5d6ad59b7f7aaf7a7ba9135b8c6d69c0aa48fe4809c80c6319239aa5e0d",
+        "target.json": "b7c964f086f14d74f410be48a728ce4c200e9e7aa3d1762db74b9da8781c738d",
+        "template.json": "ec0db3a4140ecceee5c236140219a701e0e20d8e2ba33092e1cbc4fd939b761b"
+      },
+      "sourceInputSha256": "fce3b5d6ad59b7f7aaf7a7ba9135b8c6d69c0aa48fe4809c80c6319239aa5e0d",
+      "targetSha256": "e131b9081767f9b300a8c4b55771109ef8b7a5c50b9ea20d62e3f25e85fcf8bc"
+    },
+    "doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.shipper": "third_party"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "0a01fd6c41654717e045abd1e80f10faa7b4574a6702ca683b988d5f13271d2a",
+        "contract.json": "ff9cd5b35c2e88c5981a02b8899c7cf024ea8ad10fdb681ee70276b6752f1ea1",
+        "source-positioned.txt": "59f6b33aea01856b25ced38941774e6d0195303c1c3598106d76f9d46a4a0071",
+        "source.txt": "59eaf2f68a72bbdd956ff8721380df8fc4852219c35832f4e5e379547c36b57c",
+        "target.json": "3ea3ef15ad228bfefeb8b910455b22986cbd2e916f583d6d5a7f9f9c3a03192d",
+        "template.json": "22d1daf22a1fc58bd92d52d4fea2fbf1bb3c43f682ba98a7060afac34937fd0a"
+      },
+      "sourceInputSha256": "59eaf2f68a72bbdd956ff8721380df8fc4852219c35832f4e5e379547c36b57c",
+      "targetSha256": "3cffa40798ea5f7f01a265f67c125bfb494f401335f5bae962387c02135323ae"
+    },
+    "doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "7c8523b31d2790cdc70fc72571049011588ff3ed2992fda99e77df4918db41a1",
+        "contract.json": "c9d0d555f10182f126ae57fb9b565160fdb4e55cdcb7a4e49dabd9d4643557c6",
+        "source-positioned.txt": "e5b06b1ad1cf0cc9970d7edbbfd7fe24c0ab27b95cc4cfc1aa98a16082654a35",
+        "source.txt": "7ad672a719a51ae2e8f02b6c629e649460244b0cb7650fb4b1194a646bf99842",
+        "target.json": "44518002bbcbb5dfa69e45f602f1bfbdadccc2d1211df8221f0aae696b121e95",
+        "template.json": "6d0ca0ea37019617f479839212c2d2cdfb251539c3cdea66863c55f0d990aac9"
+      },
+      "sourceInputSha256": "7ad672a719a51ae2e8f02b6c629e649460244b0cb7650fb4b1194a646bf99842",
+      "targetSha256": "59afdded393051d50e29394b6712eb1f5d51fecad055dd6dc44922b9e63d9775"
+    },
+    "doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 2,
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "c7db1fe0248faaffec92bd4b1e860b20808160ea43262fd72cd5af7b2084fcdb",
+        "contract.json": "1ee92e1cee5cede876fdcf05531ed27e957ef0b50aa5cd1f7691320bd92a59ba",
+        "source-positioned.txt": "ed29abb312ff964733bc3f5290bfe8692171385b606e85187b791c3eb251fd15",
+        "source.txt": "a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e",
+        "target.json": "3bd4c0ff233200ecca7665839b957f4d81c0f68e37a948e1afc61ebd36cf2c2e",
+        "template.json": "54b4d75a679a8834e692c9a350ee8d8dcd569904b64a8f0f8d3b48f3970e4d10"
+      },
+      "sourceInputSha256": "a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e",
+      "targetSha256": "cc500b26c6b3bd2796217db1961a53fc242dece89b743b8b72cff20a0f198afd"
+    },
+    "doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.shipper": "third_party"
+          },
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "11d33fa1455c7da8fd0dfa0effb4073697480bfbb6774eb66b434cf5513b8f2a",
+        "contract.json": "d66bd8a11cdecf1fd56ddf21ea53e47298b19ba4eebde89b989cc724910f25af",
+        "source-positioned.txt": "4c4d66cec29b3f7a306eacee9da81ab02731bd94391e9b24a11761ebfba3bdf2",
+        "source.txt": "e804d2a389306dee3a3a645905fc9c1c275bdc7082e14b15aea04fcf65bcbcf4",
+        "target.json": "734bdc36071226f2a33220d358e3d614a5a3acc33960b485eb58b4f006cb4f53",
+        "template.json": "549f3e3dec7d25fc4f7e52c0113c0c4964e0a754232c95f61e28964111dc869f"
+      },
+      "sourceInputSha256": "e804d2a389306dee3a3a645905fc9c1c275bdc7082e14b15aea04fcf65bcbcf4",
+      "targetSha256": "c721631ab1a7dabc0bd75f9acd261f393e96e3f6efd5a2c24f45155b316fa080"
+    },
+    "doc_6700b15cb07e7c68b3486b20b240e9045dc112e898d9f6d28c104b1c92be64f2": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "receipt"
+          },
+          "issue_node": "receipt",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "fa29443b5961207614602342460b83f30f5241623728a610104e3d5601defbf4",
+        "contract.json": "b1b22a93e4dd7bb0b1d03f1aedb57a386561d4d7a242307224a78a4f925e6a79",
+        "source-positioned.txt": "b6abd2d0f0a4e647c9f2095e3f36f308c1ce3944ea5363dda9acfff3c1ab7ef9",
+        "source.txt": "e70e44a397133de3c19e6138ad32c7361dfc3bcae64ab79d900113e247c8f684",
+        "target.json": "ad1e1ab25403321e62a5eba57460079ac4b3bbc3a6c2e63e02f5f0c776d6151c",
+        "template.json": "2fe23f3e9d28a04a2bf1ace3546b84c7248d4f9f7610eb05aed695d0f596d22e"
+      },
+      "sourceInputSha256": "e70e44a397133de3c19e6138ad32c7361dfc3bcae64ab79d900113e247c8f684",
+      "targetSha256": "37dcf4c6cbe0ee0f00a9316af3b3501948c7f5c1974c8f1a075f63e3e13a0993"
+    },
+    "doc_b2ba22f257b0c7b650dc8bc2909623d2c5001842b497ede54098c83f01b548c2": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "finalDestination": "final"
+          },
+          "nodes": {
+            "final": {
+              "kind": "port",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.consignee": "final",
+            "documentPatch.parties.deliveryAgent": "final"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "a72b4cdb41a55fc09db2cb79528ca40313770c4edb658f03421aa6b484394b65",
+        "contract.json": "1e7aabc923d6651ae1a2a061cb85fd47caa4ef57b1069c89d12c4033a9945384",
+        "source-positioned.txt": "5071f993c18b6519617a05b601383f0becaf613edd66f55ab87500c6e85da3bc",
+        "source.txt": "29b4fc513d244694cf190a152a26611f7cbe40da12b6bd1a8835d35f6cb23c4a",
+        "target.json": "6eb840042ed8ffcd1c7c269d71631131193cc758af2eac1d78aeb15d268c5d62",
+        "template.json": "a9cefe1f8de9441a66828370940303ed0279e5968b4fe7027b1f4aea4c764eb0"
+      },
+      "sourceInputSha256": "29b4fc513d244694cf190a152a26611f7cbe40da12b6bd1a8835d35f6cb23c4a",
+      "targetSha256": "448f8a4a82c03bb41bf122d6e2a2248c2f789def487898fd748313f9c6204cd9"
+    },
+    "doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "payment": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "payment"
+          },
+          "issue_node": "payment",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "d29d0b578bd135aed3c033789c8112dbe173899af4cca4b0618fcdc5d55851a1",
+        "contract.json": "49093fa4bc53ac55a38fb7751c3ac1e286eafb3866a85ccfbd3e00ed054016e6",
+        "source-positioned.txt": "29bfca7e760a5528cdb0d28fea81f0190076bbf9ebf5590cdadf63852c93ac85",
+        "source.txt": "8d17fc23800a4f27b097b1917aae47c69d150b4ca4fb601038cf9d7f8c5395d6",
+        "target.json": "492275aa04941d12742fe28872c5c2f31bf29047ddb863d474a2706ef2780e22",
+        "template.json": "c9c5385a6041048b52df630ff3a34c60ce1ff3f9cdc5838a32024459f4c736e8"
+      },
+      "sourceInputSha256": "8d17fc23800a4f27b097b1917aae47c69d150b4ca4fb601038cf9d7f8c5395d6",
+      "targetSha256": "0385c2f81326fbd71ebe99f232cc6c051132b34c416b6c81aa710b13e15a6d45"
+    },
+    "doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination",
+            "finalDestination": "final"
+          },
+          "nodes": {
+            "final": {
+              "kind": "locality",
+              "country_from": "destination"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "b9a5bd583254a291263e34b1b01f67270259cb821f11cdb65c164cb6916af3f0",
+        "contract.json": "d540b2d069a42fdaa3dbcf07719b8e987753396c22ac1873a18d2e7da5568500",
+        "source-positioned.txt": "55260b1a3743ad020ae061562af6658438f784241fdcb6511ff415b9b7e39a4b",
+        "source.txt": "24cc85a2e2925b8bdaeff52e529418f9e2ba6f9d906df813b629060c9513fefb",
+        "target.json": "d171f7046cfc91df64eaa57e4383a670511e4d4314c484add9329ecb6176dc3b",
+        "template.json": "1ac5ae59b4228eb4257155f389ad1e20e27ac6821d5fdd3436c14a0acf75d63f"
+      },
+      "sourceInputSha256": "24cc85a2e2925b8bdaeff52e529418f9e2ba6f9d906df813b629060c9513fefb",
+      "targetSha256": "b7eef40fac0417dc19b3ca62bc88ed4682a4fbf97ebea377564871d9eb67122b"
+    },
+    "doc_8690d0c8cafd9da230841edd9d3c042852ff02eabae0fc9215e43fe79e4610c1": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {},
+          "party_nodes": {},
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "7c5e826e5383c92e345fd1a44d62d66709e13ecd174a82ec8b3ee304a9dc8441",
+        "contract.json": "164e44b9e7ba2b196604702f5f2dfce5ae9975f1dd088e6bd31583417f2c1d0f",
+        "source-positioned.txt": "24a1c1f908327deaa6fa8732c4e5dcdef90aa625b0ac2783af8ba889771faa3e",
+        "source.txt": "d10c1fc4c706ed7494774fafb61a97402e2bc1871f796539609fc922714f6ce3",
+        "target.json": "9b6fc1e59925b3793827c797b5dbd2f6364b94305a6b4613e86c9208b41352d8",
+        "template.json": "e4b347a1fd04323c17a56a1b32374efcaa9d76138e6b735062f3b36a94f3f1f5"
+      },
+      "sourceInputSha256": "d10c1fc4c706ed7494774fafb61a97402e2bc1871f796539609fc922714f6ce3",
+      "targetSha256": "2bf89c5f19bde2b9253177d3ad9dc63460c72041feb0fc5ee0209a144dc3b16a"
+    },
+    "doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "third_party": {
+              "kind": "locality",
+              "country_from": "independent"
+            }
+          },
+          "party_nodes": {
+            "documentPatch.parties.notifyParties[0]": "third_party"
+          },
+          "location_nodes": {},
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "06dd09c6f4df2c1575a8e0a6feb22013b71465614c393cb6666a1145e7b61d29",
+        "contract.json": "65e62afa91407e335743dfea21086b56bc8e58dc3cdbdca1e95b89b361682a7a",
+        "source-positioned.txt": "26535758c174aad135ca07d9003ac4f69283c1454be79825a768520ac4ef14ad",
+        "source.txt": "1a07ee4fe7f0237fead7a5a26fa5e8c96142a8567e174d082718c0d4f10af196",
+        "target.json": "96da8cfe5ee01ccab967dae7488ceb9c98d31f1e161359b373a7fac6a3076346",
+        "template.json": "265f4c55343e4bce00609d14b001b86f2536477dc3d74a3d29ab7e44b3ffd04a"
+      },
+      "sourceInputSha256": "1a07ee4fe7f0237fead7a5a26fa5e8c96142a8567e174d082718c0d4f10af196",
+      "targetSha256": "8997589d55220bad4d882162f60c563facad56635a752e7e89adff89f0f64fd6"
+    },
+    "doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "origin",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {},
+          "party_nodes": {
+            "documentPatch.parties.forwardingAgent": "origin"
+          },
+          "location_nodes": {
+            "documentPatch.freight.paymentPlace": "origin"
+          },
+          "issue_node": "origin",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "6d577e3c3bfdc481c9e50635cabea458da835150c7dd5c9944f98879ebd52afa",
+        "contract.json": "d91c32cd155b1fee3dac05a9bfcbad8d2a5a946018ff7f29947f11dbdcf4fdea",
+        "source-positioned.txt": "6df98f6b30e700123b9c4e8ab7116e3f3f35e66718fa9e67aec3a2e1eabdc5b5",
+        "source.txt": "f8446cf568e8fb4056adac871cfbffa969c65161e929318eff99874b55eec132",
+        "target.json": "0deef4c69ccbf76d7ef3de061ecf6082439d167719d1f3c98c7eff27b9659dea",
+        "template.json": "309d88617a93a367d5f2fd7c971534e5b9ec27e49adcfa36cf6ad60b3e164ae9"
+      },
+      "sourceInputSha256": "f8446cf568e8fb4056adac871cfbffa969c65161e929318eff99874b55eec132",
+      "targetSha256": "f0aead4e87d1a5249292f86aad0a1d922155b55f20a5b465519a53deeaccb0cc"
+    },
+    "doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "route_topology": {
+          "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination"
+          },
+          "nodes": {
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "d394b598b3cd238744976551b8f11ec9c9ce2d4c05415134eea428f8a46e323e",
+        "contract.json": "c4ec01beb3b3cc91052cce58de5eff77317f78458666a4ef8a76cb635390478e",
+        "source-positioned.txt": "869f769874e4f0580c88fd9d88aa602e1e5f05a5ea347fa90bfa41626f5c46b4",
+        "source.txt": "33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe",
+        "target.json": "65ce59e636183173d9ca8664c0ca27aea5185d95163e14984c33e45fa61c4ec6",
+        "template.json": "6d82c6454657b1f9b1a34ca4ee67d26d1bb6530108db388635d3f9375d4abc91"
+      },
+      "sourceInputSha256": "33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe",
+      "targetSha256": "e8b5c793ffddc3f53d99e39bd869ed33f5de6129aed8cc20d4deb25794961ec7"
+    },
+    "doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient"
+      },
+      "files": {
+        "alignment.json": "41543e123a222937fc2ac4429397b48868a2001c67d44bf54f6c69f78355aab5",
+        "contract.json": "ec0fa0d524d761a9975aae00a0f39c06a8f7b2d864398bb24ec348e47fffe465",
+        "source-positioned.txt": "2b8bde07521fe4b4e9748ea82dd7ac5f6d221c8a3dcba96824d8e4f3edba8afa",
+        "source.txt": "01e4a47afdb57d1ee80da0f43c3c22e8ffa25d5627c2f3802864e5b8b61876bb",
+        "target.json": "49dfe4665c6b280d66246b1146236426f810f8a1064a46cacc9ce3f2f4af4a88",
+        "template.json": "cb6170d4f8f1a91360cf66bcfd50c4dc25dee6de180ce4a8faef4fed2ee118a1"
+      },
+      "sourceInputSha256": "01e4a47afdb57d1ee80da0f43c3c22e8ffa25d5627c2f3802864e5b8b61876bb",
+      "targetSha256": "065d6d5a4b25dc8065c23670fe7eb235081b7cbe91a8c99336eeeff875da51d0"
+    },
+    "doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8": {
+      "status": "admitted_2_variants_content_and_geometry_reviewed",
+      "capability": {
+        "family": "ambient",
+        "identity_count": 2,
+        "goods_origin_identifiers": {
+          "documentPatch.goodsItemDetails[0].origin.identifier": {
+            "kind": "unlocode",
+            "node": "receipt"
+          }
+        },
+        "route_topology": {
+          "fields": {
+            "placeOfReceipt": "receipt",
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfDelivery": "destination"
+          },
+          "nodes": {
+            "receipt": {
+              "kind": "port",
+              "country_from": "origin"
+            },
+            "issue": {
+              "kind": "locality",
+              "country_from": "origin"
+            }
+          },
+          "party_nodes": {},
+          "location_nodes": {},
+          "issue_node": "issue",
+          "rationale": "Source-reviewed named-place topology. Preserve repeated place sharing, distinct receipt/delivery, payment offices, third-country actors and issuer country; synthetic routes are not claimed carrier services."
+        }
+      },
+      "files": {
+        "alignment.json": "aa2cdfd1cdb5eb6da126a8fc1996357e42082c325250fb41ccfb70ca80c98111",
+        "contract.json": "794c251f7bb71f79d7078f5d62160174a90df7d25ddd0064258b891cb9bcb6ee",
+        "source-positioned.txt": "8cee03d0309c0c2ea213b4ca7e04cdbeb4ad6c8cdcb088fe2f6794f00d8932e0",
+        "source.txt": "8cd779e26f3f2a46860e71927321457dbff82f767f3a5b94674615b27883c7da",
+        "target.json": "5d8d0cf5211ced43ea5f455b3118273ea9b9c728f8ce6436468814e195e7fc85",
+        "template.json": "504c819a31ab9de3eb35fb100b9d465729e5c8f357f8fc9d856c3d090f7cb519"
+      },
+      "sourceInputSha256": "8cd779e26f3f2a46860e71927321457dbff82f767f3a5b94674615b27883c7da",
+      "targetSha256": "302c47d7901f9651e3b5589b6b4936de96590784de49137848486e4c6e1c6481"
+    }
+  },
+  "dependencies": {
+    "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_expansion100.yaml",
+    "sourceDataset": {
+      "path": "data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660",
+      "files": {
+        "train.jsonl": "ca15c382bd1a36e72db978a0acb34f9dec64e8ea6c7e00639e62bccc98058305",
+        "validation.jsonl": "b8c0d4bddd4b3a452f901f3fc5e08e54d580a82768eddd5df33c97ab2c85da5a",
+        "manifest.json": "7fbc19bab22bf1768b14bd856ddf2af7b7d050f52c4b0b048c3992bdbcbd6865"
+      }
+    },
+    "taskConstraints": {
+      "path": "configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json",
+      "sha256": "db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6"
+    },
+    "sampling": {
+      "countries": {
+        "path": "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+        "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00",
+        "records": null
+      },
+      "locations": {
+        "path": "artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl",
+        "sha256": "c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278",
+        "records": 111561
+      },
+      "world_ports": {
+        "path": "artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl",
+        "sha256": "b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb",
+        "records": 3032
+      },
+      "localities": {
+        "path": "artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl",
+        "sha256": "a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc",
+        "records": 34106
+      },
+      "hs_manifest": {
+        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json",
+        "sha256": "7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e",
+        "records": null
+      },
+      "hs_metadata": {
+        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
+        "sha256": "4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7",
+        "records": null
+      },
+      "hs_report": {
+        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
+        "sha256": "13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513",
+        "records": null
+      },
+      "commodity_phrases": {
+        "path": "artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl",
+        "sha256": "05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078",
+        "records": 5612
+      },
+      "hmt": {
+        "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl",
+        "sha256": "bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2",
+        "records": 2934
+      },
+      "ecics": {
+        "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl",
+        "sha256": "51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f",
+        "records": 3480
+      },
+      "transport_capacity": {
+        "policy": "source_type_aware_maersk_upper_bounds_v1",
+        "published_reference_margin_fraction": 0.0,
+        "twenty_standard_payload_kg": 28300.0,
+        "twenty_standard_volume_m3": 33.2,
+        "forty_standard_payload_kg": 28870.0,
+        "forty_standard_volume_m3": 67.7,
+        "forty_high_cube_payload_kg": 28690.0,
+        "forty_high_cube_volume_m3": 76.4,
+        "forty_five_high_cube_payload_kg": 27650.0,
+        "forty_five_high_cube_volume_m3": 86.0,
+        "out_of_gauge_payload_kg": 47300.0,
+        "unclassified_payload_kg": 47300.0,
+        "unclassified_volume_m3": 86.0
+      },
+      "quantity_scale_min": "0.6",
+      "quantity_scale_max": "1.2",
+      "scale_steps": 60,
+      "maximum_candidates": 512,
+      "observed_hs_overrides": {
+        "doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092": {
+          "source_target_sha256": "28fec2cce450e496658c34a82f8b843495cd63b895580e8adccdd291e2ec7907",
+          "from_hs6": [
+            "080800"
+          ],
+          "to_hs6": [
+            "080810"
+          ],
+          "source_text_literals": [
+            "APPLES",
+            "HS CODE:080800",
+            "TEMP.2CE",
+            "2C TILL PLUS 2C 20 CBM/HR"
+          ],
+          "rationale": "Synthesis-only observed fresh-apple bundle: chilled APPLES identify authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed 080800 and extraction labels remain unchanged."
+        }
+      },
+      "thermal": {
+        "frozen": {
+          "minimum": -24,
+          "maximum": -18,
+          "step": 0.5
+        },
+        "chilled": {
+          "minimum": 0,
+          "maximum": 0,
+          "step": 0.5
+        },
+        "frozen_chapters": [
+          "02",
+          "03",
+          "07",
+          "08",
+          "16",
+          "20"
+        ],
+        "chilled_chapters": [
+          "02",
+          "03"
+        ],
+        "package_categories": [
+          "PACKAGE_CARTON",
+          "PACKAGE_BOX",
+          "PACKAGE_PACKAGE"
+        ]
+      }
+    },
+    "paddleRun": "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1",
+    "paddleFiles": {
+      "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1/pages.parquet": "dd8f5582cdb671648d1f5af24e8a573ee86a84efa6fb9582234725732846d799",
+      "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1/lines.parquet": "551259d32105c38c3335a47b466b91048609a7c95f2152f9df64438887891402"
+    }
+  },
+  "sharedFiles": {
+    "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
+    "ownership.yaml": "25dd212a7823289b76f4defd5e30f32dab4181ee2faf5b5497856cfbbb7f45b1",
+    "auxiliary.yaml": "c1c6d3d7ae9c20c6b7cf3b177aa0cc05a1ec3969bc02bd5e8ff95570555cc82a",
+    "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513"
+  }
+}

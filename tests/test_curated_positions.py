@@ -7,6 +7,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from PIL import ImageFont
 
 from document_ocr.spatial_inputs.alignment import enrich, parse_lines
 from document_ocr.synthesis.curated import digest
@@ -21,6 +22,9 @@ from document_ocr.synthesis.curated_positions import (
     position_campaign,
     transfer_positions,
 )
+from document_ocr.synthesis.curated_reflow import ReflowEngine, wrapped_widths
+from document_ocr.synthesis.curated_reflow_geometry import layout_page, validate_page
+from document_ocr.synthesis.curated_reflow_policy import ReflowCalibration, ReflowPolicy
 
 
 def example(after="NEW SITE\nNEW DISTRICT\nNEW CITY", *, source_separator="\n"):
@@ -493,6 +497,183 @@ def test_source_geometry_provenance_and_alignment_are_both_checked(positioned_ca
         f.write(b"corrupt")
     with pytest.raises(ValueError, match="geometry hash"):
         load_page_geometry(c.root, data, {"doc_source": alignment})
+
+
+@pytest.fixture
+def reflow_policy(tmp_path):
+    # Pillow's bundled font makes unit tests independent of host font packages.
+    font = tmp_path / "test.ttf"
+    font.write_bytes(ImageFont.load_default(size=100).font_bytes)
+    calibration = ReflowCalibration(
+        method="owned_source_spacing_v1",
+        source_dataset_manifest_sha256="a" * 64,
+        source_alignment_sha256={"test_source": "b" * 64},
+        fitting_sources=("test_source",),
+        diagnostic_sources=(),
+        observation_count=10,
+        pitch_ratio_range=(1.1, 1.5),
+        clearance_height_ratio=0.2,
+        minimum_page_median_height=1,
+        density_quantile=0.01,
+        description="Synthetic measurements for unit tests only.",
+    )
+    path = tmp_path / "calibration.json"
+    path.write_text(calibration.model_dump_json())
+    return ReflowPolicy(
+        calibration_path=path,
+        calibration_sha256=digest(path.read_bytes()),
+        font_path=font,
+        font_sha256=digest(font.read_bytes()),
+        seed=0,
+        row_lock_height_fraction=1 / 3,
+        column_guard_height_fraction=0.5,
+        bottom_guard_height_fraction=1,
+    )
+
+
+def reflow_example(after):
+    source, rendered, proof, alignment = example(after)
+    for i, line in enumerate(alignment["lines"]):
+        line["region_indices"] = [i]
+        line["regions"][0].update(index=i, text=line["original_text"])
+    return source, rendered, proof, alignment
+
+
+def apply_reflow(root, policy, after, *, change_alignment=None):
+    source, rendered, proof, alignment = reflow_example(after)
+    if change_alignment:
+        change_alignment(alignment)
+        alignment["positioned_input_sha256"] = digest(
+            enrich(source, {r["line_number"]: r["xy"] for r in alignment["lines"]}).encode()
+        )
+    geometry = measured(alignment)
+    _, receipt = transfer_positions(source, rendered, proof, alignment, **geometry)
+    output = ReflowEngine(root, policy).apply(
+        source=source,
+        rendered=rendered,
+        proof=proof,
+        alignment=alignment,
+        receipt=receipt,
+        boxes=geometry["page_boxes"],
+        dimensions=geometry["page_dimensions"],
+        sample_id="synthetic-example",
+    )
+    return output, receipt, rendered
+
+
+def test_joint_reflow_positions_expansion_preserves_text_and_is_seeded(tmp_path, reflow_policy):
+    after = "\n".join(f"NEW ADDRESS COMPONENT {i}" for i in range(12))
+    outputs = []
+    for seed in range(5):
+        policy = reflow_policy.model_copy(update={"seed": seed})
+        (text, receipt, boxes), old, rendered = apply_reflow(tmp_path, policy, after)
+        assert receipt["reflowPages"][0]["status"] == "accepted"
+        # Multi-digit line keys must hash identically after a JSON round trip.
+        assert digest(receipt) == digest(json.loads(json.dumps(receipt)))
+        assert sum(r["xy"] is None for r in receipt["lines"]) < sum(
+            r["xy"] is None for r in old["lines"]
+        )
+        generated = [r for r in receipt["lines"] if r["method"] == "reflowed_generated_line"]
+        assert len(generated) == 12
+        assert all(a["xy"][1] < b["xy"][1] for a, b in pairwise(generated))
+        verify = {r["line_number"]: r["xy"] for r in receipt["lines"]}
+        assert text == enrich(rendered, verify)
+        assert (
+            next(r for r in receipt["lines"] if r["text"].startswith("TEL"))["xy"][1]
+            > generated[-1]["xy"][1]
+        )
+        assert receipt["lines"][-1]["xy"] == old["lines"][-1]["xy"]
+        assert np.array_equal(boxes[1], measured(reflow_example(after)[3])["page_boxes"][1])
+        outputs.append(text)
+        assert apply_reflow(tmp_path, policy, after)[0][0] == text
+    assert len(set(outputs)) > 1
+
+
+@pytest.mark.parametrize("after", ["NEW SITE\nNEW CITY", "ONE LINE", "", "NEW\n\nSITE\nCITY"])
+def test_reflow_contraction_deletion_and_blank_lines_preserve_stream(
+    tmp_path, reflow_policy, after
+):
+    (text, receipt, _), _, rendered = apply_reflow(tmp_path, reflow_policy, after)
+    assert text == enrich(rendered, {r["line_number"]: r["xy"] for r in receipt["lines"]})
+
+
+def test_reflow_missing_anchors_are_explicit_not_guessed(tmp_path, reflow_policy):
+    def missing(a):
+        a["lines"][2]["xy"] = None
+
+    (text, receipt, _), old, rendered = apply_reflow(
+        tmp_path,
+        reflow_policy,
+        "NEW\nSITE\nCITY\nCOUNTRY",
+        change_alignment=missing,
+    )
+    assert receipt["reflowPages"][0]["heldGroups"][0]["reason"] == "incomplete_source_anchors"
+    assert [r["xy"] for r in receipt["lines"]] == [r["xy"] for r in old["lines"]]
+    assert text == enrich(rendered, {r["line_number"]: r["xy"] for r in old["lines"]})
+
+
+def test_dense_reflow_is_rejected_with_full_baseline_retained(tmp_path, reflow_policy):
+    after = "\n".join("A LONG ADDRESS COMPONENT" for _ in range(1500))
+    (text, receipt, _), old, rendered = apply_reflow(tmp_path, reflow_policy, after)
+    page = receipt["reflowPages"][0]
+    assert page["status"] == "rejected"
+    assert "density_floor" in {e[0] for e in page["failures"]}
+    assert text == enrich(rendered, {r["line_number"]: r["xy"] for r in old["lines"]})
+
+
+@pytest.mark.parametrize("dependency", ["font_path", "calibration_path"])
+def test_reflow_does_not_substitute_missing_or_changed_inputs(tmp_path, reflow_policy, dependency):
+    getattr(reflow_policy, dependency).write_bytes(b"changed")
+    with pytest.raises(ValueError, match="hash mismatch"):
+        ReflowEngine(tmp_path, reflow_policy)
+
+
+def test_virtual_word_wrap_accounts_for_long_codes_without_changing_strings(
+    tmp_path, reflow_policy
+):
+    engine = ReflowEngine(tmp_path, reflow_policy)
+    for text in ("LONG PRODUCT WORDING WITH SPACES", "A" * 100, "https://example.test/longpath"):
+        widths = wrapped_widths(text, 150, 1, engine.metrics)
+        assert len(widths) > 1 and all(0 < w <= 150 for w in widths)
+
+
+def test_production_campaign_reflows_before_affine_and_replays(positioned_campaign, reflow_policy):
+    c, _, original, _ = positioned_campaign
+    c.config["positions"]["reflow"] = reflow_policy.model_dump(mode="json")
+    result = position_campaign(c)
+    receipt = json.loads((c.output / "augmented" / "syn_sample.json").read_text())
+    row = json.loads((c.output / "augmented" / "dataset.jsonl").read_text())
+    assert result["reflowPages"]["accepted"] == 1
+    assert digest(receipt) == result["receipts"]["syn_sample"]
+    assert result["knownLines"] >= result["baselineKnownLines"]
+    assert {k: row[k] for k in original} == original
+    assert all("anchor_xy" in r and "transfer_xy" in r for r in receipt["lines"])
+    assert position_campaign(c)["datasetSha256"] == result["datasetSha256"]
+
+
+def test_reflow_validator_rejects_broken_row_column_bounds_and_density_geometry():
+    boxes = np.array(
+        [[200, 190, 380, 199], [200, 200, 280, 210], [400, 200, 450, 210], [200, 220, 500, 230]],
+        dtype=float,
+    )
+    replacement = dict(
+        id="expanded",
+        source=boxes[1].tolist(),
+        ownedBoxKeys={tuple(boxes[1])},
+        lineHeight=10,
+        height=80,
+        width=180,
+    )
+    nodes, _, _, scale = layout_page(
+        boxes, [replacement], gap_ratio=0.2, row_lock_fraction=1 / 3, bottom_guard_fraction=1
+    )
+    assert not validate_page(nodes, scale, minimum_gap=2)
+    for coordinate, value in [(0, 900), (1, -1), (2, 1001), (3, float("nan"))]:
+        bad = deepcopy(nodes)
+        bad[-1]["box"][coordinate] = value
+        assert validate_page(bad, scale, minimum_gap=2)
+    for scale in (0, -1, 2, float("nan")):
+        assert validate_page(nodes, scale, minimum_gap=2)
 
 
 @pytest.mark.parametrize("statistics", [True, False])

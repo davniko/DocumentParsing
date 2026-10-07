@@ -613,7 +613,18 @@ sources:
           occurrence: 1
         - text: 554-705-850
           occurrence: 2
-  doc_24c81b104b2fe30e4152b1606e1a4c31bd89a5014a1faaec51fa9093b6cff000: {}
+  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
+    bindings:
+      agent:reference:government:ein:0:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: '261691988'
+          occurrence: 1
+      anchor:documentPatch.route.portOfLoading.country:
+        occurrences:
+        - text: UNITED STATES
+          occurrence: 2
   doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
     retire:
       agent:cargo:package_quantity_words: Full wrapper superseded by its exact typed
@@ -628,7 +639,7 @@ sources:
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
         expression: '{documentPatch.parties.consignee.contactDetails.phoneNumbers[0]}
           / {documentPatch.parties.consignee.contactDetails.phoneNumbers[1]}'
-  doc_2bbbb552bc5859d97400d352a2f3c68724706b4bc47fc181b6de25d9e3c89e41: {}
+  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9: {}
   doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
     lexical:
     - key: lexical_00
@@ -690,7 +701,13 @@ sources:
       agent:precarriage_reference:
         paths:
         - documentPatch.route.placeOfReceipt.name
-  doc_4072d87614d209dbbf8c821deaf27052e67ee5575f921d883f208759c6517af8: {}
+  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
+    bindings:
+      agent:container_equipment_type:
+        paths:
+        - documentPatch.containerInformation[0].sizeCategory
+        - documentPatch.containerInformation[0].typeCategory
+        kind: equipment
   doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66:
     bindings:
       anchor:documentPatch.parties.consignee.name:
@@ -717,7 +734,53 @@ sources:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]
     lexical: []
-  doc_44a6df44720605e77dd83ffc0cf301e7f1a9a9ac5bb0685490ae465072055886: {}
+  doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
+    retire:
+      agent:delivery_agent_contact_fragment: Synthetic-only consolidation prints the
+        complete sampled email within the delivery-agent block; replace its prefix
+        and continuation marker as one region.
+      agent:delivery_agent_email: The remote suffix belongs to the same email, now
+        printed completely within the owning party block.
+      agent:delivery_agent_extension: Complete phone[1] owner includes the extension
+        and slash; fictional sampled phone may omit that extension without leaving
+        stale digits.
+    add:
+    - key: reviewed:delivery_agent:whole_email
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      kind: other_text
+      occurrences:
+      - text: egy.import***
+        occurrence: 1
+    - key: reviewed:delivery_agent:obsolete_email_suffix
+      paths: []
+      kind: other_text
+      occurrences:
+      - text: '***@mlh-shipping.com'
+        occurrence: 1
+    surfaces:
+      reviewed:delivery_agent:whole_email:
+        expression: '
+
+          EMAIL: {documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]}'
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
+        expression: '{documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]}, '
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%d/%m/%Y'
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d/%m/%Y'
+    delete:
+      reviewed:delivery_agent:obsolete_email_suffix: The complete sampled email is
+        now printed inside the delivery-agent block, with no continuation marker or
+        stale source domain.
+    lexical: []
+    bindings:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
+        occurrences:
+        - text: +20 3 4814950 / EXT 112
+          occurrence: 1
   doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885:
     bindings:
       anchor:documentPatch.parties.shipper.country:
@@ -755,7 +818,7 @@ sources:
 
           ELAAM ST FROM ELGAIAA ST. MANSOURA 35511, EGYPT'
         occurrence: 1
-  doc_4e21727ffeec68eafddc5083c1036c541b0836d6fbc61ecba46973430933f19b: {}
+  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565: {}
   doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b:
     surfaces:
       agent:cargo:g1:qty_mt:
@@ -975,37 +1038,7 @@ sources:
         occurrence: 2
       - text: SE WIRING SYSTEMS EGYPT S
         occurrence: 3
-  doc_8c6da3ddb7c7d91a71a36c0a181ce2158d206bd9bddc6e6471176cc0a56dc912:
-    retire:
-      agent:cargo:package_count_words: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
-    add:
-    - key: reviewed:word_total:package_noun
-      paths:
-      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
-      kind: package
-      occurrences:
-      - text: CARTONS
-        occurrence: 2
-    - key: reviewed:goods:explicit_origin_caption
-      kind: other_text
-      paths:
-      - documentPatch.goodsItemDetails[0].origin.name
-      occurrences:
-      - text: 'HARMONISED SYSTEM CODE NO:'
-        occurrence: 1
-    bindings:
-      anchor:documentPatch.containers[0].temperatureSetpoint.value:
-        paths:
-        - documentPatch.containerInformation[0].temperatureSetpoint.value
-        - documentPatch.goodsItemDetails[0].handlingInstructions[0]
-        kind: temperature
-    surfaces:
-      reviewed:goods:explicit_origin_caption:
-        expression: 'COUNTRY OF ORIGIN: {documentPatch.goodsItemDetails[0].origin.name}
-
-          HARMONISED SYSTEM CODE NO:'
+  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40: {}
   doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f:
     bindings:
       anchor:documentPatch.billOfLadingNumber:
@@ -1071,7 +1104,39 @@ sources:
     surfaces:
       anchor:documentPatch.containers[0].sealNumbers[1]:
         expression: '{documentPatch.containerInformation[0].sealNumbers[1]}'
-  doc_c32d1614c68365733b1268b558ba57ca9c332c81045faed9a9d7c5a190844203: {}
+  doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
+    bindings:
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: AEW/24-25/211
+          occurrence: 1
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: '8301266'
+          occurrence: 1
+    add:
+    - key: reviewed:source_reference_date:0
+      paths: []
+      kind: date
+      occurrences:
+      - text: 18.02.2025
+        occurrence: 1
+    - key: reviewed:source_reference_date:1
+      paths: []
+      kind: date
+      occurrences:
+      - text: 19.02.2025
+        occurrence: 1
+    tare_baselines:
+      agent:container:0:tare_weight:value:
+        kg: '2280'
+        reason: Explicit container MEDU3157130 tare caption prints 2,280 kgs; comma
+          thousands notation. Historical numeric sidecar independently records2280kg.
+        sourceSha256: 2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003
   doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6:
     bindings:
       anchor:documentPatch.route.portOfLoading.country:
@@ -1247,7 +1312,12 @@ sources:
 
           00001 Egypt'
         occurrence: 1
-  doc_b94ea1c18029a12f078fd09418a721eb52d155dcb947729f182b0b2df65f74ee: {}
+  doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
+    surfaces:
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName}'
+      anchor:documentPatch.transport.voyageNumber:
+        expression: '{documentPatch.transport.voyageNumber}'
   doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
     bindings:
       anchor:documentPatch.transport.vesselName:
@@ -1261,7 +1331,7 @@ sources:
     surfaces:
       anchor:documentPatch.transport.vesselName:
         expression: '{documentPatch.transport.vesselName}/{documentPatch.transport.voyageNumber}'
-  doc_93985d0795ad38b290476c2e68924d73fb486fb5d1cca3628d71bcd1b9f3ae1b: {}
+  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0: {}
   doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc:
     bindings:
       anchor:documentPatch.parties.shipper.name:
@@ -1510,24 +1580,63 @@ sources:
         explicitly printed in the notify-party block; remove their exact remote source
         continuation.
   doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0: {}
-  doc_a5f088c96c8547cbc77085ec258175644936f628eecd2f8bc4e4ae438fe5d858: {}
-  doc_bee16be0a60037fe3626d63585734487afeb283a354ef2979cab83dc0a82efc3:
-    bindings:
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
-        paths:
-        - documentPatch.parties.consignee.name
-        occurrences:
-        - text: MORX FIRE FIGHTING SOLUTIONS
-          occurrence: 2
+  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
+    retire:
+      agent:destination_office_city: Duplicate locality after destination-office contacts;
+        complete postal owner already contains the locality.
+      agent:destination_office_country: Duplicate country after destination-office
+        contacts; complete postal owner already supports the country target.
+      agent:total_container_package_count: Split composite receipt into immutable
+        ONE Container(s) (topology retained), exact mutable written package count
+        and typed package noun; no full-wrapper overwrite.
     add:
-    - key: reviewed:marks:consignee_country
-      kind: location
-      paths:
-      - documentPatch.parties.consignee.country
+    - key: reviewed:destination_office:duplicate_locality
+      kind: other_text
+      paths: []
       occurrences:
-      - text: EGYPT
-        occurrence: 4
-  doc_24c091c863feb5d61516da466cd436eae72f2710957a76a94b925537ee1d85bd: {}
+      - text: 'New Cairo
+
+          Egypt'
+        occurrence: 1
+    - key: reviewed:word_total:package_noun
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      kind: package
+      occurrences:
+      - text: Package(s)
+        occurrence: 1
+    delete:
+      reviewed:destination_office:duplicate_locality: Remove only the duplicated locality/country
+        pair after the contacts; preserve complete postal region, phone and email.
+    bindings:
+      agent:destination_office_email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
+    lexical:
+    - key: shipper_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201, 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A/1, RD.NO. 2 BANJARA HILL, HYD-BAD-34
+
+          TELANGANA INDIA'
+    retire:
+      agent:cargo:g1:gross_weight_total: Exact numeric core now owned by shipment_gross;
+        leave the adjacent KGS unit literal outside that numeric span.
+  doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
+    tare_baselines:
+      agent:cargo:tare_weight:value:
+        kg: '3890'
+        reason: Explicit container INKU6736541 tare caption prints3,890kgs; comma
+          thousands notation. Historical numeric sidecar independently records3890kg.
+        sourceSha256: a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e
   doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671:
     lexical: []
     retire:
@@ -1839,54 +1948,6 @@ sources:
 
           BEIYUANSTREET,YIWU,'
         occurrence: 1
-  doc_d1c9357dba1380a4dc2eba4e115be167c08cebeeefbf321f24ba05499f485f29: {}
-  doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870: {}
-  doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8:
-    lexical:
-    - key: lexical_00
-      kind: postal
-      paths:
-      - documentPatch.parties.shipper.addressLine
-      occurrences:
-      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-293/A/A1 RD NO. 2, BANJARA
-          HILLS HY-
-
-          BAD-34 TELANGANA- INDIA'
-        occurrence: 1
-    - key: destination_office_postal
-      kind: postal
-      paths:
-      - documentPatch.parties.deliveryAgent.addressLine
-      occurrences:
-      - text: 'THE THIRD SECTOR OF NORTH-WEST, GULF OF SUEZ ECONOMIC ZONE,
-
-          TEDA BUILDING, OFFICE # 605 AIN SOKHNA, SUEZ, EGYPT.
-
-          SOKHNA, EGYPT'
-        occurrence: 1
-    bindings:
-      agent:carrier:destination_office_phone:
-        paths:
-        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
-  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
-    bindings:
-      agent:reference:government:ein:0:
-        paths: []
-        kind: identifier
-        occurrences:
-        - text: '261691988'
-          occurrence: 1
-      anchor:documentPatch.route.portOfLoading.country:
-        occurrences:
-        - text: UNITED STATES
-          occurrence: 2
-  doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
-    tare_baselines:
-      agent:cargo:tare_weight:value:
-        kg: '3890'
-        reason: Explicit container INKU6736541 tare caption prints3,890kgs; comma
-          thousands notation. Historical numeric sidecar independently records3890kg.
-        sourceSha256: a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e
   doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9:
     tare_baselines:
       agent:source:tare_weight_value:container:0:
@@ -1951,150 +2012,31 @@ sources:
         - documentPatch.containerInformation[7].sizeCategory
         - documentPatch.containerInformation[7].typeCategory
         kind: equipment
-  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
-    retire:
-      agent:destination_office_city: Duplicate locality after destination-office contacts;
-        complete postal owner already contains the locality.
-      agent:destination_office_country: Duplicate country after destination-office
-        contacts; complete postal owner already supports the country target.
-      agent:total_container_package_count: Split composite receipt into immutable
-        ONE Container(s) (topology retained), exact mutable written package count
-        and typed package noun; no full-wrapper overwrite.
-    add:
-    - key: reviewed:destination_office:duplicate_locality
-      kind: other_text
-      paths: []
-      occurrences:
-      - text: 'New Cairo
-
-          Egypt'
-        occurrence: 1
-    - key: reviewed:word_total:package_noun
-      paths:
-      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
-      kind: package
-      occurrences:
-      - text: Package(s)
-        occurrence: 1
-    delete:
-      reviewed:destination_office:duplicate_locality: Remove only the duplicated locality/country
-        pair after the contacts; preserve complete postal region, phone and email.
-    bindings:
-      agent:destination_office_email:
-        paths:
-        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
-      agent:destination_office_phone:
-        paths:
-        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
-  doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
-    surfaces:
-      anchor:documentPatch.transport.vesselName:
-        expression: '{documentPatch.transport.vesselName}'
-      anchor:documentPatch.transport.voyageNumber:
-        expression: '{documentPatch.transport.voyageNumber}'
-  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565: {}
-  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
-    bindings:
-      agent:container_equipment_type:
-        paths:
-        - documentPatch.containerInformation[0].sizeCategory
-        - documentPatch.containerInformation[0].typeCategory
-        kind: equipment
-  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9: {}
-  doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
-    bindings:
-      anchor:documentPatch.forwardingAndExportReferences[0]:
-        paths: []
-        kind: identifier
-        occurrences:
-        - text: AEW/24-25/211
-          occurrence: 1
-      anchor:documentPatch.forwardingAndExportReferences[1]:
-        paths: []
-        kind: identifier
-        occurrences:
-        - text: '8301266'
-          occurrence: 1
-    add:
-    - key: reviewed:source_reference_date:0
-      paths: []
-      kind: date
-      occurrences:
-      - text: 18.02.2025
-        occurrence: 1
-    - key: reviewed:source_reference_date:1
-      paths: []
-      kind: date
-      occurrences:
-      - text: 19.02.2025
-        occurrence: 1
-    tare_baselines:
-      agent:container:0:tare_weight:value:
-        kg: '2280'
-        reason: Explicit container MEDU3157130 tare caption prints 2,280 kgs; comma
-          thousands notation. Historical numeric sidecar independently records2280kg.
-        sourceSha256: 2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003
-  doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
-    retire:
-      agent:delivery_agent_contact_fragment: Synthetic-only consolidation prints the
-        complete sampled email within the delivery-agent block; replace its prefix
-        and continuation marker as one region.
-      agent:delivery_agent_email: The remote suffix belongs to the same email, now
-        printed completely within the owning party block.
-      agent:delivery_agent_extension: Complete phone[1] owner includes the extension
-        and slash; fictional sampled phone may omit that extension without leaving
-        stale digits.
-    add:
-    - key: reviewed:delivery_agent:whole_email
-      paths:
-      - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
-      kind: other_text
-      occurrences:
-      - text: egy.import***
-        occurrence: 1
-    - key: reviewed:delivery_agent:obsolete_email_suffix
-      paths: []
-      kind: other_text
-      occurrences:
-      - text: '***@mlh-shipping.com'
-        occurrence: 1
-    surfaces:
-      reviewed:delivery_agent:whole_email:
-        expression: '
-
-          EMAIL: {documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]}'
-      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
-        expression: '{documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]}, '
-      anchor:documentPatch.shippedOnBoardDate:
-        date_path: documentPatch.shippedOnBoardDate
-        format: '%d/%m/%Y'
-      anchor:documentPatch.issueDate:
-        date_path: documentPatch.issueDate
-        format: '%d/%m/%Y'
-    delete:
-      reviewed:delivery_agent:obsolete_email_suffix: The complete sampled email is
-        now printed inside the delivery-agent block, with no continuation marker or
-        stale source domain.
-    lexical: []
-    bindings:
-      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
-        occurrences:
-        - text: +20 3 4814950 / EXT 112
-          occurrence: 1
-  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0: {}
-  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40: {}
-  doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
+  doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870: {}
+  doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8:
     lexical:
-    - key: shipper_postal
+    - key: lexical_00
       kind: postal
       paths:
       - documentPatch.parties.shipper.addressLine
       occurrences:
-      - text: 'UNIT NO. 201, 2ND FLR, APURUPA PCH COMPLEX 8-2-
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-293/A/A1 RD NO. 2, BANJARA
+          HILLS HY-
 
-          293/A/A/1, RD.NO. 2 BANJARA HILL, HYD-BAD-34
+          BAD-34 TELANGANA- INDIA'
+        occurrence: 1
+    - key: destination_office_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: 'THE THIRD SECTOR OF NORTH-WEST, GULF OF SUEZ ECONOMIC ZONE,
 
-          TELANGANA INDIA'
-    retire:
-      agent:cargo:g1:gross_weight_total: Exact numeric core now owned by shipment_gross;
-        leave the adjacent KGS unit literal outside that numeric span.
+          TEDA BUILDING, OFFICE # 605 AIN SOKHNA, SUEZ, EGYPT.
+
+          SOKHNA, EGYPT'
+        occurrence: 1
+    bindings:
+      agent:carrier:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]

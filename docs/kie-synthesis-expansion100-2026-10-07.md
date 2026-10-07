@@ -43,7 +43,7 @@ and current labels:
 
 Thirteen initially selected candidates were explicitly replaced during eligibility
 screening. Reasons and replacements are recorded in
-`configs/synthesis/contracts/curated_v7_expansion100/selection.yaml` and the
+`artifacts/synthesis-templates/mpci-bl-v7-reviewed/selection-history.yaml` and the
 campaign's `audit/selection-revision.json`. Their original evidence is retained;
 none of their real labels or OCR was altered. The active scope remains 100.
 
@@ -105,7 +105,10 @@ The plain dataset SHA-256 is
 The position-enriched dataset SHA-256 is
 `c35131d73070903cc38bc7c2f9865e772a0eb622ccb4fcf56780353b568d5fae`.
 The plain publication manifest SHA-256 is
-`9982fb3dd0f7ce3b7fe8bc9b664eb1a6363bc1d1f3f952460b6b4754eed3f826`.
+`4a9b3c3b608a78634aa7d15d8691eab3a1cda8ecec8f3c305cf4b62fd7f8e146`
+after the path-only template relocation documented below. The previous manifest
+(`9982fb3dd0f7ce3b7fe8bc9b664eb1a6363bc1d1f3f952460b6b4754eed3f826`)
+is preserved in `audit/template-relocation/`; dataset bytes are unchanged.
 
 ## Repairs established by the expanded admission pass
 
@@ -394,3 +397,219 @@ An independent release check confirms that all 100 source IDs belong to the
 and none of the 200 synthetic input hashes matches a validation input. This is
 an exact identity/content check, not a claim that carrier layouts are unique
 across the real splits.
+
+## Follow-up: rendered-content audit, coordinate coverage and reusable catalog
+
+Subsequent coordinate experiments are documented in the
+[source-conditioned reflow investigation](kie-synthesis-position-reflow-investigation-2026-10-07.md).
+They substantially improve goods/address coverage in a separate experimental
+output; the published dataset and the coverage figures below remain unchanged.
+
+This follow-up rechecked the published outputs, attributed every positioned and
+unpositioned line, replayed an earlier positional pilot with the current placement
+rules, and relocated the admitted templates. No model calls were made; additional
+API cost is **USD 0**. No generated text or extraction label was changed.
+
+### What has actually been reviewed
+
+The previous full-content reviews cover **all 200 rendered documents and targets**,
+not just schema validity or snippets. Their three disjoint inventories contain
+126, 34 and 40 records. This follow-up verified the report-file hashes and every
+candidate-file, OCR and target hash against the current artifacts, with exact
+coverage and no overlaps. Consequently those reviews apply to these exact
+published samples. This is a verification of prior full readings, supplemented
+by targeted inspection here, not a claim of another fresh manual reading of all
+200 documents in this follow-up.
+
+The content checks cover sampled geography/party ownership, product wording,
+repeated identifiers, equipment, counts, mass, volume, thermal/DG information,
+and goods/container placements. Exact rendering replay separately checks the
+permitted edits and agreement between rendered facts and targets. Acceptance is
+under the agreed synthetic-training policies: fictional addresses are not
+certified deliverable, and neighboring product wording is not rejected solely
+for imperfect tariff classification.
+
+**A material limitation remains in positional usefulness, even when text and
+labels agree:** long generated descriptions often have no usable coordinates.
+Some also expand very short source descriptions substantially. This should not
+be hidden behind the aggregate coverage or the passing geometry checks.
+
+### Why 76.9% is lower than the earlier approximately 85%
+
+| Comparison | Known / content lines | Coverage |
+| --- | ---: | ---: |
+| Earlier contacts pilot, 24 families / 72 samples, original placement policy | 6,043 / 7,168 | 84.31% |
+| **Same earlier texts**, replayed with current placement policy | 5,855 / 7,168 | 81.68% |
+| Subsequent registry pilot, 24 families / 72 samples | 5,767 / 7,385 | 78.09% |
+| Current variants from those same 24 families, 48 samples | 3,834 / 4,957 | 77.35% |
+| Current variants from the other 76 families, 152 samples | 11,760 / 15,312 | 76.80% |
+| Current complete release, 100 families / 200 samples | 15,594 / 20,269 | 76.94% |
+
+The controlled replay isolates **188 lines, or 2.62 percentage points**, lost
+under stricter current placement rules on unchanged old text. Earlier geometry
+acceptance is not interchangeable with today's measured-space, ownership and
+collision restrictions. The registry pilot had already fallen to 78.09% before
+this expansion. Adding the other 76 families lowers the current overall figure
+by only about 0.41 percentage points relative to the current 24-family subgroup.
+Different generated wording, seeds and numbers of variants mean the remaining
+historical differences are not a controlled estimate of one causal effect.
+The coherent page scale/translation augmentation does not remove coordinates:
+unknown positions are determined before that transformation.
+
+### Are there more lines in the sources?
+
+No, in aggregate the synthetic documents are longer:
+
+- The 100 unique real sources have **9,531** content lines, **8,113** positioned
+  (**85.12%**).
+- Repeating each source twice gives a matched baseline of **19,062** lines,
+  **16,226** positioned and **2,836** unpositioned.
+- The 200 synthetic documents contain **20,269** lines: **1,207 more (+6.33%)**.
+- **175** descendants are longer than their own source, **17** shorter and
+  **8** the same length.
+
+Across renderer-owned spans, goods wording grows from **344 source lines to
+1,288 generated lines**; address wording from **1,620 to 1,927**. These are
+owned-span counts, not a claim that every source physical line has exactly one
+owner. Inline composition produces 1,925 final address-containing lines.
+Other edits, contractions and compositions account for the remainder of the
+net physical-line change.
+
+### Which fields lose coordinates?
+
+Categories are taken from exact renderer `targetPaths` and edit provenance,
+not a keyword classifier. Mixed lines contribute to their actual field family;
+goods and address rows below do not overlap. Unchanged source text is left as
+its own category rather than guessed to be a particular semantic field.
+
+| Final line group | Lines | Known | Unknown | Known coverage |
+| --- | ---: | ---: | ---: | ---: |
+| Contains goods description | 1,288 | 98 | 1,190 | **7.61%** |
+| Contains party address | 1,925 | 827 | 1,098 | **42.96%** |
+| Unchanged source text | 10,723 | 9,393 | 1,330 | 87.60% |
+| Other edited fields | 6,333 | 5,276 | 1,057 | 83.31% |
+| **All** | **20,269** | **15,594** | **4,675** | **76.94%** |
+
+**160 of 200 documents have no positioned goods-description line.** Forty have
+at least one; 35 have all their goods-description lines positioned. Addresses
+have at least one position in 173 documents and none in 27; 25 have positions
+on every address-containing line.
+
+| Reason for unknown position | All lines | Goods-description lines | Address-containing lines |
+| --- | ---: | ---: | ---: |
+| Missing measured source anchor | 3,230 | 209 | 679 |
+| Insufficient measured local space | 1,125 | 822 | 285 |
+| Unowned source text intersects proposed expansion | 300 | 159 | 121 |
+| Competing independently reflowed owners | 20 | 0 | 13 |
+| **Total** | **4,675** | **1,190** | **1,098** |
+
+Missing source anchors include 1,330 unchanged lines and 1,900 edited lines.
+A missing anchor within a changed block can prevent positioning the whole
+replacement, including lines whose individual original anchor was known.
+Unknowns therefore are not simply the 1,207 extra generated lines.
+
+Goods and addresses account for **48.94% of all unknown lines**, but **96.89%
+of the 1,445 geometry/space-driven unknown lines**. The remaining inherited gaps
+include original captions, boilerplate, footers and other edited facts. The
+two wholly unanchored pages are the already-documented `719e3e96` footer pages.
+
+### Concrete cases and family concentration
+
+One pronounced example is source `049ad12d`: its source description is simply
+`TYRE`, while variant `syn_full_v7_c60cc00208e25208208d74ce` contains **14 lines**
+of motor-vehicle radiator descriptions/specifications/accessories. All 14
+receive explicit unknown positions because they cannot fit the source's local
+space. The words are retained and the label matches, but this is not an example
+of successful goods-region positional conditioning. See the source/variation
+pair in `samples.md` (source around line 3111; generated goods around line 3318).
+
+Every family has some unknown positions; the ten largest contributors account
+for **1,148 / 4,675 (24.56%)**, so this is not one or two bad templates:
+
+| Source prefix | Unknown / all synthetic lines | Known coverage | Main explanation |
+| --- | ---: | ---: | --- |
+| `b5c11ec9` | 178 / 298 | 40.27% | Missing source anchors throughout affected edits |
+| `3dc8551d` | 159 / 690 | 76.96% | Missing source anchors |
+| `86ed2b9e` | 155 / 343 | 54.81% | 132 missing-anchor, 23 local-space lines |
+| `a53a1a9e` | 111 / 271 | 59.04% | See exact per-line reason inventory |
+| `35136b22` | 108 / 340 | 68.24% | See exact per-line reason inventory |
+
+The findings support separate next steps, not weakening geometry validation:
+
+1. Keep semantic complexity appropriate to the source description when generating
+   wording; a one-word source need not become a large specification list. This
+   is a source-complexity instruction, not an arbitrary character or line cap.
+2. For legitimately long descriptions, investigate reflow of a larger **owned**
+   cargo region with its dependent rows. Merely interpolating more tightly or
+   moving unrelated fields would not resolve the measured-space problem.
+3. Recover genuinely missing source alignments separately, without borrowing
+   another field's anchors or treating an inferred location as measured.
+4. Report coordinate coverage by field as well as globally, and retain explicit
+   unknowns when a supported placement is unavailable.
+
+These are recommendations for a subsequent positional-quality pass, not changes
+silently applied to the current reviewed text or coordinates. The geometry audit
+establishes plausibility/provenance of emitted coordinates; it does not establish
+that most goods descriptions currently receive useful positional signal or that
+training performance will improve.
+
+Reproducible evidence, under the campaign's `audit/` directory:
+
+- `coverage_followup.py`: all-record attribution and historical controlled replay.
+- `coverage-followup.json`: source/output totals, historical comparisons, every
+  family, field grouping, growth and concrete expansion examples.
+- `coverage-lines.csv`: all 20,269 final content lines, their owners, positions
+  and exact missing-position reasons.
+
+### Reusable template catalog and relocation validation
+
+The admitted template assets now live in
+**`artifacts/synthesis-templates/mpci-bl-v7-reviewed/`**. The parent directory is
+reserved for reusable template catalogs, separate from generation experiments.
+Each of the 100 `cases/doc_<id>/` directories contains:
+
+- `contract.json`: current source/target rebinding contract;
+- `template.json`: compiled source layout and historical binding hints;
+- `source.txt`, `source-positioned.txt`, `target.json`: exact current source views;
+- `alignment.json`: measured source-line/region correspondence.
+
+The catalog also contains `ownership.yaml`, `auxiliary.yaml`,
+`selection-history.yaml`, a usage README and `manifest.json`. The manifest hashes
+all **600 case files**, inventories capabilities and records shared dependencies.
+Both contract and compiled-template files were moved byte-for-byte. The shared
+declarations retain exactly the 100 selected entries, unchanged; their original
+unfiltered versions and all 13 excluded candidates remain in the campaign's
+audit/staging locations.
+
+The existing campaign config now reads its four template/declaration paths from
+this catalog. Preparation's admission/replacement functions honor the configured
+paths rather than writing admitted assets back into the campaign directory.
+Capabilities remain explicit in the campaign and indexed in the catalog manifest.
+Registries, real-source data/support and Paddle geometry remain shared external
+dependencies with recorded paths/hashes, not redundant per-template copies.
+Generated samples, paid wording caches and review receipts remain campaign-local.
+This is a reusable catalog, not a claim that it runs without the application and
+its documented shared dependencies.
+
+Every one of the **200 complete candidate objects** was recomputed before and
+after relocation and compared exactly: text, labels, sampled facts, edit proofs
+and cached-generation bindings are unchanged. Replay took **23.87 → 23.64 seconds**;
+peak RSS was **432.8 → 434.4 MiB**. This single pair shows no material regression,
+not a statistically established speedup. Plain/positioned datasets and both real
+splits retain their original hashes. Manifest metadata is refreshed solely for
+the new configuration paths, with prior manifests retained under
+`audit/template-relocation/`.
+
+The `.gitignore` exceptions preserve versioning of the relocated declarations,
+catalog inventory and READMEs. Source OCR/labels, geometry, generated outputs and
+other runtime artifacts remain ignored. **424 targeted curated-synthesis and
+equipment tests passed in 17.15 seconds** after the path changes.
+
+The final independent geometry recheck again passed all 200 documents / 370
+pages / 20,269 lines, with zero collision groups or failures and all 12 negative
+controls rejected (2.51 seconds, 347.7 MiB peak RSS). The normal publisher's
+overwrite guard was retained: old manifests were preserved before publishing
+the new path metadata. Exact comparison confirms only `configSha256` changed
+in the plain manifest and only its corresponding `sourceManifestSha256`
+reference changed in the position manifest. Final checks are recorded in
+`audit/template-relocation/final-validation.json`.

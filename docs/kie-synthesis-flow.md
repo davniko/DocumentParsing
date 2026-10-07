@@ -11,6 +11,15 @@ not the earlier 30k generator or the first, limited-variability pilot.
 - [Registry integration and validation](kie-synthesis-registry-integration-2026-10-07.md)
 - [Active CLI implementation](../src/document_ocr/synthesis/curated_campaign.py)
 
+**Latest expanded catalog:** the reviewed 100-source / 200-sample campaign is
+documented in [the expansion report](kie-synthesis-expansion100-2026-10-07.md).
+Its reusable assets are in
+[`artifacts/synthesis-templates/mpci-bl-v7-reviewed/`](../artifacts/synthesis-templates/mpci-bl-v7-reviewed/README.md),
+with [its own campaign config](../configs/synthesis/mpci_bl_curated_v7_expansion100.yaml).
+The 24-source examples below remain historical worked examples. The latest
+coordinate coverage is 76.94% overall, but only 7.61% on goods-description lines;
+the report explains source-anchor and local-space limitations by field.
+
 ## 1. Overall design
 
 We start with a reviewed real document's **existing OCR and current V7 labels**.
@@ -783,14 +792,33 @@ is accepted only at plausible measured line spacing; local expansion can use its
 share of the adjacent vertical gap. It cannot consume a neighboring region's space.
 An expansion of one line no longer repeats one coordinate for every new line.
 If the region cannot fit, its text is retained with explicitly unknown positions.
-Subsequent fields do not move during local placement. Unknown source positions remain ` ||` rather than borrowing another field's
-coordinates. Page markers and blank lines remain structural, without suffixes.
+This local transfer is the baseline, not the final placement in campaigns that
+enable joint reflow. Unknown source positions remain ` ||` rather than borrowing
+another field's coordinates. Page markers and blank lines remain structural,
+without suffixes.
+
+The current 100-source campaign enables **joint elastic reflow** between transfer
+and page augmentation, implemented in `curated_reflow.py`,
+`curated_reflow_geometry.py` and `curated_reflow_policy.py`. It connects exact
+edit/region owners, estimates replacement widths using measured source text and
+font advances, samples coherent block spacing from pinned source priors, consumes
+blank gaps and shifts dependent source blocks. Shared rows, columns, reading
+order and clearance are checked, as are the final rounded line centres.
+
+`positions.reflow` pins the calibration and font path/hash, plus the seed,
+row-lock tolerance and column/bottom guards in source-glyph units. Calibration
+lives in the reusable template catalog. The font cache is bounded. No LLM call,
+text regeneration or target-driven coordinate inference occurs. Unknown ownership
+and missing source anchors are recorded as held regions. Rejected page proposals
+retain the whole baseline placement with explicit reasons; no partial reflow is
+published for that page. Source text and labels are unchanged.
 
 This is intentionally approximate layout conditioning, not reconstructed PDF
 glyph geometry. Text-only re-matching against Paddle and absolute output line
 index copying are not used. Source positioned-text hashes, edit replay, page
 ownership and suffix-only preservation are checked before writing a separate
-`positionedText` field. Plain text and targets remain intact. The pilot has
+`positionedText` field. Plain text and targets remain intact. The historical
+24-source contacts pilot, under its then-current placement policy, had
 6,043 positioned lines out of 7,168 (84.31%) after correcting three auxiliary
 clauses that contained escaped rather than physical newlines.
 
@@ -812,8 +840,8 @@ known coordinates remains unknown; an immovable page records zero changed points
 No coordinates are silently clamped or borrowed. Original text and labels are
 unchanged, and rerunning a different policy cannot overwrite an existing result.
 
-The configured output is `positions-augmented-v1/`; the old `positions/` remains
-intact for comparison. All 72 samples / 120 pages were published and independently
+The historical contacts-pilot output is `positions-augmented-v1/`; its old
+`positions/` remains intact for comparison. All 72 samples / 120 pages were published and independently
 verified, with 118 scaled pages and two translation-only pages. See
 [implementation and validation](kie-synthesis-v7-pilot-2026-10-06.md#13-production-positional-augmentation--2026-10-07).
 The earlier [geometry experiment](kie-synthesis-v7-pilot-2026-10-06.md#12-coordinate-synthesis-experiments--2026-10-07)
@@ -822,6 +850,15 @@ remains historical evidence. The newer
 local reflow without character-width reconstruction. Its 24 full samples / 48 pages
 are published separately under `curated-v7-goods-layout-pilot24-v1/positions-v2/`.
 These are coarse source-layout anchors, not measured synthetic glyph boxes.
+
+For the active 100-template / 200-sample campaign, the configured output is now
+`curated-v7-expansion100-v1/positions-reflow-v1/`, preserving `positions-v2/`.
+The whole-page transform bounds and validates the **reflowed** envelopes, not the
+old source envelopes. Publication has per-sample receipts, a complete manifest,
+positioned JSONL and a text gallery. The reusable
+`scripts/synthesis/audit_curated_positions.py` audits the saved files and produces
+source/previous/reflow/final diagrams. See
+[integration results, commands and plots](kie-synthesis-position-reflow-investigation-2026-10-07.md#production-integration-and-200-sample-regeneration).
 
 ## 15. Boundaries to preserve when scaling
 
