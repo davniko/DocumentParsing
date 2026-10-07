@@ -1,0 +1,481 @@
+dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
+output: artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2
+ownership: configs/synthesis/contracts/curated_v7_full_pilot24_ownership.yaml
+auxiliary: configs/synthesis/contracts/curated_v7_full_pilot24_auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
+task_constraints_sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
+seed: 20261006
+variants_per_source: 3
+positions:
+  output_subdirectory: positions-augmented-v1
+  seed: 20261007
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+concurrency: 8
+budget_usd: 5.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids:
+- doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a
+- doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7
+- doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6
+- doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d
+- doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306
+- doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc
+- doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811
+- doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a
+- doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228
+- doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a
+- doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30
+- doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825
+- doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82
+- doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4
+- doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a
+- doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8
+- doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d
+- doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f
+- doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373
+- doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092
+- doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900
+- doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0
+- doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9
+- doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9
+sampling:
+  countries:
+    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/kie-synthesis/registries/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: data/registries/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/kie-synthesis-production/registries/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 28fec2cce450e496658c34a82f8b843495cd63b895580e8adccdd291e2ec7907
+      from_hs6: ['080800']
+      to_hs6: ['080810']
+      source_text_literals: ['APPLES', 'HS CODE:080800', 'TEMP.2CE', '2C TILL PLUS 2C 20 CBM/HR']
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed 080800 and extraction labels remain unchanged.'
+capabilities:
+  doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+    family: dg_chemical
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7:
+    family: ambient
+    identity_count: 2
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8701'
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 3
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_whole_units
+    allowed_hs_codes:
+    - '870193'
+  doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+    family: chilled
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+    family: dg_vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8703'
+    allowed_hs_codes:
+    - '870323'
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 1
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: reviewed_whole_units
+    reviewed_whole_unit_donors:
+      doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984:
+        target_sha256: b0bd10754dc6e8545882fcaed23191c25e09fb0996b80c174acc5f76ad823790
+        whole_unit_count: 1
+        source_text_literals:
+        - '1 Package(s) of 01 UNIT NEW LAND ROVER RANGE ROVER VELAR 250 PS'
+        - 'HS CODE: 8703231900'
+        - 'Gross Cargo Weight: 1,996.000 kgs. 15.582 cu. m.'
+        rationale: >-
+          Current-training whole petrol passenger vehicle with explicit authoritative HS6,
+          unit count, gross mass, cube and equipment. Transfer this joint physical bundle
+          without extrapolating the original unclassified Range Rover's 2708kg load to
+          unrelated engine classes. Retain the receiving source's explicit unpackaged
+          handling and liquid-fuel UN3166 declaration; no electric or hybrid identity.
+  doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8429'
+    allowed_package_categories:
+    - PACKAGE_VEHICLE
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 1
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_whole_units
+    allowed_hs_codes:
+    - '842952'
+  doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8701'
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 3
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_whole_units
+    allowed_hs_codes:
+    - '870194'
+  doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
+    family: frozen
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
+    family: ambient
+    identity_count: 4
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+    family: chilled
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811:
+    family: chilled
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: true
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    explore_within_heading: false
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+source_contracts: artifacts/kie-synthesis-production/curated-v7-pilot24/sources
+historical_catalog: artifacts/kie-synthesis-production/template-base/catalogs/mpci-bl-production-template-catalog1212-v38b-docb7-frozen-provisional/cases

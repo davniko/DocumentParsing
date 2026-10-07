@@ -4,6 +4,9 @@ Date: 2026-10-06. Investigation only: no production source, template, dataset,
 training configuration or provider setting was changed. No paid requests or
 training were launched.
 
+Implementation follow-up: [24-source / 72-sample V7 pilot and subsequent variability/reflow audit](kie-synthesis-v7-pilot-2026-10-06.md).
+The remainder of this document records the original pre-implementation investigation.
+
 ## Decision in brief
 
 Reuse the byte renderer, deterministic identifiers/arithmetic, registries,
@@ -537,7 +540,9 @@ repair work and used different contracts. It is not a price quote for the next
 campaign. Establish a new cost-per-accepted-sample figure on the bounded pilot;
 include compile/review costs separately instead of hiding them in generation.
 
-No registry update, geography/commodity resampling campaign, production refactor
-or full-catalog recertification was performed here. The next authorized task
-can be the single V7 slice and its 24-source validation, with the artifacts above
-providing a concrete starting point and explicit exit criteria.
+The investigation above was read-only. Its subsequent authorized implementation
+has now published a full-scenario 24-source/72-variant pilot, including varied
+origin and destination countries, commodity/package/load sampling, and reviewed
+current-schema rendering. See the [completed pilot report](kie-synthesis-v7-pilot-2026-10-06.md)
+and [current source/variant gallery](../artifacts/kie-synthesis-production/curated-v7-full-pilot24/samples.md).
+No full-catalog recertification or large synthesis campaign has been launched.

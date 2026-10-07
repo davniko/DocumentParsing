@@ -1,0 +1,255 @@
+version: 1
+# Exact reviewed ownership for current OCR. No source bytes or real labels are edited.
+# Target paths always name current V7 fields; historical keys identify byte evidence only.
+sources:
+  doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a: {}
+  doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7: {}
+  doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
+    bindings:
+      'anchor:documentPatch.transport.vesselName':
+        occurrences: [{text: GULBENIZ A}]
+    add:
+      - key: 'current:transport:voyage'
+        kind: identifier
+        paths: [documentPatch.transport.voyageNumber]
+        occurrences: [{text: 0EL75W1TK}]
+  doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d:
+    bindings:
+      'agent:auxiliary:cargo:weight_value':
+        paths: ['documentPatch.goodsItemDetails[0].grossWeight.value']
+  doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
+    surfaces:
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d-%b-%Y', case: upper}
+      'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%d-%b-%Y', case: upper}
+      'anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]':
+        expression: "CONTACT: {documentPatch.parties.shipper.contactDetails.contactName}\nMOB: {documentPatch.parties.shipper.contactDetails.phoneNumbers[0]}"
+    bindings:
+      'anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]':
+        paths: ['documentPatch.parties.shipper.contactDetails.phoneNumbers[0]', documentPatch.parties.shipper.contactDetails.contactName]
+        occurrences: [{text: 'MOB:+971507671715'}]
+  doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
+    render_expressions:
+      documentPatch.parties.forwardingAgent.addressLine: '{agent_locality} {agent_street}'
+    retire:
+      'anchor:documentPatch.parties.shipper.address': Current site and postal components own all address words; intervening PK remains a caption.
+    bindings:
+      'agent:release_contact:email': {paths: ['documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]']}
+      'agent:release_contact:phone': {paths: ['documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]']}
+      'agent:carrier:office:phone': {paths: ['documentPatch.parties.forwardingAgent.contactDetails.phoneNumbers[0]']}
+      'agent:carrier:domain': {paths: ['documentPatch.parties.forwardingAgent.contactDetails.websiteUrls[0]']}
+      'anchor:documentPatch.route.placeOfDelivery.country': {paths: [documentPatch.route.portOfDischarge.country]}
+  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811: {}
+  doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a:
+    lexical:
+      - key: consignee_complete_postal
+        kind: postal
+        paths: [documentPatch.parties.consignee.addressLine]
+        occurrences:
+          - text: "26612\n95 ALGAMHORY ST. PORT SAID EGYPT (EGYPT)"
+  doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
+    surfaces:
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%B %d, %Y'}
+      'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%B %d, %Y'}
+    bindings:
+      'agent:destination_office_email': {paths: ['documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]']}
+      'agent:destination_office_phone': {paths: ['documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]']}
+      'agent:destination_office_country': {paths: [documentPatch.parties.deliveryAgent.country]}
+  doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+    lexical:
+      - key: consignee_complete_name
+        kind: name
+        paths: [documentPatch.parties.consignee.name]
+        occurrences:
+          - text: "OUT IT FOR IMPORT AND EXPORT\n( AHMED MAHMOUD ABD ALLAH\nABD ALBARY )"
+    retire:
+      'agent:cargo:gross_weight_total': Numeric core is owned by current gross_total; suffix KGS is fixed unit text.
+      'agent:cargo_gross_weight:container:0': Current numeric owner supplies the container mass; KGS is fixed unit text.
+      'agent:container:0:volume': Current numeric owner supplies the container volume; CBM is fixed unit text.
+      'agent:cargo_gross_weight:container:1': Current numeric owner supplies the container mass; KGS is fixed unit text.
+      'agent:container:1:volume': Current numeric owner supplies the container volume; CBM is fixed unit text.
+  doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
+    surfaces:
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%b. %d, %Y', case: upper}
+      'anchor:documentPatch.shippedOnBoardDate':
+        date_path: documentPatch.shippedOnBoardDate
+        formats: ['%b. %d, %Y', '%B {day_ordinal}, %Y']
+        case: upper
+    bindings:
+      'anchor:documentPatch.transport.vesselName':
+        occurrences: [{text: YM WISH}]
+  doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
+    bindings:
+      'anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName':
+        occurrences: [{text: MR/AHMED HAMADA}]
+        kind: owned_text
+      'agent:container_iso_code':
+        kind: equipment
+        paths: ['documentPatch.containerInformation[0].sizeCategory', 'documentPatch.containerInformation[0].typeCategory', 'documentPatch.containerInformation[1].sizeCategory', 'documentPatch.containerInformation[1].typeCategory', 'documentPatch.containerInformation[2].sizeCategory', 'documentPatch.containerInformation[2].typeCategory', 'documentPatch.containerInformation[3].sizeCategory', 'documentPatch.containerInformation[3].typeCategory']
+        occurrences: [{text: 45G1}]
+  doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
+    surfaces:
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d %b %Y', case: upper}
+      'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%d-%b-%Y', case: upper}
+    bindings:
+      'anchor:documentPatch.containers[0].temperatureSetpoint.value':
+        paths: ['documentPatch.containerInformation[0].temperatureSetpoint.value', 'documentPatch.goodsItemDetails[0].handlingInstructions[0]']
+    add:
+      - key: 'current:generic_hs_caption'
+        occurrences: [{text: NCM, all: true}]
+    constants:
+      'current:generic_hs_caption': HS CODE
+  doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
+    surfaces:
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d %b %Y', case: upper}
+    retire:
+      'anchor:documentPatch.parties.shipper.name': Complete current name owns both source lines; final comma remains outside the identity.
+    bindings:
+      'agent:destination_office_phone': {paths: ['documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]']}
+  doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+    retire:
+      'agent:total_packages_in_words': Current packages variable owns Ninety Nine in every repeated occurrence; Only remains fixed.
+      'anchor:documentPatch.cargoPackages[0].quantity': The 48,111 commodity-sheet count is not the current outer-package quantity; current count owners supply the 99-package accounting level.
+      'anchor:documentPatch.cargoPackages[0].typeCategory': SHEETS describes the commodity units, not the current package category. The explicit PACKED IN statement owns packaging.
+    bindings:
+      'agent:cargo_packing_statement':
+        kind: package
+        paths: ['documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory']
+        occurrences: [{text: PACKING, all: true}]
+      'anchor:documentPatch.placeOfIssue.name':
+        paths: [documentPatch.placeOfIssue.name, documentPatch.placeOfIssue.country]
+      'agent:delivery_agent_contact_name_amr_rabbany':
+        paths: [documentPatch.parties.deliveryAgent.contactDetails.contactName]
+      'agent:delivery_agent_contact_name_shady_farid':
+        paths: [documentPatch.parties.deliveryAgent.contactDetails.contactName]
+    surfaces:
+      'agent:cargo_packing_statement':
+        package_path: 'documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory'
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d-%b-%Y', case: upper}
+      'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%d-%b-%Y', case: upper}
+      'anchor:documentPatch.placeOfIssue.name':
+        expression: '{documentPatch.placeOfIssue.name}-{documentPatch.placeOfIssue.country}'
+      'agent:delivery_agent_contact_name_amr_rabbany':
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      'agent:delivery_agent_contact_name_shady_farid':
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+  doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8: {}
+  doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+    surfaces:
+      'anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]':
+        expression: "{documentPatch.parties.consignee.contactDetails.phoneNumbers[0]}\nE: {documentPatch.parties.consignee.contactDetails.emailAddresses[0]}"
+      'anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]':
+        expression: "{documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]}\nE: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}"
+    bindings:
+      'anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]':
+        paths: ['documentPatch.parties.consignee.contactDetails.phoneNumbers[0]', 'documentPatch.parties.consignee.contactDetails.emailAddresses[0]']
+        occurrences: [{text: '+203 5411 259***', occurrence: 1}]
+      'anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]':
+        paths: ['documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]', 'documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]']
+        occurrences: [{text: '+203 5411 259***', occurrence: 2}]
+      'agent:cargo:0:contact_email':
+        paths: ['documentPatch.parties.consignee.contactDetails.emailAddresses[0]', 'documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]']
+  doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+    identifier_policies:
+      vehicle_vin: fictional_vin_v1
+    variables:
+      - key: vehicle_vin
+        kind: identifier
+        value: SALKABB95SA261563
+        meaning: Vehicle identifier printed in the marks block and included in the current goods description; regenerate jointly with vehicle identity.
+        required_literals: []
+        occurrences: [{text: SALKABB95SA261563, occurrence: 1, presentation: text}]
+    expressions:
+      'documentPatch.goodsItemDetails[0].description': '{vehicle_description}; CHASSIS NUMBER {vehicle_vin}'
+    retire:
+      'agent:cargo:g1:unpackaged_status': Current count owns its numeric core; unpackaged remains the vehicle handling condition.
+    bindings:
+      'anchor:documentPatch.cargoPackages[0].quantity':
+        paths: ['documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity', 'documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity']
+  doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+    surfaces:
+      'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d %b %Y', case: upper}
+      'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%d %b %Y', case: upper}
+    lexical:
+      - key: forwarding_complete_name
+        kind: name
+        paths: [documentPatch.parties.forwardingAgent.name]
+        occurrences:
+          - text: "CIMC WETRANS LOGISTICS MANAGEMENT\nC O.,LTD. QINGDAO BRANCH"
+    bindings:
+      'agent:cargo:refrigerated_stowage_statement':
+        paths: ['documentPatch.goodsItemDetails[0].handlingInstructions[1]']
+  doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+    lexical:
+      - key: shipper_complete_name
+        kind: name
+        paths: [documentPatch.parties.shipper.name]
+        occurrences:
+          - text: "FOOD MORE TRADING COMPANY SP Z.O.\nO."
+    bindings:
+      'anchor:documentPatch.cargoPackages[0].typeDescription':
+        kind: package
+        paths: ['documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory']
+  doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
+    surfaces:
+      'anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName':
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      'agent:party:deliveryAgent:0:contact:1:name':
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+    bindings:
+      'agent:party:deliveryAgent:0:contact:1:name':
+        kind: owned_text
+        paths: [documentPatch.parties.deliveryAgent.contactDetails.contactName]
+        occurrences: [{text: 'Mr. Shady Farid'}]
+    retire:
+      'agent:package:0:number_words': Current count owns the complete number words; Only remains fixed.
+  doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0: {}
+  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9: {}
+  doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+    lexical:
+      - key: shipper_complete_postal
+        kind: postal
+        paths: [documentPatch.parties.shipper.addressLine]
+        occurrences:
+          - text: "PLOT NO. 15,16,17 SALMAN HILLS DILRAS COLONY AURANGABAD\n- 431001MAHARASHTRA.INDIA"
+      - key: goods_complete_description
+        kind: product
+        paths: ['documentPatch.goodsItemDetails[0].description']
+        occurrences:
+          - text: "HYBRID\nSORGHUM MECCA"
+          - text: HYBRID SORGHUM MECCA
+    bindings:
+      'anchor:documentPatch.cargoGroups[0].description':
+        occurrences:
+          - text: "HYBRID\nSORGHUM MECCA"
+          - text: HYBRID SORGHUM MECCA
+      'agent:consignee_telefax':
+        paths: ['documentPatch.parties.consignee.contactDetails.phoneNumbers[0]', 'documentPatch.parties.consignee.contactDetails.phoneNumbers[1]']
+      'agent:notify_telefax':
+        paths: ['documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]', 'documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]']
+      'agent:shipper_telefax':
+        paths: ['documentPatch.parties.shipper.contactDetails.phoneNumbers[0]']
+    add:
+      - key: 'current:package_total_caption'
+        kind: package
+        paths: ['documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory']
+        occurrences: [{text: "HDPE\nBAGS"}]
+      - key: 'current:generic_goods_caption'
+        occurrences: [{text: 'CROP:'}]
+      - key: 'current:old_crop_quality'
+        occurrences: [{text: CEREAL SEED QUALITY}]
+    constants:
+      'current:generic_goods_caption': 'GOODS:'
+    delete:
+      'current:old_crop_quality': This source-only cereal qualifier is obsolete when registry sampling chooses a different goods identity; its facts were consolidated in the owned description region.

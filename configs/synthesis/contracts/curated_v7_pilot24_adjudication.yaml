@@ -1,0 +1,41 @@
+# Reviewed lexical corrections. Values are complete variable replacements, not OCR patches.
+# Each applies through the source contract to every occurrence and dependent target.
+doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
+  reason: Keep the source's city/country-only consignee granularity instead of invented street-level detail.
+  variants:
+    0: {v004: "GIZA, EGYPT"}
+    1: {v004: "PORT SAID, EGYPT"}
+    2: {v004: "MANSOURA, EGYPT"}
+doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+  reason: Preserve the buyer identity shared with the fixed shortened order heading, and the precise VCM-laminated product construction rather than broaden it to clad steel.
+  variants:
+    0: {v002: "FRESH ELECTRIC FOR HOME APPLIANCES", v005: "EGSAS SOKHNA DEPOT 8/3 EGYPTIAN-CHINESE ECONOMIC ZONE SOKHNA, EGYPT", v018: "48,111 SHEETS OF 'VCM' LAMINATED GALVANIZED STEEL WITH PROTECTIVE FILM"}
+    1: {v002: "FRESH ELECTRIC FOR HOME APPLIANCES", v005: "ESSAS SOKHNA DEPOT 24/6 EGYPTIAN-CHINESE ECONOMIC ZONE SOKHNA, EGYPT", v018: "48,111 SHEETS OF 'VCM' LAMINATED GALVANIZED STEEL WITH PROTECTIVE FILM"}
+    2: {v002: "FRESH ELECTRIC FOR HOME APPLIANCES", v005: "RSSAS SOKHNA DEPOT 11/4 EGYPTIAN-CHINESE ECONOMIC ZONE SOKHNA, EGYPT", v018: "48,111 SHEETS OF 'VCM' LAMINATED GALVANIZED STEEL WITH PROTECTIVE FILM"}
+doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+  reason: Retain the exact source chemical identity for this bounded DG pilot. The proposed systematic synonyms are not being declared incorrect, but were not independently certified as interchangeable registry surfaces here.
+  variants:
+    0: {v014: "POTASSIUM AMYL XANTHATE"}
+    1: {v014: "POTASSIUM AMYL XANTHATE"}
+    2: {v014: "POTASSIUM AMYL XANTHATE"}
+doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+  reason: Replace the copied source-only 00000 postcode placeholder in generated postal addresses with plausible five-digit postal components. The real source is unchanged.
+  variants:
+    0: {v004: "24 MOSADDAK STREET, DOKKI 12611 GIZA, EGYPT"}
+    1: {v004: "15 EL HEGAZ STREET, MOHANDSEEN 12411 GIZA, EGYPT"}
+    2: {v004: "21 ABU BAKR EL SEDEEK STREET, NASR CITY 11765 CAIRO, EGYPT"}
+doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+  reason: The terminal period belongs to the template outside the postal slot; generated values must not duplicate it.
+  variants:
+    0: {v005: "18 ABU QIR STREET, BUILDING C, 3RD FLOOR, MIAMI ALEXANDRIA, EGYPT"}
+    1: {v005: "72 GAMAL ABDEL NASSER ROAD, BUILDING A, 6TH FLOOR, SIDI GABER ALEXANDRIA, EGYPT"}
+    2: {v005: "33 MOHAMED NAGUIB STREET, BUILDING D, 5TH FLOOR, SEMOUHA ALEXANDRIA, EGYPT"}
+doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+  reason: Use the source-supported Dawang/Guangrao administrative pairing instead of the unverified Niuzhuang/Guangrao combination flagged by review.
+  variants:
+    2: {v002: "NO.246 XINGYUAN ROAD, RUBBER INDUSTRIAL PARK, DAWANG TOWN, GUANGRAO COUNTY, DONGYING, SHANDONG, CHINA"}
+doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
+  reason: Preserve the explicitly described valve SET configuration while varying word order; avoid uncertainty over a preassembled valve versus a set of components.
+  variants:
+    0: {v007: "GOLD PUSH-TYPE VALVE SET"}
+    1: {v007: "GOLD VALVE SET OF PUSH TYPE"}

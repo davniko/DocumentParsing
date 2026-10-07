@@ -736,7 +736,7 @@ cannot supply label values absent from raw OCR. Publication also compares outcom
 accepted targets without exposing those references to either agent. The Ollama example config
 supports an exact operator-supplied local model tag with no automatic cloud fallback.
 
-The terminal synthetic raw-text renderer, independent audit, exact-line correction, mandatory
+The historical contract-v3 synthetic raw-text renderer, independent audit, exact-line correction, mandatory
 recertification, and complete-cohort publication are integrated behind one configurable production
 entry point. Contract 3 adds a compiler-owned, eight-dimension deterministic invariant envelope and
 atomic host-authored repair before the residual semantic screen. Replay its pinned provider-free
@@ -751,6 +751,23 @@ false positives. The immutable
 contains the exact manifests, tables, workbooks, costs, and 35 Matplotlib/Seaborn plots. A larger
 launch is blocked pending a provider-free carrier-reference regression fix and a new reviewed
 canary; no training records were published.
+
+### Current reduced-V7 synthesis
+
+The reviewed 24-source, 72-sample full-scenario pilot uses the separate
+`document_ocr.synthesis.curated_campaign` entry point and
+`configs/synthesis/mpci_bl_curated_v7_full_pilot24_contacts.yaml`. It samples both route
+endpoints and compatible shipment facts, generates wording, renders current V7
+labels and OCR together, and requires replay and semantic review before publication.
+Company-conditioned email/website generation is included; a separate local
+`positions` stage transfers measured source layout anchors through the exact text edits,
+then applies configurable, seeded page-scale/translation augmentation with checked
+integer geometry. Positioned samples and replay receipts are published separately;
+plain OCR and labels remain unchanged.
+See the [complete flow and operating guide](docs/kie-synthesis-flow.md) for
+dependencies, sampling rules, model inputs/outputs, validation boundaries,
+stage commands and the artifact map. The historical contract-v3 status above
+does not describe this current pilot.
 
 ## Development validation
 

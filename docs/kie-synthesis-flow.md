@@ -1,0 +1,769 @@
+# Current V7 synthesis flow
+
+Implementation and operating guide. Verified against code and the published
+full-scenario pilot on **2026-10-07**. This describes the active implementation,
+not the earlier 30k generator or the first, limited-variability pilot.
+
+- [Investigation, repairs, results and costs](kie-synthesis-v7-pilot-2026-10-06.md)
+- [Original OCR and revised rendered examples](../artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2/samples.md)
+- [Position-enriched examples](../artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2/positions-augmented-v1/samples.md)
+- [Active campaign configuration](../configs/synthesis/mpci_bl_curated_v7_full_pilot24_contacts.yaml)
+- [Active CLI implementation](../src/document_ocr/synthesis/curated_campaign.py)
+
+## 1. Overall design
+
+We start with a reviewed real document's **existing OCR and current V7 labels**.
+We produce new OCR-like text and matching labels. We do not create a PDF, run
+OCR again, or ask an LLM to re-extract labels from the text it just generated.
+
+```text
+Current training OCR + labels       Pinned registries + training observations
+             |                                      |
+Reviewed source contract + old exact-span hints      |
+             |                                      |
+Compile mutable-region ownership                    |
+             +---------------+----------------------+
+                             |
+              Sample coherent shipment facts
+     route, party localities, goods, packages, loads, equipment
+                             |
+             Generate host-owned IDs and dates
+                             |
+       LLM writes names, postal text and product wording
+             (three independent variants per call)
+                             |
+       LLM writes emails/websites for the generated companies
+                             |
+           Optional bounded postal correction
+                             |
+        Finalize numeric/dependent facts and V7 labels
+                             |
+       Render owned regions into the source OCR layout
+                             |
+          Deterministic checks and complete replay
+                             |
+              LLM full-rendered document review
+                             |
+       Resolve findings; re-render/re-review changed samples
+                             |
+                Validate complete campaign
+                             |
+        dataset.jsonl + samples.md + manifest.json
+                             |
+        Optional source-edit-anchored positional input variant
+```
+
+The **template** supplies structure and locations of facts. The **sampler**
+chooses new shipment facts. The **LLM** writes language expressing those facts.
+It does not independently choose package totals, weights, equipment classes or
+the goods-to-container graph.
+
+## 2. Inputs, dependencies and selected scope
+
+The active command is `python -m document_ocr.synthesis.curated_campaign` with
+`configs/synthesis/mpci_bl_curated_v7_full_pilot24.yaml`. The older `curated`
+CLI/config targets the earlier pilot and is not interchangeable, although
+`curated.py` supplies shared contracts, request execution and cost accounting.
+
+| Input | Purpose |
+|---|---|
+| `data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660/train.jsonl` | 600 training records: selected layouts, donor cargo, vessel and tare support |
+| Same directory's `validation.jsonl` | 60 held-out records: exclusion/preservation checks; not cargo donors |
+| `joinedRawText` and `target` | Plain source OCR and current reduced V7 labels |
+| `configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json` | Hash-pinned task/schema vocabulary |
+| `artifacts/kie-synthesis-production/curated-v7-pilot24/sources/<id>/contract.json` | Current-source variable/target bindings and source/target hashes |
+| Historical catalog `mpci-bl-production-template-catalog1212-v38b-docb7-frozen-provisional/cases/<id>/template.json` | Exact source-region hints, **not** old label authority |
+| [Ownership declarations](../configs/synthesis/contracts/curated_v7_full_pilot24_ownership.yaml) | Reviewed binding corrections, repeated occurrences, complete regions and surface recipes |
+| [Auxiliary declarations](../configs/synthesis/contracts/curated_v7_full_pilot24_auxiliary.yaml) | Customs, source-only contacts/identifiers, dates and other dependencies |
+| Config's pinned registries | ISO countries, UN/LOCODE, World Port Index, GeoNames, UK Global Tariff HS, commercial phrases, HMT/ECICS DG |
+
+Registry files are local hash-pinned snapshots, not live web queries during
+generation. Startup checks the task constraint hash, registry content,
+source-contract hashes, training membership and exact capability coverage.
+Donor IDs cannot overlap validation IDs; selected source OCR is additionally
+checked for exact validation OCR overlap. This is not a fuzzy shipment-level
+near-duplicate detector.
+
+The pilot explicitly selects **24 sources × three variants**: 15 ambient,
+three chilled, one frozen, three vehicle/machinery, one DG chemical and one DG
+vehicle. It does not randomly select arbitrary old catalog templates.
+
+Live support inventory at documentation time:
+
+| Support | Count |
+|---|---:|
+| Eligible one-goods/one-package training observations | 567 of 600 |
+| Ambient / chemical DG / frozen / chilled / vehicle / DG vehicle observations | 518 / 13 / 14 / 10 / 11 / 1 |
+| Maritime port entries / countries represented | 2,594 / 183 |
+| Countries with both ports and localities, before contact exclusions | 182 |
+| Localities admitted by registry preparation | 31,924 |
+| Validated HS6 commercial phrases | 5,612 |
+| Eligible ECICS-to-maritime-HMT chemical candidates | 386 |
+
+Source and donor eligibility do not constitute fresh manual certification of
+every one of the 600 real labels. The current source topology is **one goods
+accounting group, one positive typed package row, and zero or more containers**.
+Multiple HS identities can belong to that one goods group.
+
+## 3. Prepare the template and compile ownership
+
+Code: [`curated_ownership.py`](../src/document_ocr/synthesis/curated_ownership.py)
+and [`curated_templates.py`](../src/document_ocr/synthesis/curated_templates.py).
+
+### Representation
+
+The original OCR remains the layout authority. A contract names exact quoted
+substrings, their one-based occurrence numbers, semantic roles, and target
+paths. These resolve into UTF-8 byte regions. This is not unrestricted global
+search-and-replace or a free-form Jinja template.
+
+Simplified illustrative contract fragment:
+
+```yaml
+variables:
+  - key: consignee_postal
+    kind: postal
+    value: '12 HARBOUR ROAD ALEXANDRIA EGYPT'
+    meaning: 'Complete consignee postal address'
+    required_literals: []
+    occurrences:
+      - text: "12 HARBOUR ROAD\nALEXANDRIA EGYPT"
+        occurrence: 1
+        presentation: text
+targets:
+  - path: documentPatch.parties.consignee.addressLine
+    expression: '{consignee_postal}'
+```
+
+One variable may own multiple printed occurrences and multiple label paths.
+Repeated consignee/notify information can therefore share one generated value.
+An address interrupted by contacts may use multiple postal regions, but those
+are generated **jointly**, not in separate calls for every street/district.
+
+Expressions interpolate `{key}`; numeric baseline expressions can use explicit
+sums. No arbitrary Python expression execution is involved. Presentation modes
+cover text, printed numbers and spelled-out integer counts.
+
+### Compilation sequence
+
+1. Check the saved source OCR and target hashes.
+2. Reconstruct current baseline labels from the source contract.
+3. Verify quoted text/occurrence positions against current OCR bytes.
+4. Translate historical structural names to existing V7 paths, without
+   resurrecting dropped fields or the old cargo graph.
+5. Apply reviewed declarations: correct/add/retire owners, enlarge complete
+   lexical regions, or specify source-dependent date/package rendering.
+6. Merge nested historical spans as evidence of the complete owner, not as
+   additional overlapping physical edits.
+7. Reject unresolved partial overlaps, conflicting owners, unknown paths and
+   omitted repeated occurrences.
+8. Add the declared auxiliary dependencies and caption edits.
+
+Unchanged fields may stay fixed. **Every changed target leaf must have a
+rendered owner.** A successful compile establishes that contract; it is not
+proof that an arbitrary unseen document's semantics were annotated correctly.
+
+The original preparation helper,
+[`rebase_curated_v7.py`](../scripts/synthesis/rebase_curated_v7.py), is a bounded
+first-pilot tool with fixed input configuration. It drafts source contracts
+from current labels, old spans and numeric hints. It is not a universal
+template-certification command. Normal full-campaign generation consumes saved
+contracts plus the new ownership/auxiliary declarations; it does not rerun
+that helper or require rerunning the historical full-catalog numeric sidecar.
+
+## 4. Sample geography and party context
+
+Code: `ScenarioCatalog._geography` in
+[`curated_scenarios.py`](../src/document_ocr/synthesis/curated_scenarios.py).
+
+Every source/variant gets a deterministic random stream derived from seed,
+source ID and variant. Named substreams separate geography, cargo and other
+choices. A fixed seed reproduces host sampling under unchanged authorities;
+fresh uncached LLM wording is not promised bit-for-bit reproducible.
+
+1. Choose an origin country with eligible maritime ports and localities.
+2. Choose a **different destination country** from that eligible domain.
+3. Reject countries missing required phone-generation metadata, recording
+   rejection reasons. South Georgia (`GS`) is currently excluded this way.
+4. Choose a port for each endpoint.
+5. Existing receipt/loading fields follow origin; discharge/delivery/final
+   destination follow destination. Place of issue and goods origin follow origin.
+6. Freight payment place follows its declared side, or prepaid → origin /
+   collect → destination. The payment arrangement itself remains source-fixed.
+7. Sample party localities in their assigned countries. Shipper defaults to
+   origin; other roles default to destination. Current forwarding-agent
+   declarations explicitly use origin.
+8. Repeated source party identities share locality; `sameAs` references are
+   preserved rather than independently sampled.
+
+**No selected source pins origin or destination to Egypt.** Sampling is
+country-first, then port/locality within that country, not weighted by real
+trade volume. Party locality need not be near the selected port. This does not
+validate live carrier schedules or country–commodity trade likelihoods.
+Transshipment fields require a separate three-port contract and currently fail.
+
+## 5. Joint cargo, packaging, equipment and quantity sampling
+
+### Compatible training donors
+
+A donor supplies empirical package/equipment/load relationships, **not** the
+new document's layout. Eligibility considers cargo family, required measures,
+container presence, valid HS support, configured package/equipment domains,
+and thermal/ventilation requirements. Container donors require a complete,
+coherent size/type pair. Container-free templates use container-free support.
+
+For ordinary profiles, the package category and mass/cube per package come
+from that donor together. This is stronger than random independent numbers,
+but does not prove actual material density or commercial packability for every
+newly worded product.
+
+### HS identities and meaning
+
+Each source specifies how many identities it supports: `33546e11…` has two,
+`01d86535…` has four; most have one. These remain one accounting group.
+
+The code can optionally explore HS6 within selected headings. **In the final
+pilot all 15 ambient sources and the frozen source disable that exploration**:
+they use eligible donors' exact HS6 identities. Chilled sampling also enforces
+donor HS6 in code. Whole-unit sources have explicit restricted HS6 domains.
+The chemical source uses independently registry-linked chemical identities.
+
+A different source identity is preferred when available; narrow domains can
+legitimately retain an identity. The registry hierarchy, sibling HS scopes and
+national child examples accompany product wording/review. HS codes are public
+only where the source supplies a public HS field. Otherwise HS is private
+generation context and is not injected into labels or text as a new code field.
+
+### Counts and measures
+
+Ordinary package counts follow:
+
+```text
+nominal count = donor package count
+              × source container count / donor container count
+              × load scale
+```
+
+Container-free profiles use one for those container-count factors. Current
+scale is **0.60–1.20 in 0.01 increments**. Counts round half-up to a positive
+integer/configured multiple, unless the source fixes its unit count.
+
+Weights and volume use donor amount-per-package × new quantity, converted to
+the source's existing units and precision. Net cannot exceed gross. Each load
+must fit configured equipment payload/cube bounds. Invalid candidate bundles
+are rejected and redrawn, up to **512 attempts**; exhaustion is an error.
+
+Container count and placement structure remain source-defined. Existing
+explicit per-container package counts are reapportioned to total exactly,
+retaining positive rows. Membership-only placements remain membership-only.
+Private equal shares may be used for physical planning where printed counts
+are absent; those assumptions do not become public quantity labels.
+
+### Special families
+
+| Family | Additional coupling |
+|---|---|
+| Chilled/frozen | Observed commodity/form, HS, temperature and required ventilation travel together; product wording receives the observed form/processing context |
+| DG chemical | Eligible HMT/ECICS identity supplies coherent HS, proper shipping name, UN, class, packing group and supported subsidiary hazards |
+| DG vehicle | Preserve the supported liquid-fuel family; no electric/hybrid wording paired with its liquid-fuel declaration |
+| Whole vehicle/machinery | Source-whole-unit or explicitly reviewed donor profile, fixed count and restricted product identity |
+
+For the four whole-unit profiles, code supplies the registry commercial phrase;
+the LLM does not invent model/body/engine specifications around a fixed load.
+All four have one physical donor each. The three chilled source domains have
+five, one and two eligible donors respectively; the frozen source has six.
+Those narrow domains explain why some products cannot vary widely yet.
+
+DG packages use allowed categories (normally drum/carton/box) with non-bulk
+bounds of 400 kg and 0.45 m³ per package. This is not full legal DG packaging
+certification or the older package/overpack generation algorithm. Capacity
+checks are scalar bounds, not 3D stowage or actual CSC-plate certification.
+
+## 6. Generate host-owned IDs, dates, vessels and contacts
+
+Code: `public_identity_updates`, `host_variable_values`,
+[`curated_identifiers.py`](../src/document_ocr/synthesis/curated_identifiers.py)
+and auxiliary rendering.
+
+- Containers retain the source owner/category prefix with new serial/check
+  digits. The same new ID is propagated into all placement references.
+- B/L numbers, voyages and seals follow source character patterns. Repeated
+  occurrences share a generated identity.
+- Declared VIN/chassis policies generate supported fictional identifiers;
+  a valid pattern/checksum is not manufacturer issuance.
+- Issue/on-board dates shift together by 30–759 days, preserving intervals.
+  Source date typography is handled by verified date recipes, not guessed by
+  the wording model.
+- Vessel names are sampled from eligible current training names, excluding
+  the source vessel; they are not freshly invented by the LLM.
+- Phone strings follow sampled-country support. Contact-person names belong
+  to lexical generation. Emails/websites are generated after the company name
+  exists, as described below; the old hash-based placeholders are no longer used.
+- Source-only customs/registration values use explicit auxiliary recipes;
+  they are not automatically added as public fields.
+
+## 7. Generate language in one constrained call per source batch
+
+Code: [`curated_wording.py`](../src/document_ocr/synthesis/curated_wording.py)
+and `Campaign.generate`.
+
+Configured runtime: **GLM-5.3-Flash, OpenRouter/Fireworks, low reasoning,
+native strict PydanticAI output, concurrency eight**. These are local config
+values, not fresh remote availability/pricing claims. Provider fallback is
+disabled; timeout is 300 seconds and output cap 16,000 tokens. Automatic agent
+and transport retries are both zero in the current configuration.
+
+A call normally covers three independently sampled variants of one source.
+Partial resumption requests only missing/stale variants. The request contains:
+
+- Readable route and party-locality context.
+- Commodity phrases and registry hierarchy/context, presented as YAML text.
+- Empirical cold-chain context when relevant.
+- The requested region's role, concise requirements and original structure
+  example (hierarchy/line span, not source facts to copy).
+- Postal assembly expressions explaining generated components versus
+  country/locality fragments supplied by code.
+
+It does **not** provide the complete source OCR or PDF to this wording call.
+The reviewer later receives complete rendered OCR. Source OCR is not wrapped
+in a JSON object and accompanied by a request for full extraction.
+
+Native schemas require exactly `s0`, `s1`, `s2` and the requested region keys.
+Fields have descriptions; unknown fields are forbidden. The model returns
+**strings**, not quantities, full labels, copied source hashes or per-scalar
+evidence. For example, schematically:
+
+```json
+{
+  "s0": {
+    "shipper_name": "NEW FICTIONAL TRADING COMPANY",
+    "shipper_postal": "PLOT 7, INDUSTRIAL LANE\nMALE MALDIVES",
+    "goods_wording": "PRODUCT WITHIN THE SELECTED HS SCOPE"
+  },
+  "s1": {"...": "the second sampled shipment"},
+  "s2": {"...": "the third sampled shipment"}
+}
+```
+
+Actual keys are source-contract keys, not necessarily these illustrative names.
+
+### Addresses specifically
+
+All postal components for a party are generated together with the requested
+locality/country, roughly preserving the source hierarchy and line span.
+Punctuation may change. Street deliverability is not required. Company names,
+tax IDs, contacts and captions stay outside postal regions.
+
+The complete address must contain the requested locality once. Country appears
+once where that party has a country target; otherwise the source omission is
+kept. A separately printed country supplied by code already counts. Code
+assembles the **same generated components** into `addressLine`, normalizes
+whitespace/newlines to spaces and applies current uppercase text policy. It
+does not strip cities or insert commas merely because physical lines break.
+Targets remain `addressLine` plus `country`, not a separate city target.
+
+Local wording checks reject incomplete key coverage, empty strings, copied
+source identities, detached line-leading punctuation, zero-placeholder
+postcodes and specified contact captions inside name regions. Postal checks
+normalize case/diacritics/punctuation before counting the requested locality
+and country. These checks enforce the declared generation contract; they do
+not establish every address component's semantics or postal deliverability.
+
+## 8. Explicit correction, not an endless automatic retry loop
+
+### Company contacts after wording
+
+[`curated_contacts.py`](../src/document_ocr/synthesis/curated_contacts.py) sends
+plain-text company names, countries and original email/website style examples
+to a narrow native-output call. The response contains only requested contact
+strings. Repeated roles for one company share values; originally shared
+email/website domains remain shared. Free-mail examples retain that style.
+
+`generate` includes this stage. `contacts` runs it separately when the rest of
+the shipment is already generated. Receipts bind the company/context/schema;
+`render` rejects missing, stale, malformed or incomplete contacts. Validation
+checks syntax and ownership; it does not generate strings with regexes or
+perform DNS/deliverability checks. A realistic invented domain can coincide
+with an existing domain, so these values are not authorized contact endpoints.
+
+The 2026-10-07 bounded repair reuses prior full-document approval only after
+exact non-contact delta checks plus explicit manual contact review. Its review
+receipts label this method; they do not claim a new full-document LLM review.
+Newly generated shipments still use the normal full-render review stage.
+
+`correct-postal` is an optional bounded stage. It assembles addresses, selects
+the failed parties' mutable postal regions and asks for just those replacements.
+Other wording and shipment facts stay unchanged. Before/after values and
+post-check results are saved. A still-failing proposal remains inspectable in
+the receipt and the stage reports failure; it is not automatically rolled back
+or approved for publication.
+
+Other errors are adjudicated at the appropriate authority: wording,
+ownership/auxiliary contract, or scenario policy. Changed candidates must be
+re-rendered and re-reviewed. There is no autonomous “rewrite everything until
+the reviewer agrees” stage, nor a manual-adjudication CLI.
+
+The completed pilot retained **13 manual wording corrections across 12
+records**. Their reasons and before/after values are preserved. This is not a
+claim of perfect unattended first-pass generation.
+
+## 9. Final physical and auxiliary preparation
+
+[`curated_physical.py`](../src/document_ocr/synthesis/curated_physical.py)
+reconciles the sampled plan with what the source can actually print:
+
+1. Select a common decimal precision representable in repeated totals/rows.
+2. Allocate row weights/cube by exact arithmetic and largest remainder, so
+   rounded rows still sum exactly.
+3. Synchronize totals, number words and package nouns.
+4. Render canonical/ISO equipment forms and aggregate `N × TYPE` receipts.
+5. Preserve supported source tare for unchanged equipment; changed equipment
+   needs matching train-observed tare or fails.
+6. Align thermal prose, setpoints, ventilation and DG declarations.
+7. Recheck capacity and net/gross after rounding.
+
+The **final candidate target**, not the earlier scenario JSON, is authoritative:
+printed precision may cause final numeric values to differ from the initial
+plan. Physical preparation cannot silently add public fields.
+
+A printed measure absent from labels may still need updating. Its private
+support is recorded as a donor measure or a unique source-owned per-package
+measure. Printed zero/unknown values remain unasserted; private support does
+not authorize inventing public labels. VGM cases without an explicit contract
+are rejected rather than inferred.
+
+[`curated_auxiliary.py`](../src/document_ocr/synthesis/curated_auxiliary.py)
+then handles declared customs captions, country/code repeats, references,
+source-only contacts and dates. Egyptian ACID wording can become generic import
+reference wording while linked values follow the new geography. These are
+owned-span changes, not global replacement of every country name. Unrelated
+carrier/legal/third-party text can remain fixed. This is fictional trade text,
+not simulation of each country's national registration rules.
+
+One documented source-evidenced recipe adds issue/on-board dates omitted from
+that source's real labels into its **synthetic blueprint**. It is an explicit
+exception to ordinary field-presence preservation; the real labels are untouched.
+
+## 10. Render text and labels together
+
+The renderer merges accepted wording, host values and physical/auxiliary
+surfaces. Conflicting owners fail rather than following last-writer precedence.
+Exact source regions are replaced; all other bytes remain unchanged. Explicit
+generated newlines are respected; otherwise wrapping approximates source line
+span, preserving tokens and avoiding detached punctuation. This is OCR-like
+text layout, not authentic PDF coordinates.
+
+Current labels are updated directly from the chosen facts and lexical
+expressions, then casing-normalized and checked against the reduced task.
+There is no second extraction call trying to rediscover the generated facts.
+
+Checks cover changed-field rendering ownership, package nouns in their actual
+package region, postal country support, current schema, sampled HS agreement,
+container foreign keys, explicit allocation sums, unchanged quantity-field
+presence, repeated party consistency and actual route variation.
+
+Candidates retain source/variant IDs, scenario, text/target, render values,
+physical/auxiliary/identifier receipts, wording hash, blueprint inventory and
+edit proof. The proof records byte ranges and before/after text. Edit replay
+must reproduce OCR exactly. A stronger authority replay reconstructs the
+**complete candidate object** from current source/config/wording and requires
+equality, including metadata.
+
+This catches stale or altered outputs. It is not an independent semantic proof
+that the source contract or accepted free wording was right.
+
+## 11. Review the complete rendered shipment
+
+`review` first replays the candidates and then sends one source's three
+variants to a separate call. Inputs are complete final OCR as text, current
+target as YAML, party localities, registry commodity scope and thermal context.
+
+The reviewer checks product/HS meaning, DG/thermal compatibility, stale facts,
+postal ownership/geography, repeated information, quantities, unsupported
+labels and missing supported values. Instructions distinguish normalized
+casing/aliases and private printed facts from actual target defects.
+
+The schema requires one `s0/s1/s2` object each, containing a `findings` list.
+Findings contain `field`, `problem`, short quoted `evidence` and `correction`.
+Empty means no concrete defect was reported. Host code supplies real sample
+IDs, rather than asking the model to copy long hashes.
+
+The reviewer uses the same configured model family as wording; these are
+separate calls, not an independent-model ensemble. Structured output guarantees
+shape/coverage, not correct semantic judgment. The reviewer does not edit text.
+
+### Resolution and approval
+
+- Real defect: fix the correct authority, re-render and obtain a fresh review.
+  An adjudication marked `fixed` cannot approve changed bytes under an old review.
+- False positive: explicitly reject it with a reason and exact current OCR
+  quotations, bound to the finding, review and candidate hashes.
+- Unresolved/missing/stale reviews block publication.
+- `review` can finish with exit code zero **and findings**: successful review
+  execution is not approval.
+
+This pilot also received independent full inspections in three
+`audit/final-review-*.json` receipts. **Publication code does not consume those
+extra inspection reports.** They are additional manual release evidence for
+this pilot, not an automated prerequisite guaranteed for every future run.
+Hashes of manual corrections likewise establish freshness, not correctness
+of the human semantic decision.
+
+## 12. Complete-scope publication
+
+[`curated_publication.py`](../src/document_ocr/synthesis/curated_publication.py)
+requires exactly the configured sources × variants: no missing/extra candidate
+files, wrong IDs or duplicate generated OCR. It reruns full candidate authority
+replay and checks current review coverage and prompt/schema hashes. Every
+finding must be resolved under the rules above. Source train/validation files
+are hashed before and after validation and must not change.
+
+| Published artifact | Contents |
+|---|---|
+| `dataset.jsonl` | `documentId`, `sourceDocumentId`, `joinedRawText`, `joinedRawTextSha256`, `target` |
+| `samples.md` | Original OCR followed by all published variants |
+| `manifest.json` | Scope, schema/config/review hashes, source snapshots, per-sample receipts and file hashes |
+
+Pending files are replaced with the **manifest committed last**. Existing
+identical outputs are idempotent; differing publication files are refused and
+preserved. This is not one atomic directory-wide transaction. The manifest is
+the completion marker.
+
+`validate` executes the same checks and constructs expected publication bytes
+without writing publication files. Neither `validate` nor `publish` pays for
+API calls. Neither merges the real dataset, makes train/validation splits,
+adds positions, or starts training.
+
+## 13. Stage commands and operational behavior
+
+From the repository root, these are the individual stages. This is a runbook,
+not authorization to start another campaign.
+
+```bash
+# This revision preserves the earlier published pilot.
+SYNTHESIS_CONFIG=configs/synthesis/mpci_bl_curated_v7_full_pilot24_contacts.yaml
+
+# Paid only when compatible successful wording is not cached:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign generate \
+  --config "$SYNTHESIS_CONFIG"
+
+# Optional contact-only refresh; generate already includes this:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign contacts \
+  --config "$SYNTHESIS_CONFIG"
+
+# Optional paid correction of detected postal failures only:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign correct-postal \
+  --config "$SYNTHESIS_CONFIG"
+
+# Local render + deterministic checks:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign render \
+  --config "$SYNTHESIS_CONFIG"
+
+# Paid only when the exact successful review request is not cached:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign review \
+  --config "$SYNTHESIS_CONFIG"
+
+# Resolve reported errors/findings before local validation/publication:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign validate \
+  --config "$SYNTHESIS_CONFIG"
+
+.venv/bin/python -m document_ocr.synthesis.curated_campaign publish \
+  --config "$SYNTHESIS_CONFIG"
+
+# Local-only, separate positioned inputs after plain publication:
+.venv/bin/python -m document_ocr.synthesis.curated_campaign positions \
+  --config "$SYNTHESIS_CONFIG"
+```
+
+A new campaign needs a new output/configuration; do not change a published
+run's scope and expect to overwrite its manifest. There is no single
+auto-repair-until-done command. Stage summaries retain successful partial work
+and per-source errors; processing errors give nonzero exit status. Publication
+still requires the entire configured scope.
+
+### Concurrency, cache and retries
+
+The paid runtime uses PydanticAI `NativeOutput(..., strict=True)` and a shared
+concurrency semaphore. A nonblocking `.campaign.lock` prevents simultaneous CLI
+writers. `.env` supplies credentials, not prompt content.
+
+There are two cache layers:
+
+1. Per-sample wording binds its instruction/native prompt/schema hash; cached
+   text is checked again before rendering. Compatible correction metadata stays.
+2. Paid-call keys include stage, source identity, provider config, complete
+   system/user prompts and output schema. Successful exact calls are reused.
+
+Changing prompt/schema invalidates corresponding reuse. A provider-config
+change affects paid-call cache keys; an already valid per-sample wording
+receipt is not forced to regenerate solely to switch providers.
+
+Cached failures remain explicit failures. `--retry-rate-limited` permits
+retries of cached HTTP 429 rejections, preserving numbered attempt receipts.
+`--retry-invalid-output` similarly permits one new attempt for a cached invalid
+native response. Neither flag enables an unbounded retry loop; billed failures
+remain in the ledger. Valid contact receipts can be reused without either flag.
+There are no silent provider fallbacks or semantic retry loops.
+
+### Budget accounting
+
+The current configured cap is $5. Before a paid request, code reserves a
+conservative bound using prompt/schema bytes and maximum output tokens; the
+check includes simultaneous reservations and recorded spending. Returned
+provider costs/usage replace estimates. Known rejections without usage cost
+zero; uncertain timeout/disconnection billing keeps an upper-bound reservation.
+This is not crash-proof external billing reconciliation after abrupt process
+death or receipt-write failure.
+
+Stage summaries and manifest cost include **all recorded campaign attempts**.
+The retained-path cost is separately attributed in the cost audit. Additional
+calls change the campaign ledger and expected manifest, so publication
+idempotency assumes the ledger/config also remain unchanged.
+
+### Artifact map
+
+Under `artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2/`:
+
+```text
+calls/                 Attempt inputs/outputs, messages, usage, errors and costs
+wording/               Accepted per-variant text, scenario and correction records
+contacts/              Company-conditioned email/website batch and sample receipts
+candidates/            Complete rendered records and replay/physical proofs
+reviews/               Hash-bound review results, with explicit manual-delta provenance where used
+adjudications/         Created when explicit false-positive decisions are needed
+audit/                 Extra pilot inspections and negative-control probes
+*-summary.json         Generation/correction/render/review outcomes
+dataset.jsonl          Published examples
+samples.md             Original/rendered inspection gallery
+manifest.json          Publication completion record
+positions/             Preserved earlier anchor-only publication
+positions-augmented-v1/ Configured augmented dataset, geometric receipts and gallery
+```
+
+Files such as `plan/`, product inventories and sampling probes are investigation
+artifacts, not additional mandatory runtime stages.
+
+## 14. Worked example and verified pilot result
+
+Source `33546e11…`, first variant, retains one goods group, two HS identities
+and one-container placement. It samples Maldives → Belgium, compatible donor
+HS853650/HS845090, and load scale 0.69. The final result contains:
+
+- **1,173 cartons, 11,353.5 kg, 45.553 m³**.
+- 40-foot high-cube general-purpose equipment.
+- New switches/washing-machine-parts description and fictional party wording.
+- Container **MSMU5623798**, seal **6464227**; the same ID is used by the
+  container and goods placement, which assigns all 1,173 cartons to it.
+
+Other variants use DR Congo → Italy with footwear/plastic parts, and Ecuador →
+Marshall Islands with medical equipment, without changing the accounting shape.
+See the [complete revised text pairs](../artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2/samples.md).
+
+| Pilot measure | Result |
+|---|---:|
+| Sources / accepted variants | 24 / 72 |
+| Origin / destination countries | 60 / 59 |
+| Country pairs / Egypt destinations | 71 / 1 |
+| Sampled / publicly printed distinct HS6 | 55 / 32 |
+| Package categories / equipment pairs | 14 / 4 |
+| DG / thermal / ventilation documents | 6 / 12 / 8 |
+| Descriptions differing from source | 68/72 |
+| Manual wording corrections retained | 13 across 12 records |
+
+Recorded pilot evidence: 98 targeted tests and lint passed; render/validation
+took approximately 3 seconds for 72 after initialization, CLI peak memory about
+433 MiB. Full paid review at concurrency eight took approximately 31 seconds
+including initialization. These are pilot measurements, not new performance
+benchmarks from this documentation pass.
+
+Full-restart development API cost was **$0.24554292**. Retained generation,
+postal-correction and final-review calls cost **$0.06081975** for 72, projecting
+to **$8.45/10k** at observed billing or **$12.67/10k** at configured conservative
+prices. Neither includes manual work, template engineering or future retry
+overhead. [Exact cost receipt](../artifacts/kie-synthesis-production/curated-v7-full-pilot24/audit/final-cost-and-variability.json).
+
+On 2026-10-07, this documentation pass reran **read-only validation**: 72
+expected, 72 valid, 24 sources, no failures or unresolved findings. Dataset hash
+`2574fe51caddc5289341b9c450a98beaeb421c742fee7c65b06ef6a1192ed34a`
+and manifest hash
+`28f64921d79051076060f3101e4227b385b20b9de2d25762ba06da66fbf6a7e2`
+match that historical publication. The later contact/position extension is
+documented in section 11 of the [pilot report](kie-synthesis-v7-pilot-2026-10-06.md);
+the old pilot remains intact.
+
+### Source-anchored positions
+
+[`curated_positions.py`](../src/document_ocr/synthesis/curated_positions.py)
+transfers normalized source coordinates through the renderer's exact UTF-8 byte
+edits. Unchanged lines retain their source anchors. A changed multi-line region
+interpolates along its own source line anchors when its line count changes; an
+expansion of a single source line repeats that anchor. Subsequent fields do not
+move. Unknown source positions remain ` ||` rather than borrowing another field's
+coordinates. Page markers and blank lines remain structural, without suffixes.
+
+This is intentionally approximate layout conditioning, not reconstructed PDF
+glyph geometry. Text-only re-matching against Paddle and absolute output line
+index copying are not used. Source positioned-text hashes, edit replay, page
+ownership and suffix-only preservation are checked before writing a separate
+`positionedText` field. Plain text and targets remain intact. The pilot has
+6,043 positioned lines out of 7,168 (84.31%) after correcting three auxiliary
+clauses that contained escaped rather than physical newlines.
+
+The production stage now applies the validated coherent page augmentation from
+[`curated_layout.py`](../src/document_ocr/synthesis/curated_layout.py). The explicit
+`positions` configuration sets output subdirectory, seed, minimum/maximum scale,
+maximum translation and bounded proposal count. The current pilot uses scale
+0.95–1.05, at most 20 units of translation per axis on the 0–1000 grid, and 32
+scale proposals. All known lines on a page share one transform; none receives
+independent jitter. The seed incorporates sample identity and page, not labels.
+
+Source dataset and Paddle parquet hashes are verified. Geometry must agree
+with the source alignment's measured regions and centroids. Bounds include
+**all** recognized source regions, including those not matched to the GLM text.
+Every accepted integer output preserves axis order, equal-axis alignment and
+complete nearest-neighbour sets, including ties. If no scale proposal qualifies,
+the page uses an explicitly recorded exact integer translation. A page with no
+known coordinates remains unknown; an immovable page records zero changed points.
+No coordinates are silently clamped or borrowed. Original text and labels are
+unchanged, and rerunning a different policy cannot overwrite an existing result.
+
+The configured output is `positions-augmented-v1/`; the old `positions/` remains
+intact for comparison. All 72 samples / 120 pages were published and independently
+verified, with 118 scaled pages and two translation-only pages. See
+[implementation and validation](kie-synthesis-v7-pilot-2026-10-06.md#13-production-positional-augmentation--2026-10-07).
+The earlier [geometry experiment](kie-synthesis-v7-pilot-2026-10-06.md#12-coordinate-synthesis-experiments--2026-10-07)
+remains historical evidence: text-width reconstruction/local reflow is **not**
+enabled. These are coarse source-layout anchors, not measured synthetic glyph boxes.
+
+## 15. Boundaries to preserve when scaling
+
+| Dimension | Current behavior |
+|---|---|
+| Countries/ports/localities | Sampled at both ends; no Egypt pin |
+| Names/addresses | Generated within reviewed ownership and sampled geography |
+| Cargo/package/equipment | Joint constrained donor-supported sampling, not arbitrary full-registry combinations |
+| Goods/package row counts, container counts | Fixed per source |
+| Placement topology and quantity presence | Fixed; identifiers/explicit quantities change coherently |
+| DG/thermal presence | Source-dependent, not randomly switched on/off |
+| Whole-unit wording | Host-controlled restricted product phrase |
+| Negotiability, freight arrangement, many handling facts | Source-fixed unless explicitly owned/sampled |
+| Carrier/legal/unrelated third-party text | May remain fixed |
+| Customs | Generic fictional references, not national compliance simulation |
+| Positions | Optional coherent page augmentation of source-layout anchors; 72 samples published and validated |
+| PDF/images | Not generated or re-rendered |
+| Catalog readiness | These 24 reviewed families, not the historical full catalog |
+| Validation meaning | Exact declared invariants plus model/manual semantic inspection, not an infallible classifier |
+
+Adding a source needs a current contract, reviewed mutable public/private
+ownership, supported capability domains, baseline replay, representative
+variants and semantic inspection. Adding variants to a prepared source does
+not require manually editing each template again, but generated examples still
+go through validation and review.
+
+Hashes are reproducibility/freshness checks under trusted local authorities,
+not cryptographic signatures proving semantic truth. Capacity checks do not
+prove regulatory compliance, and address checks do not prove deliverability.
+The pilot's extra manual inspection is not silently replaced by model agreement
+when scaling. Distribution quotas, a broader audited layout library, broader
+commodity/load support and a training ablation of the new positional inputs
+remain separate work, not results implied merely by successful publication.

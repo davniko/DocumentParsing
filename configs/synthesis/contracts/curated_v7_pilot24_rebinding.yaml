@@ -1,0 +1,151 @@
+# Source-specific ownership declarations, not executable special cases.
+# Every quote is checked against current OCR and every expression against current gold.
+doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
+  fields:
+    documentPatch.parties.shipper.addressLine:
+      expression: "{shipper_site} {shipper_postal}"
+      parts:
+        shipper_site: [postal, "ALTAYCESME MAH CAMLI SOKAK ESAS OFISPARK\nNO:21 KAT:4-5", "Street/site and building/floor; country Turkey; postcode/city occur in the next component. Exclude country/city/postcode here."]
+        shipper_postal: [postal, "34843 MALTEPE ISTANBUL", "Postcode, district and city in Turkey, coherent with shipper_site. No street or country here."]
+    documentPatch.parties.forwardingAgent.addressLine:
+      expression: "{agent_street} {agent_locality}"
+      parts:
+        agent_street: [postal, "Çiftlikköy Mah. 32182 Sk. Boyut 34 İş Merkezi No:2/26 K:10 Yenişehir", "Complete street/site/district in Turkey; city/country belongs to agent_locality. Preserve component granularity."]
+        agent_locality: [postal, "Mersin / Turkey", "City / Turkey, coherently generated with agent_street. Country TURKEY remains fixed."]
+doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
+  extra_occurrences:
+    v006: ["13,800"]
+    v007: ["68"]
+  fields:
+    documentPatch.parties.shipper.addressLine:
+      expression: "{shipper_postal} CHINA(CN)"
+      parts:
+        shipper_postal: [postal, "RM2914 29/F, HO KING COMMERCIAL CENTRE 2-16\nFA YUAN STREET MONGKOK KL HONGKONG", "Complete site/street/district/city in China. CHINA and China(CN) are separate fixed source declarations; do not add country to this fragment."]
+    documentPatch.parties.consignee.addressLine:
+      expression: "{consignee_postal} EGYPT(EG)"
+      parts:
+        consignee_postal: [postal, "1 AL AMAL STREET, FROM HASHAM AL ASHAR STREET, NEXT TO PETROJET, NEW NOZHA/CAIRO", "Whole postal address except country; Egypt(EG) is printed separately after contact/tax. Keep the source-level street, landmark, district, city granularity, without country/contact data."]
+    documentPatch.parties.deliveryAgent.addressLine:
+      expression: "{agent_site} {agent_city}"
+      parts:
+        agent_site: [postal, "Office 2, 1st Floor ENAWALKS Mall – 5th Settlement\n1234", "Office/floor/site/district and printed numeric postal component. City/country belong in agent_city, after contact lines; jointly coherent."]
+        agent_city: [postal, "New Cairo\nEgypt", "City and country Egypt for agent_site. Include no street or contact data."]
+    documentPatch.goodsItemDetails[0].description:
+      expression: "{brush}; {sponge}; {tools}; {nails}"
+      parts:
+        brush: [product, "BRUSH", "Brush product identity tied to fixed HS9603309090, makeup/art brush family. Keep identity and HS compatibility."]
+        sponge: [product, "SPONGE", "Cosmetic sponge tied to fixed HS9616200000."]
+        tools: [product, "BODYCARE TOOLS", "Bodycare/manicure tools tied to fixed HS8214100000."]
+        nails: [product, "PLASTIC TAKE NAILS", "Source wording for artificial plastic nails tied to fixed HS3926909090; retain this product family."]
+doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+  extra_variables:
+    - key: gross_total
+      kind: mass
+      value: "24040"
+      meaning: Printed shipment gross total, equal to the two container gross weights.
+      required_literals: []
+      occurrences: [{text: "24040.000", occurrence: 1, presentation: number}]
+  fields:
+    documentPatch.parties.consignee.name:
+      expression: "{consignee_business} ({consignee_person})"
+      parts:
+        consignee_business: [name, "OUT IT FOR IMPORT AND EXPORT", "Consignee business name only. Personal name is a separately contracted parenthetical identity."]
+        consignee_person: [name, "AHMED MAHMOUD ABD ALLAH\nABD ALBARY", "Full personal name in consignee company identity, not a contact or an address."]
+doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+  required_literals:
+    v002: ["FRESH ELECTRIC"]
+  fixed_historical_bindings:
+    "anchor:documentPatch.cargoPackages[0].quantity": "48,111 is product sheet count embedded in description, not current 99-package total. Retain it with numeric-preserved product wording."
+  fields:
+    documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity:
+      expression: "{packages}"
+      parts:
+        packages: [count, "Ninety Nine", "Total packages; independent of fixed 48,111 sheets; membership-only placements remain unquantified."]
+doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8:
+  required_literals:
+    v002: ["UNIVERSAL 650"]
+  frozen_variables:
+    v003: The fixed Universal tractor identity retains the observed three-tractor count.
+    v004: The same three Universal 650 tractors retain their observed shipment mass.
+  fields:
+    documentPatch.parties.shipper.addressLine:
+      expression: "{shipper_site} ROMANIA"
+      parts:
+        shipper_site: [postal, "Str. 1 Decembrie 1918, Nr.23\nBl.2pp, Ap.15, BARAOLT", "Complete street/site/apartment/city in Romania; printed Judet: Romania and bank data stay fixed outside this address fragment. Do not add country here."]
+    documentPatch.parties.consignee.addressLine:
+      expression: "{consignee_site} {consignee_region} EGYPT"
+      parts:
+        consignee_site: [postal, "PORT SAID 31951, 32 MIT\nGHAMR", "Postal address core, city/postcode/street, coherent with separately captioned State/Province. Country EGYPT is separately printed; do not add it."]
+        consignee_region: [postal, "DAKAHLYA", "State/Province for consignee_site, same Egypt address. Region name only, no country or street."]
+    documentPatch.parties.notifyParties[0].addressLine:
+      expression: "{consignee_site} {consignee_region} EGYPT"
+      parts: {}
+doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+  required_literals:
+    v014: ["POTASSIUM AMYL XANTHATE"]
+  fields:
+    documentPatch.parties.deliveryAgent.addressLine:
+      expression: "{agent_site} {agent_locality}"
+      parts:
+        agent_site: [postal, "NO. 5 VICTOR BASSILY ST\nBAB SHARQ\n2ND FLOOR", "Street/district/floor; city/country continue on page3 as agent_locality. Keep fragments jointly coherent, with no repeated city/country here."]
+        agent_locality: [postal, "ALEXANDRIA\nEGYPT", "Delivery-agent city/country continuing on page3. Egypt is fixed; must agree with agent_site."]
+doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+  required_literals:
+    vehicle_description: ["RANGE ROVER AUTOBIOGRAPHY"]
+  frozen_variables:
+    v009: The chassis-bound Range Rover retains its observed mass.
+    v010: The chassis-bound Range Rover retains its observed shipment volume.
+  fields:
+    documentPatch.goodsItemDetails[0].description:
+      expression: "{vehicle_description}; CHASSIS NUMBER SALKABB95SA261563"
+      parts:
+        vehicle_description: [product, "NEW RANGE ROVER AUTOBIOGRAPHY", "Same Range Rover Autobiography vehicle, chassis identity and UN3166 remain fixed. Equivalent wording only, no other make/model/fuel type or extra vehicles."]
+doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+  fields:
+    documentPatch.parties.forwardingAgent.name:
+      expression: "{agent_name} CO.,LTD. QINGDAO BRANCH"
+      parts:
+        agent_name: [name, "CIMC WETRANS LOGISTICS MANAGEMENT", "Company name without its separately printed fixed CO.,LTD. QINGDAO BRANCH suffix. Generate a compatible company stem, not another legal suffix."]
+doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+  dependent_targets:
+    documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity: "{v008}"
+  fields:
+    documentPatch.parties.shipper.name:
+      expression: "{shipper_name} SP Z.O.O."
+      parts:
+        shipper_name: [name, "FOOD MORE TRADING COMPANY", "Polish company name stem; the source's line-broken SP Z.O.O. legal suffix remains fixed outside this variable. Do not repeat legal suffix."]
+doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+  extra_occurrences:
+    v020: ["5600"]
+  fields:
+    documentPatch.parties.shipper.addressLine:
+      expression: "{shipper_site} - {shipper_postcode} {shipper_region}"
+      parts:
+        shipper_site: [postal, "PLOT NO. 15,16,17 SALMAN HILLS DILRAS COLONY AURANGABAD", "Plot/site/colony/city in Maharashtra, India. Region and postal code printed separately in adjacent fragments; do not duplicate them here."]
+        shipper_postcode: [postal, "431001", "Six-digit Indian postal code for city in shipper_site. Digits only; maintain adjacent source format."]
+        shipper_region: [postal, "MAHARASHTRA.INDIA", "Region.country for shipper_site. Maharashtra, India fixed context; preserve dot delimiter without adding postcode/city."]
+    documentPatch.goodsItemDetails[0].description:
+      expression: "{hybrid} {crop} CEREAL SEED QUALITY"
+      parts:
+        hybrid: [product, "HYBRID", "Hybrid status of source sorghum seed; remain exactly HYBRID because another full product declaration repeats it."]
+        crop: [product, "SORGHUM MECCA", "Sorghum crop/variety identity tied to HS10071000 and repeated full product declaration. Keep SORGHUM MECCA fixed for this identity."]
+doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
+  required_literals:
+    v009: ["PLSTONE"]
+  extra_occurrences:
+    v010: ["1274"]
+doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a:
+  required_literals:
+    v006: ["KOMATSU"]
+  frozen_variables:
+    v008: The chassis-bound Komatsu excavator retains its observed shipment mass.
+    v009: The chassis-bound Komatsu excavator retains its observed shipment volume.
+doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d:
+  required_literals:
+    v007: ["NEW HOLLAND", "ACM248514", "ACM204621", "001060585"]
+  frozen_variables:
+    v008: Three individual serial numbers are printed; the three-tractor count stays fixed.
+    v009: The three serial-bound New Holland tractors retain their observed shipment mass.
+doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
+  dependent_targets:
+    documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity: "{v009}"

@@ -1,0 +1,530 @@
+import json
+from copy import deepcopy
+from datetime import date
+from types import SimpleNamespace
+
+import pytest
+
+from document_ocr.synthesis.curated import Occurrence, SourceContract
+from document_ocr.synthesis.curated_ownership import (
+    _declared_date_surface,
+    build_owned_blueprint,
+    ownership_surfaces,
+)
+from document_ocr.synthesis.curated_templates import (
+    LexicalOwnership,
+    _aligned_sample_leaves,
+    compile_sampling_blueprint,
+    current_path,
+    render_sampling_blueprint,
+    substitute_expression_literals,
+    wrap_owned_text,
+)
+
+
+def source_fixture():
+    raw = (
+        "ÉDITÉ\nSHIPPER\nACME LTD\n12 ROAD\nMUMBAI, INDIA\n"
+        "TAX: 12345\nPORT: MUMBAI\nCOUNTRY: INDIA\n"
+        "GOODS: STEEL BOLTS\n24 BOXES\nHS: 731815\nISSUED: 2024.10.17\n"
+    )
+    row = {
+        "documentId": "sample",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "issueDate": "2024-10-17",
+                "route": {"portOfLoading": {"name": "MUMBAI", "country": "INDIA"}},
+                "parties": {
+                    "shipper": {
+                        "name": "ACME LTD",
+                        "addressLine": "12 ROAD MUMBAI, INDIA",
+                        "country": "INDIA",
+                    }
+                },
+                "goodsItemDetails": [
+                    {
+                        "description": "STEEL BOLTS",
+                        "hsCodes": ["731815"],
+                        "numberAndTypeOfPackages": [
+                            {"packageQuantity": 24, "typeCategory": "PACKAGE_BOX"}
+                        ],
+                    }
+                ],
+            },
+        },
+    }
+    contract = SourceContract(
+        variables=[
+            dict(
+                key="name",
+                kind="name",
+                value="ACME LTD",
+                meaning="shipper",
+                required_literals=[],
+                occurrences=[dict(text="ACME LTD", occurrence=1, presentation="text")],
+            ),
+            dict(
+                key="postal",
+                kind="postal",
+                value="12 ROAD MUMBAI, INDIA",
+                meaning="postal",
+                required_literals=["INDIA"],
+                occurrences=[
+                    dict(text="12 ROAD\nMUMBAI, INDIA", occurrence=1, presentation="text")
+                ],
+            ),
+            dict(
+                key="product",
+                kind="product",
+                value="STEEL BOLTS",
+                meaning="goods",
+                required_literals=["STEEL"],
+                occurrences=[dict(text="STEEL BOLTS", occurrence=1, presentation="text")],
+            ),
+            dict(
+                key="quantity",
+                kind="count",
+                value="24",
+                meaning="packages",
+                required_literals=[],
+                occurrences=[dict(text="24", occurrence=1, presentation="number")],
+            ),
+        ],
+        targets=[
+            dict(path="documentPatch.parties.shipper.name", expression="{name}"),
+            dict(path="documentPatch.parties.shipper.addressLine", expression="{postal}"),
+            dict(path="documentPatch.goodsItemDetails[0].description", expression="{product}"),
+            dict(
+                path="documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity",
+                expression="{quantity}",
+            ),
+        ],
+        fixed_context="original lexical pilot constraints superseded by sampled scenario",
+    )
+    bindings = []
+
+    def binding(key, path, text, kind, occurrence=1):
+        offset = -1
+        for _ in range(occurrence):
+            offset = raw.index(text, offset + 1)
+        start = len(raw[:offset].encode())
+        bindings.append(
+            dict(
+                logical_key=key,
+                target_paths=[path],
+                value_kind=kind,
+                occurrences=[
+                    dict(byte_start=start, byte_end=start + len(text.encode()), source_text=text)
+                ],
+            )
+        )
+
+    binding("shipper_country", "documentPatch.parties.shipper.country", "INDIA", "location")
+    binding("loading", "documentPatch.route.portOfLoading.name", "MUMBAI", "location", 2)
+    binding("loading_country", "documentPatch.route.portOfLoading.country", "INDIA", "location", 2)
+    binding("package", "documentPatch.cargoPackages[0].typeCategory", "BOXES", "package")
+    binding("hs", "documentPatch.cargoGroups[0].hsCodes[0]", "731815", "identifier")
+    binding("date", "documentPatch.issueDate", "2024.10.17", "date")
+    return row, contract, {"document_id": "sample", "bindings": bindings}
+
+
+def test_rebase_identity_and_full_scalar_sampling_preserve_unrelated_bytes():
+    row, contract, old = source_fixture()
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    inventory = blueprint.inventory()
+    assert inventory["nestedBindings"]
+    assert json.loads(json.dumps(inventory)) == inventory
+    raw, target, proof = render_sampling_blueprint(blueprint, row["target"], {})
+    assert raw == row["joinedRawText"] and target == row["target"] and proof["edits"] == []
+    new = deepcopy(row["target"])
+    patch = new["documentPatch"]
+    patch["issueDate"] = "2025-09-12"
+    patch["route"]["portOfLoading"] = dict(name="ROTTERDAM", country="NETHERLANDS")
+    patch["parties"]["shipper"].update(
+        name="NORTH BV", addressLine="8 CANAL ROAD ROTTERDAM, NETHERLANDS", country="NETHERLANDS"
+    )
+    patch["goodsItemDetails"][0].update(description="CERAMIC TILES", hsCodes=["690721"])
+    patch["goodsItemDetails"][0]["numberAndTypeOfPackages"][0].update(
+        packageQuantity=36, typeCategory="PACKAGE_CARTON"
+    )
+    raw, target, proof = render_sampling_blueprint(blueprint, new, {})
+    assert target == new
+    assert "ÉDITÉ" in raw and "TAX: 12345" in raw
+    assert "36 CARTONS" in raw and "2025.09.12" in raw and "690721" in raw
+    assert "INDIA" not in raw and "STEEL" not in raw
+    assert proof["changedTargetPaths"] == proof["coveredTargetPaths"]
+    assert row["target"] != new
+
+
+def test_changed_package_requires_printed_type_not_declared_or_product_overlap_only():
+    row, contract, old = source_fixture()
+    target = deepcopy(row["target"])
+    goods = target["documentPatch"]["goodsItemDetails"][0]
+    goods["numberAndTypeOfPackages"][0]["typeCategory"] = "PACKAGE_PALLET"
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    with pytest.raises(ValueError, match="lacks an owned printed noun"):
+        render_sampling_blueprint(blueprint, target, {}, surface_values={"package": "BOXES"})
+    package = next(b for b in old["bindings"] if b["logical_key"] == "package")
+    start = len(row["joinedRawText"].split("STEEL BOLTS")[0].encode())
+    package["occurrences"] = [
+        dict(byte_start=start, byte_end=start + len("STEEL BOLTS"), source_text="STEEL BOLTS")
+    ]
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    goods["description"] = "PALLET STACKERS"
+    with pytest.raises(ValueError, match="lacks an owned printed noun"):
+        render_sampling_blueprint(blueprint, target, {})
+
+
+def test_country_cannot_be_claimed_by_ownership_if_not_generated():
+    row, contract, old = source_fixture()
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["shipper"]["country"] = "SPAIN"
+    with pytest.raises(ValueError, match="absent from owned postal"):
+        render_sampling_blueprint(blueprint, target, {})
+    target["documentPatch"]["parties"]["shipper"].update(
+        country="INDIA", addressLine="55 NEW ROAD MUMBAI"
+    )
+    with pytest.raises(ValueError, match="absent from owned postal"):
+        render_sampling_blueprint(blueprint, target, {})
+
+
+def test_composite_country_replacement_is_atomic_and_keeps_variable_names():
+    assert (
+        substitute_expression_literals(
+            "{shipper_postal} CHINA(CN)",
+            {"CHINA(CN)": "GUINEA-BISSAU", "CHINA": "GUINEA-BISSAU", "CN": "GW"},
+        )
+        == "{shipper_postal} GUINEA-BISSAU"
+    )
+    assert (
+        substitute_expression_literals("{country_ir} CHINA IR", {"CHINA": "IRAN", "IR": "FI"})
+        == "{country_ir} IRAN FI"
+    )
+
+
+def test_country_codes_require_explicit_authority_and_terminal_postal_position():
+    row, contract, old = source_fixture()
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    target = deepcopy(row["target"])
+    path = "documentPatch.parties.shipper.country"
+    party = target["documentPatch"]["parties"]["shipper"]
+    party.update(country="SPAIN", addressLine="12 CALLE MAYOR MADRID ES")
+    with pytest.raises(ValueError, match="absent from owned postal"):
+        render_sampling_blueprint(blueprint, target, {})
+    text, _, proof = render_sampling_blueprint(
+        blueprint, target, {}, certified_country_codes={path: "ES"}
+    )
+    assert "MADRID ES" in " ".join(text.split())
+    assert proof["certifiedCountryCodes"] == {path: "ES"}
+    party["addressLine"] = "12 ES STREET MADRID"
+    with pytest.raises(ValueError, match="absent from owned postal"):
+        render_sampling_blueprint(blueprint, target, {}, certified_country_codes={path: "ES"})
+    with pytest.raises(ValueError, match="invalid certified"):
+        render_sampling_blueprint(blueprint, target, {}, certified_country_codes={path: "ESP"})
+
+
+def test_multiword_country_remains_grounded_across_physical_line_wrap():
+    row, contract, old = source_fixture()
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["shipper"].update(
+        country="TURKS AND CAICOS ISLANDS",
+        addressLine="1 ROAD TURKS AND CAICOS ISLANDS",
+    )
+    text, _, _ = render_sampling_blueprint(
+        blueprint, target, {"postal": "1 ROAD TURKS AND\nCAICOS ISLANDS"}
+    )
+    assert "1 ROAD TURKS AND\nCAICOS ISLANDS" in text
+
+
+def test_reviewed_date_format_must_match_source_date():
+    row, contract, old = source_fixture()
+    blueprint = build_owned_blueprint(
+        row,
+        old,
+        contract,
+        {"surfaces": {"date": {"date_path": "documentPatch.issueDate", "format": "%Y.%m.%d"}}},
+    )
+    target = deepcopy(row["target"])
+    target["documentPatch"]["issueDate"] = "2025-09-01"
+    scenario = SimpleNamespace(
+        party_localities={"documentPatch.parties.shipper": SimpleNamespace(country_code="IN")}
+    )
+    surfaces = ownership_surfaces(blueprint, target, scenario)
+    assert surfaces["date"] == ["2025.09.01"]
+    blueprint.ownership_data["surfaces"]["date"]["format"] = "%Y.%d.%m"
+    with pytest.raises(ValueError):
+        ownership_surfaces(blueprint, target, scenario)
+
+
+def test_worded_date_profiles_cover_every_calendar_day():
+    rendered = [
+        _declared_date_surface(date(2026, 1, n), "%B {day_ordinal}, %Y") for n in range(1, 32)
+    ]
+    assert len(set(rendered)) == 31
+    assert rendered[0] == "January FIRST, 2026"
+    assert rendered[19:22] == [
+        "January TWENTIETH, 2026",
+        "January TWENTY-FIRST, 2026",
+        "January TWENTY-SECOND, 2026",
+    ]
+    assert rendered[-2:] == ["January THIRTIETH, 2026", "January THIRTY-FIRST, 2026"]
+
+
+def test_postal_order_override_cannot_introduce_or_drop_facts():
+    row, contract, old = source_fixture()
+    with pytest.raises(ValueError, match="changes facts rather than order"):
+        build_owned_blueprint(
+            row,
+            old,
+            contract,
+            {"render_expressions": {"documentPatch.parties.shipper.addressLine": "{postal} INDIA"}},
+        )
+
+
+def test_declared_contact_expansion_prints_owned_contact_in_party_and_syncs_repeat():
+    raw = "SHIPPER\nACME\nTEL: 5551234\nGOODS\nCONTACT ALICE\n"
+    role = "documentPatch.parties.shipper"
+    phone_path, name_path = (
+        role + ".contactDetails.phoneNumbers[0]",
+        role + ".contactDetails.contactName",
+    )
+    row = {
+        "documentId": "contact-example",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "parties": {
+                    "shipper": {
+                        "name": "ACME",
+                        "contactDetails": {"phoneNumbers": ["5551234"], "contactName": "ALICE"},
+                    }
+                }
+            },
+        },
+    }
+    contract = SourceContract.model_validate(
+        {
+            "variables": [
+                {
+                    "key": "name",
+                    "kind": "name",
+                    "value": "ACME",
+                    "meaning": "shipper",
+                    "required_literals": [],
+                    "occurrences": [{"text": "ACME", "occurrence": 1, "presentation": "text"}],
+                }
+            ],
+            "targets": [{"path": role + ".name", "expression": "{name}"}],
+            "fixed_context": "Contact source topology test.",
+        }
+    )
+    historical = {"document_id": row["documentId"], "bindings": []}
+    for key, path, value in [("phone", phone_path, "5551234"), ("contact", name_path, "ALICE")]:
+        start = raw.index(value)
+        historical["bindings"].append(
+            {
+                "logical_key": key,
+                "target_paths": [path],
+                "value_kind": "other_text",
+                "occurrences": [
+                    {"byte_start": start, "byte_end": start + len(value), "source_text": value}
+                ],
+            }
+        )
+    declaration = {
+        "bindings": {
+            "phone": {"paths": [phone_path, name_path], "occurrences": [{"text": "TEL: 5551234"}]}
+        },
+        "surfaces": {
+            "phone": {"expression": "CONTACT: {" + name_path + "}\nTEL: {" + phone_path + "}"}
+        },
+    }
+    blueprint = build_owned_blueprint(row, historical, contract, declaration)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["shipper"]["contactDetails"] = {
+        "phoneNumbers": ["7777777"],
+        "contactName": "BOB",
+    }
+    surfaces = ownership_surfaces(blueprint, target, SimpleNamespace(party_localities={}))
+    text, _, proof = render_sampling_blueprint(blueprint, target, {}, surface_values=surfaces)
+    assert text == "SHIPPER\nACME\nCONTACT: BOB\nTEL: 7777777\nGOODS\nCONTACT BOB\n"
+    assert len(proof["edits"]) == 2
+
+
+def test_reject_stale_offsets_unknown_values_missing_owners_and_topology_changes():
+    row, contract, old = source_fixture()
+    broken = deepcopy(old)
+    broken["bindings"][0]["occurrences"][0]["byte_start"] += 1
+    with pytest.raises(ValueError, match="differs from current OCR"):
+        compile_sampling_blueprint(row, broken, contract)
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    with pytest.raises(ValueError, match="unknown render keys"):
+        render_sampling_blueprint(blueprint, row["target"], {"imagined": "X"})
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["hsCodes"].append("690721")
+    with pytest.raises(ValueError, match="duplicate-HS6 collapse"):
+        render_sampling_blueprint(blueprint, target, {})
+    target = deepcopy(row["target"])
+    target["schemaVersion"] = "999"
+    with pytest.raises(ValueError, match="no rendered owner"):
+        render_sampling_blueprint(blueprint, target, {})
+
+
+def test_explicit_composite_surface_required_and_receipted():
+    row, contract, old = source_fixture()
+    old["bindings"][-1]["value_kind"] = "identifier"
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["issueDate"] = "2025-09-12"
+    with pytest.raises(ValueError, match="explicit composite"):
+        render_sampling_blueprint(blueprint, target, {})
+    raw, _, proof = render_sampling_blueprint(
+        blueprint, target, {}, surface_values={"date": "12/SEP/2025"}
+    )
+    assert "12/SEP/2025" in raw
+    assert proof["edits"][-1]["after"] == "12/SEP/2025"
+
+
+def test_whole_product_override_replaces_old_identity_not_just_one_fragment():
+    row, contract, old = source_fixture()
+    override = LexicalOwnership(
+        key="whole_goods",
+        target_paths=("documentPatch.goodsItemDetails[0].description",),
+        occurrences=(Occurrence(text="STEEL BOLTS", occurrence=1, presentation="text"),),
+    )
+    blueprint = compile_sampling_blueprint(row, old, contract, ownership_overrides=(override,))
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["description"] = "POLYESTER FABRIC"
+    raw, _, _ = render_sampling_blueprint(blueprint, target, {})
+    assert "POLYESTER FABRIC" in raw and "STEEL BOLTS" not in raw
+    incomplete = LexicalOwnership(
+        key="partial",
+        target_paths=override.target_paths,
+        occurrences=(Occurrence(text="STEEL", occurrence=1, presentation="text"),),
+    )
+    with pytest.raises(ValueError, match="partially intersects"):
+        compile_sampling_blueprint(row, old, contract, ownership_overrides=(incomplete,))
+
+
+def test_hs_collapse_retains_all_printed_surfaces_but_not_duplicate_targets():
+    before = {
+        "g.hsCodes[0]": "020622",
+        "g.hsCodes[1]": "02062200",
+        "g.hsCodes[2]": "0206220000",
+        "other": 1,
+    }
+    after = {"g.hsCodes[0]": "020714", "other": 1}
+    aligned, aliases = _aligned_sample_leaves(before, after)
+    assert [aligned[f"g.hsCodes[{i}]"] for i in range(3)] == ["020714"] * 3
+    assert set(aliases.values()) == {"g.hsCodes[0]"}
+    with pytest.raises(ValueError, match="not a duplicate-HS6 collapse"):
+        _aligned_sample_leaves({**before, "g.hsCodes[2]": "123456"}, after)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "22 SULTAN HUSSEIN ST., ANTOUKHY , ALEXANDRIA , EGYPT",
+        "EGYPT, SUEZ , DREAM MALL , SECOND FLOOR , NO.14",
+    ],
+)
+def test_wrapping_keeps_punctuation_with_text_without_dropping_tokens(value):
+    text = wrap_owned_text("39 Banni El-Abbas, Bab Sharqi ,\nAlexandria , Egypt", value)
+    assert " ".join(text.split()) == value
+    assert all(not line.startswith((",", ";", ":")) for line in text.splitlines())
+    with pytest.raises(ValueError, match="detached delimiter"):
+        wrap_owned_text("x\ny", "CITY\n, COUNTRY")
+
+
+def test_current_paths_translate_only_structural_fields():
+    assert (
+        current_path("documentPatch.containers[0].containerNumber")
+        == "documentPatch.containerInformation[0].equipmentIdentifier"
+    )
+    assert (
+        current_path("documentPatch.cargoAllocationGroups[0].allocations[1].containerNumber")
+        == "documentPatch.goodsItemDetails[0].splitGoodsPlacement[1].equipmentIdentifier"
+    )
+    assert (
+        current_path("documentPatch.parties.shipper.city") == "documentPatch.parties.shipper.city"
+    )
+
+
+def test_lexical_ownership_changes_the_wording_contract_and_checks_repeat_coverage():
+    row, contract, old = source_fixture()
+    declaration = {
+        "lexical": [
+            {
+                "key": "whole_goods",
+                "kind": "product",
+                "paths": ["documentPatch.goodsItemDetails[0].description"],
+                "occurrences": [{"text": "STEEL BOLTS"}],
+            }
+        ],
+    }
+    blueprint = build_owned_blueprint(row, old, contract, declaration)
+    assert "product" not in {v.key for v in blueprint.contract.variables}
+    assert "whole_goods" in {v.key for v in blueprint.contract.variables}
+    assert blueprint.contract.targets[-1].expression == "{whole_goods}"
+    assert render_sampling_blueprint(blueprint, row["target"], {})[0] == row["joinedRawText"]
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["description"] = "CERAMIC TILES"
+    assert (
+        "CERAMIC TILES"
+        in render_sampling_blueprint(blueprint, target, {"whole_goods": "CERAMIC TILES"})[0]
+    )
+
+
+def test_reviewed_literal_deletion_is_explicit_and_other_blank_surfaces_fail():
+    row, contract, old = source_fixture()
+    declaration = {
+        "add": [{"key": "old_tax_caption", "occurrences": [{"text": "TAX:"}]}],
+        "delete": {"old_tax_caption": "Test reviewed removal of an obsolete caption."},
+    }
+    blueprint = build_owned_blueprint(row, old, contract, declaration)
+    text, _, proof = render_sampling_blueprint(
+        blueprint, row["target"], {}, surface_values={"old_tax_caption": ""}
+    )
+    assert "12345" in text and "TAX:" not in text
+    assert any(edit["before"] == "TAX:" and edit["after"] == "" for edit in proof["edits"])
+    with pytest.raises(ValueError, match="cannot be blank"):
+        render_sampling_blueprint(blueprint, row["target"], {}, surface_values={"date": ""})
+
+
+def test_numeric_constant_is_unfrozen_only_after_exact_historical_ownership():
+    row, contract, old = source_fixture()
+    path = "documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity"
+    contract = contract.model_copy(
+        update={
+            "variables": [v for v in contract.variables if v.key != "quantity"],
+            "targets": [
+                t.model_copy(update={"expression": "24"}) if t.path == path else t
+                for t in contract.targets
+            ],
+        }
+    )
+    unowned = build_owned_blueprint(row, old, contract, {})
+    assert any(t.path == path and t.expression == "24" for t in unowned.contract.targets)
+    start = len(row["joinedRawText"].split("24 BOXES")[0].encode())
+    old["bindings"].append(
+        dict(
+            logical_key="printed_count",
+            target_paths=[path],
+            value_kind="number",
+            occurrences=[dict(byte_start=start, byte_end=start + 2, source_text="24")],
+        )
+    )
+    owned = build_owned_blueprint(row, old, contract, {})
+    assert not any(t.path == path for t in owned.contract.targets)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0][
+        "packageQuantity"
+    ] = 36
+    assert "36 BOXES" in render_sampling_blueprint(owned, target, {})[0]
+    with pytest.raises(ValueError, match="no rendered owner"):
+        render_sampling_blueprint(unowned, target, {})
