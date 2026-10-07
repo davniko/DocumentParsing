@@ -1,0 +1,396 @@
+# Current-schema synthesis: 100-source / 200-record expansion
+
+## Scope and release contract
+
+The requested deliverable is 100 distinct usable training-source templates, with
+two newly sampled complete documents per template. Each document must include
+current-schema targets, rendered text, source-anchored synthesized coordinates,
+and source/variation provenance. This is a separate synthetic dataset, not an
+edit to the 600 real training or 60 validation records.
+
+The campaign configuration is
+`configs/synthesis/mpci_bl_curated_v7_expansion100.yaml`; its working artifacts
+are in `artifacts/kie-synthesis-production/curated-v7-expansion100-v1`.
+The initial inventory and subsequent explicit eligibility replacements are
+preserved there. A draft contract, a successful model call, or a rendered sample
+is not itself a published release. Publication requires the complete configured
+scope, exact current-authority replay, resolved semantic review, and the separate
+coordinate audit.
+
+## Initial selection and admission findings
+
+The starting selection contained the 26 previously exercised templates, all 48
+remaining sources from the earlier low-complexity shortlist, and 26 additional
+train-only sources. Screening uses current OCR/labels and the historical template
+ownership, not old catalog acceptance as a substitute for current validation.
+
+The inventory exposed several concrete differences between historical templates
+and current labels:
+
+- Addresses and represented-party names can span remote continuations; historical
+  city/address splits cannot simply be copied to the new complete-address target.
+- Product phrases inside company names are not goods-description occurrences.
+- Historical allocation row indices can differ from current container ordering.
+- Original-B/L counts and container counts expressed in words are not cargo
+  package totals.
+- Mixed package rows, missing container rows and paired metric/imperial printouts
+  require their own accounting contracts rather than flattening or equal-number
+  substitution.
+- Discharge and onward delivery can lie in different countries; party geography
+  must follow its actual route node rather than always the discharge endpoint.
+- Source-only customs references, party aliases, repeated numeric rows and
+  country-specific clauses must change coherently with the sampled shipment.
+
+Thirteen initially selected candidates were explicitly replaced during eligibility
+screening. Reasons and replacements are recorded in
+`configs/synthesis/contracts/curated_v7_expansion100/selection.yaml` and the
+campaign's `audit/selection-revision.json`. Their original evidence is retained;
+none of their real labels or OCR was altered. The active scope remains 100.
+
+The final two replacements are `8c6da3dd → d69c24cb` and
+`bee16be0 → 04f208b1`. The first requires a separate source-label equipment
+reconciliation; the second has conflicting cargo/row weights without a printed
+tare or VGM explanation, confirmed in the PDF. Four already-generated candidates
+from those excluded sources are preserved in `excluded-candidates/`, outside the
+published candidate set. A plausible interpretation is not used to certify them.
+
+## Validation layers
+
+1. **Source identity and ownership:** current OCR and target hashes; exact source
+   quotes; non-overlapping owned spans; baseline label replay; explicit ownership
+   for every mutable public or dependent private fact.
+2. **Sampling:** train-only registry/support fitting; source-compatible cargo
+   family, packaging, equipment, thermal/DG settings and route topology; coherent
+   totals and placements.
+3. **Rendering:** every changed label has an owned rendered surface; repeated
+   facts agree; exact edit replay; no unrelated source changes; uppercase target
+   policy and independently configured rendered casing.
+4. **Semantic review:** complete rendered text and target, with the sampled
+   shipment context. Findings are corrected and re-reviewed, or explicitly
+   adjudicated against quoted current text. No blanket approval of held results.
+5. **Positions:** source-anchor provenance, text preservation, coordinate bounds,
+   valid page assignment, spacing/order and collision checks; explicit unknown
+   coordinates where fitting would be unsupported.
+6. **Release:** exactly 100 source IDs and 200 distinct records; every review and
+   proof bound to current hashes; no real/validation mutation; reproducible
+   publication and coordinate enrichment.
+
+## Admission probe that was rejected
+
+A small GLM source-fragment-selection probe made six calls costing $0.0026302.
+It returned extra punctuation/count context and invalid repeated occurrence
+selectors. All six proposals were held; none was used to authorize a template.
+The temporary agent-admission script was removed. Exact historical ownership,
+current source inspection and deterministic baseline replay are used for the
+admission declarations instead. The original paid-call receipts remain in the
+campaign cost ledger.
+
+## Status
+
+The expansion is complete: **100 sources, 200 records, two variants each**,
+with published plain and position-enriched inputs, current-schema labels,
+zero unresolved content findings and a passing independent geometry audit.
+
+Publication files:
+
+- `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/dataset.jsonl`
+- `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/samples.md`
+- `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/manifest.json`
+- `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/positions-v2/dataset.jsonl`
+- `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/positions-v2/samples.md`
+- `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/positions-v2/manifest.json`
+
+The plain dataset SHA-256 is
+`5268bc8367e06a04e94c2fcae6320f8801a9bb6f0456b10884f09caf0b276dae`.
+The position-enriched dataset SHA-256 is
+`c35131d73070903cc38bc7c2f9865e772a0eb622ccb4fcf56780353b568d5fae`.
+The plain publication manifest SHA-256 is
+`9982fb3dd0f7ce3b7fe8bc9b664eb1a6363bc1d1f3f952460b6b4754eed3f826`.
+
+## Repairs established by the expanded admission pass
+
+The earlier 26-source pilot did not exercise every source representation found
+in the additional 74 sources. The following changes address observed inputs,
+not speculative format support:
+
+- **Numeric source preparation:** current container identity, not historical row
+  position, determines an allocation owner. Cargo package totals are distinguished
+  from original-B/L counts and container receipts, including numbers in words.
+  Unit-only regions do not become numeric measurements. Grouped numeric notation
+  and explicit unit conversions require a baseline proof.
+- **Private measurements:** source-only gross/net/volume and tare values use
+  explicit equipment owners and declared sums. Ambiguous punctuation requires a
+  reviewed, source-hash-bound interpretation; equipment capacity is not used to
+  guess the original number.
+- **Route topology:** origins, ports, onward destinations and independent party
+  localities retain their distinct roles. An explicitly represented company's
+  name can appear inside a principal's name without forcing both postal addresses
+  to the same country.
+- **Route-owned handling:** three sources contain demurrage or bonded-warehouse
+  instructions naming a port/locality. Their labels and printed clauses now
+  depend on the same sampled route values. The contract pins the original clause
+  and its owned source region; it cannot modify arbitrary descriptive text.
+- **Postal/contact ownership:** reviewed contracts consolidate split emails and
+  phones in their owning party blocks, consume duplicated address fragments,
+  and remove obsolete continuation markers only from synthetic rendering.
+  Contact-only notify parties do not require inventing a company name.
+- **Contact validation:** the native output schema and host validation reject
+  invalid mailbox dot patterns. Previously accepted contact outputs are migrated
+  only after exact request comparison and validation; original call receipts are
+  retained. One rejected double-dot email is separately adjudicated with a
+  correction receipt.
+- **Auxiliary consistency:** source-only references, repeated company aliases,
+  country-specific captions and independent correspondence offices are explicitly
+  inventoried. UN/LOCODE text comes from a verified UN/LOCODE registry entry,
+  not from a generic locality identifier. Public target fields are not invented
+  merely because source-only text exists.
+- **Generation boundary:** deterministic source, numeric, route and auxiliary
+  preflight runs before paid wording. Broken contracts cannot consume a lexical
+  generation call. Product wording excludes host-controlled accounting,
+  freight instructions and annotation-policy language.
+- **Equipment wording:** a source `40HC` surface did not state the full sampled
+  equipment category after a change from general-purpose to refrigerated cargo.
+  Curated rendering now resolves its proposed wording through the equipment
+  registry and prints the complete sampled size/type pair when the inherited
+  alias is insufficient. For example, refrigerated high cube is printed as
+  `40' HIGH CUBE REFRIGERATED`; an unchanged general-purpose `40HC` remains valid.
+  The registry check is tested across general-purpose, refrigerated and open-top
+  categories, including whole-container receipt wording.
+
+These are synthesis contracts. None of these changes rewrites real source OCR
+or labels. In particular, removal of an obsolete synthetic continuation is not
+evidence that its original real-document text was an OCR error.
+
+## Expanded rendered-content audit: concrete acceptance checks
+
+Baseline replay is necessary but cannot expose every dependency: the old text
+and old value may agree while a newly sampled value reveals an unowned repeat.
+The expansion therefore includes complete rendered-text reading in addition to
+schema checks and exact-edit replay. Findings are grouped by causal ownership,
+not repaired through arbitrary whole-document substitutions.
+
+- `276b6f10`: newly sampled private per-container volumes exposed an unchanged
+  source shipment total of `132.000`. A private total needs the same accounting
+  owner as its component rows even when volume is omitted from the public target.
+- `c1b20a71`: a source `NCM` commodity code survived beside a newly sampled HS
+  code. This is a stale identifier, not an objection to a neighboring product
+  description. All printed aliases of that commodity identifier must change.
+- `c5b964bc` / `ca74e1e4`: source-only exporter declarations must follow the
+  explicitly named exporter party. Its country need not be the loading port's
+  country; route-origin macros are not a substitute for party ownership.
+- `926e04e2`: the historical template had bound footer `INTE267634V` to the
+  B/L number, although the current target uses the main document-number field
+  `SSPHNYC9047110`. The footer is an independent source-only reference; it must
+  not become an inconsistent second rendering of the B/L number.
+- `a7ede7d8`: the voyage identifier differs by a trailing character on one
+  repeated page. Synthetic repeats use the complete sampled voyage value,
+  rather than propagate conflicting source surfaces.
+- Some newly generated product wording introduced shipment totals or a country
+  of origin inside the description. Those facts are controlled by the host;
+  lexical correction preserves the commercial product wording while removing
+  unauthorized accounting/origin declarations. Validation now rejects these
+  explicit captions before publication.
+- Three descriptions passed structural validation but implied physically
+  unsuitable whole products for their sampled loads. The corrected text uses
+  appropriately sized parts/components; the sampled counts, weights and
+  equipment remain unchanged. Exact HS-to-product classification is explicitly
+  outside this experiment's acceptance criteria, as requested by the user.
+
+Every manual lexical correction retains its prior value and reason in an audit
+receipt. Corrected candidates are rendered again; final review and publication
+bind to their new hashes. A stale approval cannot approve changed text.
+
+The closing lexical audit additionally removed unsupported spool/cone fill
+weights, generated product-unit counts, and geographic origin declarations with
+no goods-origin target. Product specifications such as fish size grades, fabric
+grams per square metre and machine capacities are retained. A redundant,
+arithmetically correct `25 KG PER BAG` generated phrase was also removed to keep
+packing statements under host control. Explicitly source-owned goods-origin
+wording remains where the same value has its proper target; the validator does
+not blanket-ban every occurrence of the word `ORIGIN`.
+
+## Final selection and variability
+
+The selected 100 families comprise 88 ambient, four vehicle, four chilled, two
+frozen, one dangerous-chemical and one dangerous-vehicle source. Transshipment
+is an independent route trait, not an additional mutually exclusive cargo class.
+
+For the planned 200 variants, the final sampling inventory records:
+
+- 116 origin countries and 120 destination countries;
+- 188 distinct HS6 identities and 15 package categories;
+- 396 party localities and 122 training-only physical-support donors;
+- both endpoint countries change between variants in all 100 families;
+- commodity codes change in 91 families and quantities in 92.
+
+This is not a requirement to randomize every field in every template: printed
+footprint, cargo safety and source-owned dependencies constrain some choices.
+Exact HS-to-product tariff classification and fictional postal deliverability
+are not acceptance requirements; printed HS values must still match labels, and
+party geography and physically plausible cargo wording must remain coherent.
+
+## Stress testing and runtime boundaries
+
+All 200 planned physical variants pass. A separate 10,000-scenario sampling probe
+passed every draw. Running full physical preparation on 10,000 future variants
+accepted 9,985 and rejected 15 for printed precision, positive row allocation,
+net-versus-gross or post-rounding capacity constraints. There were no remaining
+source-baseline contradictions in the active selection. Those 15 are explicitly
+inadmissible future draws, not accepted malformed training records, and are
+rejected before any paid wording request. Large campaigns must account for such
+holds rather than assuming every seed will yield an output.
+
+The numeric-only before/after comparison retained identical plans on 78 prior
+samples: median processing time 0.040734 → 0.043154 seconds per 78, about 31
+microseconds additional validation per document. Traced peak allocation was
+83,301 → 120,927 bytes. This is negligible compared with model generation;
+generation/review latency is not represented by that microbenchmark. A complete
+cached 200-record render took approximately 18.5 seconds on this workspace.
+
+A separate equipment-formatting microbenchmark over 426 calls measured median
+0.247 → 0.317 milliseconds, with the same 1,430-byte traced peak. This measures
+the added category-resolution check, not generation throughput. The sampler
+stress reports retain their exact code/configuration snapshots; the final
+200-record publication replay, rather than an older snapshot hash, establishes
+the final candidates' agreement with the current contracts.
+
+## Final positional validation
+
+The independent checker passed all **200 documents, 370 pages and 20,269 content
+lines**. It checks exact plain-text and target preservation, byte-edit ownership,
+source/Paddle provenance, page assignment, normalized bounds, expansion spacing,
+coherent page transforms, relative order and nearest-neighbour relationships.
+It found **zero remaining coordinate collision groups or validation failures**.
+All **12 deliberately corrupted negative controls** were rejected. The checker
+does not call the production geometry validator to decide whether geometry passes.
+
+Coordinate coverage is explicit:
+
+| Outcome | Content lines |
+| --- | ---: |
+| Known coordinates | 15,594 (76.93%) |
+| Missing measured source anchors, inherited unchanged or through an edit | 3,230 |
+| Expansion cannot fit the measured available space | 1,125 |
+| Unowned source text intersects the proposed expansion | 300 |
+| Separately reflowed owners compete for one measured source line | 20 |
+| Total | 20,269 |
+
+All 4,675 unknown-coordinate lines retain their full text and the explicit ` ||`
+suffix. These are not guessed coordinates or omitted words. Of the 3,230 missing
+source-anchor lines, 1,330 are unchanged source text and 1,900 are edited text.
+The two pages without any known coordinates are the two variants of
+`719e3e96`, page 3: that page contains only `fair trade` and
+`Schriftkauf Handel + Logistik GmbH`, neither aligned in the measured source.
+
+The final audit discovered and repaired two general transfer defects:
+
+1. An exact owned text region may include an empty paragraph separator. Blank
+   lines now supply no coordinate anchor; actual page crossings remain rejected.
+2. A caption or package count sharing a source line with a reflowed value must
+   move with that line. Averaging its stale point with the moved text compressed
+   spacing and created collisions. Same-source-line peers now follow the reflow;
+   independent source-line fragments remain independent. Competing reflow owners
+   produce explicit unknown coordinates, not overlapping invented positions.
+
+The caption correction changes 22 anchor points across 18 records, with only
+one additional known-to-unknown line. Real source inputs, all plain synthetic
+text and all targets are unchanged. The prior positional candidate and the
+failed audit are retained under `audit/positions-before-geometry-fix/` and
+`audit/geometry-independent-before-caption-fix.json`.
+
+Position enrichment took **20.09 seconds** for 200 records; the final metadata
+replay took **19.58 seconds**. The final independent validation took about
+**2.51 seconds**, with **369 MiB peak RSS**, and no paid requests.
+The source-transfer microbenchmark measured **1.341 → 1.390 milliseconds** on
+an unaffected path (about 0.01 seconds additional work across 200 records).
+The additional provenance and line-composition checks have negligible campaign
+cost. Coordinates remain approximate source-derived layout signals, not measured
+glyph boxes for a newly typeset synthetic PDF.
+
+Evidence: `audit/geometry-independent.json`,
+`audit/geometry-independent.md`, `audit/geometry-independent-gallery.png`, and
+`audit/geometry-blank-separator-fix.md`. Removing the appended position suffixes
+independently recovers every plain input exactly; the position-enriched JSONL
+also retains every original plain-record field and target without alteration.
+
+## Tests and release checks
+
+- **370 targeted curated-synthesis/equipment tests passed** in 16.38 seconds.
+- The changed legacy date-format regression also passed separately.
+- **63 targeted position/spatial tests passed**, including corruption probes,
+  same-line captions, numeric/package peers, competing reflows and page boundaries.
+- Ruff and `git diff --check` passed.
+- After correcting a stale introductory sentence in the plain-text gallery,
+  all 17 publication tests passed again. Re-publication retained the identical
+  dataset and review/source entries; only the gallery hash changed. Earlier
+  metadata is retained under `audit/gallery-wording-before/`.
+- Final plain publication replay: **200 valid / 200 expected, 100 sources,
+  zero failures**; exact content-review coverage and hashes verified.
+
+This is not a claim that the full repository test suite is green. Four older
+raw-text-pipeline test failures reproduce with the original descendant module
+as well as the edited module; their differential, fixture limitations and exact
+commands are recorded in `audit/numeric-legacy-test-baseline.md`. The modified
+date-rendering path and the complete curated publication path pass their tests.
+
+Detailed numeric evidence and PDF adjudications are in
+`audit/NUMERIC-DEPENDENCY-CLOSURE.md`; diversity and future-draw outcomes are in
+`audit/sampling-final.json` and `audit/physical-stress10000.json`.
+
+## Content closure and cost
+
+All 200 complete rendered documents and targets received content review. The
+three disjoint closing inventories cover 126 + 34 + 40 records. The combined
+`audit/content-review-coverage.json` verifies exact 200-record coverage without
+overlap, current candidate file hashes, OCR hashes and target hashes against the
+published manifest. Changed text was re-read; a previous pass was not reused
+without matching its recorded content.
+
+The final model review covered all 100 two-variant batches without request
+errors. Eight remaining findings were explicitly rejected with exact quotations
+and individual explanations, stored under `adjudications/`:
+
+- Two arithmetic/row-ownership false alarms: one reviewer counted extra rows;
+  another assumed the one printed container row applied equally to both units.
+- Two outer-pallet objections: the approved labels retain the inner box level,
+  while outer packing remains legitimate source-owned rendering metadata.
+- Three exact HS-classification objections, outside the explicitly agreed
+  neighboring-product policy. The actual HS strings still match the labels.
+- One postcode-deliverability objection, outside the fictional-address policy.
+
+Actual text/label and ownership defects were corrected and re-rendered before
+the final review. Rejected findings are not a blanket override or permission to
+publish unknown errors. Final publication replay validates every candidate
+against its source contract, sampled shipment, wording and contact receipts.
+
+Two sources have explicit synthesis-only completion of date labels from audited
+historical date bindings. For the final replacement `d69c24cb`, the existing
+normalized historical values and printed date format establish the recipe;
+the sampled issue/on-board dates are added alongside the exact printed values.
+Its real labels are not changed. The completion probe proves unchanged OCR,
+only the two intended target additions, schema validity and exact replay.
+
+**Total recorded API spend: USD 0.29044148** for this campaign, including
+generation, contacts, postal corrections, rejected attempts/probes and repeat
+reviews. That is about USD 0.00145 per published sample. It does **not** price
+engineering time or manual content adjudication and is not a claim that a new
+unreviewed 10,000-document campaign is already certified.
+
+The published set has 370 pages: 72 one-page, 90 two-page, 34 three-page and four
+four-page documents. Six samples have a labeled transshipment port. Four have
+no labeled container (retained non-container cargo profiles); the rest range
+from one to thirteen containers.
+
+The original real-data files remain unchanged:
+
+- train: `ca15c382bd1a36e72db978a0acb34f9dec64e8ea6c7e00639e62bccc98058305`
+- validation: `b8c0d4bddd4b3a452f901f3fc5e08e54d580a82768eddd5df33c97ab2c85da5a`
+
+No training job was started and no synthetic record was merged into the real
+training or validation split.
+
+An independent release check confirms that all 100 source IDs belong to the
+600-record real training split, none belongs to the 60-record validation split,
+and none of the 200 synthetic input hashes matches a validation input. This is
+an exact identity/content check, not a claim that carrier layouts are unique
+across the real splits.

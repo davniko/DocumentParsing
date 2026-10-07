@@ -12,6 +12,7 @@ from document_ocr.synthesis.curated_campaign import (
     combine_surfaces,
     host_product_wording,
     public_identity_updates,
+    validate_sample,
     wording_request,
     wording_request_hash,
 )
@@ -30,6 +31,76 @@ from document_ocr.synthesis.curated_wording import (
     wording_prompt,
 )
 from document_ocr.synthesis.generators import DeterministicStream, validate_container_number
+
+
+@pytest.mark.parametrize(
+    ("source_route", "candidate_route", "error"),
+    [
+        (None, None, None),
+        (None, {"portOfLoading": {"name": "NEW PORT"}}, "field presence differs"),
+        (
+            {"portOfLoading": {"name": "OLD PORT"}},
+            {"portOfLoading": {"name": "OLD PORT"}},
+            "source-copy route",
+        ),
+        (
+            {"portOfLoading": {"name": "OLD PORT"}},
+            {"portOfLoading": {"name": "NEW PORT"}},
+            None,
+        ),
+    ],
+)
+def test_sample_validation_applies_route_variability_only_to_source_route_fields(
+    monkeypatch, source_route, candidate_route, error
+):
+    source = {
+        "schemaVersion": "7.0.0",
+        "documentPatch": {"goodsItemDetails": [{"description": "OLD GOODS"}]},
+    }
+    target = {
+        "schemaVersion": "7.0.0",
+        "documentPatch": {"goodsItemDetails": [{"description": "NEW GOODS"}]},
+    }
+    if source_route is not None:
+        source["documentPatch"]["route"] = source_route
+    if candidate_route is not None:
+        target["documentPatch"]["route"] = candidate_route
+    replacements = {
+        f"documentPatch.route.{field}.{key}": value
+        for field, location in (candidate_route or {}).items()
+        for key, value in location.items()
+    }
+    scenario = SimpleNamespace(party_localities={}, replacements=replacements, goods_identities=[])
+    proof = {"changedTargetPaths": ["documentPatch.goodsItemDetails[0].description"]}
+    candidate = {
+        "target": target,
+        "countryCodes": {},
+        "renderValues": {},
+        "surfaceValues": {},
+        "seed": 1,
+        "documentId": "sample",
+        "joinedRawText": "NEW GOODS",
+        "joinedRawTextSha256": digest(b"NEW GOODS"),
+        "proof": proof,
+    }
+    monkeypatch.setattr(
+        "document_ocr.synthesis.curated_campaign.render_sampling_blueprint",
+        lambda *args, **kwargs: ("NEW GOODS", target, proof),
+    )
+
+    def run():
+        return validate_sample(
+            SimpleNamespace(target=source),
+            scenario,
+            candidate,
+            SimpleNamespace(canonicalize=lambda x: x),
+        )
+
+    if error:
+        with pytest.raises(ValueError, match=error):
+            run()
+    else:
+        assert run()["sampledIdentity"]
 
 
 @pytest.mark.parametrize("repair_succeeds", [True, False])
@@ -91,6 +162,18 @@ def test_review_schema_owns_complete_shipment_coverage_and_identity():
         unpack_review(schema.model_validate(payload), ["duplicate", "duplicate"])
 
 
+@pytest.mark.parametrize(
+    "text", ["GROSS WEIGHT 7500.0 KG", "NET WEIGHT: 6000 KGS", "PACKAGE_PACKAGE"]
+)
+def test_goods_wording_rejects_host_accounting_without_requiring_total_caption(text):
+    request = WordingRequest(
+        "sample", "Goods", (WordingField("g", "goods description", "OLD", "Product"),)
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"g": text}})
+    with pytest.raises(ValueError, match="inside generated description"):
+        unpack_wording(output, [request])
+
+
 def test_wording_contract_checks_coverage_identity_and_layout_without_freezing_punctuation():
     request = WordingRequest(
         "s1",
@@ -139,7 +222,16 @@ def test_wording_contract_checks_coverage_identity_and_layout_without_freezing_p
 
 
 @pytest.mark.parametrize(
-    "text", ["NET 18.5 KG PER MASTER CARTON", "20 LITRES/DRUM", "30-40 PCS PER CARTON"]
+    "text",
+    [
+        "NET 18.5 KG PER MASTER CARTON",
+        "20 LITRES/DRUM",
+        "30-40 PCS PER CARTON",
+        "YARN ON 5KG SPOOLS",
+        "WIRE ON10 KG COILS",
+        "YARN CONES 1.5 KG",
+        "BAGS 25KG",
+    ],
 )
 def test_generated_product_cannot_invent_host_owned_package_fill(text):
     request = WordingRequest(
@@ -148,6 +240,17 @@ def test_generated_product_cannot_invent_host_owned_package_fill(text):
     output = wording_output_type([request]).model_validate({"s0": {"g": text}})
     with pytest.raises(ValueError, match="host-owned package fill"):
         unpack_wording(output, [request])
+
+
+@pytest.mark.parametrize(
+    "text", ["FISH SIZE GRADE 500-800 G", "FABRIC 140 G/M2", "LIFT CAPACITY 500 KG"]
+)
+def test_product_size_and_capacity_are_not_package_fill(text):
+    request = WordingRequest(
+        "sample", "Sampled goods", (WordingField("g", "goods description", "OLD", "Product"),)
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"g": text}})
+    assert unpack_wording(output, [request])["sample"]["g"] == text
 
 
 @pytest.mark.parametrize(
@@ -217,6 +320,9 @@ def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(p
     goods = [f for f in request.fields if f.role == "goods description"]
     assert len(goods) == 2 and len(fixture.scenario.goods_identities) == 1
     assert "{product} {continuation}" in request.context
+    assert "one coherent commercial description" in request.context
+    assert "never product text" in request.context
+    assert "accounting goods group" not in request.context
     assert [f.example for f in goods] == ["OLD COFFEE", "COFFEE GRADE AA"]
     schema = wording_output_type([request])
     values = {f.key: "NEW WORDING" for f in request.fields}
@@ -234,6 +340,9 @@ def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(p
         ({"product": "OLD COFFEE", "continuation": "COFFEE GRADE AA"}, "copied source"),
         ({"product": "NEW COFFEE TOTAL PACKAGES - 9"}, "shipment accounting"),
         ({"product": "NEW COFFEE (HS 090111)"}, "tariff caption"),
+        ({"product": "NEW COFFEE, FREIGHT PREPAID"}, "non-product policy"),
+        ({"product": "NEW COFFEE SOLD AS ONE ACCOUNTING GOODS GROUP"}, "non-product policy"),
+        ({"product": "NEW COFFEE\nCOUNTRY OF ORIGIN: DENMARK"}, "non-product policy"),
     ]:
         bad = {**values, **changed}
         with pytest.raises(ValueError, match=expected):
@@ -242,6 +351,100 @@ def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(p
     duplicate = wording_output_type([request, other]).model_validate({"s0": values, "s1": values})
     with pytest.raises(ValueError, match="duplicate generated description"):
         unpack_wording(duplicate, [request, other])
+
+
+def test_represented_name_uses_its_complete_party_owner_geography(postal_campaign):
+    from dataclasses import replace
+
+    fixture = postal_campaign
+    contract = fixture.blueprint.contract.model_copy(deep=True)
+    next(
+        t for t in contract.targets if t.path == "documentPatch.parties.shipper.name"
+    ).expression = "{shipper_name} ON BEHALF OF {consignee_name}"
+    request = wording_request(replace(fixture.blueprint, contract=contract), fixture.scenario, "s")
+    represented = next(f for f in request.fields if f.key == "consignee_name")
+    assert "New party in UTRECHT, NETHERLANDS" in represented.requirement
+    assert "complete identity belongs to documentPatch.parties.consignee" in represented.requirement
+    assert "ROTTERDAM" not in represented.requirement
+    assert "shipper" in represented.role and "consignee" in represented.role
+    principal = next(f for f in request.fields if f.key == "shipper_name")
+    assert "New party in ROTTERDAM, NETHERLANDS" in principal.requirement
+
+
+@pytest.mark.parametrize("ownership", ["no_direct_name", "two_direct_names", "shared_postal"])
+def test_shared_regions_without_one_name_owner_keep_geography_conflict_guard(
+    postal_campaign, ownership
+):
+    from dataclasses import replace
+
+    fixture = postal_campaign
+    contract = fixture.blueprint.contract.model_copy(deep=True)
+    bindings = {t.path: t for t in contract.targets}
+    if ownership == "no_direct_name":
+        bindings[
+            "documentPatch.parties.shipper.name"
+        ].expression = "{shipper_name} ON BEHALF OF {consignee_name}"
+        bindings["documentPatch.parties.consignee.name"].expression = "REPRESENTED {consignee_name}"
+    elif ownership == "two_direct_names":
+        bindings["documentPatch.parties.shipper.name"].expression = "{consignee_name}"
+        contract.variables = [v for v in contract.variables if v.key != "shipper_name"]
+    else:
+        bindings[
+            "documentPatch.parties.consignee.addressLine"
+        ].expression = "{shipper_street} {consignee_address}"
+    with pytest.raises(ValueError, match="conflicting sampled geography"):
+        wording_request(replace(fixture.blueprint, contract=contract), fixture.scenario, "s")
+
+
+def test_shared_complete_name_still_allows_multiple_owners_at_the_same_place(postal_campaign):
+    from dataclasses import replace
+
+    fixture = postal_campaign
+    contract = fixture.blueprint.contract.model_copy(deep=True)
+    next(
+        t for t in contract.targets if t.path == "documentPatch.parties.shipper.name"
+    ).expression = "{consignee_name}"
+    contract.variables = [v for v in contract.variables if v.key != "shipper_name"]
+    scenario = fixture.scenario.model_copy(deep=True)
+    scenario.party_localities["documentPatch.parties.consignee"] = scenario.origin
+    request = wording_request(replace(fixture.blueprint, contract=contract), scenario, "s")
+    shared = next(f for f in request.fields if f.key == "consignee_name")
+    assert "New party in ROTTERDAM, NETHERLANDS" in shared.requirement
+
+
+@pytest.mark.parametrize("failure", ["physical", "unowned_target"])
+def test_generation_preflight_failure_makes_no_paid_request(postal_campaign, monkeypatch, failure):
+    fixture = postal_campaign
+    fixture.path.unlink()
+    calls = []
+
+    async def call(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("paid requests must not run after failed preflight")
+
+    def invalid_physical_contract(*args, **kwargs):
+        if failure == "physical":
+            raise ValueError("unowned printed shipment mass")
+        target = deepcopy(fixture.target)
+        target["documentPatch"]["parties"]["shipper"]["country"] = "FRANCE"
+        return SimpleNamespace(target=target)
+
+    fixture.campaign.calls.call = call
+    fixture.campaign.physical_support = object()
+    fixture.campaign.preflight = Campaign.preflight.__get__(fixture.campaign, Campaign)
+    monkeypatch.setattr(
+        "document_ocr.synthesis.curated_campaign.prepare_physical_render",
+        invalid_physical_contract,
+    )
+    message = (
+        "unowned printed shipment mass"
+        if failure == "physical"
+        else "sampled target fields lack source render ownership"
+    )
+    with pytest.raises(ValueError, match=message):
+        asyncio.run(fixture.campaign.generate("source"))
+    assert calls == []
+    assert not fixture.path.exists()
 
 
 def test_generated_postal_contract_rejects_omissions_and_adjacent_duplicates():
@@ -535,6 +738,7 @@ def postal_campaign(tmp_path):
     campaign = Campaign.__new__(Campaign)
     campaign.output = tmp_path
     campaign.plans = lambda sid: [(blueprint, scenario, sample_id, deepcopy(target))]
+    campaign.preflight = lambda plans: None  # These fixtures isolate paid-wording behavior.
     campaign.calls = SimpleNamespace()
     return SimpleNamespace(
         campaign=campaign,

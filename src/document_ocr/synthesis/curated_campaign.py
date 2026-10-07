@@ -44,6 +44,7 @@ from document_ocr.synthesis.curated_contacts import (
 )
 from document_ocr.synthesis.curated_identifiers import declared_identifier_values
 from document_ocr.synthesis.curated_ownership import (
+    apply_dependent_text,
     lexical_expression,
     load_owned_blueprint,
     ownership_surfaces,
@@ -251,15 +252,29 @@ def wording_request(
             continue
         if variable.key in host_products:
             continue
-        owners = [b.path for b in bindings if "{" + variable.key + "}" in b.expression]
-        roles = sorted({p for path in owners if (p := party_path(path)) is not None})
+        owners = [b for b in bindings if "{" + variable.key + "}" in b.expression]
+        roles = sorted({p for binding in owners if (p := party_path(binding.path)) is not None})
         if roles:
-            locations = {scenario.party_localities[p].model_dump_json() for p in roles}
+            identity_roles = roles
+            if variable.kind == "name":
+                direct_roles = {
+                    role
+                    for binding in owners
+                    if binding.path.endswith(".name")
+                    and binding.expression.strip() == "{" + variable.key + "}"
+                    and (role := party_path(binding.path)) is not None
+                }
+                # A represented company's complete name can also be embedded in
+                # a principal's composite identity. Its own party supplies its
+                # geography; the principal's address need not share that place.
+                if len(direct_roles) == 1:
+                    identity_roles = sorted(direct_roles)
+            locations = {scenario.party_localities[p].model_dump_json() for p in identity_roles}
             if len(locations) != 1:
                 raise ValueError(
                     f"shared party region has conflicting sampled geography: {variable.key}"
                 )
-            geo = scenario.party_localities[roles[0]]
+            geo = scenario.party_localities[identity_roles[0]]
             requirement = f"New party in {geo.name}, {geo.country} ({geo.country_code})."
             if variable.kind == "postal":
                 requirement += (
@@ -272,6 +287,11 @@ def wording_request(
                 )
             else:
                 requirement += " A new fictional identity, not a renamed version of the example."
+                if identity_roles != roles:
+                    requirement += (
+                        f" Its complete identity belongs to {identity_roles[0]}; "
+                        "reuse it unchanged inside the other party names."
+                    )
             role = ", ".join(roles) + " " + variable.kind
         elif variable.kind == "product":
             requirement = (
@@ -300,9 +320,10 @@ def wording_request(
     context += "\nSAMPLED COMMODITY BRIEF\n" + "\n".join(identity.phrase for identity in identities)
     context += (
         "\nGenerate a plausible commercial assortment around this brief. Exact HS-to-product "
-        "classification is not the wording objective. Description regions are portions of "
-        "one accounting goods group, not separate goods or one region per HS code. "
-        "Generate them together. Repeated uses of a region share the same value."
+        "classification is not the wording objective. Generate all description regions "
+        "together as one coherent commercial description. Repeated uses of a region share "
+        "the same value. Output only wording a shipper would print; schema, annotation "
+        "and generation instructions are context, never product text."
     )
     for binding in product_groups:
         context += f"\nDESCRIPTION ASSEMBLY {binding.path}: {binding.expression}"
@@ -534,7 +555,7 @@ def validate_sample(
     patch = target["documentPatch"]
     source = blueprint.target["documentPatch"]
     validate_route_values(source, patch, scenario.replacements)
-    if patch.get("route") == source.get("route"):
+    if source.get("route") and patch.get("route") == source["route"]:
         raise ValueError("source-copy route is not a sampled scenario")
     goods = patch["goodsItemDetails"]
     if len(goods) != 1:
@@ -697,6 +718,7 @@ class Campaign:
             scenario,
             DeterministicStream(self.config["seed"], "full-current-v7", sample_id),
         )
+        target = apply_dependent_text(blueprint, target)
         if old_vessel := target["documentPatch"].get("transport", {}).get("vesselName"):
             candidates = tuple(v for v in self.vessels if v != old_vessel)
             stream = DeterministicStream(self.config["seed"], "full-current-v7", sample_id)
@@ -710,8 +732,34 @@ class Campaign:
             self.plan(sid, variant) for variant in range(1, self.config["variants_per_source"] + 1)
         ]
 
+    def preflight(self, plans: list[tuple]) -> None:
+        """Reject broken deterministic source/physical contracts before paid wording."""
+        for blueprint, scenario, sample_id, target in plans:
+            physical = prepare_physical_render(
+                blueprint, scenario, target, support=self.physical_support
+            )
+            before, after = flat(blueprint.target), flat(physical.target)
+            changed = {path for path in after if before.get(path) != after[path]}
+            owned = {path for region in blueprint.regions for path in region.target_paths}
+            if missing := changed - owned:
+                raise ValueError(
+                    f"sampled target fields lack source render ownership: {sorted(missing)}"
+                )
+            surfaces = combine_surfaces(
+                physical.surface_values, ownership_surfaces(blueprint, physical.target, scenario)
+            )
+            auxiliary_surfaces(
+                blueprint,
+                scenario,
+                physical.target,
+                DeterministicStream(self.config["seed"], "full-current-v7", sample_id),
+                existing=surfaces,
+                vessels=self.vessels,
+            )
+
     async def generate(self, sid: str) -> dict:
         plans = self.plans(sid)
+        self.preflight(plans)
         requests = [
             wording_request(bp, scenario, sample_id) for bp, scenario, sample_id, _ in plans
         ]

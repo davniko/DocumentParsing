@@ -1,0 +1,1768 @@
+dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
+output: artifacts/kie-synthesis-production/curated-v7-expansion100-v1
+ownership: configs/synthesis/contracts/curated_v7_expansion100/ownership.yaml
+auxiliary: configs/synthesis/contracts/curated_v7_expansion100/auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
+task_constraints_sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
+seed: 202610091
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-v2
+  seed: 20261007
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+concurrency: 8
+budget_usd: 5.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids:
+- doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a
+- doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7
+- doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6
+- doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d
+- doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306
+- doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc
+- doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811
+- doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a
+- doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228
+- doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a
+- doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30
+- doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825
+- doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82
+- doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4
+- doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a
+- doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8
+- doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d
+- doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f
+- doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373
+- doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092
+- doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900
+- doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0
+- doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9
+- doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9
+- doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525
+- doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711
+- doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397
+- doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d
+- doc_1f166783ba401a283cf52679d7f13894c143e245992cc4bab1eb9cea384db720
+- doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f
+- doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85
+- doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a
+- doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f
+- doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9
+- doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8
+- doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910
+- doc_36d2930f49cb3d8d79acd2968fea98a5b6e279ce3b37c7752660333cab609b47
+- doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635
+- doc_3d0d37486449c3c49624bfe731eeb881647ea6763af6b75719ecf9fce89aa70c
+- doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b
+- doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66
+- doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf
+- doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885
+- doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565
+- doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b
+- doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04
+- doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815
+- doc_6826506aea2aa821aec274d2197753bd8d933e1ff004825ed06968a4b9416d2d
+- doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1
+- doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745
+- doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4
+- doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31
+- doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b
+- doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93
+- doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9
+- doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0
+- doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f
+- doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40
+- doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f
+- doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8
+- doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3
+- doc_a65cb58e57acb4f70bc4227864cf653d982426479fe9da2cbe21329f717e100c
+- doc_a7ede7d8228b5677c41f6f8e8ba9a724eec8e7fc87984d802b5653166c58f149
+- doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348
+- doc_b9603de62c87f239f82034a16c6da13a35efa97235c4921da5164c8e1efa4fe5
+- doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8
+- doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc
+- doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918
+- doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6
+- doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd
+- doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770
+- doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6
+- doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836
+- doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f
+- doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83
+- doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0
+- doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0
+- doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc
+- doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013
+- doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71
+- doc_678e2007fc5f522280e74c9937c7569cabc18930d4f6df9a5851c5a065450e49
+- doc_67b1e5a1803b8c7a266988ad23e39a23a182996a721cb5a6791abc892c07d3da
+- doc_6e9952c654c60496917c25ab27e11153539616ec8dd2ba01c480f28de75eac99
+- doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b
+- doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114
+- doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0
+- doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f
+- doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b
+- doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8
+- doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671
+- doc_6700b15cb07e7c68b3486b20b240e9045dc112e898d9f6d28c104b1c92be64f2
+- doc_b2ba22f257b0c7b650dc8bc2909623d2c5001842b497ede54098c83f01b548c2
+- doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6
+- doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27
+- doc_8690d0c8cafd9da230841edd9d3c042852ff02eabae0fc9215e43fe79e4610c1
+- doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524
+- doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96
+- doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9
+- doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870
+- doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8
+sampling:
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 28fec2cce450e496658c34a82f8b843495cd63b895580e8adccdd291e2ec7907
+      from_hs6:
+      - 080800
+      to_hs6:
+      - 080810
+      source_text_literals:
+      - APPLES
+      - HS CODE:080800
+      - TEMP.2CE
+      - 2C TILL PLUS 2C 20 CBM/HR
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify
+        authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed
+        080800 and extraction labels remain unchanged.'
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+capabilities:
+  doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8429'
+    allowed_package_categories:
+    - PACKAGE_VEHICLE
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 1
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_whole_units
+    allowed_hs_codes:
+    - '842952'
+  doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7:
+    family: ambient
+    identity_count: 2
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8701'
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 3
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_whole_units
+    allowed_hs_codes:
+    - '870194'
+  doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    required_private_measures:
+    - grossWeight
+  doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811:
+    family: chilled
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
+    family: ambient
+    identity_count: 4
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
+    family: frozen
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8701'
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 3
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_whole_units
+    allowed_hs_codes:
+    - '870193'
+  doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+    family: dg_chemical
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+    family: dg_vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8703'
+    allowed_hs_codes:
+    - '870323'
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: 1
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: reviewed_whole_units
+    reviewed_whole_unit_donors:
+      doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984:
+        target_sha256: b0bd10754dc6e8545882fcaed23191c25e09fb0996b80c174acc5f76ad823790
+        whole_unit_count: 1
+        source_text_literals:
+        - 1 Package(s) of 01 UNIT NEW LAND ROVER RANGE ROVER VELAR 250 PS
+        - 'HS CODE: 8703231900'
+        - 'Gross Cargo Weight: 1,996.000 kgs. 15.582 cu. m.'
+        rationale: Current-training whole petrol passenger vehicle with explicit authoritative
+          HS6, unit count, gross mass, cube and equipment. Transfer this joint physical
+          bundle without extrapolating the original unclassified Range Rover's 2708kg
+          load to unrelated engine classes. Retain the receiving source's explicit
+          unpackaged handling and liquid-fuel UN3166 declaration; no electric or hybrid
+          identity.
+  doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+    family: chilled
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+    family: chilled
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+    family: ambient
+    identity_count: 1
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    allowed_equipment_pairs: []
+    origin_country: null
+    destination_country: null
+    fixed_package_quantity: null
+    quantity_multiple: 1
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+  doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525:
+    family: ambient
+    physical_profile: source_bundle
+    allowed_hs_headings:
+    - '8534'
+    - '8541'
+    - '8542'
+    route_topology:
+      nodes:
+        hub:
+          port_ids:
+          - DEHAM
+          - HKHKG
+          - TRALI
+          - TRMER
+      fields:
+        portOfLoading: hub
+        transshipmentPort: hub
+        portOfDischarge: destination
+        placeOfReceipt: origin
+        placeOfDelivery: destination
+      issue_node: hub
+      rationale: Reviewed printed port roles and repeated from/to/via declarations;
+        endpoints vary internationally. Ports are synthetic geography, not scheduled
+        carrier services.
+    allowed_package_categories:
+    - PACKAGE_BOX
+  doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711:
+    family: ambient
+    route_topology:
+      nodes:
+        hub:
+          port_ids:
+          - DEHAM
+          - HKHKG
+          - TRALI
+          - TRMER
+      fields:
+        portOfLoading: origin
+        transshipmentPort: hub
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Reviewed printed port roles and repeated from/to/via declarations;
+        endpoints vary internationally. Ports are synthetic geography, not scheduled
+        carrier services.
+  doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397:
+    family: ambient
+  doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_1f166783ba401a283cf52679d7f13894c143e245992cc4bab1eb9cea384db720:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: delivery
+      nodes:
+        delivery:
+          kind: port
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: delivery
+        documentPatch.parties.notifyParties[0]: delivery
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: delivery
+      nodes:
+        delivery:
+          kind: locality
+          country_from: destination
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: payment
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: delivery
+      nodes:
+        delivery:
+          kind: locality
+          country_from: destination
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    required_private_measures:
+    - volume
+  doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: payment
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    required_private_measures:
+    - volume
+  doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_36d2930f49cb3d8d79acd2968fea98a5b6e279ce3b37c7752660333cab609b47:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_3d0d37486449c3c49624bfe731eeb881647ea6763af6b75719ecf9fce89aa70c:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        payment:
+          kind: locality
+          country_from: origin
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66:
+    family: ambient
+  doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885:
+    family: vehicle
+    physical_profile: source_whole_units
+    fixed_package_quantity: 6
+    allowed_hs_headings:
+    - '8427'
+    allowed_hs_codes:
+    - '842710'
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: delivery
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        delivery:
+          kind: locality
+          country_from: destination
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        finalDestination: final
+      nodes:
+        receipt:
+          kind: locality
+          country_from: independent
+        final:
+          kind: locality
+          country_from: destination
+      party_nodes:
+        documentPatch.parties.shipper: receipt
+        documentPatch.parties.notifyParties[0]: receipt
+      location_nodes: {}
+      issue_node: receipt
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_6826506aea2aa821aec274d2197753bd8d933e1ff004825ed06968a4b9416d2d:
+    family: ambient
+  doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4:
+    family: ambient
+  doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31:
+    family: ambient
+  doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        third_party:
+          kind: locality
+          country_from: independent
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: third_party
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: receipt
+      issue_node: receipt
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f:
+    family: ambient
+  doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8:
+    family: ambient
+  doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_a65cb58e57acb4f70bc4227864cf653d982426479fe9da2cbe21329f717e100c:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes: {}
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_a7ede7d8228b5677c41f6f8e8ba9a724eec8e7fc87984d802b5653166c58f149:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: delivery
+      nodes:
+        delivery:
+          kind: locality
+          country_from: destination
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348:
+    family: ambient
+    physical_profile: source_bundle
+    fixed_package_quantity: 1
+    allowed_hs_headings:
+    - '8708'
+    allowed_hs_codes:
+    - '870899'
+    allowed_package_categories:
+    - PACKAGE_LOT
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_b9603de62c87f239f82034a16c6da13a35efa97235c4921da5164c8e1efa4fe5:
+    family: ambient
+    identity_count: 6
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8:
+    family: chilled
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc:
+    family: frozen
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: independent
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: third_party
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+        finalDestination: final
+      nodes:
+        final:
+          kind: locality
+          country_from: destination
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.shipper: third_party
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770:
+    family: ambient
+    identity_count: 3
+    route_topology:
+      fields:
+        portOfLoading: origin
+        transshipmentPort: hub
+        portOfDischarge: destination
+      nodes:
+        hub:
+          kind: port
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f:
+    family: ambient
+    physical_profile: source_bundle
+    fixed_package_quantity: 6
+    allowed_hs_headings:
+    - '8429'
+    allowed_hs_codes:
+    - '842951'
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.notifyParties[1]: third_party
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71:
+    family: ambient
+  doc_678e2007fc5f522280e74c9937c7569cabc18930d4f6df9a5851c5a065450e49:
+    family: ambient
+  doc_67b1e5a1803b8c7a266988ad23e39a23a182996a721cb5a6791abc892c07d3da:
+    family: ambient
+    goods_origin_identifiers:
+      documentPatch.goodsItemDetails[0].origin.identifier:
+        kind: unlocode
+        node: origin
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.shipper: third_party
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_6e9952c654c60496917c25ab27e11153539616ec8dd2ba01c480f28de75eac99:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114:
+    family: ambient
+  doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.shipper: third_party
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_6700b15cb07e7c68b3486b20b240e9045dc112e898d9f6d28c104b1c92be64f2:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: receipt
+      issue_node: receipt
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_b2ba22f257b0c7b650dc8bc2909623d2c5001842b497ede54098c83f01b548c2:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        finalDestination: final
+      nodes:
+        final:
+          kind: port
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.consignee: final
+        documentPatch.parties.deliveryAgent: final
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: payment
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+        finalDestination: final
+      nodes:
+        final:
+          kind: locality
+          country_from: destination
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_8690d0c8cafd9da230841edd9d3c042852ff02eabae0fc9215e43fe79e4610c1:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes: {}
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: third_party
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870:
+    family: ambient
+  doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8:
+    family: ambient
+    identity_count: 2
+    goods_origin_identifiers:
+      documentPatch.goodsItemDetails[0].origin.identifier:
+        kind: unlocode
+        node: receipt
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        receipt:
+          kind: port
+          country_from: origin
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        third_party:
+          kind: locality
+          country_from: independent
+      party_nodes:
+        documentPatch.parties.shipper: third_party
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: origin
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        issue:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: issue
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: payment
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: payment
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes: {}
+      issue_node: receipt
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+  doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
+    family: ambient
+  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0:
+    family: ambient
+    route_topology:
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      nodes:
+        payment:
+          kind: locality
+          country_from: origin
+      party_nodes: {}
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      issue_node: payment
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    required_private_measures:
+    - volume
+  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40:
+    family: ambient
+  doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
+    family: ambient
+source_contracts: artifacts/kie-synthesis-production/curated-v7-expansion100-v1/sources
+historical_catalog: artifacts/kie-synthesis-production/curated-v7-expansion100-v1/catalog

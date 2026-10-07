@@ -8,6 +8,7 @@ import pytest
 from document_ocr.synthesis.curated import Occurrence, SourceContract
 from document_ocr.synthesis.curated_ownership import (
     _declared_date_surface,
+    apply_dependent_text,
     build_owned_blueprint,
     ownership_surfaces,
 )
@@ -569,3 +570,135 @@ def test_numeric_constant_is_unfrozen_only_after_exact_historical_ownership():
     assert "36 BOXES" in render_sampling_blueprint(owned, target, {})[0]
     with pytest.raises(ValueError, match="no rendered owner"):
         render_sampling_blueprint(unowned, target, {})
+
+
+def handling_dependency_fixture():
+    row, contract, old = source_fixture()
+    paths = [f"documentPatch.goodsItemDetails[0].handlingInstructions[{i}]" for i in range(2)]
+    clauses = ["21 DAYS DEMURRAGE FREETIME IN BOMBAY", "CARGO IN TRANSIT TO MUMBAI WAREHOUSE"]
+    row["target"]["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] = clauses
+    text = "\n".join(clauses)
+    row["joinedRawText"] += text + "\n"
+    declaration = {
+        "dependent_text": [
+            {
+                "path": paths[0],
+                "source": clauses[0],
+                "expression": (
+                    "21 DAYS DEMURRAGE FREETIME IN {documentPatch.route.portOfLoading.name}"
+                ),
+            },
+            {
+                "path": paths[1],
+                "source": clauses[1],
+                "expression": (
+                    "CARGO IN TRANSIT TO {documentPatch.route.portOfLoading.name} WAREHOUSE"
+                ),
+            },
+        ],
+        "add": [
+            {
+                "key": "handling",
+                "paths": paths,
+                "occurrences": [{"text": text}],
+            }
+        ],
+        "surfaces": {"handling": {"expression": "{" + paths[0] + "}\n{" + paths[1] + "}"}},
+    }
+    return row, build_owned_blueprint(row, old, contract, declaration)
+
+
+def test_handling_dependencies_rebind_reviewed_route_aliases_and_render_all_clauses():
+    row, blueprint = handling_dependency_fixture()
+    target = deepcopy(row["target"])
+    target["documentPatch"]["route"]["portOfLoading"]["name"] = "ROTTERDAM"
+    before = deepcopy(target)
+    updated = apply_dependent_text(blueprint, target)
+    clauses = updated["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"]
+    assert clauses == [
+        "21 DAYS DEMURRAGE FREETIME IN ROTTERDAM",
+        "CARGO IN TRANSIT TO ROTTERDAM WAREHOUSE",
+    ]
+    assert target == before and blueprint.target == row["target"]
+    assert apply_dependent_text(blueprint, updated) == updated
+    text, rendered, proof = render_sampling_blueprint(
+        blueprint,
+        updated,
+        {},
+        surface_values=ownership_surfaces(
+            blueprint,
+            updated,
+            SimpleNamespace(
+                party_localities={
+                    "documentPatch.parties.shipper": SimpleNamespace(country_code="IN")
+                }
+            ),
+        ),
+    )
+    assert all(clause in " ".join(text.split()) for clause in clauses)
+    assert rendered == updated
+    assert set(proof["changedTargetPaths"]) <= set(proof["coveredTargetPaths"])
+    blueprint.ownership_data.pop("dependent_text")
+    assert apply_dependent_text(blueprint, target) is target
+
+
+@pytest.mark.parametrize(
+    ("change", "error"),
+    [
+        ("not_list", "must be a list"),
+        ("extra_key", "exactly path, source and expression"),
+        ("blank", "nonempty strings"),
+        ("non_handling_path", "owned handling instruction"),
+        ("unowned_path", "owned handling instruction"),
+        ("duplicate", "duplicate dependent text path"),
+        ("stale_source", "differs from pinned target"),
+        ("literal_only", "invalid placeholders"),
+        ("malformed_expression", "invalid placeholders"),
+        ("non_route_name", "only accepts route name"),
+        ("missing_source_route", "route name is absent or invalid"),
+        ("missing_sampled_route", "route name is absent or invalid"),
+        ("invalid_sampled_route", "route name is absent or invalid"),
+        ("missing_handling", "absent or conflicts"),
+        ("conflicting_handling", "absent or conflicts"),
+    ],
+)
+def test_handling_dependencies_fail_closed_without_partial_target_changes(change, error):
+    row, blueprint = handling_dependency_fixture()
+    target = deepcopy(row["target"])
+    target["documentPatch"]["route"]["portOfLoading"]["name"] = "ROTTERDAM"
+    declarations = blueprint.ownership_data["dependent_text"]
+    item = declarations[1]
+    if change == "not_list":
+        blueprint.ownership_data["dependent_text"] = None
+    elif change == "extra_key":
+        item["unexpected"] = True
+    elif change == "blank":
+        item["expression"] = " "
+    elif change == "non_handling_path":
+        item["path"] = "documentPatch.parties.shipper.name"
+    elif change == "unowned_path":
+        item["path"] = "documentPatch.goodsItemDetails[0].handlingInstructions[2]"
+    elif change == "duplicate":
+        declarations.append(deepcopy(declarations[0]))
+    elif change == "stale_source":
+        item["source"] += " STALE"
+    elif change == "literal_only":
+        item["expression"] = "CARGO IN TRANSIT"
+    elif change == "malformed_expression":
+        item["expression"] = "CARGO IN TRANSIT TO {{documentPatch.route.portOfLoading.name}"
+    elif change == "non_route_name":
+        item["expression"] = "CARGO IN TRANSIT TO {documentPatch.route.portOfLoading.country}"
+    elif change == "missing_source_route":
+        del blueprint.target["documentPatch"]["route"]["portOfLoading"]["name"]
+    elif change == "missing_sampled_route":
+        del target["documentPatch"]["route"]["portOfLoading"]["name"]
+    elif change == "invalid_sampled_route":
+        target["documentPatch"]["route"]["portOfLoading"]["name"] = 42
+    elif change == "missing_handling":
+        target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"].pop()
+    elif change == "conflicting_handling":
+        target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][1] = "OTHER CLAUSE"
+    before = deepcopy(target)
+    with pytest.raises(ValueError, match=error):
+        apply_dependent_text(blueprint, target)
+    assert target == before

@@ -337,6 +337,22 @@ def test_extended_date_grammars_cover_agent_and_timestamp_surfaces() -> None:
         )
         == "07/10/2025 12:00:00 AM"
     )
+    assert (
+        descendant._render_date_surface("23 MAY 2025", "2025-05-23", "2025-11-13") == "13 NOV 2025"
+    )
+    assert (
+        descendant._render_date_surface("May 28, 2025", "2025-05-28", "2025-11-13")
+        == "Nov 13, 2025"
+    )
+    assert (
+        descendant._render_date_surface("06.MAY.2024", "2024-05-06", "2025-11-13") == "13.NOV.2025"
+    )
+    assert (
+        descendant._render_date_surface("MARCH 28, 2025", "2025-03-28", "2025-11-13")
+        == "NOVEMBER 13, 2025"
+    )
+    with pytest.raises(ValueError, match="ambiguous certified date"):
+        descendant._render_date_surface("05/05/2025", "2025-05-05", "2025-11-13")
 
 
 def test_unowned_numeric_randomization_is_forbidden() -> None:

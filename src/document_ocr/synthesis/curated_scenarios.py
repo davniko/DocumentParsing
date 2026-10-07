@@ -24,7 +24,7 @@ from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
 from document_ocr.synthesis.curated_goods import RegistryThermalPolicy
-from document_ocr.synthesis.curated_routes import RouteTopology
+from document_ocr.synthesis.curated_routes import GoodsOriginIdentifier, RouteTopology
 from document_ocr.synthesis.dangerous_goods_registry import (
     DangerousGoodsHmtRecord,
     LoadedDangerousGoodsRegistry,
@@ -187,10 +187,22 @@ class SourceCapabilities(BaseModel):
     destination_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     fixed_package_quantity: int | None = Field(default=None, gt=0)
     quantity_multiple: int = Field(default=1, gt=0)
+    required_private_measures: tuple[Literal["grossWeight", "netWeight", "volume"], ...] = Field(
+        default=(),
+        exclude_if=lambda value: not value,
+        description=(
+            "Positive source-printed physical measures absent from public labels. "
+            "Sample them jointly from the cargo donor and enforce equipment capacity; "
+            "keep them private rather than adding target fields."
+        ),
+    )
     party_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
     location_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
     route_topology: RouteTopology | None = Field(
         default=None, exclude_if=lambda value: value is None
+    )
+    goods_origin_identifiers: dict[str, GoodsOriginIdentifier] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
     )
     require_contact_support: bool = True
     physical_profile: Literal[
@@ -222,6 +234,20 @@ class SourceCapabilities(BaseModel):
             raise ValueError("vehicle scenarios require an explicit source-owned HS heading")
         if self.family.startswith("dg_") and self.identity_count != 1:
             raise ValueError("this single-goods pilot requires one coherent DG identity")
+        if self.route_topology is not None:
+            for path, node in self.route_topology.party_nodes.items():
+                if path in self.party_sides and self.party_sides[path] != node:
+                    raise ValueError("party side conflicts with its explicit route node")
+            for path, node in self.route_topology.location_nodes.items():
+                if path in self.location_sides and self.location_sides[path] != node:
+                    raise ValueError("location side conflicts with its explicit route node")
+        nodes = {
+            "origin",
+            "destination",
+            *(self.route_topology.nodes if self.route_topology else {}),
+        }
+        if any(v.node not in nodes for v in self.goods_origin_identifiers.values()):
+            raise ValueError("goods-origin identifier refers to an undefined route node")
         return self
 
 
@@ -675,11 +701,31 @@ class ScenarioCatalog:
             raise ValueError("transshipment sources require an explicit route topology")
         eligible = tuple(sorted(self.ports.keys() & self.localities.keys()))
         rejected = []
-        for pin in (capabilities.origin_country, capabilities.destination_country):
+        requirements = {side: {"port": 1, "locality": 0} for side in ("origin", "destination")}
+        if topology is not None:
+            for spec in topology.nodes.values():
+                if spec.country_from in requirements:
+                    requirements[spec.country_from][spec.kind] += 1
+
+        def incompatibility(code: str, side: str) -> str | None:
+            if capabilities.require_contact_support and code in self.contact_excluded_countries:
+                return self.contact_excluded_countries[code]
+            for kind, needed in requirements[side].items():
+                registry = self.ports if kind == "port" else self.localities
+                if len(registry.get(code, ())) < needed:
+                    return f"no distinct registry support: {needed} {kind} nodes required in {code}"
+            return None
+
+        for side, pin in (
+            ("origin", capabilities.origin_country),
+            ("destination", capabilities.destination_country),
+        ):
             if pin is not None and pin not in eligible:
                 raise ValueError(f"pinned geography lacks port/locality support: {pin}")
             if capabilities.require_contact_support and pin in self.contact_excluded_countries:
                 raise ValueError(f"pinned geography lacks certified contact support: {pin}")
+            if pin is not None and (reason := incompatibility(pin, side)) is not None:
+                raise ValueError(f"pinned geography has {reason}")
         origin_country = capabilities.origin_country or _pick(
             tuple(c for c in eligible if c != capabilities.destination_country),
             stream.derive("origin-country"),
@@ -689,19 +735,15 @@ class ScenarioCatalog:
             # Keep the first draw unchanged for every already-supported plan.
             # Rejection streams avoid reindexing the complete country catalog.
             for attempt in range(self.config.maximum_candidates):
-                if (
-                    not capabilities.require_contact_support
-                    or code not in self.contact_excluded_countries
-                ):
+                reason = incompatibility(code, side)
+                if reason is None:
                     return code
-                rejected.append(
-                    {"side": side, "country": code, "reason": self.contact_excluded_countries[code]}
-                )
+                rejected.append({"side": side, "country": code, "reason": reason})
                 code = _pick(
                     tuple(c for c in eligible if c != other),
                     stream.derive(f"{side}-country-retry-{attempt + 1}"),
                 )
-            raise ValueError("contact-compatible geography rejection sampling exhausted")
+            raise ValueError(f"compatible geography rejection sampling exhausted: {reason}")
 
         origin_country = compatible_country(
             origin_country, "origin", capabilities.destination_country
@@ -716,6 +758,7 @@ class ScenarioCatalog:
         destination = _pick(self.ports[destination_country], stream.derive("destination-port"))
         nodes = {"origin": origin, "destination": destination}
         if topology is not None:
+            party_nodes = set(topology.party_nodes.values())
             for name, spec in sorted(topology.nodes.items()):
                 countries = (
                     (nodes[spec.country_from].country_code,)
@@ -738,6 +781,16 @@ class ScenarioCatalog:
                     for p in registry.get(country, ())
                     if (p.registry, p.registry_id) not in used
                     and (not spec.port_ids or p.registry_id in spec.port_ids)
+                    and (
+                        name not in party_nodes
+                        or (
+                            bool(self.localities.get(country))
+                            and (
+                                not capabilities.require_contact_support
+                                or country not in self.contact_excluded_countries
+                            )
+                        )
+                    )
                 )
                 if not candidates:
                     raise ValueError(f"route node has no distinct registry support: {name}")
@@ -756,26 +809,46 @@ class ScenarioCatalog:
             if key in patch.get("placeOfIssue", {}):
                 issue = nodes[topology.issue_node] if topology else origin
                 replacements[f"documentPatch.placeOfIssue.{key}"] = getattr(issue, key)
+        origin_identifier_paths = {
+            f"documentPatch.goodsItemDetails[{index}].origin.identifier"
+            for index, goods in enumerate(patch.get("goodsItemDetails", ()))
+            if "identifier" in goods.get("origin", {})
+        }
+        if not capabilities.goods_origin_identifiers.keys() <= origin_identifier_paths:
+            raise ValueError("goods-origin identifier contract refers to an absent target path")
         for index, goods in enumerate(patch.get("goodsItemDetails", ())):
             for key in goods.get("origin", {}):
                 if key not in {"name", "identifier"}:
                     raise ValueError(
                         f"goods origin has an unsupported country representation: {key}"
                     )
-                replacements[f"documentPatch.goodsItemDetails[{index}].origin.{key}"] = (
-                    origin.country_code if key == "identifier" else origin.country
-                )
+                path = f"documentPatch.goodsItemDetails[{index}].origin.{key}"
+                if key == "identifier":
+                    presentation = capabilities.goods_origin_identifiers.get(
+                        path, GoodsOriginIdentifier(kind="country_alpha2")
+                    )
+                    presentation.validate_source(goods["origin"][key])
+                    location = nodes[presentation.node]
+                    replacements[path] = presentation.render(
+                        country_code=location.country_code,
+                        registry=location.registry,
+                        registry_id=location.registry_id,
+                    )
+                else:
+                    replacements[path] = origin.country
         freight = patch.get("freight", {})
         if "paymentPlace" in freight:
             path = "documentPatch.freight.paymentPlace"
-            side = capabilities.location_sides.get(path)
+            side = (
+                topology.location_nodes.get(path) if topology is not None else None
+            ) or capabilities.location_sides.get(path)
             if side is None:
                 side = {"prepaid": "origin", "collect": "destination"}.get(
                     freight.get("paymentArrangement")
                 )
             if side is None:
                 raise ValueError("freight payment place requires an explicit endpoint side")
-            location = origin if side == "origin" else destination
+            location = nodes[side]
             for key in ("name", "country"):
                 if key in freight["paymentPlace"]:
                     replacements[f"{path}.{key}"] = getattr(location, key)
@@ -789,14 +862,26 @@ class ScenarioCatalog:
                 )
                 if "sameAs" in party:
                     continue
-                side = capabilities.party_sides.get(
-                    path, "origin" if role == "shipper" else "destination"
+                node = (
+                    topology.party_nodes[path]
+                    if topology is not None and path in topology.party_nodes
+                    else capabilities.party_sides.get(
+                        path, "origin" if role == "shipper" else "destination"
+                    )
                 )
-                country = origin_country if side == "origin" else destination_country
+                country = nodes[node].country_code
                 location = _pick(self.localities[country], stream.derive(path))
                 signature = (party.get("name", ""), party.get("addressLine", ""))
                 if all(signature):
                     if signature in repeated_parties:
+                        if (
+                            topology is not None
+                            and topology.party_nodes
+                            and repeated_parties[signature].country_code != country
+                        ):
+                            raise ValueError(
+                                "repeated source party has conflicting route countries"
+                            )
                         location = repeated_parties[signature]
                     else:
                         repeated_parties[signature] = location
@@ -818,6 +903,16 @@ class ScenarioCatalog:
                     {
                         "routeNodes": {k: v.model_dump() for k, v in nodes.items()},
                         "routeFields": topology.fields,
+                        **(
+                            {"routePartyNodes": topology.party_nodes}
+                            if topology.party_nodes
+                            else {}
+                        ),
+                        **(
+                            {"locationNodes": topology.location_nodes}
+                            if topology.location_nodes
+                            else {}
+                        ),
                         "routePolicy": "synthetic_registry_topology_not_carrier_service",
                     }
                     if topology
@@ -858,7 +953,9 @@ class ScenarioCatalog:
                 if cap.physical_profile in {"source_bundle", "source_whole_units"}
                 else (*self.observations, source)
             )
-        required = {f for f in _MEASURES if f in source.goods}
+        required = {f for f in _MEASURES if f in source.goods} | set(
+            cap.required_private_measures
+        )
         for donor in observations:
             thermal = cap.family in {"frozen", "chilled"}
             family_matches = (
@@ -1182,10 +1279,23 @@ class ScenarioCatalog:
             )
             if goods[field]["value"] <= 0:
                 raise ValueError("sampled physical measure rounds to zero at source precision")
+        # Missing public labels do not mean that a source template has no
+        # printed mass/cube. Carry those facts from the same sampled donor,
+        # not from an unrelated source commodity's per-package density.
+        private_measures = {
+            field: _canonical_measure(donor.goods, field) * factor
+            for field in cap.required_private_measures
+            if field not in goods
+        }
+        if any(value <= 0 for value in private_measures.values()):
+            raise ValueError("sampled private physical measure must be positive")
+        all_measures = {
+            field: _canonical_measure(goods, field) for field in _MEASURES if field in goods
+        } | private_measures
         if (
-            "netWeight" in goods
-            and "grossWeight" in goods
-            and _canonical_measure(goods, "netWeight") > _canonical_measure(goods, "grossWeight")
+            "netWeight" in all_measures
+            and "grossWeight" in all_measures
+            and all_measures["netWeight"] > all_measures["grossWeight"]
         ):
             raise ValueError("sampled net weight exceeds gross weight")
         if "description" in goods:
@@ -1239,22 +1349,20 @@ class ScenarioCatalog:
             )
             peak = max(shares)
             if (
-                "grossWeight" in goods
-                and _canonical_measure(goods, "grossWeight") * peak > capacity.payload_kg
+                "grossWeight" in all_measures
+                and all_measures["grossWeight"] * peak > capacity.payload_kg
             ):
                 raise ValueError("sampled row exceeds equipment payload capacity")
             if (
-                "volume" in goods
+                "volume" in all_measures
                 and capacity.volume_m3 is not None
-                and _canonical_measure(goods, "volume") * peak > capacity.volume_m3
+                and all_measures["volume"] * peak > capacity.volume_m3
             ):
                 raise ValueError("sampled row exceeds equipment enclosed volume")
         if cap.family == "dg_chemical":
-            if "grossWeight" in goods and _canonical_measure(goods, "grossWeight") / quantity > 400:
+            if "grossWeight" in all_measures and all_measures["grossWeight"] / quantity > 400:
                 raise ValueError("chemical package mass exceeds non-bulk synthesis envelope")
-            if "volume" in goods and _canonical_measure(goods, "volume") / quantity > Decimal(
-                ".45"
-            ):
+            if "volume" in all_measures and all_measures["volume"] / quantity > Decimal(".45"):
                 raise ValueError("chemical package cube exceeds non-bulk synthesis envelope")
         by_number = {a["equipmentIdentifier"]: a for a in allocations}
         physical_rows = []
@@ -1312,6 +1420,20 @@ class ScenarioCatalog:
             **({"thermalCommodityContext": thermal_context} if thermal_context is not None else {}),
             "quantityMultiple": multiple,
             "physicalRows": physical_rows,
+            **(
+                {
+                    "privatePhysicalMeasures": {
+                        field: {
+                            "value": str(value),
+                            "unit": "cubic_metre" if field == "volume" else "kilogram",
+                            "basis": "same_train_donor_per_package_measure",
+                        }
+                        for field, value in private_measures.items()
+                    }
+                }
+                if private_measures
+                else {}
+            ),
             "dgHmtRecordId": dg_record.record_id if dg_record else None,
             "dgPrintedFacts": (
                 {
@@ -1367,11 +1489,11 @@ class ScenarioCatalog:
             except ValueError as error:
                 failures[str(error)] += 1
                 continue
-            for goods in cargo["goodsItemDetails"]:
+            for index, goods in enumerate(cargo["goodsItemDetails"]):
                 for key in goods.get("origin", {}):
-                    goods["origin"][key] = (
-                        origin.country_code if key == "identifier" else origin.country
-                    )
+                    goods["origin"][key] = replacements[
+                        f"documentPatch.goodsItemDetails[{index}].origin.{key}"
+                    ]
             for field, value in cargo["goodsItemDetails"][0].items():
                 if field in source.goods and value != source.goods[field]:
                     replacements[f"documentPatch.goodsItemDetails[0].{field}"] = value

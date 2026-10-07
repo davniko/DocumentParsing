@@ -52,6 +52,13 @@ def test_transshipment_auxiliary_uses_the_same_registered_route_location():
         set(),
     )
     assert _render_recipe(*args) == "VIA MUMBAI, INDIA (IN)"
+    ports = {"text": "{origin_unlocode}/{transshipment_unlocode}/{destination_unlocode}"}
+    assert _render_recipe(ports, *args[1:]) == "INBOM/INBOM/NLRTM"
+    geonames = sampled.destination.model_copy(
+        update={"registry": "geonames", "registry_id": "12345"}
+    )
+    with pytest.raises(ValueError, match="unknown auxiliary interpolation"):
+        _render_recipe(ports, sampled.model_copy(update={"destination": geonames}), *args[2:])
     with pytest.raises(ValueError, match="unknown auxiliary interpolation"):
         _render_recipe(recipe, scenario(), args[2], args[3], "OLD HUB", set())
 
@@ -82,6 +89,37 @@ def scenario():
         cargo={},
         provenance={},
     )
+
+
+def test_source_only_contact_uses_explicit_route_scope_without_inventing_a_party():
+    sampled = scenario()
+    stream = DeterministicStream(11, "test", "source")
+    args = (sampled, {"documentPatch": {}}, stream, "+20 12345678", set())
+    origin = _render_recipe({"phone": "origin"}, *args)
+    destination = _render_recipe({"phone": "destination"}, *args)
+    assert origin.startswith("+91")
+    assert destination.startswith("+31")
+    assert origin == _render_recipe({"phone": "documentPatch.parties.shipper"}, *args)
+    with pytest.raises(KeyError):
+        _render_recipe({"phone": "unresolved-party"}, *args)
+
+
+def test_registered_exporter_country_follows_its_party_not_loading_port():
+    sampled = scenario()
+    role = "documentPatch.parties.notifyParties[0]"
+    sampled = sampled.model_copy(update={"party_localities": {role: sampled.destination}})
+    args = (sampled, {"documentPatch": {}}, DeterministicStream(11, "test", "source"),
+            "ITALY", set())
+    for field, expected in (("country", "NETHERLANDS"), ("country_code", "NL"),
+                            ("name", "ROTTERDAM")):
+        recipe = {"party_location": role, "field": field}
+        _validate_recipe(recipe)
+        assert _render_recipe(recipe, *args) == expected
+    with pytest.raises(ValueError, match="explicit party role"):
+        _validate_recipe({"party_location": role, "field": "guessed"})
+    with pytest.raises(KeyError):
+        _render_recipe({"party_location": "documentPatch.parties.shipper", "field": "country"},
+                       *args)
 
 
 @pytest.mark.parametrize("field", ["text", "prefix", "suffix"])

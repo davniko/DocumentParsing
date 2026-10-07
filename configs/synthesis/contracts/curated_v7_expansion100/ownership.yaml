@@ -1,0 +1,2100 @@
+version: 1
+sources:
+  doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a: {}
+  doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7: {}
+  doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
+    bindings:
+      anchor:documentPatch.transport.vesselName:
+        occurrences:
+        - text: GULBENIZ A
+    add:
+    - key: current:transport:voyage
+      kind: identifier
+      paths:
+      - documentPatch.transport.voyageNumber
+      occurrences:
+      - text: 0EL75W1TK
+  doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d:
+    bindings:
+      agent:auxiliary:cargo:weight_value:
+        paths:
+        - documentPatch.goodsItemDetails[0].grossWeight.value
+  doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d-%b-%Y'
+        case: upper
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%d-%b-%Y'
+        case: upper
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        expression: 'CONTACT: {documentPatch.parties.shipper.contactDetails.contactName}
+
+          MOB: {documentPatch.parties.shipper.contactDetails.phoneNumbers[0]}'
+    bindings:
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
+        - documentPatch.parties.shipper.contactDetails.contactName
+        occurrences:
+        - text: MOB:+971507671715
+  doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
+    render_expressions:
+      documentPatch.parties.forwardingAgent.addressLine: '{agent_locality} {agent_street}'
+    retire:
+      anchor:documentPatch.parties.shipper.address: Current site and postal components
+        own all address words; intervening PK remains a caption.
+    bindings:
+      agent:release_contact:email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:release_contact:phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:carrier:office:phone:
+        paths:
+        - documentPatch.parties.forwardingAgent.contactDetails.phoneNumbers[0]
+      agent:carrier:domain:
+        paths:
+        - documentPatch.parties.forwardingAgent.contactDetails.websiteUrls[0]
+      anchor:documentPatch.route.placeOfDelivery.country:
+        paths:
+        - documentPatch.route.portOfDischarge.country
+  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811: {}
+  doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a:
+    lexical:
+    - key: consignee_complete_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: '26612
+
+          95 ALGAMHORY ST. PORT SAID EGYPT (EGYPT)'
+  doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%B %d, %Y'
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%B %d, %Y'
+    bindings:
+      agent:destination_office_email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:destination_office_country:
+        paths:
+        - documentPatch.parties.deliveryAgent.country
+  doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+    lexical:
+    - key: consignee_complete_name
+      kind: name
+      paths:
+      - documentPatch.parties.consignee.name
+      occurrences:
+      - text: 'OUT IT FOR IMPORT AND EXPORT
+
+          ( AHMED MAHMOUD ABD ALLAH
+
+          ABD ALBARY )'
+    retire:
+      agent:cargo:gross_weight_total: Numeric core is owned by current gross_total;
+        suffix KGS is fixed unit text.
+      agent:cargo_gross_weight:container:0: Current numeric owner supplies the container
+        mass; KGS is fixed unit text.
+      agent:container:0:volume: Current numeric owner supplies the container volume;
+        CBM is fixed unit text.
+      agent:cargo_gross_weight:container:1: Current numeric owner supplies the container
+        mass; KGS is fixed unit text.
+      agent:container:1:volume: Current numeric owner supplies the container volume;
+        CBM is fixed unit text.
+  doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%b. %d, %Y'
+        case: upper
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        formats:
+        - '%b. %d, %Y'
+        - '%B {day_ordinal}, %Y'
+        case: upper
+    bindings:
+      anchor:documentPatch.transport.vesselName:
+        occurrences:
+        - text: YM WISH
+  doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
+    bindings:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName:
+        occurrences:
+        - text: MR/AHMED HAMADA
+        kind: owned_text
+      agent:container_iso_code:
+        kind: equipment
+        paths:
+        - documentPatch.containerInformation[0].sizeCategory
+        - documentPatch.containerInformation[0].typeCategory
+        - documentPatch.containerInformation[1].sizeCategory
+        - documentPatch.containerInformation[1].typeCategory
+        - documentPatch.containerInformation[2].sizeCategory
+        - documentPatch.containerInformation[2].typeCategory
+        - documentPatch.containerInformation[3].sizeCategory
+        - documentPatch.containerInformation[3].typeCategory
+        occurrences:
+        - text: 45G1
+  doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
+    surfaces:
+      agent:shipment:freight_payable_place:
+        expression: FREIGHT PAYABLE IN {documentPatch.freight.paymentPlace.name}
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d %b %Y'
+        case: upper
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%d-%b-%Y'
+        case: upper
+    bindings:
+      agent:shipment:freight_payable_place:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.containers[0].temperatureSetpoint.value:
+        paths:
+        - documentPatch.containerInformation[0].temperatureSetpoint.value
+        - documentPatch.goodsItemDetails[0].handlingInstructions[0]
+    add:
+    - key: current:generic_hs_caption
+      occurrences:
+      - text: NCM
+        all: true
+    constants:
+      current:generic_hs_caption: HS CODE
+  doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d %b %Y'
+        case: upper
+    retire:
+      anchor:documentPatch.parties.shipper.name: Complete current name owns both source
+        lines; final comma remains outside the identity.
+    bindings:
+      agent:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+    retire:
+      agent:total_packages_in_words: Current packages variable owns Ninety Nine in
+        every repeated occurrence; Only remains fixed.
+      anchor:documentPatch.cargoPackages[0].quantity: The 48,111 commodity-sheet count
+        is not the current outer-package quantity; current count owners supply the
+        99-package accounting level.
+      anchor:documentPatch.cargoPackages[0].typeCategory: SHEETS describes the commodity
+        units, not the current package category. The explicit PACKED IN statement
+        owns packaging.
+    bindings:
+      agent:cargo_packing_statement:
+        kind: package
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        occurrences:
+        - text: PACKING
+          all: true
+      anchor:documentPatch.placeOfIssue.name:
+        paths:
+        - documentPatch.placeOfIssue.name
+        - documentPatch.placeOfIssue.country
+      agent:delivery_agent_contact_name_amr_rabbany:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.contactName
+      agent:delivery_agent_contact_name_shady_farid:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.contactName
+    surfaces:
+      agent:cargo_packing_statement:
+        package_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d-%b-%Y'
+        case: upper
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%d-%b-%Y'
+        case: upper
+      anchor:documentPatch.placeOfIssue.name:
+        expression: '{documentPatch.placeOfIssue.name}-{documentPatch.placeOfIssue.country}'
+      agent:delivery_agent_contact_name_amr_rabbany:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      agent:delivery_agent_contact_name_shady_farid:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+  doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8: {}
+  doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+    surfaces:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        expression: '{documentPatch.parties.consignee.contactDetails.phoneNumbers[0]}
+
+          E: {documentPatch.parties.consignee.contactDetails.emailAddresses[0]}'
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
+        expression: '{documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]}
+
+          E: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}'
+    bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+        - documentPatch.parties.consignee.contactDetails.emailAddresses[0]
+        occurrences:
+        - text: +203 5411 259***
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+        - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+        occurrences:
+        - text: +203 5411 259***
+          occurrence: 2
+      agent:cargo:0:contact_email:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.emailAddresses[0]
+        - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+  doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+    identifier_policies:
+      vehicle_vin: fictional_vin_v1
+    variables:
+    - key: vehicle_vin
+      kind: identifier
+      value: SALKABB95SA261563
+      meaning: Vehicle identifier printed in the marks block and included in the current
+        goods description; regenerate jointly with vehicle identity.
+      required_literals: []
+      occurrences:
+      - text: SALKABB95SA261563
+        occurrence: 1
+        presentation: text
+    expressions:
+      documentPatch.goodsItemDetails[0].description: '{vehicle_description}; CHASSIS
+        NUMBER {vehicle_vin}'
+    retire:
+      agent:cargo:g1:unpackaged_status: Current count owns its numeric core; unpackaged
+        remains the vehicle handling condition.
+    bindings:
+      anchor:documentPatch.cargoPackages[0].quantity:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+        - documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity
+  doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+    constants:
+      agent:cargo:refrigerated_stowage_statement: 'CARGO IS STOWED IN A REFRIGERATED
+
+        CONTAINER SET BY THE SHIPPER'
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d %b %Y'
+        case: upper
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%d %b %Y'
+        case: upper
+    lexical:
+    - key: forwarding_complete_name
+      kind: name
+      paths:
+      - documentPatch.parties.forwardingAgent.name
+      occurrences:
+      - text: 'CIMC WETRANS LOGISTICS MANAGEMENT
+
+          C O.,LTD. QINGDAO BRANCH'
+    bindings:
+      agent:cargo:refrigerated_stowage_statement:
+        paths:
+        - documentPatch.goodsItemDetails[0].handlingInstructions[1]
+  doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+    lexical:
+    - key: shipper_complete_name
+      kind: name
+      paths:
+      - documentPatch.parties.shipper.name
+      occurrences:
+      - text: 'FOOD MORE TRADING COMPANY SP Z.O.
+
+          O.'
+    bindings:
+      anchor:documentPatch.cargoPackages[0].typeDescription:
+        kind: package
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+  doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
+    surfaces:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      agent:party:deliveryAgent:0:contact:1:name:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+    bindings:
+      agent:party:deliveryAgent:0:contact:1:name:
+        kind: owned_text
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.contactName
+        occurrences:
+        - text: Mr. Shady Farid
+    retire:
+      agent:package:0:number_words: Current count owns the complete number words;
+        Only remains fixed.
+  doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0: {}
+  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9: {}
+  doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+    lexical:
+    - key: shipper_complete_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'PLOT NO. 15,16,17 SALMAN HILLS DILRAS COLONY AURANGABAD
+
+          - 431001MAHARASHTRA.INDIA'
+    - key: goods_complete_description
+      kind: product
+      paths:
+      - documentPatch.goodsItemDetails[0].description
+      occurrences:
+      - text: 'HYBRID
+
+          SORGHUM MECCA'
+      - text: HYBRID SORGHUM MECCA
+    bindings:
+      anchor:documentPatch.cargoGroups[0].description:
+        occurrences:
+        - text: 'HYBRID
+
+            SORGHUM MECCA'
+        - text: HYBRID SORGHUM MECCA
+      agent:consignee_telefax:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[1]
+      agent:notify_telefax:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]
+      agent:shipper_telefax:
+        paths:
+        - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
+    add:
+    - key: current:package_total_caption
+      kind: package
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      occurrences:
+      - text: 'HDPE
+
+          BAGS'
+    - key: current:generic_goods_caption
+      occurrences:
+      - text: 'CROP:'
+    - key: current:old_crop_quality
+      occurrences:
+      - text: CEREAL SEED QUALITY
+    constants:
+      current:generic_goods_caption: 'GOODS:'
+    delete:
+      current:old_crop_quality: This source-only cereal qualifier is obsolete when
+        registry sampling chooses a different goods identity; its facts were consolidated
+        in the owned description region.
+  doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525:
+    add:
+    - key: customs:importer
+      kind: identifier
+      paths: []
+      occurrences:
+      - text: '413042480'
+        occurrence: 2
+    - key: route:origin:name
+      kind: location
+      paths:
+      - documentPatch.route.placeOfReceipt.name
+      occurrences:
+      - text: MANILA
+        all: true
+    - key: route:origin:country
+      kind: location
+      paths:
+      - documentPatch.route.placeOfReceipt.country
+      occurrences:
+      - text: PHILIPPINES
+        occurrence: 2
+      - text: PHILIPPINES
+        occurrence: 4
+    - key: route:hub:name
+      kind: location
+      paths:
+      - documentPatch.route.portOfLoading.name
+      - documentPatch.route.transshipmentPort.name
+      - documentPatch.placeOfIssue.name
+      occurrences:
+      - text: HONG KONG
+        all: true
+    - key: route:destination:name
+      kind: location
+      paths:
+      - documentPatch.route.portOfDischarge.name
+      - documentPatch.route.placeOfDelivery.name
+      - documentPatch.freight.paymentPlace.name
+      occurrences:
+      - text: PORT SAID
+        all: true
+    - key: route:destination:country
+      kind: location
+      paths:
+      - documentPatch.route.portOfDischarge.country
+      - documentPatch.route.placeOfDelivery.country
+      - documentPatch.freight.paymentPlace.country
+      occurrences:
+      - text: EGYPT
+        occurrence: 3
+      - text: EGYPT
+        occurrence: 4
+      - text: EGYPT
+        occurrence: 7
+    - key: transport:vessel
+      kind: equipment
+      paths:
+      - documentPatch.transport.vesselName
+      occurrences:
+      - text: MAERSK LUZ
+    - key: transport:voyage
+      kind: identifier
+      paths:
+      - documentPatch.transport.voyageNumber
+      occurrences:
+      - text: 402W
+    - key: date:shipment
+      kind: date
+      paths:
+      - documentPatch.issueDate
+      - documentPatch.shippedOnBoardDate
+      occurrences:
+      - text: 21-JAN-2024
+        all: true
+    - key: contact:notify:phone
+      kind: phone
+      paths:
+      - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      occurrences:
+      - text: +356 2389 6310
+    - key: equipment:type
+      kind: equipment
+      paths:
+      - documentPatch.containerInformation[0].sizeCategory
+      - documentPatch.containerInformation[0].typeCategory
+      occurrences:
+      - text: 40'HQ
+    - key: package:inner:type
+      kind: package
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      occurrences:
+      - text: BOXES
+    surfaces:
+      date:shipment:
+        date_path: documentPatch.issueDate
+        format: '%d-%b-%Y'
+        case: upper
+  doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711:
+    lexical:
+    - key: recipient_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: port said, Egypt , port said ,free Zone
+        all: true
+    retire:
+      anchor:documentPatch.parties.shipper.address: Crosses new company and postal
+        owners; complete current-label owners supply both.
+      agent:cargo:g1:gross_weight: Current numeric owner covers all three numeric
+        weights; KG remains fixed unit text.
+    bindings:
+      agent:customs:acid_reference:
+        occurrences:
+        - text: '4455085232024040016'
+          all: true
+      agent:customs:destination_reference:
+        occurrences:
+        - text: '445508523'
+          occurrence: 3
+        - text: '445508523'
+          occurrence: 6
+      agent:customs:hsc_code:
+        paths:
+        - documentPatch.goodsItemDetails[0].hsCodes[0]
+    surfaces:
+      anchor:documentPatch.route.portOfLoading.name:
+        expression: '{documentPatch.route.portOfLoading.name}'
+      anchor:documentPatch.route.transshipmentPort.name:
+        expression: '{documentPatch.route.transshipmentPort.name}'
+      anchor:documentPatch.placeOfIssue.name:
+        expression: '{documentPatch.placeOfIssue.name}'
+  doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397:
+    bindings:
+      anchor:documentPatch.parties.shipper.address:
+        occurrences:
+        - text: NO. 188, DEVELOPMENT AVENUE,
+          occurrence: 1
+        - text: ECONOMIC DEVELOPMENT ZONE, XINYI,
+          occurrence: 1
+        - text: XUZHOU CITY, JIANGSU
+          occurrence: 1
+        - text: PROVINCE, CHINA
+          occurrence: 1
+      anchor:documentPatch.transport.vesselName:
+        paths:
+        - documentPatch.transport.vesselName
+        - documentPatch.transport.voyageNumber
+    lexical: []
+    surfaces:
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName} {documentPatch.transport.voyageNumber}'
+  doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d:
+    retire:
+      agent:cargo:gross_weight: Full wrapper superseded by its exact typed numeric/count
+        core. Retain immutable unit/framing bytes; any printed package noun is independently
+        bound to the same current package category.
+  doc_1f166783ba401a283cf52679d7f13894c143e245992cc4bab1eb9cea384db720:
+    lexical: []
+    bindings:
+      anchor:documentPatch.parties.shipper.country:
+        occurrences:
+        - text: USA-US
+          occurrence: 1
+      anchor:documentPatch.cargoPackages[0].typeDescription:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        kind: package
+  doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f: {}
+  doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85:
+    retire:
+      agent:package_words:0: Full wrapper superseded by its exact typed numeric/count
+        core. Retain immutable unit/framing bytes; any printed package noun is independently
+        bound to the same current package category.
+    add:
+    - key: reviewed:word_total:package_noun
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      kind: package
+      occurrences:
+      - text: PALLETS
+        occurrence: 6
+    bindings:
+      agent:egyptian_tax_id_prefixed:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: 554-705-850
+          occurrence: 1
+        - text: 554-705-850
+          occurrence: 2
+  doc_24c81b104b2fe30e4152b1606e1a4c31bd89a5014a1faaec51fa9093b6cff000: {}
+  doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
+    retire:
+      agent:cargo:package_quantity_words: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+    bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[1]
+    surfaces:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        expression: '{documentPatch.parties.consignee.contactDetails.phoneNumbers[0]}
+          / {documentPatch.parties.consignee.contactDetails.phoneNumbers[1]}'
+  doc_2bbbb552bc5859d97400d352a2f3c68724706b4bc47fc181b6de25d9e3c89e41: {}
+  doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
+    lexical:
+    - key: lexical_00
+      kind: product
+      paths:
+      - documentPatch.goodsItemDetails[0].description
+      occurrences:
+      - text: TIRES
+        occurrence: 2
+    tare_baselines:
+      agent:tare_weight_summary:
+        kg: '18660'
+        reason: The summary caption Weight in Kgs Total:5CONTAINER(S) immediately
+          precedes the row51069.166 18660 250,000 under Cargo/Tare/Measurement columns.
+          Historical numeric sidecar explicitly certifies18660 as total tare for the
+          five-container topology.
+        sourceSha256: bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690
+    tare_owners:
+      agent:tare_weight_summary:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+  doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910: {}
+  doc_36d2930f49cb3d8d79acd2968fea98a5b6e279ce3b37c7752660333cab609b47: {}
+  doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635:
+    lexical:
+    - key: invoice_party_name
+      kind: name
+      paths:
+      - documentPatch.parties.consignee.name
+      occurrences:
+      - text: SE WIRING SYSTEMS EGYPT
+        occurrence: 1
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 1
+  doc_3d0d37486449c3c49624bfe731eeb881647ea6763af6b75719ecf9fce89aa70c:
+    bindings:
+      anchor:documentPatch.parties.consignee.address:
+        occurrences:
+        - text: 'ELSHARQ DISTRICT.
+
+            ALGUMHURYA AND SAFIA ZAGHLOUL ST.
+
+            BUILDING (9) 5THS FLOOR OFFICE NO.'
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].address:
+        occurrences:
+        - text: 'ELSHARQ DISTRICT.
+
+            ALGUMHURYA AND SAFIA ZAGHLOUL ST.
+
+            BUILDING (9) 5THS FLOOR OFFICE NO.'
+          occurrence: 2
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      agent:precarriage_reference:
+        paths:
+        - documentPatch.route.placeOfReceipt.name
+  doc_4072d87614d209dbbf8c821deaf27052e67ee5575f921d883f208759c6517af8: {}
+  doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66:
+    bindings:
+      anchor:documentPatch.parties.consignee.name:
+        occurrences:
+        - text: ELFATH FOR IMPORT COMPANY
+          occurrence: 1
+      anchor:documentPatch.parties.consignee.country:
+        occurrences:
+        - text: EGYPT
+          occurrence: 1
+      agent:agent_name:
+        paths:
+        - documentPatch.parties.deliveryAgent.name
+        occurrences:
+        - text: YANG MING SHIPPING (EGYPT) S.A.E.
+          occurrence: 1
+      agent:agent_contact_phone_0:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:agent_contact_phone_1:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+      agent:agent_contact_phone_2:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]
+    lexical: []
+  doc_44a6df44720605e77dd83ffc0cf301e7f1a9a9ac5bb0685490ae465072055886: {}
+  doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885:
+    bindings:
+      anchor:documentPatch.parties.shipper.country:
+        occurrences:
+        - text: UNITED STATES
+          occurrence: 1
+      anchor:documentPatch.parties.consignee.name:
+        occurrences:
+        - text: ARRAM INSTITUTION FOR IMPORT AND EXPORT
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].name:
+        occurrences:
+        - text: ARRAM INSTITUTION FOR IMPORT AND EXPORT
+          occurrence: 2
+      anchor:documentPatch.parties.consignee.country:
+        occurrences:
+        - text: EGYPT
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].country:
+        occurrences:
+        - text: EGYPT
+          occurrence: 2
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: '4 ALI BASHA IBRAHIM.
+
+          MANSOURA, ELAAM ST FROM ELGAIAA ST. MANSOURA 35511, EGYPT'
+        occurrence: 1
+      - text: '4 ALI BASHA IBRAHIM. MANSOURA,
+
+          ELAAM ST FROM ELGAIAA ST. MANSOURA 35511, EGYPT'
+        occurrence: 1
+  doc_4e21727ffeec68eafddc5083c1036c541b0836d6fbc61ecba46973430933f19b: {}
+  doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b:
+    surfaces:
+      agent:cargo:g1:qty_mt:
+        measure_path: documentPatch.goodsItemDetails[0].netWeight
+        render_unit: metric_tonne
+    bindings:
+      agent:shipment_agent:phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: 'PLOT NO.1,2,3 B BLOCK 22008 IAL INDUSTRIAL ZONE B,G
+
+          OBOURLIOUBIA POST NO.110 - P.O.BOX 11828 EGYPT'
+        occurrence: 1
+    tare_baselines:
+      agent:tare_weight_value:
+        kg: '3840'
+        reason: The same mass block prints gross16.493,200KGS and tare3.840KGS, establishing
+          period grouping and comma decimal notation. Historical numeric sidecar independently
+          records3840kg.
+        sourceSha256: e0548a5a6ddcafbc25e5e24d6e33812939e4927d250a68b4ee329c138a0ba41a
+    bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[1]:
+        paths: []
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[3]:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[1]
+  doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815: {}
+  doc_6826506aea2aa821aec274d2197753bd8d933e1ff004825ed06968a4b9416d2d: {}
+  doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1: {}
+  doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745: {}
+  doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4: {}
+  doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31:
+    tare_baselines:
+      agent:tare_weight:
+        kg: '3900'
+        reason: Tara:3,900 is next to Total Weight:22,993.80, demonstrating comma
+          grouping and decimal point. Historical numeric sidecar independently records3900kg.
+        sourceSha256: 798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4
+  doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b: {}
+  doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93: {}
+  doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9:
+    bindings:
+      anchor:documentPatch.parties.shipper.name:
+        occurrences:
+        - text: OMAN CABLES INDUSTRY (SAOG)
+          occurrence: 1
+        - text: 'AL MOUSA SPECIALIZED CABLES TRADING
+
+            ESTABLISHMENT'
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].name:
+        occurrences:
+        - text: 'AL MOUSA SPECIALIZED CABLES TRADING
+
+            ESTABLISHMENT'
+          occurrence: 2
+      anchor:documentPatch.parties.consignee.address:
+        occurrences:
+        - text: '5 DR. MUHAMED
+
+            MAMOUN STREET FROM MUHAMED WALI'
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].address:
+        occurrences:
+        - text: 'AL AMAL DISTRICT, AL ADL AL WAEZ
+
+            STREET 4668'
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].city:
+        occurrences:
+        - text: RIYADH
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].country:
+        occurrences:
+        - text: SAUDI ARABIA
+          occurrence: 1
+    lexical:
+    - key: lexical_01
+      kind: product
+      paths:
+      - documentPatch.goodsItemDetails[0].description
+      occurrences:
+      - text: CABLES
+        occurrence: 5
+    retire:
+      anchor:documentPatch.parties.consignee.city: The remote continuation is absent
+        from the current party-block-only target and is removed only in future synthetic
+        rendering.
+      anchor:documentPatch.parties.consignee.country: The remote continuation is absent
+        from the current party-block-only target and is removed only in future synthetic
+        rendering.
+    add:
+    - key: reviewed:consignee:obsolete_marker
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '**'
+        occurrence: 2
+    - key: reviewed:consignee:obsolete_continuation
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '** STREET HELIOPOLIS, AL NOZHA,
+
+          CAIRO, EGYPT'
+        occurrence: 1
+    - key: reviewed:represented_party:obsolete_marker
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: ' ***'
+        occurrence: 1
+    - key: reviewed:notify:obsolete_marker
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '*** '
+        occurrence: 1
+    - key: reviewed:notify:duplicate_address_head
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: AL AMAL DISTRICT, AL ADL AL WAEZ
+        occurrence: 2
+    - key: reviewed:notify:duplicate_address_tail
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: STREET 4668 RIYADH, SAUDI ARABIA
+        occurrence: 2
+    delete:
+      reviewed:consignee:obsolete_marker: Remove continuation marker after its remote
+        unlabelled postal continuation is removed in synthetic rendering.
+      reviewed:consignee:obsolete_continuation: Do not retain unlabelled source locality
+        outside the generated consignee postal owner; current real OCR and target
+        are unchanged.
+      reviewed:represented_party:obsolete_marker: Remove dangling marker; registration
+        identifier and its caption remain.
+      reviewed:notify:obsolete_marker: Keep the VAT caption/value but remove its obsolete
+        continuation marker.
+      reviewed:notify:duplicate_address_head: The complete notify postal address has
+        one coupled owner in its party block; remove remote duplicated head.
+      reviewed:notify:duplicate_address_tail: The complete notify postal address has
+        one coupled owner in its party block; remove remote duplicated tail.
+  doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0:
+    tare_owners:
+      agent:cargo:container_measurement:tare_0:
+      - 0
+      agent:cargo:total_tare:
+      - 0
+      - 1
+    tare_baselines:
+      agent:cargo:container_measurement:tare_0:
+        kg: '2230'
+        reason: The first cargo row prints KGS 26028.000, KGS 2230 and CBM 25.000
+          before BMOU1278180; the pinned source template explicitly identifies this
+          as container_measurement:tare_0. Its equipment owner is the first container,
+          not the cargo group index.
+        sourceSha256: 4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1
+      agent:cargo:total_tare:
+        kg: '4460'
+        reason: 'Under Weight in Kgs: Total: 2 CONTAINER(S), OCR prints 51862.000
+          gross, 4460 tare and 50.000 volume. The aggregate owns both listed containers.
+          Its exact difference from the sole printed row tare, 4460 - 2230 = 2230
+          kg, establishes the one missing private row without adding a public target
+          or an OCR occurrence.'
+        sourceSha256: 4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1
+    bindings:
+      anchor:documentPatch.cargoPackages[1].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        kind: package
+  doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'Private Free Zone Area
+
+          6th of October industrial city Zone 06
+
+          Land No. 53,54,55
+
+          6th of October city Giza Egypt'
+        occurrence: 1
+      - text: 'Private Free Zone Area
+
+          6th of October industrial city Zone 06
+
+          Land No. 53,54,55
+
+          6th of October city Giza Egypt'
+        occurrence: 2
+    - key: invoice_party_name
+      kind: name
+      paths:
+      - documentPatch.parties.consignee.name
+      - documentPatch.parties.notifyParties[0].name
+      occurrences:
+      - text: SE Wiring Systems Egypt
+        occurrence: 1
+      - text: SE Wiring Systems Egypt
+        occurrence: 2
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 1
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 2
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 3
+  doc_8c6da3ddb7c7d91a71a36c0a181ce2158d206bd9bddc6e6471176cc0a56dc912:
+    retire:
+      agent:cargo:package_count_words: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+    add:
+    - key: reviewed:word_total:package_noun
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      kind: package
+      occurrences:
+      - text: CARTONS
+        occurrence: 2
+    - key: reviewed:goods:explicit_origin_caption
+      kind: other_text
+      paths:
+      - documentPatch.goodsItemDetails[0].origin.name
+      occurrences:
+      - text: 'HARMONISED SYSTEM CODE NO:'
+        occurrence: 1
+    bindings:
+      anchor:documentPatch.containers[0].temperatureSetpoint.value:
+        paths:
+        - documentPatch.containerInformation[0].temperatureSetpoint.value
+        - documentPatch.goodsItemDetails[0].handlingInstructions[0]
+        kind: temperature
+    surfaces:
+      reviewed:goods:explicit_origin_caption:
+        expression: 'COUNTRY OF ORIGIN: {documentPatch.goodsItemDetails[0].origin.name}
+
+          HARMONISED SYSTEM CODE NO:'
+  doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f:
+    bindings:
+      anchor:documentPatch.billOfLadingNumber:
+        paths: []
+  doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8:
+    bindings:
+      agent:customs:foreign_exporter_country:
+        occurrences:
+        - text: UNITED STATES
+          occurrence: 1
+  doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3:
+    bindings:
+      anchor:documentPatch.parties.consignee.country:
+        occurrences:
+        - text: EGYPT
+          occurrence: 2
+      anchor:documentPatch.parties.notifyParties[0].country:
+        occurrences:
+        - text: EGYPT
+          occurrence: 4
+  doc_a65cb58e57acb4f70bc4227864cf653d982426479fe9da2cbe21329f717e100c:
+    lexical: []
+    surfaces:
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName}'
+  doc_a7ede7d8228b5677c41f6f8e8ba9a724eec8e7fc87984d802b5653166c58f149:
+    retire:
+      agent:derived:package_words: Full wrapper superseded by its exact typed numeric/count
+        core. Retain immutable unit/framing bytes; any printed package noun is independently
+        bound to the same current package category.
+    add:
+    - key: reviewed:word_total:package_noun
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      kind: package
+      occurrences:
+      - text: PACKAGE(S)
+        occurrence: 3
+    surfaces:
+      anchor:documentPatch.transport.voyageNumber:
+        expression: '{documentPatch.transport.voyageNumber}'
+  doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348:
+    bindings:
+      agent:source:delivery_agent:fax:
+        paths: []
+        occurrences:
+        - text: '{+}20 2 2480 10 11'
+          occurrence: 1
+  doc_b9603de62c87f239f82034a16c6da13a35efa97235c4921da5164c8e1efa4fe5:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: 'PORT SAID EGYPT
+
+          ZIP CODE: 42538'
+        occurrence: 1
+  doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8: {}
+  doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc:
+    lexical: []
+    surfaces:
+      anchor:documentPatch.containers[0].sealNumbers[1]:
+        expression: '{documentPatch.containerInformation[0].sealNumbers[1]}'
+  doc_c32d1614c68365733b1268b558ba57ca9c332c81045faed9a9d7c5a190844203: {}
+  doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6:
+    bindings:
+      anchor:documentPatch.route.portOfLoading.country:
+        paths:
+        - documentPatch.route.portOfLoading.country
+        - documentPatch.freight.paymentPlace.country
+  doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: '8 PATRICE LUMUMBA ST.BAB SHARQ-ALEXANDRIA-
+
+          EGYPT
+
+          POST CODE 21514'
+        occurrence: 1
+    bindings:
+      anchor:documentPatch.parties.shipper.name:
+        paths:
+        - documentPatch.parties.shipper.name
+        occurrences:
+        - text: 'HANGZHOU SUCHAO TECHNOLOGY CO., LTD. VIA OPPLE
+
+            LIGHTING INTERNATIONAL DMCC'
+          occurrence: 1
+        - text: OPPLE LIGHTING INTERNATIONAL DMCC
+          occurrence: 1
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths: []
+        occurrences:
+        - text: OPPLE
+          occurrence: 2
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.route.portOfLoading.name
+    surfaces:
+      anchor:documentPatch.parties.shipper.name:
+        expression: '{documentPatch.parties.shipper.name}'
+  doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.notifyParties[1].addressLine
+      occurrences:
+      - text: 'Abd El Khalek Tharwat St.
+
+          Cairo, EG Egypt'
+        occurrence: 1
+    retire:
+      agent:aggregate_container_receipt_suffix: CNTRS is a fixed equipment noun following
+        the independently owned 7 x 40HC receipt, not another size/type receipt.
+    tare_baselines:
+      agent:container:0:tare_weight:
+        kg: '3850'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      agent:container:1:tare_weight:
+        kg: '3700'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      agent:container:2:tare_weight:
+        kg: '3860'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      agent:container:3:tare_weight:
+        kg: '3820'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      agent:container:4:tare_weight:
+        kg: '3820'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      agent:container:5:tare_weight:
+        kg: '3820'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      agent:container:6:tare_weight:
+        kg: '3820'
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
+          row puts this comma-grouped value between its exact container ID and40HC
+          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
+          KG, proving comma grouping and decimal point. Pinned historical numeric
+          sidecar independently records integer kilograms and tare ownership per container.
+        sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+  doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6:
+    retire:
+      agent:aux:container:0:gross_weight: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+      agent:aux:container:1:gross_weight: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+      agent:aux:container:2:gross_weight: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+      agent:aux:container:3:gross_weight: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+      agent:aux:container:4:gross_weight: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+      agent:aux:container:5:gross_weight: Full wrapper superseded by its exact typed
+        numeric/count core. Retain immutable unit/framing bytes; any printed package
+        noun is independently bound to the same current package category.
+  doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836:
+    retire:
+      agent:weight:container:0: Full wrapper superseded by its exact typed numeric/count
+        core. Retain immutable unit/framing bytes; any printed package noun is independently
+        bound to the same current package category.
+      agent:weight:container:1: Full wrapper superseded by its exact typed numeric/count
+        core. Retain immutable unit/framing bytes; any printed package noun is independently
+        bound to the same current package category.
+      agent:weight:container:2: Full wrapper superseded by its exact typed numeric/count
+        core. Retain immutable unit/framing bytes; any printed package noun is independently
+        bound to the same current package category.
+    lexical:
+    - key: invoice_party_name
+      kind: name
+      paths:
+      - documentPatch.parties.consignee.name
+      - documentPatch.parties.notifyParties[0].name
+      occurrences:
+      - text: SE Wiring Systems Egypt
+        occurrence: 1
+      - text: SE Wiring Systems Egypt
+        occurrence: 2
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 1
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 2
+      - text: SE WIRING SYSTEMS EGYPT S
+        occurrence: 3
+  doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: '13 ALI ELSOGHAIR ST, MINA ELBASAL
+
+          ALEXANDRIA, EGYPT
+
+          ALEXANDRIA
+
+          00001 Egypt'
+        occurrence: 1
+  doc_b94ea1c18029a12f078fd09418a721eb52d155dcb947729f182b0b2df65f74ee: {}
+  doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
+    bindings:
+      anchor:documentPatch.transport.vesselName:
+        paths:
+        - documentPatch.transport.vesselName
+        - documentPatch.transport.voyageNumber
+      anchor:documentPatch.cargoPackages[1].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        kind: package
+    surfaces:
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName}/{documentPatch.transport.voyageNumber}'
+  doc_93985d0795ad38b290476c2e68924d73fb486fb5d1cca3628d71bcd1b9f3ae1b: {}
+  doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc:
+    bindings:
+      anchor:documentPatch.parties.shipper.name:
+        occurrences:
+        - text: SMASIM FOR INTEGRATED SOLUTIONS
+          occurrence: 1
+        - text: SMASIM FOR INTEGRATED SOLUTIONS
+          occurrence: 2
+        - text: 'LENO GULF COMMODITY
+
+            F.Z.C UAE'
+          occurrence: 1
+        - text: 'LENO GULF COMMODITY
+
+            F.Z.C UAE'
+          occurrence: 2
+    lexical:
+    - key: lexical_01
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: '45B North 90St., 5th Settlement, New Cairo, Cairo, El Qahira (Cairo),
+
+          11835, EGYPT'
+        occurrence: 1
+  doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
+    bindings:
+      agent:operational:equipment_receipt:
+        occurrences:
+        - text: 40'HC
+          occurrence: 1
+        paths:
+        - documentPatch.containerInformation[0].sizeCategory
+        - documentPatch.containerInformation[0].typeCategory
+        - documentPatch.containerInformation[1].sizeCategory
+        - documentPatch.containerInformation[1].typeCategory
+        - documentPatch.containerInformation[2].sizeCategory
+        - documentPatch.containerInformation[2].typeCategory
+        - documentPatch.containerInformation[3].sizeCategory
+        - documentPatch.containerInformation[3].typeCategory
+      anchor:documentPatch.cargoGroups[0].origin.name:
+        paths:
+        - documentPatch.route.placeOfDelivery.name
+    surfaces:
+      anchor:documentPatch.transport.voyageNumber:
+        expression: '{documentPatch.transport.voyageNumber}'
+      reviewed:shipper:direct_mobile:
+        expression: '
+
+          MOBILE: {documentPatch.parties.shipper.contactDetails.phoneNumbers[0]}'
+      anchor:documentPatch.cargoGroups[0].origin.name:
+        expression: '{documentPatch.route.placeOfDelivery.name}'
+      reviewed:delivery:caption:
+        expression: FINAL PLACE OF DELIVERY
+    retire:
+      agent:document:mobile_id: Move this explicit star-marked shipper contact into
+        the primary shipper block.
+    add:
+    - key: reviewed:shipper:direct_mobile
+      kind: other_text
+      paths:
+      - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
+      occurrences:
+      - text: '*'
+        occurrence: 1
+    - key: reviewed:shipper:remote_mobile
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '* MOBILE ID: 075523595900'
+        occurrence: 1
+    - key: reviewed:delivery:caption
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: POINT AND COUNTRY OF ORIGIN OF GOODS
+        occurrence: 1
+    delete:
+      reviewed:shipper:remote_mobile: Exact retired continuation moved to its directly
+        owned party block in synthetic input only.
+  doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71:
+    dependent_text:
+    - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      source: 21 DAYS DEMURRAGE FREETIME IN ALEXANDRIA
+      expression: 21 DAYS DEMURRAGE FREETIME IN {documentPatch.route.portOfDischarge.name}
+    retire:
+      agent:demurrage_freetime: One exact whole-clause owner synchronizes public handling
+        labels with sampled route locations.
+    add:
+    - key: reviewed:route_owned_handling
+      paths:
+      - documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      kind: other_text
+      occurrences:
+      - text: 21 DAYS DEMURRAGE FREETIME IN ALEXANDRIA
+        occurrence: 1
+    surfaces:
+      reviewed:route_owned_handling:
+        expression: '{documentPatch.goodsItemDetails[0].handlingInstructions[0]}'
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName} {documentPatch.transport.voyageNumber}'
+    bindings:
+      anchor:documentPatch.transport.vesselName:
+        paths:
+        - documentPatch.transport.vesselName
+        - documentPatch.transport.voyageNumber
+  doc_678e2007fc5f522280e74c9937c7569cabc18930d4f6df9a5851c5a065450e49:
+    dependent_text:
+    - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      source: CARGO IN TRANSIT TO KABARI EFS BONDED WAREHOUSE
+      expression: CARGO IN TRANSIT TO {documentPatch.route.placeOfDelivery.name} BONDED
+        WAREHOUSE
+    retire:
+      anchor:documentPatch.route.finalDestination.name: One exact whole-clause owner
+        synchronizes public handling labels with sampled route locations.
+    add:
+    - key: reviewed:route_owned_handling
+      paths:
+      - documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      kind: other_text
+      occurrences:
+      - text: CARGO IN TRANSIT TO KABARI EFS BONDED WAREHOUSE
+        occurrence: 1
+    surfaces:
+      reviewed:route_owned_handling:
+        expression: '{documentPatch.goodsItemDetails[0].handlingInstructions[0]}'
+      agent:transport_voyage_surface:
+        expression: V.{documentPatch.transport.voyageNumber}
+  doc_67b1e5a1803b8c7a266988ad23e39a23a182996a721cb5a6791abc892c07d3da:
+    lexical:
+    - key: destination_office_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: 'THE THIRD SECTOR OF NORTH-WEST, GULF OF SUEZ ECONOMIC ZONE,
+
+          TEDA BUILDING, OFFICE # 605 AIN SOKHNA, SUEZ, EGYPT.
+
+          SOKHNA, EGYPT'
+        occurrence: 1
+    bindings:
+      agent:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_6e9952c654c60496917c25ab27e11153539616ec8dd2ba01c480f28de75eac99:
+    bindings:
+      agent:pre_carriage_location:
+        paths:
+        - documentPatch.route.placeOfReceipt.name
+  doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b:
+    bindings:
+      anchor:documentPatch.route.portOfLoading.name:
+        paths:
+        - documentPatch.route.portOfLoading.name
+        - documentPatch.placeOfIssue.name
+  doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'AMRIA FREE ZONE 23512 EG-23512
+
+          ALEXANDRIA EGYPT'
+        occurrence: 1
+      - text: 'AMRIA FREE ZONE 23512 EG-23512
+
+          ALEXANDRIA EGYPT'
+        occurrence: 2
+    retire:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]: All
+        printed delivery contacts are consolidated under one exact contact-line owner.
+      agent:delivery_agent_phone_1_residual: Old residual binding mixed two phones,
+        extension and email prefix; replace with explicitly bound complete contact
+        lines.
+      agent:delivery_agent_domain: Remote email suffix is removed after complete email
+        is printed within its delivery-agent block.
+      agent:consignee_contact_phone: Current target assigns this phone to notify;
+        print explicitly inside notify block rather than use a remote continuation.
+      agent:consignee_contact_email: Current target assigns this email to notify;
+        print explicitly inside notify block rather than use a remote continuation.
+    add:
+    - key: reviewed:delivery_agent:complete_contacts
+      kind: other_text
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+      - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]
+      - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      occurrences:
+      - text: 'T: +20 3 4814958 ,+20 3 481 4950 / EXT 112+20 1228470604egy.import***'
+        occurrence: 1
+    - key: reviewed:delivery_agent:obsolete_email_suffix
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '***@mlh-shipping.com'
+        occurrence: 1
+    - key: reviewed:notify:in_block_contacts
+      kind: other_text
+      paths:
+      - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+      occurrences:
+      - text: '*'
+        occurrence: 5
+    - key: reviewed:consignee:obsolete_marker
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '*'
+        occurrence: 1
+    - key: reviewed:notify:obsolete_remote_contacts
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '*TEL: 002034500264
+
+          E-MAIL:IMPORT@PHARMAPLAST-ONLINE.COM'
+        occurrence: 1
+    surfaces:
+      reviewed:delivery_agent:complete_contacts:
+        expression: 'T: {documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]}
+
+          T: {documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]}
+
+          T: {documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]}
+
+          EMAIL: {documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]}'
+      reviewed:notify:in_block_contacts:
+        expression: '
+
+          TEL: {documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]}
+
+          EMAIL: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}'
+    delete:
+      reviewed:delivery_agent:obsolete_email_suffix: Complete sampled email is printed
+        in the delivery-agent block; no old domain remains.
+      reviewed:consignee:obsolete_marker: There are no consignee contact targets to
+        continue; remove obsolete marker without adding contacts to this party.
+      reviewed:notify:obsolete_remote_contacts: Both current contact targets are now
+        explicitly printed in the notify-party block; remove their exact remote source
+        continuation.
+  doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0: {}
+  doc_a5f088c96c8547cbc77085ec258175644936f628eecd2f8bc4e4ae438fe5d858: {}
+  doc_bee16be0a60037fe3626d63585734487afeb283a354ef2979cab83dc0a82efc3:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.name
+        occurrences:
+        - text: MORX FIRE FIGHTING SOLUTIONS
+          occurrence: 2
+    add:
+    - key: reviewed:marks:consignee_country
+      kind: location
+      paths:
+      - documentPatch.parties.consignee.country
+      occurrences:
+      - text: EGYPT
+        occurrence: 4
+  doc_24c091c863feb5d61516da466cd436eae72f2710957a76a94b925537ee1d85bd: {}
+  doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671:
+    lexical: []
+    retire:
+      agent:notify_email: Synthetic-only contact consolidation replaces this remote
+        fragment with a directly owned party contact region.
+      agent:notify_phone: Synthetic-only contact consolidation replaces this remote
+        fragment with a directly owned party contact region.
+      agent:contact_person: Synthetic-only contact consolidation replaces this remote
+        fragment with a directly owned party contact region.
+    add:
+    - key: reviewed:word_total:package_noun
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      kind: package
+      occurrences:
+      - text: PACKAGES
+        occurrence: 10
+    - key: reviewed:notify:direct_contacts
+      kind: other_text
+      paths:
+      - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+      - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      - documentPatch.parties.notifyParties[0].contactDetails.contactName
+      occurrences:
+      - text: 'ContactS
+
+          ***'
+        occurrence: 1
+    - key: reviewed:notify:remote_contacts
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '***TAWFFIK-2011@HOTMAIL.COM
+
+          TELEPHONE: +20 100 0096670
+
+          SALAH TAWFIK'
+        occurrence: 1
+    surfaces:
+      reviewed:notify:direct_contacts:
+        expression: 'CONTACTS
+
+          EMAIL: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}
+
+          TELEPHONE: {documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]}
+
+          CONTACT: {documentPatch.parties.notifyParties[0].contactDetails.contactName}'
+    delete:
+      reviewed:notify:remote_contacts: Exact source-owned continuation fragment retired
+        after its value is placed directly in the designated party block.
+  doc_6700b15cb07e7c68b3486b20b240e9045dc112e898d9f6d28c104b1c92be64f2: {}
+  doc_b2ba22f257b0c7b650dc8bc2909623d2c5001842b497ede54098c83f01b548c2:
+    lexical: []
+    surfaces:
+      anchor:documentPatch.transport.voyageNumber:
+        expression: V.{documentPatch.transport.voyageNumber}
+      anchor:documentPatch.route.portOfDischarge.name:
+        expression: '{documentPatch.route.portOfDischarge.name}, {documentPatch.route.portOfDischarge.country}'
+    bindings:
+      agent:onboard_date:
+        paths:
+        - documentPatch.shippedOnBoardDate
+        kind: date
+      anchor:documentPatch.route.portOfDischarge.name:
+        paths:
+        - documentPatch.route.portOfDischarge.name
+        - documentPatch.route.portOfDischarge.country
+  doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6:
+    lexical: []
+  doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'B5 CHAO YANG FACTORY, CAOHU INDUSTRIAL PARK,
+
+          XIANGCHENG ECONOMIC DEVELOPMENT ZONE,
+
+          SUZHOU, JIANGSU PROVINCE, CHINA ZIP: 215131'
+        occurrence: 1
+    dependent_text:
+    - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      source: CONSOLIDATED CARGO IN TRANSIT TO MINA AL BASAL BONDED WAREHOUSE - ONWARDS
+      expression: CONSOLIDATED CARGO IN TRANSIT TO {documentPatch.route.finalDestination.name}
+        BONDED WAREHOUSE - ONWARDS
+    - path: documentPatch.goodsItemDetails[0].handlingInstructions[1]
+      source: INLAND CARRIAGE FROM ALEXANDRIA TO MINA AL BASAL BONDED WAREHOUSE IS
+        ARRANGED BY THE CONSIGNEE FOR HIS EXCLUSIVE ACCOUNT AND RISK.
+      expression: INLAND CARRIAGE FROM {documentPatch.route.portOfDischarge.name}
+        TO {documentPatch.route.finalDestination.name} BONDED WAREHOUSE IS ARRANGED
+        BY THE CONSIGNEE FOR HIS EXCLUSIVE ACCOUNT AND RISK.
+    retire:
+      agent:cargo:0:consolidated_status: One exact whole-clause owner synchronizes
+        public handling labels with sampled route locations.
+      agent:operational:bonded_warehouse_clause: One exact whole-clause owner synchronizes
+        public handling labels with sampled route locations.
+    add:
+    - key: reviewed:route_owned_handling
+      paths:
+      - documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      - documentPatch.goodsItemDetails[0].handlingInstructions[1]
+      - documentPatch.route.finalDestination.name
+      - documentPatch.route.portOfDischarge.name
+      kind: other_text
+      occurrences:
+      - text: 'CONSOLIDATED CARGO
+
+          IN TRANSIT TO MINA AL BASAL
+
+          BONDED WAREHOUSE - ONWARDS
+
+          (INLAND)CARRIAGE FROM
+
+          ALEXANDRIA TO MINA AL BASAL
+
+          BONDED WAREHOUSE IS ARRANGED
+
+          BY THE CONSIGNEE FOR HIS
+
+          EXCLUSIVE ACCOUNT AND RISK'
+        occurrence: 1
+    surfaces:
+      reviewed:route_owned_handling:
+        expression: '{documentPatch.goodsItemDetails[0].handlingInstructions[0]}
+
+          {documentPatch.goodsItemDetails[0].handlingInstructions[1]}'
+    bindings:
+      agent:consignee_phone:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+  doc_8690d0c8cafd9da230841edd9d3c042852ff02eabae0fc9215e43fe79e4610c1:
+    bindings:
+      anchor:documentPatch.parties.shipper.city:
+        occurrences:
+        - text: CHANGZHOU
+          occurrence: 2
+        - text: CITY
+          occurrence: 1
+      agent:party:agent:0:address:
+        occurrences:
+        - text: 1, MUSTAFA KAMEL AND EL
+          occurrence: 1
+        - text: GOMHORYA STREET, PORT SAID
+          occurrence: 1
+      agent:consignee_fax_number:
+        paths: []
+        kind: phone
+        occurrences:
+        - text: '+20
+
+            473601530'
+          occurrence: 1
+      agent:notify_fax_number:
+        paths: []
+        kind: phone
+        occurrences:
+        - text: '+20
+
+            473601530'
+          occurrence: 2
+      agent:party:agent:0:phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'QIANHUANG TOWN INDUSTRIAL CONCENTRA
+
+          TION ZONE,WUJIN DISTRICT, CHANGZHOU
+
+          CITY'
+        occurrence: 1
+    - key: lexical_01
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'AL THAWRA ST . BIALA  KAFR EL SHEI
+
+          KH'
+        occurrence: 1
+      - text: 'AL THAWRA ST . BIALA  KAFR EL SHEI
+
+          KH'
+        occurrence: 2
+    retire:
+      agent:party:agent:0:mobile: Synthetic-only contact consolidation replaces this
+        remote fragment with a directly owned party contact region.
+      agent:party:agent:0:email: Synthetic-only contact consolidation replaces this
+        remote fragment with a directly owned party contact region.
+    add:
+    - key: reviewed:shipper:direct_phone
+      kind: other_text
+      paths:
+      - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
+      occurrences:
+      - text: '*'
+        occurrence: 1
+    - key: reviewed:notify:direct_email
+      kind: other_text
+      paths:
+      - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+      occurrences:
+      - text: '**'
+        occurrence: 2
+    - key: reviewed:consignee:retired_continuation_marker
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '**'
+        occurrence: 1
+    - key: reviewed:shipper:remote_phone
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'MOBILE: 13861222668'
+        occurrence: 1
+    - key: reviewed:notify:remote_email
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '**E-MALL: ELRAOUFABDA@GMALL.COM'
+        occurrence: 1
+    surfaces:
+      reviewed:shipper:direct_phone:
+        expression: '
+
+          MOBILE: {documentPatch.parties.shipper.contactDetails.phoneNumbers[0]}'
+      reviewed:notify:direct_email:
+        expression: '
+
+          EMAIL: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}'
+    delete:
+      reviewed:consignee:retired_continuation_marker: Exact source-owned continuation
+        fragment retired after its value is placed directly in the designated party
+        block.
+      reviewed:shipper:remote_phone: Exact source-owned continuation fragment retired
+        after its value is placed directly in the designated party block.
+      reviewed:notify:remote_email: Exact source-owned continuation fragment retired
+        after its value is placed directly in the designated party block.
+  doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524:
+    lexical: []
+    bindings:
+      anchor:documentPatch.route.portOfLoading.name:
+        paths:
+        - documentPatch.route.portOfLoading.name
+        - documentPatch.route.portOfLoading.country
+    surfaces:
+      anchor:documentPatch.route.portOfLoading.name:
+        expression: '{documentPatch.route.portOfLoading.name}, {documentPatch.route.portOfLoading.country}'
+  doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96:
+    retire:
+      agent:shipper:province: Synthetic-only full postal consolidation puts the complete
+        new address in the shipper block; no independent remote province remains.
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]: Rebound
+        into explicit TEL line at the former in-party SH> marker; the complete old
+        remote continuation is removed.
+    bindings:
+      anchor:documentPatch.parties.shipper.country:
+        occurrences:
+        - text: 'ROOM302,3RDFLOOR,UNIT1,
+
+            BUILDING9,SIJIDISTRICT1,
+
+            BEIYUANSTREET,YIWU,'
+          occurrence: 1
+    add:
+    - key: reviewed:shipper:in_block_phone
+      paths:
+      - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
+      kind: other_text
+      occurrences:
+      - text: ' SH>'
+        occurrence: 1
+    - key: reviewed:shipper:obsolete_continuation
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'SH>
+
+          ZHEJIANG, CHINA
+
+          TEL: 0579-85299742'
+        occurrence: 1
+    surfaces:
+      reviewed:shipper:in_block_phone:
+        expression: '
+
+          TEL: {documentPatch.parties.shipper.contactDetails.phoneNumbers[0]}'
+    delete:
+      reviewed:shipper:obsolete_continuation: The current complete address and phone
+        are printed inside their shipper block by declared lexical/phone owners; remove
+        the exact obsolete continuation, not unrelated goods text.
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'ROOM302,3RDFLOOR,UNIT1,
+
+          BUILDING9,SIJIDISTRICT1,
+
+          BEIYUANSTREET,YIWU,'
+        occurrence: 1
+  doc_d1c9357dba1380a4dc2eba4e115be167c08cebeeefbf321f24ba05499f485f29: {}
+  doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870: {}
+  doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-293/A/A1 RD NO. 2, BANJARA
+          HILLS HY-
+
+          BAD-34 TELANGANA- INDIA'
+        occurrence: 1
+    - key: destination_office_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: 'THE THIRD SECTOR OF NORTH-WEST, GULF OF SUEZ ECONOMIC ZONE,
+
+          TEDA BUILDING, OFFICE # 605 AIN SOKHNA, SUEZ, EGYPT.
+
+          SOKHNA, EGYPT'
+        occurrence: 1
+    bindings:
+      agent:carrier:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
+    bindings:
+      agent:reference:government:ein:0:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: '261691988'
+          occurrence: 1
+      anchor:documentPatch.route.portOfLoading.country:
+        occurrences:
+        - text: UNITED STATES
+          occurrence: 2
+  doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
+    tare_baselines:
+      agent:cargo:tare_weight:value:
+        kg: '3890'
+        reason: Explicit container INKU6736541 tare caption prints3,890kgs; comma
+          thousands notation. Historical numeric sidecar independently records3890kg.
+        sourceSha256: a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e
+  doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9:
+    tare_baselines:
+      agent:source:tare_weight_value:container:0:
+        kg: '2180'
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
+          The historical numeric sidecar records each tare as integer kilograms. There
+          are six printed tare owners for eight containers; no owner is invented for
+          the final two.
+        sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+      agent:source:tare_weight_value:container:1:
+        kg: '2160'
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
+          The historical numeric sidecar records each tare as integer kilograms. There
+          are six printed tare owners for eight containers; no owner is invented for
+          the final two.
+        sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+      agent:source:tare_weight_value:container:2:
+        kg: '2280'
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
+          The historical numeric sidecar records each tare as integer kilograms. There
+          are six printed tare owners for eight containers; no owner is invented for
+          the final two.
+        sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+      agent:source:tare_weight_value:container:3:
+        kg: '2200'
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
+          The historical numeric sidecar records each tare as integer kilograms. There
+          are six printed tare owners for eight containers; no owner is invented for
+          the final two.
+        sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+      agent:source:tare_weight_value:container:4:
+        kg: '2100'
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
+          The historical numeric sidecar records each tare as integer kilograms. There
+          are six printed tare owners for eight containers; no owner is invented for
+          the final two.
+        sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+      agent:source:tare_weight_value:container:5:
+        kg: '2100'
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
+          The historical numeric sidecar records each tare as integer kilograms. There
+          are six printed tare owners for eight containers; no owner is invented for
+          the final two.
+        sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+    bindings:
+      agent:derived:equipment_receipt_summary:
+        paths:
+        - documentPatch.containerInformation[0].sizeCategory
+        - documentPatch.containerInformation[0].typeCategory
+        - documentPatch.containerInformation[1].sizeCategory
+        - documentPatch.containerInformation[1].typeCategory
+        - documentPatch.containerInformation[2].sizeCategory
+        - documentPatch.containerInformation[2].typeCategory
+        - documentPatch.containerInformation[3].sizeCategory
+        - documentPatch.containerInformation[3].typeCategory
+        - documentPatch.containerInformation[4].sizeCategory
+        - documentPatch.containerInformation[4].typeCategory
+        - documentPatch.containerInformation[5].sizeCategory
+        - documentPatch.containerInformation[5].typeCategory
+        - documentPatch.containerInformation[6].sizeCategory
+        - documentPatch.containerInformation[6].typeCategory
+        - documentPatch.containerInformation[7].sizeCategory
+        - documentPatch.containerInformation[7].typeCategory
+        kind: equipment
+  doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
+    retire:
+      agent:destination_office_city: Duplicate locality after destination-office contacts;
+        complete postal owner already contains the locality.
+      agent:destination_office_country: Duplicate country after destination-office
+        contacts; complete postal owner already supports the country target.
+      agent:total_container_package_count: Split composite receipt into immutable
+        ONE Container(s) (topology retained), exact mutable written package count
+        and typed package noun; no full-wrapper overwrite.
+    add:
+    - key: reviewed:destination_office:duplicate_locality
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'New Cairo
+
+          Egypt'
+        occurrence: 1
+    - key: reviewed:word_total:package_noun
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      kind: package
+      occurrences:
+      - text: Package(s)
+        occurrence: 1
+    delete:
+      reviewed:destination_office:duplicate_locality: Remove only the duplicated locality/country
+        pair after the contacts; preserve complete postal region, phone and email.
+    bindings:
+      agent:destination_office_email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:destination_office_phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
+    surfaces:
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName}'
+      anchor:documentPatch.transport.voyageNumber:
+        expression: '{documentPatch.transport.voyageNumber}'
+  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565: {}
+  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
+    bindings:
+      agent:container_equipment_type:
+        paths:
+        - documentPatch.containerInformation[0].sizeCategory
+        - documentPatch.containerInformation[0].typeCategory
+        kind: equipment
+  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9: {}
+  doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
+    bindings:
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: AEW/24-25/211
+          occurrence: 1
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        paths: []
+        kind: identifier
+        occurrences:
+        - text: '8301266'
+          occurrence: 1
+    add:
+    - key: reviewed:source_reference_date:0
+      paths: []
+      kind: date
+      occurrences:
+      - text: 18.02.2025
+        occurrence: 1
+    - key: reviewed:source_reference_date:1
+      paths: []
+      kind: date
+      occurrences:
+      - text: 19.02.2025
+        occurrence: 1
+    tare_baselines:
+      agent:container:0:tare_weight:value:
+        kg: '2280'
+        reason: Explicit container MEDU3157130 tare caption prints 2,280 kgs; comma
+          thousands notation. Historical numeric sidecar independently records2280kg.
+        sourceSha256: 2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003
+  doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
+    retire:
+      agent:delivery_agent_contact_fragment: Synthetic-only consolidation prints the
+        complete sampled email within the delivery-agent block; replace its prefix
+        and continuation marker as one region.
+      agent:delivery_agent_email: The remote suffix belongs to the same email, now
+        printed completely within the owning party block.
+      agent:delivery_agent_extension: Complete phone[1] owner includes the extension
+        and slash; fictional sampled phone may omit that extension without leaving
+        stale digits.
+    add:
+    - key: reviewed:delivery_agent:whole_email
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      kind: other_text
+      occurrences:
+      - text: egy.import***
+        occurrence: 1
+    - key: reviewed:delivery_agent:obsolete_email_suffix
+      paths: []
+      kind: other_text
+      occurrences:
+      - text: '***@mlh-shipping.com'
+        occurrence: 1
+    surfaces:
+      reviewed:delivery_agent:whole_email:
+        expression: '
+
+          EMAIL: {documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]}'
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
+        expression: '{documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]}, '
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        format: '%d/%m/%Y'
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        format: '%d/%m/%Y'
+    delete:
+      reviewed:delivery_agent:obsolete_email_suffix: The complete sampled email is
+        now printed inside the delivery-agent block, with no continuation marker or
+        stale source domain.
+    lexical: []
+    bindings:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
+        occurrences:
+        - text: +20 3 4814950 / EXT 112
+          occurrence: 1
+  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0: {}
+  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40: {}
+  doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
+    lexical:
+    - key: shipper_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201, 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A/1, RD.NO. 2 BANJARA HILL, HYD-BAD-34
+
+          TELANGANA INDIA'
+    retire:
+      agent:cargo:g1:gross_weight_total: Exact numeric core now owned by shipment_gross;
+        leave the adjacent KGS unit literal outside that numeric span.

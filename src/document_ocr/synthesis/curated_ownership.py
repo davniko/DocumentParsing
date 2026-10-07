@@ -20,9 +20,11 @@ from document_ocr.synthesis.curated import (
     SourceContract,
     TargetBinding,
     Variable,
+    assign,
     flat,
     locate,
 )
+from document_ocr.synthesis.curated_measurements import converted_measure_surfaces
 from document_ocr.synthesis.curated_templates import (
     LexicalOwnership,
     SamplingBlueprint,
@@ -213,15 +215,70 @@ def load_owned_blueprint(
     return build_owned_blueprint(row, historical, contract, payload["sources"][row["documentId"]])
 
 
+def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
+    """Rebind reviewed handling clauses to sampled route names without changing facts."""
+    declarations = blueprint.ownership_data.get("dependent_text", [])
+    if not isinstance(declarations, list):
+        raise ValueError("dependent_text must be a list of reviewed handling clauses")
+    if not declarations:
+        return target
+    source, sampled = flat(blueprint.target), flat(target)
+    owned = {path for region in blueprint.regions for path in region.target_paths}
+    updates: dict[str, str] = {}
+    for item in declarations:
+        if not isinstance(item, dict) or set(item) != {"path", "source", "expression"}:
+            raise ValueError("dependent text requires exactly path, source and expression")
+        path, original, expression = item["path"], item["source"], item["expression"]
+        if not all(isinstance(v, str) and v.strip() for v in (path, original, expression)):
+            raise ValueError("dependent text fields must be nonempty strings")
+        if (
+            not re.fullmatch(
+                r"documentPatch\.goodsItemDetails\[\d+\]\.handlingInstructions\[\d+\]", path
+            )
+            or path not in owned
+        ):
+            raise ValueError(f"dependent text requires an owned handling instruction: {path}")
+        if path in updates:
+            raise ValueError(f"duplicate dependent text path: {path}")
+        if source.get(path) != original:
+            raise ValueError(f"dependent text source differs from pinned target: {path}")
+        references = re.findall(r"\{([^{}]+)\}", expression)
+        literal = re.sub(r"\{[^{}]+\}", "", expression)
+        if not references or "{" in literal or "}" in literal:
+            raise ValueError(f"dependent text expression has invalid placeholders: {path}")
+        for reference in references:
+            if not re.fullmatch(r"documentPatch\.route\.[A-Za-z][A-Za-z0-9]*\.name", reference):
+                raise ValueError(f"dependent text only accepts route name references: {reference}")
+            if any(
+                not isinstance(leaves.get(reference), str) or not leaves[reference].strip()
+                for leaves in (source, sampled)
+            ):
+                raise ValueError(f"dependent text route name is absent or invalid: {reference}")
+        # The reviewed expression may replace a printed alias with the canonical
+        # route name; the exact source declaration above pins that decision.
+        value = re.sub(r"\{([^{}]+)\}", lambda m: sampled[m[1]], expression)
+        if sampled.get(path) not in (original, value):
+            raise ValueError(f"dependent text handling instruction is absent or conflicts: {path}")
+        updates[path] = value
+    # Validate the whole declaration set first; a rejected dependency cannot leave
+    # a partially changed scenario target behind.
+    result = deepcopy(target)
+    for path, value in updates.items():
+        assign(result, path, value)
+    return result
+
+
 def ownership_surfaces(
     blueprint: SamplingBlueprint, target: dict, scenario: Any
 ) -> dict[str, str | list[str]]:
-    """Render the explicitly declared source-bound non-numeric dependencies."""
+    """Render explicitly declared source-bound dependencies and unit aliases."""
     leaves = flat(target)
     result = dict(blueprint.ownership_data.get("constants", {}))
     result.update({key: "" for key in blueprint.ownership_data.get("delete", {})})
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
-        if "expression" in recipe:
+        if "measure_path" in recipe:
+            result[key] = converted_measure_surfaces(blueprint, target, key, recipe)
+        elif "expression" in recipe:
             result[key] = re.sub(r"\{([^{}]+)\}", lambda m: str(leaves[m[1]]), recipe["expression"])
         elif "split_path" in recipe:
             parts = leaves[recipe["split_path"]].split(recipe["separator"])
@@ -249,9 +306,7 @@ def ownership_surfaces(
             # This recipe deliberately replaces a malformed/generic source noun
             # with a complete noun agreeing with the same package row's count.
             value = _package_candidate("PACKAGES", leaves[path], quantity=quantity)
-            result[key] = [
-                value for _ in blueprint.historical_bindings[key]["occurrences"]
-            ]
+            result[key] = [value for _ in blueprint.historical_bindings[key]["occurrences"]]
         else:
             raise ValueError(f"unknown source surface recipe: {key}")
     for key, binding in blueprint.historical_bindings.items():

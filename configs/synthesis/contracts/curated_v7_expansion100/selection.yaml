@@ -1,0 +1,36 @@
+# Source-quality / current-capability admission, not edits to the real dataset.
+# Initial candidate files remain preserved in the campaign audit directory.
+replacements:
+  - exclude: 93985d07
+    include: eed2a09c
+    reason: Three private quantity levels (10 pallets, 433 cartons, 19000 sets) need an explicit package-hierarchy sampler; select a single-level source for this lower-complexity expansion.
+  - exclude: 24c81b10
+    include: b3aeb7ab
+    reason: Two differently typed package rows require a multi-package sampling contract; retain for a separate capability pass instead of flattening.
+  - exclude: 24c091c8
+    include: 3cd9f3a3
+    reason: Partial container accounting; visible row weights do not explain the shipment total. Do not invent the missing row.
+  - exclude: d1c9357d
+    include: b5c11ec9
+    reason: Incomplete supplied page set and partial container quantities require source adjudication before synthesis.
+  - exclude: a5f088c9
+    include: 16d67944
+    reason: Sixteen mixed HS identities include an invalid HS6 code; needs a separately reviewed commodity and ownership contract.
+  - exclude: b94ea1c1
+    include: '36791387'
+    reason: Parallel metric and imperial mass and volume printouts need a unit-conversion surface contract, not independently sampled or copied totals.
+  - exclude: 4e21727f
+    include: 370e140a
+    reason: Third-party trader, crossstuffed shipment and frozen cargo without a source setpoint need a dedicated joint routing and thermal contract.
+  - exclude: 4072d876
+    include: e75ff238
+    reason: Untyped ITEMS package row lacks the explicit package-category support required by the current sampler; do not silently relabel the real source.
+  - exclude: 2bbbb552
+    include: 656c1a0e
+    reason: Two dismantled loaders have fourteen unequal pieces across three containers; proportional mass per piece would exceed container payload. Requires an explicit unequal-piece stowage contract.
+  - exclude: c32d1614
+    include: 9db60987
+    reason: Heterogeneous whole-machine bundle combines six loaders and one excavator; keep for a separately reviewed whole-unit bundle rather than treating package counts as interchangeable goods units.
+  - exclude: 44a6df44
+    include: 2ae5fe6d
+    reason: OCR contains a demo/testnet electronic-BL transfer wrapper; exclude this source from synthesis under the established no-test/demo-source policy.

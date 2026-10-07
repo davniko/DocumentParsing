@@ -80,7 +80,9 @@ def _validate_recipe(recipe: dict) -> None:
         value = recipe.get(key, "")
         if not isinstance(value, str) or re.search(r"\\[nrt]|\r", value):
             raise ValueError(f"auxiliary {key} requires plain text with real LF line breaks")
-    actions = {"text", "target", "identifier", "date", "phone", "transport_leg"} & recipe.keys()
+    actions = {
+        "text", "target", "identifier", "date", "phone", "transport_leg", "party_location"
+    } & recipe.keys()
     if len(actions) != 1:
         raise ValueError("auxiliary recipe must have exactly one rendering action")
     action = next(iter(actions))
@@ -91,9 +93,16 @@ def _validate_recipe(recipe: dict) -> None:
         "date": {"format", "publish_target"},
         "phone": set(),
         "transport_leg": {"source_voyage"},
+        "party_location": {"field"},
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
+    if action == "party_location" and (
+        not isinstance(recipe["party_location"], str)
+        or not recipe["party_location"].startswith("documentPatch.parties.")
+        or recipe.get("field") not in {"name", "country", "country_code"}
+    ):
+        raise ValueError("party location requires an explicit party role and location field")
     if action == "transport_leg" and (
         not isinstance(recipe["transport_leg"], str)
         or not recipe["transport_leg"].strip()
@@ -232,6 +241,9 @@ def _render_recipe(
     shifts: set[int],
     vessels: tuple[str, ...] = (),
 ) -> str:
+    if "party_location" in recipe:
+        locality = scenario.party_localities[recipe["party_location"]]
+        return getattr(locality, recipe["field"])
     if "transport_leg" in recipe:
         voyage = recipe["source_voyage"]
         if not original.endswith(" " + voyage):
@@ -265,6 +277,17 @@ def _render_recipe(
                 transshipment_country=via.country,
                 transshipment_code=via.country_code,
             )
+        # A port identifier is not a country code or a GeoNames record ID.
+        # Expose only actual registered UN/LOCODEs; unresolved requests fail below.
+        for role, location in (
+            ("origin", scenario.origin),
+            ("destination", scenario.destination),
+            ("transshipment", via),
+        ):
+            if location is not None and location.registry == "unlocode_wpi":
+                if not re.fullmatch(r"[A-Z]{2}[A-Z0-9]{3}", location.registry_id):
+                    raise ValueError("registered port has invalid UN/LOCODE")
+                substitutions[role + "_unlocode"] = location.registry_id
         for key, replacement in substitutions.items():
             value = value.replace("{" + key + "}", replacement)
         if re.search(r"\{[^}]+\}", value):
@@ -291,7 +314,13 @@ def _render_recipe(
         value = date.fromisoformat(recipe["date"]) + timedelta(days=next(iter(shifts)))
         return value.strftime(recipe.get("format", "%Y-%m-%d"))
     if "phone" in recipe:
-        locality = scenario.party_localities[recipe["phone"]]
+        scope = recipe["phone"]
+        if scope == "origin":
+            locality = scenario.origin
+        elif scope == "destination":
+            locality = scenario.destination
+        else:
+            locality = scenario.party_localities[scope]
         return contact_values.phone(
             stream.derive("aux-phone:" + re.sub(r"\D", "", original)),
             country_code=locality.country_code,

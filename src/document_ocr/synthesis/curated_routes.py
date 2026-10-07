@@ -7,6 +7,7 @@ It is never inferred from an unfilled transshipment caption.
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -19,6 +20,26 @@ RouteField = Literal[
     "placeOfDelivery",
     "finalDestination",
 ]
+
+
+class GoodsOriginIdentifier(BaseModel):
+    """Reviewed origin-code representation and its owned route location."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal["country_alpha2", "unlocode"]
+    node: str = "origin"
+
+    def validate_source(self, value: str) -> None:
+        pattern = r"[A-Z]{2}" if self.kind == "country_alpha2" else r"[A-Z]{2}[A-Z0-9]{3}"
+        if re.fullmatch(pattern, value) is None:
+            raise ValueError("goods-origin identifier does not match its declared representation")
+
+    def render(self, *, country_code: str, registry: str, registry_id: str) -> str:
+        if self.kind == "country_alpha2":
+            return country_code
+        if registry != "unlocode_wpi" or not registry_id.startswith(country_code):
+            raise ValueError("goods-origin UN/LOCODE requires an owned UN/LOCODE route node")
+        return registry_id
 
 
 class RouteNode(BaseModel):
@@ -49,6 +70,20 @@ class RouteTopology(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     nodes: dict[str, RouteNode] = Field(default_factory=dict)
     fields: dict[RouteField, str]
+    party_nodes: dict[str, str] = Field(
+        default_factory=dict,
+        exclude_if=lambda value: not value,
+        description=(
+            "Exact populated party paths mapped to route nodes. The party's generated "
+            "postal locality belongs to that node's country; it need not be the port itself. "
+            "Symbolic sameAs parties inherit their referenced party and are not mapped."
+        ),
+    )
+    location_nodes: dict[Literal["documentPatch.freight.paymentPlace"], str] = Field(
+        default_factory=dict,
+        exclude_if=lambda value: not value,
+        description="Existing non-route location fields with an explicit sampled-node owner.",
+    )
     issue_node: str = "origin"
     rationale: str = Field(min_length=1)
 
@@ -60,16 +95,33 @@ class RouteTopology(BaseModel):
         if (
             not self.fields
             or not set(self.fields.values()) <= known
+            or not set(self.party_nodes.values()) <= known
+            or not set(self.location_nodes.values()) <= known
             or self.issue_node not in known
         ):
             raise ValueError("route topology contains an undefined node")
-        if not self.nodes.keys() <= set(self.fields.values()):
+        if not self.nodes.keys() <= (
+            set(self.fields.values())
+            | set(self.party_nodes.values())
+            | set(self.location_nodes.values())
+            | {self.issue_node}
+        ):
             raise ValueError("route topology has unused nodes")
         if any(not name.isidentifier() for name in self.nodes):
             raise ValueError("route node names must be identifiers")
         return self
 
     def validate_source(self, patch: dict) -> None:
+        if self.location_nodes and "paymentPlace" not in patch.get("freight", {}):
+            raise ValueError("route location nodes must name a populated freight payment place")
+        concrete_parties = {
+            f"documentPatch.parties.{role}" + (f"[{i}]" if isinstance(value, list) else "")
+            for role, value in patch.get("parties", {}).items()
+            for i, party in enumerate(value if isinstance(value, list) else [value])
+            if "sameAs" not in party
+        }
+        if not self.party_nodes.keys() <= concrete_parties:
+            raise ValueError("route party nodes must name exact populated concrete party paths")
         route = patch.get("route", {})
         if set(route) != set(self.fields):
             raise ValueError("route topology must cover exactly the populated source route fields")

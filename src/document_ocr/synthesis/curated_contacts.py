@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator
 
 from document_ocr.synthesis.curated import assign, digest, flat
 from document_ocr.synthesis.template_compiler.contact_values import validate_mailbox
@@ -18,8 +18,13 @@ CONTACT_PROMPT = (
     "corporate examples use plausible company domains and natural mailbox names. "
     "Retain the website form (such as WWW. or https://). When examples share a company domain, "
     "the new contacts share one too. Return only the requested contact values. "
+    "For unnamed parties, generate contacts in the supplied role and original contact style. "
     "These are synthetic training text, not verified or contactable businesses."
 )
+
+_MAILBOX_ATOM = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+"
+_DOMAIN_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+_MAILBOX_PATTERN = rf"^{_MAILBOX_ATOM}(?:\.{_MAILBOX_ATOM})*@{_DOMAIN_LABEL}(?:\.{_DOMAIN_LABEL})+$"
 
 
 @dataclass(frozen=True)
@@ -33,13 +38,14 @@ class ContactField:
 @dataclass(frozen=True)
 class ContactParty:
     sample_id: str
-    name: str
+    name: str | None
     country: str
     fields: tuple[ContactField, ...]
+    role: str | None = None
 
 
 def contact_parties(source: dict, target: dict, sample_id: str) -> list[ContactParty]:
-    """Repeated roles for the same named company share their contact values."""
+    """Share named-company contacts; keep unnamed party roles independently owned."""
     before, after = flat(source), flat(target)
     groups = {}
     for path, original in before.items():
@@ -52,13 +58,15 @@ def contact_parties(source: dict, target: dict, sample_id: str) -> list[ContactP
             continue
         role = path.split(".contactDetails.")[0]
         name = after.get(role + ".name")
-        if not name:
-            raise ValueError(f"contact generation requires a company name: {role}")
         # Contact generation follows company identity, not the configurable
         # casing of its label/presentation. Keep repeats and request hashes
         # stable when only capitalization changes; endpoints themselves remain
         # case-preserved.
-        identity = (name.upper(), after.get(role + ".country", "").upper())
+        identity = (
+            name.upper() if name else None,
+            after.get(role + ".country", "").upper(),
+            None if name else role,
+        )
         groups.setdefault(identity, {}).setdefault((kind, original), []).append(path)
     return [
         ContactParty(
@@ -69,9 +77,15 @@ def contact_parties(source: dict, target: dict, sample_id: str) -> list[ContactP
                 ContactField(f"c{i}", kind, old, tuple(paths))
                 for i, ((kind, old), paths) in enumerate(fields.items())
             ),
+            role,
         )
-        for (name, country), fields in groups.items()
+        for (name, country, role), fields in groups.items()
     ]
+
+
+def _validated_mailbox(value: str) -> str:
+    validate_mailbox(value)
+    return value
 
 
 def contact_output_type(parties: list[ContactParty]) -> type[BaseModel]:
@@ -82,15 +96,24 @@ def contact_output_type(parties: list[ContactParty]) -> type[BaseModel]:
         nested = create_model(
             f"CompanyContacts{i}",
             __config__=ConfigDict(extra="forbid"),
+            __validators__={
+                f"validate_{f.key}": field_validator(f.key)(_validated_mailbox)
+                for f in party.fields
+                if f.kind == "email"
+            },
             **{
                 f.key: (
                     str,
                     Field(
                         min_length=1,
-                        pattern=r"^\S+$",
+                        **(
+                            {"pattern": _MAILBOX_PATTERN, "max_length": 254}
+                            if f.kind == "email"
+                            else {"pattern": r"^\S+$"}
+                        ),
                         description=(
-                            "New mailbox for the named party, "
-                            "following the original contact's style."
+                            "One ASCII dot-atom email address for this party, following the "
+                            "original contact style; local part up to 64 characters."
                             if f.kind == "email"
                             else "New company website. "
                             + (
@@ -106,13 +129,24 @@ def contact_output_type(parties: list[ContactParty]) -> type[BaseModel]:
                 for f in party.fields
             },
         )
-        fields[f"p{i}"] = (nested, Field(description="Contacts for the supplied company."))
+        fields[f"p{i}"] = (
+            nested,
+            Field(
+                description="Contacts for the supplied company or explicitly unnamed party role."
+            ),
+        )
     return create_model("SyntheticCompanyContacts", __config__=ConfigDict(extra="forbid"), **fields)
 
 
 def contact_prompt(parties: list[ContactParty]) -> str:
     return "\n\n".join(
-        f"COMPANY p{i}: {p.name}\nCOUNTRY: {p.country or 'not printed'}\n"
+        (
+            f"COMPANY p{i}: {p.name}"
+            if p.name
+            else f"PARTY p{i}: unnamed {p.role}\n"
+            "Generate only contact values in the printed style; company identity is not supplied."
+        )
+        + f"\nCOUNTRY: {p.country or 'not printed'}\n"
         + "\n".join(f"{f.key} — original {f.kind}: {f.original}" for f in p.fields)
         for i, p in enumerate(parties)
     )
@@ -121,7 +155,11 @@ def contact_prompt(parties: list[ContactParty]) -> str:
 def request_hash(parties: list[ContactParty]) -> str:
     return digest(
         {
-            "parties": [p.__dict__ | {"fields": [f.__dict__ for f in p.fields]} for p in parties],
+            "parties": [
+                {k: v for k, v in p.__dict__.items() if k != "role" or v is not None}
+                | {"fields": [f.__dict__ for f in p.fields]}
+                for p in parties
+            ],
             "system": CONTACT_PROMPT,
             "prompt": contact_prompt(parties),
             "schema": contact_output_type(parties).model_json_schema(),

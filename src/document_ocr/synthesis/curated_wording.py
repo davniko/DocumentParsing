@@ -364,7 +364,9 @@ def validate_wording(
                 raise ValueError(f"{value.key}: copied source identity")
             if fields[value.key].role == "goods description" and re.search(
                 r"\b\d+(?:[.,]\d+)?\s*(?:KG|KGS|KILOGRAMS?|G|GRAMS?|LB|LBS|LITRES?|LITERS?|PCS|PIECES?)"
-                r"\s*(?:PER|/)\s*(?:MASTER\s+)?(?:CARTONS?|BOX(?:ES)?|BAGS?|DRUMS?|PACKAGES?)\b",
+                r"\s*(?:PER|/)\s*(?:MASTER\s+)?(?:CARTONS?|BOX(?:ES)?|BAGS?|DRUMS?|PACKAGES?|CONES?|SPOOLS?|COILS?)\b"
+                r"|\b(?:CONES?|SPOOLS?|COILS?|BAGS?|DRUMS?|CARTONS?)\s+\d+(?:[.,]\d+)?\s*(?:KG|KGS|LB|LBS)\b"
+                r"|\bON\s*\d+(?:[.,]\d+)?\s*(?:KG|KGS|LB|LBS)\s*(?:CONES?|SPOOLS?|COILS?)\b",
                 text,
                 re.I,
             ):
@@ -372,16 +374,29 @@ def validate_wording(
                     f"{value.key}: host-owned package fill inside generated description"
                 )
             if fields[value.key].role == "goods description" and re.search(
-                r"\bTOTAL\s+(?:PACKAGES?|CARTONS?|PALLETS?|GROSS\s+WEIGHT|NET\s+WEIGHT)"
+                r"\b(?:TOTAL\s+(?:PACKAGES?|CARTONS?|PALLETS?)|(?:TOTAL\s+)?(?:GROSS|NET)\s+WEIGHT)"
                 r"\s*[:=\-]?\s*\d",
                 text,
                 re.I,
             ):
                 raise ValueError(f"{value.key}: shipment accounting inside generated description")
+            if fields[value.key].role == "goods description" and re.search(
+                r"\bPACKAGE_[A-Z_]+\b", text
+            ):
+                raise ValueError(
+                    f"{value.key}: internal package category inside generated description"
+                )
             if fields[value.key].role == "goods description" and _has_tariff_declaration(text):
                 raise ValueError(
                     f"{value.key}: host-owned tariff caption inside generated description"
                 )
+            if fields[value.key].role == "goods description" and re.search(
+                r"\bFREIGHT\s+(?:PREPAID|COLLECT|PAYABLE)\b|\bACCOUNTING\s+GOODS\s+GROUP\b"
+                r"|\bCOUNTRY\s+OF\s+ORIGIN\s*:",
+                text,
+                re.I,
+            ):
+                raise ValueError(f"{value.key}: non-product policy inside generated description")
             values[value.key] = text
         groups = expected[shipment.sample_id].description_groups or (
             tuple(f.key for f in fields.values() if f.role == "goods description"),

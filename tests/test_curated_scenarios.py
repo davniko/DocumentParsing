@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from datetime import date
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -187,6 +188,282 @@ def test_direct_route_receipt_has_no_inactive_topology_metadata():
     assert "route_topology" not in cap.model_dump(mode="json")
     assert "route_locations" not in scenario.model_dump(mode="json")
     assert "route_topology" not in scenario.provenance["capabilities"]
+    assert "goods_origin_identifiers" not in cap.model_dump(mode="json")
+
+
+def test_goods_origin_identifier_retains_its_typed_geographic_representation():
+    from document_ocr.synthesis.curated_routes import GoodsOriginIdentifier
+
+    with pytest.raises(ValueError, match="owned UN/LOCODE"):
+        GoodsOriginIdentifier(kind="unlocode").render(
+            country_code="CN", registry="geonames", registry_id="1234"
+        )
+    source = source_row()
+    source["target"]["documentPatch"]["goodsItemDetails"][0]["origin"] = {"identifier": "CNNGB"}
+    support = catalog([source])
+    path = "documentPatch.goodsItemDetails[0].origin.identifier"
+    with pytest.raises(ValueError, match="declared representation"):
+        support.sample(
+            source, seed=17, variant=1, capabilities=SourceCapabilities(family="ambient")
+        )
+    cap = SourceCapabilities(
+        family="ambient", goods_origin_identifiers={path: {"kind": "unlocode"}}
+    )
+    for variant in range(1, 6):
+        scenario = support.sample(source, seed=17, variant=variant, capabilities=cap)
+        assert scenario.replacements[path] == scenario.origin.registry_id
+        assert (
+            scenario.cargo["goodsItemDetails"][0]["origin"]["identifier"]
+            == scenario.origin.registry_id
+        )
+        assert len(scenario.replacements[path]) == 5
+    with pytest.raises(ValueError, match="undefined route node"):
+        SourceCapabilities(
+            family="ambient",
+            goods_origin_identifiers={path: {"kind": "unlocode", "node": "missing"}},
+        )
+    with pytest.raises(ValueError, match="absent target path"):
+        support.sample(
+            source,
+            seed=17,
+            variant=1,
+            capabilities=SourceCapabilities(
+                family="ambient",
+                goods_origin_identifiers={path.replace("[0]", "[1]"): {"kind": "unlocode"}},
+            ),
+        )
+    source["target"]["documentPatch"]["goodsItemDetails"][0]["origin"]["identifier"] = "CN"
+    scenario = catalog([source]).sample(
+        source, seed=17, variant=1, capabilities=SourceCapabilities(family="ambient")
+    )
+    assert scenario.replacements[path] == scenario.origin.country_code
+
+
+def test_explicit_payment_geography_can_share_receipt_or_own_a_third_country():
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    patch["freight"] = {"paymentPlace": {"name": "PAYMENT OFFICE", "country": "GERMANY"}}
+    location_path = "documentPatch.freight.paymentPlace"
+    topology = {
+        "fields": {"portOfLoading": "origin", "portOfDischarge": "destination"},
+        "nodes": {"payment": {"kind": "locality", "country_from": "independent"}},
+        "location_nodes": {location_path: "payment"},
+        "rationale": "Reviewed payment office is a separate third-country location.",
+    }
+    support = catalog([source])
+    cap = SourceCapabilities(family="ambient", route_topology=topology)
+    result = support.sample(source, seed=10, variant=1, capabilities=cap)
+    receipt = result.provenance["geographyEligibility"]
+    payment = receipt["routeNodes"]["payment"]
+    assert payment["country_code"] not in {
+        result.origin.country_code,
+        result.destination.country_code,
+    }
+    assert result.replacements[location_path + ".name"] == payment["name"]
+    assert receipt["locationNodes"][location_path] == "payment"
+    assert "payment" not in result.route_locations
+    with pytest.raises(ValueError, match="location side conflicts"):
+        SourceCapabilities(
+            family="ambient", route_topology=topology, location_sides={location_path: "origin"}
+        )
+    with pytest.raises(ValueError, match="Input should be"):
+        RouteTopology.model_validate({**topology, "location_nodes": {"unknown": "payment"}})
+    patch["freight"].pop("paymentPlace")
+    with pytest.raises(ValueError, match="populated freight"):
+        cap.route_topology.validate_source(patch)
+    patch["freight"]["paymentPlace"] = {"name": "RECEIPT TOWN"}
+    patch["route"]["placeOfReceipt"] = {"name": "RECEIPT TOWN"}
+    topology["fields"]["placeOfReceipt"] = "payment"
+    topology["nodes"]["payment"]["country_from"] = "origin"
+    result = catalog([source]).sample(
+        source,
+        seed=10,
+        variant=1,
+        capabilities=SourceCapabilities(family="ambient", route_topology=topology),
+    )
+    assert (
+        result.replacements[location_path + ".name"]
+        == result.route_locations["placeOfReceipt"].name
+    )
+
+
+def test_topology_country_eligibility_requires_enough_distinct_registry_nodes():
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    patch["route"]["placeOfReceipt"] = {"name": "RECEIPT TOWN"}
+    patch["placeOfIssue"] = {"name": "ISSUE TOWN"}
+    topology = {
+        "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "placeOfReceipt": "receipt",
+        },
+        "nodes": {
+            "receipt": {"kind": "locality", "country_from": "origin"},
+            "issue": {"kind": "locality", "country_from": "origin"},
+        },
+        "issue_node": "issue",
+        "rationale": "Receipt and issuer are two distinct towns in the loading country.",
+    }
+    support = catalog([source])
+    for code in ("CN", "EG"):
+        support.localities[code] += (
+            support.localities[code][0].model_copy(
+                update={"name": "SECOND " + code, "registry_id": code + "2"}
+            ),
+        )
+    for variant in range(1, 16):
+        result = support.sample(
+            source,
+            seed=1,
+            variant=variant,
+            capabilities=SourceCapabilities(family="ambient", route_topology=topology),
+        )
+        assert result.origin.country_code != "DE"
+        assert (
+            result.replacements["documentPatch.placeOfIssue.name"]
+            != result.route_locations["placeOfReceipt"].name
+        )
+    with pytest.raises(ValueError, match="pinned geography has no distinct"):
+        support.sample(
+            source,
+            seed=1,
+            variant=1,
+            capabilities=SourceCapabilities(
+                family="ambient", origin_country="DE", route_topology=topology
+            ),
+        )
+
+
+def onward_delivery_source_and_policy():
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    patch["route"]["placeOfDelivery"] = {"name": "ONWARD PORT", "country": "GERMANY"}
+    patch["parties"]["consignee"].update(country="GERMANY", addressLine="C ROAD GERMANY")
+    patch["parties"]["notifyParties"] = [deepcopy(patch["parties"]["consignee"])]
+    patch["parties"]["deliveryAgent"] = {
+        "name": "DISCHARGE AGENT",
+        "addressLine": "PORT ROAD EGYPT",
+        "country": "EGYPT",
+    }
+    return source, {
+        "family": "ambient",
+        "route_topology": {
+            "fields": {
+                "portOfLoading": "origin",
+                "portOfDischarge": "destination",
+                "placeOfDelivery": "delivery",
+            },
+            "nodes": {"delivery": {"kind": "port", "country_from": "independent"}},
+            "party_nodes": {
+                "documentPatch.parties.shipper": "origin",
+                "documentPatch.parties.consignee": "delivery",
+                "documentPatch.parties.notifyParties[0]": "delivery",
+                "documentPatch.parties.deliveryAgent": "destination",
+            },
+            "rationale": "Consignee receives onward delivery; agent serves discharge port.",
+        },
+    }
+
+
+@pytest.mark.parametrize("kind", ["port", "locality"])
+def test_parties_follow_reviewed_route_nodes_without_collapsing_onward_delivery(kind):
+    source, policy = onward_delivery_source_and_policy()
+    policy["route_topology"]["nodes"]["delivery"]["kind"] = kind
+    original = deepcopy(source)
+    support = catalog([source])
+    seen = set()
+    for variant in range(1, 25):
+        scenario = support.sample(
+            source, seed=23, variant=variant, capabilities=SourceCapabilities(**policy)
+        )
+        locations = scenario.party_localities
+        delivery = scenario.route_locations["placeOfDelivery"]
+        assert (
+            len(
+                {
+                    scenario.origin.country_code,
+                    scenario.destination.country_code,
+                    delivery.country_code,
+                }
+            )
+            == 3
+        )
+        assert (
+            locations["documentPatch.parties.shipper"].country_code == scenario.origin.country_code
+        )
+        assert (
+            locations["documentPatch.parties.deliveryAgent"].country_code
+            == scenario.destination.country_code
+        )
+        assert locations["documentPatch.parties.consignee"].country_code == delivery.country_code
+        assert (
+            locations["documentPatch.parties.notifyParties[0]"]
+            == locations["documentPatch.parties.consignee"]
+        )
+        assert scenario.replacements["documentPatch.parties.consignee.country"] == delivery.country
+        assert (
+            scenario.provenance["geographyEligibility"]["routePartyNodes"]
+            == policy["route_topology"]["party_nodes"]
+        )
+        seen.add(delivery.country_code)
+    assert len(seen) == 3
+    assert source == original
+
+
+def test_route_party_nodes_reject_unknown_conflicting_or_symbolic_assignments():
+    source, policy = onward_delivery_source_and_policy()
+    support = catalog([source])
+    for path in (
+        "documentPatch.parties.consigneee",
+        "documentPatch.parties.notifyParties[3]",
+        "consignee",
+    ):
+        bad = deepcopy(policy)
+        bad["route_topology"]["party_nodes"][path] = "delivery"
+        with pytest.raises(ValueError, match="exact populated concrete party"):
+            support.sample(source, seed=1, variant=1, capabilities=SourceCapabilities(**bad))
+    bad = deepcopy(policy)
+    bad["route_topology"]["party_nodes"]["documentPatch.parties.consignee"] = "unknown"
+    with pytest.raises(ValueError, match="undefined node"):
+        SourceCapabilities(**bad)
+    with pytest.raises(ValueError, match="party side conflicts"):
+        SourceCapabilities(**policy, party_sides={"documentPatch.parties.consignee": "destination"})
+    bad = deepcopy(policy)
+    bad["route_topology"]["party_nodes"]["documentPatch.parties.notifyParties[0]"] = "destination"
+    with pytest.raises(ValueError, match="repeated source party has conflicting"):
+        support.sample(source, seed=1, variant=1, capabilities=SourceCapabilities(**bad))
+    source["target"]["documentPatch"]["parties"]["notifyParties"][0] = {"sameAs": "consignee"}
+    with pytest.raises(ValueError, match="exact populated concrete party"):
+        catalog([source]).sample(
+            source, seed=1, variant=1, capabilities=SourceCapabilities(**policy)
+        )
+    del policy["route_topology"]["party_nodes"]["documentPatch.parties.notifyParties[0]"]
+    result = catalog([source]).sample(
+        source, seed=1, variant=1, capabilities=SourceCapabilities(**policy)
+    )
+    assert "documentPatch.parties.notifyParties[0]" not in result.party_localities
+
+
+@pytest.mark.parametrize("unsupported", ["localities", "contacts"])
+def test_party_owned_route_nodes_require_locality_and_contact_support(unsupported):
+    source, policy = onward_delivery_source_and_policy()
+    policy.update(origin_country="CN", destination_country="EG")
+    support = catalog([source])
+    if unsupported == "localities":
+        del support.localities["DE"]
+    else:
+        support.contact_excluded_countries["DE"] = "Fixture has no mobile prefix"
+    with pytest.raises(ValueError, match="no distinct registry support: delivery"):
+        support.sample(source, seed=1, variant=1, capabilities=SourceCapabilities(**policy))
+    if unsupported == "contacts":
+        result = support.sample(
+            source,
+            seed=1,
+            variant=1,
+            capabilities=SourceCapabilities(**policy, require_contact_support=False),
+        )
+        assert result.party_localities["documentPatch.parties.consignee"].country_code == "DE"
 
 
 @pytest.mark.parametrize("shape", ["via", "load_at_hub", "onward_alias", "missing_discharge"])
@@ -542,6 +819,70 @@ def test_bad_allocations_or_impossible_capacity_fail_closed_with_reasons():
     support = catalog([source], maximum_candidates=2)
     with pytest.raises(ValueError, match="payload capacity"):
         support.sample(source, seed=1, variant=1, capabilities=SourceCapabilities(family="ambient"))
+
+
+def test_private_volume_uses_joint_donor_without_adding_a_public_target():
+    source = source_row()
+    del source["target"]["documentPatch"]["goodsItemDetails"][0]["volume"]
+    donor = source_row("measured-donor")
+    support = catalog([source, donor])
+    cap = SourceCapabilities(family="ambient", required_private_measures=("volume",))
+    for variant in range(1, 21):
+        result = support.sample(source, seed=33, variant=variant, capabilities=cap)
+        assert result.provenance["donorDocumentId"] == "measured-donor"
+        goods = result.cargo["goodsItemDetails"][0]
+        assert "volume" not in goods
+        assert "documentPatch.goodsItemDetails[0].volume.value" not in result.replacements
+        quantity = goods["numberAndTypeOfPackages"][0]["packageQuantity"]
+        private = result.provenance["privatePhysicalMeasures"]["volume"]
+        assert Decimal(private["value"]) == Decimal(quantity) / 10
+        assert private["unit"] == "cubic_metre"
+
+
+def test_private_measure_requirements_fail_closed_without_matching_donor():
+    source = source_row()
+    del source["target"]["documentPatch"]["goodsItemDetails"][0]["volume"]
+    cap = SourceCapabilities(family="ambient", required_private_measures=("volume",))
+    with pytest.raises(ValueError, match="no complete train-only cargo donors"):
+        catalog([source]).sample(source, seed=1, variant=1, capabilities=cap)
+
+
+def test_private_volume_capacity_and_net_gross_order_are_enforced():
+    source = source_row()
+    del source["target"]["documentPatch"]["goodsItemDetails"][0]["volume"]
+    donor = source_row("oversized-donor")
+    donor["target"]["documentPatch"]["goodsItemDetails"][0]["volume"]["value"] = 10000
+    cap = SourceCapabilities(family="ambient", required_private_measures=("volume",))
+    with pytest.raises(ValueError, match="enclosed volume"):
+        catalog([source, donor], maximum_candidates=2).sample(
+            source, seed=1, variant=1, capabilities=cap
+        )
+    source = source_row()
+    del source["target"]["documentPatch"]["goodsItemDetails"][0]["netWeight"]
+    donor = source_row("invalid-net-donor")
+    donor["target"]["documentPatch"]["goodsItemDetails"][0]["netWeight"]["value"] = 50000
+    cap = SourceCapabilities(family="ambient", required_private_measures=("netWeight",))
+    with pytest.raises(ValueError, match="net weight exceeds gross weight"):
+        catalog([source, donor], maximum_candidates=2).sample(
+            source, seed=1, variant=1, capabilities=cap
+        )
+
+
+def test_empty_private_measure_capability_keeps_existing_request_contract():
+    assert "required_private_measures" not in SourceCapabilities(family="ambient").model_dump()
+
+
+@pytest.mark.parametrize("volume", [0, -1])
+def test_positive_private_volume_rejects_unasserted_or_negative_donor_values(volume):
+    source = source_row()
+    del source["target"]["documentPatch"]["goodsItemDetails"][0]["volume"]
+    donor = source_row("unasserted-volume")
+    donor["target"]["documentPatch"]["goodsItemDetails"][0]["volume"]["value"] = volume
+    cap = SourceCapabilities(family="ambient", required_private_measures=("volume",))
+    with pytest.raises(ValueError, match="private physical measure must be positive"):
+        catalog([source, donor], maximum_candidates=2).sample(
+            source, seed=1, variant=1, capabilities=cap
+        )
 
 
 def test_membership_only_does_not_invent_allocation_counts_and_repeated_parties_share_geography():

@@ -553,6 +553,16 @@ def _render_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
     if not matching_formats:
         raise ValueError(f"unsupported certified date surface: {raw!r}")
 
+    # A named month can have identical full and abbreviated spelling. This is
+    # typography, not date ambiguity: use the compact named-month convention
+    # when both templates reproduce the source. Numeric day/month order still
+    # requires a unique interpretation or an explicit source recipe.
+    matching_formats = [
+        value
+        for value in matching_formats
+        if "%B" not in value or value.replace("%B", "%b") not in matching_formats
+    ]
+
     # Equivalent numeric day/month formats can parse the same ambiguous source. Their
     # output is identical for a uniformly shifted target only when the target day/month
     # coincide. Refuse ambiguity rather than silently selecting a locale convention.

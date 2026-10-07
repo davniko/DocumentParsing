@@ -188,7 +188,7 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
     gallery = [
         "# Full curated synthesis pilot: source and rendered variants\n",
         "Each source is followed by every published variant. Text is plain OCR; "
-        "position enrichment is not part of this pilot. Labels are in `dataset.jsonl`.\n",
+        "position-enriched variants are published separately. Labels are in `dataset.jsonl`.\n",
     ]
     rejected_findings = 0
     contract_hash = review_contract_hash(

@@ -6,6 +6,7 @@ from document_ocr.synthesis.curated_contacts import (
     apply_contacts,
     contact_output_type,
     contact_parties,
+    contact_prompt,
     request_hash,
     unpack_contacts,
 )
@@ -80,3 +81,72 @@ def test_bad_contact_outputs_fail_without_rewriting_or_fallback(email, website):
             contact_output_type(requests).model_validate({"p0": {"c0": email, "c1": website}}),
             requests,
         )
+
+
+def test_contact_only_roles_preserve_absent_identity_and_do_not_merge_unrelated_roles():
+    source = {
+        "documentPatch": {
+            "parties": {
+                "consignee": {"name": "NAMED IMPORTER"},
+                "notifyParties": [
+                    {"name": "NAMED IMPORTER"},
+                    {"contactDetails": {"emailAddresses": ["oldnotify@gmail.com"]}},
+                    {"contactDetails": {"emailAddresses": ["oldnotify@gmail.com"]}},
+                ],
+            }
+        }
+    }
+    before = deepcopy(source)
+    requests = contact_parties(source, source, "sample")
+    assert len(requests) == 2
+    assert all(p.name is None for p in requests)
+    assert [p.role for p in requests] == [
+        "documentPatch.parties.notifyParties[1]",
+        "documentPatch.parties.notifyParties[2]",
+    ]
+    assert "unnamed documentPatch.parties.notifyParties[1]" in contact_prompt(requests)
+    assert "company identity is not supplied" in contact_prompt(requests)
+    values = unpack_contacts(
+        contact_output_type(requests).model_validate(
+            {"p0": {"c0": "newnotify@gmail.com"}, "p1": {"c0": "othernotify@gmail.com"}}
+        ),
+        requests,
+    )["sample"]
+    result = apply_contacts(source, values, requests)
+    assert source == before
+    assert result["documentPatch"]["parties"]["consignee"] == {"name": "NAMED IMPORTER"}
+    assert all("name" not in p for p in result["documentPatch"]["parties"]["notifyParties"][1:])
+    assert len(values) == 2
+    assert request_hash(requests) == request_hash(contact_parties(source, source, "sample"))
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        "R..khouri@lebanesemedsupplies.com",
+        ".sales@huaxintextile.com",
+        "sales.@huaxintextile.com",
+        "sales@-huaxintextile.com",
+        "sales@huaxintextile..com",
+        "sales@huaxintextile.cöm",
+        "équipe@huaxintextile.com",
+        "a" * 65 + "@huaxintextile.com",
+    ],
+)
+def test_native_contact_output_rejects_invalid_mailbox_before_host_unpack(email):
+    _, _, requests = parties()
+    output = contact_output_type(requests)
+    assert (
+        output.model_json_schema()["$defs"]["CompanyContacts0"]["properties"]["c0"]["pattern"]
+        != r"^\S+$"
+    )
+    with pytest.raises(ValueError):
+        output.model_validate({"p0": {"c0": email, "c1": "www.huaxintextile.com"}})
+
+
+def test_ascii_dot_atom_mailbox_accepts_supported_punctuation():
+    _, _, requests = parties()
+    output = contact_output_type(requests).model_validate(
+        {"p0": {"c0": "sales.eu+forwarding@huaxintextile.com", "c1": "www.huaxintextile.com"}}
+    )
+    assert unpack_contacts(output, requests)["sample"]

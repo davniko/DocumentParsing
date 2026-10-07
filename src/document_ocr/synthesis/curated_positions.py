@@ -10,7 +10,7 @@ import json
 import time
 from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -34,6 +34,31 @@ class Anchor:
     lines: tuple[int, ...]
     xy: tuple[int, int] | None
     edit: str | None = None
+    relocated: bool = False
+
+
+def _line_coordinates(contributions: list[Anchor]) -> tuple[int, int] | None:
+    """Move inline captions/counts with their reflowed source line.
+
+    A prefix and an expanded value share one measured line, not independent
+    locations. Unchanged fragments from other source lines remain independent.
+    Unknown reflow coordinates remain unknown, even when a prefix is measured.
+    """
+    relocated_lines = {
+        number for anchor in contributions if anchor.relocated for number in anchor.lines
+    }
+    relevant = [
+        anchor
+        for anchor in contributions
+        if anchor.relocated or not set(anchor.lines).issubset(relocated_lines)
+    ]
+    points = [anchor.xy for anchor in relevant]
+    if any(point is None for point in points):
+        return None
+    return tuple(
+        round((min(point[axis] for point in points) + max(point[axis] for point in points)) / 2)
+        for axis in (0, 1)
+    )
 
 
 def transfer_positions(
@@ -82,6 +107,7 @@ def transfer_positions(
     if (page_boxes is None) != (page_dimensions is None):
         raise ValueError("page boxes and dimensions must be supplied together")
     pieces, placements = [], []
+    reflow_owners = defaultdict(set)
 
     def unchanged(start: int, end: int) -> None:
         while start < end:
@@ -99,9 +125,14 @@ def transfer_positions(
             raise ValueError("overlapping, unordered or stale source edit")
         unchanged(cursor, start)
         first, last = bisect_right(starts, start), bisect_right(starts, end - 1)
-        owned = list(range(first, last + 1))
+        physical_lines = list(range(first, last + 1))
+        # A single owned product/address region can contain paragraph separators.
+        # Blank lines have no measured text anchor; they neither supply a point
+        # nor break ownership. Page markers remain hard structural boundaries.
+        owned = [n for n in physical_lines if n in source_lines]
         if (
-            any(n not in source_lines for n in owned)
+            not owned
+            or any(PAGE_MARKER.fullmatch(physical[n - 1].strip()) for n in physical_lines)
             or len({source_lines[n].page for n in owned}) != 1
         ):
             raise ValueError("edit crosses a structural line or page boundary")
@@ -116,6 +147,11 @@ def transfer_positions(
         placements.append(
             {"key": edit["key"], "occurrence": edit["occurrence"], "page_index": page, **placement}
         )
+        edit_id = f"{edit['key']}:{edit['occurrence']}"
+        relocated = len(replacement) != len(owned)
+        if relocated and replacement:
+            for number in owned:
+                reflow_owners[number].add(edit_id)
         for i, line in enumerate(replacement):
             if PAGE_MARKER.fullmatch(line.strip()):
                 raise ValueError("replacement introduces a page marker")
@@ -127,11 +163,20 @@ def transfer_positions(
             fraction = position - lo
             selected = (owned[lo],) if not fraction else (owned[lo], owned[hi])
             xy = placed[i]
-            pieces.append(
-                (line.encode(), Anchor(selected, xy, f"{edit['key']}:{edit['occurrence']}"))
-            )
+            pieces.append((line.encode(), Anchor(selected, xy, edit_id, relocated)))
         cursor = end
     unchanged(cursor, len(raw))
+    # Separately expanded owners on one measured source line cannot each claim
+    # its free space. Preserve their text, but do not invent a joint placement.
+    conflicts = {key for owners in reflow_owners.values() if len(owners) > 1 for key in owners}
+    if conflicts:
+        pieces = [
+            (piece, replace(anchor, xy=None) if anchor.edit in conflicts else anchor)
+            for piece, anchor in pieces
+        ]
+        for placement in placements:
+            if f"{placement['key']}:{placement['occurrence']}" in conflicts:
+                placement.update(method="unplaced_expansion", reason="overlapping_reflow_owners")
     if b"".join(piece for piece, _ in pieces) != rendered.encode():
         raise ValueError("position transfer differs from exact rendered edit replay")
 
@@ -150,14 +195,7 @@ def transfer_positions(
         origins = sorted({n for anchor in contributions for n in anchor.lines})
         if any(n not in source_lines or source_lines[n].page != line.page for n in origins):
             raise ValueError("output line inherited a different page/structural anchor")
-        known = [a.xy for a in contributions]
-        xy = (
-            None
-            if any(p is None for p in known)
-            else tuple(
-                round((min(p[j] for p in known) + max(p[j] for p in known)) / 2) for j in (0, 1)
-            )
-        )
+        xy = _line_coordinates(contributions)
         coordinates[line.number] = xy
         edits = sorted({a.edit for a in contributions if a.edit is not None})
         lines.append(

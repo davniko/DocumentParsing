@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from itertools import pairwise
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,7 +13,9 @@ from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_layout import PositionPolicy, augment_page, validate_transform
 from document_ocr.synthesis.curated_position_regions import place_region
 from document_ocr.synthesis.curated_positions import (
+    Anchor,
     _geometry_rows,
+    _line_coordinates,
     augment_positions,
     load_page_geometry,
     position_campaign,
@@ -20,12 +23,12 @@ from document_ocr.synthesis.curated_positions import (
 )
 
 
-def example(after="NEW SITE\nNEW DISTRICT\nNEW CITY"):
+def example(after="NEW SITE\nNEW DISTRICT\nNEW CITY", *, source_separator="\n"):
     source = (
-        "--- PAGE 1 ---\nSHIPPER\nÉTÉ STREET\nOLD CITY\nTEL: 123456789\n"
+        f"--- PAGE 1 ---\nSHIPPER\nÉTÉ STREET{source_separator}OLD CITY\nTEL: 123456789\n"
         "\n--- PAGE 2 ---\nOLD CITY\n"
     )
-    before = "ÉTÉ STREET\nOLD CITY"
+    before = f"ÉTÉ STREET{source_separator}OLD CITY"
     start = source.encode().index(before.encode())
     edit = {
         "key": "address",
@@ -85,6 +88,50 @@ def test_line_expansion_does_not_shift_later_fields_or_match_repeated_words():
 
 
 @pytest.mark.parametrize(
+    "after", ["NEW SITE\nNEW CITY", "NEW SITE\nNEW DISTRICT\nNEW CITY", "NEW SITE\n\nNEW CITY"]
+)
+def test_owned_paragraph_separator_is_not_a_page_boundary_or_coordinate_source(after):
+    source, rendered, proof, alignment = example(after, source_separator="\n\n")
+    text, receipt = transfer_positions(source, rendered, proof, alignment, **measured(alignment))
+    assert "TEL: 123456789 || 100,120" in text
+    assert "--- PAGE 2 ---\nOLD CITY || 700,100" in text
+    assert receipt["placements"][0]["sourceLines"] == 2
+    assert all(4 not in line["source_lines"] for line in receipt["lines"])
+    assert all(set(line["source_lines"]) <= {3, 5} for line in receipt["lines"] if line["edits"])
+    assert all(line["xy"] is not None for line in receipt["lines"] if line["edits"])
+    assert receipt["renderedSha256"] == digest(rendered.encode())
+
+
+@pytest.mark.parametrize("region", ["page_crossing", "blank_only"])
+def test_blank_separator_support_does_not_license_page_crossings_or_anchorless_edits(region):
+    source, _, _, alignment = example(source_separator="\n\n")
+    raw = source.encode()
+    if region == "page_crossing":
+        start, end = raw.index(b"OLD CITY"), len(raw) - 1
+    else:
+        start = raw.index(b"\n\n") + 1
+        end = start + 1
+    replacement = b"REPLACEMENT"
+    rendered = (raw[:start] + replacement + raw[end:]).decode()
+    proof = {
+        "sourceSha256": digest(raw),
+        "renderedSha256": digest(rendered.encode()),
+        "edits": [
+            {
+                "key": region,
+                "occurrence": 0,
+                "byteStart": start,
+                "byteEnd": end,
+                "before": raw[start:end].decode(),
+                "after": replacement.decode(),
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="structural line or page boundary"):
+        transfer_positions(source, rendered, proof, alignment, **measured(alignment))
+
+
+@pytest.mark.parametrize(
     "after", ["ONE LINE", "FOUR\nNEW\nADDRESS\nLINES", "ÉTÉ STREET\nOLD CITY", "\nNEW CITY", ""]
 )
 def test_contraction_expansion_unicode_and_identity_keep_text_and_page_ownership(after):
@@ -108,6 +155,61 @@ def test_missing_anchor_stays_unknown_instead_of_neighbor_borrowing():
     text, receipt = transfer_positions(source, rendered, proof, alignment)
     assert "NEW SITE ||\nNEW DISTRICT ||\nNEW CITY ||\n" in text
     assert receipt["placements"][0]["reason"] == "missing_source_anchor"
+
+
+@pytest.mark.parametrize("peer_edit", [None, "quantity:0", "package_type:0"])
+@pytest.mark.parametrize("moved", [(100, 80), (100, 120), None])
+def test_inline_caption_and_numeric_peers_follow_reflow_without_inventing_unknowns(
+    peer_edit, moved
+):
+    peers = [Anchor((3,), (100, 100), peer_edit), Anchor((3,), moved, "address:0", True)]
+    assert _line_coordinates(peers) == moved
+    # An unrelated line fragment remains relevant; it is not suppressed merely
+    # because this output line also contains a relocated address or description.
+    assert _line_coordinates([*peers, Anchor((4,), None)]) is None
+    if moved is not None:
+        assert _line_coordinates([*peers, Anchor((4,), (300, 200))]) == (
+            200,
+            round((moved[1] + 200) / 2),
+        )
+
+
+def test_source_line_peers_follow_expanded_region_and_competing_reflows_abstain():
+    source, _, _, alignment = example()
+    edits = []
+    for key, before, after in [
+        ("caption", "ÉTÉ", "NEW"),
+        ("product", "STREET", "ITEM\nGRADE"),
+    ]:
+        start = source.encode().index(before.encode())
+        edits.append(
+            dict(
+                key=key,
+                occurrence=0,
+                byteStart=start,
+                byteEnd=start + len(before.encode()),
+                before=before,
+                after=after,
+            )
+        )
+
+    def render(edits):
+        raw = source.encode()
+        for edit in reversed(edits):
+            raw = raw[: edit["byteStart"]] + edit["after"].encode() + raw[edit["byteEnd"] :]
+        rendered = raw.decode()
+        proof = dict(sourceSha256=digest(source.encode()), renderedSha256=digest(raw), edits=edits)
+        return transfer_positions(source, rendered, proof, alignment, **measured(alignment))
+
+    text, receipt = render(edits)
+    product = [line for line in receipt["lines"] if "product:0" in line["edits"]]
+    assert all(line["xy"] is not None for line in product)
+    assert all(b["xy"][1] - a["xy"][1] >= 8 for a, b in pairwise(product))
+    assert "TEL: 123456789 || 100,100" in text
+    edits[0]["after"] = "OTHER\nRENDERED\nREGION"
+    _, receipt = render(edits)
+    assert all(p["reason"] == "overlapping_reflow_owners" for p in receipt["placements"])
+    assert all(line["xy"] is None for line in receipt["lines"] if line["edits"])
 
 
 @pytest.mark.parametrize(
