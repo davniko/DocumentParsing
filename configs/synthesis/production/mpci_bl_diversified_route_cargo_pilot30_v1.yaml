@@ -11,7 +11,7 @@
     "transaction_sha256": "a21290c2a31ad36b8495508f2d462953e255ad810ed677ba0a7b4e04239c2a30"
   },
   "iso3166_snapshot": {
-    "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+    "path": "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
     "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
   },
   "provider": {
@@ -49,20 +49,20 @@
     "records": 10000
   },
   "vessel_registry": {
-    "path": "data/registries/vessels/public-cargo-vessel-names-20260901-v1/vessel-names.jsonl",
+    "path": "artifacts/registries/sources/vessels/public-cargo-vessel-names-20260901-v1/vessel-names.jsonl",
     "sha256": "6bbfda40b9337e86c650f043ef7d68974e3213c4fcabd2d9412cb34adb9fb0a6",
     "records": 16356
   },
   "hs_manifest": {
-    "path": "data/registries/hs/ukgt-v4.0.1590/source-manifest.json",
+    "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json",
     "sha256": "7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e"
   },
   "hs_metadata": {
-    "path": "data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
+    "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
     "sha256": "4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7"
   },
   "hs_report": {
-    "path": "data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
+    "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
     "sha256": "13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513"
   },
   "generation_prompt": {
@@ -98,7 +98,7 @@
     "records": 10000
   },
   "customs_program_registry": {
-    "path": "data/registries/customs-programs/document-customs-surfaces-v8.json",
+    "path": "artifacts/registries/sources/customs-programs/document-customs-surfaces-v8.json",
     "sha256": "7e820a46e2c1ea4babb5d0d5fce9854b32b66ce52a8b79f1e998212d7be1a7c6"
   },
   "cargo_sampling": {
@@ -114,17 +114,17 @@
       "records": 100
     },
     "dangerous_goods_run": {
-      "path": "artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4",
+      "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4",
       "commit_sha256": "16ac5d50ddff4398e8fd128eb0c097da2bc55935f848613000a6bd0d8130c3bc",
       "transaction_sha256": "6ca96bd3a0596d04edf7a688f55b9f0a53142fe102516e8e72c4660be3ad6557"
     },
     "hmt": {
-      "path": "artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl",
+      "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl",
       "sha256": "bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2",
       "records": 2934
     },
     "ecics": {
-      "path": "artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl",
+      "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl",
       "sha256": "51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f",
       "records": 3480
     },

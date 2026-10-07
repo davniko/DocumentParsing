@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
+from document_ocr.synthesis.curated_goods import RegistryThermalPolicy
 from document_ocr.synthesis.dangerous_goods_registry import (
     DangerousGoodsHmtRecord,
     LoadedDangerousGoodsRegistry,
@@ -93,6 +94,62 @@ class ScenarioSamplingConfig(BaseModel):
     scale_steps: int = Field(default=60, ge=1)
     maximum_candidates: int = Field(default=512, ge=1)
     observed_hs_overrides: dict[str, ObservedHSOverride] = Field(default_factory=dict)
+    thermal: RegistryThermalPolicy = Field(default_factory=RegistryThermalPolicy)
+    # Earlier pipeline's ambient registry scope. Potentially hazardous chemical,
+    # petroleum and perishable-food chapters require their dedicated profiles.
+    ambient_hs_chapters: tuple[str, ...] = (
+        "25",
+        "39",
+        "40",
+        "42",
+        "44",
+        "48",
+        "49",
+        "50",
+        "51",
+        "52",
+        "53",
+        "54",
+        "55",
+        "56",
+        "57",
+        "58",
+        "59",
+        "60",
+        "61",
+        "62",
+        "63",
+        "64",
+        "65",
+        "66",
+        "67",
+        "68",
+        "69",
+        "70",
+        "72",
+        "73",
+        "74",
+        "75",
+        "76",
+        "78",
+        "79",
+        "80",
+        "81",
+        "82",
+        "83",
+        "84",
+        "85",
+        "86",
+        "87",
+        "88",
+        "89",
+        "90",
+        "91",
+        "92",
+        "94",
+        "95",
+        "96",
+    )
 
 
 class ReviewedWholeUnitDonor(BaseModel):
@@ -129,7 +186,6 @@ class SourceCapabilities(BaseModel):
     destination_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     fixed_package_quantity: int | None = Field(default=None, gt=0)
     quantity_multiple: int = Field(default=1, gt=0)
-    explore_within_heading: bool = True
     party_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
     location_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
     require_contact_support: bool = True
@@ -150,8 +206,10 @@ class SourceCapabilities(BaseModel):
         } and self.family not in {"vehicle", "dg_vehicle"}:
             raise ValueError("whole-unit source physics is restricted to enumerated vehicles")
         if self.physical_profile == "reviewed_whole_units":
-            if not self.reviewed_whole_unit_donors or self.explore_within_heading:
-                raise ValueError("reviewed whole-unit physics requires pinned exact-HS donors")
+            if not self.reviewed_whole_unit_donors or not self.allowed_hs_codes:
+                raise ValueError(
+                    "reviewed whole-unit physics requires pinned HS domains and donors"
+                )
             if self.fixed_package_quantity is None:
                 raise ValueError("reviewed whole-unit physics requires an explicit vehicle count")
         elif self.reviewed_whole_unit_donors:
@@ -216,26 +274,6 @@ class GoodsIdentity(BaseModel):
     phrase: str
     observed_hs6: str | None = None
     classification: HSClassificationContext
-
-
-class ThermalCommodityContext(BaseModel):
-    """Observed product meaning supporting the sampled cold-chain bundle.
-
-    A tariff category alone does not authorize changing the processing or
-    physical form of the empirical cargo whose setpoint/ventilation are reused.
-    The description is evidence for that scope, not prose to copy wholesale.
-    """
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    donor_document_id: str
-    donor_target_sha256: str
-    observed_description: str = Field(min_length=1)
-    observed_hs6: tuple[str, ...]
-    temperature_celsius: float
-    ventilation_cbm_per_hour: str | None
-    preservation_scope: Literal["commodity identity, physical form and processing state"] = (
-        "commodity identity, physical form and processing state"
-    )
 
 
 class ShipmentScenario(BaseModel):
@@ -515,6 +553,24 @@ class ScenarioCatalog:
                 continue
             chemicals.extend((record, code) for code in chemical_links[record.record_id])
         self.chemical_candidates = tuple(chemicals)
+        self.thermal_codes = {"frozen": [], "chilled": []}
+        self.ambient_codes = set()
+        for code in sorted(self.phrases):
+            row = self.hs.require_global(code, on_date=self.hs.receipt.snapshot_date)
+            thermal = classify_thermal_hs(row)
+            if thermal is None:
+                if (
+                    code[:2] in config.ambient_hs_chapters
+                    and _normalized_chemical_identity(self.phrases[code])
+                    not in self.hazard_identities
+                ):
+                    self.ambient_codes.add(code)
+            else:
+                family = thermal.lower()
+                if code[:2] in getattr(config.thermal, family + "_chapters"):
+                    self.thermal_codes[family].append(code)
+        self._donor_cache: dict[tuple[str, str], tuple[CargoObservation, ...]] = {}
+        self._identity_pool_cache: dict[tuple[str, str], tuple[str, ...]] = {}
 
     @classmethod
     def load(
@@ -722,6 +778,9 @@ class ScenarioCatalog:
     def _donors(
         self, source: CargoObservation, cap: SourceCapabilities
     ) -> tuple[CargoObservation, ...]:
+        cache_key = (source.document_id, cap.model_dump_json())
+        if cap.physical_profile != "reviewed_whole_units" and cache_key in self._donor_cache:
+            return self._donor_cache[cache_key]
         candidates = []
         if cap.physical_profile == "reviewed_whole_units":
             reviewed = []
@@ -749,12 +808,12 @@ class ScenarioCatalog:
                 else (*self.observations, source)
             )
         required = {f for f in _MEASURES if f in source.goods}
-        needs_ventilation = any(
-            re.search(r"\bVENT(?:IL|ILL)", text, re.I)
-            for text in source.goods.get("handlingInstructions", ())
-        )
         for donor in observations:
-            if donor.family != cap.family or not required <= donor.goods.keys():
+            thermal = cap.family in {"frozen", "chilled"}
+            family_matches = (
+                donor.family in {"frozen", "chilled"} if thermal else donor.family == cap.family
+            )
+            if not family_matches or not required <= donor.goods.keys():
                 continue
             if bool(donor.containers) != bool(source.containers):
                 continue
@@ -772,24 +831,28 @@ class ScenarioCatalog:
             if donor.hs6 and any(code not in self.phrases for code in donor.hs6):
                 continue
             if (
-                not cap.explore_within_heading
-                and not cap.allowed_hs_codes
-                and donor.hs6
-                and len(donor.hs6) < cap.identity_count
-            ):
-                continue
-            if (
                 cap.allowed_hs_headings
                 and donor.hs6
                 and not all(code[:4] in cap.allowed_hs_headings for code in donor.hs6)
             ):
                 continue
-            # Temperature/ventilation instructions stay coherent by choosing an
-            # observed cold-chain bundle, including its exact carrying setpoint.
-            if cap.family in {"frozen", "chilled"} and _temperature(donor.containers) is None:
-                continue
-            if needs_ventilation and not _ventilation_rate(donor.goods):
-                continue
+            if thermal:
+                if (
+                    _temperature(donor.containers) is None
+                    or not donor.hs6
+                    or any(
+                        code[:2] not in {"02", "03", "07", "08", "16", "20"} for code in donor.hs6
+                    )
+                    or any(c.get("typeCategory") != "REFRIGERATED" for c in donor.containers)
+                ):
+                    continue
+                # Registry meat/fish/frozen foods can share an observed food
+                # carton/box load, but not a pharmaceutical or unreviewed crate.
+                # Produce extensions keep their own exact physical bundle.
+                if donor.package_category not in self.config.thermal.package_categories and (
+                    donor.family != cap.family or not _ventilation_rate(donor.goods)
+                ):
+                    continue
             if donor.containers and any(
                 not {"sizeCategory", "typeCategory"} <= c.keys() for c in donor.containers
             ):
@@ -802,7 +865,9 @@ class ScenarioCatalog:
             ):
                 continue
             candidates.append(donor)
-        return tuple({d.document_id: d for d in candidates}.values())
+        result = tuple({d.document_id: d for d in candidates}.values())
+        self._donor_cache[cache_key] = result
+        return result
 
     def _description_path(self, code: str) -> tuple[str, ...]:
         if code not in self._hs_description_paths:
@@ -857,7 +922,8 @@ class ScenarioCatalog:
             eligible = [
                 (record, code)
                 for record, code in self.chemical_candidates
-                if not cap.allowed_hs_headings or code[:4] in cap.allowed_hs_headings
+                if (not cap.allowed_hs_headings or code[:4] in cap.allowed_hs_headings)
+                and (not cap.allowed_hs_codes or code in cap.allowed_hs_codes)
             ]
             dg_record, code = _pick(eligible, stream.derive("chemical"))
             return (
@@ -878,27 +944,7 @@ class ScenarioCatalog:
                 and "flammable liquid" in r.proper_shipping_name.casefold()
             ]
             dg_record = _pick(eligible, stream.derive("vehicle-dg"))
-        headings = cap.allowed_hs_headings or tuple(dict.fromkeys(code[:4] for code in donor.hs6))
-        available = [code for heading in headings for code in self.heading_codes.get(heading, ())]
-        if not cap.explore_within_heading and donor.hs6:
-            available = list(donor.hs6)
-        if cap.allowed_hs_codes:
-            if any(code not in self.phrases for code in cap.allowed_hs_codes):
-                raise ValueError("explicit HS code domain contains an unregistered identity")
-            available = [code for code in available if code in cap.allowed_hs_codes]
-        if cap.family == "chilled":
-            # Produce thermal semantics are empirical: do not extrapolate a
-            # garlic setpoint to every product under an entire tariff heading.
-            available = list(donor.hs6)
-        if cap.family == "frozen":
-            available = [
-                code
-                for code in available
-                if classify_thermal_hs(
-                    self.hs.require_global(code, on_date=self.hs.receipt.snapshot_date)
-                )
-                == "FROZEN"
-            ]
+        available = self._registry_pool(donor, cap)
         if cap.family == "dg_vehicle":
             # The pilot's vehicle declaration is liquid-fuel UN3166. An HS
             # heading also contains electric/gas cars; that broad heading alone
@@ -908,15 +954,6 @@ class ScenarioCatalog:
                 for code in available
                 if re.search(r"\b(?:diesel|petrol|spark[ -]ignition)\b", self.phrases[code], re.I)
                 and not re.search(r"\b(?:electric|hybrid)\b", self.phrases[code], re.I)
-            ]
-        if cap.family == "ambient":
-            available = [
-                code
-                for code in available
-                if classify_thermal_hs(
-                    self.hs.require_global(code, on_date=self.hs.receipt.snapshot_date)
-                )
-                is None
             ]
         selected = []
         for i in range(cap.identity_count):
@@ -945,6 +982,70 @@ class ScenarioCatalog:
             for code in selected
         ), dg_record
 
+    def _registry_pool(self, donor: CargoObservation, cap: SourceCapabilities) -> tuple[str, ...]:
+        key = (donor.document_id, cap.model_dump_json())
+        if key in self._identity_pool_cache:
+            return self._identity_pool_cache[key]
+        headings = cap.allowed_hs_headings or tuple(dict.fromkeys(c[:4] for c in donor.hs6))
+        if cap.family in {"frozen", "chilled"}:
+            pool = (
+                list(self.thermal_codes[cap.family])
+                if donor.package_category in self.config.thermal.package_categories
+                else []
+            )
+            # Extra fresh produce is supported by exact observed carriage data;
+            # it does not narrow the separately available registry food domain.
+            if donor.family == cap.family and all(c[:2] in {"07", "08"} for c in donor.hs6):
+                pool.extend(c for c in donor.hs6 if c not in pool)
+        else:
+            pool = [c for h in headings for c in self.heading_codes.get(h, ())]
+            if cap.family == "ambient":
+                pool = [c for c in pool if c in self.ambient_codes]
+        if cap.allowed_hs_headings:
+            pool = [c for c in pool if c[:4] in cap.allowed_hs_headings]
+        if cap.allowed_hs_codes:
+            if any(c not in self.phrases for c in cap.allowed_hs_codes):
+                raise ValueError("explicit HS code domain contains an unregistered identity")
+            pool = [c for c in pool if c in cap.allowed_hs_codes]
+        result = tuple(sorted(set(pool)))
+        self._identity_pool_cache[key] = result
+        return result
+
+    def _thermal_settings(self, donor, cap, identities, stream):
+        """Choose settings from sampled identity authority, never unrelated source prose."""
+        if cap.family not in {"frozen", "chilled"}:
+            return None
+        codes = [i.hs6 for i in identities]
+        empirical = [c for c in codes if c not in self.thermal_codes[cap.family]]
+        if empirical:
+            if len(codes) != 1 or codes[0] not in donor.hs6 or donor.family != cap.family:
+                raise ValueError("empirical thermal extension requires its exact commodity bundle")
+            temperature = _temperature(donor.containers)
+            if temperature is None:
+                raise ValueError("observed produce identity lacks a carrying temperature")
+            ventilation = _ventilation_rate(donor.goods)
+            basis = "observed_produce_extension"
+        else:
+            temperature = getattr(self.config.thermal, cap.family).sample(stream.derive("setpoint"))
+            ventilation = "0"
+            basis = "hs_registry_food_profile"
+        return {
+            "basis": basis,
+            "profile": cap.family,
+            "sampledHS6": codes,
+            "commodityDescriptions": [i.phrase for i in identities],
+            "productForm": (
+                "preserve the observed fresh produce form"
+                if empirical
+                else "frozen food"
+                if cap.family == "frozen"
+                else "chilled non-live food; choose this form over HS live/fresh alternatives"
+            ),
+            "temperatureCelsius": float(temperature),
+            "ventilationCbmPerHour": ventilation,
+            **({"observedDescription": donor.goods["description"]} if empirical else {}),
+        }
+
     def _cargo(
         self,
         source: CargoObservation,
@@ -955,6 +1056,16 @@ class ScenarioCatalog:
         stream: DeterministicStream,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         goods = deepcopy(dict(source.goods))
+        thermal_context = self._thermal_settings(donor, cap, identities, stream)
+        if (
+            thermal_context
+            and thermal_context["ventilationCbmPerHour"] is None
+            and any(
+                re.search(r"\bVENT(?:IL|ILL)", t, re.I)
+                for t in source.goods.get("handlingInstructions", ())
+            )
+        ):
+            raise ValueError("printed ventilation requires commodity-supported settings")
         containers = [deepcopy(dict(c)) for c in source.containers]
         allocations = goods.get("splitGoodsPlacement", [])
         quantities = [int(a["packageQuantity"]) for a in allocations if "packageQuantity" in a]
@@ -1047,9 +1158,9 @@ class ScenarioCatalog:
                 if field in container:
                     container[field] = sampled[field]
             if "temperatureSetpoint" in container:
-                temperature = _temperature(donor.containers)
-                if temperature is None:
+                if thermal_context is None:
                     raise ValueError("sampled cold-chain bundle has no carrying setpoint")
+                temperature = Decimal(str(thermal_context["temperatureCelsius"]))
                 value = (
                     temperature
                     if container["temperatureSetpoint"]["unit"] == "celsius"
@@ -1118,22 +1229,6 @@ class ScenarioCatalog:
                     },
                 }
             )
-        thermal_context = None
-        if cap.family in {"frozen", "chilled"}:
-            observed_description = donor.goods.get("description", "").strip()
-            temperature = _temperature(donor.containers)
-            if not observed_description or temperature is None:
-                raise ValueError("cold-chain donor lacks its product description or setpoint")
-            thermal_context = ThermalCommodityContext(
-                donor_document_id=donor.document_id,
-                donor_target_sha256=sha256_bytes(
-                    canonical_json_bytes(self.train[donor.document_id]["target"])
-                ),
-                observed_description=observed_description,
-                observed_hs6=donor.hs6,
-                temperature_celsius=float(temperature),
-                ventilation_cbm_per_hour=_ventilation_rate(donor.goods),
-            ).model_dump(mode="json")
         return {"goodsItemDetails": [goods], "containerInformation": containers}, {
             "donorDocumentId": donor.document_id,
             "physicalProfile": cap.physical_profile,
@@ -1151,7 +1246,10 @@ class ScenarioCatalog:
             ),
             "donorHS6": list(donor.hs6),
             "loadScale": str(scale),
-            "ventilationCbmPerHour": _ventilation_rate(donor.goods),
+            "goodsSamplingBasis": "registry_identity_conditioned_on_package_equipment_support",
+            "ventilationCbmPerHour": thermal_context["ventilationCbmPerHour"]
+            if thermal_context
+            else None,
             **({"thermalCommodityContext": thermal_context} if thermal_context is not None else {}),
             "quantityMultiple": multiple,
             "physicalRows": physical_rows,
@@ -1232,7 +1330,7 @@ class ScenarioCatalog:
                 replacements=replacements,
                 cargo=cargo,
                 provenance={
-                    "method": "current_train_joint_cargo_registry_hs_geography_v1",
+                    "method": "registry_goods_train_physical_support_geography_v2",
                     "fitSha256": self.fit_sha256,
                     "registryConfigSha256": self.registry_sha256,
                     "sourceTargetSha256": sha256_bytes(canonical_json_bytes(source_row["target"])),

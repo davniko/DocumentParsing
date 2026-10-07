@@ -296,15 +296,11 @@ def test_ventilation_slots_require_joint_observed_cold_chain_bundle():
     assert all(r.provenance["ventilationCbmPerHour"] == "10" for r in results)
     for result in results:
         evidence = result.provenance["thermalCommodityContext"]
-        assert evidence["observed_description"] == "FRESH GARLIC"
-        assert evidence["observed_hs6"] == ["070320"]
-        assert evidence["temperature_celsius"] == -3.0
-        assert evidence["ventilation_cbm_per_hour"] == "10"
-        assert evidence["donor_document_id"] == "source"
-        assert len(evidence["donor_target_sha256"]) == 64
-        assert evidence["preservation_scope"] == (
-            "commodity identity, physical form and processing state"
-        )
+        assert evidence["basis"] == "observed_produce_extension"
+        assert evidence["observedDescription"] == "FRESH GARLIC"
+        assert evidence["sampledHS6"] == ["070320"]
+        assert evidence["temperatureCelsius"] == -3.0
+        assert evidence["ventilationCbmPerHour"] == "10"
 
 
 def test_enumerated_vehicle_profile_does_not_turn_spare_part_packages_into_unit_mass():
@@ -429,7 +425,7 @@ def test_explicit_capability_restrictions_are_not_silently_widened():
         )
 
 
-def test_frozen_registry_identity_keeps_observed_temperature_and_reefer_pair():
+def test_frozen_registry_identity_samples_profile_temperature_and_reefer_pair():
     source = source_row(code="020622")
     patch = source["target"]["documentPatch"]
     patch["goodsItemDetails"][0]["description"] = "FROZEN BOVINE LIVERS"
@@ -451,13 +447,69 @@ def test_frozen_registry_identity_keeps_observed_temperature_and_reefer_pair():
         )
         assert result.goods_identities[0].hs6 == "020621"
         evidence = result.provenance["thermalCommodityContext"]
-        assert evidence["observed_description"] == "FROZEN BOVINE LIVERS"
-        assert evidence["temperature_celsius"] == -22.0
-        assert evidence["ventilation_cbm_per_hour"] is None
+        assert evidence["basis"] == "hs_registry_food_profile"
+        assert evidence["sampledHS6"] == ["020621"]
+        assert -24 <= evidence["temperatureCelsius"] <= -18
+        assert evidence["ventilationCbmPerHour"] == "0"
+        assert "observedDescription" not in evidence
         assert all(
-            c["typeCategory"] == "REFRIGERATED" and c["temperatureSetpoint"]["value"] == -22
+            c["typeCategory"] == "REFRIGERATED"
+            and c["temperatureSetpoint"]["value"] == evidence["temperatureCelsius"]
             for c in result.cargo["containerInformation"]
         )
+
+
+def test_registry_sampling_expands_beyond_observed_codes_with_joint_loads_and_cold_chain():
+    source = source_row(code="020622")
+    patch = source["target"]["documentPatch"]
+    patch["goodsItemDetails"][0]["numberAndTypeOfPackages"][0]["typeCategory"] = "PACKAGE_CARTON"
+    for container in patch["containerInformation"]:
+        container.update(
+            typeCategory="REFRIGERATED", temperatureSetpoint={"value": -22, "unit": "celsius"}
+        )
+    support = catalog(
+        [source],
+        phrases={
+            "020622": "Frozen bovine livers",
+            "030331": "Frozen halibut",
+            "071040": "Frozen sweetcorn",
+            "020130": "Fresh or chilled boneless beef",
+            "200599": "Prepared vegetables, not frozen",
+        },
+    )
+    results = [
+        support.sample(source, seed=8, variant=i, capabilities=SourceCapabilities(family="frozen"))
+        for i in range(1, 41)
+    ]
+    assert {i.hs6 for r in results for i in r.goods_identities} == {"030331", "071040"}
+    assert len({r.provenance["thermalCommodityContext"]["temperatureCelsius"] for r in results}) > 5
+    chilled = support.sample(
+        source, seed=8, variant=1, capabilities=SourceCapabilities(family="chilled")
+    )
+    assert chilled.goods_identities[0].hs6 == "020130"
+    assert all(
+        c["temperatureSetpoint"]["value"] == 0 for c in chilled.cargo["containerInformation"]
+    )
+    assert chilled.provenance["ventilationCbmPerHour"] == "0"
+    # Explicit template domains remain hard constraints, never widened on failure.
+    with pytest.raises(ValueError, match="no physically compatible scenario"):
+        support.sample(
+            source,
+            seed=8,
+            variant=1,
+            capabilities=SourceCapabilities(family="frozen", allowed_hs_codes=("200599",)),
+        )
+
+
+def test_thermal_policy_rejects_invalid_lattices_and_obsolete_donor_only_switch():
+    from document_ocr.synthesis.curated_goods import RegistryThermalPolicy, TemperatureDomain
+
+    with pytest.raises(ValueError, match="lattice"):
+        TemperatureDomain(minimum=-24, maximum=-18, step="0.7")
+    with pytest.raises(ValueError, match="envelope"):
+        RegistryThermalPolicy(frozen={"minimum": -5, "maximum": 0, "step": 1})
+    with pytest.raises(ValueError, match="Extra inputs"):
+        SourceCapabilities(family="ambient", explore_within_heading=False)
 
 
 def test_quantity_allocation_does_not_inherit_coprime_source_count_lattice():
@@ -493,7 +545,7 @@ def test_reviewed_hs_observation_override_is_pinned_and_does_not_relabel_source(
         source,
         seed=1,
         variant=1,
-        capabilities=SourceCapabilities(family="ambient", explore_within_heading=False),
+        capabilities=SourceCapabilities(family="ambient", allowed_hs_codes=("520511",)),
     )
     assert result.goods_identities[0].hs6 == "520511"
     assert result.provenance["observedHSOverride"]["to_hs6"] == ["520511"]
@@ -525,14 +577,19 @@ def test_exact_hazard_identity_gate_includes_conditional_names_not_whole_hs_head
     assert index["phthalic anhydride"]["unNumbers"] == ["2214"]
     assert "other carboxylic anhydrides" not in index
     source = source_row(code="291735")
-    support = catalog([source], phrases={"291735": "PHTHALIC ANHYDRIDE"}, maximum_candidates=2)
+    support = catalog(
+        [source],
+        phrases={"291735": "PHTHALIC ANHYDRIDE"},
+        maximum_candidates=2,
+        ambient_hs_chapters=("29",),
+    )
     support.hazard_identities = index
     with pytest.raises(ValueError, match="grade-conditional chemical"):
         support.sample(
             source,
             seed=1,
             variant=1,
-            capabilities=SourceCapabilities(family="ambient", explore_within_heading=False),
+            capabilities=SourceCapabilities(family="ambient"),
         )
 
 
@@ -636,7 +693,6 @@ def test_reviewed_whole_vehicle_donor_transfers_joint_profile_and_rejects_drift(
         "allowed_hs_headings": ["8703"],
         "allowed_hs_codes": ["870323"],
         "fixed_package_quantity": 1,
-        "explore_within_heading": False,
         "physical_profile": "reviewed_whole_units",
         "reviewed_whole_unit_donors": {"whole_car": pin},
     }
@@ -660,8 +716,8 @@ def test_reviewed_whole_vehicle_donor_transfers_joint_profile_and_rejects_drift(
         changed = {**policy, "reviewed_whole_unit_donors": {"whole_car": {**pin, key: value}}}
         with pytest.raises(ValueError, match="pinned training evidence"):
             support.sample(source, seed=42, variant=1, capabilities=SourceCapabilities(**changed))
-    with pytest.raises(ValueError, match="exact-HS"):
-        SourceCapabilities(**{**policy, "explore_within_heading": True})
+    with pytest.raises(ValueError, match="pinned HS domains"):
+        SourceCapabilities(**{**policy, "allowed_hs_codes": []})
     support.phrases["870323"] = "Hybrid electric passenger car with petrol engine"
     with pytest.raises(ValueError, match="no physically compatible scenario"):
         support.sample(source, seed=42, variant=1, capabilities=SourceCapabilities(**policy))

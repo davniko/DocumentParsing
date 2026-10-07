@@ -406,7 +406,7 @@ def test_prepared_rewrite_contract_is_time_independent() -> None:
 def _target_integrity_resources() -> TargetIntegrityResources:
     return TargetIntegrityResources(
         countries=load_iso_country_registry(
-            iso_path=Path("data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json"),
+            iso_path=Path("artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json"),
             iso_sha256="f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00",
         ),
         packages=load_package_registry(
@@ -1599,7 +1599,7 @@ def test_customs_program_requirement_is_not_emitted_for_its_own_jurisdiction() -
 def test_v3_customs_registry_compiles_ecuador_export_programs_and_generic_replay() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v3.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v3.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1642,7 +1642,7 @@ def test_v3_customs_registry_compiles_ecuador_export_programs_and_generic_replay
 def test_v4_customs_registry_covers_acid_orthography_without_matching_cargo_acids() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v4.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v4.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1680,7 +1680,7 @@ def test_v4_customs_registry_covers_acid_orthography_without_matching_cargo_acid
 def test_v5_customs_registry_generalizes_only_country_incoherent_party_captions() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v5.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1726,7 +1726,7 @@ def test_v5_customs_registry_generalizes_only_country_incoherent_party_captions(
 def test_v5_customs_party_caption_stays_specific_without_changed_country_evidence() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v5.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1753,7 +1753,7 @@ def test_v5_customs_party_caption_stays_specific_without_changed_country_evidenc
 def test_v5_customs_party_caption_uses_route_change_when_party_country_is_absent() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v5.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1783,7 +1783,7 @@ def test_v5_customs_party_caption_uses_route_change_when_party_country_is_absent
 def test_v5_customs_party_caption_tracks_a_multiline_occurrence_span() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v5.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1821,7 +1821,7 @@ def test_v5_customs_party_caption_tracks_a_multiline_occurrence_span() -> None:
 def test_v5_customs_party_caption_omits_blank_lines_from_multiline_ownership() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v5.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1858,7 +1858,7 @@ def test_v5_customs_party_caption_omits_blank_lines_from_multiline_ownership() -
 def test_v5_customs_party_caption_does_not_match_across_a_page_marker() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v5.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v5.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1887,7 +1887,7 @@ def test_v5_customs_party_caption_does_not_match_across_a_page_marker() -> None:
 def test_v6_party_registry_binds_rcs_to_the_changed_carrier_and_explicit_grammar() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v6.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v6.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -1967,7 +1967,7 @@ def test_v6_party_registry_binds_rcs_to_the_changed_carrier_and_explicit_grammar
 def test_v6_party_registry_stays_inactive_for_same_country_or_unbound_prose() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v6.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v6.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -2042,7 +2042,7 @@ def test_v6_party_registry_stays_inactive_for_same_country_or_unbound_prose() ->
 def test_v6_customs_registry_compiles_egyptian_importer_tax_number_caption() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v6.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v6.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(
@@ -2074,7 +2074,7 @@ def test_v6_customs_registry_compiles_egyptian_importer_tax_number_caption() -> 
 def test_v7_customs_registry_allows_only_the_explicit_consignee_role_prefix() -> None:
     baseline = _target_integrity_resources()
     registry = _load_customs_program_registry(
-        Path("data/registries/customs-programs/document-customs-surfaces-v7.json"),
+        Path("artifacts/registries/sources/customs-programs/document-customs-surfaces-v7.json"),
         expected_entries=5,
     )
     resources = TargetIntegrityResources(

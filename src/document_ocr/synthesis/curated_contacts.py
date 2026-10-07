@@ -54,7 +54,11 @@ def contact_parties(source: dict, target: dict, sample_id: str) -> list[ContactP
         name = after.get(role + ".name")
         if not name:
             raise ValueError(f"contact generation requires a company name: {role}")
-        identity = (name, after.get(role + ".country", ""))
+        # Contact generation follows company identity, not the configurable
+        # casing of its label/presentation. Keep repeats and request hashes
+        # stable when only capitalization changes; endpoints themselves remain
+        # case-preserved.
+        identity = (name.upper(), after.get(role + ".country", "").upper())
         groups.setdefault(identity, {}).setdefault((kind, original), []).append(path)
     return [
         ContactParty(

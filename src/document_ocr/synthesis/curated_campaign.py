@@ -30,6 +30,7 @@ from document_ocr.synthesis.curated_auxiliary import (
     auxiliary_surfaces,
     load_auxiliary_contract,
 )
+from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
 from document_ocr.synthesis.curated_contacts import (
     CONTACT_PROMPT,
     apply_contacts,
@@ -61,12 +62,12 @@ from document_ocr.synthesis.curated_templates import (
     wrap_owned_text,
 )
 from document_ocr.synthesis.curated_wording import (
-    RENDERED_REVIEW_PROMPT,
     WORDING_PROMPT,
     WordingBatch,
     WordingField,
     WordingRequest,
     native_wording_prompt,
+    rendered_review_prompt,
     review_output_type,
     unpack_review,
     unpack_wording,
@@ -198,32 +199,54 @@ def contact_wording_fields(
 def host_product_wording(
     blueprint: SamplingBlueprint, scenario: ShipmentScenario
 ) -> dict[str, str]:
-    """Whole-unit loads license a category, not invented models or body styles.
+    """Regulated chemicals and whole-unit loads require exact product identities.
 
-    Use the registry's commercial phrase for these tightly coupled profiles.
+    Chemical variants can change the required UN tuple (e.g. solid vs solution).
+    Use the selected registry phrase for these tightly coupled profiles.
     The remaining names and addresses still use the lexical generation path.
     """
-    if scenario.provenance.get("physicalProfile") not in {
+    chemical = scenario.provenance.get("capabilities", {}).get("family") == "dg_chemical"
+    if not chemical and scenario.provenance.get("physicalProfile") not in {
         "source_whole_units",
         "reviewed_whole_units",
     }:
         return {}
     keys = [v.key for v in blueprint.contract.variables if v.kind == "product"]
     if len(keys) != 1 or len(scenario.goods_identities) != 1:
-        raise ValueError("whole-unit product wording requires one certified commodity region")
+        raise ValueError("exact product wording requires one certified commodity region")
     return {keys[0]: scenario.goods_identities[0].phrase.upper()}
 
 
 def wording_request(
-    blueprint: SamplingBlueprint, scenario: ShipmentScenario, sample_id: str
+    blueprint: SamplingBlueprint,
+    scenario: ShipmentScenario,
+    sample_id: str,
+    *,
+    goods_only: bool = False,
 ) -> WordingRequest:
     bindings = blueprint.contract.targets
     identities = list(scenario.goods_identities)
-    product_keys = [v.key for v in blueprint.contract.variables if v.kind == "product"]
+    product_keys = {v.key for v in blueprint.contract.variables if v.kind == "product"}
+    product_groups = [
+        binding
+        for binding in bindings
+        if binding.path.endswith(".description")
+        and product_keys.intersection(re.findall(r"\{([a-z][a-z0-9_]*)\}", binding.expression))
+    ]
+    covered = {
+        key
+        for binding in product_groups
+        for key in re.findall(r"\{([a-z][a-z0-9_]*)\}", binding.expression)
+        if key in product_keys
+    }
+    if covered != product_keys:
+        raise ValueError("product regions require explicit description target ownership")
     host_products = host_product_wording(blueprint, scenario)
     fields = []
     for variable in blueprint.contract.variables:
         if variable.kind not in {"name", "postal", "product"}:
+            continue
+        if goods_only and variable.kind != "product":
             continue
         if variable.key in host_products:
             continue
@@ -250,55 +273,66 @@ def wording_request(
                 requirement += " A new fictional identity, not a renamed version of the example."
             role = ", ".join(roles) + " " + variable.kind
         elif variable.kind == "product":
-            if len(product_keys) == 1:
-                selected = identities
-            elif len(product_keys) == len(identities):
-                selected = [identities[product_keys.index(variable.key)]]
-            else:
-                raise ValueError("product fragments need a complete commodity ownership contract")
-            requirement = "A specific commercial product within each category: " + "; ".join(
-                f"HS {i.hs6}: {i.phrase}" for i in selected
-            )
-            requirement += (
-                ". Choose concrete product wording within the category's constraints, "
-                "rather than copying tariff alternatives as a list. "
-                "Retain every distinguishing qualifier. Use unbranded generic products; "
-                "specific manufacturer/model names and unsupplied technical specifications "
-                "are outside this request. "
-                "Exclude shipment counts, packaging, weight/volume totals "
-                "and tariff-code captions; "
-                "those are rendered separately."
+            requirement = (
+                "Write this portion of the jointly generated commercial description. "
+                "The complete source shows descriptive depth, list presentation and qualifiers, "
+                "not identities to copy. Use natural item boundaries and fictional product "
+                "variants, models or serials where appropriate. Product dimensions and capacities "
+                "may describe the goods. Shipment packing, package capacities, totals, transport "
+                "settings and HS/customs captions belong to the host-rendered facts, not this "
+                "product wording. Return final commercial text, without editing commentary."
             )
             role = "goods description"
         else:
             raise ValueError(f"lexical region has no current owner: {variable.key}")
         fields.append(WordingField(variable.key, role, variable.occurrences[0].text, requirement))
-    fields.extend(field for field, _ in contact_wording_fields(blueprint, scenario).values())
+    if not goods_only:
+        fields.extend(field for field, _ in contact_wording_fields(blueprint, scenario).values())
     context = (
         f"Loading: {scenario.origin.name}, {scenario.origin.country}. "
         f"Discharge: {scenario.destination.name}, {scenario.destination.country}.\n"
         "Goods: " + "; ".join(i.phrase for i in identities)
     )
+    context += "\nSAMPLED COMMODITY BRIEF\n" + "\n".join(identity.phrase for identity in identities)
     context += (
-        "\nREGISTRY CLASSIFICATION\n"
-        + yaml.safe_dump(
-            [identity.model_dump(mode="json") for identity in identities],
-            sort_keys=False,
-            allow_unicode=True,
-        )
-        + "The selected HS6 and its description path define each product. "
-        "Same-heading alternatives are different classifications, not product choices. "
-        "National child descriptions give permitted narrower examples within the selected HS6."
+        "\nGenerate a plausible commercial assortment around this brief. Exact HS-to-product "
+        "classification is not the wording objective. Description regions are portions of "
+        "one accounting goods group, not separate goods or one region per HS code. "
+        "Generate them together. Repeated uses of a region share the same value."
+    )
+    for binding in product_groups:
+        context += f"\nDESCRIPTION ASSEMBLY {binding.path}: {binding.expression}"
+    physical = {
+        "goods": [
+            {
+                k: v
+                for k, v in item.items()
+                if k
+                not in {"description", "hsCodes", "splitGoodsPlacement", "handlingInstructions"}
+            }
+            for item in scenario.cargo.get("goodsItemDetails", [])
+        ],
+        "equipment": [
+            {k: v for k, v in item.items() if k not in {"equipmentIdentifier", "sealNumbers"}}
+            for item in scenario.cargo.get("containerInformation", [])
+        ],
+    }
+    context += (
+        "\nHOST-RENDERED PHYSICAL FACTS (compatibility context, not wording to repeat)\n"
+        + yaml.safe_dump(physical, sort_keys=False, allow_unicode=True)
     )
     if thermal := scenario.provenance.get("thermalCommodityContext"):
         context += (
-            "\nEMPIRICAL COLD-CHAIN BUNDLE\n"
+            "\nSAMPLED COLD-CHAIN COMMODITY AND SETTINGS\n"
             + yaml.safe_dump(thermal, sort_keys=False, allow_unicode=True)
-            + "Preserve this observed commodity's physical form and processing state. "
-            "Reword its identity without introducing preparation or processing claims "
-            "that are absent from the observed description."
+            + "Describe the sampled commodity in its stated chilled/frozen/fresh form. "
+            "The source description illustrates presentation, not the product to preserve. "
+            "Where an observed produce extension supplies a description, retain that "
+            "commodity's form. Temperature and ventilation are rendered separately."
         )
     for binding in bindings:
+        if goods_only:
+            break
         if not binding.path.endswith(".addressLine"):
             continue
         role = party_path(binding.path)
@@ -316,7 +350,15 @@ def wording_request(
             f"Locality {geo.name} appears once across these regions. {country_rule} "
             "Braced keys are generated regions; literal text is supplied by the host."
         )
-    return WordingRequest(sample_id, context, tuple(fields))
+    groups = tuple(
+        tuple(
+            key
+            for key in re.findall(r"\{([a-z][a-z0-9_]*)\}", b.expression)
+            if key in product_keys and key not in host_products
+        )
+        for b in product_groups
+    )
+    return WordingRequest(sample_id, context, tuple(fields), groups)
 
 
 def host_variable_values(
@@ -364,6 +406,9 @@ def assemble_lexical_target(
     wording: dict[str, str],
     scenario: ShipmentScenario,
     host_values: dict[str, str] | None = None,
+    *,
+    target_casing: TargetCasing = "uppercase",
+    goods_only: bool = False,
 ) -> dict:
     result = deepcopy(target)
     values = {v.key: v.value for v in blueprint.contract.variables}
@@ -378,10 +423,16 @@ def assemble_lexical_target(
         expression = lexical_expression(blueprint, binding, scenario)
         text = interpolate(expression, values)
         assign(result, binding.path, " ".join(text.split()))
-    for key, (_, paths) in contact_wording_fields(blueprint, scenario).items():
+    for key, (_, paths) in (
+        {} if goods_only else contact_wording_fields(blueprint, scenario)
+    ).items():
         for path in paths:
             assign(result, path, " ".join(wording[key].split()))
-    return normalize_target_casing(result)[0]
+    if target_casing == "uppercase":
+        return normalize_target_casing(result)[0]
+    if target_casing != "preserve":
+        raise ValueError(f"unknown target casing: {target_casing}")
+    return result
 
 
 def combine_surfaces(*groups: dict[str, str | list[str]]) -> dict[str, str | list[str]]:
@@ -444,9 +495,15 @@ def remaining_text_surfaces(blueprint: SamplingBlueprint, target: dict, supplied
 
 
 def validate_sample(
-    blueprint: SamplingBlueprint, scenario: ShipmentScenario, candidate: dict, task
+    blueprint: SamplingBlueprint,
+    scenario: ShipmentScenario,
+    candidate: dict,
+    task,
+    *,
+    casing_policy: CasingPolicy | None = None,
 ) -> dict:
     """Recompute every output; then check sampled facts and accounting invariants."""
+    casing_policy = casing_policy or CasingPolicy()
     country_codes = {
         role + ".country": geo.country_code
         for role, geo in scenario.party_localities.items()
@@ -460,6 +517,7 @@ def validate_sample(
         candidate["renderValues"],
         surface_values=candidate["surfaceValues"],
         certified_country_codes=country_codes,
+        render_casing=casing_policy.select(candidate["seed"], candidate["documentId"]),
     )
     if (candidate["joinedRawText"], candidate["proof"]) != (text, proof):
         raise ValueError("candidate differs from independent source/edit replay")
@@ -467,6 +525,8 @@ def validate_sample(
         raise ValueError("candidate OCR hash differs")
     if task.canonicalize(target) != target:
         raise ValueError("candidate is not canonical under the current reduced training contract")
+    if casing_policy.target == "uppercase" and normalize_target_casing(target)[1]:
+        raise ValueError("candidate target differs from configured uppercase policy")
     patch = target["documentPatch"]
     source = blueprint.target["documentPatch"]
     if patch.get("route") == source.get("route"):
@@ -518,7 +578,7 @@ def validate_sample(
             if signature in repeated and repeated[signature] != current:
                 raise ValueError(f"repeated source party diverged: {role}")
             repeated[signature] = current
-        if "country" in new and new["country"] != location.country:
+        if "country" in new and new["country"].upper() != location.country.upper():
             raise ValueError(f"party country differs from sampled geography: {role}")
         if "addressLine" in new and re.search(r"(?<!\d)0{5,6}(?!\d)", new["addressLine"]):
             raise ValueError(f"generated placeholder postcode: {role}")
@@ -547,6 +607,7 @@ def validate_sample(
 class Campaign:
     def __init__(self, root: Path, config: dict):
         self.root, self.config = root, config
+        self.casing = CasingPolicy.model_validate(config.get("casing", {}))
         base = {key: config[key] for key in CuratedSynthesisConfig.model_fields}
         self.calls = Runner(root, base)
         self.output = self.calls.output
@@ -650,6 +711,7 @@ class Campaign:
             wording_request(bp, scenario, sample_id) for bp, scenario, sample_id, _ in plans
         ]
         wording, pending = {}, []
+        repair_error = None
         for request in requests:
             path = self.output / "wording" / f"{request.sample_id}.json"
             if path.exists():
@@ -678,7 +740,47 @@ class Campaign:
                 WORDING_PROMPT,
                 native_wording_prompt(pending),
             )
-            wording.update(unpack_wording(output, pending))
+            try:
+                accepted = unpack_wording(output, pending)
+            except ValueError as error:
+                # One bounded, recorded correction; never publish invalid wording
+                # or silently retry forever. Both billed outputs remain cached.
+                repair_error = str(error)
+                repaired = await self.calls.call(
+                    "wording-validation-repair",
+                    sid,
+                    wording_output_type(pending),
+                    WORDING_PROMPT,
+                    native_wording_prompt(pending)
+                    + "\nVALIDATION FAILURE\n"
+                    + repair_error
+                    + "\nPREVIOUS PROPOSAL\n"
+                    + yaml.safe_dump(output.model_dump(), sort_keys=False, allow_unicode=True)
+                    + "\nCorrect the failing wording. Keep other accepted fields unchanged. "
+                    "Return the complete requested fields. Shipment accounting and transport "
+                    "facts belong to host-rendered regions, not the product description.",
+                )
+                accepted = unpack_wording(repaired, pending)
+            wording.update(accepted)
+        # Reused and newly generated fragments share the same batch-diversity
+        # checks; validating cached shipments one at a time would miss copies.
+        validate_wording(
+            WordingBatch.model_validate(
+                {
+                    "shipments": [
+                        {
+                            "sample_id": request.sample_id,
+                            "values": [
+                                {"key": key, "text": text}
+                                for key, text in wording[request.sample_id].items()
+                            ],
+                        }
+                        for request in requests
+                    ]
+                }
+            ),
+            requests,
+        )
         for blueprint, scenario, sample_id, target in plans:
             path = self.output / "wording" / f"{sample_id}.json"
             request_hash = wording_request_hash(
@@ -697,10 +799,16 @@ class Campaign:
                     "targetBeforeWording": target,
                     "values": wording[sample_id],
                     "blueprint": blueprint.inventory(),
+                    **({"wordingValidationRepair": repair_error} if repair_error else {}),
                 },
             )
         contacts = await self.generate_contacts(sid)
-        return {"sourceDocumentId": sid, "generated": len(plans), "contacts": contacts}
+        return {
+            "sourceDocumentId": sid,
+            "generated": len(plans),
+            "contacts": contacts,
+            "wordingValidationRepair": repair_error,
+        }
 
     def contact_requests(self, sid: str) -> list:
         parties = []
@@ -882,7 +990,8 @@ class Campaign:
                 )
                 + "\n\n"
                 + "\n\n".join(
-                    f"REGION {field.key} ({field.role})\nINVALID OLD VALUE:\n{field.example}"
+                    f"REGION {field.key} ({field.role})\n{field.requirement}\n"
+                    f"INVALID OLD VALUE:\n{field.example}"
                     for field in request.fields
                 )
                 for index, request in enumerate(requests)
@@ -978,7 +1087,14 @@ class Campaign:
             host_variable_values(blueprint, physical.target, stream),
             physical.variable_values,
         )
-        target = assemble_lexical_target(blueprint, physical.target, wording, scenario, host_values)
+        target = assemble_lexical_target(
+            blueprint,
+            physical.target,
+            wording,
+            scenario,
+            host_values,
+            target_casing=self.casing.target,
+        )
         parties = contact_parties(blueprint.target, target, sample_id)
         contact_receipt = None
         if parties:
@@ -1021,6 +1137,7 @@ class Campaign:
             values,
             surface_values=surfaces,
             certified_country_codes=country_codes,
+            render_casing=self.casing.select(self.config["seed"], sample_id),
         )
         candidate = {
             "documentId": sample_id,
@@ -1041,7 +1158,9 @@ class Campaign:
             "wordingReceiptSha256": digest(receipt),
             "blueprint": blueprint.inventory(),
         }
-        candidate["validation"] = validate_sample(blueprint, scenario, candidate, self.calls.task)
+        candidate["validation"] = validate_sample(
+            blueprint, scenario, candidate, self.calls.task, casing_policy=self.casing
+        )
         if contact_receipt is not None:
             candidate["contactReceiptSha256"] = digest(contact_receipt)
         if persist:
@@ -1072,10 +1191,10 @@ class Campaign:
                     f"({location['country_code']})"
                     for role, location in facts["party_localities"].items()
                 )
-                + "\nREGISTRY COMMODITIES\n"
-                + yaml.safe_dump(facts["goods_identities"], sort_keys=False, allow_unicode=True)
+                + "\nSAMPLED COMMODITY BRIEF\n"
+                + "\n".join(f"{g['hs6']}: {g['phrase']}" for g in facts["goods_identities"])
                 + (
-                    "\nEMPIRICAL COLD-CHAIN BUNDLE (preserve observed form/processing)\n"
+                    "\nSAMPLED COLD-CHAIN IDENTITY, PRODUCT FORM AND SETTINGS\n"
                     + yaml.safe_dump(
                         facts["provenance"]["thermalCommodityContext"],
                         sort_keys=False,
@@ -1093,7 +1212,7 @@ class Campaign:
             "rendered-review",
             sid,
             review_output_type(len(candidates)),
-            RENDERED_REVIEW_PROMPT,
+            rendered_review_prompt(self.casing.target),
             "\n\n---\n\n".join(blocks),
         )
         output = unpack_review(output, [c["documentId"] for c in candidates])
@@ -1104,7 +1223,7 @@ class Campaign:
             raise ValueError("rendered review cites an unrequested candidate")
         receipt = {
             "sourceDocumentId": sid,
-            "reviewContractSha256": review_contract_hash(len(candidates)),
+            "reviewContractSha256": review_contract_hash(len(candidates), self.casing.target),
             "candidateHashes": {c["documentId"]: digest(c) for c in candidates},
             "review": output.model_dump(mode="json"),
         }

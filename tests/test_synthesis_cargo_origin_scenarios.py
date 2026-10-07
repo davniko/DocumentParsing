@@ -219,7 +219,7 @@ def test_pinned_1157_corpus_probe_has_expected_restricted_contract_stats() -> No
         source_targets[row["documentId"]] = row["target"]
     assert len(source_targets) == 1157
     registry = load_iso_country_registry(
-        iso_path=root / "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+        iso_path=root / "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
         iso_sha256="f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00",
     )
     support = build_cargo_origin_support(

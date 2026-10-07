@@ -25,7 +25,7 @@ package_registry:
   sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
 
 container_registry:
-  path: data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+  path: artifacts/registries/sources/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
   sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
 
 output_dir: artifacts/kie-training/datasets/mpci-bl-relation-v5-real1157-synthetic20000-constraints-v1

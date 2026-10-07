@@ -10,7 +10,7 @@
   "publicationStatus": "complete",
   "registries": {
     "container": {
-      "path": "data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json",
+      "path": "artifacts/registries/sources/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json",
       "sha256": "aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb"
     },
     "package": {

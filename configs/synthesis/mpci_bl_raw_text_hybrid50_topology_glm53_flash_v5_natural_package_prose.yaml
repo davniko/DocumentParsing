@@ -97,14 +97,14 @@ providers:
 target_integrity:
   capacity_reprojection_method: preserve_sampled_capacity_utilization_v1
   iso3166_snapshot:
-    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
     sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
   route_locations:
-    path: artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
     sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
   route_location_records: 111561
   customs_program_registry:
-    path: data/registries/customs-programs/document-customs-surfaces-v2.json
+    path: artifacts/registries/sources/customs-programs/document-customs-surfaces-v2.json
     sha256: 0c2b9a8a66d1aab3c1cbbc2e448590cbcfe521ae455d4ea5abebba86c20197b1
   customs_program_registry_entries: 3
   package_registry:

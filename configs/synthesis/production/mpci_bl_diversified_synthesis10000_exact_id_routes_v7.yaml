@@ -43,38 +43,38 @@
   "maximum_candidates_per_sample": 256,
   "seed": 20260920,
   "iso3166_snapshot": {
-    "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+    "path": "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
     "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
   },
   "route_locations": {
-    "path": "artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl",
+    "path": "artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl",
     "sha256": "c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278",
     "records": 111561
   },
   "route_registry_manifest": {
-    "path": "artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/registry-receipt.json",
+    "path": "artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/registry-receipt.json",
     "sha256": "210b6675e38a150cf44d3710af3ceffa688836ece14cef1dd47775286c755dce"
   },
   "world_ports": {
-    "path": "artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl",
+    "path": "artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl",
     "sha256": "b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb",
     "records": 3032
   },
   "world_port_registry_manifest": {
-    "path": "artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/registry-receipt.json",
+    "path": "artifacts/registries/compiled/nga-world-port-index-current-v1/registry-receipt.json",
     "sha256": "4bfe37499b6bae3fee2125fc718f81aa9fff2d929a224f17fc310883bd805453"
   },
   "locality_registry": {
-    "path": "artifacts/kie-synthesis/registries/geonames-cities15000-current-v1",
+    "path": "artifacts/registries/compiled/geonames-cities15000-current-v1",
     "manifest_sha256": "bfac2357b10b5170e4461452f2c749db226f713feb6a781fd68de82f14f4dfe9"
   },
   "trade_flows": {
-    "path": "artifacts/kie-synthesis/registries/wits-latest-bilateral-numeric-v2/trade-flows.jsonl",
+    "path": "artifacts/registries/compiled/wits-latest-bilateral-numeric-v2/trade-flows.jsonl",
     "sha256": "6323aa30c3ede23c1c97716de4a9e6f8eeab775439c4351899718d3ae90fecfc",
     "records": 11645
   },
   "trade_flow_registry_manifest": {
-    "path": "artifacts/kie-synthesis/registries/wits-latest-bilateral-numeric-v2/registry-receipt.json",
+    "path": "artifacts/registries/compiled/wits-latest-bilateral-numeric-v2/registry-receipt.json",
     "sha256": "2c7fde63c54c356d3a6e2c53152ae197041f67448df9dc4bd787d9f5e3f5e0ec"
   }
 }

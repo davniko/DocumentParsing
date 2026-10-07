@@ -164,6 +164,30 @@ def test_length_only_receipts_do_not_invent_a_dry_type(surface):
         render(surface, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")], old)
 
 
+@pytest.mark.parametrize("length,size", [("20", "TWENTY"), ("40", "FORTY")])
+def test_bare_length_default_and_nondefault_resampling_round_trip(length, size):
+    from document_ocr.synthesis.container_semantics import review_source_equipment_surface
+    from document_ocr.synthesis.template_compiler.descendant import _receipt_equipment_surface
+
+    source = length + "'"
+    observed = review_source_equipment_surface(source, temperature_present=False)
+    assert (observed.size_category, observed.type_category) == (
+        size + "_FOOT_STANDARD_HEIGHT",
+        "GENERAL_PURPOSE",
+    )
+    for target in (
+        equipment(size + "_FOOT_STANDARD_HEIGHT"),
+        equipment("FORTY_FOOT_HIGH_CUBE"),
+        equipment("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED"),
+    ):
+        rendered = _receipt_equipment_surface(target, source)
+        recovered = review_source_equipment_surface(rendered, temperature_present=False)
+        assert recovered.size_category == target["sizeCategory"]
+        assert recovered.type_category == target["typeCategory"]
+        if target["sizeCategory"] == size + "_FOOT_STANDARD_HEIGHT":
+            assert rendered == source
+
+
 def test_high_cube_only_receipt_checks_height_without_inventing_length_or_type():
     old = [equipment("FORTY_FOOT_HIGH_CUBE", "REFRIGERATED")]
     assert render("HI-CUBE", old, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")]) == "STANDARD HEIGHT"

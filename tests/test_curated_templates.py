@@ -158,6 +158,43 @@ def test_rebase_identity_and_full_scalar_sampling_preserve_unrelated_bytes():
     assert row["target"] != new
 
 
+@pytest.mark.parametrize("style", ["preserve", "uppercase", "title"])
+def test_casing_is_owned_presentation_not_a_label_or_technical_text_edit(style):
+    from document_ocr.synthesis.curated_casing import CasingPolicy, case_owned_text
+
+    row, contract, old = source_fixture()
+    blueprint = compile_sampling_blueprint(row, old, contract)
+    text, target, proof = render_sampling_blueprint(
+        blueprint, row["target"], {}, render_casing=style
+    )
+    assert target == row["target"]
+    assert "GOODS: STEEL BOLTS\n24 BOXES\nHS: 731815" in text
+    assert "ÉDITÉ\nSHIPPER\n" in text and "TAX: 12345" in text
+    if style == "title":
+        assert "Acme Ltd\n12 Road\nMumbai, India" in text
+        assert "PORT: Mumbai\nCOUNTRY: India" in text
+    raw = row["joinedRawText"].encode()
+    for edit in reversed(proof["edits"]):
+        assert edit["after"].upper() == edit["before"].upper()
+        raw = raw[: edit["byteStart"]] + edit["after"].encode() + raw[edit["byteEnd"] :]
+    assert raw.decode() == text
+    protected = "AB12Cd µA 5mL Contact@Example.com https://Example.com/Path"
+    for path in (
+        "documentPatch.goodsItemDetails[0].description",
+        "documentPatch.parties.shipper.contactDetails.emailAddresses[0]",
+        "documentPatch.containerInformation[0].equipmentIdentifier",
+    ):
+        assert case_owned_text(protected, (path,), style) == protected
+    postal = "ROAD AB12Cd Contact@Example.com https://Example.com/Path"
+    assert case_owned_text(postal, ("documentPatch.parties.shipper.addressLine",), "title") == (
+        "Road AB12Cd Contact@Example.com https://Example.com/Path"
+    )
+    policy = CasingPolicy(render_styles=("uppercase", "title"))
+    first = {str(i): policy.select(7, str(i)) for i in range(64)}
+    assert first == {str(i): policy.select(7, str(i)) for i in reversed(range(64))}
+    assert set(first.values()) == {"uppercase", "title"}
+
+
 def test_changed_package_requires_printed_type_not_declared_or_product_overlap_only():
     row, contract, old = source_fixture()
     target = deepcopy(row["target"])
@@ -439,6 +476,11 @@ def test_wrapping_keeps_punctuation_with_text_without_dropping_tokens(value):
     assert all(not line.startswith((",", ";", ":")) for line in text.splitlines())
     with pytest.raises(ValueError, match="detached delimiter"):
         wrap_owned_text("x\ny", "CITY\n, COUNTRY")
+    # Goods have no inferred character quota; short source fragments are not
+    # evidence of narrow columns. Explicit product-list boundaries also survive.
+    assert wrap_owned_text("PARTS", value, product=True) == value
+    listed = "ALLOY STEEL PIPE\nHIGH PRESSURE VALVE ASSEMBLY"
+    assert wrap_owned_text("METAL PARTS", listed, product=True) == listed
 
 
 def test_current_paths_translate_only_structural_fields():
@@ -474,9 +516,8 @@ def test_lexical_ownership_changes_the_wording_contract_and_checks_repeat_covera
     assert render_sampling_blueprint(blueprint, row["target"], {})[0] == row["joinedRawText"]
     target = deepcopy(row["target"])
     target["documentPatch"]["goodsItemDetails"][0]["description"] = "CERAMIC TILES"
-    assert (
-        "CERAMIC TILES"
-        in render_sampling_blueprint(blueprint, target, {"whole_goods": "CERAMIC TILES"})[0]
+    assert "CERAMIC TILES" in " ".join(
+        render_sampling_blueprint(blueprint, target, {"whole_goods": "CERAMIC TILES"})[0].split()
     )
 
 

@@ -5,9 +5,10 @@ full-scenario pilot on **2026-10-07**. This describes the active implementation,
 not the earlier 30k generator or the first, limited-variability pilot.
 
 - [Investigation, repairs, results and costs](kie-synthesis-v7-pilot-2026-10-06.md)
-- [Original OCR and revised rendered examples](../artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2/samples.md)
-- [Position-enriched examples](../artifacts/kie-synthesis-production/curated-v7-full-pilot24-contacts-v2/positions-augmented-v1/samples.md)
-- [Active campaign configuration](../configs/synthesis/mpci_bl_curated_v7_full_pilot24_contacts.yaml)
+- [Original OCR and registry-sampled rendered examples](../artifacts/kie-synthesis-production/curated-v7-registry-pilot72-v1/samples.md)
+- [Position-enriched examples](../artifacts/kie-synthesis-production/curated-v7-registry-pilot72-v1/positions-v2/samples.md)
+- [Active campaign configuration](../configs/synthesis/mpci_bl_curated_v7_registry_pilot72.yaml)
+- [Registry integration and validation](kie-synthesis-registry-integration-2026-10-07.md)
 - [Active CLI implementation](../src/document_ocr/synthesis/curated_campaign.py)
 
 ## 1. Overall design
@@ -58,10 +59,39 @@ chooses new shipment facts. The **LLM** writes language expressing those facts.
 It does not independently choose package totals, weights, equipment classes or
 the goods-to-container graph.
 
+### Target and rendered casing
+
+The full campaign now accepts an independent presentation policy:
+
+```yaml
+casing:
+  target: uppercase
+  render_styles: [uppercase, title]
+```
+
+`target` is `uppercase` (the current dataset convention) or `preserve` (an
+explicit opt-out, not a different guaranteed-normalized convention). It is
+applied after lexical generation/target assembly. `render_styles` is a nonempty
+list of distinct `preserve`, `uppercase`, or `title` styles, sampled equally and
+reproducibly using the campaign seed and sample ID. One choice applies across
+the document's owned party, locality and vessel text, including repeats.
+Unowned source text and headings are not recased. Product wording, equipment
+codes, package units, identifiers, emails and websites are not title-cased;
+embedded alphanumeric postcode/plot tokens are also preserved. This is casing
+augmentation, not normalization of spelling or punctuation.
+
+The published pilot's config explicitly retains `render_styles: [preserve]`
+so its existing artifacts remain replayable. For a **new** campaign, use the
+mixed policy above with a new output directory. Changing render casing changes
+candidate hashes, so old semantic review receipts cannot approve the new text.
+Review instructions and their hashes also follow the selected target policy.
+The 72 mixed-case diagnostic outputs are recorded in the
+[casing/goods probe directory](analysis/synthesis-goods-casing-probe-20261007/).
+
 ## 2. Inputs, dependencies and selected scope
 
 The active command is `python -m document_ocr.synthesis.curated_campaign` with
-`configs/synthesis/mpci_bl_curated_v7_full_pilot24.yaml`. The older `curated`
+`configs/synthesis/mpci_bl_curated_v7_registry_pilot72.yaml`. The older `curated`
 CLI/config targets the earlier pilot and is not interchangeable, although
 `curated.py` supplies shared contracts, request execution and cost accounting.
 
@@ -83,6 +113,11 @@ source-contract hashes, training membership and exact capability coverage.
 Donor IDs cannot overlap validation IDs; selected source OCR is additionally
 checked for exact validation OCR overlap. This is not a fuzzy shipment-level
 near-duplicate detector.
+
+All sampling registries now live under `artifacts/registries/`: original
+authorities in `sources/`, normalized versioned snapshots in `compiled/`, and
+commercial HS phrases in `phrases/`. `relocation-receipt.json` maps historical
+paths to unchanged bytes. Historical experiment receipts are not rewritten.
 
 The pilot explicitly selects **24 sources × three variants**: 15 ambient,
 three chilled, one frozen, three vehicle/machinery, one DG chemical and one DG
@@ -222,15 +257,23 @@ newly worded product.
 Each source specifies how many identities it supports: `33546e11…` has two,
 `01d86535…` has four; most have one. These remain one accounting group.
 
-The code can optionally explore HS6 within selected headings. **In the final
-pilot all 15 ambient sources and the frozen source disable that exploration**:
-they use eligible donors' exact HS6 identities. Chilled sampling also enforces
-donor HS6 in code. Whole-unit sources have explicit restricted HS6 domains.
-The chemical source uses independently registry-linked chemical identities.
+Ordinary goods are drawn from registry HS6 domains within compatible observed
+headings, using the earlier pipeline's ambient chapter scope. Exact source or
+donor HS codes are not the candidate list. This restores registry variability
+without detaching package/equipment/load support. Frozen and chilled food
+identities use separate registry-wide thermal domains with explicit profiles;
+observed produce supplements those domains with its own exact settings.
+Whole-unit sources retain explicit restricted HS6 domains because their printed
+unit count, engine/body wording and unit mass need a compatible whole-vehicle
+contract. Chemical DG uses independently registry-linked chemical identities.
+The old `explore_within_heading` switch has been removed; passing it is an error.
 
 A different source identity is preferred when available; narrow domains can
-legitimately retain an identity. The registry hierarchy, sibling HS scopes and
-national child examples accompany product wording/review. HS codes are public
+legitimately retain an identity. Wording now receives a compact commodity brief,
+not the sibling/national tariff tree. Exact HS-to-product classification is not
+the extraction-training objective: plausible assortments, brands, models and
+technical qualifiers are allowed. Printed codes and labels must still agree,
+and DG/thermal and shipment accounting facts remain constrained. HS codes are public
 only where the source supplies a public HS field. Otherwise HS is private
 generation context and is not injected into labels or text as a new code field.
 
@@ -263,16 +306,23 @@ are absent; those assumptions do not become public quantity labels.
 
 | Family | Additional coupling |
 |---|---|
-| Chilled/frozen | Observed commodity/form, HS, temperature and required ventilation travel together; product wording receives the observed form/processing context |
+| Chilled/frozen | Registry goods and configured carrying profiles determine temperature/ventilation; food load donors supply package/equipment/measures, not product identity. Observed produce extensions retain their exact settings. |
 | DG chemical | Eligible HMT/ECICS identity supplies coherent HS, proper shipping name, UN, class, packing group and supported subsidiary hazards |
 | DG vehicle | Preserve the supported liquid-fuel family; no electric/hybrid wording paired with its liquid-fuel declaration |
 | Whole vehicle/machinery | Source-whole-unit or explicitly reviewed donor profile, fixed count and restricted product identity |
 
 For the four whole-unit profiles, code supplies the registry commercial phrase;
 the LLM does not invent model/body/engine specifications around a fixed load.
-All four have one physical donor each. The three chilled source domains have
-five, one and two eligible donors respectively; the frozen source has six.
-Those narrow domains explain why some products cannot vary widely yet.
+Chemical DG likewise uses the exact sampled proper shipping name as product
+wording. Registry sampling changes the chemical; language generation cannot
+change its physical form, invent a mixture, or substitute a solution that
+requires a different UN entry. Route/party/contact wording remains generated.
+All four currently have one physical donor each. Thermal food domains are no
+longer limited to observed donor products. Explicitly chilled non-live food is
+chosen when a tariff entry also permits live/fresh forms. HS exclusions such as
+"not frozen" do not authorize a frozen profile. Frozen and chilled generic food
+profiles use closed fresh-air ventilation; commodity-specific produce keeps its
+observed ventilation. These facts are synchronized into existing printed slots.
 
 DG packages use allowed categories (normally drum/carton/box) with non-bulk
 bounds of 400 kg and 0.45 m³ per package. This is not full legal DG packaging
@@ -317,8 +367,10 @@ A call normally covers three independently sampled variants of one source.
 Partial resumption requests only missing/stale variants. The request contains:
 
 - Readable route and party-locality context.
-- Commodity phrases and registry hierarchy/context, presented as YAML text.
-- Empirical cold-chain context when relevant.
+- Compact commodity phrases, all source description fragments, and their explicit
+  target assembly. Continuation fragments are not separate HS identities.
+- Host-rendered packaging, measures and equipment facts as compatibility context.
+- Sampled cold-chain context, with empirical produce extensions identified separately.
 - The requested region's role, concise requirements and original structure
   example (hierarchy/line span, not source facts to copy).
 - Postal assembly expressions explaining generated components versus
@@ -338,7 +390,7 @@ evidence. For example, schematically:
   "s0": {
     "shipper_name": "NEW FICTIONAL TRADING COMPANY",
     "shipper_postal": "PLOT 7, INDUSTRIAL LANE\nMALE MALDIVES",
-    "goods_wording": "PRODUCT WITHIN THE SELECTED HS SCOPE"
+    "goods_wording": "NEW COMMERCIAL PRODUCT WORDING AROUND THE COMMODITY BRIEF"
   },
   "s1": {"...": "the second sampled shipment"},
   "s2": {"...": "the third sampled shipment"}
@@ -346,6 +398,19 @@ evidence. For example, schematically:
 ```
 
 Actual keys are source-contract keys, not necessarily these illustrative names.
+
+Goods have no character or line quotas. Natural generated paragraph/list boundaries
+are kept; a short source word does not imply a narrow rendering column. Multiple
+owned fragments are generated together and assembled into one description target;
+repeated occurrences reuse one generated value. Intervening customs, totals and
+boilerplate remain outside those edits. Shipment packing, fill weights and transport
+settings belong to host-controlled facts rather than invented product prose.
+Validation rejects whole-description source copies, identical generated descriptions
+across a batch, and explicit shipment-total/tariff captions inside generated products.
+It also rejects literal escaped newlines and explicit unsampled per-package fill
+claims. One bounded, recorded model correction can repair a rejected new output;
+a second failure remains an error. Both calls are billed in the ledger.
+These deterministic checks complement, not replace, final rendered semantic review.
 
 ### Addresses specifically
 
@@ -541,7 +606,7 @@ not authorization to start another campaign.
 
 ```bash
 # This revision preserves the earlier published pilot.
-SYNTHESIS_CONFIG=configs/synthesis/mpci_bl_curated_v7_full_pilot24_contacts.yaml
+SYNTHESIS_CONFIG=configs/synthesis/mpci_bl_curated_v7_registry_pilot72.yaml
 
 # Paid only when compatible successful wording is not cached:
 .venv/bin/python -m document_ocr.synthesis.curated_campaign generate \
@@ -643,7 +708,11 @@ positions-augmented-v1/ Configured augmented dataset, geometric receipts and gal
 Files such as `plan/`, product inventories and sampling probes are investigation
 artifacts, not additional mandatory runtime stages.
 
-## 14. Worked example and verified pilot result
+## 14. Historical worked example and prior pilot result
+
+The figures in this section describe the **previous contacts pilot**, not the
+new registry-sampling run. Current results, correction history and costs are in
+[the registry integration report](kie-synthesis-registry-integration-2026-10-07.md).
 
 Source `33546e11…`, first variant, retains one goods group, two HS identities
 and one-container placement. It samples Maldives → Belgium, compatible donor
@@ -695,10 +764,13 @@ the old pilot remains intact.
 
 [`curated_positions.py`](../src/document_ocr/synthesis/curated_positions.py)
 transfers normalized source coordinates through the renderer's exact UTF-8 byte
-edits. Unchanged lines retain their source anchors. A changed multi-line region
-interpolates along its own source line anchors when its line count changes; an
-expansion of a single source line repeats that anchor. Subsequent fields do not
-move. Unknown source positions remain ` ||` rather than borrowing another field's
+edits. Unchanged lines retain their source anchors. Changed line counts now use
+verified measured geometry through `curated_position_regions.py`. Interpolation
+is accepted only at plausible measured line spacing; local expansion can use its
+share of the adjacent vertical gap. It cannot consume a neighboring region's space.
+An expansion of one line no longer repeats one coordinate for every new line.
+If the region cannot fit, its text is retained with explicitly unknown positions.
+Subsequent fields do not move during local placement. Unknown source positions remain ` ||` rather than borrowing another field's
 coordinates. Page markers and blank lines remain structural, without suffixes.
 
 This is intentionally approximate layout conditioning, not reconstructed PDF
@@ -732,8 +804,11 @@ intact for comparison. All 72 samples / 120 pages were published and independent
 verified, with 118 scaled pages and two translation-only pages. See
 [implementation and validation](kie-synthesis-v7-pilot-2026-10-06.md#13-production-positional-augmentation--2026-10-07).
 The earlier [geometry experiment](kie-synthesis-v7-pilot-2026-10-06.md#12-coordinate-synthesis-experiments--2026-10-07)
-remains historical evidence: text-width reconstruction/local reflow is **not**
-enabled. These are coarse source-layout anchors, not measured synthetic glyph boxes.
+remains historical evidence. The newer
+[goods/layout pilot](kie-synthesis-goods-layout-pilot-2026-10-07.md) enables bounded
+local reflow without character-width reconstruction. Its 24 full samples / 48 pages
+are published separately under `curated-v7-goods-layout-pilot24-v1/positions-v2/`.
+These are coarse source-layout anchors, not measured synthetic glyph boxes.
 
 ## 15. Boundaries to preserve when scaling
 

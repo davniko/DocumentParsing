@@ -195,7 +195,7 @@ def test_review_under_missing_or_different_instructions_cannot_publish(
         del receipt["reviewContractSha256"]
     else:
         monkeypatch.setattr(
-            "document_ocr.synthesis.curated_publication.RENDERED_REVIEW_PROMPT",
+            "document_ocr.synthesis.curated_wording.RENDERED_REVIEW_PROMPT",
             "A revised semantic review policy.",
         )
     write(path, receipt)

@@ -10,6 +10,7 @@ import pytest
 from document_ocr.spatial_inputs.alignment import enrich, parse_lines
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_layout import PositionPolicy, augment_page, validate_transform
+from document_ocr.synthesis.curated_position_regions import place_region
 from document_ocr.synthesis.curated_positions import (
     _geometry_rows,
     augment_positions,
@@ -55,12 +56,26 @@ def example(after="NEW SITE\nNEW DISTRICT\nNEW CITY"):
     alignment["positioned_input_sha256"] = digest(
         enrich(source, {line["line_number"]: line["xy"] for line in alignment["lines"]}).encode()
     )
+    for record in alignment["lines"]:
+        x, y = record["xy"]
+        record["bbox"] = [x - 10, y - 4, x + 10, y + 4]
+        record["regions"] = [{"bbox": record["bbox"]}]
     return source, rendered, proof, alignment
+
+
+def measured(alignment):
+    return {
+        "page_boxes": {
+            page: np.array([r["bbox"] for r in alignment["lines"] if r["page_index"] == page])
+            for page in {r["page_index"] for r in alignment["lines"]}
+        },
+        "page_dimensions": {"0": [1000, 1000], "1": [1000, 1000]},
+    }
 
 
 def test_line_expansion_does_not_shift_later_fields_or_match_repeated_words():
     source, rendered, proof, alignment = example()
-    text, result = transfer_positions(source, rendered, proof, alignment)
+    text, result = transfer_positions(source, rendered, proof, alignment, **measured(alignment))
     assert "NEW SITE || 100,60\nNEW DISTRICT || 100,70\nNEW CITY || 100,80" in text
     assert "TEL: 123456789 || 100,100" in text
     assert "--- PAGE 2 ---\nOLD CITY || 700,100" in text
@@ -74,11 +89,13 @@ def test_line_expansion_does_not_shift_later_fields_or_match_repeated_words():
 )
 def test_contraction_expansion_unicode_and_identity_keep_text_and_page_ownership(after):
     source, rendered, proof, alignment = example(after)
-    text, receipt = transfer_positions(source, rendered, proof, alignment)
+    text, receipt = transfer_positions(source, rendered, proof, alignment, **measured(alignment))
     assert "TEL: 123456789 || 100,100" in text
     assert receipt["renderedSha256"] == digest(rendered.encode())
     assert all(
-        line["page_index"] == (1 if line["xy"][0] == 700 else 0) for line in receipt["lines"]
+        line["page_index"] == (1 if line["xy"][0] == 700 else 0)
+        for line in receipt["lines"]
+        if line["xy"] is not None
     )
 
 
@@ -89,8 +106,8 @@ def test_missing_anchor_stays_unknown_instead_of_neighbor_borrowing():
         enrich(source, {line["line_number"]: line["xy"] for line in alignment["lines"]}).encode()
     )
     text, receipt = transfer_positions(source, rendered, proof, alignment)
-    assert "NEW SITE || 100,60\nNEW DISTRICT ||\nNEW CITY ||\n" in text
-    assert receipt["counts"]["unknown_source_anchor"] == 2
+    assert "NEW SITE ||\nNEW DISTRICT ||\nNEW CITY ||\n" in text
+    assert receipt["placements"][0]["reason"] == "missing_source_anchor"
 
 
 @pytest.mark.parametrize(
@@ -116,6 +133,40 @@ def test_corrupted_authorities_and_structural_edits_fail_closed(fault):
         proof["edits"][0]["after"] = "--- PAGE 3 ---"
     with pytest.raises(ValueError):
         transfer_positions(source, rendered, proof, alignment)
+
+
+def test_expanded_regions_use_measured_clearance_or_explicitly_abstain():
+    record = {
+        "xy": [100, 100],
+        "bbox": [90, 96, 110, 104],
+        "regions": [{"bbox": [90, 96, 110, 104]}],
+    }
+    boxes = np.array([[90, 96, 110, 104], [90, 140, 110, 148]])
+    points, receipt = place_region([record], 3, boxes=boxes, dimensions=[1000, 1000])
+    assert receipt["method"] == "local_space_reflow"
+    assert len(set(points)) == 3
+    assert all(y + 4 <= 122 for x, y in points)
+    points, receipt = place_region([record], 22, boxes=boxes, dimensions=[1000, 1000])
+    assert points == [None] * 22 and receipt["reason"] == "insufficient_local_space"
+    assert place_region([record], 3)[1]["reason"] == "missing_measured_geometry"
+    crowded = np.concatenate((boxes, [[95, 98, 115, 106]]))
+    assert (
+        place_region([record], 3, boxes=crowded, dimensions=[1000, 1000])[1]["reason"]
+        == "unowned_text_intersects_source_region"
+    )
+    # Source-owned boxes must remain identifiable after real-pixel normalization;
+    # a different arithmetic order used to misclassify these as foreign obstacles.
+    dimensions = [1654, 2339]
+    pixels = np.array([[601, 498, 768, 525], [601, 560, 768, 587]], dtype=float)
+    normalized = pixels * 1000 / np.array([*dimensions, *dimensions])
+    measured_record = {
+        "xy": np.rint((normalized[0, :2] + normalized[0, 2:]) / 2).astype(int).tolist(),
+        "bbox": pixels[0].tolist(),
+        "regions": [{"bbox": pixels[0].tolist()}],
+    }
+    points, receipt = place_region([measured_record], 2, boxes=normalized, dimensions=dimensions)
+    assert all(point is not None for point in points)
+    assert receipt["method"] == "local_space_reflow"
 
 
 def policy(**changes):

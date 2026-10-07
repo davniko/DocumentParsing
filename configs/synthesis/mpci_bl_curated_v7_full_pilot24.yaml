@@ -62,43 +62,43 @@ source_ids:
 - doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9
 sampling:
   countries:
-    path: data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
     sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
     records: null
   locations:
-    path: artifacts/kie-synthesis/registries/unlocode-2025-1-all-functions-v1/locations.jsonl
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
     sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
     records: 111561
   world_ports:
-    path: artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
     sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
     records: 3032
   localities:
-    path: artifacts/kie-synthesis/registries/geonames-cities15000-current-v1/localities.jsonl
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
     sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
     records: 34106
   hs_manifest:
-    path: data/registries/hs/ukgt-v4.0.1590/source-manifest.json
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
     sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
     records: null
   hs_metadata:
-    path: data/registries/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
     sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
     records: null
   hs_report:
-    path: data/registries/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
     sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
     records: null
   commodity_phrases:
-    path: artifacts/kie-synthesis-production/registries/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
     sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
     records: 5612
   hmt:
-    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
     sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
     records: 2934
   ecics:
-    path: artifacts/kie-synthesis/registries/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
     sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
     records: 3480
   transport_capacity:
@@ -137,7 +137,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
@@ -150,7 +149,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9:
@@ -163,7 +161,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7:
@@ -176,7 +173,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8:
@@ -190,7 +186,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: 3
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
     physical_profile: source_whole_units
@@ -206,7 +201,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
@@ -219,7 +213,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
@@ -235,7 +228,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: 1
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
     physical_profile: reviewed_whole_units
@@ -265,7 +257,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: 1
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
     physical_profile: source_whole_units
@@ -282,7 +273,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: 3
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
     physical_profile: source_whole_units
@@ -298,7 +288,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
@@ -311,7 +300,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
@@ -324,7 +312,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
@@ -337,7 +324,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
@@ -350,7 +336,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
@@ -363,7 +348,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
@@ -376,7 +360,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0:
@@ -389,7 +372,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
@@ -402,7 +384,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
@@ -415,7 +396,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
@@ -428,7 +408,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811:
@@ -441,7 +420,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: true
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a:
@@ -454,7 +432,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
   doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
@@ -467,7 +444,6 @@ capabilities:
     destination_country: null
     fixed_package_quantity: null
     quantity_multiple: 1
-    explore_within_heading: false
     party_sides:
       documentPatch.parties.forwardingAgent: origin
 source_contracts: artifacts/kie-synthesis-production/curated-v7-pilot24/sources

@@ -74,6 +74,16 @@ def classify_thermal_hs(row: HsGlobalSubheading) -> ThermalProfile | None:
 
     for value in (row.description, row.heading_description, row.chapter_description):
         text = value.casefold()
+        # Negative tariff qualifications are not positive carrying requirements.
+        # Stop here rather than letting a broader parent reverse an exclusion.
+        if re.search(
+            r"\b(?:not|non[- ]|other than|excluding)\s*"
+            r"(?:fresh,?\s*(?:or\s*)?)?(?:frozen|chilled)\b",
+            text,
+        ):
+            return None
+        if re.search(r"\b(?:whether or not|fresh or)\s+frozen\b", text):
+            return None
         frozen = re.search(r"\bfrozen\b", text) is not None
         chilled = re.search(r"\bchilled\b", text) is not None
         fresh = re.search(r"\bfresh\b", text) is not None

@@ -13,7 +13,7 @@ from document_ocr.synthesis.equipment_scenarios import (
 from document_ocr.synthesis.generators import DeterministicStream
 
 MANIFEST = Path(
-    "data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json"
+    "artifacts/registries/sources/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json"
 )
 
 

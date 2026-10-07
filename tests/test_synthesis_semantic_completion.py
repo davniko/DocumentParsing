@@ -161,6 +161,12 @@ def test_nearest_hs_level_prevents_fresh_goods_from_inheriting_frozen_parent() -
     )
     assert classify_thermal_hs(fresh_lamb) == "CHILLED"
     assert classify_thermal_hs(frozen_lamb) == "FROZEN"
+    for text in (
+        "Vegetables, prepared or preserved, not frozen",
+        "Vegetables, whether or not frozen",
+        "Non-frozen prepared vegetables",
+    ):
+        assert classify_thermal_hs(_hs(code="200599", heading=text, leaf="Other")) is None
 
 
 def test_imo_generation_is_checksum_valid_unique_and_records_attempts() -> None:
@@ -472,9 +478,9 @@ def test_real_equipment_audit_has_reviewed_temperature_distribution() -> None:
 
 
 def test_real_maritime_flag_support_uses_only_pinned_iso_countries() -> None:
-    iso = Path("data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json")
+    iso = Path("artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json")
     ports = Path(
-        "artifacts/kie-synthesis/registries/nga-world-port-index-current-v1/port-whitelist.jsonl"
+        "artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl"
     )
     if not iso.is_file() or not ports.is_file():
         pytest.skip("the pinned ISO and maritime-port registries are not present")

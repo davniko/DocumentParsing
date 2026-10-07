@@ -16,17 +16,21 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from document_ocr.synthesis.curated import digest
+from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
 from document_ocr.synthesis.curated_wording import (
-    RENDERED_REVIEW_PROMPT,
     RenderedReview,
+    rendered_review_prompt,
     review_output_type,
 )
 
 
-def review_contract_hash(count: int) -> str:
+def review_contract_hash(count: int, target_casing: TargetCasing = "uppercase") -> str:
     """Bind review acceptance to the active instructions and native output schema."""
     return digest(
-        {"system": RENDERED_REVIEW_PROMPT, "schema": review_output_type(count).model_json_schema()}
+        {
+            "system": rendered_review_prompt(target_casing),
+            "schema": review_output_type(count).model_json_schema(),
+        }
     )
 
 
@@ -187,7 +191,9 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
         "position enrichment is not part of this pilot. Labels are in `dataset.jsonl`.\n",
     ]
     rejected_findings = 0
-    contract_hash = review_contract_hash(variants)
+    contract_hash = review_contract_hash(
+        variants, CasingPolicy.model_validate(config.get("casing", {})).target
+    )
     expected_ids = set()
     for source_index, sid in enumerate(selected, 1):
         _safe_id(sid)

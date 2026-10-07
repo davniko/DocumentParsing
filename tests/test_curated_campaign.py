@@ -32,6 +32,38 @@ from document_ocr.synthesis.curated_wording import (
 from document_ocr.synthesis.generators import DeterministicStream, validate_container_number
 
 
+@pytest.mark.parametrize("repair_succeeds", [True, False])
+def test_generation_validation_repair_is_bounded_and_cannot_publish_bad_wording(
+    postal_campaign, repair_succeeds
+):
+    fixture = postal_campaign
+    fixture.path.unlink()
+    calls = []
+
+    async def call(stage, sid, output_type, system, prompt):
+        calls.append(stage)
+        values = dict(fixture.receipt["values"])
+        if stage == "exact-wording" or not repair_succeeds:
+            values["product"] = "TOTAL CARTONS: 120"
+        else:
+            assert "VALIDATION FAILURE" in prompt
+            assert "shipment accounting" in prompt
+        return output_type.model_validate({"s0": values})
+
+    fixture.campaign.calls.call = call
+    if repair_succeeds:
+        result = asyncio.run(fixture.campaign.generate("source"))
+        assert "shipment accounting" in result["wordingValidationRepair"]
+        saved = json.loads(fixture.path.read_text())
+        assert saved["values"] == fixture.receipt["values"]
+        assert saved["wordingValidationRepair"]
+    else:
+        with pytest.raises(ValueError, match="shipment accounting"):
+            asyncio.run(fixture.campaign.generate("source"))
+        assert not fixture.path.exists()
+    assert calls == ["exact-wording", "wording-validation-repair"]
+
+
 def test_review_schema_owns_complete_shipment_coverage_and_identity():
     from pydantic import ValidationError
 
@@ -94,6 +126,7 @@ def test_wording_contract_checks_coverage_identity_and_layout_without_freezing_p
         (0, "NEW LTD\nATTENTION:JANE DOE", "contact caption"),
         (1, "8 CANAL ROAD\n, ROTTERDAM", "line-leading punctuation"),
         (1, "8 CANAL ROAD 000000", "placeholder postcode"),
+        (1, r"8 CANAL ROAD\nROTTERDAM", "escaped line break"),
         (1, " \n ", "empty generated region"),
     ]:
         changed = deepcopy(payload)
@@ -105,10 +138,70 @@ def test_wording_contract_checks_coverage_identity_and_layout_without_freezing_p
         validate_wording(WordingBatch.model_validate(payload), [request])
 
 
+@pytest.mark.parametrize(
+    "text", ["NET 18.5 KG PER MASTER CARTON", "20 LITRES/DRUM", "30-40 PCS PER CARTON"]
+)
+def test_generated_product_cannot_invent_host_owned_package_fill(text):
+    request = WordingRequest(
+        "sample", "Sampled goods", (WordingField("g", "goods description", "OLD", "Product"),)
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"g": text}})
+    with pytest.raises(ValueError, match="host-owned package fill"):
+        unpack_wording(output, [request])
+
+
 def test_disjoint_semantic_renderers_must_not_silently_overwrite_each_other():
     assert combine_surfaces({"a": "X"}, {"a": "X", "b": ["Y"]}) == {"a": "X", "b": ["Y"]}
     with pytest.raises(ValueError, match="conflicting render ownership"):
         combine_surfaces({"a": "X"}, {"a": "Y"})
+
+
+def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(postal_campaign):
+    from dataclasses import replace
+
+    fixture = postal_campaign
+    contract = fixture.blueprint.contract.model_copy(deep=True)
+    product = next(v for v in contract.variables if v.kind == "product")
+    continuation = product.model_copy(
+        update={
+            "key": "continuation",
+            "value": "COFFEE GRADE AA",
+            "occurrences": [product.occurrences[0].model_copy(update={"text": "COFFEE GRADE AA"})],
+        }
+    )
+    contract.variables.append(continuation)
+    next(
+        t for t in contract.targets if t.path.endswith(".description")
+    ).expression = "{product} {continuation}"
+    request = wording_request(replace(fixture.blueprint, contract=contract), fixture.scenario, "s")
+    goods = [f for f in request.fields if f.role == "goods description"]
+    assert len(goods) == 2 and len(fixture.scenario.goods_identities) == 1
+    assert "{product} {continuation}" in request.context
+    assert [f.example for f in goods] == ["OLD COFFEE", "COFFEE GRADE AA"]
+    schema = wording_output_type([request])
+    values = {f.key: "NEW WORDING" for f in request.fields}
+    values.update(product="ARABICA COFFEE\nGRADE BB", continuation="ROASTING QUALITY")
+    # Short schema keys own coverage; a missing continuation cannot pass native validation.
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"s0": {k: v for k, v in values.items() if k != "continuation"}})
+    # One short unchanged continuation is legitimate; a wholly copied group is not.
+    assert unpack_wording(
+        schema.model_validate({"s0": {**values, "continuation": "COFFEE GRADE AA"}}), [request]
+    )
+    for changed, expected in [
+        ({"product": "OLD COFFEE", "continuation": "COFFEE GRADE AA"}, "copied source"),
+        ({"product": "NEW COFFEE TOTAL PACKAGES - 9"}, "shipment accounting"),
+        ({"product": "NEW COFFEE (HS 090111)"}, "tariff caption"),
+    ]:
+        bad = {**values, **changed}
+        with pytest.raises(ValueError, match=expected):
+            unpack_wording(schema.model_validate({"s0": bad}), [request])
+    other = replace(request, sample_id="other")
+    duplicate = wording_output_type([request, other]).model_validate({"s0": values, "s1": values})
+    with pytest.raises(ValueError, match="duplicate generated description"):
+        unpack_wording(duplicate, [request, other])
 
 
 def test_generated_postal_contract_rejects_omissions_and_adjacent_duplicates():
@@ -141,6 +234,21 @@ def test_generated_postal_contract_rejects_omissions_and_adjacent_duplicates():
         country_code="DJ",
         country_labelled=True,
     )
+    validate_postal_geography(
+        "14 STREET BELIZE CITY, BELIZE",
+        locality="BELIZE CITY",
+        country="BELIZE",
+        country_code="BZ",
+        country_labelled=True,
+    )
+    with pytest.raises(ValueError, match="country must occur once"):
+        validate_postal_geography(
+            "14 STREET BELIZE CITY",
+            locality="BELIZE CITY",
+            country="BELIZE",
+            country_code="BZ",
+            country_labelled=True,
+        )
     with pytest.raises(ValueError, match="not requested"):
         validate_postal_geography(
             "14 STREET GIUSSANO, ITALY",
@@ -398,11 +506,15 @@ def postal_campaign(tmp_path):
     )
 
 
-def test_whole_unit_products_are_host_owned_not_free_model_specifications(postal_campaign):
+def test_regulated_and_whole_unit_products_have_host_owned_identities(postal_campaign):
     fixture = postal_campaign
     assert host_product_wording(fixture.blueprint, fixture.scenario) == {}
-    for profile in ("source_whole_units", "reviewed_whole_units"):
-        scenario = fixture.scenario.model_copy(update={"provenance": {"physicalProfile": profile}})
+    for provenance in (
+        {"physicalProfile": "source_whole_units"},
+        {"physicalProfile": "reviewed_whole_units"},
+        {"capabilities": {"family": "dg_chemical"}},
+    ):
+        scenario = fixture.scenario.model_copy(update={"provenance": provenance})
         products = host_product_wording(fixture.blueprint, scenario)
         assert products == {"product": scenario.goods_identities[0].phrase.upper()}
         request = wording_request(fixture.blueprint, scenario, "sample")
@@ -418,6 +530,27 @@ def test_whole_unit_products_are_host_owned_not_free_model_specifications(postal
                 fixture.blueprint,
                 scenario.model_copy(update={"goods_identities": scenario.goods_identities * 2}),
             )
+
+
+def test_target_casing_is_explicit_and_does_not_change_identifiers(postal_campaign):
+    from document_ocr.synthesis.curated_publication import review_contract_hash
+    from document_ocr.synthesis.curated_wording import rendered_review_prompt
+
+    fixture = postal_campaign
+    values = {k: v.title() for k, v in fixture.receipt["values"].items()}
+    target = deepcopy(fixture.target)
+    target["documentPatch"]["billOfLadingNumber"] = "Bl-ab123"
+    for mode in ("uppercase", "preserve"):
+        out = assemble_lexical_target(
+            fixture.blueprint, target, values, fixture.scenario, target_casing=mode
+        )
+        name = out["documentPatch"]["parties"]["shipper"]["name"]
+        assert name == (
+            values["shipper_name"].upper() if mode == "uppercase" else values["shipper_name"]
+        )
+        assert out["documentPatch"]["billOfLadingNumber"] == "Bl-ab123"
+    assert "preserve generated casing" in rendered_review_prompt("preserve")
+    assert review_contract_hash(1, "preserve") != review_contract_hash(1, "uppercase")
 
 
 def test_postal_correction_changes_only_failed_owned_regions_and_preserves_cache_history(
@@ -436,6 +569,7 @@ def test_postal_correction_changes_only_failed_owned_regions_and_preserves_cache
         assert set(shipment_schema.model_fields) == set(correction)
         assert "Previous complete address" in prompt
         assert "3011AA" in prompt
+        assert "Choose new street/site wording" in prompt
         return output_type.model_validate({"s0": correction})
 
     fixture.campaign.calls.call = call

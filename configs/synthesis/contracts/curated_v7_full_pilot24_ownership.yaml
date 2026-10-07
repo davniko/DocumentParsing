@@ -88,9 +88,13 @@ sources:
         occurrences: [{text: 45G1}]
   doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
     surfaces:
+      'agent:shipment:freight_payable_place':
+        expression: 'FREIGHT PAYABLE IN {documentPatch.freight.paymentPlace.name}'
       'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d %b %Y', case: upper}
       'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%d-%b-%Y', case: upper}
     bindings:
+      'agent:shipment:freight_payable_place':
+        paths: ['documentPatch.freight.paymentPlace.name']
       'anchor:documentPatch.containers[0].temperatureSetpoint.value':
         paths: ['documentPatch.containerInformation[0].temperatureSetpoint.value', 'documentPatch.goodsItemDetails[0].handlingInstructions[0]']
     add:
@@ -172,6 +176,11 @@ sources:
       'anchor:documentPatch.cargoPackages[0].quantity':
         paths: ['documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity', 'documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity']
   doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+    # This owner is only the stable prefix of the full handling label. The
+    # carrying-temperature suffix has its own typed numeric owner. All admitted
+    # scenarios for this thermal template retain refrigerated equipment.
+    constants:
+      'agent:cargo:refrigerated_stowage_statement': "CARGO IS STOWED IN A REFRIGERATED\nCONTAINER SET BY THE SHIPPER"
     surfaces:
       'anchor:documentPatch.issueDate': {date_path: documentPatch.issueDate, format: '%d %b %Y', case: upper}
       'anchor:documentPatch.shippedOnBoardDate': {date_path: documentPatch.shippedOnBoardDate, format: '%d %b %Y', case: upper}

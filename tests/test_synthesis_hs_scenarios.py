@@ -21,7 +21,7 @@ from document_ocr.synthesis.hs_scenarios import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_ROOT = PROJECT_ROOT / "data/registries/hs/ukgt-v4.0.1590"
+SOURCE_ROOT = PROJECT_ROOT / "artifacts/registries/sources/hs/ukgt-v4.0.1590"
 ON_DATE = date(2026, 8, 31)
 
 

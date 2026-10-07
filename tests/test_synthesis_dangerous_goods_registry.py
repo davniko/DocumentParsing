@@ -142,7 +142,7 @@ def test_sampler_rejects_unavailable_requested_category() -> None:
     reason="real registry compilation runs only in the pinned synthesis environment",
 )
 def test_real_registry_compiles_to_expected_audited_counts(tmp_path: Path) -> None:
-    source_root = Path("data/registries/dangerous-goods")
+    source_root = Path("artifacts/registries/sources/dangerous-goods")
     manifest = source_root / "source-manifest-20260831.json"
     if not manifest.is_file():
         pytest.skip("pinned DG source snapshot is not present")

@@ -32,6 +32,7 @@ from document_ocr.synthesis.curated import (
     layout_surface,
     locate,
 )
+from document_ocr.synthesis.curated_casing import RenderCasing, case_owned_text
 from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.template_compiler.descendant import (
     _number_to_words,
@@ -63,12 +64,13 @@ def current_path(path: str) -> str:
     return path
 
 
-def wrap_owned_text(source: str, value: str) -> str:
+def wrap_owned_text(source: str, value: str, *, product: bool = False) -> str:
     """Preserve line span approximately without detaching delimiters from words.
 
-    Explicit generated lines take precedence. Otherwise use the source's line
-    count, with source-relative character widths and punctuation glued to the
-    preceding token.  No token or address component is removed.
+    Explicit generated lines take precedence. Products keep their natural
+    generated line boundaries; a short source word is not a column-width
+    measurement. Other fields retain the source-relative presentation.
+    No token or address component is removed.
     """
     if not value.strip():
         raise ValueError("an owned region cannot be blank")
@@ -82,7 +84,7 @@ def wrap_owned_text(source: str, value: str) -> str:
         return value
     if re.match(r"\s*[,;:]", value):
         raise ValueError("generated region starts with a detached delimiter")
-    rendered = layout_surface(source, value)
+    rendered = value if product else layout_surface(source, value)
     if " ".join(rendered.split()) != " ".join(value.split()):
         raise ValueError("line wrapping changed generated tokens")
     return rendered
@@ -505,6 +507,7 @@ def render_sampling_blueprint(
     *,
     surface_values: Mapping[str, str | list[str]] | None = None,
     certified_country_codes: Mapping[str, str] | None = None,
+    render_casing: RenderCasing = "preserve",
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Render a sampled current target with explicit coverage and byte receipts.
 
@@ -567,7 +570,7 @@ def render_sampling_blueprint(
                     raise ValueError("spelled package count must be integral")
                 text = _number_to_words(int(number)).upper()
             else:
-                text = wrap_owned_text(region.source, value)
+                text = wrap_owned_text(region.source, value, product=region.kind == "product")
             # A nested country target must actually occur inside its postal
             # replacement; ownership alone does not prove a retained country.
             postal_text = " ".join(text.split())
@@ -629,7 +632,7 @@ def render_sampling_blueprint(
             covered.update(changed_paths)
         else:
             text = region.source
-        rendered_regions.append((region, text))
+        rendered_regions.append((region, case_owned_text(text, region.target_paths, render_casing)))
     if missing := changed - covered:
         raise ValueError(f"changed target fields have no rendered owner: {sorted(missing)}")
     for path in changed:
@@ -686,5 +689,6 @@ def render_sampling_blueprint(
             "certifiedCountryCodes": dict(certified_country_codes),
             "edits": edits,
             "unchangedBytesPreserved": True,
+            **({"renderCasing": render_casing} if render_casing != "preserve" else {}),
         },
     )

@@ -2,11 +2,11 @@
   "environment_file": ".env",
   "inputs": {
     "customs_program_registry": {
-      "path": "data/registries/customs-programs/document-customs-surfaces-v9.json",
+      "path": "artifacts/registries/sources/customs-programs/document-customs-surfaces-v9.json",
       "sha256": "59a63ff27fc44dfe9017d6d8bf143dd76e15f76555fe2a8b0847baac4efba84e"
     },
     "iso3166_snapshot": {
-      "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+      "path": "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
       "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
     },
     "residual_replay_run": {

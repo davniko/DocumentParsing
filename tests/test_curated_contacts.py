@@ -53,6 +53,14 @@ def test_company_contacts_preserve_shared_identity_and_exact_scope():
     with pytest.raises(ValueError, match="incomplete or unrelated"):
         apply_contacts(target, {**values, "documentPatch.extra": "bad"}, requests)
     assert request_hash(requests) != request_hash(contact_parties(source, source, "sample"))
+    title = deepcopy(target)
+    title["documentPatch"]["parties"]["consignee"].update(
+        name="Huaxin Textile Works", country="China"
+    )
+    # The other occurrence remains uppercase; identity grouping and the exact
+    # contact-generation request must still agree, without editing either label.
+    assert request_hash(requests) == request_hash(contact_parties(source, title, "sample"))
+    assert title["documentPatch"]["parties"]["consignee"]["name"] == "Huaxin Textile Works"
 
 
 @pytest.mark.parametrize(

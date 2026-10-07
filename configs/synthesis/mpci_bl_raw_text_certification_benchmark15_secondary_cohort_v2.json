@@ -29,11 +29,11 @@
   },
   "invariantInputs": {
     "iso3166_snapshot": {
-      "path": "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json",
+      "path": "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
       "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
     },
     "geonames_registry": {
-      "path": "artifacts/kie-synthesis/registries/geonames-cities15000-current-v1",
+      "path": "artifacts/registries/compiled/geonames-cities15000-current-v1",
       "commit_sha256": "5146b39ff411060091854f3fbce19ef65afc1be04a4de7d901d4585d931e7c42",
       "transaction_sha256": "3da978ea6c24d642a4bd1f6a0f42dbf6119a25f38c9a708a9c8ad5564c248117"
     },

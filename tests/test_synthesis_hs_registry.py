@@ -24,7 +24,7 @@ from document_ocr.synthesis.hs_registry import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-REAL_SOURCE_ROOT = PROJECT_ROOT / "data/registries/hs/ukgt-v4.0.1590"
+REAL_SOURCE_ROOT = PROJECT_ROOT / "artifacts/registries/sources/hs/ukgt-v4.0.1590"
 SOURCE_COLUMNS = (
     "id",
     "commodity__sid",

@@ -25,6 +25,7 @@ from document_ocr.spatial_inputs.alignment import (
 )
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_layout import GRID, METHOD, PositionPolicy, augment_page
+from document_ocr.synthesis.curated_position_regions import place_region
 from document_ocr.synthesis.curated_publication import _write_new_or_identical
 
 
@@ -36,14 +37,19 @@ class Anchor:
 
 
 def transfer_positions(
-    source: str, rendered: str, proof: dict, alignment: dict
+    source: str,
+    rendered: str,
+    proof: dict,
+    alignment: dict,
+    *,
+    page_boxes: dict | None = None,
+    page_dimensions: dict | None = None,
 ) -> tuple[str, dict]:
     """Map byte-owned edits onto page-local anchors, including changed line spans.
 
     Unchanged segments retain their original line coordinates. Replacement lines
-    follow the source span's line anchors; when the line count changes, interpolate
-    between those anchors within the span. Expanding one source line repeats its
-    anchor. Unknown source positions propagate as unknown rather than being guessed.
+    follow the source span or measured adjacent free space. An expansion that
+    cannot fit is explicitly unpositioned; it never stacks lines at one point.
     """
     raw = source.encode()
     if proof["sourceSha256"] != digest(raw) or alignment["original_input_sha256"] != digest(raw):
@@ -73,7 +79,9 @@ def transfer_positions(
         starts.append(offset)
         offset += len(line.encode())
     starts.append(offset)
-    pieces = []
+    if (page_boxes is None) != (page_dimensions is None):
+        raise ValueError("page boxes and dimensions must be supplied together")
+    pieces, placements = [], []
 
     def unchanged(start: int, end: int) -> None:
         while start < end:
@@ -98,6 +106,16 @@ def transfer_positions(
         ):
             raise ValueError("edit crosses a structural line or page boundary")
         replacement = edit["after"].splitlines(keepends=True)
+        page = source_lines[owned[0]].page
+        placed, placement = place_region(
+            [anchors[n] for n in owned],
+            len(replacement),
+            boxes=page_boxes[page] if page_boxes is not None else None,
+            dimensions=page_dimensions[str(page)] if page_dimensions is not None else None,
+        )
+        placements.append(
+            {"key": edit["key"], "occurrence": edit["occurrence"], "page_index": page, **placement}
+        )
         for i, line in enumerate(replacement):
             if PAGE_MARKER.fullmatch(line.strip()):
                 raise ValueError("replacement introduces a page marker")
@@ -108,15 +126,7 @@ def transfer_positions(
             hi = min(lo + 1, len(owned) - 1)
             fraction = position - lo
             selected = (owned[lo],) if not fraction else (owned[lo], owned[hi])
-            coordinates = [anchors[n]["xy"] for n in selected]
-            xy = (
-                None
-                if any(c is None for c in coordinates)
-                else tuple(
-                    round(coordinates[0][j] * (1 - fraction) + coordinates[-1][j] * fraction)
-                    for j in (0, 1)
-                )
-            )
+            xy = placed[i]
             pieces.append(
                 (line.encode(), Anchor(selected, xy, f"{edit['key']}:{edit['occurrence']}"))
             )
@@ -158,7 +168,7 @@ def transfer_positions(
                 "source_lines": origins,
                 "xy": xy,
                 "edits": edits,
-                "method": "unknown_source_anchor"
+                "method": "unpositioned"
                 if xy is None
                 else ("edited_region_anchor" if edits else "unchanged_source_line"),
             }
@@ -166,7 +176,7 @@ def transfer_positions(
     positioned = enrich(rendered, coordinates)
     verify_preservation(rendered, positioned, set(coordinates))
     return positioned, {
-        "method": "source_edit_anchors_v1",
+        "method": "source_edit_regions_v2",
         "measuredSyntheticGeometry": False,
         "sourceSha256": digest(raw),
         "renderedSha256": digest(rendered.encode()),
@@ -175,6 +185,7 @@ def transfer_positions(
         "positionedSha256": digest(positioned.encode()),
         "counts": dict(Counter(line["method"] for line in lines)),
         "lines": lines,
+        "placements": placements,
     }
 
 
@@ -297,6 +308,13 @@ def load_page_geometry(project_root, dataset, alignments: dict) -> tuple[dict, d
         "sourceDatasetManifestSha256": digest(manifest_bytes),
         "paddleRun": manifest["config"]["paddle_run"],
         "geometrySha256": hashes,
+        "pageDimensions": {
+            sid: {
+                str(p): [pages[(alignment["pdf_id"], p)][k] for k in ("width", "height")]
+                for p in result[sid]
+            }
+            for sid, alignment in alignments.items()
+        },
     }
 
 
@@ -373,7 +391,12 @@ def position_campaign(campaign) -> dict:
         if digest(source_row["positionedText"].encode()) != alignment["positioned_input_sha256"]:
             raise ValueError("alignment differs from current source positioned text")
         text, receipt = transfer_positions(
-            campaign.rows[sid]["joinedRawText"], row["joinedRawText"], candidate["proof"], alignment
+            campaign.rows[sid]["joinedRawText"],
+            row["joinedRawText"],
+            candidate["proof"],
+            alignment,
+            page_boxes=geometry[sid],
+            page_dimensions=provenance["pageDimensions"][sid],
         )
         text, receipt = augment_positions(
             row["joinedRawText"], receipt, geometry[sid], policy, sample_id

@@ -13,7 +13,7 @@ from document_ocr.synthesis.equipment_registry import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = (
     PROJECT_ROOT
-    / "data/registries/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json"
+    / "artifacts/registries/sources/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json"
 )
 
 

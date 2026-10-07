@@ -1991,3 +1991,211 @@ alias registry with source/carrier eligibility and reproducible sampling. Reuse
 the choice across repeated declarations; check each complete alias round-trips
 to the intended pair and separately validate partial declarations. Recognition
 of an alias is not evidence that all aliases are presently generated.
+
+## 15. Configurable casing and targeted complex-goods experiment — 2026-10-07
+
+### Implemented: independent target and input casing
+
+`curated_casing.py` now defines the policy. The campaign's `casing.target` is
+`uppercase` or `preserve`; `casing.render_styles` chooses among `preserve`,
+`uppercase`, and `title`. Multiple distinct styles are sampled uniformly with a
+dedicated deterministic stream. The chosen style is shared across eligible
+owned text in one document, including repeated parties and separately printed
+localities/countries. Source headings/unowned bytes, technical goods wording,
+equipment codes, units and endpoints are not title-cased. Alphanumeric tokens
+inside postal/name regions are preserved too.
+
+Target assembly, source-span rendering, independent replay, final validation
+and semantic-review instruction hashing all use the configured policy. No
+additional LLM request is involved. Existing real labels are unchanged. The
+published pilot config explicitly retains `preserve` rendering for replay;
+new runs can select `[uppercase, title]` in their own output directory.
+Company-contact requests use a canonical company/country identity independently
+of presentation casing, so a casing-only change does not split repeated parties
+or invalidate the generated contact identity. Email/URL values are not recased.
+
+Read-only runtime validation rendered all 72 cached shipments in four modes:
+
+| Mode | Validated records | Text changed from published pilot | Target changes |
+| --- | ---: | ---: | ---: |
+| Preserve | 72 | 0 | 0 |
+| Uppercase eligible text | 72 | 21 | 0 |
+| Title-case eligible text | 72 | 72 | 0 |
+| Seeded uppercase/title mixture | 72 | 49 | 0 |
+
+The mixture selected 38 title-case and 34 uppercase documents. Across all
+modes, whole text compared equal after uppercasing; exact-edit replay passed;
+non-casing target data were unchanged. Tests additionally protect source
+headings, product specifications, units, alphanumeric identifiers and endpoints,
+and verify order-independent style selection and policy-sensitive review hashes.
+
+Three repetitions per 72-record render: before the change the median was
+**2.888 seconds**; mixed casing after the change was **2.906 seconds** (about
+**0.24 ms/document** extra, within the small run-to-run variation). Isolated
+process peak RSS was 442,508 versus 443,496 KiB (about **0.97 MiB** higher).
+**383 targeted tests passed in 14.60 seconds**; changed production/test files
+passed Ruff. Diagnostic casing samples and measurements:
+[samples](analysis/synthesis-goods-casing-probe-20261007/casing-samples.jsonl),
+[validation](analysis/synthesis-goods-casing-probe-20261007/casing-validation.json).
+The alternative `target: preserve` branch was also exercised on all 72 records:
+24 retained mixed-case target text, and all 72 became exactly the published
+targets when the agreed uppercase normalization was reapplied. Contact receipts
+remained valid without new API work.
+
+### Clarification and correction: bare equipment lengths
+
+The user's agreed annotation convention is already in the source resolver:
+bare `20'`/`40'` means standard-height/general-purpose unless other explicit
+equipment/thermal evidence says otherwise. It is a target convention, not a
+claim about what bare dimensional notation physically proves.
+
+The receipt renderer had a narrower inconsistency: when changing equipment,
+it could keep bare length wording even for a newly selected high-cube or reefer
+pair. It now retains bare wording only when resolving that wording returns the
+new pair; otherwise it prints a distinguishing alias/canonical description.
+Thus unchanged standard GP stays `40'`, while a new high-cube GP prints `40HC`,
+and a high-cube reefer prints explicit compatible refrigerated wording. Alias
+style remains source-derived; no alias-weight sampler was added. Round-trip
+tests cover both bare lengths and standard/high-cube/refrigerated resampling.
+The current 72 published records replay unchanged in preserve mode.
+
+### Goods experiment scope and inputs
+
+Three **training** sources were selected manually for goods-only diagnostics:
+
+| Source | Product OCR supplied | Current target length |
+| --- | --- | ---: |
+| `doc_345a2a0b…` laboratory supplies | Three regions across three pages; 11, 43 and 1 lines | 1,160 chars |
+| `doc_ecb17253…` compressors/dryers | Heading plus 17 serial-numbered entries, 18 lines | 788 chars |
+| `doc_85b6388a…` telecom equipment | Parts/specifications/batch wording, 19 lines | 394 chars |
+
+Exact sources, selected registry codes, input prompts, API receipts and outputs
+are under [the probe directory](analysis/synthesis-goods-casing-probe-20261007/).
+HS choices in this experiment were **manually selected, registry-backed goods
+briefs**, not a full route/load/equipment resampling campaign. No training
+dataset, source contract, published pilot or production goods prompt was edited.
+
+The baseline used the real `wording_request`, native PydanticAI output schema,
+validation/unpacking and GLM-5.3-Flash/Fireworks request runner. The long source
+regions were explicitly supplied as the example. An additional laboratory
+control retained the builder's existing first-occurrence-only behavior. Its
+example had 247 characters versus 1,162 with all product regions supplied.
+This distinguishes lack of full source context from failures despite it.
+
+### Observed results, including failures
+
+**Current instructions, low reasoning (four calls):**
+
+- Full laboratory context produced 772 characters/26 lines of product wording.
+  It did not invent shipment totals in this run, but introduced borosilicate
+  glass under the selected residual `701790` classification, whereas the
+  supplied registry lists low-expansion glass under another HS6. The wording
+  and technical qualifiers therefore still require semantic review.
+- First-region-only laboratory context produced explicit HS captions, package
+  counts and gross/net totals despite the instruction excluding them. This is
+  not a successful output just because native JSON parses.
+- Compressor context produced 679 characters/6 lines, naming <=120 cm hoods
+  and biological safety cabinets. The supplied registry explicitly lists those
+  under `841460` and `841470`, not selected `841480`. It also reduced the long
+  enumerated inventory to five entries. The host did not supply a new per-unit
+  inventory count in this baseline request.
+- Telecom context produced 626 characters/29 lines, including connectors and
+  power-related components beyond the requested dedicated-parts scope. It is
+  a review failure/candidate, not an accepted synthetic training example.
+
+**Same inputs, high reasoning (three calls):** the compressor and telecom
+outputs still had scope problems. The laboratory call expanded until its
+16,000-output-token budget was exhausted and yielded truncated invalid JSON;
+PydanticAI rejected it. Higher reasoning did not resolve the underlying brief
+and scope problems in this small experiment. The failed request remains in
+the cost ledger; it was not retried or treated as a valid label.
+
+**Focused goods-only prompt and narrower positive product briefs (three calls,
+low reasoning):** these used new fictional product wording as the explicit
+task, approximate source detail, and one output string per separated block.
+No word-level spans, bounding boxes, rationale or evidence outputs were asked
+for. The positive brief was manually narrowed for diagnosis, so improvement
+cannot be attributed to prompt shortening alone.
+
+- Telecom produced a new **520-character** description of dedicated housings,
+  backplanes, faceplates and mounting parts. This is the clearest improvement.
+  It returned one line; the existing source-style wrapper rendered it into the
+  owned region without changing other input bytes or labels.
+- Laboratory produced **1,851 characters** across all three requested blocks.
+  The existing template compiler/renderer successfully inserted the three
+  blocks and assembled one complete description target, leaving intervening
+  container/customs/boilerplate text and all other labels unchanged. However,
+  block lengths became **20/22/22 lines**, versus **11/43/1** in the source;
+  the short continuation grew disproportionately. Some technical wording
+  also needs review (for example, `WEEPING BLADE TYPE`). This proves mechanical
+  fragment insertion, not semantic or geometric acceptance of that sample.
+- Compressors reproduced the complete source, including all original serials,
+  verbatim. The count stayed at 17 but it is **rejected as synthesis**: preserving
+  a list's shape is not permission to copy its identities unchanged.
+
+The source-region renderer was exercised directly on the focused laboratory
+and telecom results: **three and one owned edits respectively**, no unrelated
+label changes. See [render checks](analysis/synthesis-goods-casing-probe-20261007/focused-render-checks.json).
+These outputs remain diagnostic, not published training samples.
+
+### Cost and interpretation
+
+Ten calls cost **$0.012551875 total** (about **1.26 US cents**), including the
+truncated high-reasoning request. The four baseline low calls cost $0.001548;
+the three high calls $0.0095221; the three focused low calls $0.001481775. These
+are provider-reported ledger charges, not a scaled whole-dataset estimate.
+
+The evidence supports a small, general interface rather than format-heavy
+instructions: **one concrete, in-scope product brief + complete source product
+text + one string per genuinely separate description block**. The existing
+renderer can perform those block edits and target assembly already. The
+current wording-request builder still needs an explicit distinction between
+separate continuation blocks and repeated occurrences before this becomes a
+general pipeline feature; its present identity-count shortcut is insufficient.
+
+Important pre-scale requirements are semantic rather than punctuation rules:
+
+1. Resolve residual/broad HS categories to a concrete permissible product family
+   before writing a long list. The current commercial phrase can repeat the
+   broad heading's excluded products, competing with the more precise registry
+   context. A list of all heading alternatives is not a sampled product plan.
+2. Supply genuine continuation regions together; request proportionate content
+   per region, not an unrelated new assortment for every fragment. Exact line
+   wrapping can remain the renderer's job.
+3. Preserve known inventory constraints where explicitly established. Do not
+   generally equate package count with the number of product names or serials.
+4. Reject stale copied identities and unsupported shipment totals; semantically
+   review product/HS compatibility before publishing. Native JSON alone does
+   not verify those properties.
+
+This pass completes the requested probe and casing implementation. It does
+**not** promote the unsuccessful long-goods prompt experiments into production
+or claim that a broader synthesis campaign has been validated.
+
+## 16. Approved goods-generation and geometry implementation — 2026-10-07
+
+The follow-up has now implemented the compact-brief/full-description approach,
+joint generation of separated description fragments, natural line boundaries,
+and measured-space coordinate placement. The user's clarified objective supersedes
+the strict tariff-classification criticisms in section 15: plausible related product
+assortments are permitted; printed HS values, accounting and DG/thermal facts still
+must be consistent.
+
+**24 full shipments / eight sources** were generated, reviewed, corrected, published
+and coordinate-enriched. **Nine additional long-goods probes / three sources** exercise
+the same production builder and renderer without claiming full-shipment ownership for
+those additional families. No current real training labels or inputs were modified.
+
+See the [complete implementation and validation report](kie-synthesis-goods-layout-pilot-2026-10-07.md)
+and [source/variation gallery](analysis/synthesis-goods-layout-pilot-20261007/SOURCE_AND_VARIATIONS.md).
+This report includes problems found, scoped corrections, the 226-test result, cost
+ledger ($0.06443112 including all experimental attempts), coordinate coverage,
+mutation checks and measured runtime/memory.
+
+The previous single-anchor expansion defect is resolved. Locally expanded lines
+receive distinct measured-space positions when possible; otherwise coordinates
+are explicitly unknown and text remains complete. All 15 long-goods regions were
+positionable in the final probes. Across all 33 outputs, 3,980/4,889 content lines
+have coordinates. Original source gaps account for 769 blanks; 140 further lines
+are explicitly unpositioned because of insufficient/overlapping space. This is
+layout conditioning, not measured synthetic glyph geometry or proof of an F1 gain.

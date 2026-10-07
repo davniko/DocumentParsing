@@ -3100,7 +3100,12 @@ def _receipt_equipment_surface(value: Mapping[str, Any], source: str) -> str:
         return iso
     length_only = re.fullmatch(r"(?:20|40|45)(\s*(?:['\u2019`]|FT\.?|FEET|FOOT)?)", source, re.I)
     if length_only:
-        return _equipment_length(value) + length_only[1]
+        candidate = _equipment_length(value) + length_only[1]
+        # Bare 20/40-foot wording has the agreed standard/GP target default.
+        # If resampling departs from that default, print the distinguishing type
+        # instead of retaining wording that would now imply another label.
+        if _equipment_semantics_match(value, candidate):
+            return candidate
     compact = re.fullmatch(r"(?i)(?:20|40|45)(?P<gap>['\u2019`]?\s*)[A-Z]{1,2}", source)
     candidate = (
         _equipment_length(value) + (compact["gap"] if compact else "") + _equipment_code(value)

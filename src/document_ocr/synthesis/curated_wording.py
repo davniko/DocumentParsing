@@ -12,6 +12,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
+from document_ocr.synthesis.curated_casing import TargetCasing
+
 
 @dataclass(frozen=True)
 class WordingField:
@@ -26,6 +28,7 @@ class WordingRequest:
     sample_id: str
     context: str
     fields: tuple[WordingField, ...]
+    description_groups: tuple[tuple[str, ...], ...] = ()
 
 
 class WordingValue(BaseModel):
@@ -37,9 +40,9 @@ class WordingValue(BaseModel):
         min_length=1,
         description=(
             "New text for this region. Addresses contain postal information only; "
-            "names are fictional new identities. Preserve the requested component "
-            "granularity and approximately the example's number of lines. "
-            "Product wording expresses the supplied commodity facts."
+            "names are fictional new identities. Postal fields follow the requested "
+            "component granularity and approximate line span. Products use natural "
+            "paragraph/list boundaries and express the supplied commodity facts."
         ),
     )
 
@@ -129,12 +132,18 @@ class RenderedReview(BaseModel):
 RENDERED_REVIEW_PROMPT = """Audit final synthetic Bill of Lading training examples.
 The host has sampled registry commodity identities, routes, equipment, packaging and loads;
 the model has written fictional names and postal addresses. Compare the final text and labels
-with those supplied facts. Check product meaning, HS/DG/thermal compatibility, repeated facts,
+with those supplied facts. Check coherent product meaning, DG/thermal compatibility, repeated facts,
 postal ownership and geography, stale source names/localities, and accounting quantities.
-For each product, test its actual wording against the selected HS scope and the supplied
-sibling classifications. A specifically named product belonging to a sibling is a mismatch
-even when the target copies the sampled code correctly. Thermal wording must preserve the
-empirical commodity form. Every labeled package category needs its own printed type support.
+HS codes must agree between sampled facts, printed codes and labels; exact HS-to-product
+classification is not this synthesis task. Plausible related products, fictional models,
+serials, dimensions and capacities may enrich a description. Description continuations
+belong to one accounting goods group; repeated printouts must remain consistent.
+Compare every packing or transport claim inside the description with the supplied shipment:
+extra drum/bag/tank claims or unit fill weights need explicit supplied support. Also check
+that descriptions contain final commercial wording, not drafting or correction commentary.
+Do not reject descriptions for length, line count, or harmless classification differences.
+Thermal wording must match the sampled commodity and cold-chain profile, rather than
+the source example's product. Every labeled package category needs its own printed type support.
 Labels normalize human-readable text to uppercase; rendered text may retain source casing.
 Physical newlines become spaces. Countries and equipment aliases may be normalized.
 Fictional street addresses need plausible hierarchy, not postal deliverability.
@@ -157,7 +166,25 @@ component hierarchy and line span. Examples show structure, not facts to copy. P
 may change. A locality/country belongs once in the complete address, in its requested region.
 Keep postal text separate from company names, contacts, tax IDs and headings.
 Write natural commercial goods wording that retains every supplied product attribute.
+Generate all description fragments jointly, using the complete source as an example of
+descriptive depth and list presentation. Use natural item boundaries without line or
+character quotas. Fictional product variants and technical qualifiers are welcome.
+Host-owned shipment packing, unit fill weights, totals, transport instructions and customs
+captions are rendered separately; generate only product identity and specifications here.
+Each shipment is an independent variant: vary its product wording and fictional identifiers.
 Use uppercase human-readable text. Separate physical lines with newlines when useful."""
+
+
+def rendered_review_prompt(target_casing: TargetCasing) -> str:
+    if target_casing == "uppercase":
+        return RENDERED_REVIEW_PROMPT
+    if target_casing != "preserve":
+        raise ValueError(f"unknown target casing: {target_casing}")
+    return RENDERED_REVIEW_PROMPT.replace(
+        "Labels normalize human-readable text to uppercase; "
+        "rendered text may retain source casing.",
+        "Labels preserve generated casing; rendered text can vary casing without changing meaning.",
+    )
 
 
 def validate_postal_geography(
@@ -177,7 +204,22 @@ def validate_postal_geography(
 
     text, place, nation = map(normalized, (address, locality, country))
     country_pattern = rf"(?<!\w){re.escape(nation)}(?!\w)"
-    country_hits = list(re.finditer(country_pattern, text))
+    all_country_hits = list(re.finditer(country_pattern, text))
+    all_locality_hits = list(re.finditer(rf"(?<!\w){re.escape(place)}(?!\w)", text))
+
+    # Proper-name containment is not a duplicated postal component: BELIZE CITY
+    # / BELIZE and SAINT PIERRE / SAINT PIERRE AND MIQUELON work in both directions.
+    def separate(hits, containers):
+        return [
+            hit
+            for hit in hits
+            if place == nation
+            or not any(
+                other.start() <= hit.start() and hit.end() <= other.end() for other in containers
+            )
+        ]
+
+    country_hits = separate(all_country_hits, all_locality_hits)
     code_at_end = re.search(rf"(?<!\w){re.escape(country_code.casefold())}$", text)
     if not country_labelled and ((country_hits and place != nation) or code_at_end):
         raise ValueError("generated country was not requested for this party")
@@ -185,8 +227,7 @@ def validate_postal_geography(
         raise ValueError("generated postal country must occur once as its supplied name or code")
     # E.g. SAINT-PIERRE / SAINT PIERRE AND MIQUELON: the country's
     # overlapping words are not a duplicate of the separately printed city.
-    locality_text = re.sub(country_pattern, " ", text) if place != nation else text
-    hits = re.findall(rf"(?<!\w){re.escape(place)}(?!\w)", locality_text)
+    hits = separate(all_locality_hits, all_country_hits)
     if len(hits) != 1:
         raise ValueError("generated postal locality must occur once with its supplied spelling")
 
@@ -267,6 +308,7 @@ def validate_wording(
     ):
         raise ValueError("wording output shipment coverage differs")
     result = {}
+    descriptions_seen: dict[str, str] = {}
     for shipment in batch.shipments:
         fields = {f.key: f for f in expected[shipment.sample_id].fields}
         if len(shipment.values) != len(fields) or {v.key for v in shipment.values} != set(fields):
@@ -279,6 +321,8 @@ def validate_wording(
             text = "\n".join(line.strip() for line in value.text.splitlines() if line.strip())
             if not text:
                 raise ValueError(f"{value.key}: empty generated region")
+            if re.search(r"\\[nr]", text):
+                raise ValueError(f"{value.key}: literal escaped line break in generated text")
             if any(re.match(r"\s*[,.;:]", line) for line in text.splitlines()):
                 raise ValueError(f"{value.key}: detached line-leading punctuation")
             if re.search(r"(?<!\d)0{5,6}(?!\d)", text):
@@ -292,6 +336,52 @@ def validate_wording(
                 == re.sub(r"\W+", "", fields[value.key].example).casefold()
             ):
                 raise ValueError(f"{value.key}: copied source identity")
+            if fields[value.key].role == "goods description" and re.search(
+                r"\b\d+(?:[.,]\d+)?\s*(?:KG|KGS|KILOGRAMS?|G|GRAMS?|LB|LBS|LITRES?|LITERS?|PCS|PIECES?)"
+                r"\s*(?:PER|/)\s*(?:MASTER\s+)?(?:CARTONS?|BOX(?:ES)?|BAGS?|DRUMS?|PACKAGES?)\b",
+                text,
+                re.I,
+            ):
+                raise ValueError(
+                    f"{value.key}: host-owned package fill inside generated description"
+                )
+            if fields[value.key].role == "goods description" and re.search(
+                r"\bTOTAL\s+(?:PACKAGES?|CARTONS?|PALLETS?|GROSS\s+WEIGHT|NET\s+WEIGHT)"
+                r"\s*[:=\-]?\s*\d",
+                text,
+                re.I,
+            ):
+                raise ValueError(f"{value.key}: shipment accounting inside generated description")
+            if fields[value.key].role == "goods description" and re.search(
+                r"\b(?:HS(?:[ -]*CODE)?|TARIFF\s+CODE)\s*[:.\-]?\s*\d{4,}", text, re.I
+            ):
+                raise ValueError(
+                    f"{value.key}: host-owned tariff caption inside generated description"
+                )
             values[value.key] = text
+        groups = expected[shipment.sample_id].description_groups or (
+            tuple(f.key for f in fields.values() if f.role == "goods description"),
+        )
+        for group in groups:
+            if group and all(
+                " ".join(values[key].upper().split())
+                == " ".join(fields[key].example.upper().split())
+                for key in group
+            ):
+                raise ValueError("copied source description: " + ", ".join(group))
         result[shipment.sample_id] = values
+        description = " ".join(
+            " ".join(values[key].upper().split())
+            for key, field in fields.items()
+            if field.role == "goods description"
+        )
+        if description:
+            if description in descriptions_seen:
+                raise ValueError(
+                    "duplicate generated description across shipments: "
+                    + descriptions_seen[description]
+                    + ", "
+                    + shipment.sample_id
+                )
+            descriptions_seen[description] = shipment.sample_id
     return result

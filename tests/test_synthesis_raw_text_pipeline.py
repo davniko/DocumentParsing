@@ -538,7 +538,7 @@ def test_same_as_identifier_preserves_the_derived_literal_frame() -> None:
 
 def test_country_code_vocabulary_covers_common_document_aliases() -> None:
     countries = descendant._country_code_map(
-        _PROJECT_ROOT / "data/registries/countries/iso-codes-4.9.0-1/iso_3166-1.json"
+        _PROJECT_ROOT / "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json"
     )
 
     assert countries["uae"] == "AE"
