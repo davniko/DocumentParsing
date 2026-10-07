@@ -220,8 +220,20 @@ def validate_postal_geography(
         ]
 
     country_hits = separate(all_country_hits, all_locality_hits)
+    # An optional parenthetical qualifier is not needed to recognize an
+    # unwanted country line. Keep positive country grounding strict; this
+    # extra form only detects leakage into country-less source party shapes.
+    short_country = normalized(re.sub(r"\([^)]*\)", "", country))
+    short_country_hits = separate(
+        list(re.finditer(rf"(?<!\w){re.escape(short_country)}(?!\w)", text))
+        if short_country and short_country != nation
+        else [],
+        all_locality_hits,
+    )
     code_at_end = re.search(rf"(?<!\w){re.escape(country_code.casefold())}$", text)
-    if not country_labelled and ((country_hits and place != nation) or code_at_end):
+    if not country_labelled and (
+        (country_hits and place != nation) or short_country_hits or code_at_end
+    ):
         raise ValueError("generated country was not requested for this party")
     if country_labelled and len(country_hits) + bool(code_at_end) != 1:
         raise ValueError("generated postal country must occur once as its supplied name or code")
@@ -230,6 +242,20 @@ def validate_postal_geography(
     hits = separate(all_locality_hits, all_country_hits)
     if len(hits) != 1:
         raise ValueError("generated postal locality must occur once with its supplied spelling")
+
+
+def _has_tariff_declaration(text: str) -> bool:
+    for match in re.finditer(
+        r"\b(?:HS(?:[ -]*CODE)?|TARIFF\s+CODE)\s*[:.\-]?\s*\d{4,}", text, re.I
+    ):
+        # A compact identifier explicitly owned by a product-model caption is
+        # not a tariff declaration. Bare HS-123456 remains host-controlled.
+        if re.fullmatch(r"HS-\d+", match[0], re.I) and re.search(
+            r"\b(?:MODEL|TYPE|SERIES)\s*[:#]?\s*$", text[: match.start()], re.I
+        ):
+            continue
+        return True
+    return False
 
 
 def wording_prompt(requests: list[WordingRequest]) -> str:
@@ -352,9 +378,7 @@ def validate_wording(
                 re.I,
             ):
                 raise ValueError(f"{value.key}: shipment accounting inside generated description")
-            if fields[value.key].role == "goods description" and re.search(
-                r"\b(?:HS(?:[ -]*CODE)?|TARIFF\s+CODE)\s*[:.\-]?\s*\d{4,}", text, re.I
-            ):
+            if fields[value.key].role == "goods description" and _has_tariff_declaration(text):
                 raise ValueError(
                     f"{value.key}: host-owned tariff caption inside generated description"
                 )

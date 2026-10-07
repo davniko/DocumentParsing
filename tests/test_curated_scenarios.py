@@ -8,6 +8,7 @@ import pytest
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.country_registry import CountryEntry, CountryRegistry
+from document_ocr.synthesis.curated_routes import RouteTopology, validate_route_values
 from document_ocr.synthesis.curated_scenarios import (
     ScenarioCatalog,
     ScenarioLocation,
@@ -176,6 +177,168 @@ def catalog(rows, *, validation=frozenset(), phrases=None, **config_overrides):
         train_rows=rows,
         validation_ids=validation,
     )
+
+
+def test_direct_route_receipt_has_no_inactive_topology_metadata():
+    source = source_row()
+    cap = SourceCapabilities(family="ambient")
+    scenario = catalog([source]).sample(source, seed=77, variant=1, capabilities=cap)
+    assert scenario.route_locations == {}
+    assert "route_topology" not in cap.model_dump(mode="json")
+    assert "route_locations" not in scenario.model_dump(mode="json")
+    assert "route_topology" not in scenario.provenance["capabilities"]
+
+
+@pytest.mark.parametrize("shape", ["via", "load_at_hub", "onward_alias", "missing_discharge"])
+def test_transshipment_topology_preserves_roles_presence_and_independent_sampling(shape):
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    route = patch["route"]
+    route["transshipmentPort"] = {"name": "HUB"}
+    fields = {
+        "portOfLoading": "origin",
+        "transshipmentPort": "hub",
+        "portOfDischarge": "destination",
+    }
+    nodes = {"hub": {"port_ids": ["DEAAA", "CNAAA", "EGAAA"]}}
+    if shape == "load_at_hub":
+        route["placeOfReceipt"] = route["portOfLoading"]
+        route["portOfLoading"] = {"name": "HUB"}
+        fields.update(placeOfReceipt="origin", portOfLoading="hub")
+    elif shape == "onward_alias":
+        route["transshipmentPort"] = deepcopy(route["portOfDischarge"])
+        fields["transshipmentPort"] = "destination"
+        nodes = {}
+    elif shape == "missing_discharge":
+        del route["portOfDischarge"]
+        del fields["portOfDischarge"]
+    cap = SourceCapabilities(
+        family="ambient",
+        route_topology={"fields": fields, "nodes": nodes, "rationale": "Reviewed fixture route"},
+    )
+    support = catalog([source])
+    before = deepcopy(source)
+    destinations, origins, hubs = set(), set(), set()
+    for variant in range(1, 31):
+        scenario = support.sample(source, seed=77, variant=variant, capabilities=cap)
+        assert scenario.model_dump(mode="json")["route_locations"]
+        assert scenario.provenance["capabilities"]["route_topology"]
+        origins.add(scenario.origin.country_code)
+        destinations.add(scenario.destination.country_code)
+        hubs.add(scenario.route_locations["transshipmentPort"].registry_id)
+        from document_ocr.synthesis.curated_campaign import apply_replacements
+
+        result = apply_replacements(source["target"], scenario.replacements)["documentPatch"]
+        validate_route_values(patch, result, scenario.replacements)
+        assert set(result["route"]) == set(route)
+        if shape == "load_at_hub":
+            assert result["route"]["portOfLoading"] == result["route"]["transshipmentPort"]
+        if shape == "onward_alias":
+            assert result["route"]["portOfDischarge"] == result["route"]["transshipmentPort"]
+        damaged = deepcopy(result)
+        damaged["route"]["transshipmentPort"]["name"] = "STALE SOURCE HUB"
+        with pytest.raises(ValueError, match="sampled node"):
+            validate_route_values(patch, damaged, scenario.replacements)
+    assert len(origins) == len(destinations) == len(hubs) == 3
+    assert source == before
+
+
+@pytest.mark.parametrize("side", ["origin", "destination"])
+def test_route_extra_locality_follows_its_declared_country_and_issue_place(side):
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    patch["route"]["placeOfReceipt"] = {"name": "INLAND SITE", "country": "CHINA"}
+    patch["placeOfIssue"] = {"name": "INLAND SITE", "country": "CHINA"}
+    cap = SourceCapabilities(
+        family="ambient",
+        route_topology={
+            "fields": {
+                "portOfLoading": "origin",
+                "portOfDischarge": "destination",
+                "placeOfReceipt": "inland",
+            },
+            "nodes": {"inland": {"kind": "locality", "country_from": side}},
+            "issue_node": "inland",
+            "rationale": "Explicit inland ownership",
+        },
+    )
+    scenario = catalog([source]).sample(source, seed=1, variant=1, capabilities=cap)
+    inland = scenario.route_locations["placeOfReceipt"]
+    assert inland.registry == "geonames"
+    assert inland.country_code == getattr(scenario, side).country_code
+    assert scenario.replacements["documentPatch.placeOfIssue.name"] == inland.name
+
+
+def test_route_contract_rejects_missing_contract_wrong_sharing_and_unknown_ports():
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    patch["route"]["transshipmentPort"] = {"name": "HUB"}
+    support = catalog([source])
+    with pytest.raises(ValueError, match="explicit route topology"):
+        support.sample(source, seed=1, variant=1, capabilities=SourceCapabilities(family="ambient"))
+    spec = {
+        "fields": {
+            "portOfLoading": "origin",
+            "portOfDischarge": "destination",
+            "transshipmentPort": "hub",
+        },
+        "nodes": {"hub": {"port_ids": ["XXBAD"]}},
+        "rationale": "Test",
+    }
+    with pytest.raises(ValueError, match="unknown maritime port"):
+        support.sample(
+            source,
+            seed=1,
+            variant=1,
+            capabilities=SourceCapabilities(family="ambient", route_topology=spec),
+        )
+    spec["nodes"] = {}
+    spec["fields"]["transshipmentPort"] = "origin"
+    with pytest.raises(ValueError, match="merges distinct"):
+        RouteTopology.model_validate(spec).validate_source(patch)
+    del spec["fields"]["transshipmentPort"]
+    with pytest.raises(ValueError, match="cover exactly"):
+        RouteTopology.model_validate(spec).validate_source(patch)
+    spec["fields"]["transshipmentPort"] = "hub"
+    spec["nodes"] = {"hub": {"country_from": "origin"}}
+    # The fixture only has one port per country, already used by the origin.
+    with pytest.raises(ValueError, match="no distinct registry support"):
+        support.sample(
+            source,
+            seed=1,
+            variant=1,
+            capabilities=SourceCapabilities(family="ambient", route_topology=spec),
+        )
+    patch["route"]["transshipmentPort"] = deepcopy(patch["route"]["portOfLoading"])
+    with pytest.raises(ValueError, match="splits a repeated"):
+        RouteTopology.model_validate(spec).validate_source(patch)
+
+
+def test_source_bundle_preserves_nested_packing_load_basis_without_restricting_registry_draws():
+    source = source_row()
+    del source["target"]["documentPatch"]["goodsItemDetails"][0]["hsCodes"]
+    donor = source_row("other", quantity=10000)
+    support = catalog([source, donor])
+    cap = SourceCapabilities(
+        family="ambient", physical_profile="source_bundle", allowed_hs_headings=("5205",)
+    )
+    codes, counts = set(), set()
+    for variant in range(1, 21):
+        result = support.sample(source, seed=2, variant=variant, capabilities=cap)
+        goods = result.cargo["goodsItemDetails"][0]
+        quantity = goods["numberAndTypeOfPackages"][0]["packageQuantity"]
+        assert 60 <= quantity <= 120
+        assert "hsCodes" not in goods  # A private sampling identity is not invented OCR evidence.
+        codes.add(result.goods_identities[0].hs6)
+        counts.add(quantity)
+    assert len(codes) == 3 and len(counts) > 1
+    with pytest.raises(ValueError, match="no complete train-only cargo donors"):
+        support.sample(
+            source,
+            seed=2,
+            variant=1,
+            capabilities=SourceCapabilities(family="ambient", physical_profile="source_bundle"),
+        )
 
 
 def test_sampling_changes_identity_geography_and_exact_joint_quantities_without_mutation():

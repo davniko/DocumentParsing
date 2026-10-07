@@ -6,6 +6,8 @@ import pytest
 from test_curated_templates import source_fixture
 
 from document_ocr.synthesis.curated_auxiliary import (
+    _render_recipe,
+    _validate_recipe,
     augment_auxiliary_blueprint,
     auxiliary_surfaces,
     load_auxiliary_contract,
@@ -16,6 +18,42 @@ from document_ocr.synthesis.curated_templates import (
     render_sampling_blueprint,
 )
 from document_ocr.synthesis.generators import DeterministicStream
+
+
+def test_repeated_precarriage_leg_varies_coherently_and_is_distinct_from_main_vessel():
+    recipe = {"transport_leg": "precarriage", "source_voyage": "941 S"}
+    _validate_recipe(recipe)
+    target = {"documentPatch": {"transport": {"vesselName": "MAIN SHIP"}}}
+    source = "BIANCA RAMBOW 941 S"
+    stream = DeterministicStream(11, "test", "source")
+    args = (recipe, scenario(), target, stream, source, {30})
+    vessels = ("BIANCA RAMBOW", "MAIN SHIP", "NEW FEEDER")
+    result = _render_recipe(*args, vessels)
+    assert result == _render_recipe(*args, vessels)
+    assert result.startswith("NEW FEEDER ") and not result.endswith("941 S")
+    with pytest.raises(ValueError, match="vessel support"):
+        _render_recipe(*args)
+    with pytest.raises(ValueError, match="declared voyage"):
+        _render_recipe(recipe, scenario(), target, stream, "BIANCA RAMBOW 999 X", {30}, vessels)
+    with pytest.raises(ValueError, match="exact source voyage"):
+        _validate_recipe({"transport_leg": "precarriage"})
+
+
+def test_transshipment_auxiliary_uses_the_same_registered_route_location():
+    sampled = scenario()
+    sampled = sampled.model_copy(update={"route_locations": {"transshipmentPort": sampled.origin}})
+    recipe = {"text": "VIA {transshipment_port}, {transshipment_country} ({transshipment_code})"}
+    args = (
+        recipe,
+        sampled,
+        {"documentPatch": {}},
+        DeterministicStream(1, "test", "id"),
+        "OLD HUB",
+        set(),
+    )
+    assert _render_recipe(*args) == "VIA MUMBAI, INDIA (IN)"
+    with pytest.raises(ValueError, match="unknown auxiliary interpolation"):
+        _render_recipe(recipe, scenario(), args[2], args[3], "OLD HUB", set())
 
 
 def scenario():

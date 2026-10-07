@@ -150,10 +150,50 @@ def test_generated_product_cannot_invent_host_owned_package_fill(text):
         unpack_wording(output, [request])
 
 
+@pytest.mark.parametrize(
+    "caption", ["HS 854231", "HS:854231", "HS CODE-854231", "TARIFF CODE 854231", "HS-854231"]
+)
+def test_tariff_guard_distinguishes_captions_from_product_model_identifiers(caption):
+    request = WordingRequest(
+        "sample", "Electronic products", (WordingField("g", "goods description", "OLD", "Product"),)
+    )
+    schema = wording_output_type([request])
+    assert unpack_wording(
+        schema.model_validate({"s0": {"g": "HALL SENSOR MODEL HS-1881, DIP-8"}}), [request]
+    )
+    assert unpack_wording(
+        schema.model_validate({"s0": {"g": "HALL SENSOR SERIES: HS-188124, DIP-8"}}), [request]
+    )
+    with pytest.raises(ValueError, match="tariff caption"):
+        unpack_wording(schema.model_validate({"s0": {"g": "HALL SENSOR " + caption}}), [request])
+    with pytest.raises(ValueError, match="tariff caption"):
+        unpack_wording(
+            schema.model_validate({"s0": {"g": "MODEL HS-1881, DIP-8; " + caption}}), [request]
+        )
+
+
 def test_disjoint_semantic_renderers_must_not_silently_overwrite_each_other():
     assert combine_surfaces({"a": "X"}, {"a": "X", "b": ["Y"]}) == {"a": "X", "b": ["Y"]}
     with pytest.raises(ValueError, match="conflicting render ownership"):
         combine_surfaces({"a": "X"}, {"a": "Y"})
+
+
+def test_unrequested_country_is_detected_without_its_optional_parenthetical_qualifier():
+    with pytest.raises(ValueError, match="country was not requested"):
+        validate_postal_geography(
+            "12 ROSS ROAD STANLEY FALKLAND ISLANDS",
+            locality="STANLEY",
+            country="FALKLAND ISLANDS (MALVINAS)",
+            country_code="FK",
+            country_labelled=False,
+        )
+    validate_postal_geography(
+        "12 ROSS ROAD STANLEY",
+        locality="STANLEY",
+        country="FALKLAND ISLANDS (MALVINAS)",
+        country_code="FK",
+        country_labelled=False,
+    )
 
 
 def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(postal_campaign):

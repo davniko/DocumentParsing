@@ -1,0 +1,21 @@
+version: 1
+policy: generic_fictional_trade_references_not_national_registration_validation
+sources:
+  551657f3:
+    bindings:
+      'customs:importer': {identifier: importer}
+    spans:
+      - {quote: 'CLLPSD24010002LN', count: 1, value: {identifier: house_bl}}
+      - {quote: "SAMAYA\nELECTRONICS\nEGYPT LTD.", count: 1, value: {target: 'documentPatch.parties.notifyParties[0].name'}}
+      - {quote: '4130424802024010051', count: 1, value: {identifier: import_reference}}
+      - {quote: 'CS200618790', count: 1, value: {identifier: exporter}}
+      - {quote: 'COUNTRY:PHILIPPINES', count: 1, value: {text: 'COUNTRY:{origin_country}'}}
+  8579256f:
+    bindings:
+      'agent:booking_reference': {target: documentPatch.billOfLadingNumber}
+      'agent:customs:importer_tax_id': {identifier: importer}
+      'agent:customs:acid_reference': {identifier: import_reference}
+      'agent:customs:destination_reference': {identifier: importer}
+    spans:
+      - {quote: 'at Alexandria terminal', count: 1, value: {text: 'at {destination_port} terminal'}}
+      - {quote: 'EgyptianImporter', count: 2, value: {text: 'Importer'}}

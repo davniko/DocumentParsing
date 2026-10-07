@@ -50,6 +50,7 @@ from document_ocr.synthesis.curated_ownership import (
 )
 from document_ocr.synthesis.curated_physical import PhysicalSupport, prepare_physical_render
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
+from document_ocr.synthesis.curated_routes import validate_route_values
 from document_ocr.synthesis.curated_scenarios import (
     ScenarioCatalog,
     ScenarioSamplingConfig,
@@ -288,11 +289,14 @@ def wording_request(
         fields.append(WordingField(variable.key, role, variable.occurrences[0].text, requirement))
     if not goods_only:
         fields.extend(field for field, _ in contact_wording_fields(blueprint, scenario).values())
+    loading = scenario.route_locations.get("portOfLoading", scenario.origin)
     context = (
-        f"Loading: {scenario.origin.name}, {scenario.origin.country}. "
+        f"Loading: {loading.name}, {loading.country}. "
         f"Discharge: {scenario.destination.name}, {scenario.destination.country}.\n"
         "Goods: " + "; ".join(i.phrase for i in identities)
     )
+    if via := scenario.route_locations.get("transshipmentPort"):
+        context += f"\nPrinted transshipment location: {via.name}, {via.country}."
     context += "\nSAMPLED COMMODITY BRIEF\n" + "\n".join(identity.phrase for identity in identities)
     context += (
         "\nGenerate a plausible commercial assortment around this brief. Exact HS-to-product "
@@ -529,6 +533,7 @@ def validate_sample(
         raise ValueError("candidate target differs from configured uppercase policy")
     patch = target["documentPatch"]
     source = blueprint.target["documentPatch"]
+    validate_route_values(source, patch, scenario.replacements)
     if patch.get("route") == source.get("route"):
         raise ValueError("source-copy route is not a sampled scenario")
     goods = patch["goodsItemDetails"]
@@ -1119,7 +1124,7 @@ class Campaign:
             physical.surface_values, ownership_surfaces(blueprint, target, scenario)
         )
         surfaces, auxiliary_receipt = auxiliary_surfaces(
-            blueprint, scenario, target, stream, existing=surfaces
+            blueprint, scenario, target, stream, existing=surfaces, vessels=self.vessels
         )
         surfaces = combine_surfaces(surfaces, remaining_text_surfaces(blueprint, target, surfaces))
         keys = {v.key for v in blueprint.contract.variables}

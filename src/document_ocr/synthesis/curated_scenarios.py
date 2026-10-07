@@ -24,6 +24,7 @@ from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
 from document_ocr.synthesis.curated_goods import RegistryThermalPolicy
+from document_ocr.synthesis.curated_routes import RouteTopology
 from document_ocr.synthesis.dangerous_goods_registry import (
     DangerousGoodsHmtRecord,
     LoadedDangerousGoodsRegistry,
@@ -188,9 +189,12 @@ class SourceCapabilities(BaseModel):
     quantity_multiple: int = Field(default=1, gt=0)
     party_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
     location_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
+    route_topology: RouteTopology | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     require_contact_support: bool = True
     physical_profile: Literal[
-        "observed_train_bundle", "source_whole_units", "reviewed_whole_units"
+        "observed_train_bundle", "source_bundle", "source_whole_units", "reviewed_whole_units"
     ] = "observed_train_bundle"
     reviewed_whole_unit_donors: dict[str, ReviewedWholeUnitDonor] = Field(default_factory=dict)
 
@@ -289,6 +293,10 @@ class ShipmentScenario(BaseModel):
     variant: int
     origin: ScenarioLocation
     destination: ScenarioLocation
+    # Inactive optional topology adds no metadata to direct-route receipts.
+    route_locations: dict[str, ScenarioLocation] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
     party_localities: dict[str, ScenarioLocation]
     goods_identities: tuple[GoodsIdentity, ...]
     replacements: dict[str, Any]
@@ -659,6 +667,12 @@ class ScenarioCatalog:
     ) -> tuple[
         ScenarioLocation, ScenarioLocation, dict[str, ScenarioLocation], dict[str, Any], dict
     ]:
+        patch = row["target"]["documentPatch"]
+        topology = capabilities.route_topology
+        if topology is not None:
+            topology.validate_source(patch)
+        elif "transshipmentPort" in patch.get("route", {}):
+            raise ValueError("transshipment sources require an explicit route topology")
         eligible = tuple(sorted(self.ports.keys() & self.localities.keys()))
         rejected = []
         for pin in (capabilities.origin_country, capabilities.destination_country):
@@ -700,20 +714,48 @@ class ScenarioCatalog:
             raise ValueError("international scenario has identical endpoint countries")
         origin = _pick(self.ports[origin_country], stream.derive("origin-port"))
         destination = _pick(self.ports[destination_country], stream.derive("destination-port"))
-        patch = row["target"]["documentPatch"]
+        nodes = {"origin": origin, "destination": destination}
+        if topology is not None:
+            for name, spec in sorted(topology.nodes.items()):
+                countries = (
+                    (nodes[spec.country_from].country_code,)
+                    if spec.country_from != "independent"
+                    else tuple(
+                        c
+                        for c in sorted(self.ports)
+                        if c not in {origin_country, destination_country}
+                    )
+                )
+                registry = self.ports if spec.kind == "port" else self.localities
+                if spec.port_ids:
+                    known = {p.registry_id for values in self.ports.values() for p in values}
+                    if not set(spec.port_ids) <= known:
+                        raise ValueError("route node references unknown maritime port IDs")
+                used = {(p.registry, p.registry_id) for p in nodes.values()}
+                candidates = tuple(
+                    p
+                    for country in countries
+                    for p in registry.get(country, ())
+                    if (p.registry, p.registry_id) not in used
+                    and (not spec.port_ids or p.registry_id in spec.port_ids)
+                )
+                if not candidates:
+                    raise ValueError(f"route node has no distinct registry support: {name}")
+                nodes[name] = _pick(candidates, stream.derive(f"route-node:{name}"))
         replacements: dict[str, Any] = {}
         for field, old in patch.get("route", {}).items():
-            if field == "transshipmentPort":
-                raise ValueError(
-                    "transshipment sources require an explicit three-port route contract"
-                )
-            location = origin if field in {"placeOfReceipt", "portOfLoading"} else destination
+            location = (
+                nodes[topology.fields[field]]
+                if topology
+                else (origin if field in {"placeOfReceipt", "portOfLoading"} else destination)
+            )
             for key in ("name", "country"):
                 if key in old:
                     replacements[f"documentPatch.route.{field}.{key}"] = getattr(location, key)
         for key in ("name", "country"):
             if key in patch.get("placeOfIssue", {}):
-                replacements[f"documentPatch.placeOfIssue.{key}"] = getattr(origin, key)
+                issue = nodes[topology.issue_node] if topology else origin
+                replacements[f"documentPatch.placeOfIssue.{key}"] = getattr(issue, key)
         for index, goods in enumerate(patch.get("goodsItemDetails", ())):
             for key in goods.get("origin", {}):
                 if key not in {"name", "identifier"}:
@@ -772,6 +814,15 @@ class ScenarioCatalog:
                 if capabilities.require_contact_support
                 else {},
                 "rejectedDraws": rejected,
+                **(
+                    {
+                        "routeNodes": {k: v.model_dump() for k, v in nodes.items()},
+                        "routeFields": topology.fields,
+                        "routePolicy": "synthetic_registry_topology_not_carrier_service",
+                    }
+                    if topology
+                    else {}
+                ),
             },
         )
 
@@ -804,7 +855,7 @@ class ScenarioCatalog:
         else:
             observations = (
                 (source,)
-                if cap.physical_profile == "source_whole_units"
+                if cap.physical_profile in {"source_bundle", "source_whole_units"}
                 else (*self.observations, source)
             )
         required = {f for f in _MEASURES if f in source.goods}
@@ -826,7 +877,15 @@ class ScenarioCatalog:
                 and donor.package_category not in cap.allowed_package_categories
             ):
                 continue
-            if not donor.hs6 and cap.family not in {"vehicle", "dg_vehicle", "dg_chemical"}:
+            if (
+                not donor.hs6
+                and cap.family not in {"vehicle", "dg_vehicle", "dg_chemical"}
+                and not (
+                    cap.family == "ambient"
+                    and cap.physical_profile == "source_bundle"
+                    and cap.allowed_hs_headings
+                )
+            ):
                 continue
             if donor.hs6 and any(code not in self.phrases for code in donor.hs6):
                 continue
@@ -1325,6 +1384,10 @@ class ScenarioCatalog:
                 variant=variant,
                 origin=origin,
                 destination=destination,
+                route_locations={
+                    field: ScenarioLocation.model_validate(geography_receipt["routeNodes"][node])
+                    for field, node in geography_receipt.get("routeFields", {}).items()
+                },
                 party_localities=parties,
                 goods_identities=identities,
                 replacements=replacements,

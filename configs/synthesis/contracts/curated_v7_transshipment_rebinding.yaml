@@ -1,0 +1,41 @@
+doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525:
+  fields:
+    documentPatch.goodsItemDetails[0].grossWeight.value:
+      expression: '{gross}'
+      parts: {}
+    documentPatch.goodsItemDetails[0].volume.value:
+      expression: '{volume}'
+      parts: {}
+    documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity:
+      expression: '{boxes}'
+      parts: {}
+    documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity:
+      expression: '{boxes}'
+      parts: {}
+  extra_variables:
+    - key: gross
+      kind: mass
+      value: '684.46'
+      meaning: documentPatch.goodsItemDetails[0].grossWeight.value
+      required_literals: []
+      occurrences: [{text: '684.460', occurrence: 1, presentation: number}]
+    - key: volume
+      kind: volume
+      value: '8.608'
+      meaning: documentPatch.goodsItemDetails[0].volume.value
+      required_literals: []
+      occurrences: [{text: '8.608', occurrence: 1, presentation: number}]
+    - key: boxes
+      kind: count
+      value: '146'
+      meaning: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+      required_literals: []
+      occurrences: [{text: '146', occurrence: 1, presentation: number}]
+doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711:
+  fields:
+    documentPatch.parties.consignee.addressLine:
+      expression: 'PORT SAID, EGYPT , FREE ZONE'
+      parts: {}
+    documentPatch.parties.notifyParties[0].addressLine:
+      expression: 'PORT SAID, EGYPT , FREE ZONE'
+      parts: {}

@@ -1,0 +1,74 @@
+version: 1
+sources:
+  doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525:
+    add:
+      - key: 'customs:importer'
+        kind: identifier
+        paths: []
+        occurrences: [{text: '413042480', occurrence: 2}]
+      - key: 'route:origin:name'
+        kind: location
+        paths: [documentPatch.route.placeOfReceipt.name]
+        occurrences: [{text: MANILA, all: true}]
+      - key: 'route:origin:country'
+        kind: location
+        paths: [documentPatch.route.placeOfReceipt.country]
+        occurrences: [{text: PHILIPPINES, occurrence: 2}, {text: PHILIPPINES, occurrence: 4}]
+      - key: 'route:hub:name'
+        kind: location
+        paths: [documentPatch.route.portOfLoading.name, documentPatch.route.transshipmentPort.name, documentPatch.placeOfIssue.name]
+        occurrences: [{text: HONG KONG, all: true}]
+      - key: 'route:destination:name'
+        kind: location
+        paths: [documentPatch.route.portOfDischarge.name, documentPatch.route.placeOfDelivery.name, documentPatch.freight.paymentPlace.name]
+        occurrences: [{text: PORT SAID, all: true}]
+      - key: 'route:destination:country'
+        kind: location
+        paths: [documentPatch.route.portOfDischarge.country, documentPatch.route.placeOfDelivery.country, documentPatch.freight.paymentPlace.country]
+        occurrences: [{text: EGYPT, occurrence: 3}, {text: EGYPT, occurrence: 4}, {text: EGYPT, occurrence: 7}]
+      - key: 'transport:vessel'
+        kind: equipment
+        paths: [documentPatch.transport.vesselName]
+        occurrences: [{text: MAERSK LUZ}]
+      - key: 'transport:voyage'
+        kind: identifier
+        paths: [documentPatch.transport.voyageNumber]
+        occurrences: [{text: 402W}]
+      - key: 'date:shipment'
+        kind: date
+        paths: [documentPatch.issueDate, documentPatch.shippedOnBoardDate]
+        occurrences: [{text: 21-JAN-2024, all: true}]
+      - key: 'contact:notify:phone'
+        kind: phone
+        paths: ['documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]']
+        occurrences: [{text: '+356 2389 6310'}]
+      - key: 'equipment:type'
+        kind: equipment
+        paths: ['documentPatch.containerInformation[0].sizeCategory', 'documentPatch.containerInformation[0].typeCategory']
+        occurrences: [{text: "40'HQ"}]
+      - key: 'package:inner:type'
+        kind: package
+        paths: ['documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory']
+        occurrences: [{text: BOXES}]
+    surfaces:
+      'date:shipment': {date_path: documentPatch.issueDate, format: '%d-%b-%Y', case: upper}
+  doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711:
+    lexical:
+      - key: recipient_postal
+        kind: postal
+        paths: [documentPatch.parties.consignee.addressLine, 'documentPatch.parties.notifyParties[0].addressLine']
+        occurrences: [{text: 'port said, Egypt , port said ,free Zone', all: true}]
+    retire:
+      'anchor:documentPatch.parties.shipper.address': 'Crosses new company and postal owners; complete current-label owners supply both.'
+      'agent:cargo:g1:gross_weight': 'Current numeric owner covers all three numeric weights; KG remains fixed unit text.'
+    bindings:
+      'agent:customs:acid_reference':
+        occurrences: [{text: '4455085232024040016', all: true}]
+      'agent:customs:destination_reference':
+        occurrences: [{text: '445508523', occurrence: 3}, {text: '445508523', occurrence: 6}]
+      'agent:customs:hsc_code':
+        paths: ['documentPatch.goodsItemDetails[0].hsCodes[0]']
+    surfaces:
+      'anchor:documentPatch.route.portOfLoading.name': {expression: '{documentPatch.route.portOfLoading.name}'}
+      'anchor:documentPatch.route.transshipmentPort.name': {expression: '{documentPatch.route.transshipmentPort.name}'}
+      'anchor:documentPatch.placeOfIssue.name': {expression: '{documentPatch.placeOfIssue.name}'}

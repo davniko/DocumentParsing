@@ -221,8 +221,11 @@ fresh uncached LLM wording is not promised bit-for-bit reproducible.
 3. Reject countries missing required phone-generation metadata, recording
    rejection reasons. South Georgia (`GS`) is currently excluded this way.
 4. Choose a port for each endpoint.
-5. Existing receipt/loading fields follow origin; discharge/delivery/final
+5. Direct-route receipt/loading fields follow origin; discharge/delivery/final
    destination follow destination. Place of issue and goods origin follow origin.
+   A source with transshipment instead declares its route-node ownership:
+   receipt, loading, intermediate port, discharge, delivery and issue place can
+   follow different nodes or deliberately share one node (see section 16).
 6. Freight payment place follows its declared side, or prepaid → origin /
    collect → destination. The payment arrangement itself remains source-fixed.
 7. Sample party localities in their assigned countries. Shipper defaults to
@@ -235,7 +238,9 @@ fresh uncached LLM wording is not promised bit-for-bit reproducible.
 country-first, then port/locality within that country, not weighted by real
 trade volume. Party locality need not be near the selected port. This does not
 validate live carrier schedules or country–commodity trade likelihoods.
-Transshipment fields require a separate three-port contract and currently fail.
+Populated transshipment fields require an explicit `route_topology` capability.
+The sampler now supports this contract, including loading at the hub and repeated
+destination captions. A blank transshipment heading does not enable it.
 
 ## 5. Joint cargo, packaging, equipment and quantity sampling
 
@@ -251,6 +256,14 @@ For ordinary profiles, the package category and mass/cube per package come
 from that donor together. This is stronger than random independent numbers,
 but does not prove actual material density or commercial packability for every
 newly worded product.
+
+`physical_profile: source_bundle` keeps the source's own observed package/load
+basis while allowing new registry identities and scaled inner quantities. It is
+useful for nested packaging whose outer level stays fixed in source-only text:
+do not combine four fixed outer pallets with an unrelated full-container donor.
+An ambient source without printed HS codes needs an explicit reviewed HS domain
+for this profile; private sampling identities do not create absent public HS
+fields. This restriction does not constrain ordinary donor-supported profiles.
 
 ### HS identities and meaning
 
@@ -842,3 +855,195 @@ The pilot's extra manual inspection is not silently replaced by model agreement
 when scaling. Distribution quotas, a broader audited layout library, broader
 commodity/load support and a training ablation of the new positional inputs
 remain separate work, not results implied merely by successful publication.
+
+## 16. Transshipment integration and validation pilot — 2026-10-07
+
+### Diagnosis and source scope
+
+The historical renderer had transshipment bindings, but the current scenario
+sampler explicitly rejected a populated `route.transshipmentPort`. Simply
+removing that rejection would have silently assigned the intermediate port to
+the destination. The required fix was explicit route ownership, not another
+generated place name.
+
+The current real dataset inventory contains **11 labeled training sources and
+zero labeled validation sources** with this field. A broader textual screen
+finds **57 documents**: those 11 plus 42 training and four validation documents
+with transshipment-related wording but no such target. Those mentions largely
+include blank captions, contact headings and legal conditions, so they are not
+57 confirmed intermediate-port examples. The inventory is reproducible with
+[`prepare_transshipment_pilot.py`](../scripts/synthesis/prepare_transshipment_pilot.py)
+and recorded in [source-inventory.json](../artifacts/kie-synthesis-production/curated-v7-transshipment-pilot/source-inventory.json).
+
+| Source prefix | Observed route/shape | Scope in this pass |
+|---|---|---|
+| `551657f3` | Manila receipt → Hong Kong loading/via → Port Said discharge/delivery; issue place Hong Kong | Complete new source contract; three full variants |
+| `8579256f` | New York Elizabeth → Aliaga → Port Said West; destination also repeated in customs/party-adjacent text | Complete rebound source contract; three full variants |
+| `978a3990` | Gothenburg → Hamburg → Alexandria, onward El Dekheila; repeated feeder vessel/voyage distinct from main vessel | Real-text feeder recipe probe; not full-document publication |
+| `ce1f474c` | New York → Aliaga → Alexandria, route context spread across pages | Inventoried; source onboarding remains |
+| `d684b168` | New York → Mersin, no discharge target | Inventoried; missing-discharge topology tested |
+| `30ad41fb` | Chicago receipt, New York → Mersin → Port Said | Inventoried; inland receipt needs its own node |
+| `6c14020d` | Chicago receipt, New York → Aliaga → Alexandria | Inventoried; inland receipt needs its own node |
+| `a67afe13` | Rio → El Dekheila; transshipment caption also names El Dekheila | Inventoried; repeated-destination topology tested, not forced to a third distinct port |
+| `5a4230e0` | Port Klang → Jebel Ali → Sokhna; partial container/quantity detail | Inventoried; cargo ownership must also be onboarded |
+| `e44ccf71` | Boppard receipt, Antwerp → Ambarli → El Dekheila; barge pre-carriage | Inventoried; pre-carriage and inland ownership must be onboarded |
+| `13280227` | Norfolk → Aliaga → Alexandria; whole-loader cargo | Inventoried; whole-unit cargo profile also needs admission |
+
+Mention-only examples `6c5e700d` and `a5265d59` print a transshipment-related
+caption with a place already labeled as discharge; they do not establish a new
+intermediate node. `ffb526f7` prints `AS PER MTO`, not an extractable intermediate
+port. No real labels were changed or inferred from these captions.
+
+### Implemented end-to-end flow
+
+1. **Compile exact source ownership.** The two source contracts pin the current
+   OCR/target hashes and every edited span. `551657f3` had no historical compiled
+   template, so its ownership YAML supplies the complete new binding map.
+   Rebinding drafts cannot be used when required ownership is missing or the
+   original target cannot be replayed.
+2. **Sample endpoints as before.** Both origin and destination countries vary;
+   neither pilot template pins Egypt. Existing direct-route random streams and
+   serialized scenario receipts are unchanged.
+3. **Sample the additional node.** `RouteTopology` maps every populated route
+   field to `origin`, `destination`, or a named node. Extra ports come from the
+   pinned UN/LOCODE + World Port Index domain; inland nodes use the locality
+   registry. Country dependence is explicit. The pilot's independent hub must
+   differ from both endpoint countries and is drawn from Hamburg, Hong Kong,
+   Aliaga and Mersin. This domain is configurable. An unregistered port ID fails
+   configuration validation rather than being accepted as arbitrary wording.
+4. **Keep related facts coherent.** Loading can equal the intermediate port;
+   receipt can remain the earlier origin. Issue place follows its declared
+   node. Repeated `FROM`, `TO`, `VIA`, discharge clauses and country declarations
+   are bound to those same draws. A repeated destination caption can share the
+   destination node; it must not become a fabricated additional port.
+5. **Generate the complete remaining shipment.** The existing registry cargo,
+   physical quantities, equipment, parties, names, addresses and contact stages
+   run normally. The lexical brief receives actual loading and intermediate
+   ports. It does not independently choose geography. Generic customs captions
+   and source-owned references vary with the sampled countries.
+6. **Render all owned occurrences and public targets together.** New auxiliary
+   placeholders expose intermediate port, country and code. Missing intermediate
+   geography is an error. The optional `transport_leg` recipe independently
+   samples a feeder vessel/voyage from training support; it preserves the
+   source voyage's character shape and makes repeated mentions identical. It
+   cannot overwrite the main vessel or invent a new target field.
+7. **Validate and review before publication.** In addition to exact text-edit
+   replay and normal schema/numeric/ownership checks, every route component
+   must equal its sampled node. Missing fields, stale ports and invented country
+   components fail. Native-structured model review sees the complete rendered
+   sample and sampled facts. Final files and replay hashes are committed through
+   the existing publication stage; coordinates are written separately.
+
+Implementation: [`curated_routes.py`](../src/document_ocr/synthesis/curated_routes.py),
+[`curated_scenarios.py`](../src/document_ocr/synthesis/curated_scenarios.py),
+[`curated_campaign.py`](../src/document_ocr/synthesis/curated_campaign.py), and
+[`curated_auxiliary.py`](../src/document_ocr/synthesis/curated_auxiliary.py).
+The runnable [six-sample config](../configs/synthesis/mpci_bl_curated_v7_transshipment_pilot6.yaml)
+contains both source capability declarations and links to their ownership files.
+
+### Additional defects found during the full run
+
+- **Nested package load:** the first source prints 146 boxes on four pallets,
+  684.460 kg and 8.608 m³. Borrowing an unrelated large cargo load while retaining
+  four outer pallets was unsuitable. Its explicit `source_bundle` profile now
+  scales this observed inner-box/load relationship, while drawing electronic
+  goods from registry headings 8534/8541/8542. Published variants have 156, 134
+  and 91 boxes with corresponding weights/volumes; the four source-only outer
+  pallets stay fixed. The source does not print an HS code, so these sampled
+  identities remain private instead of creating unsupported HS labels.
+- **Product model versus tariff code:** the lexical checker treated `MODEL
+  HS-1881` as an HS declaration. It now distinguishes that product-model syntax
+  while still rejecting unauthorized `HS 854231`, `HS:854231`, `HS-854231`, `HS CODE-854231`
+  and `TARIFF CODE 854231` declarations. Regression tests cover both sides.
+- **Country-less postal slots:** a generated address inserted `FALKLAND
+  ISLANDS` when that slot should omit country. The registry spells the country
+  `FALKLAND ISLANDS (MALVINAS)`, so the old exact check missed it. The omission
+  guard now also recognizes the canonical name without its optional parenthetical
+  qualifier. This only tightens forbidden-country detection; it does not weaken
+  positive grounding. The existing bounded postal-correction stage corrected
+  the affected wording, followed by rerender and rereview. Manual inspection
+  found this even though the earlier model review reported no findings.
+- **Receipt stability:** inactive topology fields are omitted from direct-route
+  metadata. This keeps the existing 72-candidate authority replay identical,
+  rather than forcing regeneration because new optional fields were added.
+
+### Published examples
+
+| Variant | Receipt/origin → intermediate port → discharge/destination |
+|---|---|
+| `551657f3 / 1` | Europoort, Netherlands → Aliaga → Georgetown, Guyana |
+| `551657f3 / 2` | Kralendijk, Bonaire → Hamburg → Khanom, Thailand |
+| `551657f3 / 3` | Koper, Slovenia → Hamburg → Basra, Iraq |
+| `8579256f / 1` | Mongla, Bangladesh → Aliaga → Pago Pago, American Samoa |
+| `8579256f / 2` | Port Stanley, Falkland Islands → Mersin → Funafuti, Tuvalu |
+| `8579256f / 3` | Acajutla, El Salvador → Mersin → Moudi Terminal, Cameroon |
+
+For the first family, loading and issue place follow the middle node, not the
+receipt/origin. The first published example therefore renders `T/S CARGO FROM
+EUROPOORT, NETHERLANDS / TO GEORGETOWN, GUYANA VIA ALIAGA` with matching labels.
+Goods, parties, quantities, seals, identifiers and other sampled fields also
+change; this is not a route-only string-replacement demonstration.
+
+- [Original OCR and all six rendered samples](../artifacts/kie-synthesis-production/curated-v7-transshipment-pilot/samples.md)
+- [Coordinate-enriched samples](../artifacts/kie-synthesis-production/curated-v7-transshipment-pilot/positions-v2/samples.md)
+- [Plain dataset](../artifacts/kie-synthesis-production/curated-v7-transshipment-pilot/dataset.jsonl)
+- [Publication manifest, costs and exact hashes](../artifacts/kie-synthesis-production/curated-v7-transshipment-pilot/manifest.json)
+- [Offline stress, mutation, geometry and benchmark results](../artifacts/kie-synthesis-production/curated-v7-transshipment-pilot/offline-validation.json)
+
+### Validation and measured impact
+
+| Check | Result |
+|---|---|
+| Full generated records / source families | 6 / 2, all published and replay-valid |
+| Final rendered model review | Zero unresolved findings; no adjudication overrides |
+| Unit/regression tests | 180 passed (`test_curated*.py` plus `test_synthesis_curated.py`) |
+| Real-source deterministic stress | 1,000 scenarios, each reproduced exactly |
+| Deliberate route corruptions | 3,000/3,000 rejected: stale hub, missing field, invented country |
+| Stress geography coverage | 181 distinct origin and 181 destination countries; four configured hubs |
+| Goods diversity in the two 500-draw cohorts | 18 / 320 distinct HS6 identities; 61 / 288 package quantities |
+| Existing direct-route regression | 100 complete serialized scenarios equal to pre-change baseline; all previous 72 published candidates replay and validate |
+| Source-only feeder probe | Both original `BIANCA RAMBOW 941 S` occurrences become the same `NICOLA 393 D`, distinct from main vessel |
+| Coordinates | 381/502 content lines positioned; 121 explicitly unknown; 12/12 intermediate-port mentions positioned |
+| Geometry preservation | Nine coherently scaled/translated pages; text, targets and structural lines unchanged; all known coordinates within 0–1000 |
+
+The coordinate stage also retains its existing measured-source-region bounds,
+axis-order/alignment and nearest-neighbour/tie checks. Its 121 unknown positions
+are preserved as ` ||`; text is not removed and another field's position is not
+borrowed. These are inherited approximate layout anchors, not reconstructed
+synthetic PDF glyph positions.
+
+Interleaved warm direct-route sampling measured **0.1211 ms before / 0.1286 ms
+after** per sample: +0.0074 ms. Incremental traced Python allocation peaks were
+**41,900 / 42,180 bytes**, a 280-byte difference. Cold catalog loading was 4.87 s.
+The new topology-enabled sources measured 0.631 / 0.652 ms per warm scenario;
+that includes their additional node selection and source-specific cargo work.
+The stress process peaked at 433.83 MiB RSS, including both old/new catalog model
+copies; this is not an isolated per-worker memory estimate. Timings and memory
+measurements are recorded, not inferred from test success.
+
+The full new campaign ledger is **$0.00735508** (about 0.74 US cents), including
+the recorded generation attempts, correction and review calls; approximately
+$0.001226 per published sample. Six documents are too small for a dependable
+large-campaign cost projection. No paid calls were used for stress tests or
+replaying the previous pilot.
+
+The real **600 training / 60 validation records remain unchanged**. Their SHA-256
+values are respectively `ca15c382bd1a36e72db978a0acb34f9dec64e8ea6c7e00639e62bccc98058305`
+and `b8c0d4bddd4b3a452f901f3fc5e08e54d580a82768eddd5df33c97ab2c85da5a`.
+No training run or dataset merge was started.
+
+### Readiness and limits
+
+These **two transshipment families are ready for more variants through the
+normal pipeline**, alongside the previously validated direct-route pilot.
+The remaining nine labeled source families need the same explicit source
+ownership/onboarding as any additional template; this pass does not certify
+their unrelated cargo or party bindings. The feeder mechanism is integrated
+and real-text tested, but its whole source is not one of the six publications.
+
+The route contract models extraction roles and coherent synthetic geography,
+not verified carrier services, realistic voyage duration or optimal trade
+routes. Some uniformly sampled country combinations are circuitous. Likewise,
+the current public schema has one intermediate-port field, not a complete
+ordered list of arbitrary shipping legs. Neither claim is needed for this
+pilot's label/layout-learning objective.

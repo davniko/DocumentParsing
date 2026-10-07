@@ -21,7 +21,11 @@ import yaml
 from document_ocr.synthesis.curated import digest, flat
 from document_ocr.synthesis.curated_scenarios import ShipmentScenario
 from document_ocr.synthesis.curated_templates import RenderRegion, SamplingBlueprint
-from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.generators import (
+    DeterministicStream,
+    generate_from_surface_pattern,
+    surface_pattern,
+)
 from document_ocr.synthesis.template_compiler import contact_values
 
 # These are captions, not a whole-document country substitution. Exact matched
@@ -76,7 +80,7 @@ def _validate_recipe(recipe: dict) -> None:
         value = recipe.get(key, "")
         if not isinstance(value, str) or re.search(r"\\[nrt]|\r", value):
             raise ValueError(f"auxiliary {key} requires plain text with real LF line breaks")
-    actions = {"text", "target", "identifier", "date", "phone"} & recipe.keys()
+    actions = {"text", "target", "identifier", "date", "phone", "transport_leg"} & recipe.keys()
     if len(actions) != 1:
         raise ValueError("auxiliary recipe must have exactly one rendering action")
     action = next(iter(actions))
@@ -86,9 +90,17 @@ def _validate_recipe(recipe: dict) -> None:
         "identifier": {"prefix"},
         "date": {"format", "publish_target"},
         "phone": set(),
+        "transport_leg": {"source_voyage"},
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
+    if action == "transport_leg" and (
+        not isinstance(recipe["transport_leg"], str)
+        or not recipe["transport_leg"].strip()
+        or not isinstance(recipe.get("source_voyage"), str)
+        or not recipe["source_voyage"].strip()
+    ):
+        raise ValueError("transport leg requires a role and exact source voyage")
     if action == "date":
         date.fromisoformat(recipe["date"])
         if recipe.get("publish_target") not in (
@@ -193,9 +205,7 @@ def augment_auxiliary_blueprint(blueprint: SamplingBlueprint, contract: dict) ->
             if not owners or any(r.curated_key is not None for r in owners):
                 raise ValueError("audited date publication needs an exact source-only owner")
             for owner in owners:
-                parsed = datetime.strptime(
-                    owner.source, recipe.get("format", "%Y-%m-%d")
-                ).date()
+                parsed = datetime.strptime(owner.source, recipe.get("format", "%Y-%m-%d")).date()
                 if (
                     parsed.isoformat() != recipe["date"]
                     or parsed.strftime(recipe.get("format", "%Y-%m-%d")) != owner.source
@@ -210,9 +220,7 @@ def augment_auxiliary_blueprint(blueprint: SamplingBlueprint, contract: dict) ->
                 else r
                 for r in regions
             ]
-    return replace(
-        blueprint, target=target, regions=tuple(regions), historical_bindings=bindings
-    )
+    return replace(blueprint, target=target, regions=tuple(regions), historical_bindings=bindings)
 
 
 def _render_recipe(
@@ -222,7 +230,25 @@ def _render_recipe(
     stream: DeterministicStream,
     original: str,
     shifts: set[int],
+    vessels: tuple[str, ...] = (),
 ) -> str:
+    if "transport_leg" in recipe:
+        voyage = recipe["source_voyage"]
+        if not original.endswith(" " + voyage):
+            raise ValueError("transport leg source does not end with the declared voyage")
+        original_vessel = original[: -len(voyage)].strip()
+        main = target["documentPatch"].get("transport", {}).get("vesselName")
+        choices = tuple(v for v in vessels if v not in {original_vessel, main})
+        if not choices:
+            raise ValueError("auxiliary transport leg has no distinct train-fit vessel support")
+        leg_stream = stream.derive("transport-leg:" + recipe["transport_leg"])
+        vessel = choices[leg_stream.derive("vessel").randbelow(len(choices))]
+        new_voyage = generate_from_surface_pattern(
+            pattern=surface_pattern(voyage),
+            stream=leg_stream.derive("voyage"),
+            additional_excluded=voyage,
+        )
+        return vessel + " " + new_voyage
     if "text" in recipe:
         value = recipe["text"]
         substitutions = {
@@ -233,6 +259,12 @@ def _render_recipe(
             "destination_code": scenario.destination.country_code,
             "destination_port": scenario.destination.name,
         }
+        if via := scenario.route_locations.get("transshipmentPort"):
+            substitutions.update(
+                transshipment_port=via.name,
+                transshipment_country=via.country,
+                transshipment_code=via.country_code,
+            )
         for key, replacement in substitutions.items():
             value = value.replace("{" + key + "}", replacement)
         if re.search(r"\{[^}]+\}", value):
@@ -274,6 +306,7 @@ def auxiliary_surfaces(
     stream: DeterministicStream,
     *,
     existing: dict[str, str | list[str]] | None = None,
+    vessels: tuple[str, ...] = (),
 ) -> tuple[dict[str, str | list[str]], list[dict]]:
     """Produce all declared dependent surfaces and auditable semantic receipts.
 
@@ -298,6 +331,19 @@ def auxiliary_surfaces(
         public_paths.setdefault(region.key, set()).update(
             p for p in region.target_paths if p in after
         )
+    legs: dict[str, str] = {}
+    for key, binding in blueprint.historical_bindings.items():
+        recipe = binding.get("auxiliary_recipe", {})
+        if key not in present_keys or "transport_leg" not in recipe:
+            continue
+        role = recipe["transport_leg"]
+        for occurrence in binding["occurrences"]:
+            value = occurrence["source_text"]
+            if role in legs and legs[role] != value:
+                raise ValueError(
+                    "one transport leg has conflicting source vessel/voyage declarations"
+                )
+            legs[role] = value
     for key, binding in blueprint.historical_bindings.items():
         if key not in present_keys:
             continue  # A complete lexical owner supersedes this narrower span.
@@ -309,12 +355,12 @@ def auxiliary_surfaces(
         if recipe:
             if key in output:
                 raise ValueError(f"two semantic stages supplied auxiliary binding: {key}")
-            if public_paths[key] and set(recipe) & {"identifier", "phone"}:
+            if public_paths[key] and set(recipe) & {"identifier", "phone", "transport_leg"}:
                 raise ValueError(
                     f"source-only auxiliary generator owns public target values: {key}"
                 )
             rendered = [
-                _render_recipe(recipe, scenario, target, stream, original, shifts)
+                _render_recipe(recipe, scenario, target, stream, original, shifts, vessels)
                 for original in originals
             ]
         else:
