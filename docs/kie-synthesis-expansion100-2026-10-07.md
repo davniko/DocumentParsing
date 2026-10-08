@@ -613,3 +613,157 @@ the new path metadata. Exact comparison confirms only `configSha256` changed
 in the plain manifest and only its corresponding `sourceManifestSha256`
 reference changed in the position manifest. Final checks are recorded in
 `audit/template-relocation/final-validation.json`.
+
+## Next expansion: investigation for 200 templates (2026-10-08)
+
+This section is a plan and measured offline admission probe, not a new published
+campaign. The current 100 admitted templates and 500 synthetic records remain
+unchanged. No paid generation or training was launched during this investigation.
+The next objective is 100 additional templates, two audited descendants each,
+then another 800 records: 1,500 synthetic plus 600 real training records, with
+the existing 60 validation records unchanged. The 200 pilot records count toward
+the requested additional 1,000; they are not an extra uncounted campaign.
+
+### Permitted source pool and selection
+
+The user explicitly permits sources outside current training, provided they are
+not validation sources. Current reviewed labels are an efficiency advantage,
+not an eligibility requirement. Keep the existing filtered B/L/sea-waybill,
+at-most-five-page pool and previous explicit curation exclusions. Before final
+admission, compare document identity, source hashes and duplicate-shipment
+evidence against validation; the historical layout-proxy screen is an additional
+conservative screen, not proof of independent shipments.
+
+The read-only inventories are saved beside the probes in
+`docs/analysis/synthesis-expansion200-plan-20261008/`:
+
+| Pool/screen | Sources | Meaning |
+| --- | ---: | --- |
+| Unused current reviewed training sources | 500 | Current labels and line-position alignments exist |
+| Newer historical template, exact OCR, no validation-proxy overlap or known prior rejection | 155 | Preferred rebase candidates |
+| Same, with the current sampler's positive typed single-package shape | 148 | Mechanical source-shape eligibility |
+| Older historical templates passing equivalent source and shape screens | 61 | Additional candidates, not excluded just for catalog age |
+| Combined mechanically eligible reviewed-source shapes | 209 | Not yet admitted templates |
+| Filtered sources outside the current 660 | 1,258 | Historical labels, saved raw OCR and Paddle outputs exist |
+| External sources with newer historical templates and no validation-proxy overlap | 559 | Useful expanded search pool; current-label review still needed |
+
+Of the 559 external candidates, 548 historical template source texts match saved
+OCR exactly; 519 have one historical cargo group. Historical labels suggest 62
+negotiable, 45 thermal, 11 DG and eight transshipment sources across 134 carriers.
+These are prioritization hints: all labels use the old experimental schema and
+must be reviewed against current policies before admission. Paddle detections
+already exist, but these sources need raw-OCR-to-Paddle line alignment. The 145
+previously reviewed real sources outside the current 660 were all filtered out;
+they are not a clean ready-to-use reserve.
+
+Among the 209 reviewed-source shapes, 29 distinct sources cover 16 negotiable,
+five thermal, three DG and six transshipment cases (categories overlap).
+Start admission review with this priority group; 22 already passed the two-draw
+scenario probe, while seven need capability/dependency decisions. Fill the
+remaining places using simpler contracts, new carriers/layouts, varied container
+counts, notify references and long/split goods text. Use a reproducible seeded
+tie-break among equivalent candidates, and record replacements explicitly.
+External sources are useful where they add diversity absent from that group;
+they must not bypass source-label review simply to meet the count of 100.
+
+The previous one-off preparation script requires HS and gross weight for its
+extra shortlist. Reusing that restriction would leave only 41 extras. This is
+not a runtime requirement: the scenario sampler can sample a private registry
+goods identity while preserving absence of unprinted public HS/mass fields.
+
+### Actual rebase and sampling probe
+
+`probe_rebase.py` exercised the production draft, compiler, ownership builder and
+registry sampler on 223 candidates: 155 newer and 68 older historical templates,
+before excluding unsupported package shapes. It used no new ownership or
+auxiliary declarations and no language-model calls.
+
+- 218 produced drafts and passed exact source-baseline compilation.
+- 157 passed the ownership builder without added declarations.
+- 66 also had no unresolved draft binding diagnostics.
+- 196 sampled two new shipments successfully, including 93 sources without a
+  public HS value and 41 without a public gross weight. Public field presence
+  remained unchanged and private registry goods identities were populated.
+- The intersection of clean baseline/ownership/no-missing-bindings and two
+  successful scenario draws is **56 sources**.
+- Runtime: **9.23 seconds**, peak process RSS **433.44 MiB**, API cost **$0**.
+
+Draft diagnostics include split lexical surfaces, historical numeric values
+different from current labels, and measures needing explicit row-sum ownership.
+Sixty-one sources encountered overlapping owned regions; these require exact
+source-span reconciliation, not permissive rendering. Three require an explicit
+multi-package equation and two have unproven historical allocation identity.
+
+Twenty-seven sources failed the minimal scenario probe: 14 lacked one positive
+typed package row; six need explicit transshipment topology; two need the
+goods-origin identifier representation; three need freight-payment endpoint
+ownership; one lacks a compatible vehicle donor; and one has incomplete exact
+allocation totals. The topology/origin/freight decisions have existing declaration
+interfaces. This does not establish that every source is solvable without code
+changes. The unsupported package/donor/allocation cases should be reviewed or
+replaced explicitly, not silently coerced into supported shapes.
+
+These probes did not render new wording or certify auxiliary closure, complete
+source semantics or synthesized geometry. Their purpose is to measure reusable
+work and identify the concrete admission decisions before paying for generation.
+
+### Implementation and admission plan
+
+1. Freeze source and target identities, validation exclusions and selection.
+   For selected external sources, produce reviewed current-policy source labels
+   and line alignments first. Do not add them to the real 600 training split.
+2. Reuse historical exact source ownership through the existing current-schema
+   rebaser. Apply reviewed ownership, numeric, auxiliary and capability declarations
+   once per source. Check split addresses/descriptions, repeated occurrences,
+   allocation identity, customs/locality text and container aliases explicitly.
+3. Require baseline replay and complete mutable-fact coverage, then run seeded
+   scenario/preflight checks for all declared modes before any paid wording.
+   Include origin/destination changes, quantities, packaging, equipment, DG/thermal,
+   transshipment and negotiable/reference-party inheritance as applicable.
+4. Generate two complete descendants per newly admitted candidate using the
+   existing registry sampling, lexical/contact generation, casing and joint
+   coordinate-reflow flow. Keep all attempts and cost receipts campaign-local.
+5. Review all 200 rendered texts and targets, grouped two-per-source against the
+   source. Validate supporting text and omitted facts as well as schema; reconcile
+   findings and repeat checks only on affected results. No stale review hash may
+   authorize a changed result. Produce the source/variation inspection Markdown.
+6. Independently audit coordinates: text preservation, page assignment, bounds,
+   sequence/spacing, collisions, role ownership and source-anchor provenance.
+   Exercise existing negative controls and plot difficult/multi-page examples.
+   Compare coordinate coverage by generated goods/address lines, not only overall
+   coverage. Explicit unknown coordinates are preferable to invented geometry;
+   any new concentrated gaps require inspection before admission.
+7. Publish exactly 100 new usable templates into the common catalog, retaining
+   original 100 assets. Revalidate replay of the existing 500 if shared code or
+   declarations change. Then synthesize the remaining 800 and apply the same
+   campaign checks before assembling the expanded training dataset.
+
+The preparation script is a campaign-specific tool with paths and count for the
+old 100-source job. Do not rerun it unchanged. A parameterized admission entrypoint
+should reuse its compiler/declaration machinery and accept selected source IDs,
+source authority, destination and campaign paths explicitly; there is no reason
+to duplicate the synthesis engine or recompile all historical templates by LLM.
+
+Current runtime couples source authority and sampler support to the configured
+dataset's `train.jsonl`. External sources therefore require an explicit synthesis
+source-pool configuration, kept separate from the published real training set.
+One clean option is a dedicated pool containing current 600 plus reviewed selected
+external sources and the unchanged validation exclusions; its sampler support
+would intentionally use that allowed pool. If support statistics must remain
+600-only, separate source authority from fitting support instead. This choice
+must be explicit before using external sources, not an implicit label bypass.
+
+### Scaling and cost
+
+A balanced count allocation is seven descendants per old template and eight
+per new template: 700 + 800 = 1,500. Given five existing descendants per old
+template and two new pilot descendants per new template, the remaining 800 are
+200 old-template and 600 new-template draws. Sampling quotas may adjust this
+balance; negotiability should be governed by template selection/quota, not by
+changing the instruction independently of the template.
+
+The previous 200-record admission campaign's all-attempt API ledger was
+$0.29044148. Simple extrapolation is about $1.45 per 1,000 at that observed mix;
+this is a planning reference, not a quote, and excludes engineering time and
+any new external-source annotation. New work must retain generation/review/retry
+cost receipts rather than reporting successful calls alone.

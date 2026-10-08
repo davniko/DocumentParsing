@@ -52,10 +52,7 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "them. Distinguish owned contact homepages from links to specific legal/help content."
         " When role captions conflict, inspect the printed caption and its connected block; "
         "OCR can misread headings. Follow continuation markers before assigning ownership."
-        " Detached headings and repeated identities require layout review: assign roles "
-        "from labeled spatial blocks, not proximity in the OCR reading order. PDF may "
-        "clarify ownership of an OCR occurrence, but cannot restore a missing role's "
-        "occurrence by copying a repeated identity retained only under another role."
+        " Use layout when needed to resolve detached headings and party ownership."
     ),
     "route_transport": (
         "Check the role of every location, vessel and voyage against its heading/context, "

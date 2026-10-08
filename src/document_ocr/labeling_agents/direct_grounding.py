@@ -96,30 +96,6 @@ def source_fidelity_findings(
                     ),
                 )
             )
-        elif not instructions and (
-            "negotiability" not in patch
-            or patch["negotiability"]
-            != ("non_negotiable" if (patch.get("parties") or {}).get("consignee") else None)
-        ):
-            findings.append(
-                ReviewFinding(
-                    field="negotiability",
-                    issue="wrong_value",
-                    explanation=(
-                        "Negotiability is mandatory. The literal scan found no affirmative "
-                        "consignee order instruction, and the decision conflicts with the "
-                        "candidate's consignee availability. Check the actual OCR block for "
-                        "missing party details or equivalent order wording missed by this scan."
-                    ),
-                    suggestedCorrection=(
-                        "Use non_negotiable for a readable named consignee without order "
-                        "wording, negotiable for an actual order instruction, or null when "
-                        "OCR does not establish the consignee instruction. Check ownership; "
-                        "copy stamps and another role's identity cannot fill a missing block. "
-                        "This diagnostic does not edit labels."
-                    ),
-                )
-            )
     identifiers = []
     if section == "equipment":
         for i, row in enumerate(patch.get("containerInformation") or []):

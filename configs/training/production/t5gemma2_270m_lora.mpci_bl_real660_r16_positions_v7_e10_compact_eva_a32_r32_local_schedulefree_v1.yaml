@@ -31,7 +31,7 @@ prompt:
 
 task_constraints:
   path: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
-  sha256: b91b7aa002b379889a6f70e9580a695f07d9d977c72cdf873fcc8d3111cc81e9
+  sha256: e28b53511556d5ba77bc98cadd422c9e29f3f66a8e3c8ce32f82aa6a2d9b35cc
 
 dataset:
   format: jsonl

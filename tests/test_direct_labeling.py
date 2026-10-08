@@ -536,8 +536,8 @@ async def test_reviews_check_absent_sections_and_clean_result_never_becomes_gold
         assert OCR in text(messages)
         assert "Section field definitions:" in text(messages)
         if "Assigned section: parties." in text(messages):
-            assert "assign roles from labeled spatial blocks" in text(messages)
-            assert "cannot restore a missing role's occurrence" in text(messages)
+            assert "resolve detached headings and party ownership" in text(messages)
+            assert "cannot restore a missing role's occurrence" not in text(messages)
         return response({"response": {"status": "pass", "findings": []}})
 
     subject = flow(tmp_path, responder)
@@ -1503,14 +1503,15 @@ def test_conditional_order_caption_is_not_an_actual_instruction(ocr):
     assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
 
 
-def test_unavailable_consignee_instruction_stays_unknown_through_metadata_repair():
+def test_metadata_null_round_trip_does_not_infer_from_incomplete_party_draft():
     candidate = label()
     candidate["documentPatch"]["parties"]["notifyParties"] = [{"name": "IMPORTER", "sameAs": None}]
-    ocr = "CONSIGNEE\nEXPORT REFERENCES\nNOTIFY PARTY\nIMPORTER"
+    ocr = "CONSIGNEE\nEXPORT REFERENCES\nBUYER LTD\nNOTIFY PARTY\nIMPORTER"
     assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
     candidate["documentPatch"]["negotiability"] = "non_negotiable"
-    findings = source_fidelity_findings(candidate, ocr, "metadata_freight")
-    assert len(findings) == 1 and findings[0].field == "negotiability"
+    # A missing draft party is not evidence that its OCR instruction is missing.
+    # The semantic reviewer/audit decides ownership; this literal gate does not.
+    assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
     replacement = SECTION_MODELS["metadata_freight"].model_validate(
         {"negotiability": None, "billOfLadingNumber": "BL001"}
     )
