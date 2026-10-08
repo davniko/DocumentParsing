@@ -22,6 +22,7 @@ from document_ocr.atomic import (
     read_regular_file_bytes,
 )
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
+from document_ocr.training.checkpoints import PeftBestCheckpointMixin, verify_best_adapter_export
 from document_ocr.training.collator import MetadataStrippingCollator
 from document_ocr.training.config import TrainingConfig, parse_training_config, resolve_config_path
 from document_ocr.training.data import PreparedDatasets, prepare_datasets
@@ -974,6 +975,7 @@ def _source_code_identity(project_root: Path) -> list[dict[str, Any]]:
         "document_ocr.hashing",
         "document_ocr.label_schemas.bill_of_lading",
         "document_ocr.training.cli",
+        "document_ocr.training.checkpoints",
         "document_ocr.training.collator",
         "document_ocr.training.config",
         "document_ocr.training.data",
@@ -983,6 +985,7 @@ def _source_code_identity(project_root: Path) -> list[dict[str, Any]]:
         "document_ocr.training.prediction",
         "document_ocr.training.prompting",
         "document_ocr.training.runtime",
+        "document_ocr.training.schedule_free",
         "document_ocr.training.splitting",
         "document_ocr.training.tasks",
     ]
@@ -1356,11 +1359,14 @@ def run_training(
             )
             artifact_paths.append(eva_path)
         evaluation_dataset = prepared.datasets.get(config.evaluation.split)
-        class StandardSeq2SeqTrainer(SamplerAwarePredictionMixin, Seq2SeqTrainer):
+        class StandardSeq2SeqTrainer(
+            SamplerAwarePredictionMixin, PeftBestCheckpointMixin, Seq2SeqTrainer
+        ):
             pass
 
         class ScheduleFreeSeq2SeqTrainer(
-            SamplerAwarePredictionMixin, ScheduleFreeTrainerMixin, Seq2SeqTrainer
+            SamplerAwarePredictionMixin, ScheduleFreeTrainerMixin,
+            PeftBestCheckpointMixin, Seq2SeqTrainer
         ):
             schedule_free_adamw = config.optimization.schedule_free_adamw
 
@@ -1450,6 +1456,17 @@ def run_training(
 
         final_adapter_dir = run_dir / "final-adapter"
         trainer.save_model(str(final_adapter_dir))
+        if config.checkpoint.load_best_model_at_end:
+            if trainer.state.best_model_checkpoint is None:
+                raise RuntimeError("best-model export has no selected checkpoint")
+            verification = verify_best_adapter_export(
+                checkpoint=Path(trainer.state.best_model_checkpoint),
+                exported=final_adapter_dir,
+                adapter_name=config.peft.adapter_name,
+            )
+            verification_path = run_dir / "best-adapter-export.json"
+            atomic_publish_json(verification_path, verification)
+            artifact_paths.append(verification_path)
         artifact_paths.extend(path for path in final_adapter_dir.rglob("*") if path.is_file())
         checkpoints_dir = run_dir / "checkpoints"
         artifact_paths.extend(
