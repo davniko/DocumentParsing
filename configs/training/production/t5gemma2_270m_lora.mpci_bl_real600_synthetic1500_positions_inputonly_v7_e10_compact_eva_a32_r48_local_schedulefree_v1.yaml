@@ -1,4 +1,4 @@
-# Rank-only comparison against r32: alpha, data, seeds, optimizer and eval cadence unchanged.
+# Rank 48 with 5% warmup; alpha, data, seeds, optimizer and eval cadence unchanged.
 # 600 R16 real records + 1,500 audited synthetic records from 200 validation-disjoint templates.
 # Existing 500 + new 1,000; the 200-template admission pilot remains separate.
 # Same input-only positional baseline; evaluate/save every 2.5 epochs through epoch 10.
@@ -97,8 +97,8 @@ optimization:
   optimizer: schedule_free_adamw
   optimizer_args: null
   schedule_free_adamw:
-    # Fixed warmup retained from the five-epoch config; no external LR decay.
-    warmup_steps: 5
+    # 5% of 660 optimizer updates = 33; ScheduleFree owns the warmup.
+    warmup_steps: 33
     r: 0.0
     weight_lr_power: 2.0
     foreach: true
@@ -107,7 +107,7 @@ optimization:
   adam_epsilon: 0.00000001
   lr_scheduler_type: constant
   lr_scheduler_kwargs: {}
-  warmup_ratio: 0.0
+  warmup_ratio: 0.0  # No external warmup: the optimizer applies its own 33-step ramp.
   weight_decay: 0.01
   max_grad_norm: 1.0
   label_smoothing_factor: 0.0
