@@ -1,11 +1,12 @@
-# 600 unchanged R16 real records + 500 audited synthetic records from 100 train-only templates.
-# Same input-only positional baseline; evaluate/save every ~2.5 epochs and at epoch 10.
+# 600 R16 real records + 1,500 audited synthetic records from 200 validation-disjoint templates.
+# Existing 500 + new 1,000; the 200-template admission pilot remains separate.
+# Same input-only positional baseline; evaluate/save every 2.5 epochs through epoch 10.
 schema_version: 1
 task: bill_of_lading_extraction_v7_reduced
 objective: seq2seq_teacher_forcing
 
 run:
-  run_id: t5gemma2-270m-mpci-bl-real600-synthetic500-positions-inputonly-v7-e10-compact-eva-a32-r32-local-sfadamw-v1
+  run_id: t5gemma2-270m-mpci-bl-real600-synthetic1500-positions-inputonly-v7-e10-compact-eva-a32-r32-local-sfadamw-v1
   output_dir: artifacts/kie-training
 
 model:
@@ -37,11 +38,11 @@ dataset:
   format: jsonl
   splits:
     train:
-      - path: data/curated/mpci-bl-real600-synthetic500-v7-positions-v1/train.jsonl
-        sha256: 97404211dc21bbab6103d0975574dc632d3fcfb1f5967f99bd4881f2dfbc51e8
-        records: 1100
+      - path: data/curated/mpci-bl-real600-synthetic1500-v7-positions-v1/train.jsonl
+        sha256: b2dc5f3b2515a63268068bc294fb809827bdce2ef2835c77cb8b0e890ac2300b
+        records: 2100
     validation:
-      - path: data/curated/mpci-bl-real600-synthetic500-v7-positions-v1/validation.jsonl
+      - path: data/curated/mpci-bl-real600-synthetic1500-v7-positions-v1/validation.jsonl
         sha256: 14d306aff64e2903a8496d5809279ec42f4e9672b6d50432e72b8d170ec50f68
         records: 60
     test: []
@@ -64,7 +65,7 @@ dataset:
 
 peft:
   method: lora
-  adapter_name: t5gemma2_270m_mpci_bl_real600_synthetic500_positions_inputonly_v7_e10_compact_eva_a32_r32_local_sfadamw_v1
+  adapter_name: t5gemma2_270m_mpci_bl_real600_synthetic1500_positions_inputonly_v7_e10_compact_eva_a32_r32_local_sfadamw_v1
   rank: 32
   alpha: 32
   dropout: 0.05
@@ -86,7 +87,7 @@ peft:
   ensure_weight_tying: false
 
 optimization:
-  # 1100 rows / microbatch 1 / accumulation 32 = 35 updates/epoch, 350 total.
+  # 2100 rows / microbatch 1 / accumulation 32 = 66 updates/epoch, 660 total.
   num_train_epochs: 10.0
   max_steps: -1
   per_device_train_batch_size: 1
@@ -143,8 +144,8 @@ evaluation:
   case_sensitive: false
   strategy: steps
   split: validation
-  # 35 updates/epoch: round 2.5 epochs to 88 updates; final evaluation at step 350.
-  steps: 88
+  # 66 updates/epoch: 165 updates per 2.5 epochs; final evaluation at step 660.
+  steps: 165
   per_device_batch_size: 2
   on_start: false
   predict_with_generate: true
@@ -164,7 +165,7 @@ evaluation:
 
 checkpoint:
   strategy: steps
-  steps: 88
+  steps: 165
   total_limit: 2
   load_best_model_at_end: true
   metric_for_best_model: field_value_f1
@@ -194,13 +195,13 @@ logging:
     tags:
       pipeline: document-ocr-kie
       task: bill-of-lading-extraction-v7-reduced
-      dataset: real600-synthetic500-positions-v7
+      dataset: real600-synthetic1500-positions-v7
       input_format: real-and-synthetic-line-centres-1000
       prompt_mode: input-only
       labels_source: real-r15-and-curated-v7-synthesis
       real_train_records: "600"
-      synthetic_train_records: "500"
-      synthetic_source_templates: "100"
+      synthetic_train_records: "1500"
+      synthetic_source_templates: "200"
       validation: real60-new-split-historical-membership-recorded
       lora_rank: "32"
       lora_alpha: "32"
@@ -210,7 +211,7 @@ logging:
       epochs: "10"
       target_format: compact
       field_scoring: case-insensitive-values
-      projected_optimizer_updates: "350"
+      projected_optimizer_updates: "660"
       hardware: local-cuda
       microbatch_size: "1"
       gradient_accumulation_steps: "32"

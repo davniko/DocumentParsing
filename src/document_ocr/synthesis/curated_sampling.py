@@ -9,12 +9,13 @@ from __future__ import annotations
 import hashlib
 import math
 from collections import defaultdict
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TemplateSampling(BaseModel):
-    """Exact document budget and optional document-level instruction fractions."""
+    """Exact budget with source counts or document-level instruction fractions."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     samples: int = Field(gt=0)
@@ -27,6 +28,22 @@ class TemplateSampling(BaseModel):
         ),
     )
     notify_reference_fraction: float | None = Field(default=None, ge=0, le=1)
+    source_counts: dict[str, Annotated[int, Field(strict=True, gt=0)]] | None = Field(
+        default=None,
+        description=(
+            "Exact positive count for every selected source. Counts must sum to samples; "
+            "cannot be combined with instruction-fraction allocation."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_explicit_counts(self):
+        if self.source_counts is not None:
+            if self.negotiable_fraction is not None or self.notify_reference_fraction is not None:
+                raise ValueError("source_counts cannot be combined with instruction fractions")
+            if sum(self.source_counts.values()) != self.samples:
+                raise ValueError("source_counts must sum exactly to samples")
+        return self
 
 
 def instruction_stratum(target: dict) -> tuple[bool, bool]:
@@ -47,6 +64,7 @@ def source_variant_counts(config: dict, rows: dict[str, dict]) -> dict[str, int]
     """Allocate exact integer quotas, then spread each stratum over its sources.
 
     Without a sampling policy every selected source retains variants_per_source.
+    Explicit source counts must cover the full selection and the exact budget.
     With one requested margin, other traits retain conditional source diversity.
     Requested margins are rounded half-up to document counts. The joint count closest
     to independence is chosen within the feasible interval; absent strata impose
@@ -82,6 +100,10 @@ def source_variant_counts(config: dict, rows: dict[str, dict]) -> dict[str, int]
     strata = defaultdict(list)
     for sid in sources:
         strata[instruction_stratum(rows[sid]["target"])].append(sid)
+    if policy.source_counts is not None:
+        if set(policy.source_counts) != set(sources):
+            raise ValueError("source_counts must cover exactly the selected source IDs")
+        return {sid: policy.source_counts[sid] for sid in sources}
     n = policy.samples
     requested = (policy.negotiable_fraction, policy.notify_reference_fraction)
     specified = [i for i, fraction in enumerate(requested) if fraction is not None]

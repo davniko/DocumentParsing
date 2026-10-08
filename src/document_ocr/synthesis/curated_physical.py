@@ -882,6 +882,7 @@ def _equipment(blueprint, target, support, scenario, surfaces, receipt):
                         selected_new,
                         format_equipment=_complete_equipment_surface,
                         number_words=_number_to_words,
+                        preserve_length_only=False,
                     )
                 )
             else:

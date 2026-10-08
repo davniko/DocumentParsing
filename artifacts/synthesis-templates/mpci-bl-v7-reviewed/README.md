@@ -32,12 +32,26 @@ The original unfiltered declarations are preserved in that campaign's
 
 ## Runtime entry point and dependencies
 
-The current executable recipe remains
+The original 100-source executable recipe remains
 [`configs/synthesis/mpci_bl_curated_v7_expansion100.yaml`](../../../configs/synthesis/mpci_bl_curated_v7_expansion100.yaml).
 Its `source_contracts` and `historical_catalog` both point to `cases/`; its
 `ownership` and `auxiliary` paths point here. There is no fallback to old
 campaign-local template directories. Its source capabilities/topologies are
 also indexed per source in `manifest.json`, for reuse and comparison.
+
+The completed full-catalog recipe is
+[`mpci_bl_curated_v7_expansion1000.yaml`](../../../configs/synthesis/mpci_bl_curated_v7_expansion1000.yaml):
+three new descendants per original source and seven per newly admitted source,
+with a per-call batch limit of two. Its new seed/output preserve all existing campaigns. See the
+[run report and validation](../../../docs/kie-synthesis-expansion1000-2026-10-08.md),
+including reusable ownership/auxiliary fixes, explicit equipment rendering and
+full-text reviews of all 1,000 accepted descendants. The resulting training
+mixture has 600 real and 1,500 synthetic records. The subsequent
+[old500 back-check and upstream repair](../../../docs/kie-synthesis-followup-integrity-2026-10-08.md)
+updated the repeated exporter-ID binding and repaired the affected current
+publications in place, retaining exact pre-edit archives. Actual printed private
+and public gross totals now constrain generated wording. Real source snapshots
+and all real training/validation records remain unchanged.
 
 The catalog is **not a standalone replacement for the application or shared
 data dependencies**. `manifest.json.dependencies` records exact paths and hashes:

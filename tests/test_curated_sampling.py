@@ -192,3 +192,47 @@ def test_unavailable_single_margin_fails_and_null_is_not_a_reference():
     }
     with pytest.raises(ValueError, match="unavailable"):
         source_variant_counts(config, rows)
+
+
+def test_explicit_source_counts_preserve_exact_cohort_allocation_and_batch_limit():
+    rows = {f"source-{i}": {"target": label(i % 2 == 0, i % 3 == 0)} for i in range(200)}
+    requested = {sid: 3 if i < 100 else 7 for i, sid in enumerate(rows)}
+    config = {
+        "seed": 5,
+        "source_ids": list(rows),
+        "variants_per_source": 2,
+        "template_sampling": {"samples": 1000, "source_counts": requested},
+    }
+    before = deepcopy(config)
+    assert source_variant_counts(config, rows) == requested
+    assert source_variant_counts(config, dict(reversed(list(rows.items())))) == requested
+    assert config == before
+    config["source_ids"].reverse()
+    counts = source_variant_counts(config, rows)
+    assert counts == requested
+    assert list(counts) == config["source_ids"]
+
+
+@pytest.mark.parametrize(
+    "counts,total,extra,error",
+    [
+        ({"a": 1}, 2, {}, "sum exactly"),
+        ({"a": 1}, 1, {}, "cover exactly"),
+        ({"a": 1, "unknown": 1}, 2, {}, "cover exactly"),
+        ({"a": 0, "b": 2}, 2, {}, "greater than 0"),
+        ({"a": True, "b": 1}, 2, {}, "valid integer"),
+        ({"a": 1.0, "b": 1}, 2, {}, "valid integer"),
+        ({"a": 1, "b": 1}, 2, {"negotiable_fraction": 0.5}, "cannot be combined"),
+        ({"a": 1, "b": 1}, 2, {"notify_reference_fraction": 0.5}, "cannot be combined"),
+    ],
+)
+def test_explicit_counts_reject_ambiguous_or_incomplete_allocations(counts, total, extra, error):
+    rows = {"a": {"target": label()}, "b": {"target": label(True, True)}}
+    config = {
+        "seed": 1,
+        "source_ids": list(rows),
+        "variants_per_source": 2,
+        "template_sampling": {"samples": total, "source_counts": counts, **extra},
+    }
+    with pytest.raises(ValueError, match=error):
+        source_variant_counts(config, rows)

@@ -397,7 +397,11 @@ def auxiliary_surfaces(
             rendered = list(supplied) if isinstance(supplied, list) else [supplied] * len(originals)
         for transform in transformations:
             # Transform once per occurrence, even if compile saw repeats.
-            rendered = [text.replace(transform["source"], transform["text"]) for text in rendered]
+            replacement = _render_recipe(
+                {"text": transform["text"]}, scenario, target, stream,
+                transform["source"], shifts, vessels,
+            )
+            rendered = [text.replace(transform["source"], replacement) for text in rendered]
         if any(not v.strip() for v in rendered):
             raise ValueError("auxiliary renderer produced an empty owned region")
         if recipe and public_paths[key]:

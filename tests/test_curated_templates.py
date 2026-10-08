@@ -1,4 +1,5 @@
 import json
+import re
 from copy import deepcopy
 from datetime import date
 from types import SimpleNamespace
@@ -251,6 +252,23 @@ def test_casing_is_owned_presentation_not_a_label_or_technical_text_edit(style):
     assert set(first.values()) == {"uppercase", "title"}
 
 
+@pytest.mark.parametrize(
+    "source", ["MAKİNA TİCARET LTD. ŞTİ.", "ÉTÉ A\u0300 PARIS", "Straße \u0131STANBUL"]
+)
+@pytest.mark.parametrize("style", ["uppercase", "title"])
+def test_owned_casing_preserves_canonically_equivalent_unicode_letters(source, style):
+    import unicodedata
+
+    from document_ocr.synthesis.curated_casing import case_owned_text
+
+    result = case_owned_text(source, ("documentPatch.parties.shipper.name",), style)
+    expected = source.upper() if style == "uppercase" else source.title()
+    assert result == expected
+    assert unicodedata.normalize("NFC", result.upper()) == unicodedata.normalize(
+        "NFC", source.upper()
+    )
+
+
 def test_changed_package_requires_printed_type_not_declared_or_product_overlap_only():
     row, contract, old = source_fixture()
     target = deepcopy(row["target"])
@@ -268,6 +286,40 @@ def test_changed_package_requires_printed_type_not_declared_or_product_overlap_o
     goods["description"] = "PALLET STACKERS"
     with pytest.raises(ValueError, match="lacks an owned printed noun"):
         render_sampling_blueprint(blueprint, target, {})
+
+
+@pytest.mark.parametrize("quantity,expected", [(1, "PACKAGE"), (5440, "PACKAGES")])
+def test_reviewed_package_recipe_reconciles_source_noun_with_unchanged_current_category(
+    quantity, expected
+):
+    row, contract, old = source_fixture()
+    path = "documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory"
+    # A rebased current target can disagree with the historical noun even when
+    # synthesis does not change its category; the explicit recipe owns this repair.
+    row["target"]["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0][
+        "typeCategory"
+    ] = "PACKAGE_PACKAGE"
+    blueprint = build_owned_blueprint(
+        row, old, contract, {"surfaces": {"package": {"package_path": path}}}
+    )
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0][
+        "packageQuantity"
+    ] = quantity
+    surfaces = ownership_surfaces(
+        blueprint,
+        target,
+        SimpleNamespace(
+            party_localities={"documentPatch.parties.shipper": SimpleNamespace(country_code="IN")}
+        ),
+    )
+    assert surfaces["package"] == [expected]
+    text, rendered, proof = render_sampling_blueprint(
+        blueprint, target, {}, surface_values=surfaces
+    )
+    assert expected in text and "BOXES" not in text
+    assert rendered == target and path not in proof["changedTargetPaths"]
+    assert any(edit["key"] == "package" and edit["after"] == expected for edit in proof["edits"])
 
 
 def test_country_cannot_be_claimed_by_ownership_if_not_generated():
@@ -683,6 +735,87 @@ def test_lexical_ownership_changes_the_wording_contract_and_checks_repeat_covera
     assert "CERAMIC TILES" in " ".join(
         render_sampling_blueprint(blueprint, target, {"whole_goods": "CERAMIC TILES"})[0].split()
     )
+
+
+def test_reviewed_postal_owner_consumes_repeated_suffix_and_phone_prefix_without_relabeling():
+    address = "12 ROAD\nCAIRO\n12573"
+    complete_address = address + " / 12573\nEgypt"
+    source_phone = "+2\n02 2269 3193"
+    raw = ("CONSIGNEE\n" + complete_address + "\nTEL : " + source_phone + "\n") * 2
+    path = "documentPatch.parties.consignee"
+    row = {
+        "documentId": "postal-boundary",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "non_negotiable",
+                "parties": {
+                    "consignee": {
+                        "addressLine": "12 ROAD CAIRO 12573",
+                        "country": "EGYPT",
+                        "contactDetails": {"phoneNumbers": ["+2 02 2269 3193"]},
+                    }
+                },
+            },
+        },
+    }
+    contract = SourceContract(
+        variables=[
+            dict(
+                key="postal",
+                kind="postal",
+                value="12 ROAD CAIRO 12573",
+                meaning="consignee postal address",
+                required_literals=[],
+                occurrences=[dict(text=address, occurrence=i, presentation="text") for i in (1, 2)],
+            )
+        ],
+        targets=[dict(path=path + ".addressLine", expression="{postal}")],
+        fixed_context="Reviewed real label excludes duplicated printed postal suffix.",
+    )
+    historical = {"document_id": row["documentId"], "bindings": []}
+    for key, field, text, kind in (
+        ("country", ".country", "Egypt", "location"),
+        ("phone", ".contactDetails.phoneNumbers[0]", source_phone[1:], "phone"),
+    ):
+        starts = [match.start() for match in re.finditer(re.escape(text), raw)]
+        historical["bindings"].append(
+            dict(
+                logical_key=key,
+                target_paths=[path + field],
+                value_kind=kind,
+                occurrences=[
+                    dict(byte_start=p, byte_end=p + len(text), source_text=text) for p in starts
+                ],
+            )
+        )
+    declaration = {
+        "bindings": {"phone": {"occurrences": [{"text": source_phone, "all": True}]}},
+        "lexical": [
+            {
+                "key": "postal",
+                "kind": "postal",
+                "paths": [path + ".addressLine"],
+                "occurrences": [{"text": complete_address, "all": True}],
+            }
+        ],
+    }
+    blueprint = build_owned_blueprint(row, historical, contract, declaration)
+    assert blueprint.target == row["target"]
+    assert blueprint.contract.variables[0].value == "12 ROAD CAIRO 12573"
+    assert render_sampling_blueprint(blueprint, row["target"], {})[0] == raw
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["consignee"].update(
+        addressLine="47 NEW ROAD LAMPANG 52000 THAILAND",
+        country="THAILAND",
+        contactDetails={"phoneNumbers": ["+66 123 4567"]},
+    )
+    text, actual, proof = render_sampling_blueprint(blueprint, target, {})
+    assert actual == target
+    assert "12573" not in text and "Egypt" not in text and "++" not in text
+    assert text.count("THAILAND") == " ".join(text.split()).count("TEL : +66 123 4567") == 2
+    assert proof["changedTargetPaths"] == proof["coveredTargetPaths"]
 
 
 def test_reviewed_literal_deletion_is_explicit_and_other_blank_surfaces_fail():

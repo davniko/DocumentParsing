@@ -50,7 +50,11 @@ from document_ocr.synthesis.curated_ownership import (
     load_owned_blueprint,
     ownership_surfaces,
 )
-from document_ocr.synthesis.curated_physical import PhysicalSupport, prepare_physical_render
+from document_ocr.synthesis.curated_physical import (
+    PhysicalRenderPlan,
+    PhysicalSupport,
+    prepare_physical_render,
+)
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
 from document_ocr.synthesis.curated_routes import validate_route_values
 from document_ocr.synthesis.curated_sampling import (
@@ -74,6 +78,7 @@ from document_ocr.synthesis.curated_wording import (
     WordingBatch,
     WordingField,
     WordingRequest,
+    mass_in_kilograms,
     native_wording_prompt,
     rendered_review_prompt,
     review_output_type,
@@ -106,6 +111,9 @@ def wording_request_hash(request: WordingRequest) -> str:
             "system": WORDING_PROMPT,
             "request": native_wording_prompt([request]),
             "schema": wording_output_type([request]).model_json_schema(),
+            "gross_weight_kg": (
+                str(request.gross_weight_kg) if request.gross_weight_kg is not None else None
+            ),
         }
     )
 
@@ -231,6 +239,7 @@ def wording_request(
     sample_id: str,
     *,
     goods_only: bool = False,
+    physical_plan: PhysicalRenderPlan | None = None,
 ) -> WordingRequest:
     bindings = blueprint.contract.targets
     identities = list(scenario.goods_identities)
@@ -333,6 +342,7 @@ def wording_request(
     )
     for binding in product_groups:
         context += f"\nDESCRIPTION ASSEMBLY {binding.path}: {binding.expression}"
+    cargo = physical_plan.target["documentPatch"] if physical_plan else scenario.cargo
     physical = {
         "goods": [
             {
@@ -341,13 +351,19 @@ def wording_request(
                 if k
                 not in {"description", "hsCodes", "splitGoodsPlacement", "handlingInstructions"}
             }
-            for item in scenario.cargo.get("goodsItemDetails", [])
+            for item in cargo.get("goodsItemDetails", [])
         ],
         "equipment": [
             {k: v for k, v in item.items() if k not in {"equipmentIdentifier", "sealNumbers"}}
-            for item in scenario.cargo.get("containerInformation", [])
+            for item in cargo.get("containerInformation", [])
         ],
     }
+    if physical_plan:
+        physical["printed_measure_totals"] = {
+            key: {"value": value["total"], "unit": value["unit"]}
+            for key, value in physical_plan.receipt["measures"].items()
+            if value["method"] != "source_zero_unasserted"
+        }
     context += (
         "\nHOST-RENDERED PHYSICAL FACTS (compatibility context, not wording to repeat)\n"
         + yaml.safe_dump(physical, sort_keys=False, allow_unicode=True)
@@ -389,7 +405,17 @@ def wording_request(
         )
         for b in product_groups
     )
-    return WordingRequest(sample_id, context, tuple(fields), groups)
+    goods = cargo.get("goodsItemDetails", [])
+    gross = goods[0].get("grossWeight") if len(goods) == 1 else None
+    if physical_plan:
+        gross = physical["printed_measure_totals"].get("grossWeight")
+    return WordingRequest(
+        sample_id,
+        context,
+        tuple(fields),
+        groups,
+        mass_in_kilograms(gross["value"], gross["unit"]) if gross is not None else None,
+    )
 
 
 def host_variable_values(
@@ -768,11 +794,21 @@ class Campaign:
                 vessels=self.vessels,
             )
 
+    def wording_request(
+        self, blueprint: SamplingBlueprint, scenario: ShipmentScenario, sample_id: str, target: dict
+    ) -> WordingRequest:
+        """Give language generation the actual printed public and private loads."""
+        physical = prepare_physical_render(
+            blueprint, scenario, target, support=self.physical_support
+        )
+        return wording_request(blueprint, scenario, sample_id, physical_plan=physical)
+
     async def generate(self, sid: str) -> dict:
         plans = self.plans(sid)
         self.preflight(plans)
         requests = [
-            wording_request(bp, scenario, sample_id) for bp, scenario, sample_id, _ in plans
+            self.wording_request(bp, scenario, sample_id, target)
+            for bp, scenario, sample_id, target in plans
         ]
         wording, pending = {}, []
         repair_error = None
@@ -881,7 +917,7 @@ class Campaign:
         for bp, scenario, sample_id, target in self.plans(sid):
             receipt = json.loads((self.output / "wording" / f"{sample_id}.json").read_text())
             if receipt["requestSha256"] != wording_request_hash(
-                wording_request(bp, scenario, sample_id)
+                self.wording_request(bp, scenario, sample_id, target)
             ):
                 raise ValueError("contact generation requires current company wording")
             wording = combine_surfaces(receipt["values"], host_product_wording(bp, scenario))
@@ -986,7 +1022,7 @@ class Campaign:
         for blueprint, scenario, sample_id, target in self.plans(sid):
             path = self.output / "wording" / f"{sample_id}.json"
             receipt = json.loads(path.read_text())
-            original = wording_request(blueprint, scenario, sample_id)
+            original = self.wording_request(blueprint, scenario, sample_id, target)
             if receipt["requestSha256"] != wording_request_hash(original):
                 raise ValueError("postal correction requires current generation inputs")
             values = combine_surfaces(receipt["values"], host_product_wording(blueprint, scenario))
@@ -1138,7 +1174,10 @@ class Campaign:
     def render(self, sid: str, variant: int, *, persist: bool = True) -> dict:
         blueprint, scenario, sample_id, target = self.plan(sid, variant)
         receipt = json.loads((self.output / "wording" / f"{sample_id}.json").read_text())
-        request = wording_request(blueprint, scenario, sample_id)
+        physical = prepare_physical_render(
+            blueprint, scenario, target, support=self.physical_support
+        )
+        request = wording_request(blueprint, scenario, sample_id, physical_plan=physical)
         if receipt["requestSha256"] != wording_request_hash(request):
             raise ValueError(
                 "wording request changed; regenerate this source through the request cache"
@@ -1161,9 +1200,6 @@ class Campaign:
         )[sample_id]
         wording = combine_surfaces(wording, host_product_wording(blueprint, scenario))
         stream = DeterministicStream(self.config["seed"], "full-current-v7", sample_id)
-        physical = prepare_physical_render(
-            blueprint, scenario, target, support=self.physical_support
-        )
         host_values = combine_surfaces(
             host_variable_values(blueprint, physical.target, stream),
             physical.variable_values,

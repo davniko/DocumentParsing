@@ -183,6 +183,34 @@ def test_auxiliary_quote_cannot_consume_lexical_address_or_silently_move():
                 }
             },
         )
+
+
+def test_nested_auxiliary_caption_uses_the_same_scenario_interpolation():
+    row, contract, history = source_fixture()
+    blueprint = compile_sampling_blueprint(row, history, contract)
+    # Attach a scoped transform to an existing non-lexical owner, exercising
+    # the same nested-caption path used by larger private commercial fields.
+    region = next(r for r in blueprint.regions if r.curated_key is None)
+    bindings = deepcopy(dict(blueprint.historical_bindings))
+    original = bindings[region.key]["occurrences"][0]["source_text"]
+    bindings[region.key]["auxiliary_caption_transforms"] = [
+        {"source": original, "text": "{destination_port} FREE ZONE"}
+    ]
+    blueprint = replace(blueprint, historical_bindings=bindings)
+    values, _ = auxiliary_surfaces(
+        blueprint, scenario(), row["target"], DeterministicStream(3, "test", "sample")
+    )
+    assert values[region.key] == "ROTTERDAM FREE ZONE"
+    bindings[region.key]["auxiliary_caption_transforms"][0]["text"] = "{unknown_port}"
+    with pytest.raises(ValueError, match="unknown auxiliary interpolation"):
+        auxiliary_surfaces(
+            blueprint, scenario(), row["target"], DeterministicStream(3, "test", "sample")
+        )
+
+
+def test_auxiliary_quote_cannot_consume_lexical_address():
+    row, contract, history = source_fixture()
+    blueprint = compile_sampling_blueprint(row, history, contract)
     with pytest.raises(ValueError, match="intersects generated lexical"):
         augment_auxiliary_blueprint(
             blueprint,

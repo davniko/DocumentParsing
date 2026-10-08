@@ -1,6 +1,7 @@
 import asyncio
 import json
 from copy import deepcopy
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -16,16 +17,19 @@ from document_ocr.synthesis.curated_campaign import (
     wording_request,
     wording_request_hash,
 )
+from document_ocr.synthesis.curated_physical import PhysicalRenderPlan
 from document_ocr.synthesis.curated_scenarios import ScenarioLocation, ShipmentScenario
 from document_ocr.synthesis.curated_templates import SamplingBlueprint
 from document_ocr.synthesis.curated_wording import (
     WordingBatch,
     WordingField,
     WordingRequest,
+    mass_in_kilograms,
     review_output_type,
     unpack_review,
     unpack_wording,
     validate_postal_geography,
+    validate_product_masses,
     validate_wording,
     wording_output_type,
     wording_prompt,
@@ -330,7 +334,25 @@ def test_generated_product_cannot_invent_host_owned_package_fill(text):
 
 
 @pytest.mark.parametrize(
-    "text", ["FISH SIZE GRADE 500-800 G", "FABRIC 140 G/M2", "LIFT CAPACITY 500 KG"]
+    "text",
+    [
+        "FISH SIZE GRADE 500-800 G",
+        "FABRIC 140 G/M2",
+        "LIFT CAPACITY 500 KG",
+        "CASTORS, RATED LOAD CAPACITY 150 KG PER CASTOR",
+        "PRESS, 150 TON CLAMPING FORCE",
+        "LOADER, 12 TONNE RATED CAPACITY",
+        "RUBBER SHEETS, DENSITY 160 KG/M3",
+        "PAPER, UNIT MASS 140 G/M2",
+        "FIBC BAGS, 1000 KG SAFE WORKING LOAD",
+        "EMPTY 25 KG CAPACITY BAGS",
+        "INGOTS APPROXIMATELY 25 KG EACH",
+        "CHILLED FISH, SIZE GRADE M 1.2-2.0 KG PER PIECE",
+        "CHILLED CARCASS WEIGHT 1.2-1.6 KG PER BIRD",
+        "ROASTING MACHINE, OUTPUT 180 KG/H",
+        "COLD-ROLLED STEEL COILS, 1250 MM WIDTH",
+        "FROZEN AT -35 C, CARRIAGE TEMPERATURE -20 C",
+    ],
 )
 def test_product_size_and_capacity_are_not_package_fill(text):
     request = WordingRequest(
@@ -338,6 +360,103 @@ def test_product_size_and_capacity_are_not_package_fill(text):
     )
     output = wording_output_type([request]).model_validate({"s0": {"g": text}})
     assert unpack_wording(output, [request])["sample"]["g"] == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "LOADER, OPERATING WEIGHT 16,500 KG",
+        "LOADER, 12 TONNE OPERATING WEIGHT",
+        "MACHINE SHIPPING MASS: 16,500 KILOGRAMS",
+        "UNIT WEIGHT APPROX. 500 LBS",
+        "ITEM MASS = 2500 GRAMS",
+        "WEIGHT PER UNIT: 600 KG",
+        "MASS OF EACH MACHINE 0.8 METRIC TONNES",
+        "ASSEMBLY WEIGHS 450 KG",
+        "ONE UNIT WEIGHING APPROXIMATELY 1,500 KG",
+    ],
+)
+def test_actual_item_masses_cannot_exceed_supplied_whole_cargo_mass(text):
+    request = WordingRequest(
+        "sample",
+        "Goods",
+        (WordingField("g", "goods description", "OLD", "Product"),),
+        gross_weight_kg=Decimal("1"),
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"g": text}})
+    with pytest.raises(ValueError, match="item-mass lower bound"):
+        unpack_wording(output, [request])
+
+
+def test_product_mass_bound_uses_distinct_list_entries_not_repeated_or_alternative_masses():
+    text = "- MODEL A, OPERATING WEIGHT 16,500 KG\n- MODEL B, OPERATING WEIGHT 12,800 KG"
+    with pytest.raises(ValueError, match=r"29300 kg exceeds.*20500 kg"):
+        validate_product_masses([text], Decimal("20500"))
+    validate_product_masses([text], Decimal("29300"))
+    validate_product_masses(["MODEL A, OPERATING WEIGHT 16,200 KG"], Decimal("20500"))
+    validate_product_masses([text], None)
+    validate_product_masses(
+        ["- MODEL A, OPERATING WEIGHT 12 TONNES, SHIPPING MASS 13 TONNES"], Decimal("14000")
+    )
+    repeated = "- MODEL A, OPERATING WEIGHT 12 TONNES"
+    validate_product_masses([repeated, repeated.lower()], Decimal("14000"))
+    validate_product_masses(
+        ["1. MODEL A, OPERATING WEIGHT 12 TONNES\n2. MODEL A, OPERATING WEIGHT 12 TONNES"],
+        Decimal("14000"),
+    )
+    with pytest.raises(ValueError, match="24000 kg exceeds"):
+        validate_product_masses(
+            ["1. MODEL A, OPERATING WEIGHT 12 TONNES\n2. MODEL B, OPERATING WEIGHT 12 TONNES"],
+            Decimal("14000"),
+        )
+    # Unstructured alternatives are not assumed to be separate cargo items.
+    validate_product_masses(
+        ["MODEL A OPERATING WEIGHT 12 TONNES OR MODEL B SHIPPING MASS 13 TONNES"],
+        Decimal("14000"),
+    )
+    validate_product_masses(
+        ["MODEL A\n- OPERATING WEIGHT 12 TONNES\n- SHIPPING MASS 13 TONNES"],
+        Decimal("14000"),
+    )
+    validate_product_masses(
+        ["- MODEL A, OPERATING WEIGHT 12 TONNES\n- MODEL A, SHIPPING MASS 13 TONNES"],
+        Decimal("14000"),
+    )
+
+
+def test_product_mass_bounds_preserve_ratings_and_convert_only_explicit_units():
+    validate_product_masses(
+        ["LIFT CAPACITY 5000 KG; DENSITY 160 KG/M3; PAPER UNIT MASS 140 G/M2"], Decimal("1")
+    )
+    validate_product_masses(["UNIT WEIGHT 2.2046226218 LBS"], Decimal("1"))
+    with pytest.raises(ValueError, match="item-mass lower bound"):
+        validate_product_masses(["UNIT WEIGHT 3 POUNDS"], Decimal("1"))
+    validate_product_masses(["ITEM MASS 1000 GRAMS"], Decimal("1"))
+    with pytest.raises(ValueError, match="ambiguous numeric notation"):
+        validate_product_masses(["OPERATING WEIGHT 16,50 KG"], Decimal("100000"))
+    assert mass_in_kilograms("2", "metric_tonne") == Decimal("2000")
+    assert mass_in_kilograms("2", "pound") == Decimal("0.90718474")
+    with pytest.raises(ValueError, match=r"unsupported.*unit"):
+        mass_in_kilograms("2", "unknown")
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        mass_in_kilograms("NaN", "kilogram")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "SAMPLED COMMODITY BRIEF: POLYMER RESIN",
+        "POLYMER RESIN\nHOST SHIPMENT FACTS: 40HC, 200 BAGS",
+        "STRUCTURE EXAMPLE:\nCOFFEE BEANS",
+    ],
+)
+def test_goods_wording_rejects_generator_context_captions(text):
+    request = WordingRequest(
+        "sample", "Goods", (WordingField("g", "goods description", "OLD", "Product"),)
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"g": text}})
+    with pytest.raises(ValueError, match="generator context caption"):
+        unpack_wording(output, [request])
 
 
 @pytest.mark.parametrize(
@@ -497,6 +616,140 @@ def test_shared_complete_name_still_allows_multiple_owners_at_the_same_place(pos
     request = wording_request(replace(fixture.blueprint, contract=contract), scenario, "s")
     shared = next(f for f in request.fields if f.key == "consignee_name")
     assert "New party in ROTTERDAM, NETHERLANDS" in shared.requirement
+
+
+@pytest.mark.parametrize("public_gross", [None, {"value": "13143.49", "unit": "kilogram"}])
+def test_wording_context_and_bounds_use_printed_private_or_rounded_mass(
+    postal_campaign, public_gross
+):
+    fixture = postal_campaign
+    target = deepcopy(fixture.target)
+    goods = target["documentPatch"]["goodsItemDetails"][0]
+    if public_gross is not None:
+        goods["grossWeight"] = {"value": "13143", "unit": "kilogram"}
+    scenario = fixture.scenario.model_copy(
+        deep=True, update={"cargo": {"goodsItemDetails": [{"description": "OLD COFFEE"}]}}
+    )
+    if public_gross is not None:
+        scenario.cargo["goodsItemDetails"][0]["grossWeight"] = public_gross
+    plan = PhysicalRenderPlan(
+        target=target,
+        variable_values={},
+        surface_values={},
+        receipt={
+            "measures": {
+                "grossWeight": {
+                    "total": "13143",
+                    "unit": "kilogram",
+                    "method": "sampled_public_measure" if public_gross else "source_only_scaled",
+                }
+            }
+        },
+    )
+    plain = wording_request(fixture.blueprint, scenario, "sample")
+    request = wording_request(fixture.blueprint, scenario, "sample", physical_plan=plan)
+    assert request.gross_weight_kg == Decimal("13143")
+    assert "printed_measure_totals:" in request.context
+    assert "13143.49" not in request.context
+    assert wording_request_hash(request) != wording_request_hash(plain)
+    values = {**fixture.receipt["values"], "product": "LOADER, OPERATING WEIGHT 13,143.1 KG"}
+    output = wording_output_type([request]).model_validate({"s0": values})
+    with pytest.raises(ValueError, match="item-mass lower bound"):
+        unpack_wording(output, [request])
+    values["product"] = "LOADER, OPERATING WEIGHT 13,143 KG"
+    assert unpack_wording(wording_output_type([request]).model_validate({"s0": values}), [request])
+
+
+def test_campaign_wording_request_prepares_actual_physical_context(postal_campaign, monkeypatch):
+    fixture = postal_campaign
+    support = object()
+    fixture.campaign.physical_support = support
+    calls = []
+
+    def physical(blueprint, scenario, target, *, support):
+        calls.append((blueprint, scenario, target, support))
+        return PhysicalRenderPlan(
+            target=target,
+            variable_values={},
+            surface_values={},
+            receipt={
+                "measures": {
+                    "grossWeight": {
+                        "total": "13.143",
+                        "unit": "metric_tonne",
+                        "method": "source_only_scaled",
+                    }
+                }
+            },
+        )
+
+    monkeypatch.setattr("document_ocr.synthesis.curated_campaign.prepare_physical_render", physical)
+    request = Campaign.wording_request(
+        fixture.campaign, fixture.blueprint, fixture.scenario, "sample", fixture.target
+    )
+    assert calls == [(fixture.blueprint, fixture.scenario, fixture.target, support)]
+    assert request.gross_weight_kg == Decimal("13143")
+
+
+def test_unasserted_source_zero_has_no_generation_measure_or_mass_bound(postal_campaign):
+    fixture = postal_campaign
+    plan = PhysicalRenderPlan(
+        target=fixture.target,
+        variable_values={},
+        surface_values={},
+        receipt={
+            "measures": {
+                "grossWeight": {"total": "0", "method": "source_zero_unasserted"},
+                "volume": {"total": "0", "method": "source_zero_unasserted"},
+            }
+        },
+    )
+    request = wording_request(fixture.blueprint, fixture.scenario, "sample", physical_plan=plan)
+    assert request.gross_weight_kg is None
+    assert "printed_measure_totals: {}" in request.context
+    values = {**fixture.receipt["values"], "product": "MODEL A, UNIT WEIGHT 400 KG"}
+    assert unpack_wording(wording_output_type([request]).model_validate({"s0": values}), [request])
+
+
+def test_generation_repairs_private_printed_gross_contradiction_before_saving(postal_campaign):
+    fixture = postal_campaign
+    fixture.path.unlink()
+    plan = PhysicalRenderPlan(
+        target=fixture.target,
+        variable_values={},
+        surface_values={},
+        receipt={
+            "measures": {
+                "grossWeight": {
+                    "total": "13143",
+                    "unit": "kilogram",
+                    "method": "source_only_scaled",
+                }
+            }
+        },
+    )
+    fixture.campaign.wording_request = lambda bp, scenario, sid, target: wording_request(
+        bp, scenario, sid, physical_plan=plan
+    )
+    calls = []
+
+    async def call(stage, sid, output_type, system, prompt):
+        calls.append(stage)
+        values = dict(fixture.receipt["values"])
+        assert "printed_measure_totals:" in prompt
+        assert "13143" in prompt
+        values["product"] = (
+            "LOADER, OPERATING WEIGHT 21,000 KG"
+            if stage == "exact-wording"
+            else "LOADER WITH ENCLOSED CAB"
+        )
+        return output_type.model_validate({"s0": values})
+
+    fixture.campaign.calls.call = call
+    result = asyncio.run(fixture.campaign.generate("source"))
+    assert calls == ["exact-wording", "wording-validation-repair"]
+    assert "item-mass lower bound" in result["wordingValidationRepair"]
+    assert json.loads(fixture.path.read_text())["values"]["product"] == "LOADER WITH ENCLOSED CAB"
 
 
 @pytest.mark.parametrize("failure", ["physical", "unowned_target"])
@@ -827,6 +1080,7 @@ def postal_campaign(tmp_path):
     campaign.output = tmp_path
     campaign.plans = lambda sid: [(blueprint, scenario, sample_id, deepcopy(target))]
     campaign.preflight = lambda plans: None  # These fixtures isolate paid-wording behavior.
+    campaign.wording_request = lambda bp, scenario, sid, target: wording_request(bp, scenario, sid)
     campaign.calls = SimpleNamespace()
     return SimpleNamespace(
         campaign=campaign,

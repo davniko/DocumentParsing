@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -75,6 +76,9 @@ def case_owned_text(text: str, paths: tuple[str, ...], style: RenderCasing) -> s
         return value.upper() if style == "uppercase" else value.title()
 
     result = re.sub(r"\S+", token, text)
-    if result.upper() != text.upper():
+    # Unicode titlecasing can decompose a letter (İ -> i + combining dot).
+    # Compare canonical forms so the fidelity guard accepts the same letter,
+    # without stripping accents or changing the emitted text.
+    if unicodedata.normalize("NFC", result.upper()) != unicodedata.normalize("NFC", text.upper()):
         raise ValueError("render casing changed more than letter case")
     return result

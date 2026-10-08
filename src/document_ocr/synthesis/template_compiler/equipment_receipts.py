@@ -363,8 +363,14 @@ def project_receipt(
     *,
     format_equipment: Callable[[Mapping[str, Any], str], str],
     number_words: Callable[[int], str],
+    preserve_length_only: bool = True,
 ) -> str:
-    """Return an inventory-derived receipt, rejecting unproved subset ownership."""
+    """Return an inventory-derived receipt, rejecting unproved subset ownership.
+
+    Private equipment changes may preserve a source's length-only observation.
+    Callers publishing complete size/type labels disable that preservation so
+    their formatter can expose the sampled classification in the rendered text.
+    """
     text = surface.strip()
     if re.fullmatch(r"(?:HI|HIGH)[ -]?CUBE", text, re.I):
         # This is a height-only predicate, not permission to print an inventory
@@ -534,7 +540,11 @@ def project_receipt(
         raise ValueError("partial multi-term equipment receipt requires explicit subset ownership")
     if len(parsed) == 1 and len(source_rows) == len(target_rows):
         printed_shape = _semantic(parsed[0][1])
-        if printed_shape.length is not None and printed_shape.kind is None:
+        if (
+            preserve_length_only
+            and printed_shape.length is not None
+            and printed_shape.kind is None
+        ):
             # A length-only receipt never asserts type or height. Changing a
             # private type within that length cannot require printing it.
             shapes = [_row_shape(row) for row in selected]

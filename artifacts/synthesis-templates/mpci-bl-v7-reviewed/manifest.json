@@ -477,6 +477,9 @@
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "family": "ambient",
+        "required_private_measures": [
+          "grossWeight"
+        ],
         "route_topology": {
           "fields": {
             "portOfDischarge": "destination",
@@ -1209,7 +1212,7 @@
       },
       "files": {
         "alignment.json": "7d05017c4dca7f1cdd20e95a42dcaa96315781a7304e2f40f668b30c42ecebc1",
-        "contract.json": "ecb75d43a35635286cd69296bf472d1aebf008e31a7f693ba3fbfc47a2cfde7f",
+        "contract.json": "c9ce161bb1d188b103b8b1cdb1b6cf863a2853c01c32c615d7dad8e7a365949b",
         "source-positioned.txt": "6a8935b22d70ca088f23b26e68b5c11fe16c1190e77de9a8de9f2ebe57c3dae0",
         "source.txt": "aab451125e83415dbd1ce2491c61c65a65fcb93987719b4805778fd558764235",
         "target.json": "1027e430b1139d3804d00c3e3251e39d5b2966ec44c04cc3d5e49e9e90a6e566",
@@ -3138,6 +3141,9 @@
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "family": "ambient",
+        "required_private_measures": [
+          "grossWeight"
+        ],
         "route_topology": {
           "fields": {
             "portOfDischarge": "destination",
@@ -5574,7 +5580,7 @@
               "HS CODE: 8703231900",
               "Gross Cargo Weight: 1,996.000 kgs. 15.582 cu. m."
             ],
-            "target_sha256": "b0bd10754dc6e8545882fcaed23191c25e09fb0996b80c174acc5f76ad823790",
+            "target_sha256": "0b4bf971bd04939e2241773878dac210e5119e996217fd2f6473466a3d24c9df",
             "whole_unit_count": 1
           }
         }
@@ -7047,10 +7053,45 @@
     "inputsUnchanged": true,
     "policy": "mandatory_consignee_negotiability_explicit_notify_reference_v1"
   },
+  "maintenance": [
+    {
+      "campaign": "curated-v7-expansion1000-v1",
+      "date": "2026-10-08",
+      "report": "docs/kie-synthesis-expansion1000-2026-10-08.md",
+      "changedFileHashes": [
+        {
+          "source": "doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834",
+          "file": "contract.json",
+          "before": "ecb75d43a35635286cd69296bf472d1aebf008e31a7f693ba3fbfc47a2cfde7f",
+          "after": "c9ce161bb1d188b103b8b1cdb1b6cf863a2853c01c32c615d7dad8e7a365949b"
+        },
+        {
+          "file": "auxiliary.yaml",
+          "before": "328ccd69b0a6e2e79d373ab298717a73620a47bb7fc8853e06f7f85440086362",
+          "after": "12adae600faa947ac9407be12443e6d4d7a99bb8d309b96006bbbcad73dd9109"
+        },
+        {
+          "file": "ownership.yaml",
+          "before": "de0bf0023b2b6608e227e704baa4ac8682c88a8ab82251e6f772a7ba090c397e",
+          "after": "f66ca9aa4baeb63b41dc04389d546030d868c689c315e3b4b63696c98ae9433b"
+        }
+      ]
+    }
+  ],
+  "followupIntegrityRepair": {
+    "date": "2026-10-08",
+    "report": "docs/kie-synthesis-followup-integrity-2026-10-08.md",
+    "source": "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04",
+    "reason": "EXID numeric core shares the exporter registration draw; source national prefix becomes sampled origin code.",
+    "previousSharedFiles": {
+      "auxiliary.yaml": "12adae600faa947ac9407be12443e6d4d7a99bb8d309b96006bbbcad73dd9109",
+      "ownership.yaml": "f66ca9aa4baeb63b41dc04389d546030d868c689c315e3b4b63696c98ae9433b"
+    }
+  },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "328ccd69b0a6e2e79d373ab298717a73620a47bb7fc8853e06f7f85440086362",
-    "ownership.yaml": "de0bf0023b2b6608e227e704baa4ac8682c88a8ab82251e6f772a7ba090c397e",
+    "auxiliary.yaml": "b481cda078d33d92f52dc0857728b7891f389afb8cdfd90dfb7478721471144a",
+    "ownership.yaml": "2b740fe26b3862c646ee2a3978ba27cf37f287a644f974b6f8f00c5622b72568",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513"
   },

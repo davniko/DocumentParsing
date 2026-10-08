@@ -894,7 +894,14 @@ sources:
       agent:customs:foreign_exporter_country_code:
         text: '{origin_code}'
   doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04:
+    spans:
+    - quote: TR-02-
+      count: 1
+      value:
+        text: '{origin_code}-'
     bindings:
+      agent:shipper_export_identifier:
+        identifier: registration
       agent:shipper_tax_identifier:
         identifier: registration
       agent:consignee_tax_identifier:
@@ -2116,8 +2123,10 @@ sources:
         identifier: source_reference_14826584
   doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef:
     bindings:
+      agent:exporter_number:
+        identifier: source_reference_IT02822620981
       agent:exporter_id_formatted:
-        identifier: source_reference_IT02IT02822620981
+        identifier: source_reference_IT02822620981
       agent:importer_tax_identifier:
         identifier: source_reference_308437950
       agent:acid_identifier:
@@ -2199,6 +2208,20 @@ sources:
         text: Preliminary customs registration reference as declared by shipper.
   doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031:
     bindings:
+      agent:invoice_number:
+        identifier: invoice
+      agent:invoice_date:
+        date: '2023-02-11'
+        format: '%d/%m/%Y'
+      agent:shipping_bill_number:
+        identifier: shipping_bill
+      agent:shipping_bill_date:
+        date: '2023-02-11'
+        format: '%d/%m/%Y'
+      agent:consignee_vat_number:
+        identifier: source_reference_482286385
+      agent:shipper_vat_number:
+        identifier: source_reference_C15130584
       agent:buyer_tax_id:
         identifier: source_reference_482286385
       agent:customs:acid_reference:
@@ -2209,9 +2232,17 @@ sources:
         identifier: source_reference_C15130584
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         target: documentPatch.parties.shipper.name
-    spans: []
+    spans:
+    - quote: ALL EGYPTIAN PORTS
+      count: 1
+      value:
+        text: ALL DESTINATION PORTS
   doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50:
     bindings:
+      agent:freight_payable_location_origin:
+        text: '{origin_port}'
+      agent:freight_payable_location_destination:
+        text: '{destination_port}, {destination_country}'
       agent:acid_number:
         identifier: source_reference_1002944562023090029
       agent:exporter_id:
@@ -2311,11 +2342,17 @@ sources:
     spans: []
   doc_361e7fedebcee73017bb5db0ed3ea4e70d6aa64c9a2b0c0cdfa2258db165b4aa:
     bindings:
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: source_reference_X20231003393848
       agent:acid_number:
         identifier: source_reference_5184826932023080272
       agent:invoice_party:tt_ocean_logistics:
         target: documentPatch.parties.shipper.name
-    spans: []
+    spans:
+    - quote: AES ITN#
+      count: 1
+      value:
+        text: EXPORT REFERENCE
   doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5:
     bindings:
       agent:shipper_cnpj:
@@ -2575,6 +2612,14 @@ sources:
     spans: []
   doc_5ffbf8421800ef773833ad581145fbdb266e358a5e83a15880a07c741ef4d9e4:
     bindings:
+      review:proforma_invoice_reference:
+        identifier: proforma_invoice
+      review:proforma_invoice_date:
+        date: '2024-03-01'
+        format: '%d.%b.%Y'
+      agent:egypt:country:
+        party_location: documentPatch.parties.deliveryAgent
+        field: country
       agent:shipper_tax_id:
         identifier: source_reference_91610131294204008Y
       agent:consignee_tax_id:
@@ -2586,6 +2631,10 @@ sources:
       agent:shipper_fax:
         phone: documentPatch.parties.shipper
     spans:
+    - quote: 93. Reloading empty containers to remain for receiver's account at any port of discharge in Egypt.
+      count: 1
+      value:
+        text: 93. Reloading empty containers to remain for receiver's account at the port of discharge.
     - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
         Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
@@ -2646,6 +2695,8 @@ sources:
     spans: []
   doc_68d08294f302764335935c9f2d43b9270ae174a5612cec9f8b1bb4b6da742b10:
     bindings:
+      agent:shipper_vat_identifier:
+        identifier: source_reference_IT10836290964
       agent:consignee_tax_identifier:
         identifier: source_reference_205089623
       agent:notify_tax_identifier:
@@ -2657,6 +2708,9 @@ sources:
     spans: []
   doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512:
     bindings:
+      agent:local_agent:office:
+        party_location: documentPatch.parties.deliveryAgent
+        field: name
       agent:customs:acid_number:
         identifier: source_reference_4355207682024070018
       agent:customs:egyptian_importer_tax_id:
@@ -2853,6 +2907,14 @@ sources:
         field: country_code
   doc_81877adfaa979b7c2d76df6b9f53c124e4597cfab3a90dad63ada1e32f0393cd:
     bindings:
+      agent:commercial:freight_payable:loading_location:
+        text: '{origin_port}'
+      agent:commercial:freight_payable:loading_region:
+        text: '{origin_country}'
+      agent:commercial:freight_payable:destination_city:
+        text: '{destination_port}'
+      agent:commercial:freight_payable:destination_location:
+        text: '{destination_country}'
       agent:customs:acid_number:
         identifier: source_reference_NO7116074432024030012
       agent:customs:exporter_id:
@@ -2881,6 +2943,11 @@ sources:
         target: documentPatch.parties.shipper.name
     spans: []
   doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7:
+    spans:
+    - quote: EGYPTIAN IMPORTER TX ID
+      count: 1
+      value:
+        text: IMPORTER REGISTRATION ID
     bindings:
       agent:cargo:acid_identifier:
         identifier: source_reference_5379394582025030142
@@ -3004,6 +3071,9 @@ sources:
     spans: []
   doc_9839db703d177b5af7fbb9b454f5c1932c2e64c81ad5958c18e4a620e2d08363:
     bindings:
+      agent:identifier:shipper:cn_registration:
+        identifier: source_reference_91330782MA28ECL35C
+        prefix: 'EXPORTER REGISTRATION: '
       agent:customs:tax_number:
         identifier: source_reference_411827340
       agent:customs:acid_number:
@@ -3063,6 +3133,11 @@ sources:
         target: documentPatch.route.portOfDischarge.name
     spans: []
   doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e:
+    spans:
+    - quote: EGYPT IMPORT IS FREE OUT
+      count: 1
+      value:
+        text: DESTINATION IMPORT IS FREE OUT
     bindings:
       agent:customs_status_reference:
         identifier: source_reference_23CMAL0451E
@@ -3076,7 +3151,8 @@ sources:
         phone: documentPatch.parties.notifyParties[0]
       agent:loading_pier:
         text: '{origin_port} TERMINAL'
-    spans: []
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.consignee
   doc_a5265d59407c00f400dc92be45ad35f487fcb440c2f405c0381b7a75fc76b3c6:
     bindings:
       agent:auxiliary:acid_number:
@@ -3085,8 +3161,17 @@ sources:
         identifier: source_reference_DE173306964
       agent:auxiliary:importer_tax_id:
         identifier: source_reference_315784180
+    spans:
+    - quote: 'CIP ALEXANDRIA SEAPORT,
+
+        EGYPT'
+      count: 1
+      value:
+        text: 'CIP {destination_port}, {destination_country}'
   doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a:
     bindings:
+      agent:auxiliary:consignee:vat_number:
+        identifier: source_reference_652866255
       agent:auxiliary:customs:acid_reference:
         identifier: source_reference_6528662552024060011
       agent:auxiliary:customs:importer_tax_id:
@@ -3146,6 +3231,9 @@ sources:
     spans: []
   doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555:
     bindings:
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
       agent:customs:acid_reference:
         identifier: source_reference_5799919892024060014
       agent:customs:importer_vat_number:
@@ -3204,6 +3292,11 @@ sources:
         text: DESTINATION AGENCY
   doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0:
     bindings:
+      review:shipping_bill_reference:
+        identifier: shipping_bill
+      review:shipping_bill_date:
+        date: '2024-03-20'
+        format: '%d/%m/%Y'
       agent:customs_tax_identification_number:
         identifier: source_reference_593952383
       agent:customs_acid_number:
@@ -3219,6 +3312,10 @@ sources:
       value:
         text: Any transportation expenses of containers at the discharge terminal
           are to be collected from receivers prior to releasing the cargo.
+    - quote: PORT SAID FREE ZONE
+      count: 1
+      value:
+        text: '{destination_port} FREE ZONE'
   doc_d97350b6c1883d0c0198bc4a2d410a09429b88be518eacf41a2d3d3ecc3aee84:
     bindings:
       agent:acid_number:
@@ -3237,7 +3334,11 @@ sources:
         target: documentPatch.parties.shipper.name
       agent:delivery_agent_fax:
         phone: documentPatch.parties.deliveryAgent
-    spans: []
+    spans:
+    - quote: Egyptian Importer name
+      count: 2
+      value:
+        text: Importer name
   doc_db7177f54a3bba09125c0f174a27a4d74ce1ccadfdc57392a9bc4f004534fb2b:
     bindings:
       agent:cargo_acid_reference:
@@ -3340,6 +3441,11 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country_code
   doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53:
+    spans:
+    - quote: 'CNPJ:'
+      count: 3
+      value:
+        text: 'REGISTRATION:'
     bindings:
       agent:consignee_tax_identifier:
         identifier: source_reference_04626426000297
@@ -3349,6 +3455,16 @@ sources:
         identifier: source_reference_48832670000109
   doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea:
     bindings:
+      review:invoice_reference:
+        identifier: invoice
+      review:invoice_date:
+        date: '2024-03-13'
+        format: '%d.%m.%Y'
+      review:shipping_bill_reference:
+        identifier: shipping_bill
+      review:shipping_bill_date:
+        date: '2024-03-13'
+        format: '%d-%b-%y'
       agent:party:consignee:0:tax_id:
         identifier: source_reference_200121995
       agent:exporter:registration_id:

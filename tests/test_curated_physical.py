@@ -432,6 +432,61 @@ def test_curated_equipment_surface_prints_complete_sampled_type(kind):
         assert receipt == "1X40HC CONTAINER(S)"
 
 
+@pytest.mark.parametrize("size", ["FORTY_FOOT_STANDARD_HEIGHT", "FORTY_FOOT_HIGH_CUBE"])
+@pytest.mark.parametrize("kind", ["GENERAL_PURPOSE", "REFRIGERATED", "OPEN_TOP"])
+def test_curated_length_only_receipt_exposes_complete_public_equipment(size, kind):
+    from dataclasses import replace
+
+    from document_ocr.synthesis.container_semantics import review_source_equipment_surface
+    from document_ocr.synthesis.curated_physical import _equipment
+
+    row, blueprint, scenario, support = fixture()
+    source = deepcopy(row["target"])
+    for container in source["documentPatch"]["containerInformation"]:
+        container["sizeCategory"] = "FORTY_FOOT_STANDARD_HEIGHT"
+    key = "agent:equipment_receipt_summary"
+    blueprint = replace(
+        blueprint,
+        target=source,
+        historical_bindings={
+            key: dict(
+                target_paths=["documentPatch.containerInformation"],
+                derivation="equipment_receipt",
+                occurrences=[{"source_text": "2 x 40'"}],
+            )
+        },
+        regions=(SimpleNamespace(key=key, curated_key=None),),
+    )
+    target = deepcopy(source)
+    for container in target["documentPatch"]["containerInformation"]:
+        container.update(sizeCategory=size, typeCategory=kind)
+    surfaces = {}
+    _equipment(blueprint, target, support, scenario, surfaces, {})
+    printed = surfaces[key][0]
+    assert printed.startswith("2 x ")
+    observed = review_source_equipment_surface(printed[4:], temperature_present=False)
+    assert (observed.size_category, observed.type_category) == (size, kind)
+    if size == "FORTY_FOOT_STANDARD_HEIGHT" and kind == "GENERAL_PURPOSE":
+        assert printed == "2 x 40'"
+
+
+def test_length_only_receipt_preserves_private_observation_unless_public_pair_requested():
+    from document_ocr.synthesis.curated_physical import _complete_equipment_surface
+    from document_ocr.synthesis.template_compiler.equipment_receipts import project_receipt
+
+    before = {"sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT", "typeCategory": "GENERAL_PURPOSE"}
+    after = dict(before, sizeCategory="FORTY_FOOT_HIGH_CUBE")
+    kwargs = dict(format_equipment=_complete_equipment_surface, number_words=lambda n: "TWO")
+    assert project_receipt("2 x 40'", [before] * 2, [after] * 2, **kwargs) == "2 x 40'"
+    assert project_receipt(
+        "2 x 40'", [before] * 2, [after] * 2, preserve_length_only=False, **kwargs
+    ) == "2 x 40HC"
+    mixed = project_receipt(
+        "2 x 40'", [before] * 2, [before, after], preserve_length_only=False, **kwargs
+    )
+    assert mixed == "1 x 40' + 1 x 40HC"
+
+
 def test_changed_equipment_draws_matching_observed_tare_and_keeps_operational_suffix():
     from dataclasses import replace
 
@@ -694,15 +749,21 @@ def test_partial_equipment_keeps_source_wording_only_when_categories_unchanged()
         _equipment(blueprint, target, support, scenario, {}, {})
 
 
-@pytest.mark.parametrize("aggregate", [True, False])
-def test_reviewed_equipment_ownership_covers_current_categories_on_exact_source_regions(aggregate):
+@pytest.mark.parametrize(
+    "source_text,key,indices,expected",
+    [
+        ("2X20GP", "agent:equipment_receipt_summary", (0, 1), "2X40HC"),
+        ("20GP", "agent:container_equipment_type", (0,), "40HC"),
+        ("20GP*2", "reviewed:equipment_receipt:iso_summary", (0, 1), "40HC*2"),
+    ],
+)
+def test_reviewed_equipment_ownership_covers_current_categories_on_exact_source_regions(
+    source_text, key, indices, expected
+):
     from document_ocr.synthesis.curated_ownership import build_owned_blueprint
 
     row, old_blueprint, scenario, support = fixture()
-    source_text = "2X20GP" if aggregate else "20GP"
     row["joinedRawText"] += source_text + "\n"
-    key = "agent:equipment_receipt_summary" if aggregate else "agent:container_equipment_type"
-    indices = (0, 1) if aggregate else (0,)
     paths = [
         f"documentPatch.containerInformation[{i}].{field}"
         for i in indices
@@ -736,7 +797,7 @@ def test_reviewed_equipment_ownership_covers_current_categories_on_exact_source_
     output, rendered_target, _ = render_sampling_blueprint(
         blueprint, plan.target, plan.variable_values, surface_values=plan.surface_values
     )
-    assert output.endswith(("2X40HC" if aggregate else "40HC") + "\n")
+    assert output.endswith(expected + "\n")
     assert rendered_target == plan.target
 
 
