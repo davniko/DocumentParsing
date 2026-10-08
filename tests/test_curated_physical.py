@@ -28,6 +28,7 @@ def fixture(*, public_mass=True):
     target = {
         "schemaVersion": "7.0.0",
         "documentPatch": {
+            "negotiability": None,
             "goodsItemDetails": [
                 {
                     "numberAndTypeOfPackages": [{"packageQuantity": 10}],

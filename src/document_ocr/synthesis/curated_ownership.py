@@ -10,6 +10,7 @@ import re
 from copy import deepcopy
 from dataclasses import replace
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -185,6 +186,37 @@ def build_owned_blueprint(
         }
     )
     blueprint = replace(blueprint, contract=contract)
+    # Split addresses may mention a country inside a named site as well as in
+    # the actual country component. Exact source declarations distinguish those
+    # roles without requiring the sampled country in every postal fragment.
+    country_owners = declarations.get("postal_country_owners", {})
+    if not isinstance(country_owners, dict):
+        raise ValueError("postal_country_owners must map country paths to postal region keys")
+    by_region = {region.key: region for region in blueprint.regions}
+    for path, keys in country_owners.items():
+        if (
+            not re.fullmatch(r"documentPatch\.parties\.[\w.\[\]]+\.country", path)
+            or not isinstance(leaves.get(path), str)
+            or not isinstance(keys, list)
+            or not keys
+            or not all(isinstance(key, str) for key in keys)
+            or len(keys) != len(set(keys))
+        ):
+            raise ValueError(f"invalid postal country ownership: {path}")
+        address_path = path.rsplit(".", 1)[0] + ".addressLine"
+        for key in keys:
+            region = by_region.get(key)
+            if (
+                region is None
+                or address_path not in region.target_paths
+                or key in declarations.get("delete", {})
+                or not re.search(
+                    r"(?<!\w)" + re.escape(leaves[path]) + r"(?!\w)", region.source, re.I
+                )
+            ):
+                raise ValueError(
+                    f"postal country owner lacks same-party source evidence: {path}: {key}"
+                )
     # Country labels already present in current gold can be grounded inside a
     # complete postal owner, including when an old template omitted that label.
     regions = []
@@ -198,6 +230,10 @@ def build_owned_blueprint(
                     r"(?<!\w)" + re.escape(country) + r"(?!\w)", region.source, re.I
                 ):
                     paths.add(country_path)
+        for path, keys in country_owners.items():
+            paths.discard(path)
+            if region.key in keys:
+                paths.add(path)
         allow_empty = region.key in declarations.get("delete", {})
         regions.append(replace(region, target_paths=tuple(sorted(paths)), allow_empty=allow_empty))
     blueprint = replace(blueprint, regions=tuple(regions), ownership_data=declarations)
@@ -206,13 +242,30 @@ def build_owned_blueprint(
     return blueprint
 
 
+@lru_cache(maxsize=2)
+def _ownership_sources(payload: bytes) -> dict:
+    """Cache two exact catalogs (active and staged), never filesystem metadata.
+
+    Readers still load current bytes, so edits invalidate the cache immediately.
+    Selected declarations are copied before use to keep this shared cache private.
+    """
+    value = yaml.safe_load(payload)
+    if (
+        not isinstance(value, dict)
+        or value.get("version") != 1
+        or not isinstance(value.get("sources"), dict)
+    ):
+        raise ValueError("unsupported full-sampling ownership inventory")
+    return value["sources"]
+
+
 def load_owned_blueprint(
     row: dict, historical: dict, contract: SourceContract, path: Path
 ) -> SamplingBlueprint:
-    payload = yaml.safe_load(path.read_text())
-    if payload.get("version") != 1 or row["documentId"] not in payload["sources"]:
+    sources = _ownership_sources(path.read_bytes())
+    if row["documentId"] not in sources:
         raise ValueError("full-sampling ownership inventory does not cover this source")
-    return build_owned_blueprint(row, historical, contract, payload["sources"][row["documentId"]])
+    return build_owned_blueprint(row, historical, contract, deepcopy(sources[row["documentId"]]))
 
 
 def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:

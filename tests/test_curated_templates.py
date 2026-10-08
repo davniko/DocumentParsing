@@ -10,6 +10,7 @@ from document_ocr.synthesis.curated_ownership import (
     _declared_date_surface,
     apply_dependent_text,
     build_owned_blueprint,
+    load_owned_blueprint,
     ownership_surfaces,
 )
 from document_ocr.synthesis.curated_templates import (
@@ -374,6 +375,113 @@ def test_postal_order_override_cannot_introduce_or_drop_facts():
             old,
             contract,
             {"render_expressions": {"documentPatch.parties.shipper.addressLine": "{postal} INDIA"}},
+        )
+
+
+def test_ownership_cache_is_content_bound_and_does_not_share_mutable_declarations(tmp_path):
+    row, contract, old = source_fixture()
+    path = tmp_path / "ownership.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "sources": {"sample": {"delete": {"date": "Reviewed deletion"}}},
+            }
+        )
+    )
+    first = load_owned_blueprint(row, old, contract, path)
+    assert next(r for r in first.regions if r.key == "date").allow_empty
+    first.ownership_data["delete"].clear()
+    second = load_owned_blueprint(row, old, contract, path)
+    assert second.ownership_data["delete"] == {"date": "Reviewed deletion"}
+    path.write_text(json.dumps({"version": 1, "sources": {"sample": {}}}))
+    third = load_owned_blueprint(row, old, contract, path)
+    assert not next(r for r in third.regions if r.key == "date").allow_empty
+    path.write_text(json.dumps({"version": 1, "sources": {}}))
+    with pytest.raises(ValueError, match="does not cover"):
+        load_owned_blueprint(row, old, contract, path)
+    path.write_text(json.dumps({"version": 2, "sources": {"sample": {}}}))
+    with pytest.raises(ValueError, match="unsupported"):
+        load_owned_blueprint(row, old, contract, path)
+
+
+def test_split_postal_country_ownership_distinguishes_named_site_from_country_component():
+    role = "documentPatch.parties.shipper"
+    row = {
+        "documentId": "split-postal",
+        "joinedRawText": "SHIPPER\nACME\nINDIA INDUSTRIAL PARK\nMUMBAI INDIA\n",
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "non_negotiable",
+                "parties": {
+                    "shipper": {
+                        "name": "ACME",
+                        "country": "INDIA",
+                        "addressLine": "INDIA INDUSTRIAL PARK MUMBAI INDIA",
+                    }
+                },
+            },
+        },
+    }
+    contract = SourceContract(
+        variables=[
+            dict(
+                key=key,
+                kind=kind,
+                value=value,
+                meaning=key,
+                required_literals=[],
+                occurrences=[dict(text=value, occurrence=1, presentation="text")],
+            )
+            for key, kind, value in [
+                ("name", "name", "ACME"),
+                ("site", "postal", "INDIA INDUSTRIAL PARK"),
+                ("locality", "postal", "MUMBAI INDIA"),
+            ]
+        ],
+        targets=[
+            dict(path=role + ".name", expression="{name}"),
+            dict(path=role + ".addressLine", expression="{site} {locality}"),
+        ],
+        fixed_context="Split address with a country word inside a named site.",
+    )
+    old = {"document_id": row["documentId"], "bindings": []}
+    country_path = role + ".country"
+    declaration = {"postal_country_owners": {country_path: ["locality"]}}
+    blueprint = build_owned_blueprint(row, old, contract, declaration)
+    assert country_path not in next(r for r in blueprint.regions if r.key == "site").target_paths
+    assert country_path in next(r for r in blueprint.regions if r.key == "locality").target_paths
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["shipper"].update(
+        addressLine="8 INDUSTRIAL ESTATE MADRID SPAIN", country="SPAIN"
+    )
+    text, _, _ = render_sampling_blueprint(
+        blueprint, target, {"site": "8 INDUSTRIAL ESTATE", "locality": "MADRID SPAIN"}
+    )
+    assert "8 INDUSTRIAL ESTATE\nMADRID SPAIN" in text
+    with pytest.raises(ValueError, match="absent from owned postal"):
+        render_sampling_blueprint(
+            blueprint, target, {"site": "8 INDUSTRIAL ESTATE", "locality": "MADRID"}
+        )
+    for owners in [[], ["name"], ["missing"], ["locality", "locality"]]:
+        with pytest.raises(ValueError, match="postal country"):
+            build_owned_blueprint(
+                row, old, contract, {"postal_country_owners": {country_path: owners}}
+            )
+    with pytest.raises(ValueError, match="invalid postal country"):
+        build_owned_blueprint(
+            row, old, contract, {"postal_country_owners": {role + ".name": ["name"]}}
+        )
+    with pytest.raises(ValueError, match="lacks same-party source evidence"):
+        build_owned_blueprint(
+            row,
+            old,
+            contract,
+            {
+                **declaration,
+                "delete": {"locality": "Cannot delete the country owner"},
+            },
         )
 
 

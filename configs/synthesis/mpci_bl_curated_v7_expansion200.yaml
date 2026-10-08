@@ -1,0 +1,2386 @@
+dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
+output: artifacts/kie-synthesis-production/curated-v7-expansion200-v1
+ownership: artifacts/kie-synthesis-production/curated-v7-expansion200-v1/staging/ownership.yaml
+auxiliary: artifacts/kie-synthesis-production/curated-v7-expansion200-v1/staging/auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
+task_constraints_sha256: e28b53511556d5ba77bc98cadd422c9e29f3f66a8e3c8ce32f82aa6a2d9b35cc
+seed: 202610081
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 20261007
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 0
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 2.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids:
+- doc_a286601bd0cd0b6bcad8a7fd3236a84daff2e9120ec343912ee08488df35eca1
+- doc_058d92bbc08fce97814b33b71d9e5f9700d8a83c595180477b131fb5cafcb8e1
+- doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137
+- doc_069cc83033b015f717fe7f0c1fda884d194b9a30c6347caf2099c49ce83f44b9
+- doc_06a7c8b2f289f5deace4b575749753bd83b282c555490c0cdcdaca136a308999
+- doc_0b217756017ed8653fa475f636dcf34d06a69bb186db4eea838c5b3e3b3825be
+- doc_0befdb08de58ec60dc09801036b6ed2e25baeffb764fa745e5aef236c3420462
+- doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef
+- doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d
+- doc_13280227dd27777efe2aea6d700e0a3e6ad755cd1e9c7ac54736596f6deb3cd1
+- doc_16abe25cb6edd3204f3604db97367f4eef1576d58eef9870ac46a7d878bb2e82
+- doc_1b796092eb37f8f7fc1b236f83728dcbb396bc73f5e521e82fdfb39256054448
+- doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c
+- doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146
+- doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031
+- doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50
+- doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834
+- doc_2c12ef6c4701d8225a5d6a6389bb7f9fb3818331316c30b0733f1359ca978fe1
+- doc_2d4248d34bf6ee2e021c5c31fc673c292811c026164c762208e18b6fc5c945eb
+- doc_2dbf5b7fc6901b8fe7f0bd5d9fea3cd703b6a7c0166fd4954422107b339e5e35
+- doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8
+- doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46
+- doc_361e7fedebcee73017bb5db0ed3ea4e70d6aa64c9a2b0c0cdfa2258db165b4aa
+- doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5
+- doc_3d0bcc2def0b777a2b626b9bfa1e7d1e227923b8d43a9474c07b4502929e3c03
+- doc_43192029e089291b2e537c6d6252f1adb15970922ef113b1baa2d29f15be93ae
+- doc_447a805ad536c989a57583429e379e0bfb1493ae5a572b33ea3736f0ea1e4025
+- doc_4799921c130f9f5971dec476b815a3454a6b59b5d1f08d60dc0e1bab61b002e9
+- doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157
+- doc_4afa4c6f78a980386b7f0b6e73893db728a16e49714fc71d7f671c32d40ce8b4
+- doc_4e766b207e0913cbf720427ebbb3a37e8ef0508b2ed94876763de81224b882bb
+- doc_51d5f8302e5b4e1f70a50cf4eaed3fd51cc1d661d5953acc25a1e9e76983874e
+- doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0
+- doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98
+- doc_535a8d9173b4b0cc659cc6f314943214a3339b071b13ae9682abfb8d7c8d7af5
+- doc_53d4726a0e27f4420f9c6dc7b414906181773ea80cc49eb7c296cb7871a911dd
+- doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e
+- doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c
+- doc_5c5e51a90b1e941b75e5619d9b4a56ef05149842da9709984fa9bee730c19715
+- doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5
+- doc_5ffbf8421800ef773833ad581145fbdb266e358a5e83a15880a07c741ef4d9e4
+- doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3
+- doc_66dc43776f8a86039dc383d63e27192ad6199db8fc1b6d301f129897779b5f40
+- doc_68c5e5dd81c606ac459903fccbe2b0474ed59fa81756a53567d314ca9225153a
+- doc_68d08294f302764335935c9f2d43b9270ae174a5612cec9f8b1bb4b6da742b10
+- doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512
+- doc_71569af6c254af7ecc70408624855fede2f7587a2a8841b2e9001f6fdf8b4eb2
+- doc_73576135bddebf063b7d50b25a4683fdf6a738749240f9377630a4224bc7037f
+- doc_738b9fde206a8a90d6ef0155513300da4e7cb8de736be39e750d684b7a335c47
+- doc_73fdbd1579a4a58c93396ee704aae57e81f214d5706346eb88611e5257271280
+- doc_74181921e0c8f89c4c0b1c43906e7304d500f250b31243919039472dd4395dd3
+- doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e
+- doc_76e93c16eabc55cacc7f2f6c8018e42776289390a41cb4ba392443744b01ca25
+- doc_7750e3d96684f1f97a45fb42be766b700a1316caadb001b5ac47d6a420882f42
+- doc_7e0657d1c16a39390d2a8c05715b1a2c3779f66bf582805256474bd61dec91e7
+- doc_7f8fafe78ae25013135d1a1a187235c9d038134a43f38352aa6f39cf72e5b8fe
+- doc_81877adfaa979b7c2d76df6b9f53c124e4597cfab3a90dad63ada1e32f0393cd
+- doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5
+- doc_8572f110c037463e9299abe5af46df77dff78bc1da4c87442a9351de5ce5418d
+- doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7
+- doc_883be4ced35b67c0b48c70f98c61914f3c737b3d635dc0658f26ecdfdbebb66d
+- doc_914681ee19c83f2729d3ba64d3c3f9ef86d77352ae7351d1df33704ce8816dac
+- doc_9182d47fdd9e7e65866bb87cc281d113f8659bd62583e9f278d418b49a374f4c
+- doc_92bc5451eb186398e16b01e3f2a183c2c67205e3fd3f87cec9e6ee70d3266330
+- doc_947097576fb4db13657a658d43d15b7d1ecf0abec9dede73b9a98f43cbb19bdc
+- doc_97e9b467b37f213e5f9566b74b2bb392fa0239b30a0681bf157d763740802eae
+- doc_97efe837d0a87d40b07f5f532477670ce38700e5c8e01d715fc443983242a8c5
+- doc_9839db703d177b5af7fbb9b454f5c1932c2e64c81ad5958c18e4a620e2d08363
+- doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627
+- doc_9ad49fcc846c53b1780f28a74c0cd1073d7bb2d812e5b5a76d2744b1ba4a7f02
+- doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae
+- doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e
+- doc_a5265d59407c00f400dc92be45ad35f487fcb440c2f405c0381b7a75fc76b3c6
+- doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a
+- doc_b2b9200dc9c342c00181c08441a6448967f04a9bc9c52d2c0a87307b5faa667e
+- doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6
+- doc_ba3dad0d0a66a8db07e3a9331d039372017db5ca20cb185f466e1acbaaafc025
+- doc_ba5ba8aca1594542cabae39db308a99d28aafa43571917e5a4617ef78d7b9fd1
+- doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555
+- doc_c4df0ac5aa163d35076de464c960fe29b4eb22e91650b1aa888a870442d58f34
+- doc_c77f84d77c138ecfc14851fafb14bdf875393be86644494fecabc7e03df4c618
+- doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932
+- doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982
+- doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0
+- doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f
+- doc_d97350b6c1883d0c0198bc4a2d410a09429b88be518eacf41a2d3d3ecc3aee84
+- doc_db7177f54a3bba09125c0f174a27a4d74ce1ccadfdc57392a9bc4f004534fb2b
+- doc_e28ff6f73f4cea776bf1f1ffc0564bf160aa745c062a5f4b1dec1f2ce1650f80
+- doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa
+- doc_e4313a4aed3f5b961982c911df0dd415bc80411414952c0c49e092f25ef457d6
+- doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb
+- doc_e7bcc7250fb936b489fde09b24278c488da83d706867b73c639c3ab3477bb72b
+- doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53
+- doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea
+- doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c
+- doc_f3e4072968c7d4137c63a3b583373777d6d9418b402c44851961935295d76454
+- doc_f98e69891b70ffdb7141bcf2e80184b58029037dda7e0851469faa01ed268469
+- doc_fabe32eb22c937940c4af0bbd6838f42def474d16e8ca544f48471c7a42d2076
+- doc_fc68b5d99830e0c3241e03375fe2cb7149dd77c80ec74b9a0bedb180bb700546
+- doc_fd095586cec635eb6fd40f725b988e9eccc085ca09b77f0ede99892d2acba2c3
+sampling:
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
+      from_hs6:
+      - 080800
+      to_hs6:
+      - 080810
+      source_text_literals:
+      - APPLES
+      - HS CODE:080800
+      - TEMP.2CE
+      - 2C TILL PLUS 2C 20 CBM/HR
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify
+        authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed
+        080800 and extraction labels remain unchanged.'
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+capabilities:
+  doc_a286601bd0cd0b6bcad8a7fd3236a84daff2e9120ec343912ee08488df35eca1:
+    family: ambient
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+    required_private_measures:
+    - volume
+  doc_058d92bbc08fce97814b33b71d9e5f9700d8a83c595180477b131fb5cafcb8e1:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    quantity_multiple: 20
+    allowed_package_categories:
+    - PACKAGE_BOX
+    - PACKAGE_CARTON
+  doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_069cc83033b015f717fe7f0c1fda884d194b9a30c6347caf2099c49ce83f44b9:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_06a7c8b2f289f5deace4b575749753bd83b282c555490c0cdcdaca136a308999:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+  doc_0b217756017ed8653fa475f636dcf34d06a69bb186db4eea838c5b3e3b3825be:
+    family: ambient
+    route_topology:
+      nodes:
+        finalDestination:
+          kind: locality
+          country_from: destination
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        finalDestination: finalDestination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_0befdb08de58ec60dc09801036b6ed2e25baeffb764fa745e5aef236c3420462:
+    family: ambient
+    route_topology:
+      nodes:
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_13280227dd27777efe2aea6d700e0a3e6ad755cd1e9c7ac54736596f6deb3cd1:
+    family: ambient
+    route_topology:
+      nodes:
+        hub:
+          kind: port
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        transshipmentPort: hub
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_16abe25cb6edd3204f3604db97367f4eef1576d58eef9870ac46a7d878bb2e82:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_1b796092eb37f8f7fc1b236f83728dcbb396bc73f5e521e82fdfb39256054448:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+        finalDestination: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146:
+    family: dg_chemical
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+  doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031:
+    family: ambient
+    route_topology:
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_2c12ef6c4701d8225a5d6a6389bb7f9fb3818331316c30b0733f1359ca978fe1:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_2d4248d34bf6ee2e021c5c31fc673c292811c026164c762208e18b6fc5c945eb:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      nodes:
+        shipper_region:
+          kind: locality
+          country_from: independent
+        delivery:
+          kind: port
+          country_from: destination
+        final:
+          kind: locality
+          country_from: destination
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: delivery
+        finalDestination: final
+      party_nodes:
+        documentPatch.parties.shipper: shipper_region
+      issue_node: issue
+      rationale: 'Current source: Shanghai receipt/loading; Port Said discharge, Port
+        Said West delivery and Ismailia final destination kept separate; Hong Kong
+        shipper independent from mainland loading; Zhangjiagang issuance within origin
+        country.'
+  doc_2dbf5b7fc6901b8fe7f0bd5d9fea3cd703b6a7c0166fd4954422107b339e5e35:
+    family: ambient
+    identity_count: 3
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8:
+    family: vehicle
+    allowed_hs_headings:
+    - '8429'
+    route_topology:
+      nodes:
+        hub:
+          kind: port
+          country_from: independent
+        receipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        transshipmentPort: hub
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    required_private_measures:
+    - grossWeight
+  doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        finalDestination: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_361e7fedebcee73017bb5db0ed3ea4e70d6aa64c9a2b0c0cdfa2258db165b4aa:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5:
+    family: frozen
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_3d0bcc2def0b777a2b626b9bfa1e7d1e227923b8d43a9474c07b4502929e3c03:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_43192029e089291b2e537c6d6252f1adb15970922ef113b1baa2d29f15be93ae:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfDelivery:
+          kind: port
+          country_from: destination
+        issue_place:
+          kind: locality
+          country_from: origin
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: placeOfDelivery
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_447a805ad536c989a57583429e379e0bfb1493ae5a572b33ea3736f0ea1e4025:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfDelivery:
+          kind: port
+          country_from: destination
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: placeOfDelivery
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_4799921c130f9f5971dec476b815a3454a6b59b5d1f08d60dc0e1bab61b002e9:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 3
+  doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: independent
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_4afa4c6f78a980386b7f0b6e73893db728a16e49714fc71d7f671c32d40ce8b4:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_4e766b207e0913cbf720427ebbb3a37e8ef0508b2ed94876763de81224b882bb:
+    family: ambient
+    route_topology:
+      nodes:
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_51d5f8302e5b4e1f70a50cf4eaed3fd51cc1d661d5953acc25a1e9e76983874e:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+  doc_535a8d9173b4b0cc659cc6f314943214a3339b071b13ae9682abfb8d7c8d7af5:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_53d4726a0e27f4420f9c6dc7b414906181773ea80cc49eb7c296cb7871a911dd:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c:
+    family: ambient
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_5c5e51a90b1e941b75e5619d9b4a56ef05149842da9709984fa9bee730c19715:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_5ffbf8421800ef773833ad581145fbdb266e358a5e83a15880a07c741ef4d9e4:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_66dc43776f8a86039dc383d63e27192ad6199db8fc1b6d301f129897779b5f40:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.forwardingAgent: origin
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_68c5e5dd81c606ac459903fccbe2b0474ed59fa81756a53567d314ca9225153a:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_68d08294f302764335935c9f2d43b9270ae174a5612cec9f8b1bb4b6da742b10:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_71569af6c254af7ecc70408624855fede2f7587a2a8841b2e9001f6fdf8b4eb2:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: placeOfReceipt
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_73576135bddebf063b7d50b25a4683fdf6a738749240f9377630a4224bc7037f:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_738b9fde206a8a90d6ef0155513300da4e7cb8de736be39e750d684b7a335c47:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_73fdbd1579a4a58c93396ee704aae57e81f214d5706346eb88611e5257271280:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_74181921e0c8f89c4c0b1c43906e7304d500f250b31243919039472dd4395dd3:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfDelivery:
+          kind: port
+          country_from: destination
+        issue_place:
+          kind: locality
+          country_from: origin
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: placeOfDelivery
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_76e93c16eabc55cacc7f2f6c8018e42776289390a41cb4ba392443744b01ca25:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_7750e3d96684f1f97a45fb42be766b700a1316caadb001b5ac47d6a420882f42:
+    family: ambient
+    required_private_measures:
+    - grossWeight
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_7e0657d1c16a39390d2a8c05715b1a2c3779f66bf582805256474bd61dec91e7:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_7f8fafe78ae25013135d1a1a187235c9d038134a43f38352aa6f39cf72e5b8fe:
+    family: ambient
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+    required_private_measures:
+    - grossWeight
+  doc_81877adfaa979b7c2d76df6b9f53c124e4597cfab3a90dad63ada1e32f0393cd:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: port
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_8572f110c037463e9299abe5af46df77dff78bc1da4c87442a9351de5ce5418d:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+  doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7:
+    family: vehicle
+    allowed_hs_headings:
+    - '8429'
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_883be4ced35b67c0b48c70f98c61914f3c737b3d635dc0658f26ecdfdbebb66d:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: port
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_914681ee19c83f2729d3ba64d3c3f9ef86d77352ae7351d1df33704ce8816dac:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_9182d47fdd9e7e65866bb87cc281d113f8659bd62583e9f278d418b49a374f4c:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_92bc5451eb186398e16b01e3f2a183c2c67205e3fd3f87cec9e6ee70d3266330:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_947097576fb4db13657a658d43d15b7d1ecf0abec9dede73b9a98f43cbb19bdc:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfDelivery:
+          kind: locality
+          country_from: destination
+        issue_place:
+          kind: locality
+          country_from: origin
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: placeOfDelivery
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_97e9b467b37f213e5f9566b74b2bb392fa0239b30a0681bf157d763740802eae:
+    family: ambient
+    route_topology:
+      nodes:
+        finalDestination:
+          kind: port
+          country_from: destination
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        finalDestination: finalDestination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_97efe837d0a87d40b07f5f532477670ce38700e5c8e01d715fc443983242a8c5:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_9839db703d177b5af7fbb9b454f5c1932c2e64c81ad5958c18e4a620e2d08363:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.consignee: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+        issue_place:
+          kind: locality
+          country_from: origin
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+        finalDestination: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_9ad49fcc846c53b1780f28a74c0cd1073d7bb2d812e5b5a76d2744b1ba4a7f02:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+        finalDestination: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    required_private_measures:
+    - grossWeight
+  doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_a5265d59407c00f400dc92be45ad35f487fcb440c2f405c0381b7a75fc76b3c6:
+    family: ambient
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      party_nodes:
+        documentPatch.parties.shipper: issue
+  doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfDelivery:
+          kind: port
+          country_from: destination
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: placeOfDelivery
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_b2b9200dc9c342c00181c08441a6448967f04a9bc9c52d2c0a87307b5faa667e:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6:
+    family: ambient
+    route_topology:
+      nodes:
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_ba3dad0d0a66a8db07e3a9331d039372017db5ca20cb185f466e1acbaaafc025:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_ba5ba8aca1594542cabae39db308a99d28aafa43571917e5a4617ef78d7b9fd1:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: port
+          country_from: independent
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: placeOfReceipt
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.forwardingAgent: placeOfReceipt
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_c4df0ac5aa163d35076de464c960fe29b4eb22e91650b1aa888a870442d58f34:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_c77f84d77c138ecfc14851fafb14bdf875393be86644494fecabc7e03df4c618:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.deliveryAgent: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f:
+    family: ambient
+    route_topology:
+      nodes:
+        hub:
+          kind: port
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        transshipmentPort: hub
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_d97350b6c1883d0c0198bc4a2d410a09429b88be518eacf41a2d3d3ecc3aee84:
+    family: ambient
+    route_topology:
+      nodes:
+        receipt:
+          kind: locality
+          country_from: origin
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: receipt
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_db7177f54a3bba09125c0f174a27a4d74ce1ccadfdc57392a9bc4f004534fb2b:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_e28ff6f73f4cea776bf1f1ffc0564bf160aa745c062a5f4b1dec1f2ce1650f80:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_e4313a4aed3f5b961982c911df0dd415bc80411414952c0c49e092f25ef457d6:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb:
+    family: ambient
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: independent
+        shipper_region:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+      party_nodes:
+        documentPatch.parties.shipper: shipper_region
+    required_private_measures:
+    - volume
+  doc_e7bcc7250fb936b489fde09b24278c488da83d706867b73c639c3ab3477bb72b:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: independent
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: issue_place
+        documentPatch.parties.consignee: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    quantity_multiple: 6
+    allowed_package_categories:
+    - PACKAGE_BAG
+    - PACKAGE_SACK
+    - PACKAGE_BOX
+    - PACKAGE_CARTON
+  doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    quantity_multiple: 5
+    allowed_package_categories:
+    - PACKAGE_BAG
+    - PACKAGE_SACK
+    - PACKAGE_BOX
+    - PACKAGE_CARTON
+  doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c:
+    family: ambient
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_f3e4072968c7d4137c63a3b583373777d6d9418b402c44851961935295d76454:
+    family: ambient
+    route_topology:
+      nodes: {}
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.forwardingAgent: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_f98e69891b70ffdb7141bcf2e80184b58029037dda7e0851469faa01ed268469:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfDelivery:
+          kind: port
+          country_from: destination
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: placeOfDelivery
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_fabe32eb22c937940c4af0bbd6838f42def474d16e8ca544f48471c7a42d2076:
+    family: ambient
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+      issue_node: issue
+      rationale: Seoul payment and issuance share one origin-country locality; Busan
+        remains separately sampled loading port; Damietta discharge is destination.
+  doc_fc68b5d99830e0c3241e03375fe2cb7149dd77c80ec74b9a0bedb180bb700546:
+    family: ambient
+    route_topology:
+      nodes:
+        placeOfReceipt:
+          kind: locality
+          country_from: origin
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: placeOfReceipt
+      party_nodes:
+        documentPatch.parties.shipper: origin
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes: {}
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    identity_count: 2
+  doc_fd095586cec635eb6fd40f725b988e9eccc085ca09b77f0ede99892d2acba2c3:
+    family: ambient
+    route_topology:
+      nodes:
+        shipper_0_country:
+          kind: locality
+          country_from: independent
+      fields:
+        placeOfReceipt: origin
+        portOfLoading: origin
+        portOfDischarge: destination
+        placeOfDelivery: destination
+      issue_node: origin
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+source_contracts: artifacts/kie-synthesis-production/curated-v7-expansion200-v1/staging/cases
+historical_catalog: artifacts/kie-synthesis-production/curated-v7-expansion200-v1/staging/cases

@@ -1,6 +1,6 @@
 # MPCI V7 reviewed synthesis templates
 
-This is the reusable **100-source catalog**, not a generation-run directory.
+This is the reusable **200-source catalog**, not a generation-run directory.
 The initial admission evidence is the 200-sample expansion campaign:
 [full report](../../../docs/kie-synthesis-expansion100-2026-10-07.md).
 
@@ -9,8 +9,8 @@ The initial admission evidence is the 200-sample expansion campaign:
 ```text
 mpci-bl-v7-reviewed/
   manifest.json               # case hashes, capabilities, shared dependencies
-  ownership.yaml             # 100 current-field ownership/format declarations
-  auxiliary.yaml             # 100 source-only dependency/printing declarations
+  ownership.yaml             # 200 current-field ownership/format declarations
+  auxiliary.yaml             # 200 source-only dependency/printing declarations
   selection-history.yaml     # admission and rejected-candidate history
   position-calibration.json   # hash-pinned source spacing/density priors
   cases/
@@ -120,7 +120,7 @@ Without `template_sampling`, every selected source retains the previous fixed
 contact and review call; it no longer limits a source's total allocation.
 Use a new output directory and seed; do not change the quota of a published run.
 
-The current 100-family pool has **one negotiable family**. Its existing five
+The original 100-family pool had **one negotiable family**. Its existing five
 descendants remain negotiable. Increasing its quota increases prevalence, not
 layout diversity; admit more negotiable sources before expecting broad template
 coverage. Existing campaign distributions were not changed by this migration.
@@ -155,7 +155,30 @@ Before/after replay: **23.87 / 23.64 seconds**, peak RSS **432.8 / 434.4 MiB**.
 No renderer algorithm changed. Exact movement and validation receipts are in
 `artifacts/kie-synthesis-production/curated-v7-expansion100-v1/audit/template-relocation/`.
 
-Coordinate coverage is separate from text/label acceptance. The current release
-has 76.9% line coverage overall, but much weaker coverage on expanded goods
-descriptions; see the follow-up analysis in the full report before scaling a
-position-focused training experiment.
+Coordinate coverage is separate from text/label acceptance. The initial
+anchor-transfer release had 76.9% line coverage; joint reflow subsequently
+improved it. Use each campaign's current positional manifest and audit rather
+than treating that historical coverage as the present implementation.
+
+## Second 100-source admission — 2026-10-08
+
+The catalog now contains 200 admitted sources. The additional 100 produced 200
+reviewed descendants with audited positions. They add 11 negotiable families,
+bringing the pool to 12, and preserve 29 explicit `sameAs: consignee` families.
+All new sources are from the current real training split. Validation IDs, OCR
+duplicates and shared B/L identifiers were excluded. Existing case files and
+old ownership/auxiliary entries are unchanged.
+
+See [the admission report](../../../docs/kie-synthesis-expansion200-2026-10-08.md)
+for content decisions, sampling stress tests, coordinate gaps, cost and replay
+evidence. The new campaign's artifacts are in
+`artifacts/kie-synthesis-production/curated-v7-expansion200-v1/`.
+Its original configuration intentionally retains its staging paths to preserve
+the immutable publication receipt. For new campaigns, use this shared catalog's
+`cases/`, `ownership.yaml`, `auxiliary.yaml`, and the per-case capabilities in
+`manifest.json`. Replay through these shared assets reproduced all 700 published
+samples exactly (the previous 500 plus these 200).
+
+Per-source OCR/label snapshots remain local ignored data, as before. The compact
+manifest, shared declarations, calibration and this guide are versioned; keeping
+those files alone does not replace preserving/transferring the `cases/` assets.

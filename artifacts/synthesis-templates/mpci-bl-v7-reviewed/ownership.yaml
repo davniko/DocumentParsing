@@ -2040,3 +2040,1620 @@ sources:
       agent:carrier:destination_office_phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+  doc_a286601bd0cd0b6bcad8a7fd3236a84daff2e9120ec343912ee08488df35eca1:
+    tare_owners:
+      agent:cargo:container_tare:1:
+      - 1
+      agent:cargo:container_tare:2:
+      - 2
+      agent:cargo:container_tare:3:
+      - 3
+      agent:cargo:container_tare:4:
+      - 4
+      agent:cargo:container_tare:5:
+      - 5
+      agent:cargo:total_tare:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+    bindings:
+      anchor:documentPatch.cargoPackages[1].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.cargoPackages[2].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.cargoPackages[3].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.cargoPackages[4].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.cargoPackages[5].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+    lexical: []
+  doc_058d92bbc08fce97814b33b71d9e5f9700d8a83c595180477b131fb5cafcb8e1:
+    retire:
+      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+      agent:cargo:gross_weight: Reviewed current scalar owners cover every mutable
+        value in this wrapper; its intervening newline or printed unit stays literal.
+    lexical: []
+  doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'Private Free Zone Area
+
+          6th of October industrial city Zone 06
+
+          Land No. 53,54,55
+
+          6th of October city Giza Egypt'
+        occurrence: 1
+      - text: 'Private Free Zone Area
+
+          6th of October industrial city Zone 06
+
+          Land No. 53,54,55
+
+          6th of October city Giza Egypt'
+        occurrence: 2
+  doc_069cc83033b015f717fe7f0c1fda884d194b9a30c6347caf2099c49ce83f44b9:
+    delete:
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]: 'Synthetic-only
+        deletion of source-only WOOD PACKAGE: NOT APPLICABLE, avoiding a fixed wood
+        qualifier on sampled packaging.'
+    bindings:
+      agent:cargo_classification_reference:
+        paths:
+        - documentPatch.goodsItemDetails[0].hsCodes[1]
+    surfaces:
+      anchor:documentPatch.containers[0].sealNumbers[0]:
+        expression: '{documentPatch.containerInformation[0].sealNumbers[0]}'
+    add:
+    - key: review:generic_registration_caption
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: CNPJ
+        all: true
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'ST POVOADO RIO JEQUIRICA, 730, ZONA
+
+          RURAL - VALENCA BAHIA CEP 45400-000'
+        occurrence: 1
+    - key: lexical_01
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'SOUK ELGHOLAM - CAIRO -EGITO 10 -
+
+          ELHOUSSIEN - CAIRO - EGYPT'
+        occurrence: 1
+      - text: 'SOUK ELGHOLAM - CAIRO -EGITO 10 -
+
+          ELHOUSSIEN - CAIRO - EGYPT'
+        occurrence: 2
+  doc_06a7c8b2f289f5deace4b575749753bd83b282c555490c0cdcdaca136a308999:
+    retire:
+      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+    bindings:
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.route.portOfLoading.name:
+        paths:
+        - documentPatch.route.portOfLoading.name
+        - documentPatch.freight.paymentPlace.name
+      agent:signature_agent_location:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.placeOfIssue.name:
+        paths:
+        - documentPatch.placeOfIssue.name
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      anchor:documentPatch.parties.shipper.contactDetails.contactName:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.contactName
+    lexical:
+    - key: lexical_00
+      kind: product
+      paths:
+      - documentPatch.goodsItemDetails[0].description
+      occurrences:
+      - text: '1012322163DXH DEGREE 1
+
+          ELBOW,REDUCER,SOCKE
+
+          T,EQUAL TEE,REDUCING
+
+          TEE AND UNION'
+        occurrence: 1
+  doc_0b217756017ed8653fa475f636dcf34d06a69bb186db4eea838c5b3e3b3825be:
+    retire:
+      agent:derived:cargo:0:total_gross_weight: One printed container and one shipment
+        total; replace redundant double dependency with same current scalar owner.
+      agent:derived:cargo:0:total_volume: One printed container and one shipment total;
+        replace redundant double dependency with same current scalar owner.
+    add:
+    - key: reviewed:agent:derived:cargo:0:total_gross_weight
+      kind: decimal_measurement
+      paths:
+      - documentPatch.goodsItemDetails[0].grossWeight.value
+      occurrences:
+      - text: '1344'
+        occurrence: 2
+    - key: reviewed:agent:derived:cargo:0:total_volume
+      kind: decimal_measurement
+      paths:
+      - documentPatch.goodsItemDetails[0].volume.value
+      occurrences:
+      - text: '5.832'
+        occurrence: 2
+    lexical: []
+  doc_0befdb08de58ec60dc09801036b6ed2e25baeffb764fa745e5aef236c3420462:
+    retire:
+      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Retire
+        old remote email before replacing the exact remote fragment.
+    add:
+    - key: reviewed:remote_consignee_contact
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'CN>
+
+          AMRELGAMMAL257@GMAIL.COM'
+        occurrence: 1
+    delete:
+      reviewed:remote_consignee_contact: Synthetic-only removal of remote contact
+        outside primary party block; current target footprint stays unchanged.
+    lexical: []
+  doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef:
+    retire:
+      agent:cargo:0:description_surface: Two reviewed product fragments and two explicit
+        HS owners replace the old composite; parentheses and dash stay literal.
+    add:
+    - key: review:typed_missing:0
+      kind: identifier
+      paths:
+      - documentPatch.goodsItemDetails[0].hsCodes[0]
+      occurrences:
+      - text: '72024950'
+        all: true
+    - key: review:typed_missing:1
+      kind: identifier
+      paths:
+      - documentPatch.goodsItemDetails[0].hsCodes[1]
+      occurrences:
+      - text: 7202 9300
+        all: true
+    lexical: []
+  doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d:
+    retire:
+      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+    bindings:
+      agent:source:signature_date:
+        kind: date
+        paths:
+        - documentPatch.issueDate
+        occurrences:
+        - text: 03-Jun-23
+          occurrence: 1
+    surfaces:
+      agent:source:signature_date:
+        date_path: documentPatch.issueDate
+        format: '%d-%b-%y'
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: '6, EL MOUSHIR AHMED ISMAIL STREET
+
+          SHERATON HELIOPOLIS
+
+          CAIRO
+
+          CAIRO
+
+          1111
+
+          EGYPT'
+        occurrence: 1
+  doc_13280227dd27777efe2aea6d700e0a3e6ad755cd1e9c7ac54736596f6deb3cd1:
+    tare_baselines:
+      agent:equipment:container_tare_weight:0:
+        kg: '3820'
+        sourceSha256: 4ec0d41b8f869d799b3680459b2c71b1a00eb9d30e2ae76606d1193de3537fd3
+        reason: Reviewed container table TareW. 3,820 next to a 40HC identifier; comma
+          groups kilograms, not decimal kilograms.
+    lexical: []
+  doc_16abe25cb6edd3204f3604db97367f4eef1576d58eef9870ac46a7d878bb2e82:
+    bindings:
+      agent:consignee_contact_phone:
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+    retire:
+      agent:total_gross_weight: Reviewed current scalar owners cover every mutable
+        value in this wrapper; its intervening newline or printed unit stays literal.
+      agent:total_volume: Reviewed current scalar owners cover every mutable value
+        in this wrapper; its intervening newline or printed unit stays literal.
+    lexical: []
+  doc_1b796092eb37f8f7fc1b236f83728dcbb396bc73f5e521e82fdfb39256054448:
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        formats:
+        - '%b.%d, %Y'
+        case: upper
+    lexical: []
+  doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c:
+    bindings:
+      anchor:documentPatch.route.placeOfReceipt.country:
+        paths:
+        - documentPatch.route.placeOfReceipt.country
+        - documentPatch.placeOfIssue.country
+      anchor:documentPatch.route.portOfLoading.country:
+        paths:
+        - documentPatch.route.portOfLoading.country
+        - documentPatch.placeOfIssue.country
+      anchor:documentPatch.parties.shipper.country:
+        paths:
+        - documentPatch.parties.shipper.country
+        - documentPatch.placeOfIssue.country
+        occurrences:
+        - text: CHINA
+          occurrence: 5
+      anchor:documentPatch.transport.vesselName:
+        occurrences:
+        - text: KOTA CABAR
+          all: true
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.shipper.name
+    add:
+    - key: review:typed_missing:0
+      kind: identifier
+      paths:
+      - documentPatch.transport.voyageNumber
+      occurrences:
+      - text: 0070W
+        all: true
+    - key: review:removed_remote_contacts
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'E-MAIL: HEE.AHMED.**'
+        occurrence: 1
+      - text: '**ABDELHAMID@HAIER.COM'
+        occurrence: 1
+      - text: PHONE:+2 01287158637
+        occurrence: 1
+    retire:
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replace
+        omitted split remote email with exact synthetic-only deletion, including its
+        caption.
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Current
+        gold excludes remote phone. Remove this synthetic-only contact and its caption
+        together.
+    delete:
+      review:removed_remote_contacts: Source-only obsolete party contacts removed
+        from new synthetic documents; originals remain unchanged.
+    postal_country_owners:
+      documentPatch.parties.shipper.country:
+      - lexical_00_01
+    lexical: []
+  doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146:
+    retire:
+      agent:package_count_words: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when
+        present, has its own current category owner.
+    add:
+    - key: wrapper_noun:agent:package_count_words
+      kind: package
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      occurrences:
+      - text: CARTONS
+        occurrence: 4
+    bindings:
+      anchor:documentPatch.cargoGroups[0].additionalInformation[1]:
+        paths:
+        - documentPatch.goodsItemDetails[0].description
+    lexical: []
+  doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031:
+    retire:
+      agent:package_quantity_in_words: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when
+        present, has its own current category owner.
+    add:
+    - key: wrapper_noun:agent:package_quantity_in_words
+      kind: package
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      occurrences:
+      - text: CARTONS
+        occurrence: 2
+      - text: CARTONS
+        occurrence: 4
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.shipper.name
+    lexical: []
+  doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50:
+    bindings:
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]
+    lexical:
+    - key: lexical_01
+      kind: postal
+      paths:
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'BUILDING 2 C STREET 1258
+
+          ABDEL HAMID BADAWY SHERATON IN FRON
+
+          T OF SUN CITY, CAIRO, EGYPT'
+        occurrence: 1
+  doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834:
+    bindings:
+      anchor:documentPatch.parties.consignee.country:
+        paths:
+        - documentPatch.parties.consignee.country
+        - documentPatch.route.placeOfDelivery.country
+      anchor:documentPatch.parties.notifyParties[0].country:
+        paths:
+        - documentPatch.parties.notifyParties[0].country
+        - documentPatch.route.placeOfDelivery.country
+      anchor:documentPatch.parties.deliveryAgent.country:
+        paths:
+        - documentPatch.parties.deliveryAgent.country
+        - documentPatch.route.placeOfDelivery.country
+      anchor:documentPatch.route.portOfDischarge.country:
+        paths:
+        - documentPatch.route.portOfDischarge.country
+        - documentPatch.route.placeOfDelivery.country
+      anchor:documentPatch.freight.paymentPlace.country:
+        paths:
+        - documentPatch.freight.paymentPlace.country
+        - documentPatch.route.placeOfDelivery.country
+      anchor:documentPatch.route.portOfDischarge.name:
+        paths:
+        - documentPatch.route.portOfDischarge.name
+        - documentPatch.route.placeOfDelivery.name
+      anchor:documentPatch.freight.paymentPlace.name:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+        - documentPatch.route.placeOfDelivery.name
+    add:
+    - key: review:delivery_contact_name:0
+      kind: name
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.contactName
+      occurrences:
+      - text: Mr. Amr Rabbany
+        occurrence: 1
+    - key: review:delivery_contact_name:1
+      kind: name
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.contactName
+      occurrences:
+      - text: Mr. Shady Farid
+        occurrence: 1
+    surfaces:
+      review:delivery_contact_name:0:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      review:delivery_contact_name:1:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A1
+
+          RD NO. 2, BANJARA HILLS HY-BAD-34 TELANGANA- INDIA'
+        all: true
+  doc_2c12ef6c4701d8225a5d6a6389bb7f9fb3818331316c30b0733f1359ca978fe1:
+    lexical: []
+  doc_2d4248d34bf6ee2e021c5c31fc673c292811c026164c762208e18b6fc5c945eb:
+    bindings:
+      anchor:documentPatch.parties.carrier.contactDetails.phoneNumbers[1]:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:cargo:classification:hs:
+        kind: identifier
+        paths:
+        - documentPatch.goodsItemDetails[0].hsCodes[0]
+      agent:cargo:classification:secondary:
+        kind: identifier
+        paths:
+        - documentPatch.goodsItemDetails[0].hsCodes[1]
+    add: []
+    lexical: []
+  doc_2dbf5b7fc6901b8fe7f0bd5d9fea3cd703b6a7c0166fd4954422107b339e5e35:
+    surfaces:
+      anchor:documentPatch.transport.vesselName:
+        expression: '{documentPatch.transport.vesselName}'
+      anchor:documentPatch.transport.voyageNumber:
+        expression: '{documentPatch.transport.voyageNumber}'
+    lexical: []
+  doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8:
+    delete:
+      agent:party:consignee:0:contact_location: Synthetic-only omission of the dangling
+        CHICAGO, IL after the Cairo consignee phone. It has no current target and
+        unresolved source role; do not infer or silently assign it to either party
+        or receipt. Original source and explicit CHICAGO RAMP receipt are preserved.
+    lexical: []
+  doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
+    surfaces:
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        formats:
+        - '%b,%-d %Y'
+        case: upper
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'NO.959 NANHAI WEST ROAD,JIAOZUO,HENAN PROVINCE,CHINA,POST CODE: 454003'
+        occurrence: 1
+  doc_361e7fedebcee73017bb5db0ed3ea4e70d6aa64c9a2b0c0cdfa2258db165b4aa:
+    bindings:
+      agent:invoice_party:tt_ocean_logistics:
+        paths:
+        - documentPatch.parties.shipper.name
+    lexical: []
+  doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5:
+    lexical: []
+  doc_3d0bcc2def0b777a2b626b9bfa1e7d1e227923b8d43a9474c07b4502929e3c03:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'JEDDAH - SAUDI ARABIA PLASTAIN ST
+
+          REET OFFICE NO:9P.POX 2147'
+        occurrence: 1
+  doc_43192029e089291b2e537c6d6252f1adb15970922ef113b1baa2d29f15be93ae:
+    bindings:
+      agent:route:place_of_delivery_reference:
+        paths:
+        - documentPatch.route.placeOfDelivery.name
+    lexical: []
+  doc_447a805ad536c989a57583429e379e0bfb1493ae5a572b33ea3736f0ea1e4025:
+    surfaces:
+      agent:cargo:g1:weight:value:1089:
+        measure_path: documentPatch.goodsItemDetails[0].grossWeight
+        render_unit: pound
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: 'Street #:1
+
+          Industrial zone
+
+          Damnhour City :Behira zip code:5832456'
+        occurrence: 1
+  doc_4799921c130f9f5971dec476b815a3454a6b59b5d1f08d60dc0e1bab61b002e9:
+    lexical: []
+  doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
+    bindings:
+      agent:invoice_party:momen_magdy_mustafa_abdi:
+        paths:
+        - documentPatch.parties.consignee.name
+    lexical: []
+  doc_4afa4c6f78a980386b7f0b6e73893db728a16e49714fc71d7f671c32d40ce8b4:
+    retire:
+      agent:package:0:total_in_words: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when
+        present, has its own current category owner.
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A1 RD NO. 2, BANJARA HILLS HYD-BAD-500034
+
+          TELANGANA- INDIA'
+        all: true
+  doc_4e766b207e0913cbf720427ebbb3a37e8ef0508b2ed94876763de81224b882bb:
+    lexical: []
+  doc_51d5f8302e5b4e1f70a50cf4eaed3fd51cc1d661d5953acc25a1e9e76983874e:
+    retire:
+      agent:derived:package_quantity_words: Exact current core(s) supersede the old
+        wrapper; static punctuation/unit/order framing remains in source. Package
+        noun, when present, has its own current category owner.
+    add:
+    - key: review:delivery_contact_name:0
+      kind: name
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.contactName
+      occurrences:
+      - text: Mr. Amr Rabbany
+        occurrence: 1
+    - key: review:delivery_contact_name:1
+      kind: name
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.contactName
+      occurrences:
+      - text: Mr. Shady Farid
+        occurrence: 1
+    surfaces:
+      review:delivery_contact_name:0:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      review:delivery_contact_name:1:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A1 RD NO. 2, BANJARA HILLS HY-BAD-34
+
+          TELANGANA-
+
+          INDIA'
+        all: true
+  doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0:
+    retire:
+      anchor:documentPatch.billOfLadingNumber: Reviewed current scalar owners cover
+        every mutable value in this wrapper; its intervening newline or printed unit
+        stays literal.
+    lexical: []
+  doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98:
+    bindings:
+      agent:contact:local_agent:email:0:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:contact:local_agent:phone:0:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      anchor:documentPatch.freight.paymentPlace.country:
+        paths:
+        - documentPatch.freight.paymentPlace.country
+        - documentPatch.route.placeOfReceipt.country
+        - documentPatch.route.portOfLoading.country
+      anchor:documentPatch.placeOfIssue.country:
+        paths:
+        - documentPatch.placeOfIssue.country
+        - documentPatch.route.placeOfReceipt.country
+        - documentPatch.route.portOfLoading.country
+      agent:operational:onboard:country:
+        paths:
+        - documentPatch.route.placeOfReceipt.country
+        - documentPatch.route.portOfLoading.country
+      agent:route:preCarriage:
+        paths:
+        - documentPatch.route.placeOfReceipt.name
+    lexical: []
+  doc_535a8d9173b4b0cc659cc6f314943214a3339b071b13ae9682abfb8d7c8d7af5:
+    bindings:
+      agent:invoice_party:mohamed_morsy_ali_ahmed:
+        paths:
+        - documentPatch.parties.consignee.name
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'JEDDAH - SAUDI ARABIA PLASTAIN ST
+
+          REET OFFICE NO:9P.POX 2147'
+        occurrence: 1
+  doc_53d4726a0e27f4420f9c6dc7b414906181773ea80cc49eb7c296cb7871a911dd:
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A1 RD NO. 2, BANJARA HILLS HYD-BAD-500034
+
+          TELANGANA- INDIA'
+        all: true
+  doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e:
+    retire:
+      anchor:documentPatch.billOfLadingNumber: Reviewed current scalar owners cover
+        every mutable value in this wrapper; its intervening newline or printed unit
+        stays literal.
+    bindings:
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.contactName:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.contactName
+      agent:source:additional_contact:0:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.contactName
+    surfaces:
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.contactName:
+        split_path: documentPatch.parties.notifyParties[0].contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      agent:source:additional_contact:0:
+        split_path: documentPatch.parties.notifyParties[0].contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        formats:
+        - '%b %d,%Y'
+        case: upper
+    lexical: []
+  doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c:
+    lexical: []
+  doc_5c5e51a90b1e941b75e5619d9b4a56ef05149842da9709984fa9bee730c19715:
+    bindings:
+      agent:shipping_agent_email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:shipping_agent_phone_0:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:shipping_agent_phone_1:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.route.portOfLoading.name
+      agent:shipping_agent_contact_name:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.contactName
+    retire:
+      anchor:documentPatch.route.placeOfDelivery.name: Current reviewed target omits
+        the contradictory source delivery field; remove the whole private field in
+        synthetic descendants.
+    add:
+    - key: review:delivery_agent_caption
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: NAME AND FULL ADDRESS OF SHIPPING AGENT IN EGYPT ALEXANDRIA
+        occurrence: 1
+    - key: review:destination_terminal_clause
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: THE ALEXANDRIA PORT CONTAINERS TERMINAL
+        occurrence: 1
+    - key: review:destination_laws_clause
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: AS PER EGYPTIAN LAWS
+        occurrence: 1
+    - key: review:contradictory_delivery_field
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'Place of delivery: ISTANBUL'
+        occurrence: 1
+    - key: review:total_package_caption
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'TOTAL PALLET:'
+        occurrence: 1
+    delete:
+      review:contradictory_delivery_field: Reviewed source has an origin-city value
+        under delivery inconsistent with its destination, and no current delivery
+        label. Synthetic template removes that private contradictory field rather
+        than inventing a gold route value.
+    lexical: []
+  doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5:
+    lexical: []
+  doc_5ffbf8421800ef773833ad581145fbdb266e358a5e83a15880a07c741ef4d9e4:
+    bindings:
+      agent:egypt:phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    lexical: []
+  doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.name
+    lexical: []
+  doc_66dc43776f8a86039dc383d63e27192ad6199db8fc1b6d301f129897779b5f40:
+    lexical: []
+  doc_68c5e5dd81c606ac459903fccbe2b0474ed59fa81756a53567d314ca9225153a:
+    lexical: []
+  doc_68d08294f302764335935c9f2d43b9270ae174a5612cec9f8b1bb4b6da742b10:
+    lexical: []
+  doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512:
+    bindings:
+      agent:local_agent:email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:local_agent:phone:0:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:local_agent:phone:1:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+    lexical: []
+  doc_71569af6c254af7ecc70408624855fede2f7587a2a8841b2e9001f6fdf8b4eb2:
+    retire:
+      anchor:documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity|documentPatch.cargoPackages[0].quantity: Exact
+        current core(s) supersede the old wrapper; static punctuation/unit/order framing
+        remains in source. Package noun, when present, has its own current category
+        owner.
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A1
+
+          RD NO. 2, BANJARA HILLS HY-BAD-34,TELANGANA- INDIA'
+        all: true
+  doc_73576135bddebf063b7d50b25a4683fdf6a738749240f9377630a4224bc7037f:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.name
+    lexical:
+    - key: lexical_00
+      kind: product
+      paths:
+      - documentPatch.goodsItemDetails[0].description
+      occurrences:
+      - text: JOHN DEERE SP A RE PARTS FOR AG RICULTURAL MACHINERY
+        occurrence: 1
+  doc_738b9fde206a8a90d6ef0155513300da4e7cb8de736be39e750d684b7a335c47:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'JEDDAH - SAUDI ARABIA PLASTAIN ST
+
+          REET OFFICE NO:9P.POX 2147'
+        occurrence: 1
+  doc_73fdbd1579a4a58c93396ee704aae57e81f214d5706346eb88611e5257271280:
+    retire:
+      anchor:documentPatch.parties.notifyParties[0].name: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+    bindings:
+      agent:party:notify:0:email:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+      agent:party:shipper:0:mobile_phone:
+        paths:
+        - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
+    lexical: []
+  doc_74181921e0c8f89c4c0b1c43906e7304d500f250b31243919039472dd4395dd3:
+    bindings:
+      agent:consignee_tax_identifier:
+        kind: phone
+        paths:
+        - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+        occurrences:
+        - text: '20226390172'
+          occurrence: 1
+      agent:notify_tax_identifier:
+        kind: phone
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+        occurrences:
+        - text: '20226390172'
+          occurrence: 2
+    lexical: []
+  doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e:
+    retire:
+      agent:source:gross_weight: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when
+        present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replaced
+        by exact synthetic-only remote-contact deletion.
+    add:
+    - key: reviewed:remote_contact_removed
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: '*EMAIL:MOHAMED.NEWIR@EAI-ALSAFY.COM'
+        occurrence: 1
+    delete:
+      reviewed:remote_contact_removed: Current target excludes remote contact; preserve
+        real source unchanged.
+    lexical: []
+  doc_76e93c16eabc55cacc7f2f6c8018e42776289390a41cb4ba392443744b01ca25:
+    bindings:
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.placeOfIssue.name:
+        paths:
+        - documentPatch.placeOfIssue.name
+        - documentPatch.freight.paymentPlace.name
+    lexical: []
+  doc_7750e3d96684f1f97a45fb42be766b700a1316caadb001b5ac47d6a420882f42:
+    lexical: []
+  doc_7e0657d1c16a39390d2a8c05715b1a2c3779f66bf582805256474bd61dec91e7:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.shipper.name
+    surfaces:
+      anchor:documentPatch.transport.voyageNumber:
+        expression: '{documentPatch.transport.voyageNumber}'
+    lexical: []
+  doc_7f8fafe78ae25013135d1a1a187235c9d038134a43f38352aa6f39cf72e5b8fe:
+    add:
+    - key: review:obsolete_carton_serial_ranges
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'CARTON NOS.: 1291 TO 1720'
+        occurrence: 1
+      - text: 'CARTON NOS.: 1721 TO 2150'
+        occurrence: 1
+    delete:
+      review:obsolete_carton_serial_ranges: Original carton serial ranges encode 430+430
+        original cartons. Omit these private mark lines from variable-package synthetic
+        descendants, preserving real source OCR and independent lot marks.
+    retire:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Complete synthetic-only
+        carton-range line removal owns this old fragment.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]: Complete synthetic-only
+        carton-range line removal owns this old fragment.
+    lexical: []
+  doc_81877adfaa979b7c2d76df6b9f53c124e4597cfab3a90dad63ada1e32f0393cd:
+    bindings:
+      agent:customs:acid_number:
+        occurrences:
+        - text: '7116074432024030012'
+          occurrence: 1
+    lexical: []
+  doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5:
+    lexical: []
+  doc_8572f110c037463e9299abe5af46df77dff78bc1da4c87442a9351de5ce5418d:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.shipper.name
+    surfaces:
+      agent:cargo:0:marks_and_origin:
+        expression: MADE IN {documentPatch.goodsItemDetails[0].origin.name}
+    lexical: []
+  doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7:
+    lexical: []
+  doc_883be4ced35b67c0b48c70f98c61914f3c737b3d635dc0658f26ecdfdbebb66d:
+    delete:
+      agent:route:portOfLoading:source_only_location_0: Remove redundant displaced
+        discharge-port text under the loading heading; the explicit discharge field
+        remains fully rendered.
+    lexical: []
+  doc_914681ee19c83f2729d3ba64d3c3f9ef86d77352ae7351d1df33704ce8816dac:
+    lexical: []
+  doc_9182d47fdd9e7e65866bb87cc281d113f8659bd62583e9f278d418b49a374f4c:
+    lexical: []
+  doc_92bc5451eb186398e16b01e3f2a183c2c67205e3fd3f87cec9e6ee70d3266330:
+    bindings:
+      agent:source:consignee:tax_id:
+        occurrences:
+        - text: 01002262694
+          occurrence: 1
+    add:
+    - key: review:consignee_phone_second
+      kind: phone
+      paths:
+      - documentPatch.parties.consignee.contactDetails.phoneNumbers[1]
+      occurrences:
+      - text: 01002262694
+        occurrence: 2
+    lexical: []
+  doc_947097576fb4db13657a658d43d15b7d1ecf0abec9dede73b9a98f43cbb19bdc:
+    retire:
+      anchor:documentPatch.parties.notifyParties[0].country: Exact current core(s)
+        supersede the old wrapper; static punctuation/unit/order framing remains in
+        source. Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.country: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+    bindings:
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.placeOfIssue.name:
+        paths:
+        - documentPatch.placeOfIssue.name
+        - documentPatch.freight.paymentPlace.name
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'CYNON VALLEY BUSINESS PARK
+
+          MOUTAIN ASH, MID GLAMORGAN
+
+          CF45 4ER U.K'
+        all: true
+  doc_97e9b467b37f213e5f9566b74b2bb392fa0239b30a0681bf157d763740802eae:
+    bindings:
+      anchor:documentPatch.parties.consignee.city:
+        paths:
+        - documentPatch.route.finalDestination.name
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]:
+        paths:
+        - documentPatch.goodsItemDetails[0].handlingInstructions[0]
+        - documentPatch.route.finalDestination.name
+    surfaces:
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]:
+        expression: '{documentPatch.goodsItemDetails[0].handlingInstructions[0]}'
+    dependent_text:
+    - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
+      source: TO BE AT PORT SAID FREE ZONE
+      expression: TO BE AT {documentPatch.route.finalDestination.name}
+    lexical: []
+  doc_97efe837d0a87d40b07f5f532477670ce38700e5c8e01d715fc443983242a8c5:
+    bindings:
+      agent:aux:cargo_release:phone_1:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:aux:cargo_release:phone_2:
+        occurrences:
+        - text: +2 (02) 22694915
+          occurrence: 1
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        paths: []
+        occurrences:
+        - text: 'DESTINATION ALEXANDRIA,
+
+            EGYPT'
+          occurrence: 1
+    add:
+    - key: review:delivery_agent_phone_second
+      kind: phone
+      paths:
+      - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+      occurrences:
+      - text: '22694915'
+        occurrence: 1
+    surfaces:
+      anchor:documentPatch.issueDate:
+        date_path: documentPatch.issueDate
+        formats:
+        - '%b.'
+        - '%-d,%Y'
+        case: upper
+      anchor:documentPatch.shippedOnBoardDate:
+        date_path: documentPatch.shippedOnBoardDate
+        formats:
+        - '%b.'
+        - '%-d,%Y'
+        case: upper
+    lexical: []
+  doc_9839db703d177b5af7fbb9b454f5c1932c2e64c81ad5958c18e4a620e2d08363:
+    lexical: []
+  doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627:
+    retire:
+      agent:transport:pre_carriage:vessel: Replaced by coherent full pre-carriage
+        leg.
+      agent:transport:pre_carriage:voyage: Replaced by coherent full pre-carriage
+        leg.
+    add:
+    - key: reviewed:pre_carriage_leg
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: GSL VINIA 345N
+        occurrence: 1
+    lexical: []
+  doc_9ad49fcc846c53b1780f28a74c0cd1073d7bb2d812e5b5a76d2744b1ba4a7f02:
+    lexical: []
+  doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
+    bindings:
+      agent:party:destination_office:phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+      agent:route:precarriage:name:
+        paths:
+        - documentPatch.route.placeOfReceipt.name
+      agent:route:precarriage:country:
+        paths:
+        - documentPatch.route.placeOfReceipt.country
+    lexical: []
+  doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e:
+    bindings:
+      agent:secondary_document_date:
+        kind: date
+        paths:
+        - documentPatch.issueDate
+        occurrences:
+        - text: 16 OCT 2023
+          occurrence: 2
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.name
+    surfaces:
+      agent:secondary_document_date:
+        date_path: documentPatch.issueDate
+        format: '%d %b %Y'
+        case: upper
+    delete:
+      anchor:documentPatch.transport.vesselFlagCountry: Synthetic-only removal of
+        old vessel flag because vessel name is resampled independently.
+    lexical: []
+  doc_a5265d59407c00f400dc92be45ad35f487fcb440c2f405c0381b7a75fc76b3c6:
+    retire:
+      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+    bindings:
+      anchor:documentPatch.parties.notifyParties[0].country:
+        paths:
+        - documentPatch.parties.notifyParties[0].country
+        - documentPatch.route.portOfDischarge.country
+      anchor:documentPatch.parties.deliveryAgent.country:
+        paths:
+        - documentPatch.parties.deliveryAgent.country
+        - documentPatch.route.portOfDischarge.country
+    lexical: []
+  doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a:
+    lexical: []
+  doc_b2b9200dc9c342c00181c08441a6448967f04a9bc9c52d2c0a87307b5faa667e:
+    retire:
+      anchor:documentPatch.parties.shipper.name: Both named principal and represented
+        party now have reviewed lexical regions; ON BEHALF OF stays literal.
+    lexical: []
+  doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6:
+    bindings:
+      agent:foreign_exporter_country_code:
+        paths:
+        - documentPatch.parties.shipper.country
+        kind: location
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: 'NO.13 ELHELIG ST,FIRST OF ROAD
+
+          ELHOSUSUIY ELOUMOMIY-M-ELHANK-
+
+          ELMELIK'
+        all: true
+  doc_ba3dad0d0a66a8db07e3a9331d039372017db5ca20cb185f466e1acbaaafc025:
+    retire:
+      agent:package_total_in_words: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when
+        present, has its own current category owner.
+    bindings:
+      anchor:documentPatch.parties.consignee.country:
+        paths:
+        - documentPatch.parties.consignee.country
+        - documentPatch.freight.paymentPlace.country
+      anchor:documentPatch.parties.notifyParties[0].country:
+        paths:
+        - documentPatch.parties.notifyParties[0].country
+        - documentPatch.freight.paymentPlace.country
+      anchor:documentPatch.route.portOfDischarge.country:
+        paths:
+        - documentPatch.route.portOfDischarge.country
+        - documentPatch.freight.paymentPlace.country
+      anchor:documentPatch.parties.deliveryAgent.country:
+        paths:
+        - documentPatch.parties.deliveryAgent.country
+        - documentPatch.freight.paymentPlace.country
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.contactName
+      agent:deliveryAgent:secondary_contact_name:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.contactName
+    surfaces:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 0
+      agent:deliveryAgent:secondary_contact_name:
+        split_path: documentPatch.parties.deliveryAgent.contactDetails.contactName
+        separator: '; '
+        count: 2
+        index: 1
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-
+
+          293/A/A1 RD NO. 2, BANJARA HILLS HY-BAD-34 TELANGANA-
+
+          INDIA'
+        all: true
+  doc_ba5ba8aca1594542cabae39db308a99d28aafa43571917e5a4617ef78d7b9fd1:
+    surfaces:
+      agent:total_gross_weight_imperial_value:
+        measure_path: documentPatch.goodsItemDetails[0].grossWeight
+        render_unit: pound
+      agent:total_volume_imperial_value:
+        measure_path: documentPatch.goodsItemDetails[0].volume
+        render_unit: cubic_foot
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'POLYOM BUILDING, 2ND FL. AREA 22, 1ST SEC., ROAD
+
+          90 DOWNTOWN, 5TH SETTLEMENT
+
+          NEW CAIRO11835
+
+          EGYPT'
+        all: true
+  doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555:
+    lexical: []
+  doc_c4df0ac5aa163d35076de464c960fe29b4eb22e91650b1aa888a870442d58f34:
+    bindings:
+      agent:route:destination_office:email:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      agent:route:destination_office:phone:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    lexical: []
+  doc_c77f84d77c138ecfc14851fafb14bdf875393be86644494fecabc7e03df4c618:
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'OFFICENO.43-44, AL FAHIDI,BUR DUBAI
+
+          DUBAI, UAE'
+        all: true
+  doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932:
+    bindings:
+      agent:route:portOfDischarge:location_variant:alexandria:
+        paths:
+        - documentPatch.route.portOfDischarge.name
+      agent:route:placeOfDelivery:location_variant:alexandria:
+        paths:
+        - documentPatch.route.placeOfDelivery.name
+    lexical: []
+  doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982:
+    lexical: []
+  doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0:
+    retire:
+      agent:package_total_in_words: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when
+        present, has its own current category owner.
+    lexical: []
+  doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f:
+    tare_baselines:
+      agent:container:0:tare_weight:
+        kg: '3820'
+        sourceSha256: d74b964b0e26de92a82ca0a81e779c79cb831c84c722af9c856c8f459e5a09d4
+        reason: Reviewed container table TareW. 3,820 next to a 40HC identifier; comma
+          groups kilograms, not decimal kilograms.
+    lexical:
+    - key: exact_tokens_0
+      kind: name
+      paths:
+      - documentPatch.parties.consignee.name
+      occurrences:
+      - text: 'AL MADINA EL MOUNWRA FOR IMPORT & EXPORT
+
+          OMAR MAHMOUD ABDALHA AL TAHAN'
+        all: true
+  doc_d97350b6c1883d0c0198bc4a2d410a09429b88be518eacf41a2d3d3ecc3aee84:
+    bindings:
+      agent:egyptian_importer_name:
+        paths:
+        - documentPatch.parties.consignee.name
+      agent:foreign_exporter_id:
+        paths:
+        - documentPatch.parties.shipper.name
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: 'BLD 57 STREET 3 FROM ISMAIL SERRY
+
+          SMOUHA
+
+          ALEXANDRIA
+
+          ALEXANDRIA
+
+          21648
+
+          EGYPT'
+        occurrence: 1
+      - text: 'BLD 57 STREET 3 FROM ISMAIL SERRY
+
+          SMOUHA
+
+          ALEXANDRIA
+
+          ALEXANDRIA
+
+          21648
+
+          EGYPT'
+        occurrence: 2
+    - key: lexical_01
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: '164 El Gish Road
+
+          3rd Floor ,Mahatet Elraml
+
+          Alexandria
+
+          Alexandria
+
+          21563
+
+          Egypt'
+        occurrence: 1
+  doc_db7177f54a3bba09125c0f174a27a4d74ce1ccadfdc57392a9bc4f004534fb2b:
+    lexical: []
+  doc_e28ff6f73f4cea776bf1f1ffc0564bf160aa745c062a5f4b1dec1f2ce1650f80:
+    bindings:
+      agent:customs:egyptian_importer_name:
+        paths:
+        - documentPatch.parties.consignee.name
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.forwardingAgent.addressLine
+      occurrences:
+      - text: '265 POST AVENUESUITE 333
+
+          WESTBURY NY, US 11590'
+        all: true
+  doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa:
+    retire:
+      agent:legal:clause_number_fragment_1: Complete reviewed destination-legal-clause
+        rewrite supersedes its isolated static clause number.
+    lexical: []
+  doc_e4313a4aed3f5b961982c911df0dd415bc80411414952c0c49e092f25ef457d6:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      - documentPatch.parties.notifyParties[0].addressLine
+      occurrences:
+      - text: 'Private Free Zone Area
+
+          6th of October industrial city Zone 06
+
+          Land No. 53,54,55
+
+          6th of October city Giza Egypt'
+        occurrence: 1
+      - text: 'Private Free Zone Area
+
+          6th of October industrial city Zone 06
+
+          Land No. 53,54,55
+
+          6th of October city Giza Egypt'
+        occurrence: 2
+  doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb:
+    retire:
+      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede
+        the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
+    tare_owners:
+      agent:cargo:tare_weight_total:
+      - 0
+      - 1
+    bindings:
+      anchor:documentPatch.cargoPackages[1].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+    lexical: []
+  doc_e7bcc7250fb936b489fde09b24278c488da83d706867b73c639c3ab3477bb72b:
+    lexical: []
+  doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53:
+    lexical:
+    - key: lexical_00
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      occurrences:
+      - text: 'Avenida Ana Costa 59 Conj 82 Andar 8, Gonzaga Brasil CEP:
+
+          11.060-001 SANTOS, SP
+
+          Brazil'
+        occurrence: 1
+  doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea:
+    bindings:
+      anchor:documentPatch.route.portOfLoading.country:
+        paths:
+        - documentPatch.route.portOfLoading.country
+        - documentPatch.freight.paymentPlace.country
+      agent:exporter:country:
+        paths:
+        - documentPatch.freight.paymentPlace.country
+      anchor:documentPatch.route.portOfLoading.name:
+        paths:
+        - documentPatch.route.portOfLoading.name
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.name
+    retire:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]: Remove the complete
+        obsolete serial range caption and value for variable inner package counts.
+      agent:cargo:source_mark:box_no: Complete obsolete box-range removal owns its
+        caption too.
+    add:
+    - key: review:obsolete_box_range
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'BOX NO.
+
+          E 2360 TO E 2413'
+        occurrence: 1
+    - key: review:shipper_heading
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'Consignee:'
+        occurrence: 1
+    delete:
+      review:obsolete_box_range: Synthetic-only obsolete package-serial mark removal;
+        original source remains available.
+    lexical: []
+  doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c:
+    bindings:
+      agent:party:shipper:0:exporter_contact_email:
+        paths:
+        - documentPatch.parties.shipper.contactDetails.emailAddresses[0]
+      agent:party:shipper:0:exporter_contact_name:
+        paths:
+        - documentPatch.parties.shipper.contactDetails.contactName
+    retire:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Split exact private
+        consignee locality/country mark into paired sampled geographic owners.
+    add:
+    - key: review:consignee_mark:name
+      kind: location
+      paths: []
+      occurrences:
+      - text: CAIRO
+        occurrence: 3
+    - key: review:consignee_mark:country
+      kind: location
+      paths: []
+      occurrences:
+      - text: EGYPT
+        occurrence: 8
+    surfaces:
+      agent:cargo:0:marks_and_origin_surface:
+        expression: MADE IN {documentPatch.goodsItemDetails[0].origin.name}
+    lexical: []
+  doc_f3e4072968c7d4137c63a3b583373777d6d9418b402c44851961935295d76454:
+    bindings:
+      agent:customs:acid_number:
+        occurrences:
+        - text: '5090493032024050030'
+          occurrence: 1
+      anchor:documentPatch.freight.paymentPlace.name:
+        occurrences:
+        - text: NINGBO, ZHEJIANG
+          occurrence: 1
+    retire:
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replaced
+        by exact synthetic-only remote-contact deletion.
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Replaced
+        by exact synthetic-only remote-contact deletion.
+      agent:commercial:freight:payment_place_region: Complete payment locality replaces
+        stale province suffix.
+    add:
+    - key: reviewed:remote_contact_removed
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 'CN>
+
+          E-MAIL : FACINDUSTRIES5@GMAIL.COM
+
+          MOBILE : 01000285858'
+        occurrence: 1
+    delete:
+      reviewed:remote_contact_removed: Current target excludes remote contact; preserve
+        real source unchanged.
+    lexical: []
+  doc_f98e69891b70ffdb7141bcf2e80184b58029037dda7e0851469faa01ed268469:
+    bindings:
+      anchor:documentPatch.route.placeOfReceipt.country:
+        paths:
+        - documentPatch.route.placeOfReceipt.country
+        - documentPatch.placeOfIssue.country
+      anchor:documentPatch.route.portOfLoading.country:
+        paths:
+        - documentPatch.route.portOfLoading.country
+        - documentPatch.placeOfIssue.country
+    lexical: []
+  doc_fabe32eb22c937940c4af0bbd6838f42def474d16e8ca544f48471c7a42d2076:
+    bindings:
+      anchor:documentPatch.route.placeOfReceipt.name:
+        paths:
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.placeOfIssue.name:
+        paths:
+        - documentPatch.placeOfIssue.name
+        - documentPatch.freight.paymentPlace.name
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+        - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
+        kind: phone
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+        occurrences:
+        - text: (+2)01207011144
+          all: true
+      anchor:documentPatch.parties.notifyParties[0].country:
+        paths:
+        - documentPatch.parties.notifyParties[0].country
+        - documentPatch.parties.deliveryAgent.country
+        occurrences:
+        - text: EGYPT
+          occurrence: 3
+      anchor:documentPatch.parties.notifyParties[0].city:
+        occurrences:
+        - text: PORT SAID
+          occurrence: 1
+      anchor:documentPatch.cargoPackages[1].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.cargoPackages[2].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      anchor:documentPatch.cargoPackages[3].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+    add:
+    - key: review:notify_delivery_second_phone
+      kind: phone
+      paths:
+      - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]
+      - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+      occurrences:
+      - text: '01207011166'
+        all: true
+    - key: review:delivery_complete_postal
+      kind: postal
+      paths:
+      - documentPatch.parties.deliveryAgent.addressLine
+      - documentPatch.parties.deliveryAgent.country
+      occurrences:
+      - text: SAFAYA ZAGHLOUL STREET,
+        occurrence: 1
+    - key: review:delivery_obsolete_continuation
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: OFFICE 4 ESTATE NO35, PORT SAID, EGYPT
+        occurrence: 1
+    retire:
+      anchor:documentPatch.parties.notifyParties[0].address: Full repeated postal
+        block and explicit continuation deletion replace the fragmented old address;
+        company suffix is not the country owner.
+      anchor:documentPatch.parties.deliveryAgent.address: Full repeated postal block
+        and explicit continuation deletion replace the fragmented old address; company
+        suffix is not the country owner.
+      anchor:documentPatch.parties.deliveryAgent.country: Full repeated postal block
+        and explicit continuation deletion replace the fragmented old address; company
+        suffix is not the country owner.
+    surfaces:
+      review:delivery_complete_postal:
+        expression: '{documentPatch.parties.deliveryAgent.addressLine}'
+    delete:
+      review:delivery_obsolete_continuation: Synthetic template consolidates the same
+        repeated delivery postal address at the delivery-party location. The obsolete
+        partial continuation is removed, with original OCR unchanged.
+    lexical: []
+  doc_fc68b5d99830e0c3241e03375fe2cb7149dd77c80ec74b9a0bedb180bb700546:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        paths:
+        - documentPatch.parties.consignee.name
+    lexical:
+    - key: exact_tokens_0
+      kind: postal
+      paths:
+      - documentPatch.parties.shipper.addressLine
+      occurrences:
+      - text: 'UNIT NO. 201, 2ND FLR, APURUPA PCH COMPLEX,
+
+          8-2-293/A/A/1, RD.NO.2 BANJARA HILLS HYDERABAD-
+
+          500034 TELANGANA INDIA'
+        all: true
+  doc_fd095586cec635eb6fd40f725b988e9eccc085ca09b77f0ede99892d2acba2c3:
+    lexical: []

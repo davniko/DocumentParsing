@@ -20,12 +20,13 @@ def converted_fixture(*, pounds="1351.434", pound_unit="Lbs"):
     target = {
         "schemaVersion": "7.0.0",
         "documentPatch": {
+            "negotiability": None,
             "goodsItemDetails": [
                 {
                     "grossWeight": {"value": 613.0, "unit": "kilogram"},
                     "volume": {"value": 6.12, "unit": "cubic_metre"},
                 }
-            ]
+            ],
         },
     }
     row = {"documentId": "dual_units", "joinedRawText": raw, "target": target}
