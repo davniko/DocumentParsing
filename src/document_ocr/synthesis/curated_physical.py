@@ -996,6 +996,23 @@ def prepare_physical_render(
                 continue
             amount = rows[field][index] if field in rows else totals[field] * weights[index]
             actual[field] = amount * _FACTORS[measures_receipt[field]["unit"]]
+        # A total-only mass has no printed per-container allocation. Couple its
+        # feasibility estimate to the rounded rows of the other mass, rather
+        # than comparing rounded gross rows with an unrounded net split (or
+        # vice versa). This changes neither printed values nor target labels.
+        for field, counterpart in (("netWeight", "grossWeight"), ("grossWeight", "netWeight")):
+            if (
+                field in actual
+                and field not in rows
+                and counterpart in rows
+                and counterpart in actual
+            ):
+                ratio = (
+                    totals[field]
+                    * _FACTORS[measures_receipt[field]["unit"]]
+                    / (totals[counterpart] * _FACTORS[measures_receipt[counterpart]["unit"]])
+                )
+                actual[field] = actual[counterpart] * ratio
         if actual.get("grossWeight", 0) > Decimal(capacity["payloadKg"]):
             raise ValueError("rendered row exceeds sampled equipment payload after rounding")
         if capacity["volumeM3"] is not None and actual.get("volume", 0) > Decimal(

@@ -134,6 +134,44 @@ def test_private_measures_are_donor_owned_and_do_not_invent_public_labels():
     assert plan.receipt["measures"]["grossWeight"]["method"] == "train_donor_private_measure"
 
 
+@pytest.mark.parametrize("printed_mass", ["grossWeight", "netWeight"])
+def test_total_only_mass_tracks_rounded_counterpart_for_capacity_checks(printed_mass):
+    from dataclasses import replace
+
+    row, blueprint, scenario, support = fixture()
+    other = "netWeight" if printed_mass == "grossWeight" else "grossWeight"
+    target = deepcopy(row["target"])
+    goods = target["documentPatch"]["goodsItemDetails"][0]
+    goods[printed_mass] = {"value": 31, "unit": "kilogram"}
+    goods[other] = {"value": 31, "unit": "kilogram"}
+    variables = [v.model_copy(deep=True) for v in blueprint.contract.variables]
+    for variable in variables:
+        variable.meaning = (
+            variable.meaning.replace("gross_weight", "net_weight")
+            if printed_mass == "netWeight"
+            else variable.meaning
+        )
+    variables.append(
+        variables[0].model_copy(
+            update={
+                "key": "other_total",
+                "meaning": "Printed cargo mass: cargo:"
+                + ("net_weight_total" if other == "netWeight" else "gross_weight_total"),
+            }
+        )
+    )
+    contract = blueprint.contract.model_copy(update={"variables": variables, "targets": []})
+    blueprint = replace(blueprint, contract=contract)
+    plan = prepare_physical_render(blueprint, scenario, target, support=support)
+    assert plan.variable_values["total"] == plan.variable_values["other_total"] == "31"
+    assert plan.receipt["rows"][printed_mass] == ["10", "21"]
+    assert other not in plan.receipt["rows"]  # Do not invent printed row facts.
+    # Genuine capacity violations must still fail, including inferred gross rows.
+    scenario.provenance["physicalRows"][1]["capacity"]["payloadKg"] = "20"
+    with pytest.raises(ValueError, match="exceeds sampled equipment payload"):
+        prepare_physical_render(blueprint, scenario, target, support=support)
+
+
 def test_historical_allocation_measurements_follow_equipment_identity_not_row_order():
     from dataclasses import replace
 

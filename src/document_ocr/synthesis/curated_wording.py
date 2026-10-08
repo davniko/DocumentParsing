@@ -351,7 +351,9 @@ def validate_wording(
                 raise ValueError(f"{value.key}: literal escaped line break in generated text")
             if any(re.match(r"\s*[,.;:]", line) for line in text.splitlines()):
                 raise ValueError(f"{value.key}: detached line-leading punctuation")
-            if re.search(r"(?<!\d)0{5,6}(?!\d)", text):
+            if "postal" in fields[value.key].role.casefold() and re.search(
+                r"(?<![\w.])0{5,6}(?![\w.])", text
+            ):
                 raise ValueError(f"{value.key}: generated placeholder postcode")
             if "name" in fields[value.key].role.casefold() and re.search(
                 r"(?im)^\s*(?:ATTN[.:]?\s+|ATTENTION\s*:)\S", text

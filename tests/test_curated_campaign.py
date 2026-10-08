@@ -174,6 +174,15 @@ def test_goods_wording_rejects_host_accounting_without_requiring_total_caption(t
         unpack_wording(output, [request])
 
 
+def test_product_precision_is_not_a_postcode_placeholder():
+    request = WordingRequest(
+        "sample", "Goods", (WordingField("g", "goods description", "OLD", "Product"),)
+    )
+    text = "QUARTZ CRYSTAL, NOMINAL FREQUENCY 26.000000 MHZ"
+    output = wording_output_type([request]).model_validate({"s0": {"g": text}})
+    assert unpack_wording(output, [request])["sample"]["g"] == text
+
+
 def test_wording_contract_checks_coverage_identity_and_layout_without_freezing_punctuation():
     request = WordingRequest(
         "s1",
