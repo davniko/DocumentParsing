@@ -31,18 +31,18 @@ prompt:
 
 task_constraints:
   path: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
-  sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
+  sha256: b91b7aa002b379889a6f70e9580a695f07d9d977c72cdf873fcc8d3111cc81e9
 
 dataset:
   format: jsonl
   splits:
     train:
       - path: data/curated/mpci-bl-real600-synthetic500-v7-positions-v1/train.jsonl
-        sha256: 3b116eb7dd00d03a2f54afcbfb47b0238e997bb127c999f579396c6b504c9d86
+        sha256: f70648540343ad108faf7949933fe647586b4217a537a58c97f7829f00616820
         records: 1100
     validation:
       - path: data/curated/mpci-bl-real600-synthetic500-v7-positions-v1/validation.jsonl
-        sha256: b8c0d4bddd4b3a452f901f3fc5e08e54d580a82768eddd5df33c97ab2c85da5a
+        sha256: 14d306aff64e2903a8496d5809279ec42f4e9672b6d50432e72b8d170ec50f68
         records: 60
     test: []
   fields:

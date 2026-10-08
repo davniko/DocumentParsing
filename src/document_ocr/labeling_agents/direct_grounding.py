@@ -74,9 +74,9 @@ def source_fidelity_findings(
         for field, value, pattern in values
         if re.search(pattern, ocr, flags=re.IGNORECASE) is None
     ]
-    if section == "metadata_freight" and patch.get("negotiability") != "negotiable":
+    if section == "metadata_freight":
         instructions = order_consignment_candidates(ocr)
-        if instructions:
+        if instructions and patch.get("negotiability") != "negotiable":
             findings.append(
                 ReviewFinding(
                     field="negotiability",
@@ -93,6 +93,30 @@ def source_fidelity_findings(
                         "Copy/document titles do not override it under the target policy. "
                         "If the wording belongs elsewhere or the OF field is empty, explain "
                         "that ownership instead. This diagnostic does not edit labels."
+                    ),
+                )
+            )
+        elif not instructions and (
+            "negotiability" not in patch
+            or patch["negotiability"]
+            != ("non_negotiable" if (patch.get("parties") or {}).get("consignee") else None)
+        ):
+            findings.append(
+                ReviewFinding(
+                    field="negotiability",
+                    issue="wrong_value",
+                    explanation=(
+                        "Negotiability is mandatory. The literal scan found no affirmative "
+                        "consignee order instruction, and the decision conflicts with the "
+                        "candidate's consignee availability. Check the actual OCR block for "
+                        "missing party details or equivalent order wording missed by this scan."
+                    ),
+                    suggestedCorrection=(
+                        "Use non_negotiable for a readable named consignee without order "
+                        "wording, negotiable for an actual order instruction, or null when "
+                        "OCR does not establish the consignee instruction. Check ownership; "
+                        "copy stamps and another role's identity cannot fill a missing block. "
+                        "This diagnostic does not edit labels."
                     ),
                 )
             )

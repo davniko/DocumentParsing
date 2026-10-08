@@ -4,7 +4,7 @@ ownership: configs/synthesis/contracts/curated_v7_full_pilot24_ownership.yaml
 auxiliary: configs/synthesis/contracts/curated_v7_full_pilot24_auxiliary.yaml
 environment_file: .env
 task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
-task_constraints_sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
+task_constraints_sha256: b91b7aa002b379889a6f70e9580a695f07d9d977c72cdf873fcc8d3111cc81e9
 seed: 202610071
 variants_per_source: 3
 casing:
@@ -117,7 +117,7 @@ sampling:
   maximum_candidates: 512
   observed_hs_overrides:
     doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
-      source_target_sha256: 28fec2cce450e496658c34a82f8b843495cd63b895580e8adccdd291e2ec7907
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
       from_hs6:
       - 080800
       to_hs6:

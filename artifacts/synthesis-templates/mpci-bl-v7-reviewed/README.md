@@ -74,6 +74,62 @@ is needed to replay those exact old outputs, not to create new variations.
 
 ## Adding compatible templates
 
+### Party instruction policy and sampling (2026-10-08)
+
+The active source labels and all 500 published descendants now always include
+`negotiability`: the actual consignee's order instruction means `negotiable`;
+an OCR-readable named consignee without it means `non_negotiable`; unavailable
+consignee instruction means explicit `null`. A notify-only repeated identity
+does not supply the missing consignee occurrence. Conditional form
+captions and copy/document titles do not establish an order instruction.
+Every emitted notify entry has `sameAs`: the printed referenced role, or `null`
+for an independently printed party. Matching company details alone do not
+establish a reference. A missing notify block stays absent, not an empty party.
+
+Sampling preserves these source instructions. Mutable company/address regions
+beside `TO ORDER OF` are still generated normally; a bare order instruction has
+no company region to invent. Instructions outside owned mutable spans stay fixed.
+Source/descendant policy agreement is checked during rendering and publication.
+
+To control document proportions, add an optional top-level policy to a **new
+campaign configuration**, alongside `variants_per_source`:
+
+```yaml
+variants_per_source: 2
+template_sampling:
+  samples: 1000
+  negotiable_fraction: 0.20
+  notify_reference_fraction: 0.25
+```
+
+This allocates exactly 1,000 documents, 200 negotiable and 250 with at least one
+notify reference. Integer quotas round half-up. Both fractions are optional;
+unspecified dimensions follow available source diversity. With both supplied,
+the feasible joint distribution nearest independence is selected. Quotas are
+spread over eligible families in deterministic seed order. Impossible requested
+combinations fail before generation. It never manufactures order wording or
+notify references to satisfy a quota.
+
+Unknown sources remain unknown in their descendants. They may share the
+non-affirmative sampling pool, but are never relabeled non-negotiable to meet
+a quota. `negotiable_fraction` measures affirmative negotiables across the
+entire requested sample count, not only sources with known instructions.
+
+Without `template_sampling`, every selected source retains the previous fixed
+`variants_per_source` count. With it, that value caps shipments per generation,
+contact and review call; it no longer limits a source's total allocation.
+Use a new output directory and seed; do not change the quota of a published run.
+
+The current 100-family pool has **one negotiable family**. Its existing five
+descendants remain negotiable. Increasing its quota increases prevalence, not
+layout diversity; admit more negotiable sources before expecting broad template
+coverage. Existing campaign distributions were not changed by this migration.
+
+Migration receipts, exact before copies, dataset/pipeline tests and full replay:
+[party-policy audit](../../../docs/analysis/party-instruction-policy-20261008/REPORT.md).
+
+### Admission steps
+
 1. Prepare and review a candidate outside this admitted catalog. Establish the
    complete source/target contract, owned spans, auxiliary dependencies and
    sampling capabilities/topology.

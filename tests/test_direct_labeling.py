@@ -60,6 +60,7 @@ def label() -> dict:
     return {
         "schemaVersion": "7.0.0",
         "documentPatch": {
+            "negotiability": None,
             "billOfLadingNumber": "BL001",
             "parties": {
                 "shipper": {
@@ -444,7 +445,9 @@ async def test_absent_optional_objects_are_lossless_audited_and_shared_with_corr
         model = correction_model((section,))
         fixed = model.model_validate_json(encoded(normalize_optional_objects(model, envelope)))
         assert fixed.response.values.model_dump(mode="json", exclude_none=True) == {
-            key: expected["documentPatch"][key] for key in names if key in expected["documentPatch"]
+            key: expected["documentPatch"][key]
+            for key in names
+            if key in expected["documentPatch"] and expected["documentPatch"][key] is not None
         }
 
 
@@ -493,7 +496,7 @@ def test_section_models_cover_schema_once_and_merge_protects_other_sections():
     )
     candidate = BillOfLadingExtractionV7Label.model_validate_json(encoded(label()))
     replacement = SECTION_MODELS["metadata_freight"].model_validate_json(
-        '{"billOfLadingNumber":"BL002"}'
+        '{"billOfLadingNumber":"BL002","negotiability":null}'
     )
     result = merge_sections(
         candidate, {"metadata_freight": replacement}, validation_scope=tuple(SECTION_FIELDS)
@@ -513,16 +516,33 @@ def test_section_models_cover_schema_once_and_merge_protects_other_sections():
         merge_sections(candidate, {"metadata_freight": replacement}, validation_scope=("parties",))
 
 
+def test_party_section_correction_preserves_explicit_notify_null_without_other_nulls():
+    candidate = label()
+    parties = copy.deepcopy(candidate["documentPatch"]["parties"])
+    parties["notifyParties"] = [{"name": "INDEPENDENT NOTIFY", "sameAs": None}]
+    replacement = SECTION_MODELS["parties"].model_validate_json(encoded({"parties": parties}))
+    result = merge_sections(candidate, {"parties": replacement}, validation_scope=("parties",))
+    assert result["documentPatch"]["parties"] == parties
+    assert result["documentPatch"]["negotiability"] == candidate["documentPatch"]["negotiability"]
+    assert (
+        BillOfLadingExtractionV7Label.model_validate_json(encoded(result)).canonical_target()
+        == result
+    )
+
+
 @pytest.mark.asyncio
 async def test_reviews_check_absent_sections_and_clean_result_never_becomes_gold(tmp_path):
     def responder(messages, info):
         assert OCR in text(messages)
         assert "Section field definitions:" in text(messages)
+        if "Assigned section: parties." in text(messages):
+            assert "assign roles from labeled spatial blocks" in text(messages)
+            assert "cannot restore a missing role's occurrence" in text(messages)
         return response({"response": {"status": "pass", "findings": []}})
 
     subject = flow(tmp_path, responder)
     candidate = BillOfLadingExtractionV7Label.model_validate_json(
-        '{"schemaVersion":"7.0.0","documentPatch":{"billOfLadingNumber":"BL001",'
+        '{"schemaVersion":"7.0.0","documentPatch":{"negotiability":null,"billOfLadingNumber":"BL001",'
         '"placeOfIssue":{"name":"Shanghai"}}}'
     )
     result = await subject.refine(candidate)
@@ -840,7 +860,7 @@ async def test_final_review_reports_reversal_without_applying_another_edit(tmp_p
         source = text(messages)
         if "Findings:" in source:
             wave += 1
-            values = {"billOfLadingNumber": "BL001"}
+            values = {"billOfLadingNumber": "BL001", "negotiability": None}
             assert wave == 1, "Final verification must never trigger a second correction"
             values["freight"] = {"paymentArrangement": "prepaid"}
             return correction(messages, values)
@@ -1478,8 +1498,29 @@ def test_order_instruction_survives_name_normalization_and_copy_title(instructio
 )
 def test_conditional_order_caption_is_not_an_actual_instruction(ocr):
     candidate = label()
+    candidate["documentPatch"]["parties"]["consignee"] = {"name": "BANK"}
     candidate["documentPatch"]["negotiability"] = "non_negotiable"
     assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
+
+
+def test_unavailable_consignee_instruction_stays_unknown_through_metadata_repair():
+    candidate = label()
+    candidate["documentPatch"]["parties"]["notifyParties"] = [{"name": "IMPORTER", "sameAs": None}]
+    ocr = "CONSIGNEE\nEXPORT REFERENCES\nNOTIFY PARTY\nIMPORTER"
+    assert not source_fidelity_findings(candidate, ocr, "metadata_freight")
+    candidate["documentPatch"]["negotiability"] = "non_negotiable"
+    findings = source_fidelity_findings(candidate, ocr, "metadata_freight")
+    assert len(findings) == 1 and findings[0].field == "negotiability"
+    replacement = SECTION_MODELS["metadata_freight"].model_validate(
+        {"negotiability": None, "billOfLadingNumber": "BL001"}
+    )
+    repaired = merge_sections(
+        candidate, {"metadata_freight": replacement}, validation_scope=("metadata_freight",)
+    )
+    assert "negotiability" in repaired["documentPatch"]
+    assert repaired["documentPatch"]["negotiability"] is None
+    assert repaired["documentPatch"]["parties"] == candidate["documentPatch"]["parties"]
+    assert not source_fidelity_findings(repaired, ocr, "metadata_freight")
 
 
 @pytest.mark.asyncio

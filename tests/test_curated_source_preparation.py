@@ -21,6 +21,7 @@ def test_rebase_shared_numeric_targets_never_reference_a_removed_variable():
         "target": {
             "schemaVersion": "7.0.0",
             "documentPatch": {
+                "negotiability": "non_negotiable",
                 "containerInformation": [{"equipmentIdentifier": "MSKU8231362"}],
                 "goodsItemDetails": [
                     {
@@ -80,7 +81,7 @@ def binding(raw, key, quote, paths=(), **attributes):
 
 
 def row(raw, goods, containers=()):
-    patch = {"goodsItemDetails": [goods]}
+    patch = {"negotiability": "non_negotiable", "goodsItemDetails": [goods]}
     if containers:
         patch["containerInformation"] = [{"equipmentIdentifier": c} for c in containers]
     return {

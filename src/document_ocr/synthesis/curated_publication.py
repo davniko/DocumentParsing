@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
+from document_ocr.synthesis.curated_sampling import source_variant_counts
 from document_ocr.synthesis.curated_wording import (
     RenderedReview,
     rendered_review_prompt,
@@ -174,11 +175,9 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
     candidates, reviews or adjudications. Call it under the campaign's lock.
     """
     config = campaign.config
-    selected = config["source_ids"]
-    variants = config["variants_per_source"]
-    if not selected or len(set(selected)) != len(selected) or variants < 1:
-        raise ValueError("publication requires distinct sources and positive variant count")
     before, current = _source_snapshot(campaign)
+    counts = source_variant_counts(config, current)
+    selected = list(counts)
     constraints_path = campaign.root / config["task_constraints"]
     constraints_bytes = constraints_path.read_bytes()
     if digest(constraints_bytes) != config["task_constraints_sha256"]:
@@ -191,11 +190,13 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
         "position-enriched variants are published separately. Labels are in `dataset.jsonl`.\n",
     ]
     rejected_findings = 0
-    contract_hash = review_contract_hash(
-        variants, CasingPolicy.model_validate(config.get("casing", {})).target
-    )
+    contract_hashes = {
+        sid: review_contract_hash(n, CasingPolicy.model_validate(config.get("casing", {})).target)
+        for sid, n in counts.items()
+    }
     expected_ids = set()
     for source_index, sid in enumerate(selected, 1):
+        variants, contract_hash = counts[sid], contract_hashes[sid]
         _safe_id(sid)
         if sid not in current or campaign.rows.get(sid) != current[sid]:
             raise ValueError(f"{sid}: current source differs from the campaign snapshot")
@@ -303,10 +304,10 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
         "configSha256": digest(config),
         "inputRepresentation": "plain_ocr",
         "positionsSynthesized": False,
-        "expected": len(selected) * variants,
+        "expected": sum(counts.values()),
         "valid": len(records),
         "sourceCount": len(selected),
-        "variantsPerSource": variants,
+        "variantsPerSource": config["variants_per_source"],
         "rejectedReviewFindings": rejected_findings,
         "unresolvedReviewFindings": 0,
         "costUsdAllCampaignCalls": str(campaign.calls.spent),
@@ -318,6 +319,11 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
             "samples.md": digest(gallery_bytes),
         },
     }
+    if "template_sampling" in config:
+        manifest.pop("reviewContractSha256")
+        manifest["reviewContractSha256BySource"] = contract_hashes
+        manifest["variantsPerSource"] = counts
+        manifest["templateSampling"] = config["template_sampling"]
     payloads = {
         "dataset.jsonl": dataset_bytes,
         "samples.md": gallery_bytes,

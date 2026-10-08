@@ -16,9 +16,20 @@ documented in [the expansion report](kie-synthesis-expansion100-2026-10-07.md).
 Its reusable assets are in
 [`artifacts/synthesis-templates/mpci-bl-v7-reviewed/`](../artifacts/synthesis-templates/mpci-bl-v7-reviewed/README.md),
 with [its own campaign config](../configs/synthesis/mpci_bl_curated_v7_expansion100.yaml).
-The 24-source examples below remain historical worked examples. The latest
-coordinate coverage is 76.94% overall, but only 7.61% on goods-description lines;
-the report explains source-anchor and local-space limitations by field.
+The 24-source examples below remain historical worked examples. The current
+500-sample release, after joint reflow, has 82.36% coordinate coverage overall
+and 67.90% on goods-description lines. See the
+[500-sample geometry audit](analysis/real600-synthetic500-results-20261008/POSITION_AND_NEGOTIABILITY_FOLLOWUP.md).
+
+**Party policy update, 2026-10-08:** negotiability is always emitted and depends
+only on the OCR consignee instruction: order wording is negotiable, a readable
+named consignee without it is non-negotiable, and unavailable instruction is
+explicit `null`. A notify-only occurrence cannot restore a missing consignee.
+Each emitted notify party has an explicit
+reference or `sameAs: null`. Source instructions are preserved through generation.
+Optional exact document quotas can control negotiable and notify-reference
+prevalence; see [configuration and semantics](../artifacts/synthesis-templates/mpci-bl-v7-reviewed/README.md#party-instruction-policy-and-sampling-2026-10-08)
+and the [migration/validation report](analysis/party-instruction-policy-20261008/REPORT.md).
 
 ## 1. Overall design
 

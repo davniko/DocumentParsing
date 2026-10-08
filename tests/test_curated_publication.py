@@ -146,6 +146,30 @@ def test_complete_publication_replays_every_candidate_and_preserves_sources(camp
     assert publish_campaign(campaign) == result
 
 
+def test_publication_uses_exact_nonuniform_template_quotas(campaign):
+    for index, row in enumerate(campaign.rows.values()):
+        row["target"] = {
+            "documentPatch": {"negotiability": "negotiable" if index == 0 else "non_negotiable"}
+        }
+    source = campaign.root / "source/train.jsonl"
+    source.write_text("".join(json.dumps(r) + "\n" for r in campaign.rows.values()))
+    campaign.config["template_sampling"] = {"samples": 3, "negotiable_fraction": 2 / 3}
+    sid = "source_b"
+    removed = "syn_full_v7_" + digest([sid, 42, 2])[:24]
+    (campaign.output / "candidates" / f"{removed}.json").unlink()
+    review_path = campaign.output / "reviews" / f"{sid}.json"
+    review = json.loads(review_path.read_text())
+    review["candidateHashes"].pop(removed)
+    review["review"]["reviewed_ids"].remove(removed)
+    review["reviewContractSha256"] = review_contract_hash(1)
+    write(review_path, review)
+    result = publish_campaign(campaign)
+    assert result["expected"] == result["valid"] == 3
+    manifest = json.loads((campaign.output / "manifest.json").read_text())
+    assert manifest["variantsPerSource"] == {"source_a": 2, "source_b": 1}
+    assert manifest["reviewContractSha256BySource"][sid] == review_contract_hash(1)
+
+
 @pytest.mark.parametrize("kind", ["candidate", "review", "adjudication"])
 def test_missing_prerequisite_cannot_publish_partial_dataset(campaign, kind):
     if kind == "adjudication":

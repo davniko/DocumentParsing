@@ -2,7 +2,7 @@ dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
 output: artifacts/kie-synthesis-production/curated-v7-pilot24
 environment_file: .env
 task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
-task_constraints_sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
+task_constraints_sha256: b91b7aa002b379889a6f70e9580a695f07d9d977c72cdf873fcc8d3111cc81e9
 seed: 20261006
 variants_per_source: 3
 concurrency: 8

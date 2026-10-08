@@ -88,7 +88,9 @@ class TrainingTask:
     def _base_prompt_schema(self) -> dict[str, Any]:
         return cast(
             dict[str, Any],
-            _sparse_prompt_schema(self.target_schema()),
+            _sparse_prompt_schema(
+                self.target_schema(), preserve_instruction_nulls=self.name in _V7_TASKS
+            ),
         )
 
     def base_prompt_schema_sha256(self) -> str:
@@ -207,11 +209,20 @@ _PROMPT_SCHEMA_NAMED_MAPS = frozenset(
 )
 
 
-def _sparse_prompt_schema(value: Any) -> Any:
+def _sparse_prompt_schema(
+    value: Any,
+    *,
+    retain_null: bool = False,
+    preserve_instruction_nulls: bool = False,
+    notify_definition: bool = False,
+) -> Any:
     """Remove presentation noise and null branches from a sparse target schema."""
 
     if isinstance(value, list):
-        return [_sparse_prompt_schema(item) for item in value]
+        return [
+            _sparse_prompt_schema(item, preserve_instruction_nulls=preserve_instruction_nulls)
+            for item in value
+        ]
     if not isinstance(value, dict):
         return value
 
@@ -223,12 +234,24 @@ def _sparse_prompt_schema(value: Any) -> Any:
             # Keys inside schema maps are model field/definition names, not JSON Schema
             # annotations. A real field named `description` must therefore survive.
             compact[key] = {
-                name: _sparse_prompt_schema(child_schema) for name, child_schema in item.items()
+                name: _sparse_prompt_schema(
+                    child_schema,
+                    retain_null=preserve_instruction_nulls
+                    and (
+                        (notify_definition and name == "sameAs")
+                        or (key == "properties" and name == "negotiability")
+                    ),
+                    preserve_instruction_nulls=preserve_instruction_nulls,
+                    notify_definition=key == "$defs" and name == "NotifyPartyV7",
+                )
+                for name, child_schema in item.items()
             }
         else:
-            compact[key] = _sparse_prompt_schema(item)
+            compact[key] = _sparse_prompt_schema(
+                item, preserve_instruction_nulls=preserve_instruction_nulls
+            )
     alternatives = compact.get("anyOf")
-    if not isinstance(alternatives, list):
+    if retain_null or not isinstance(alternatives, list):
         return compact
 
     non_null = [item for item in alternatives if item != {"type": "null"}]

@@ -66,6 +66,7 @@ def test_build_relation_constraints_validates_targets_and_publishes_exact_union(
                 "bill_of_lading_extraction_v7_reduced",
             }:
                 row["target"]["schemaVersion"] = "7.0.0"
+                row["target"]["documentPatch"]["negotiability"] = "non_negotiable"
     source.write_bytes(b"".join(canonical_json_bytes(row) + b"\n" for row in rows))
     package_registry = tmp_path / "package.json"
     container_registry = tmp_path / "container.json"

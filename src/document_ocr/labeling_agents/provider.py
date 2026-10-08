@@ -165,10 +165,11 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
         "never use geographic locality to choose it."
     ),
     "negotiability": (
-        "Use negotiable for an order consignee or other explicit negotiable basis. Use "
-        "non_negotiable for a completed named, non-order consignee, explicit non-negotiable/"
-        "sea-waybill/express-release wording, or a completed zero-original count. Generic "
-        "original-surrender/title boilerplate does not override a named non-order consignee."
+        "Always emit negotiable for an actual consignee TO ORDER/equivalent instruction; "
+        "emit non_negotiable for a readable named consignee without order wording, or null "
+        "when OCR does not establish the consignee instruction. Conditional "
+        "captions, titles, copy stamps, release terms and surrender boilerplate do not "
+        "determine this target."
     ),
     "placeOfIssue": "Printed place of issue, keeping locality and country text as written.",
     "route": (

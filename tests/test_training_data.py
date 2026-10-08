@@ -81,6 +81,62 @@ def test_published_training_dataset_passes_full_cpu_inspection() -> None:
     assert records["train"][0].target_text.endswith('"schemaVersion":"2.0.0"}')
 
 
+@pytest.mark.parametrize("extra_null", [False, True])
+def test_reader_allows_only_task_authorized_explicit_nulls(tmp_path, extra_null):
+    from types import SimpleNamespace
+
+    from document_ocr.training.config import DatasetFileConfig
+    from document_ocr.training.data import _read_source_file
+
+    target = {
+        "schemaVersion": "7.0.0",
+        "documentPatch": {
+            "negotiability": None,
+            "parties": {"notifyParties": [{"sameAs": None, "name": "NOTIFY LTD"}]},
+        },
+    }
+    if extra_null:
+        target["documentPatch"]["billOfLadingNumber"] = None
+    path = tmp_path / "data.jsonl"
+    payload = (
+        json.dumps({"documentId": "test", "joinedRawText": "NOTIFY LTD", "target": target}) + "\n"
+    ).encode()
+    path.write_bytes(payload)
+    configured = DatasetFileConfig(
+        path=str(path), sha256=hashlib.sha256(payload).hexdigest(), records=1
+    )
+    config = SimpleNamespace(
+        dataset=SimpleNamespace(
+            fields=SimpleNamespace(
+                document_id="documentId",
+                input_text="joinedRawText",
+                input_sha256=None,
+                target="target",
+            ),
+            preprocessing=SimpleNamespace(target_format="compact"),
+        )
+    )
+
+    def read():
+        return _read_source_file(
+            project_root=tmp_path,
+            configured=configured,
+            split="train",
+            config=config,
+            prompt=SimpleNamespace(render=lambda text: text),
+            task=get_training_task("bill_of_lading_extraction_v7_reduced"),
+            seen_document_ids=set(),
+            collect_partition_metadata=False,
+        )
+
+    if extra_null:
+        with pytest.raises(ValueError, match="canonical sparse"):
+            read()
+    else:
+        records, _, _, _ = read()
+        assert json.loads(records[0].target_text) == target
+
+
 def test_runtime_partition_inspection_is_reported_and_source_ordered() -> None:
     config, prompt, task = _training_components()
     source = (
@@ -505,16 +561,26 @@ def test_arrow_preprocessing_is_cache_keyed_and_complete(tmp_path: Path) -> None
     assert first.token_lengths["train"]["source_truncated_records"] == 0
     assert list((tmp_path / "cache").glob("train-*.arrow"))
 
-    pretty_config = config.model_copy(update={
-        "dataset": config.dataset.model_copy(update={
-            "preprocessing": preprocessing.model_copy(update={"target_format": "pretty"}),
-        }),
-    })
+    pretty_config = config.model_copy(
+        update={
+            "dataset": config.dataset.model_copy(
+                update={
+                    "preprocessing": preprocessing.model_copy(update={"target_format": "pretty"}),
+                }
+            ),
+        }
+    )
     compact_rows, _ = inspect_dataset(
-        project_root=PROJECT_ROOT, config=config, prompt=prompt, task=task,
+        project_root=PROJECT_ROOT,
+        config=config,
+        prompt=prompt,
+        task=task,
     )
     pretty_rows, _ = inspect_dataset(
-        project_root=PROJECT_ROOT, config=pretty_config, prompt=prompt, task=task,
+        project_root=PROJECT_ROOT,
+        config=pretty_config,
+        prompt=prompt,
+        task=task,
     )
     for compact_row, pretty_row in zip(compact_rows["train"], pretty_rows["train"], strict=True):
         assert compact_row.document_id == pretty_row.document_id
@@ -522,7 +588,10 @@ def test_arrow_preprocessing_is_cache_keyed_and_complete(tmp_path: Path) -> None
         assert json.loads(compact_row.target_text) == json.loads(pretty_row.target_text)
         assert "\n" in pretty_row.target_text
     pretty = prepare_datasets(
-        project_root=PROJECT_ROOT, config=pretty_config, prompt=prompt, task=task,
+        project_root=PROJECT_ROOT,
+        config=pretty_config,
+        prompt=prompt,
+        task=task,
         tokenizer=_WordTokenizer(),
     )
     assert pretty.cache_identity != first.cache_identity

@@ -860,7 +860,7 @@ class ScenarioCatalog:
                 path = f"documentPatch.parties.{role}" + (
                     f"[{i}]" if isinstance(values, list) else ""
                 )
-                if "sameAs" in party:
+                if party.get("sameAs") is not None:
                     continue
                 node = (
                     topology.party_nodes[path]

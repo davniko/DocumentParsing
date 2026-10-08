@@ -14,6 +14,7 @@ from pathlib import Path
 
 import yaml
 
+from document_ocr.labeling_agents.direct_grounding import order_consignment_candidates
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
 from document_ocr.synthesis.curated import (
     CuratedSynthesisConfig,
@@ -52,6 +53,10 @@ from document_ocr.synthesis.curated_ownership import (
 from document_ocr.synthesis.curated_physical import PhysicalSupport, prepare_physical_render
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
 from document_ocr.synthesis.curated_routes import validate_route_values
+from document_ocr.synthesis.curated_sampling import (
+    source_variant_counts,
+    validate_instruction_inheritance,
+)
 from document_ocr.synthesis.curated_scenarios import (
     ScenarioCatalog,
     ScenarioSamplingConfig,
@@ -65,6 +70,7 @@ from document_ocr.synthesis.curated_templates import (
 )
 from document_ocr.synthesis.curated_wording import (
     WORDING_PROMPT,
+    RenderedReview,
     WordingBatch,
     WordingField,
     WordingRequest,
@@ -554,6 +560,11 @@ def validate_sample(
         raise ValueError("candidate target differs from configured uppercase policy")
     patch = target["documentPatch"]
     source = blueprint.target["documentPatch"]
+    validate_instruction_inheritance(blueprint.target, target)
+    if bool(order_consignment_candidates(blueprint.source)) != bool(
+        order_consignment_candidates(text)
+    ):
+        raise ValueError("rendering changed the source order-consignment instruction")
     validate_route_values(source, patch, scenario.replacements)
     if source.get("route") and patch.get("route") == source["route"]:
         raise ValueError("source-copy route is not a sampled scenario")
@@ -642,6 +653,8 @@ class Campaign:
             r["documentId"]: r
             for r in map(json.loads, (data / "train.jsonl").read_text().splitlines())
         }
+        self.variant_counts = source_variant_counts(config, self.rows)
+        self.source_ids = list(self.variant_counts)
         validation = list(map(json.loads, (data / "validation.jsonl").read_text().splitlines()))
         self.catalog = ScenarioCatalog.load(
             root,
@@ -728,9 +741,7 @@ class Campaign:
         return blueprint, scenario, sample_id, target
 
     def plans(self, sid: str) -> list[tuple]:
-        return [
-            self.plan(sid, variant) for variant in range(1, self.config["variants_per_source"] + 1)
-        ]
+        return [self.plan(sid, variant) for variant in range(1, self.variant_counts[sid] + 1)]
 
     def preflight(self, plans: list[tuple]) -> None:
         """Reject broken deterministic source/physical contracts before paid wording."""
@@ -785,16 +796,18 @@ class Campaign:
                     wording.update(validate_wording(batch, [request]))
                     continue
             pending.append(request)
-        if pending:
+        batch_size = self.config["variants_per_source"]
+        for start in range(0, len(pending), batch_size):
+            batch_requests = pending[start : start + batch_size]
             output = await self.calls.call(
                 "exact-wording",
                 sid,
-                wording_output_type(pending),
+                wording_output_type(batch_requests),
                 WORDING_PROMPT,
-                native_wording_prompt(pending),
+                native_wording_prompt(batch_requests),
             )
             try:
-                accepted = unpack_wording(output, pending)
+                accepted = unpack_wording(output, batch_requests)
             except ValueError as error:
                 # One bounded, recorded correction; never publish invalid wording
                 # or silently retry forever. Both billed outputs remain cached.
@@ -802,9 +815,9 @@ class Campaign:
                 repaired = await self.calls.call(
                     "wording-validation-repair",
                     sid,
-                    wording_output_type(pending),
+                    wording_output_type(batch_requests),
                     WORDING_PROMPT,
-                    native_wording_prompt(pending)
+                    native_wording_prompt(batch_requests)
                     + "\nVALIDATION FAILURE\n"
                     + repair_error
                     + "\nPREVIOUS PROPOSAL\n"
@@ -813,7 +826,7 @@ class Campaign:
                     "Return the complete requested fields. Shipment accounting and transport "
                     "facts belong to host-rendered regions, not the product description.",
                 )
-                accepted = unpack_wording(repaired, pending)
+                accepted = unpack_wording(repaired, batch_requests)
             wording.update(accepted)
         # Reused and newly generated fragments share the same batch-diversity
         # checks; validating cached shipments one at a time would miss copies.
@@ -885,13 +898,24 @@ class Campaign:
         if cached is not None and cached["requestSha256"] == contact_request_hash(parties):
             output = contact_output_type(parties).model_validate(cached["output"])
         else:
-            output = await self.calls.call(
-                "company-contacts",
-                sid,
-                contact_output_type(parties),
-                CONTACT_PROMPT,
-                contact_prompt(parties),
-            )
+            ids = list(dict.fromkeys(p.sample_id for p in parties))
+            native = {}
+            batch_size = self.config["variants_per_source"]
+            for start in range(0, len(ids), batch_size):
+                selected_ids = set(ids[start : start + batch_size])
+                indices = [i for i, p in enumerate(parties) if p.sample_id in selected_ids]
+                batch = [parties[i] for i in indices]
+                answer = await self.calls.call(
+                    "company-contacts",
+                    sid,
+                    contact_output_type(batch),
+                    CONTACT_PROMPT,
+                    contact_prompt(batch),
+                )
+                unpack_contacts(answer, batch)
+                values = answer.model_dump(mode="json")
+                native.update({f"p{i}": values[f"p{j}"] for j, i in enumerate(indices)})
+            output = contact_output_type(parties).model_validate(native)
         values = unpack_contacts(output, parties)
         batch_receipt = {
             "requestSha256": contact_request_hash(parties),
@@ -918,11 +942,11 @@ class Campaign:
 
     async def generate_contacts_all(self) -> dict:
         results = await asyncio.gather(
-            *(self.generate_contacts(sid) for sid in self.config["source_ids"]),
+            *(self.generate_contacts(sid) for sid in self.source_ids),
             return_exceptions=True,
         )
         report = {"sources": [], "errors": [], "costUsd": str(self.calls.spent)}
-        for sid, result in zip(self.config["source_ids"], results, strict=True):
+        for sid, result in zip(self.source_ids, results, strict=True):
             if isinstance(result, BaseException):
                 report["errors"].append({"sourceDocumentId": sid, "error": str(result)})
             else:
@@ -933,7 +957,7 @@ class Campaign:
     async def generate_all(self) -> dict:
         started = time.perf_counter()
         results = await asyncio.gather(
-            *(self.generate(sid) for sid in self.config["source_ids"]), return_exceptions=True
+            *(self.generate(sid) for sid in self.source_ids), return_exceptions=True
         )
         report = {
             "sources": [],
@@ -941,7 +965,7 @@ class Campaign:
             "seconds": time.perf_counter() - started,
             "costUsd": str(self.calls.spent),
         }
-        for sid, result in zip(self.config["source_ids"], results, strict=True):
+        for sid, result in zip(self.source_ids, results, strict=True):
             if isinstance(result, BaseException):
                 report["errors"].append(
                     {"sourceDocumentId": sid, "error": f"{type(result).__name__}: {result}"}
@@ -1024,33 +1048,37 @@ class Campaign:
             changes[sample_id] = (path, receipt, failed, blueprint, scenario, target)
         if not requests:
             return {"sourceDocumentId": sid, "corrected": 0}
-        output = await self.calls.call(
-            "postal-correction",
-            sid,
-            wording_output_type(requests),
-            "Correct fictional postal text. The supplied old values FAILED validation; "
-            "they are not formatting examples. Return corrected regions only. Each complete "
-            "address must contain its supplied locality exactly once and its requested "
-            "country exactly once. Host-owned literal components already count. If a "
-            "fictional street/site name repeats the locality, choose a different street/site "
-            "name. Preserve approximate address hierarchy and use uppercase text.",
-            "\n\n---\n\n".join(
-                f"SHIPMENT s{index}\n"
-                + "\n".join(
-                    line
-                    for line in request.context.splitlines()
-                    if line.startswith(("POSTAL ASSEMBLY", "documentPatch.parties."))
-                )
-                + "\n\n"
-                + "\n\n".join(
-                    f"REGION {field.key} ({field.role})\n{field.requirement}\n"
-                    f"INVALID OLD VALUE:\n{field.example}"
-                    for field in request.fields
-                )
-                for index, request in enumerate(requests)
-            ),
-        )
-        proposed = unpack_wording(output, requests)
+        proposed = {}
+        batch_size = self.config["variants_per_source"]
+        for start in range(0, len(requests), batch_size):
+            batch = requests[start : start + batch_size]
+            output = await self.calls.call(
+                "postal-correction",
+                sid,
+                wording_output_type(batch),
+                "Correct fictional postal text. The supplied old values FAILED validation; "
+                "they are not formatting examples. Return corrected regions only. Each complete "
+                "address must contain its supplied locality exactly once and its requested "
+                "country exactly once. Host-owned literal components already count. If a "
+                "fictional street/site name repeats the locality, choose a different street/site "
+                "name. Preserve approximate address hierarchy and use uppercase text.",
+                "\n\n---\n\n".join(
+                    f"SHIPMENT s{index}\n"
+                    + "\n".join(
+                        line
+                        for line in request.context.splitlines()
+                        if line.startswith(("POSTAL ASSEMBLY", "documentPatch.parties."))
+                    )
+                    + "\n\n"
+                    + "\n\n".join(
+                        f"REGION {field.key} ({field.role})\n{field.requirement}\n"
+                        f"INVALID OLD VALUE:\n{field.example}"
+                        for field in request.fields
+                    )
+                    for index, request in enumerate(batch)
+                ),
+            )
+            proposed.update(unpack_wording(output, batch))
         remaining = []
         for request in requests:
             path, receipt, failed, blueprint, scenario, target = changes[request.sample_id]
@@ -1095,11 +1123,11 @@ class Campaign:
 
     async def correct_postal_all(self) -> dict:
         results = await asyncio.gather(
-            *(self.correct_postal(sid) for sid in self.config["source_ids"]),
+            *(self.correct_postal(sid) for sid in self.source_ids),
             return_exceptions=True,
         )
         report = {"sources": [], "errors": [], "costUsd": str(self.calls.spent)}
-        for sid, result in zip(self.config["source_ids"], results, strict=True):
+        for sid, result in zip(self.source_ids, results, strict=True):
             if isinstance(result, BaseException):
                 report["errors"].append({"sourceDocumentId": sid, "error": str(result)})
             else:
@@ -1227,17 +1255,18 @@ class Campaign:
 
     async def review(self, sid: str) -> dict:
         candidates = []
-        for variant in range(1, self.config["variants_per_source"] + 1):
+        for variant in range(1, self.variant_counts[sid] + 1):
             sample_id = "syn_full_v7_" + digest([sid, self.config["seed"], variant])[:24]
             candidate = json.loads((self.output / "candidates" / f"{sample_id}.json").read_text())
             self.replay_candidate(candidate)
             candidates.append(candidate)
         blocks = []
+        batch_size = self.config["variants_per_source"]
         for index, candidate in enumerate(candidates):
             facts = candidate["scenario"]
             blocks.append(
                 "SHIPMENT "
-                + f"s{index}"
+                + f"s{index % batch_size}"
                 + "\nPARTY LOCALITIES\n"
                 + "\n".join(
                     f"{role}: {location['name']}, {location['country']} "
@@ -1261,14 +1290,21 @@ class Campaign:
                 + "\nCOMPLETE RENDERED TEXT\n"
                 + candidate["joinedRawText"]
             )
-        output = await self.calls.call(
-            "rendered-review",
-            sid,
-            review_output_type(len(candidates)),
-            rendered_review_prompt(self.casing.target),
-            "\n\n---\n\n".join(blocks),
+        reviews = []
+        for start in range(0, len(candidates), batch_size):
+            batch = candidates[start : start + batch_size]
+            answer = await self.calls.call(
+                "rendered-review",
+                sid,
+                review_output_type(len(batch)),
+                rendered_review_prompt(self.casing.target),
+                "\n\n---\n\n".join(blocks[start : start + batch_size]),
+            )
+            reviews.append(unpack_review(answer, [c["documentId"] for c in batch]))
+        output = RenderedReview(
+            reviewed_ids=[sid for r in reviews for sid in r.reviewed_ids],
+            findings=[finding for r in reviews for finding in r.findings],
         )
-        output = unpack_review(output, [c["documentId"] for c in candidates])
         identities = {c["documentId"] for c in candidates}
         if len(output.reviewed_ids) != len(identities) or set(output.reviewed_ids) != identities:
             raise ValueError("rendered review did not cover every candidate exactly once")
@@ -1285,10 +1321,10 @@ class Campaign:
 
     async def review_all(self) -> dict:
         results = await asyncio.gather(
-            *(self.review(sid) for sid in self.config["source_ids"]), return_exceptions=True
+            *(self.review(sid) for sid in self.source_ids), return_exceptions=True
         )
         report = {"sources": [], "errors": [], "costUsd": str(self.calls.spent)}
-        for sid, result in zip(self.config["source_ids"], results, strict=True):
+        for sid, result in zip(self.source_ids, results, strict=True):
             if isinstance(result, BaseException):
                 report["errors"].append(
                     {"sourceDocumentId": sid, "error": f"{type(result).__name__}: {result}"}
@@ -1301,8 +1337,8 @@ class Campaign:
     def render_all(self) -> dict:
         started = time.perf_counter()
         report = {"accepted": [], "errors": []}
-        for sid in self.config["source_ids"]:
-            for variant in range(1, self.config["variants_per_source"] + 1):
+        for sid in self.source_ids:
+            for variant in range(1, self.variant_counts[sid] + 1):
                 try:
                     candidate = self.render(sid, variant)
                 except Exception as error:

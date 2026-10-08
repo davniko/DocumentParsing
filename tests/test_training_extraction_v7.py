@@ -16,6 +16,7 @@ def target() -> dict:
     return {
         "schemaVersion": "7.0.0",
         "documentPatch": {
+            "negotiability": "non_negotiable",
             "parties": {
                 "shipper": {
                     "name": "EXPORTER LTD",

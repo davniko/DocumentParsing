@@ -536,7 +536,8 @@ class ExtractionPartyV7(LabelSchemaModel):
             "Notify-party reference to an emitted shipper or consignee only when OCR "
             "explicitly says same as that role. Replaces name/address/country; separate"
             " contact overrides may remain. Similar text alone does not establish a "
-            "reference."
+            "reference. For a directly printed independent notify party, use null, "
+            "even when its details match another party."
         ),
     )
     name: ApplicationText | None = Field(
@@ -602,6 +603,19 @@ class ExtractionPartyV7(LabelSchemaModel):
         return self
 
 
+class NotifyPartyV7(ExtractionPartyV7):
+    """A notify entry with an explicit reference-or-independent decision."""
+
+    sameAs: PartyReference | None = Field(
+        description=(
+            "shipper or consignee when this notify block explicitly refers to that role "
+            "(including unambiguous AS ABOVE); otherwise null for a printed independent "
+            "party. Matching names/addresses alone are not a reference. A reference "
+            "replaces name/address/country; notify-specific contacts may remain."
+        )
+    )
+
+
 class ExtractionPartiesV7(LabelSchemaModel):
     """Parties by document-supported function; missing form-required parties remain absent."""
 
@@ -624,7 +638,7 @@ class ExtractionPartiesV7(LabelSchemaModel):
             "This role-specific boundary takes precedence over general continuation rules."
         ),
     )
-    notifyParties: tuple[ExtractionPartyV7, ...] | None = Field(
+    notifyParties: tuple[NotifyPartyV7, ...] | None = Field(
         default=None,
         min_length=1,
         description=(
@@ -877,18 +891,16 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
         ),
     )
     negotiability: Literal["negotiable", "non_negotiable"] | None = Field(
-        default=None,
         description=(
-            "Classify from the OCR consignee instruction, before removing its order "
-            "preamble from the party name. TO ORDER, TO THE ORDER (OF), THE ORDER OF, "
-            "or a populated CONSIGNED TO ORDER OF field means negotiable, with or "
-            "without a named bank/company. This instruction takes precedence over "
-            "non-negotiable copy stamps or document titles for this extraction target. "
-            "A named consignee without order wording means non_negotiable. Conditional "
-            "captions (if/unless/only if), unselected OR ORDER alternatives, and legal "
-            "boilerplate are not order instructions. If the consignee instruction is "
-            "absent, use an explicit sea-waybill/non-negotiable issuance declaration; "
-            "otherwise leave absent. Conflicting actual consignee instructions need review."
+            "Always emit this field. Use negotiable when the actual OCR consignee "
+            "instruction says TO ORDER, TO THE ORDER (OF), THE ORDER OF, or equivalent "
+            "order wording, with or without a named party. Use non_negotiable for a readable "
+            "named consignee without order wording. Use null when OCR does not establish "
+            "the consignee instruction; another role's repeated identity or PDF-only "
+            "consignee occurrence cannot fill that gap. Read the instruction before removing "
+            "its order preamble from the party name. Conditional form captions, "
+            "unselected alternatives, copy stamps, document titles and surrender "
+            "boilerplate do not determine this target."
         ),
     )
     placeOfIssue: LocationV7 | None = Field(
@@ -987,12 +999,17 @@ class BillOfLadingExtractionV7Label(LabelSchemaModel):
     documentPatch: BillOfLadingDocumentPatchV7 = Field(
         description=(
             "Only supported document facts; absent optional values are null in "
-            "structured responses and omitted from serialized training labels."
+            "structured responses and omitted from serialized training labels, except "
+            "negotiability=null denotes an unavailable consignee instruction and notify "
+            "sameAs=null explicitly denotes an independent party."
         )
     )
 
     def canonical_target(self) -> dict[str, Any]:
         target = self.model_dump(mode="json", exclude_none=True)
+        target["documentPatch"]["negotiability"] = self.documentPatch.negotiability
+        for party in target["documentPatch"].get("parties", {}).get("notifyParties", []):
+            party.setdefault("sameAs", None)
         for goods in target["documentPatch"].get("goodsItemDetails", []):
             if "splitGoodsPlacement" in goods:
                 goods["splitGoodsPlacement"] = goods.pop("splitGoodsPlacement")

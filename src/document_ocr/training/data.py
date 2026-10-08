@@ -94,16 +94,6 @@ class PreparedDatasets:
 _SPLITS = ("train", "validation", "test")
 
 
-def _contains_null(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, dict):
-        return any(_contains_null(child) for child in value.values())
-    if isinstance(value, list):
-        return any(_contains_null(child) for child in value)
-    return False
-
-
 def _distribution(values: Sequence[int]) -> dict[str, float | int]:
     if not values:
         return {"count": 0, "min": 0, "p50": 0, "p95": 0, "p99": 0, "max": 0, "mean": 0.0}
@@ -204,9 +194,10 @@ def _read_source_file(
             if not isinstance(raw_target, dict) or not raw_target:
                 raise ValueError(f"{context}: field {fields.target!r} must be a non-empty object")
             target_object = cast(dict[str, Any], raw_target)
-            if _contains_null(target_object):
-                raise ValueError(f"{context}: sparse targets must not contain null values")
             try:
+                # The task owns null semantics: most facts are sparse, while V7
+                # notify sameAs=null is an explicit independent-party decision.
+                # Canonicalizers reject all noncanonical extra nulls themselves.
                 canonical_target = task.canonicalize(target_object)
             except ValueError as error:
                 raise ValueError(f"{context}: target schema validation failed: {error}") from error

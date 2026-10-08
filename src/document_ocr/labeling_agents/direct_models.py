@@ -29,6 +29,18 @@ SECTION_FIELDS: dict[Section, tuple[str, ...]] = {
     "cargo": ("goodsItemDetails",),
 }
 
+
+class SectionProjectionV7(BillOfLadingDocumentPatchV7):
+    """Internal cross-section validation view, never a publishable extraction.
+
+    A cargo/party repair must not depend on metadata being in its validation
+    scope. Complete extraction and metadata-section outputs still require the
+    actual negotiability value.
+    """
+
+    negotiability: Literal["negotiable", "non_negotiable"] | None = None
+
+
 # Responsibility checklists, not a second field schema. Shared by review and correction.
 SECTION_PRIORITIES: dict[Section, str] = {
     "parties": (
@@ -40,6 +52,10 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "them. Distinguish owned contact homepages from links to specific legal/help content."
         " When role captions conflict, inspect the printed caption and its connected block; "
         "OCR can misread headings. Follow continuation markers before assigning ownership."
+        " Detached headings and repeated identities require layout review: assign roles "
+        "from labeled spatial blocks, not proximity in the OCR reading order. PDF may "
+        "clarify ownership of an OCR occurrence, but cannot restore a missing role's "
+        "occurrence by copying a repeated identity retained only under another role."
     ),
     "route_transport": (
         "Check the role of every location, vessel and voyage against its heading/context, "
@@ -55,7 +71,10 @@ SECTION_PRIORITIES: dict[Section, str] = {
     "metadata_freight": (
         "Distinguish the carrier's B/L identifier from booking, customs, uploaded-file and "
         "electronic-platform references. Check date roles and selected freight terms, not "
-        "empty form alternatives. Check negotiability against the actual consignee "
+        "empty form alternatives. Always include negotiability: negotiable for the actual "
+        "consignee's order instruction, non_negotiable for a readable named consignee "
+        "without it, null when the consignee instruction is unavailable in OCR. "
+        "Check negotiability against the actual consignee "
         "instruction in OCR, including when the candidate omits it or the party name "
         "has already lost its TO ORDER preamble. A populated Consigned to order of "
         "field is an instruction, not an unselected conditional caption; follow the "

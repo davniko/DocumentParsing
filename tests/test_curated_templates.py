@@ -35,6 +35,7 @@ def source_fixture():
         "target": {
             "schemaVersion": "7.0.0",
             "documentPatch": {
+                "negotiability": "non_negotiable",
                 "issueDate": "2024-10-17",
                 "route": {"portOfLoading": {"name": "MUMBAI", "country": "INDIA"}},
                 "parties": {
@@ -157,6 +158,59 @@ def test_rebase_identity_and_full_scalar_sampling_preserve_unrelated_bytes():
     assert "INDIA" not in raw and "STEEL" not in raw
     assert proof["changedTargetPaths"] == proof["coveredTargetPaths"]
     assert row["target"] != new
+
+
+@pytest.mark.parametrize("named_consignee", [True, False])
+def test_order_instructions_remain_fixed_while_named_party_regions_change(named_consignee):
+    from document_ocr.synthesis.curated_sampling import validate_instruction_inheritance
+
+    role = "consignee" if named_consignee else "notifyParties[0]"
+    name_path = f"documentPatch.parties.{role}.name"
+    parties = (
+        {"consignee": {"name": "OLD BANK"}, "notifyParties": [{"sameAs": "consignee"}]}
+        if named_consignee
+        else {"notifyParties": [{"name": "OLD BANK", "sameAs": None}]}
+    )
+    raw = (
+        "CONSIGNEE\nTO THE ORDER OF OLD BANK\nNOTIFY\nSAME AS CONSIGNEE\n"
+        if named_consignee
+        else "CONSIGNEE\nTO ORDER\nNOTIFY\nOLD BANK\n"
+    )
+    row = {
+        "documentId": "order",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "negotiable",
+                "parties": parties,
+            },
+        },
+    }
+    contract = SourceContract(
+        variables=[
+            dict(
+                key="name",
+                kind="name",
+                value="OLD BANK",
+                meaning="printed party name",
+                required_literals=[],
+                occurrences=[dict(text="OLD BANK", occurrence=1, presentation="text")],
+            )
+        ],
+        targets=[dict(path=name_path, expression="{name}")],
+        fixed_context="Order and notify instructions.",
+    )
+    blueprint = compile_sampling_blueprint(row, {"document_id": "order", "bindings": []}, contract)
+    target = deepcopy(row["target"])
+    owner = target["documentPatch"]["parties"]
+    (owner["consignee"] if named_consignee else owner["notifyParties"][0])["name"] = "NEW COMPANY"
+    text, actual, proof = render_sampling_blueprint(blueprint, target, {})
+    assert text == raw.replace("OLD BANK", "NEW COMPANY") and actual == target
+    assert proof["changedTargetPaths"] == [name_path]
+    validate_instruction_inheritance(row["target"], actual)
+    if not named_consignee:
+        assert "consignee" not in actual["documentPatch"]["parties"]
 
 
 @pytest.mark.parametrize("style", ["preserve", "uppercase", "title"])
@@ -336,12 +390,13 @@ def test_declared_contact_expansion_prints_owned_contact_in_party_and_syncs_repe
         "target": {
             "schemaVersion": "7.0.0",
             "documentPatch": {
+                "negotiability": "non_negotiable",
                 "parties": {
                     "shipper": {
                         "name": "ACME",
                         "contactDetails": {"phoneNumbers": ["5551234"], "contactName": "ALICE"},
                     }
-                }
+                },
             },
         },
     }

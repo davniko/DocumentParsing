@@ -53,6 +53,7 @@ from document_ocr.labeling_agents.direct_models import (
     LayoutRequest,
     ReviewFinding,
     Section,
+    SectionProjectionV7,
     SectionReview,
 )
 from document_ocr.labeling_agents.equipment_normalization import reconcile_equipment_categories
@@ -448,6 +449,12 @@ def merge_sections(
         for key in SECTION_FIELDS[section]:
             patch.pop(key, None)
         patch.update(checked.model_dump(mode="json", exclude_none=True))
+        # Nullable instruction decisions are explicit target values, unlike absent facts.
+        if section == "metadata_freight":
+            patch["negotiability"] = checked.negotiability
+        if section == "parties":
+            for party in patch.get("parties", {}).get("notifyParties", []):
+                party.setdefault("sameAs", None)
     projection = {}
     for section in validation_scope:
         checked = SECTION_MODELS[section].model_validate_json(
@@ -455,9 +462,9 @@ def merge_sections(
         )
         projection.update(checked.model_dump(mode="json", exclude_none=True))
     if projection:
-        BillOfLadingExtractionV7Label.model_validate_json(
-            encoded({"schemaVersion": "7.0.0", "documentPatch": projection})
-        )
+        for party in projection.get("parties", {}).get("notifyParties", []):
+            party.setdefault("sameAs", None)
+        SectionProjectionV7.model_validate_json(encoded(projection))
     return value
 
 
@@ -1080,6 +1087,11 @@ class DirectLabelingFlow:
                         )
                     continue
                 values = answer.values.model_dump(mode="json", exclude_none=True)
+                # Instruction decisions retain null; unrelated absent facts remain sparse.
+                if "metadata_freight" in scopes:
+                    values["negotiability"] = answer.values.negotiability
+                for party in values.get("parties", {}).get("notifyParties", []):
+                    party.setdefault("sameAs", None)
                 before = {k: v for s in scopes for k, v in section_values(candidate, s).items()}
                 change_error = correction_change_error(before, values, decisions)
                 if all(f["field"] == "cargoSourceMap" for f in findings) and _review_changes(

@@ -55,11 +55,17 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
 ):
     source = {
         "schemaVersion": "7.0.0",
-        "documentPatch": {"goodsItemDetails": [{"description": "OLD GOODS"}]},
+        "documentPatch": {
+            "negotiability": "non_negotiable",
+            "goodsItemDetails": [{"description": "OLD GOODS"}],
+        },
     }
     target = {
         "schemaVersion": "7.0.0",
-        "documentPatch": {"goodsItemDetails": [{"description": "NEW GOODS"}]},
+        "documentPatch": {
+            "negotiability": "non_negotiable",
+            "goodsItemDetails": [{"description": "NEW GOODS"}],
+        },
     }
     if source_route is not None:
         source["documentPatch"]["route"] = source_route
@@ -90,7 +96,7 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
 
     def run():
         return validate_sample(
-            SimpleNamespace(target=source),
+            SimpleNamespace(target=source, source="OLD GOODS"),
             scenario,
             candidate,
             SimpleNamespace(canonicalize=lambda x: x),
@@ -160,6 +166,78 @@ def test_review_schema_owns_complete_shipment_coverage_and_identity():
             schema.model_validate(invalid)
     with pytest.raises(ValueError, match="coverage"):
         unpack_review(schema.model_validate(payload), ["duplicate", "duplicate"])
+
+
+def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(tmp_path):
+    campaign = Campaign.__new__(Campaign)
+    campaign.output = tmp_path
+    campaign.config = {"seed": 42, "variants_per_source": 2}
+    campaign.variant_counts = {"source": 5}
+    campaign.casing = SimpleNamespace(target="uppercase")
+    campaign.replay_candidate = lambda candidate: None
+    (tmp_path / "candidates").mkdir()
+    candidates = []
+    for variant in range(1, 6):
+        did = "syn_full_v7_" + digest(["source", 42, variant])[:24]
+        candidate = {
+            "documentId": did,
+            "target": {},
+            "joinedRawText": f"TEXT {variant}",
+            "scenario": {"party_localities": {}, "goods_identities": [], "provenance": {}},
+        }
+        (tmp_path / "candidates" / f"{did}.json").write_text(json.dumps(candidate))
+        candidates.append(candidate)
+    requests = []
+
+    async def call(stage, sid, model, system, prompt):
+        requests.append(prompt)
+        assert stage == "rendered-review" and "SHIPMENT s0\n" in prompt
+        assert "SHIPMENT s2\n" not in prompt
+        return model.model_validate({key: {"findings": []} for key in model.model_fields})
+
+    campaign.calls = SimpleNamespace(call=call)
+    result = asyncio.run(campaign.review("source"))
+    assert result["findings"] == 0 and len(requests) == 3
+    receipt = json.loads((tmp_path / "reviews/source.json").read_text())
+    assert receipt["review"]["reviewed_ids"] == [c["documentId"] for c in candidates]
+    assert receipt["candidateHashes"] == {c["documentId"]: digest(c) for c in candidates}
+
+
+def test_variable_quota_contacts_batch_by_shipment_and_replay_without_calls(tmp_path):
+    from document_ocr.synthesis.curated_contacts import ContactField, ContactParty
+
+    campaign = Campaign.__new__(Campaign)
+    campaign.output = tmp_path
+    campaign.config = {"variants_per_source": 2}
+    parties = [
+        ContactParty(
+            f"sample{i}",
+            f"COMPANY {i}-{j}",
+            "NETHERLANDS",
+            (ContactField("c0", "email", "old@oldcompany.com", (f"party{j}.email",)),),
+        )
+        for i in range(5)
+        for j in range(2)
+    ]
+    campaign.contact_requests = lambda sid: parties
+    sizes = []
+
+    async def call(stage, sid, model, system, prompt):
+        sizes.append(len(model.model_fields))
+        return model.model_validate(
+            {key: {"c0": f"mail{len(sizes)}{key}@newcompany.com"} for key in model.model_fields}
+        )
+
+    campaign.calls = SimpleNamespace(call=call)
+    assert asyncio.run(campaign.generate_contacts("source"))["companies"] == 10
+    assert sizes == [4, 4, 2]
+    receipt = json.loads((tmp_path / "contacts/source.json").read_text())
+    for i in range(5):
+        single = json.loads((tmp_path / f"contacts/samples/sample{i}.json").read_text())
+        assert single["batchReceiptSha256"] == digest(receipt)
+        assert single["values"] == receipt["values"][f"sample{i}"]
+    asyncio.run(campaign.generate_contacts("source"))
+    assert sizes == [4, 4, 2]
 
 
 @pytest.mark.parametrize(
@@ -745,6 +823,7 @@ def postal_campaign(tmp_path):
     path.parent.mkdir()
     path.write_text(json.dumps(receipt))
     campaign = Campaign.__new__(Campaign)
+    campaign.config = {"variants_per_source": 2}
     campaign.output = tmp_path
     campaign.plans = lambda sid: [(blueprint, scenario, sample_id, deepcopy(target))]
     campaign.preflight = lambda plans: None  # These fixtures isolate paid-wording behavior.

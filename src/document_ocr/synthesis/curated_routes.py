@@ -118,7 +118,7 @@ class RouteTopology(BaseModel):
             f"documentPatch.parties.{role}" + (f"[{i}]" if isinstance(value, list) else "")
             for role, value in patch.get("parties", {}).items()
             for i, party in enumerate(value if isinstance(value, list) else [value])
-            if "sameAs" not in party
+            if party.get("sameAs") is None
         }
         if not self.party_nodes.keys() <= concrete_parties:
             raise ValueError("route party nodes must name exact populated concrete party paths")

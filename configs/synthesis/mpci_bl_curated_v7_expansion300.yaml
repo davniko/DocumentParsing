@@ -6,7 +6,7 @@ ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
 auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
 environment_file: .env
 task_constraints: configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json
-task_constraints_sha256: db5a5f2a99c4f5144c901216fae579bc48ab0df7a95736520530b3df839655f6
+task_constraints_sha256: b91b7aa002b379889a6f70e9580a695f07d9d977c72cdf873fcc8d3111cc81e9
 seed: 202610071
 variants_per_source: 3
 casing:
@@ -220,7 +220,7 @@ sampling:
   maximum_candidates: 512
   observed_hs_overrides:
     doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
-      source_target_sha256: 28fec2cce450e496658c34a82f8b843495cd63b895580e8adccdd291e2ec7907
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
       from_hs6:
       - 080800
       to_hs6:
@@ -494,7 +494,7 @@ capabilities:
     physical_profile: reviewed_whole_units
     reviewed_whole_unit_donors:
       doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984:
-        target_sha256: b0bd10754dc6e8545882fcaed23191c25e09fb0996b80c174acc5f76ad823790
+        target_sha256: 0b4bf971bd04939e2241773878dac210e5119e996217fd2f6473466a3d24c9df
         whole_unit_count: 1
         source_text_literals:
         - 1 Package(s) of 01 UNIT NEW LAND ROVER RANGE ROVER VELAR 250 PS
