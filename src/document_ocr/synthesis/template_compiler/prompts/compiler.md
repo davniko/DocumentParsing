@@ -31,6 +31,16 @@ for example, `105.930` alongside `105930.000 Kgs.` establishes thousands groupin
 that repeated amount. Never choose decimal interpretation solely to match a faulty label,
 and never guess the unit of an unqualified measurement column.
 
+Identify the declared shipment accounting level from package columns, container rows and
+shipment declarations. Public totals and container allocations use that same level; neither
+innermost nor outermost packing is a default. A declaration for the sole identified container
+can own both its allocation and the goods total. One retained identifier in incomplete
+multi-container OCR does not establish that relationship. Flag conflicting source labels.
+Bind every repeated declared count, including words. Keep contained packing as a separately
+owned dependency, with an exact source-supported relationship, not a fixed accounting echo.
+Retained contained-packing units constrain commodity compatibility even when public accounting
+uses pallets or generic packages. Include those private facts in wording and review context.
+
 Numbered outer packages must depend on their own packing level. For example,
 `42 PALLETS`, `1-42`, and `42 PLTS=336 CTNS` describe a 42-pallet range, not a
 336-carton range. An `inclusive_range_cardinality` binding may depend either on

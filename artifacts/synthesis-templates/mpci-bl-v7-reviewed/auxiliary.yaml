@@ -203,17 +203,15 @@ sources:
       count: 1
       value:
         text: at any port of discharge in {destination_country}
-    - quote: Carrier draw Merchant's attention to the fact that as per Egyptian New
-        Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No. 207
+        for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall be
+        auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: Carrier draws Merchant's attention to the applicable destination customs
-          requirements and cargo clearance deadlines.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: Carrier draws Merchant's attention to the applicable destination customs requirements and
+          cargo clearance deadlines.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Import reference for the shipment as declared by shipper.
@@ -318,12 +316,10 @@ sources:
         prefix: CH
   doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
     spans:
-    - quote: MERCHANTS MUST PROVIDE THE CARRIER WITH ACID NUMBER AND HS CODE CONCERNING
-        THEIR SHIPMENT
+    - quote: MERCHANTS MUST PROVIDE THE CARRIER WITH ACID NUMBER AND HS CODE CONCERNING THEIR SHIPMENT
       count: 1
       value:
-        text: MERCHANTS MUST PROVIDE THE CARRIER WITH IMPORT REFERENCE AND HS CODE
-          CONCERNING THEIR SHIPMENT
+        text: MERCHANTS MUST PROVIDE THE CARRIER WITH IMPORT REFERENCE AND HS CODE CONCERNING THEIR SHIPMENT
     bindings:
       agent:cargo:foreign_exporter:country:
         text: '{origin_country}'
@@ -537,9 +533,8 @@ sources:
         date: '2023-11-03'
         format: '%m/%d/%Y'
     spans:
-    - quote: THESE COMMODITIES, TECHNOLOGY OR SOFTWARE WERE EXPORTED FROM THE UNITED
-        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION
-        CONTRARY TO U.S. LAW PROHIBITED.
+    - quote: THESE COMMODITIES, TECHNOLOGY OR SOFTWARE WERE EXPORTED FROM THE UNITED STATES IN ACCORDANCE
+        WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION CONTRARY TO U.S. LAW PROHIBITED.
       count: 1
       value:
         text: THESE COMMODITIES ARE SUBJECT TO APPLICABLE EXPORT REGULATIONS.
@@ -604,11 +599,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -627,8 +621,8 @@ sources:
       agent:reference:government:ein:0:
         identifier: registration
     spans:
-    - quote: 'THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED
-        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS.
+    - quote: 'THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED STATES IN ACCORDANCE
+        WITH THE EXPORT ADMINISTRATION REGULATIONS.
 
         DIVERSION CONTRARY TO U.S. LAW PROHIBITED.'
       count: 1
@@ -657,11 +651,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -701,11 +694,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -766,11 +758,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1207,9 +1198,8 @@ sources:
       agent:party:notify:reference:
         identifier: commercial_reference
     spans:
-    - quote: THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED
-        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION
-        CONTRARY TO U.S. LAW PROHIBITED.
+    - quote: THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED STATES IN ACCORDANCE
+        WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION CONTRARY TO U.S. LAW PROHIBITED.
       count: 1
       value:
         text: THESE COMMODITIES ARE SUBJECT TO APPLICABLE EXPORT REGULATIONS.
@@ -1242,11 +1232,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1 (one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1 (one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1269,15 +1258,14 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by
       count: 1
       value:
-        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS,
-          INCLUDING
-    - quote: Customs without any notice if Merchant fails to take delivery within
-        1(one) month from the date of discharge.
+        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS, INCLUDING
+    - quote: Customs without any notice if Merchant fails to take delivery within 1(one) month from the
+        date of discharge.
       count: 1
       value:
         text: CUSTOMS CLEARANCE AND DELIVERY REQUIREMENTS.
@@ -1424,11 +1412,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1587,11 +1574,10 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -2030,17 +2016,15 @@ sources:
       agent:cargo:acid_reference:
         identifier: source_reference_1000753712024120044
     spans:
-    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2048,8 +2032,6 @@ sources:
     bindings:
       agent:cargo:acid_number:
         identifier: source_reference_4455910132023050014
-      agent:package:source_declared_count:
-        text: 20 OUTER PACKAGES
   doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137:
     bindings:
       agent:customs:acid_number:
@@ -2087,17 +2069,15 @@ sources:
       agent:cargo_cif_term:
         text: CIF {destination_port}, {destination_country}
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2149,12 +2129,12 @@ sources:
       agent:customs:consignee_tax_id:
         identifier: source_reference_755118553
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected
-        fm receiver’s prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver’s
+        prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal
-          are to be collected from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal are to be collected
+          from receivers prior to releasing the cargo.
   doc_16abe25cb6edd3204f3604db97367f4eef1576d58eef9870ac46a7d878bb2e82:
     bindings:
       agent:consignee_tax_id:
@@ -2192,17 +2172,15 @@ sources:
       anchor:documentPatch.cargoGroups[0].additionalInformation[1]:
         target: documentPatch.goodsItemDetails[0].description
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2301,12 +2279,12 @@ sources:
       agent:cargo:0:importer_tax_id:
         identifier: source_reference_494032855
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected
-        fm receiver's prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver's
+        prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal
-          are to be collected from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal are to be collected
+          from receivers prior to releasing the cargo.
   doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8:
     bindings:
       agent:customs:foreign_exporter_id:
@@ -2320,12 +2298,12 @@ sources:
       agent:party:shipper:0:fax:
         phone: documentPatch.parties.shipper
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected
-        FM receiver's prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected FM receiver's
+        prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal
-          are to be collected from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal are to be collected
+          from receivers prior to releasing the cargo.
   doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
     bindings:
       agent:acid_number:
@@ -2428,12 +2406,12 @@ sources:
       agent:consignee_fax:
         phone: documentPatch.parties.consignee
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected
-        fm receiver's prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver's
+        prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal
-          are to be collected from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal are to be collected
+          from receivers prior to releasing the cargo.
   doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
     bindings:
       agent:acid_number:
@@ -2631,21 +2609,20 @@ sources:
       agent:shipper_fax:
         phone: documentPatch.parties.shipper
     spans:
-    - quote: 93. Reloading empty containers to remain for receiver's account at any port of discharge in Egypt.
+    - quote: 93. Reloading empty containers to remain for receiver's account at any port of discharge
+        in Egypt.
       count: 1
       value:
         text: 93. Reloading empty containers to remain for receiver's account at the port of discharge.
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2773,17 +2750,15 @@ sources:
       agent:party:notify:0:tax_id:
         identifier: source_reference_557726832
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2841,23 +2816,21 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country
     spans:
-    - quote: 112. Off loading of containers full from truck and reloading of empty
-        onto truck at Port Said to be at Receiver’s risk and expenses.
+    - quote: 112. Off loading of containers full from truck and reloading of empty onto truck at Port
+        Said to be at Receiver’s risk and expenses.
       count: 1
       value:
-        text: Off loading and reloading of empty containers onto trucks at the port
-          of discharge are for the account of the Merchant.
-    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+        text: Off loading and reloading of empty containers onto trucks at the port of discharge are for
+          the account of the Merchant.
+    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3028,15 +3001,14 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country_code
     spans:
-    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by
+    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3167,7 +3139,7 @@ sources:
         EGYPT'
       count: 1
       value:
-        text: 'CIP {destination_port}, {destination_country}'
+        text: CIP {destination_port}, {destination_country}
   doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a:
     bindings:
       agent:auxiliary:consignee:vat_number:
@@ -3306,12 +3278,12 @@ sources:
   doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f:
     bindings: {}
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected
-        fm receiver’s prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver’s
+        prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal
-          are to be collected from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal are to be collected
+          from receivers prior to releasing the cargo.
     - quote: PORT SAID FREE ZONE
       count: 1
       value:
@@ -3368,23 +3340,21 @@ sources:
       agent:customs:acid:
         identifier: source_reference_9992023110000050293
     spans:
-    - quote: 112. Off loading of containers full from truck and reloading of empty
-        onto truck at Port Said to be at Receiver's risk and expenses.
+    - quote: 112. Off loading of containers full from truck and reloading of empty onto truck at Port
+        Said to be at Receiver's risk and expenses.
       count: 1
       value:
-        text: Off loading and reloading of empty containers onto trucks at the port
-          of discharge are for the account of the Merchant.
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+        text: Off loading and reloading of empty containers onto trucks at the port of discharge are for
+          the account of the Merchant.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3412,17 +3382,15 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3547,17 +3515,15 @@ sources:
         party_location: documentPatch.parties.deliveryAgent
         field: name
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
-        notice if Merchant fails to take delivery within 1(one) month from the date
-        of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
+        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
+        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
+        from the date of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable
-          destination customs time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as
-        declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
+          time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.

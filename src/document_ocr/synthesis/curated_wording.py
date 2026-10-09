@@ -65,15 +65,21 @@ class WordingBatch(BaseModel):
 
 
 class ReviewFinding(BaseModel):
-    """A concrete mismatch in the final rendered shipment, not a style preference."""
+    """A defect or unresolved semantic boundary requiring adjudication before publication."""
 
     model_config = ConfigDict(extra="forbid")
     field: str = Field(description="Affected target path or printed shipment fact.")
     problem: str = Field(
-        description="Concrete defect requiring correction; never a passing observation."
+        description=(
+            "Concrete defect or unresolved competing interpretations; never a passing observation."
+        )
     )
     evidence: str = Field(description="Short exact quotation from the rendered text.")
-    correction: str = Field(description="What must change to reconcile the sampled facts and text.")
+    correction: str = Field(
+        description=(
+            "Supported remedy, or recommended review action when the boundary remains uncertain."
+        )
+    )
 
 
 class RenderedFinding(ReviewFinding):
@@ -83,13 +89,13 @@ class RenderedFinding(ReviewFinding):
 
 
 class ShipmentReview(BaseModel):
-    """Only actionable defects in this shipment; an empty list means no defects found."""
+    """Actionable defects and unresolved boundaries; neither can silently pass publication."""
 
     model_config = ConfigDict(extra="forbid")
     findings: list[ReviewFinding] = Field(
         description=(
-            "Concrete corrections only; omit passing checks, cosmetic notes "
-            "and no-change observations."
+            "Concrete corrections or genuine unresolved boundaries; omit passing checks, "
+            "cosmetic notes and no-change observations."
         )
     )
 
@@ -127,7 +133,7 @@ class RenderedReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
     reviewed_ids: list[str] = Field(description="Every supplied shipment identity reviewed once.")
     findings: list[RenderedFinding] = Field(
-        description="Concrete defects only; empty if none found."
+        description="Defects and genuine unresolved boundaries; empty only when neither remains."
     )
 
 
@@ -140,6 +146,9 @@ HS codes must agree between sampled facts, printed codes and labels; exact HS-to
 classification is not this synthesis task. Plausible related products, fictional models,
 serials, dimensions and capacities may enrich a description. Description continuations
 belong to one accounting goods group; repeated printouts must remain consistent.
+Description labels copy the main product block and genuine product continuations in source
+order, including embedded packing/capacity qualifiers. Headings, loading declarations,
+standalone accounting and detached auxiliary/tracking passages remain outside it, as do Marks.
 Compare every packing or transport claim inside the description with the supplied shipment:
 extra drum/bag/tank claims or unit fill weights need explicit supplied support. Also check
 that descriptions contain final commercial wording, not drafting or correction commentary.
@@ -149,13 +158,20 @@ the source example's product. Every labeled package category needs its own print
 Labels normalize human-readable text to uppercase; rendered text may retain source casing.
 Physical newlines become spaces. Countries and equipment aliases may be normalized.
 Fictional street addresses need plausible hierarchy, not postal deliverability.
+Email and website domains are independent; free-mail addresses are valid business contacts.
 National customs captions may be neutral import/export references; do not require a particular
 country's filing system. Carrier and separate third-party commercial actors may remain fixed.
 The reduced target omits carrier, marks, export references, fax-only contacts and additional
 information. Private host-rendered facts can appear in OCR without a public target field.
+Package targets count the declared shipment units; container allocations use that same unit.
+Contained packing and supporting handling units can differ from that declared level. A sole
+identified container's STC declaration can establish its allocation without a separate table.
+The supplied contained-packing facts certify private counts and their printed units.
 Negotiability follows consignee order wording, not a preprinted document title.
-Report only concrete contradictions, missing supported target content, or invented target
-content, with a short quotation. Cosmetic preferences and hypothetical shipping schedules
+Report concrete contradictions, missing supported target content, invented target content,
+or genuinely unresolved boundaries, with a short quotation and recommended action.
+State competing interpretations when uncertain; a finding holds publication for adjudication.
+Cosmetic preferences and hypothetical shipping schedules
 are not defects. Leave findings empty for a passing shipment; report no passing observations.
 Review the rendered text, not just the proposed labels."""
 
@@ -173,6 +189,9 @@ descriptive depth and list presentation. Use natural item boundaries without lin
 character quotas. Fictional product variants and technical qualifiers are welcome.
 Host-owned shipment packing, unit fill weights, totals, transport instructions and customs
 captions are rendered separately; generate only product identity and specifications here.
+Choose product form compatible with supplied contained packing, as well as declared packaging.
+Begin with the product wording; keep loading introductions and standalone accounting
+statements outside these regions. Attached product qualifiers remain part of the passage.
 Any item masses or package contents must agree with the supplied shipment accounting.
 Keep product dimensions, size grades, material density and rated capacities distinct from mass.
 Use decimal points and optional comma thousands separators in newly generated quantities;
@@ -440,6 +459,26 @@ def unpack_wording(output: BaseModel, requests: list[WordingRequest]) -> dict[st
     return validate_wording(batch, requests)
 
 
+_SHIPMENT_ACCOUNTING = re.compile(
+    r"\b(?:TOTAL\s+(?:PACKAGES?|CARTONS?|PALLETS?)|(?:TOTAL\s+)?(?:GROSS|NET)\s+WEIGHT)"
+    r"\s*[:=\-]?\s*\d"
+    r"|(?:^|[.!?]\s+)\s*TOTAL\s*[:=]\s*\d"
+    r"|^\s*\d[\d,.]*\s+(?:CARTONS?|CTNS?|BOX(?:ES)?|BAGS?|DRUMS?|PALLETS?|PACKAGES?|PKGS?)\s*[.]?\s*$"
+    r"|^\s*\d[\d,.]*\s+(?:CARTONS?|CTNS?|BOXES|PACKAGES?|PALLETS?)\s+(?:OF\s+)?(?=\w)",
+    re.I | re.M,
+)
+
+
+def has_shipment_accounting(text: str) -> bool:
+    """Reject generated shipment-ledger wording, not embedded product specifications.
+
+    This is a generation guard, never a label cleanup regex. Source-owned capacity
+    phrases are projected from approved blocks separately. Semantic boundary
+    ambiguities still belong to the rendered reviewer and publication hold.
+    """
+    return _SHIPMENT_ACCOUNTING.search(text) is not None
+
+
 def validate_wording(
     batch: WordingBatch, requests: list[WordingRequest]
 ) -> dict[str, dict[str, str]]:
@@ -496,12 +535,7 @@ def validate_wording(
                 raise ValueError(
                     f"{value.key}: generator context caption inside generated description"
                 )
-            if fields[value.key].role == "goods description" and re.search(
-                r"\b(?:TOTAL\s+(?:PACKAGES?|CARTONS?|PALLETS?)|(?:TOTAL\s+)?(?:GROSS|NET)\s+WEIGHT)"
-                r"\s*[:=\-]?\s*\d",
-                text,
-                re.I,
-            ):
+            if fields[value.key].role == "goods description" and has_shipment_accounting(text):
                 raise ValueError(f"{value.key}: shipment accounting inside generated description")
             if fields[value.key].role == "goods description" and re.search(
                 r"\bPACKAGE_[A-Z_]+\b", text

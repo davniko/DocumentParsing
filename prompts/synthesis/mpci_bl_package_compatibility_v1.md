@@ -12,9 +12,9 @@ Rules:
 3. Base compatibility on the proper shipping name, HS identity, physical form implied by that
    identity, hazard class, subsidiary hazards, and packing group. Prefer categories normally
    capable of safely containing and transporting that physical form by sea.
-4. Choose the task-facing package that directly contains the goods. Do not add pallets, skids, or
-   other outer transport layers unless the requested signature has multiple package levels and
-   such a level is genuinely needed.
+4. Choose packages at the requested declared shipment accounting level. Contained packing and
+   supporting handling units are not additional additive shipment rows. Neither innermost nor
+   outermost packaging is a universal default; pallets/skids require a declared handling-unit role.
 5. A liquid must not be assigned a bag, bale, roll, sheet, or other solid-only package. A gas must
    not be assigned an ordinary carton or sack as its direct containment. Apply the corresponding
    physical-form discipline to solids and articles.

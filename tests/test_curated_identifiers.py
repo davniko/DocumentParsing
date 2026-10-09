@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 import pytest
-from test_curated_templates import source_fixture
+from test_curated_templates import compile_sampling_blueprint, source_fixture
 
 from document_ocr.synthesis.curated import Variable
 from document_ocr.synthesis.curated_identifiers import (
@@ -9,7 +9,6 @@ from document_ocr.synthesis.curated_identifiers import (
     generate_fictional_vin,
     vin_check_digit,
 )
-from document_ocr.synthesis.curated_templates import compile_sampling_blueprint
 from document_ocr.synthesis.generators import DeterministicStream
 
 

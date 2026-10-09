@@ -264,8 +264,9 @@ CargoFactResponse = create_model(
         CargoFactReview | LayoutRequest,
         Field(
             description=(
-                "Review only product facts; the separate cargo relationship review "
-                "owns grouping, package counts and allocations."
+                "Review description transcription and cargo facts. Embedded numeric wording "
+                "stays in description; the separate cargo relationship review owns grouping, "
+                "structured counts/masses and allocations."
             )
         ),
     ),

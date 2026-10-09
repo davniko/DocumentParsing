@@ -17,7 +17,12 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.profiles import ModelProfile
 
 from document_ocr.config import load_strict_yaml_mapping
-from document_ocr.label_schemas.bill_of_lading_v7 import BillOfLadingExtractionV7Label
+from document_ocr.label_schemas.bill_of_lading_v7 import (
+    BillOfLadingExtractionV7Label,
+    GoodsItemDetailsV7,
+    PackagesV7,
+    PlacementV7,
+)
 from document_ocr.labeling_agents.direct import (
     DirectLabelingFlow,
     _review_changes,
@@ -30,7 +35,10 @@ from document_ocr.labeling_agents.direct import (
     normalize_optional_objects,
 )
 from document_ocr.labeling_agents.direct_cargo import (
+    CargoAccountingValues,
+    CargoCount,
     CargoFactFinding,
+    CargoProduct,
     CargoRelationFinding,
     CargoSourceMap,
     cargo_numeric_findings,
@@ -44,6 +52,7 @@ from document_ocr.labeling_agents.direct_grounding import source_fidelity_findin
 from document_ocr.labeling_agents.direct_models import (
     SECTION_FIELDS,
     SECTION_MODELS,
+    SECTION_PRIORITIES,
     DirectLabelingConfig,
     SectionReview,
 )
@@ -264,6 +273,76 @@ async def test_extraction_sends_literal_ocr_descriptions_and_returns_plain_draft
             "after": "EXPORTER LTD",
         }
     ]
+
+
+def test_description_copy_policy_is_shared_by_extraction_and_accounting_models():
+    expected = GoodsItemDetailsV7.model_fields["description"].description
+    assert expected
+    assert CargoProduct.model_fields["description"].description == expected
+    assert CargoAccountingValues.model_fields["description"].description == expected
+    for model in (GoodsItemDetailsV7, CargoProduct, CargoAccountingValues):
+        assert model.model_json_schema()["properties"]["description"]["description"] == expected
+    assert "packing, counts, capacities, weights" in expected
+    assert "commercial/customs/invoice references" in expected
+    assert "standalone totals" in expected
+    assert "Product specifications in separate Marks remain outside description" in expected
+    assert "Codes within product lines stay unless separately identified as references" in expected
+    assert (
+        "same printed numbers without asserting their structured meaning"
+        in (SECTION_PRIORITIES["cargo"])
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "description",
+    [
+        "500 Bags Red Goods, 25 KG Per Bag; Made in China",
+        "Extracorporeal Tubing Set Adult -Egypt",
+        "12 Packages Used Machinery Weighing 2,400 KG",
+        "Yarn: 100% Cotton, Lot AB-42 / Grade A",
+        "4 PALLETS STC LUBRICATING OILS NON HAZARDOUS",
+        "PLTS STC LUBRICANTS NON HAZARDOUS",
+        "6 PALLETS SAID TO CONTAIN LUBRICATING OILS",
+        "1012322163DXH DEGREE 1 ELBOW, REDUCER, SOCKET",
+    ],
+)
+async def test_actual_extraction_path_preserves_copied_description_words_and_numbers(
+    tmp_path, description
+):
+    ocr = OCR + "\nDESCRIPTION OF GOODS\n" + description + "\nMARKS\nSEPARATE SPECIFICATION\n"
+    candidate = label()
+    candidate["documentPatch"]["goodsItemDetails"][0]["description"] = description
+
+    def responder(messages, info):
+        assert any(item == ocr for p in parts(messages) for item in p.content)
+        field = info.model_request_parameters.output_object.json_schema["$defs"][
+            "GoodsItemDetailsV7"
+        ]["properties"]["description"]
+        assert field["description"] == GoodsItemDetailsV7.model_fields["description"].description
+        return response(candidate)
+
+    actual = (await flow(tmp_path, responder, ocr=ocr).extract()).canonical_target()
+    expected = copy.deepcopy(candidate)
+    expected["documentPatch"]["goodsItemDetails"][0]["description"] = description.upper()
+    assert actual == expected
+
+
+@pytest.mark.parametrize("value", ["STC", "S.T.C.", "SAID TO CONTAIN", "SHIPPER'S LOAD & COUNT"])
+def test_description_rejects_standalone_disclaimer_but_not_embedded_containment(value):
+    for model in (GoodsItemDetailsV7, CargoAccountingValues):
+        with pytest.raises(ValidationError, match="standalone carrier boilerplate"):
+            model.model_validate_json(json.dumps({"description": value}))
+
+
+def test_review_and_correction_prompts_preserve_description_block_ownership():
+    reviewer = (ROOT / "prompts/labeling_agents/direct_reviewer.md").read_text()
+    corrector = (ROOT / "prompts/labeling_agents/direct_corrector.md").read_text()
+    mapper = (ROOT / "prompts/labeling_agents/direct_cargo_mapper.md").read_text()
+    assert "Product relevance alone does not move text from a separate Marks block" in reviewer
+    assert "separately owned Marks text stays outside" in corrector
+    assert "omit the fact rather than transfer it into description" in corrector
+    assert "same complete copied description as the target field" in mapper
 
 
 def test_target_casing_is_scoped_idempotent_and_preserves_identifiers():
@@ -1014,7 +1093,7 @@ def test_source_map_retains_packing_levels_unknowns_and_shared_ownership():
                         "scope": "portion",
                         "packages": [
                             {"quantity": q, "packageType": "BAGS", "level": "target"},
-                            {"quantity": 1, "packageType": "PALLET", "level": "outer"},
+                            {"quantity": 1, "packageType": "PALLET", "level": "packing_context"},
                         ],
                         "explanation": "Separate printed portion.",
                     }
@@ -1046,6 +1125,172 @@ def test_source_map_retains_packing_levels_unknowns_and_shared_ownership():
     broken["statements"][0]["products"] = ["absent"]
     with pytest.raises(ValidationError, match="absent product"):
         CargoSourceMap.model_validate_json(encoded(broken))
+
+
+@pytest.mark.parametrize(
+    "declared_type,declared_counts,context_type,context_counts",
+    [
+        ("PALLETS", (20, 20), "BAGS", (800, 800)),
+        ("DRUMS", (60, 60), "PALLETS", (5, 5)),
+        ("PACKAGES", (22,), "CARTONS", (731,)),
+    ],
+)
+def test_declared_package_level_drives_totals_not_physical_nesting(
+    declared_type, declared_counts, context_type, context_counts
+):
+    source = CargoSourceMap.model_validate_json(
+        encoded(
+            {
+                "layoutInterpretation": "Package column establishes declared shipment accounting.",
+                "products": [{"key": "g", "description": "GOODS"}],
+                "statements": [
+                    {
+                        "products": ["g"],
+                        "containers": [],
+                        "scope": "portion",
+                        "packages": [
+                            {"quantity": count, "packageType": declared_type, "level": "target"},
+                            {
+                                "quantity": context,
+                                "packageType": context_type,
+                                "level": "packing_context",
+                            },
+                            {"quantity": 25, "packageType": "PIECES", "level": "product_capacity"},
+                        ],
+                        "explanation": "Declared units and separate non-additive packing context.",
+                    }
+                    for count, context in zip(declared_counts, context_counts, strict=True)
+                ],
+                "uncertainties": [],
+            }
+        )
+    )
+    assert derived_amounts(source, "GOODS", "packageQuantity") == {sum(declared_counts)}
+    source.statements[0].packages[0] = (
+        source.statements[0].packages[0].model_copy(update={"quantity": None})
+    )
+    assert not derived_amounts(source, "GOODS", "packageQuantity")
+    assert source.statements[0].packages[0].packageType == declared_type
+
+
+def test_package_context_enum_has_no_implicit_outer_compatibility_or_container_count():
+    for level in ("target", "packing_context", "product_capacity"):
+        count = CargoCount(packageType="PALLET", level=level)
+        assert count.quantity is None
+    for invalid in ("outer", "container"):
+        with pytest.raises(ValidationError):
+            CargoCount(packageType="PALLET", level=invalid)
+
+
+def test_additive_declared_groups_are_retained_without_manufactured_combined_total():
+    source = CargoSourceMap.model_validate_json(
+        encoded(
+            {
+                "layoutInterpretation": "Twelve IBCs plus eight pallets are disjoint units.",
+                "products": [{"key": "g", "description": "GOODS"}],
+                "statements": [
+                    {
+                        "products": ["g"],
+                        "containers": ["TTNU8111930"],
+                        "scope": "portion",
+                        "packages": [
+                            {"quantity": 12, "packageType": "IBCS", "level": "target"},
+                            {"quantity": 8, "packageType": "PALLETS", "level": "target"},
+                        ],
+                        "explanation": "Distinct shipment units, not one contained in the other.",
+                    }
+                ],
+                "uncertainties": [],
+            }
+        )
+    )
+    assert len(source.statements[0].packages) == 2
+    # The numerical absence guard does not invent a generic total over different units.
+    assert not derived_amounts(source, "GOODS", "packageQuantity")
+    item = GoodsItemDetailsV7(
+        numberAndTypeOfPackages=(
+            PackagesV7(packageQuantity=12, typeOfPackages="IBCS"),
+            PackagesV7(packageQuantity=8, typeCategory="PACKAGE_PALLET"),
+        )
+    )
+    assert len(item.numberAndTypeOfPackages) == 2
+
+
+def test_declared_accounting_policy_reaches_shared_schemas_and_active_prompts():
+    field = GoodsItemDetailsV7.model_fields["numberAndTypeOfPackages"]
+    assert "declared shipment" in field.description
+    assert CargoAccountingValues.model_fields["numberAndTypeOfPackages"].description == (
+        field.description
+    )
+    assert "known type" in field.description
+    assert "paired" in PackagesV7.model_fields["packageQuantity"].description
+    placement = PlacementV7.model_fields["packageQuantity"].description
+    assert "explicit whole-shipment declaration for one container" in placement
+    assert "One surviving ID" in placement and "incomplete multi-container" in placement
+    for name in ("direct_cargo_mapper.md", "direct_relations_reviewer.md"):
+        prompt = (ROOT / "prompts/labeling_agents" / name).read_text()
+        assert "declared" in prompt and "same-scope" in prompt
+        assert "innermost source-established" not in prompt
+        assert "one identified container" in prompt
+        assert "surviving ID" in prompt and "incomplete multi-container" in prompt
+        assert "equal split" in prompt and "nested" in prompt
+
+
+def test_single_retained_container_does_not_trigger_automatic_allocation_or_balancing():
+    source = CargoSourceMap.model_validate_json(
+        encoded(
+            {
+                "layoutInterpretation": "Two declared containers; OCR retains one identifier.",
+                "products": [{"key": "g", "description": "GOODS"}],
+                "statements": [
+                    {
+                        "products": ["g"],
+                        "containers": ["TTNU8111930"],
+                        "scope": "shipment_total",
+                        "packages": [{"quantity": 70, "packageType": "PALLETS", "level": "target"}],
+                        "explanation": "The seventy-pallet total covers two containers, not one.",
+                    }
+                ],
+                "uncertainties": [],
+            }
+        )
+    )
+    snapshot = source.model_dump()
+    assert not derived_amounts(source, "GOODS", "packageQuantity")
+    placement = PlacementV7(equipmentIdentifier="TTNU8111930")
+    assert placement.packageQuantity is None
+    assert source.model_dump() == snapshot
+
+
+def test_explicit_single_container_declaration_allows_its_printed_shipment_quantity():
+    ocr = "1X40HC STC 38 PACKAGES YARN\nCONTAINER TTNU8111930"
+    source = CargoSourceMap.model_validate_json(
+        encoded(
+            {
+                "layoutInterpretation": "One 40HC container is declared and identified.",
+                "products": [{"key": "g", "description": "YARN"}],
+                "statements": [
+                    {
+                        "products": ["g"],
+                        "containers": ["TTNU8111930"],
+                        "scope": "portion",
+                        "packages": [
+                            {"quantity": 38, "packageType": "PACKAGES", "level": "target"}
+                        ],
+                        "explanation": "The sole container explicitly carries 38 packages.",
+                    }
+                ],
+                "uncertainties": [],
+            }
+        )
+    )
+    target = label()
+    goods = target["documentPatch"]["goodsItemDetails"][0]
+    goods["numberAndTypeOfPackages"] = [{"packageQuantity": 38, "typeCategory": "PACKAGE_PACKAGE"}]
+    goods["splitGoodsPlacement"] = [{"equipmentIdentifier": "TTNU8111930", "packageQuantity": 38}]
+    assert not map_grounding_errors(source, ocr)
+    assert not cargo_numeric_findings(target, ocr, source)
+    assert BillOfLadingExtractionV7Label.model_validate_json(encoded(target))
 
 
 def test_review_contracts_enforce_disjoint_cargo_responsibilities():
@@ -1101,6 +1346,34 @@ def test_derived_totals_handle_unicode_without_editing_labels_or_guessing_identi
         source.products[0].model_copy(update={"key": "other", "description": "GRANİTE COOKWARE"})
     )
     assert not derived_amounts(source, "GRANITE COOKWARE", "packageQuantity")
+
+
+def test_full_copied_description_keeps_accounting_identity_without_promoting_embedded_counts():
+    description = "YARN 25 KG PER BAG, MADE IN CHINA -EGYPT"
+    source = CargoSourceMap.model_validate_json(
+        encoded(
+            {
+                "layoutInterpretation": "One description and two separately owned portions.",
+                "products": [{"key": "g", "description": description}],
+                "statements": [
+                    {
+                        "products": ["g"],
+                        "containers": [],
+                        "scope": "portion",
+                        "packages": [{"quantity": q, "packageType": "BAGS", "level": "target"}],
+                        "explanation": "Printed count owned by this portion.",
+                    }
+                    for q in (12, 18)
+                ],
+                "uncertainties": [],
+            }
+        )
+    )
+    before = source.model_dump_json()
+    assert derived_amounts(source, description, "packageQuantity") == {30}
+    assert not derived_amounts(source, "YARN", "packageQuantity")
+    assert not derived_amounts(source, description + " MARKS LOT 42", "packageQuantity")
+    assert source.model_dump_json() == before
 
 
 @pytest.mark.asyncio

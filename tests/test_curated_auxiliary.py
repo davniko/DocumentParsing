@@ -3,7 +3,7 @@ from dataclasses import replace
 from datetime import date, datetime
 
 import pytest
-from test_curated_templates import source_fixture
+from test_curated_templates import compile_sampling_blueprint, source_fixture
 
 from document_ocr.synthesis.curated_auxiliary import (
     _render_recipe,
@@ -14,7 +14,6 @@ from document_ocr.synthesis.curated_auxiliary import (
 )
 from document_ocr.synthesis.curated_scenarios import ScenarioLocation, ShipmentScenario
 from document_ocr.synthesis.curated_templates import (
-    compile_sampling_blueprint,
     render_sampling_blueprint,
 )
 from document_ocr.synthesis.generators import DeterministicStream
@@ -108,18 +107,27 @@ def test_registered_exporter_country_follows_its_party_not_loading_port():
     sampled = scenario()
     role = "documentPatch.parties.notifyParties[0]"
     sampled = sampled.model_copy(update={"party_localities": {role: sampled.destination}})
-    args = (sampled, {"documentPatch": {}}, DeterministicStream(11, "test", "source"),
-            "ITALY", set())
-    for field, expected in (("country", "NETHERLANDS"), ("country_code", "NL"),
-                            ("name", "ROTTERDAM")):
+    args = (
+        sampled,
+        {"documentPatch": {}},
+        DeterministicStream(11, "test", "source"),
+        "ITALY",
+        set(),
+    )
+    for field, expected in (
+        ("country", "NETHERLANDS"),
+        ("country_code", "NL"),
+        ("name", "ROTTERDAM"),
+    ):
         recipe = {"party_location": role, "field": field}
         _validate_recipe(recipe)
         assert _render_recipe(recipe, *args) == expected
     with pytest.raises(ValueError, match="explicit party role"):
         _validate_recipe({"party_location": role, "field": "guessed"})
     with pytest.raises(KeyError):
-        _render_recipe({"party_location": "documentPatch.parties.shipper", "field": "country"},
-                       *args)
+        _render_recipe(
+            {"party_location": "documentPatch.parties.shipper", "field": "country"}, *args
+        )
 
 
 @pytest.mark.parametrize("field", ["text", "prefix", "suffix"])

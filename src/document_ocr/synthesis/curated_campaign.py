@@ -43,12 +43,17 @@ from document_ocr.synthesis.curated_contacts import (
 from document_ocr.synthesis.curated_contacts import (
     request_hash as contact_request_hash,
 )
+from document_ocr.synthesis.curated_descriptions import validate_description_regions
 from document_ocr.synthesis.curated_identifiers import declared_identifier_values
 from document_ocr.synthesis.curated_ownership import (
     apply_dependent_text,
     lexical_expression,
     load_owned_blueprint,
     ownership_surfaces,
+)
+from document_ocr.synthesis.curated_packaging import (
+    contained_packing_context,
+    validate_contained_quantity_sampling,
 )
 from document_ocr.synthesis.curated_physical import (
     PhysicalRenderPlan,
@@ -364,6 +369,8 @@ def wording_request(
             for key, value in physical_plan.receipt["measures"].items()
             if value["method"] != "source_zero_unasserted"
         }
+    if contents := contained_packing_context(blueprint, {"documentPatch": cargo}):
+        physical["contained_packing"] = contents
     context += (
         "\nHOST-RENDERED PHYSICAL FACTS (compatibility context, not wording to repeat)\n"
         + yaml.safe_dump(physical, sort_keys=False, allow_unicode=True)
@@ -575,8 +582,13 @@ def validate_sample(
         surface_values=candidate["surfaceValues"],
         certified_country_codes=country_codes,
         render_casing=casing_policy.select(candidate["seed"], candidate["documentId"]),
+        target_casing=casing_policy.target,
     )
-    if (candidate["joinedRawText"], candidate["proof"]) != (text, proof):
+    if (candidate["joinedRawText"], candidate["target"], candidate["proof"]) != (
+        text,
+        target,
+        proof,
+    ):
         raise ValueError("candidate differs from independent source/edit replay")
     if candidate["joinedRawTextSha256"] != digest(text.encode()):
         raise ValueError("candidate OCR hash differs")
@@ -741,7 +753,18 @@ class Campaign:
             SourceContract.model_validate(envelope["contract"]),
             self.root / self.config["ownership"],
         )
-        return augment_auxiliary_blueprint(blueprint, self.auxiliary)
+        blueprint = augment_auxiliary_blueprint(blueprint, self.auxiliary)
+        validate_description_regions(blueprint.description_blocks, blueprint.regions)
+        cap = self.capabilities[sid]
+        validate_contained_quantity_sampling(
+            blueprint, multiple=cap.quantity_multiple, fixed=cap.fixed_package_quantity
+        )
+        return blueprint
+
+    def validate_source_readiness(self) -> None:
+        """Check every selected source before any concurrent paid work starts."""
+        for sid in self.source_ids:
+            self.blueprint(sid)
 
     def plan(self, sid: str, variant: int) -> tuple[SamplingBlueprint, ShipmentScenario, str, dict]:
         blueprint = self.blueprint(sid)
@@ -977,6 +1000,7 @@ class Campaign:
         return {"companies": len(parties), "fields": sum(len(v) for v in values.values())}
 
     async def generate_contacts_all(self) -> dict:
+        self.validate_source_readiness()
         results = await asyncio.gather(
             *(self.generate_contacts(sid) for sid in self.source_ids),
             return_exceptions=True,
@@ -992,6 +1016,7 @@ class Campaign:
 
     async def generate_all(self) -> dict:
         started = time.perf_counter()
+        self.validate_source_readiness()
         results = await asyncio.gather(
             *(self.generate(sid) for sid in self.source_ids), return_exceptions=True
         )
@@ -1158,6 +1183,7 @@ class Campaign:
         return {"sourceDocumentId": sid, "corrected": len(requests)}
 
     async def correct_postal_all(self) -> dict:
+        self.validate_source_readiness()
         results = await asyncio.gather(
             *(self.correct_postal(sid) for sid in self.source_ids),
             return_exceptions=True,
@@ -1255,6 +1281,7 @@ class Campaign:
             surface_values=surfaces,
             certified_country_codes=country_codes,
             render_casing=self.casing.select(self.config["seed"], sample_id),
+            target_casing=self.casing.target,
         )
         candidate = {
             "documentId": sample_id,
@@ -1323,6 +1350,12 @@ class Campaign:
                 )
                 + "\nTARGET VALUES\n"
                 + yaml.safe_dump(candidate["target"], sort_keys=False, allow_unicode=True)
+                + "\nHOST-RENDERED CONTAINED PACKING (private facts, not extra target rows)\n"
+                + yaml.safe_dump(
+                    contained_packing_context(self.blueprint(sid), candidate["target"]),
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
                 + "\nCOMPLETE RENDERED TEXT\n"
                 + candidate["joinedRawText"]
             )
@@ -1356,6 +1389,7 @@ class Campaign:
         return {"sourceDocumentId": sid, "findings": len(output.findings)}
 
     async def review_all(self) -> dict:
+        self.validate_source_readiness()
         results = await asyncio.gather(
             *(self.review(sid) for sid in self.source_ids), return_exceptions=True
         )

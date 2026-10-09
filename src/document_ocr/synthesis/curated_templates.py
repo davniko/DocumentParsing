@@ -25,6 +25,7 @@ from document_ocr.synthesis.curated import (
     TargetBinding,
     Variable,
     _number_style,
+    assign,
     compile_contract,
     digest,
     flat,
@@ -32,7 +33,15 @@ from document_ocr.synthesis.curated import (
     layout_surface,
     locate,
 )
-from document_ocr.synthesis.curated_casing import RenderCasing, case_owned_text
+from document_ocr.synthesis.curated_casing import RenderCasing, TargetCasing, case_owned_text
+from document_ocr.synthesis.curated_descriptions import (
+    CompiledDescriptionBlocks,
+    DescriptionBlocks,
+    compile_description_blocks,
+    normalized_description,
+    project_rendered_descriptions,
+    validate_description_regions,
+)
 from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.template_compiler.descendant import (
     _number_to_words,
@@ -134,10 +143,13 @@ class SamplingBlueprint:
     nested_bindings: Mapping[str, tuple[str, ...]]
     blocked_bindings: tuple[dict[str, Any], ...]
     ownership_data: Mapping[str, Any] = field(default_factory=dict)
+    description_blocks: CompiledDescriptionBlocks | None = None
 
     def inventory(self) -> dict[str, Any]:
         owned = {p for region in self.regions for p in region.target_paths}
         owned.update(t.path for t in self.contract.targets)
+        if self.description_blocks is not None:
+            owned.update(self.description_blocks.paths)
         return {
             "documentId": self.document_id,
             "sourceSha256": digest(self.source.encode()),
@@ -147,6 +159,9 @@ class SamplingBlueprint:
             "nestedBindings": {key: list(paths) for key, paths in self.nested_bindings.items()},
             "blockedBindings": list(self.blocked_bindings),
             "unownedTargetPaths": sorted(set(flat(self.target)) - owned),
+            "descriptionBlocksSha256": (
+                self.description_blocks.contract_sha256 if self.description_blocks else None
+            ),
         }
 
 
@@ -173,6 +188,7 @@ def compile_sampling_blueprint(
     contract: SourceContract,
     *,
     ownership_overrides: tuple[LexicalOwnership, ...] = (),
+    description_blocks: DescriptionBlocks | dict | None = None,
 ) -> SamplingBlueprint:
     """Combine existing ownership without guessing or relocating historical spans.
 
@@ -180,7 +196,8 @@ def compile_sampling_blueprint(
     for that owner. A partial overlap is inventoried and cannot independently
     authorize a changed target. All positions are verified against current OCR.
     """
-    compile_contract(row, contract)
+    blocks = compile_description_blocks(row["joinedRawText"], row["target"], description_blocks)
+    compile_contract(row, contract, description_blocks=blocks)
     raw = row["joinedRawText"].encode()
     if historical_template.get("document_id") != row["documentId"]:
         raise ValueError("historical template belongs to another source")
@@ -232,7 +249,9 @@ def compile_sampling_blueprint(
                     override.kind,
                     override.key if override.kind in {"name", "postal", "product"} else None,
                     "text",
-                    str(leaves[override.target_paths[0]])
+                    normalized_description(occurrence.text)
+                    if override.kind == "product"
+                    else str(leaves[override.target_paths[0]])
                     if override.kind in {"name", "postal", "product"}
                     else None,
                 )
@@ -321,11 +340,17 @@ def compile_sampling_blueprint(
                 raise ValueError(
                     f"lexical override combines distinct baseline facts: {override.key}"
                 )
+            baseline = str(leaves[override.target_paths[0]])
+            if override.kind == "product":
+                copies = {normalized_description(o.text) for o in override.occurrences}
+                if len(copies) != 1:
+                    raise ValueError(f"product override copies differ: {override.key}")
+                baseline = copies.pop()
             updated_variables.append(
                 Variable(
                     key=override.key,
                     kind=override.kind,
-                    value=str(leaves[override.target_paths[0]]),
+                    value=baseline,
                     meaning="Complete reviewed source-owned " + override.kind,
                     required_literals=[],
                     occurrences=list(override.occurrences),
@@ -342,6 +367,7 @@ def compile_sampling_blueprint(
     for previous, current in pairwise(regions):
         if previous.end > current.start:
             raise ValueError(f"overlapping historical regions: {previous.key}, {current.key}")
+    validate_description_regions(blocks, tuple(regions))
     return SamplingBlueprint(
         row["documentId"],
         row["joinedRawText"],
@@ -351,6 +377,7 @@ def compile_sampling_blueprint(
         historical,
         {key: tuple(dict.fromkeys(owners)) for key, owners in nested.items()},
         tuple(blocked),
+        description_blocks=blocks,
     )
 
 
@@ -445,6 +472,8 @@ def _validate_curated_expressions(
         if region.kind == "owned_text"
         for path in region.target_paths
     }
+    if blueprint.description_blocks is not None:
+        replaced.update(blueprint.description_blocks.paths)
     for binding in blueprint.contract.targets:
         if binding.path in replaced:
             continue
@@ -508,6 +537,7 @@ def render_sampling_blueprint(
     surface_values: Mapping[str, str | list[str]] | None = None,
     certified_country_codes: Mapping[str, str] | None = None,
     render_casing: RenderCasing = "preserve",
+    target_casing: TargetCasing = "uppercase",
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Render a sampled current target with explicit coverage and byte receipts.
 
@@ -524,6 +554,11 @@ def render_sampling_blueprint(
     if unknown or unknown_surfaces:
         raise ValueError(f"unknown render keys: {sorted(unknown | unknown_surfaces)}")
     before = flat(blueprint.target)
+    expected_descriptions = {p for p in before if p.endswith(".description")}
+    projected_paths = blueprint.description_blocks.paths if blueprint.description_blocks else set()
+    if expected_descriptions != projected_paths:
+        raise ValueError("description targets require complete reviewed description_blocks")
+    validate_description_regions(blueprint.description_blocks, blueprint.regions)
     after, hs_aliases = _aligned_sample_leaves(before, flat(sampled_target))
     for path, code in certified_country_codes.items():
         if (
@@ -532,14 +567,26 @@ def render_sampling_blueprint(
             or not re.fullmatch(r"[A-Z]{2}", code)
         ):
             raise ValueError(f"invalid certified country-code mapping: {path}")
-    changed = {path for path in before if before[path] != after[path]}
+    requested_changes = {path for path in before if before[path] != after[path]}
+    changed = requested_changes - projected_paths
     covered: set[str] = set()
     variable_values: dict[str, str] = {}
     direct = {
-        key: [t.path for t in blueprint.contract.targets if t.expression == "{" + key + "}"]
+        key: [
+            t.path
+            for t in blueprint.contract.targets
+            if t.expression == "{" + key + "}" and t.path not in projected_paths
+        ]
         for key in variables
     }
+    active_products = {r.curated_key for r in blueprint.regions if r.kind == "product"}
     for key, variable in variables.items():
+        if (
+            key in active_products
+            and key not in lexical_values
+            and any(before[path] != after[path] for path in projected_paths)
+        ):
+            raise ValueError(f"changed description requires explicit product wording: {key}")
         values = {str(after[path]) for path in direct[key]}
         if len(values) > 1:
             raise ValueError(f"shared variable has inconsistent sampled targets: {key}")
@@ -557,7 +604,9 @@ def render_sampling_blueprint(
         variable_values[key] = value
     rendered_regions = []
     for region in blueprint.regions:
-        changed_paths = set(region.target_paths) & changed
+        changed_paths = set(region.target_paths) & (
+            requested_changes if region.kind == "owned_text" else changed
+        )
         if region.curated_key is not None:
             value = variable_values[region.curated_key]
             if value == region.baseline:
@@ -677,9 +726,19 @@ def render_sampling_blueprint(
         replay = replay[: edit["byteStart"]] + edit["after"].encode() + replay[edit["byteEnd"] :]
     if replay != result:
         raise ValueError("independent render/replay disagreement")
+    projected, description_proof = project_rendered_descriptions(
+        blueprint.description_blocks, raw, result, edits, casing=target_casing
+    )
+    target = deepcopy(sampled_target)
+    covered.difference_update(projected_paths)
+    for path, value in projected.items():
+        assign(target, path, value)
+        if before[path] != value:
+            changed.add(path)
+            covered.add(path)
     return (
         result.decode(),
-        deepcopy(sampled_target),
+        target,
         {
             "sourceSha256": digest(raw),
             "renderedSha256": digest(result),
@@ -689,6 +748,7 @@ def render_sampling_blueprint(
             "certifiedCountryCodes": dict(certified_country_codes),
             "edits": edits,
             "unchangedBytesPreserved": True,
+            **({"descriptionProjection": description_proof} if description_proof else {}),
             **({"renderCasing": render_casing} if render_casing != "preserve" else {}),
         },
     )

@@ -26,6 +26,7 @@ from document_ocr.synthesis.curated import (
     locate,
 )
 from document_ocr.synthesis.curated_measurements import converted_measure_surfaces
+from document_ocr.synthesis.curated_packaging import contained_quantity_surfaces
 from document_ocr.synthesis.curated_templates import (
     LexicalOwnership,
     SamplingBlueprint,
@@ -141,7 +142,13 @@ def build_owned_blueprint(
         )
         for item in declarations.get("lexical", [])
     )
-    blueprint = compile_sampling_blueprint(row, historical, contract, ownership_overrides=overrides)
+    blueprint = compile_sampling_blueprint(
+        row,
+        historical,
+        contract,
+        ownership_overrides=overrides,
+        description_blocks=declarations.get("description_blocks"),
+    )
     target_expressions = {
         binding.path: binding.expression for binding in blueprint.contract.targets
     }
@@ -237,6 +244,9 @@ def build_owned_blueprint(
         allow_empty = region.key in declarations.get("delete", {})
         regions.append(replace(region, target_paths=tuple(sorted(paths)), allow_empty=allow_empty))
     blueprint = replace(blueprint, regions=tuple(regions), ownership_data=declarations)
+    for key, recipe in declarations.get("surfaces", {}).items():
+        if "contained_quantity" in recipe:
+            contained_quantity_surfaces(blueprint, row["target"], key, recipe["contained_quantity"])
     if blueprint.blocked_bindings:
         raise ValueError(f"unresolved source ownership overlaps: {blueprint.blocked_bindings}")
     return blueprint
@@ -329,7 +339,11 @@ def ownership_surfaces(
     result = dict(blueprint.ownership_data.get("constants", {}))
     result.update({key: "" for key in blueprint.ownership_data.get("delete", {})})
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
-        if "measure_path" in recipe:
+        if "contained_quantity" in recipe:
+            result[key] = contained_quantity_surfaces(
+                blueprint, target, key, recipe["contained_quantity"]
+            )
+        elif "measure_path" in recipe:
             result[key] = converted_measure_surfaces(blueprint, target, key, recipe)
         elif "expression" in recipe:
             result[key] = re.sub(r"\{([^{}]+)\}", lambda m: str(leaves[m[1]]), recipe["expression"])

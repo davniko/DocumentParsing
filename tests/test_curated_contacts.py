@@ -69,7 +69,6 @@ def test_company_contacts_preserve_shared_identity_and_exact_scope():
     [
         ("INFO@OLDLIFT.COM", "WWW.OLDLIFT.COM"),
         ("sales@company-123.example", "www.company-123.example"),
-        ("sales@huaxintextile.com", "www.unrelatedbusiness.com"),
         ("sales@huaxintextile.com\nNEW LINE", "www.huaxintextile.com"),
         ("sales@huaxintextile.com", "javascript:alert(1)"),
     ],
@@ -81,6 +80,15 @@ def test_bad_contact_outputs_fail_without_rewriting_or_fallback(email, website):
             contact_output_type(requests).model_validate({"p0": {"c0": email, "c1": website}}),
             requests,
         )
+
+
+@pytest.mark.parametrize("email", ["sales@huaxintextile.com", "huaxin.sales@gmail.com"])
+def test_email_and_website_domains_are_independent(email):
+    _, _, requests = parties()
+    website = "www.huaxin-works.com"
+    output = contact_output_type(requests).model_validate({"p0": {"c0": email, "c1": website}})
+    values = unpack_contacts(output, requests)["sample"]
+    assert set(values.values()) == {email, website}
 
 
 def test_contact_only_roles_preserve_absent_identity_and_do_not_merge_unrelated_roles():

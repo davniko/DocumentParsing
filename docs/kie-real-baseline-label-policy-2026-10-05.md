@@ -2,11 +2,13 @@
 
 Recorded 2026-10-05 from the user's dataset-cleansing decisions. This is a
 policy/reference note, not an instruction to relabel historical datasets or launch
-another labeling campaign. The current selected dataset is R10 (474 records), documented in the
+another labeling campaign. At its original recording, the selected dataset was
+R10 (474 records), documented in the
 [cleansing and repetition report](analysis/real-v7-starting-dataset-2026-10-04/R10_CLEANSING_2026-10-05.md).
 The preceding [R7 audit](analysis/real-v7-starting-dataset-2026-10-04/R7_FIELD_AUDIT_2026-10-05.md)
 is preserved as historical evidence. Subsequent R10 exclusions do not change the
-goods or address target policy. Independently printed telephone numbers remain
+goods or address target policy. Dated decisions below supersede earlier wording
+only within their stated scope. Independently printed telephone numbers remain
 extractable; standalone abbreviated suffixes/extensions are not separate numbers
 and must not be expanded by guessing missing prefixes.
 
@@ -44,16 +46,166 @@ Examples of the distinction:
 These are semantic examples, not automatic rewrite rules. No new multi-goods
 adjudication was performed in the R7 filtering pass.
 
+## Shipment packaging and allocations (2026-10-09)
+
+Use the **declared shipment accounting unit**, established by package columns,
+container package rows and shipment declarations in the complete document.
+Quantity and category form one fact. Neither the innermost contents nor outermost
+handling unit is automatically the target. Container allocation quantities use
+the same unit as the goods package total.
+
+- `100 PALLETS`, five container rows of `20 PALLETS`, and product packing of
+  `4000 PAPER BAGS` means 100 pallets with allocations20/20/20/20/20. The bags
+  are contained packing, not an alternative target total.
+- An explicit declared count of drums/bags/cartons remains that unit when
+  pallets merely describe supporting packing.
+- `1x40'HC CONTAINER S.T.C. 38 PACKAGE(S)` establishes an allocation of38 to
+  the sole identified container carrying that goods item. A separate tabular
+  quantity or repetition beside the identifier is not required. This rule does
+  not apply just because only one identifier survived OCR from multiple containers.
+- Explicit per-container counts are allocations. Preserve supported partial
+  allocations; do not balance them by equal splitting, mass/capacity division,
+  or assigning a whole-shipment total to one surviving container.
+- Disjoint shipping units can form additive package rows. Nested levels cannot.
+  An explicit mixed-unit aggregate (`19 pallets +3 loose cartons =22 packages`)
+  can remain22 generic packages; it is not22 pallets or731 contained cartons.
+- Conflicting declarations or unresolved ownership require review. PDF layout
+  helps establish ownership, but PDF-only missing counts cannot become OCR labels.
+
+Description boundaries remain governed by the main-product-passage policy below.
+Embedded packing in that passage can remain descriptive text without becoming
+the structured shipment accounting unit. Separate loading/package declarations
+do not become product descriptions.
+
+For synthesis, bind all repeated declared counts (digits and words) and their
+package nouns. A reviewed contained count is private context, scaled through an
+exact source-supported ratio. Non-integral content counts fail before generation;
+they are not rounded. Physical/load scaling uses the same declared-unit baseline.
+
+Evidence: [audit](package-accounting-policy-audit-2026-10-09.md) and
+[repair and validation](package-accounting-repair-2026-10-09.md).
+
 ## Product wording and additional information
 
-Product identity, brand, model/article codes, composition, specifications,
-condition, lot qualifiers, proper shipping names and explicitly printed package
-capacity belong in `goodsItemDetails[].description`, in source order. Structured
-shipment quantities, HS/DG codes and unrelated references are separate facts.
+### Current decision: description-block copying (2026-10-09)
+
+The user approved this policy for current-label repair and subsequent labeling,
+template compilation and synthesis:
+
+> Copy the complete goods-description wording and its continuations in printed
+> order, preserving embedded packing, quantities, capacities and qualifiers.
+> Exclude separately owned Marks and other documentary fields. Apply only the
+> agreed casing and line-break normalization.
+
+Block ownership comes first. Within the actual goods-description block, retain
+product identity, brand, model/article codes, composition, specifications,
+condition, lot qualifiers, proper shipping names, origin/`MADE IN` wording and
+complete packing/count/capacity/weight phrases. Do not summarize, rearrange,
+correct spelling, or surgically remove numbers from a descriptive phrase.
+
+#### Boundary clarification: main product passage (2026-10-09)
+
+The user further approved a **main-block-first** interpretation, not collection
+of every product-related fact anywhere on the document. Identify the first and
+last product-description wording; copy that bounded passage. Start after headings
+and generic loading/package declarations (`SAID TO CONTAIN`, `STC`, a standalone
+shipment count or its `... PACKAGES OF` introduction). End before distinct
+accounting, tracking or documentary passages. A physical line is not necessarily
+a semantic boundary: a heading can share a line with the first product words.
+
+Detached batch/SL tables, invoices, shipping/wood-treatment declarations and
+auxiliary packing equations are not reasons to extend the description. Conversely,
+attached qualifiers inside the main product passage stay intact; do not surgically
+delete a capacity, model number or incidental qualifier from the middle. This is
+a consistent ownership rule, not optional inclusion decided afresh per sample.
+
+Use another block only for an actual product continuation: a continued product
+list on another page, a continued sentence, or a description column interrupted
+in flattened OCR by another column. A Marks/reference/HS interruption does not
+erase genuine subsequent product wording. Record why each non-contiguous portion
+is a continuation rather than detached enrichment. Do not force a single OCR
+substring when doing so would include Marks or discard a real continuation.
+
+The latest explicit examples are:
+
+- Train 363: `T850QVN04.2 85" ASSY OPEN CELL`, once; omit packing equations,
+  declarations and repeated copies.
+- Train 368: retain `25,925 MTCHAMBRIL ... HEINZEL 1077669`; omit the preceding
+  `38 ROLLS WITH` and detached origin/wood declaration. Preserve the OCR spelling.
+- Train 422: preserve `1012322163DXH DEGREE 1`; its broad table header does not
+  establish a separate identifier boundary.
+- Train 423: preserve the attached milk-powder/25-kg packing passage, including
+  its internal wording `TOTAL 1000 BAGS`; omit the leading loading count and
+  the detached serial/batch table. `TOTAL` is not a global deletion keyword.
+
+For future extraction, the existing section reviewer returns `unresolved` with
+an `ambiguous` finding, competing interpretations and a recommended review action
+when context/layout does not settle a boundary. For synthesis, an unresolved
+boundary is a nonempty rendered-review finding and blocks publication until
+adjudicated. No additional iterative agent round is introduced. Exact source-span
+checks certify transcription and edit ownership; they do not replace the semantic
+boundary review. An uncertain source contract is not admitted by guessing.
+
+This clarification changes description membership only. It does **not** decide
+the separate inner/outer packaging policy, or authorize changes to package counts,
+types, cargo grouping, masses or container placements.
+
+Exclude separately identifiable fields/sub-blocks:
+
+- Marks and Numbers, even when containing product specifications, lots or VINs.
+- Import/export/customs references and invoice/commercial reference fields.
+- Separately stated net/gross weight, volume and package totals.
+- Container/equipment/seal fields, party information and freight/carrier clauses.
+- Separately identified HS-code and DG-code declarations; product names and
+  chemical descriptions themselves remain descriptive wording.
+
+“Separate” means a distinct field or statement, not necessarily a different
+physical column or line. A combined cargo-panel caption does not by itself
+establish the boundary. A locally captioned Marks sub-block is excluded even
+inside a broad description column; a lot or package-seal phrase in the actual
+description remains. Do not infer ownership from a token blacklist or the
+nearest flattened OCR heading.
+
+A broad table heading such as `PURCHASE ORDER DESCRIPTION` does not make a
+digit/alphanumeric prefix inside an unseparated product line a purchase-order
+reference. Preserve that complete line unless an independently identifiable
+reference field establishes a different owner. In the reviewed source, this
+means retaining `1012322163DXH DEGREE 1` above the elbow/reducer/socket wording;
+the table headings themselves are not description content.
+
+Examples:
+
+| Printed source | Description treatment |
+|---|---|
+| Separate package field `8 PALLETS`; goods `Walnuts packed in 15kg bags` | `WALNUTS PACKED IN 15KG BAGS`; eight pallets remain structured packaging |
+| `PACKED IN 3930X50 KG BAGS` | Retain the entire phrase, including 3930 |
+| `80 DRUMS OF 210 KGS NET POLYSORBATE 60` | Retain intact; do not remove embedded numbers |
+| Product followed by a distinct `NET WEIGHT: 12,000 KG` field | Keep product; exclude the separate net-weight field |
+| `EXTRACORPOREAL TUBING SET ADULT -EGYPT` | Preserve the attached suffix |
+| Part number printed only in a separate Marks column | Do not append it to description |
+
+Targets use the current consistent uppercase policy. Join physical line breaks
+with spaces, preserving printed punctuation and fragment order. Select one
+representative occurrence of an entirely repeated description block; preserve
+distinct continuations. No global word/sub-string deduplication is authorized.
+PDFs can establish ownership/layout but cannot introduce words missing from OCR.
+
+Structured package, mass, HS, DG and placement meanings are unchanged. A printed
+number may legitimately occur in both a description phrase and its structured
+field; copying it does not create a new goods item, quantity or allocation.
+In synthesis, host-sampled quantities remain host-controlled. The final target
+copies both generated wording and host-rendered facts inside the approved
+description block, after rendering. It does not grant the wording model authority
+to invent shipment accounting.
+
+The [scope audit](analysis/description-block-policy-audit-20261009/REPORT.md)
+records why old product-only target expressions and Marks enrichment must change.
+Historical metrics and receipts retain their historical policy; this decision
+does not retroactively certify or overwrite those results.
 
 There is no agreed independent purpose for a cargo product-overflow field.
-`additionalInformation` / `additionalGoods` are absent from the V7 model and the
-current 500 targets. Do not reintroduce them to shorten long product descriptions.
+`additionalInformation` / `additionalGoods` are absent from the V7 model and its
+current targets. Do not reintroduce them to shorten long product descriptions.
 Goods-specific handling instructions have a separate, defined purpose; they are
 not a renamed overflow field for product wording.
 

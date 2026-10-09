@@ -69,6 +69,11 @@ Return `pass` only when all of the following are true:
   modeled value with source-only text, such as a phone followed without a delimiter by a redacted
   contact fragment. Accept it when it owns that physical span once, lists every available relevant
   target path, and its rationale explains why a deterministic split is not reliable.
+- Public package totals and container allocations follow the document's declared shipment
+  accounting level. Neither inner contents nor outer handling units automatically take precedence.
+  A sole identified container's explicit STC quantity can support its allocation; an incomplete
+  multi-container list cannot. Retained private packing counts must scale by a source-proven
+  relationship, preserve whole counts, and constrain commodity compatibility.
 - Derived totals and counts are declared as deterministic derivations rather than copied or
   independently generated. A single equal count printed as `N CONTAINER(S)/PACKAGE(S)` uses the
   `container_package_count` derivation over the container and cargo-package collections.

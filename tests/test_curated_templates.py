@@ -6,23 +6,55 @@ from types import SimpleNamespace
 
 import pytest
 
-from document_ocr.synthesis.curated import Occurrence, SourceContract
+from document_ocr.synthesis.curated import Occurrence, SourceContract, digest
 from document_ocr.synthesis.curated_ownership import (
     _declared_date_surface,
     apply_dependent_text,
-    build_owned_blueprint,
     load_owned_blueprint,
     ownership_surfaces,
+)
+from document_ocr.synthesis.curated_ownership import (
+    build_owned_blueprint as _build_owned_blueprint,
 )
 from document_ocr.synthesis.curated_templates import (
     LexicalOwnership,
     _aligned_sample_leaves,
-    compile_sampling_blueprint,
     current_path,
     render_sampling_blueprint,
     substitute_expression_literals,
     wrap_owned_text,
 )
+from document_ocr.synthesis.curated_templates import (
+    compile_sampling_blueprint as _compile_sampling_blueprint,
+)
+
+
+def fixture_description_blocks(row):
+    """Reviewed goods span of the STEEL BOLTS fixture, independent of its label."""
+    if row["documentId"] != "sample":
+        return None  # The other ownership-only fixtures contain no goods description.
+    return {
+        "source_sha256": digest(row["joinedRawText"].encode()),
+        "fields": [
+            {
+                "path": "documentPatch.goodsItemDetails[0].description",
+                "spans": [{"text": "STEEL BOLTS", "occurrence": 1}],
+            }
+        ],
+    }
+
+
+def compile_sampling_blueprint(row, historical, contract, **kwargs):
+    return _compile_sampling_blueprint(
+        row, historical, contract, description_blocks=fixture_description_blocks(row), **kwargs
+    )
+
+
+def build_owned_blueprint(row, historical, contract, declarations):
+    declarations = dict(declarations)
+    if blocks := fixture_description_blocks(row):
+        declarations["description_blocks"] = blocks
+    return _build_owned_blueprint(row, historical, contract, declarations)
 
 
 def source_fixture():
@@ -153,7 +185,7 @@ def test_rebase_identity_and_full_scalar_sampling_preserve_unrelated_bytes():
     patch["goodsItemDetails"][0]["numberAndTypeOfPackages"][0].update(
         packageQuantity=36, typeCategory="PACKAGE_CARTON"
     )
-    raw, target, proof = render_sampling_blueprint(blueprint, new, {})
+    raw, target, proof = render_sampling_blueprint(blueprint, new, {"product": "CERAMIC TILES"})
     assert target == new
     assert "ÉDITÉ" in raw and "TAX: 12345" in raw
     assert "36 CARTONS" in raw and "2025.09.12" in raw and "690721" in raw
@@ -285,7 +317,7 @@ def test_changed_package_requires_printed_type_not_declared_or_product_overlap_o
     blueprint = compile_sampling_blueprint(row, old, contract)
     goods["description"] = "PALLET STACKERS"
     with pytest.raises(ValueError, match="lacks an owned printed noun"):
-        render_sampling_blueprint(blueprint, target, {})
+        render_sampling_blueprint(blueprint, target, {"product": "PALLET STACKERS"})
 
 
 @pytest.mark.parametrize("quantity,expected", [(1, "PACKAGE"), (5440, "PACKAGES")])
@@ -437,7 +469,12 @@ def test_ownership_cache_is_content_bound_and_does_not_share_mutable_declaration
         json.dumps(
             {
                 "version": 1,
-                "sources": {"sample": {"delete": {"date": "Reviewed deletion"}}},
+                "sources": {
+                    "sample": {
+                        "delete": {"date": "Reviewed deletion"},
+                        "description_blocks": fixture_description_blocks(row),
+                    }
+                },
             }
         )
     )
@@ -446,7 +483,14 @@ def test_ownership_cache_is_content_bound_and_does_not_share_mutable_declaration
     first.ownership_data["delete"].clear()
     second = load_owned_blueprint(row, old, contract, path)
     assert second.ownership_data["delete"] == {"date": "Reviewed deletion"}
-    path.write_text(json.dumps({"version": 1, "sources": {"sample": {}}}))
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "sources": {"sample": {"description_blocks": fixture_description_blocks(row)}},
+            }
+        )
+    )
     third = load_owned_blueprint(row, old, contract, path)
     assert not next(r for r in third.regions if r.key == "date").allow_empty
     path.write_text(json.dumps({"version": 1, "sources": {}}))

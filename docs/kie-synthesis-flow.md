@@ -474,8 +474,9 @@ not establish every address component's semantics or postal deliverability.
 [`curated_contacts.py`](../src/document_ocr/synthesis/curated_contacts.py) sends
 plain-text company names, countries and original email/website style examples
 to a narrow native-output call. The response contains only requested contact
-strings. Repeated roles for one company share values; originally shared
-email/website domains remain shared. Free-mail examples retain that style.
+strings. Repeated roles for one company share values. Email and website domains
+are independent: corporate and free-mail mailboxes are both allowed, even when
+the source used one common domain. Website syntax/style remains source-conditioned.
 
 `generate` includes this stage. `contacts` runs it separately when the rest of
 the shipment is already generated. Receipts bind the company/context/schema;

@@ -15,6 +15,7 @@ import re
 import sys
 import time
 from copy import deepcopy
+from dataclasses import dataclass
 from decimal import Decimal
 from math import gcd
 from pathlib import Path
@@ -27,6 +28,12 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelResponse
 
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
+from document_ocr.synthesis.curated_descriptions import (
+    CompiledDescriptionBlocks,
+    compile_description_blocks,
+    project_rendered_descriptions,
+    validate_description_regions,
+)
 from document_ocr.synthesis.generators import (
     DeterministicStream,
     generate_container_number,
@@ -121,8 +128,9 @@ class Variable(StrictModel):
         description=(
             "Concise ownership, semantic role and generation constraints. "
             "Postal: country/city context and component granularity. Product: "
-            "classification and protected "
-            "specifications."
+            "classification and protected specifications. Product regions cover the main "
+            "product passage or genuine continuation, separate from loading introductions "
+            "and detached accounting/tracking text. Uncertain boundaries require review."
         ),
     )
     required_literals: list[str] = Field(
@@ -226,17 +234,19 @@ class LexicalBatch(StrictModel):
 
 
 class Finding(StrictModel):
-    """A concrete correctness defect, rather than stylistic preference."""
+    """A correctness defect or unresolved ownership question, not a style preference."""
 
     location: str = Field(description="Affected variable, target path or quoted OCR region.")
     problem: str = Field(
-        description="What is inconsistent, unsupported, incomplete or semantically wrong and why."
+        description=(
+            "Concrete defect and why, or competing ownership interpretations "
+            "that remain unresolved."
+        )
     )
     correction: str = Field(
         description=(
-            "Specific correction consistent with the source/current policy; "
-            "no invented unprinted "
-            "fact."
+            "Specific source/policy-supported correction, or recommended review action "
+            "when genuinely unresolved; no invented unprinted fact."
         )
     )
 
@@ -245,7 +255,10 @@ class Review(StrictModel):
     """Semantic review separate from deterministic replay checks."""
 
     findings: list[Finding] = Field(
-        description="All concrete defects; empty only after checking the requested dimensions."
+        description=(
+            "All concrete defects and unresolved ownership questions; "
+            "empty only when neither remains."
+        )
     )
     explanation: str = Field(
         min_length=40,
@@ -412,7 +425,12 @@ def surface(variable: Variable, occurrence: Occurrence, value: str) -> str:
     return layout_surface(occurrence.text, value)
 
 
-def compile_contract(row: dict, contract: SourceContract):
+def compile_contract(
+    row: dict,
+    contract: SourceContract,
+    *,
+    description_blocks: CompiledDescriptionBlocks | None = None,
+):
     keys = [v.key for v in contract.variables]
     if len(keys) != len(set(keys)):
         raise ValueError("duplicate variable keys")
@@ -473,7 +491,20 @@ def compile_contract(row: dict, contract: SourceContract):
     template = compile_raw_text_template(
         document_id=row["documentId"], source=row["joinedRawText"].encode(), slots=slots
     )
-    target = derive_target(row["target"], contract, {v.key: v.value for v in contract.variables})
+    identity_contract = contract
+    if description_blocks is not None:
+        raw = row["joinedRawText"].encode()
+        descriptions, _ = project_rendered_descriptions(description_blocks, raw, raw, [])
+        if any(leaves.get(path) != value for path, value in descriptions.items()):
+            raise ValueError("source description differs from reviewed block projection")
+        # Lexical expressions still define generated wording dependencies; only
+        # reviewed physical block membership defines a description target.
+        identity_contract = contract.model_copy(
+            update={"targets": [t for t in contract.targets if t.path not in descriptions]}
+        )
+    target = derive_target(
+        row["target"], identity_contract, {v.key: v.value for v in contract.variables}
+    )
     if target != row["target"]:
         differences = {p: [leaves.get(p), v] for p, v in flat(target).items() if leaves.get(p) != v}
         raise ValueError(f"current-label identity replay differs: {differences}")
@@ -500,7 +531,31 @@ def derive_target(original: dict, contract: SourceContract, values: dict[str, st
     return target
 
 
-def render(row: dict, contract: SourceContract, values: dict[str, str]) -> tuple[str, dict, dict]:
+@dataclass(frozen=True)
+class _DescriptionRegion:
+    start: int
+    end: int
+    key: str
+    kind: str
+    target_paths: tuple[str, ...]
+
+
+def render(
+    row: dict,
+    contract: SourceContract,
+    values: dict[str, str],
+    *,
+    description_blocks: CompiledDescriptionBlocks | None = None,
+) -> tuple[str, dict, dict]:
+    description_paths = {
+        f"documentPatch.goodsItemDetails[{index}].description"
+        for index, goods in enumerate(
+            row["target"].get("documentPatch", {}).get("goodsItemDetails", [])
+        )
+        if "description" in goods
+    }
+    if description_paths != (description_blocks.paths if description_blocks else set()):
+        raise ValueError("description targets require complete reviewed description_blocks")
     if set(values) != {v.key for v in contract.variables}:
         raise ValueError("scenario variable set differs from contract")
     for var in contract.variables:
@@ -523,7 +578,20 @@ def render(row: dict, contract: SourceContract, values: dict[str, str]) -> tuple
             )
         if var.kind == "container" and value != var.value and not validate_container_number(value):
             raise ValueError(f"{var.key}: invalid generated ISO6346 identifier")
-    template, associations = compile_contract(row, contract)
+    template, associations = compile_contract(row, contract, description_blocks=description_blocks)
+    validate_description_regions(
+        description_blocks,
+        tuple(
+            _DescriptionRegion(
+                slot.byte_start,
+                slot.byte_end,
+                associations[slot.slot_id][0].key,
+                associations[slot.slot_id][0].kind,
+                tuple(slot.target_paths),
+            )
+            for slot in template.slots
+        ),
+    )
     bindings = {
         key: surface(var, occurrence, values[var.key])
         for key, (var, occurrence) in associations.items()
@@ -550,15 +618,32 @@ def render(row: dict, contract: SourceContract, values: dict[str, str]) -> tuple
         source=row["joinedRawText"].encode(), template=template, bindings=bindings
     )
     # Independently replay the edits instead of accepting the proof object's flags.
-    expected, cursor = bytearray(), 0
+    expected, cursor, edits = bytearray(), 0, []
     for slot in template.slots:
-        expected.extend(row["joinedRawText"].encode()[cursor : slot.byte_start])
+        expected.extend(source_bytes[cursor : slot.byte_start])
         expected.extend(bindings[slot.slot_id].encode())
         cursor = slot.byte_end
-    expected.extend(row["joinedRawText"].encode()[cursor:])
+        if bindings[slot.slot_id] != slot.source_text:
+            edits.append(
+                {
+                    "byteStart": slot.byte_start,
+                    "byteEnd": slot.byte_end,
+                    "before": slot.source_text,
+                    "after": bindings[slot.slot_id],
+                }
+            )
+    expected.extend(source_bytes[cursor:])
     if bytes(expected) != payload:
         raise ValueError("independent edit replay failed")
-    target = derive_target(row["target"], contract, values)
+    descriptions, description_proof = project_rendered_descriptions(
+        description_blocks, source_bytes, payload, edits
+    )
+    target_contract = contract.model_copy(
+        update={"targets": [t for t in contract.targets if t.path not in descriptions]}
+    )
+    target = derive_target(row["target"], target_contract, values)
+    for path, value in descriptions.items():
+        assign(target, path, value)
     before = row["target"]["documentPatch"]
     after = target["documentPatch"]
     for old_goods, new_goods in zip(
@@ -583,10 +668,19 @@ def render(row: dict, contract: SourceContract, values: dict[str, str]) -> tuple
         # the exact source-supported membership and quantity-presence topology.
         if len(old_allocations) != len(new_allocations):
             raise ValueError("placement topology changed")
-    return payload.decode(), target, proof.model_dump(mode="json")
+    receipt = proof.model_dump(mode="json")
+    if description_proof is not None:
+        receipt["descriptionProjection"] = description_proof
+    return payload.decode(), target, receipt
 
 
-def validate_candidate(row: dict, contract: SourceContract, candidate: dict) -> None:
+def validate_candidate(
+    row: dict,
+    contract: SourceContract,
+    candidate: dict,
+    *,
+    description_blocks: CompiledDescriptionBlocks | None = None,
+) -> None:
     """Publication guard: recompute artifacts from the pinned source and scenario."""
     if candidate["sourceDocumentId"] != row["documentId"]:
         raise ValueError("candidate source identity differs")
@@ -610,7 +704,9 @@ def validate_candidate(row: dict, contract: SourceContract, candidate: dict) -> 
             and candidate["values"][variable.key] != planned[variable.key]
         ):
             raise ValueError(f"host-owned scenario value changed: {variable.key}")
-    expected_text, expected_target, expected_proof = render(row, contract, candidate["values"])
+    expected_text, expected_target, expected_proof = render(
+        row, contract, candidate["values"], description_blocks=description_blocks
+    )
     if candidate["joinedRawText"] != expected_text or candidate["target"] != expected_target:
         raise ValueError("candidate differs from exact source/scenario replay")
     if (
@@ -732,9 +828,17 @@ REVIEW_PROMPT = (
     "changed-label dependencies.\nThe fixed current V7 target policy "
     "is uppercase human text, full addressLine plus country, no "
     "separate city,\none source-supported goods accounting group, "
-    "product information in description, and reduced omitted "
-    "fields.\nReport concrete errors, missing changed dependencies, "
-    "impossible/unjustified arithmetic or wrong ownership.\nDo not "
+    "and reduced omitted fields. Descriptions copy complete reviewed "
+    "main product-description blocks and genuine continuations in printed order, "
+    "including embedded packing and quantity phrases. Exclude generic loading "
+    "introductions and detached tracking/packing passages; separate Marks and "
+    "accounting fields remain separate. "
+    "Description expressions identify lexical dependencies; the final description "
+    "is projected independently from the rendered blocks.\n"
+    "Report concrete errors, missing changed dependencies, "
+    "impossible/unjustified arithmetic or wrong ownership. Report unresolved "
+    "description boundaries with competing interpretations and a recommended "
+    "review action instead of guessing.\nDo not "
     "demand omitted carrier/marks/export-reference labels, registry "
     "enrichment, or cosmetic rewriting.\nUnchanged source "
     "imperfections are distinguished from newly introduced defects; "
@@ -829,9 +933,8 @@ class Runner:
                     and receipt["costStatus"] == "request_rejected"
                     and "status_code: 429" in receipt["error"]
                 )
-                retry_invalid = (
-                    self.retry_invalid_output
-                    and str(receipt["error"]).startswith("UnexpectedModelBehavior:")
+                retry_invalid = self.retry_invalid_output and str(receipt["error"]).startswith(
+                    "UnexpectedModelBehavior:"
                 )
                 if retry_rejected or retry_invalid:
                     # Explicit resume permits one new attempt per invocation.
@@ -939,16 +1042,12 @@ class Runner:
                 raise RuntimeError(error)
             return output
 
-    async def source(self, row: dict, stage: str) -> dict:
-        sid = row["documentId"]
-        directory = self.output / "sources" / sid
+    def _source_contract(
+        self, row: dict
+    ) -> tuple[SourceContract, CompiledDescriptionBlocks | None]:
+        """Check the complete source contract before generation or publication."""
+        directory = self.output / "sources" / row["documentId"]
         path = directory / "contract.json"
-        context = (
-            "CURRENT TARGET SCALARS\n"
-            + "\n".join(f"{p}: {v}" for p, v in flat(row["target"]).items())
-            + "\n\nCOMPLETE OCR\n"
-            + row["joinedRawText"]
-        )
         if path.exists():
             envelope = json.loads(path.read_text())
             if envelope["sourceSha256"] != digest(row["joinedRawText"].encode()) or envelope[
@@ -956,13 +1055,27 @@ class Runner:
             ] != digest(row["target"]):
                 raise ValueError("cached contract source/target identity changed")
             contract = SourceContract.model_validate(envelope["contract"])
-            compile_contract(row, contract)
+            blocks = compile_description_blocks(
+                row["joinedRawText"], row["target"], envelope.get("description_blocks")
+            )
         else:
             raise ValueError(f"missing rebased source contract: {path}")
         baseline = {v.key: v.value for v in contract.variables}
-        text, target, proof = render(row, contract, baseline)
+        text, target, _ = render(row, contract, baseline, description_blocks=blocks)
         if text != row["joinedRawText"] or target != row["target"]:
             raise ValueError("identity round-trip differs")
+        return contract, blocks
+
+    async def source(self, row: dict, stage: str) -> dict:
+        sid = row["documentId"]
+        directory = self.output / "sources" / sid
+        contract, blocks = self._source_contract(row)
+        context = (
+            "CURRENT TARGET SCALARS\n"
+            + "\n".join(f"{p}: {v}" for p, v in flat(row["target"]).items())
+            + "\n\nCOMPLETE OCR\n"
+            + row["joinedRawText"]
+        )
         if stage == "compile":
             return {"documentId": sid, "status": "compiled", "variables": len(contract.variables)}
         if stage == "review":
@@ -1008,7 +1121,7 @@ class Runner:
             if len(generated) != len(bundle.values) or set(generated) != {v.key for v in lexical}:
                 raise ValueError("lexical output keys differ")
             values.update(generated)
-            text, target, proof = render(row, contract, values)
+            text, target, proof = render(row, contract, values, description_blocks=blocks)
             result = {
                 "documentId": sample_id,
                 "sourceDocumentId": sid,
@@ -1042,7 +1155,7 @@ class Runner:
             result["review"] = audit.model_dump(mode="json") if audit else None
             result["reviewError"] = review_error
             result["status"] = "review" if audit is None or audit.findings else "candidate"
-            validate_candidate(row, contract, result)
+            validate_candidate(row, contract, result, description_blocks=blocks)
             save(self.output / "samples" / f"{result['documentId']}.json", result)
             results.append({"documentId": result["documentId"], "status": result["status"]})
         return {
@@ -1076,6 +1189,11 @@ class Runner:
         if stage in {"validate", "publish"}:
             return self.validate_and_publish(train, selected, publish=stage == "publish")
 
+        # Finish preflight for the complete requested source set before any
+        # concurrent worker can spend on a partially ready campaign.
+        for sid in selected:
+            self._source_contract(train[sid])
+
         async def process(sid: str):
             try:
                 return await self.source(train[sid], stage)
@@ -1104,13 +1222,7 @@ class Runner:
         records, failures, seen = [], [], set()
         for sid in selected:
             directory = self.output / "sources" / sid
-            envelope = json.loads((directory / "contract.json").read_text())
-            if envelope["sourceSha256"] != digest(train[sid]["joinedRawText"].encode()) or envelope[
-                "targetSha256"
-            ] != digest(train[sid]["target"]):
-                raise ValueError("publication source/target identity differs from contract")
-            contract = SourceContract.model_validate(envelope["contract"])
-            compile_contract(train[sid], contract)
+            contract, blocks = self._source_contract(train[sid])
             approval_path = directory / "adjudication.json"
             if publish and not approval_path.exists():
                 failures.append(
@@ -1134,7 +1246,7 @@ class Runner:
                     continue
                 record = json.loads(path.read_text())
                 try:
-                    validate_candidate(train[sid], contract, record)
+                    validate_candidate(train[sid], contract, record, description_blocks=blocks)
                     if (
                         record["seed"] != self.config["seed"]
                         or record["variant"] != variant

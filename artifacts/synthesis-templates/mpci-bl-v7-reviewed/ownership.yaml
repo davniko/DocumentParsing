@@ -1,7 +1,23 @@
 version: 1
 sources:
-  doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a: {}
-  doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7: {}
+  doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a:
+    description_blocks:
+      source_sha256: 598555f6b87d7a0c54ec20dec3aa2816e99761b38d496b4e10763b2fda6ff81e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED UNPACKED VEHICLE (S)
+
+            KOMATSU TRACK EXCAVATOR'
+          occurrence: 1
+  doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7:
+    description_blocks:
+      source_sha256: ffef8e7bedad04e34f6c357769e41afa995eb63f286187f28de60ac80364260e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: ICE CREAM PRODUCTS
+          occurrence: 1
   doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6:
     bindings:
       anchor:documentPatch.transport.vesselName:
@@ -14,11 +30,39 @@ sources:
       - documentPatch.transport.voyageNumber
       occurrences:
       - text: 0EL75W1TK
+    description_blocks:
+      source_sha256: 2ce7994362a47f78310c5be21499c04172fdba895813b989022e70050d80980c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'ELEVATOR DOOR
+
+            ELEVATOR CONTROL PANEL'
+          occurrence: 1
   doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d:
     bindings:
       agent:auxiliary:cargo:weight_value:
         paths:
         - documentPatch.goodsItemDetails[0].grossWeight.value
+    description_blocks:
+      source_sha256: bda8749e69fb6c79bbd2ea0dd8486e36c0532e99aa141dd353ccc9b4bb56cf42
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED TRACTOR NEW HOLLAND TM 155 SERIAL NUMBER:
+
+            ACM248514
+
+            USED TRACTOR NEW HOLLAND TM 120 SERIAL NUMBER:
+
+            ACM204621
+
+            USED TRACTOR NEW HOLLAND F130 SERIAL NUMBER:
+
+            001060585
+
+            Spare parts for equipment'
+          occurrence: 1
   doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -40,12 +84,19 @@ sources:
         - documentPatch.parties.shipper.contactDetails.contactName
         occurrences:
         - text: MOB:+971507671715
+    description_blocks:
+      source_sha256: caee20e00bbb105e20912d8c7696dc72938767533dd98bea392e82acf72f26b0
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: COMPRESSORS AND ACCESSORIES
+          occurrence: 1
   doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
     render_expressions:
       documentPatch.parties.forwardingAgent.addressLine: '{agent_locality} {agent_street}'
     retire:
-      anchor:documentPatch.parties.shipper.address: Current site and postal components
-        own all address words; intervening PK remains a caption.
+      anchor:documentPatch.parties.shipper.address: Current site and postal components own all address
+        words; intervening PK remains a caption.
     bindings:
       agent:release_contact:email:
         paths:
@@ -62,7 +113,21 @@ sources:
       anchor:documentPatch.route.placeOfDelivery.country:
         paths:
         - documentPatch.route.portOfDischarge.country
-  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811: {}
+    description_blocks:
+      source_sha256: 6ad8b614c98186c0cd75c399663a28424b3bcc2f504adf9ac56f761191a9e454
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: GLASSWOOL INSULATION MATERIALS
+          occurrence: 1
+  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811:
+    description_blocks:
+      source_sha256: 7ac74d9ab8216b575fa8283174b29539be846ab7e0b6708d9ee7e2c072c98ecf
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FRESH APPLES
+          occurrence: 1
   doc_f51eec0160f35a9b4123ee3baf8fcad0c68e89323b8addb1a06358555b65d39a:
     lexical:
     - key: consignee_complete_postal
@@ -73,6 +138,13 @@ sources:
       - text: '26612
 
           95 ALGAMHORY ST. PORT SAID EGYPT (EGYPT)'
+    description_blocks:
+      source_sha256: 881067ef233f0699cf16914fea8ec54eebde0899b4940a4c3697913a60f5dad4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTS FOR CARS
+          occurrence: 1
   doc_01d86535b4e4e74dfe15a62cfb50d6f1c4389dd741cb37ac8ee9c8064b705228:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -91,6 +163,19 @@ sources:
       agent:destination_office_country:
         paths:
         - documentPatch.parties.deliveryAgent.country
+    description_blocks:
+      source_sha256: d76d0c9c7d94e1005e460228dc87ec03374e946d3174a601301bd19d5e7d0c1e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: BRUSH
+          occurrence: 1
+        - text: SPONGE
+          occurrence: 1
+        - text: BODYCARE TOOLS
+          occurrence: 1
+        - text: PLASTIC TAKE NAILS
+          occurrence: 1
   doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
     lexical:
     - key: consignee_complete_name
@@ -104,16 +189,23 @@ sources:
 
           ABD ALBARY )'
     retire:
-      agent:cargo:gross_weight_total: Numeric core is owned by current gross_total;
-        suffix KGS is fixed unit text.
-      agent:cargo_gross_weight:container:0: Current numeric owner supplies the container
-        mass; KGS is fixed unit text.
-      agent:container:0:volume: Current numeric owner supplies the container volume;
-        CBM is fixed unit text.
-      agent:cargo_gross_weight:container:1: Current numeric owner supplies the container
-        mass; KGS is fixed unit text.
-      agent:container:1:volume: Current numeric owner supplies the container volume;
-        CBM is fixed unit text.
+      agent:cargo:gross_weight_total: Numeric core is owned by current gross_total; suffix KGS is fixed
+        unit text.
+      agent:cargo_gross_weight:container:0: Current numeric owner supplies the container mass; KGS is
+        fixed unit text.
+      agent:container:0:volume: Current numeric owner supplies the container volume; CBM is fixed unit
+        text.
+      agent:cargo_gross_weight:container:1: Current numeric owner supplies the container mass; KGS is
+        fixed unit text.
+      agent:container:1:volume: Current numeric owner supplies the container volume; CBM is fixed unit
+        text.
+    description_blocks:
+      source_sha256: 4bacd05796de6d06235a68fe20968e72b42c7e79cad5f22b18459379c81465f7
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: TYRE
+          occurrence: 1
   doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -130,6 +222,13 @@ sources:
       anchor:documentPatch.transport.vesselName:
         occurrences:
         - text: YM WISH
+    description_blocks:
+      source_sha256: 08097205e58d2431bc0acc10d9324c039d65e25e5856114474862223ed6f978c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: GOLD VALVE SET, PUSH TYPE
+          occurrence: 1
   doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
     bindings:
       anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName:
@@ -149,6 +248,13 @@ sources:
         - documentPatch.containerInformation[3].typeCategory
         occurrences:
         - text: 45G1
+    description_blocks:
+      source_sha256: 798ab362e72420646a59d902c7cc37d02c8cc8e461ff2159cdb48d91949f4f57
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PUMP SPRAYER
+          occurrence: 1
   doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
     surfaces:
       agent:shipment:freight_payable_place:
@@ -176,6 +282,13 @@ sources:
         all: true
     constants:
       current:generic_hs_caption: HS CODE
+    description_blocks:
+      source_sha256: 9e94ac7ffe6cae11898ff506cbc64e613bfc4ad0629d4f0866b97136cdad56c3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FROZEN OX OFFALS LIVER
+          occurrence: 2
   doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -183,22 +296,27 @@ sources:
         format: '%d %b %Y'
         case: upper
     retire:
-      anchor:documentPatch.parties.shipper.name: Complete current name owns both source
-        lines; final comma remains outside the identity.
+      anchor:documentPatch.parties.shipper.name: Complete current name owns both source lines; final comma
+        remains outside the identity.
     bindings:
       agent:destination_office_phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    description_blocks:
+      source_sha256: 2989bd768d16142461caa3c329a409e04b58521b14eb3ab43b85f1871dfacce0
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: COMPONENTS FOR AIR CONDITIONS (MOTORS)
+          occurrence: 1
   doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
     retire:
-      agent:total_packages_in_words: Current packages variable owns Ninety Nine in
-        every repeated occurrence; Only remains fixed.
-      anchor:documentPatch.cargoPackages[0].quantity: The 48,111 commodity-sheet count
-        is not the current outer-package quantity; current count owners supply the
-        99-package accounting level.
-      anchor:documentPatch.cargoPackages[0].typeCategory: SHEETS describes the commodity
-        units, not the current package category. The explicit PACKED IN statement
-        owns packaging.
+      agent:total_packages_in_words: Current packages variable owns Ninety Nine in every repeated occurrence;
+        Only remains fixed.
+      anchor:documentPatch.cargoPackages[0].quantity: The 48,111 commodity-sheet count is not the current
+        outer-package quantity; current count owners supply the 99-package accounting level.
+      anchor:documentPatch.cargoPackages[0].typeCategory: SHEETS describes the commodity units, not the
+        current package category. The explicit PACKED IN statement owns packaging.
     bindings:
       agent:cargo_packing_statement:
         kind: package
@@ -240,7 +358,25 @@ sources:
         separator: '; '
         count: 2
         index: 1
-  doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8: {}
+    description_blocks:
+      source_sha256: 0a91a50491fcfd9fc8eeeac6a67357ebb0e2cf38892d56616672cfbf65bd9924
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: '48,111 SHEETS OF ''VCM'' LAMINATED
+
+            GALVANIZEDSTEEL SHEETS WITH PROTECTIVE FILM
+
+            PACKED IN PACKING.'
+          occurrence: 1
+  doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8:
+    description_blocks:
+      source_sha256: f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 3 PCS USED UNIVERSAL 650 TRACTORS /10200 KOS
+          occurrence: 1
   doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
     surfaces:
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
@@ -270,6 +406,13 @@ sources:
         paths:
         - documentPatch.parties.consignee.contactDetails.emailAddresses[0]
         - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+    description_blocks:
+      source_sha256: 183ba7bbbc268978d3a645f3304d3c548f1c4542d29574106a2b6bad96df8252
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: POTASSIUM AMYL XANTHATE
+          occurrence: 1
   doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
     identifier_policies:
       vehicle_vin: fictional_vin_v1
@@ -277,24 +420,30 @@ sources:
     - key: vehicle_vin
       kind: identifier
       value: SALKABB95SA261563
-      meaning: Vehicle identifier printed in the marks block and included in the current
-        goods description; regenerate jointly with vehicle identity.
+      meaning: Vehicle identifier printed in the marks block and included in the current goods description;
+        regenerate jointly with vehicle identity.
       required_literals: []
       occurrences:
       - text: SALKABB95SA261563
         occurrence: 1
         presentation: text
     expressions:
-      documentPatch.goodsItemDetails[0].description: '{vehicle_description}; CHASSIS
-        NUMBER {vehicle_vin}'
+      documentPatch.goodsItemDetails[0].description: '{vehicle_description}; CHASSIS NUMBER {vehicle_vin}'
     retire:
-      agent:cargo:g1:unpackaged_status: Current count owns its numeric core; unpackaged
-        remains the vehicle handling condition.
+      agent:cargo:g1:unpackaged_status: Current count owns its numeric core; unpackaged remains the vehicle
+        handling condition.
     bindings:
       anchor:documentPatch.cargoPackages[0].quantity:
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
         - documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity
+    description_blocks:
+      source_sha256: 5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 01 UNIT NEW RANGE ROVER AUTOBIOGRAPHY
+          occurrence: 1
   doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
     constants:
       agent:cargo:refrigerated_stowage_statement: 'CARGO IS STOWED IN A REFRIGERATED
@@ -322,6 +471,13 @@ sources:
       agent:cargo:refrigerated_stowage_statement:
         paths:
         - documentPatch.goodsItemDetails[0].handlingInstructions[1]
+    description_blocks:
+      source_sha256: f9de6d952731876566c1071717ec0395e1bcf7c3b7fa979a51b42904f9538c58
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FRESH GARLIC
+          occurrence: 1
   doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
     lexical:
     - key: shipper_complete_name
@@ -337,6 +493,13 @@ sources:
         kind: package
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+    description_blocks:
+      source_sha256: ffdf0b80b8e2ac4ce95b69473fbfad4ee8421f4906199c8365e477f47fb21207
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: APPLES
+          occurrence: 1
   doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900:
     surfaces:
       anchor:documentPatch.parties.deliveryAgent.contactDetails.contactName:
@@ -357,10 +520,32 @@ sources:
         occurrences:
         - text: Mr. Shady Farid
     retire:
-      agent:package:0:number_words: Current count owns the complete number words;
-        Only remains fixed.
-  doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0: {}
-  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9: {}
+      agent:package:0:number_words: Current count owns the complete number words; Only remains fixed.
+    description_blocks:
+      source_sha256: 42e0c69ce236f19a982df2fee3863ef18a45965623f5594b77c2156e1c4fd789
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TUBES
+          occurrence: 1
+  doc_00f07a75487674ef887aa5073678ddc6977469af7ebaaeb5fdd6fcf912f59cf0:
+    description_blocks:
+      source_sha256: 40765a298fb46429e6d10c6f6b87cbc7ae16c80764d4c847865dfbc6a6acac4c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED SPARE PARTS FOR CARS &
+
+            EQUIPMENT AND PERSONAL EFFECTS'
+          occurrence: 1
+  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9:
+    description_blocks:
+      source_sha256: 2970b444defbcc398ec9805b14c7136031a6a210108aaaa80f0b7c89d98e87bc
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
     lexical:
     - key: shipper_complete_postal
@@ -416,9 +601,15 @@ sources:
     constants:
       current:generic_goods_caption: 'GOODS:'
     delete:
-      current:old_crop_quality: This source-only cereal qualifier is obsolete when
-        registry sampling chooses a different goods identity; its facts were consolidated
-        in the owned description region.
+      current:old_crop_quality: This source-only cereal qualifier is obsolete when registry sampling chooses
+        a different goods identity; its facts were consolidated in the owned description region.
+    description_blocks:
+      source_sha256: 3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: HYBRID SORGHUM MECCA
+          occurrence: 1
   doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525:
     add:
     - key: customs:importer
@@ -507,17 +698,44 @@ sources:
       - documentPatch.containerInformation[0].typeCategory
       occurrences:
       - text: 40'HQ
-    - key: package:inner:type
+    - key: packing:contained:quantity
+      kind: integer
+      paths: []
+      occurrences:
+      - text: '146'
+        occurrence: 1
+    - key: package:declared:type
       kind: package
       paths:
       - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
       occurrences:
-      - text: BOXES
+      - text: PALLETS
+        occurrence: 1
+      - text: PALLETS
+        occurrence: 2
+      - text: PALLETS
+        occurrence: 3
+      - text: PALLETS
+        occurrence: 4
     surfaces:
       date:shipment:
         date_path: documentPatch.issueDate
         format: '%d-%b-%Y'
         case: upper
+      packing:contained:quantity:
+        contained_quantity:
+          quantity_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+          source_quantity: 146
+          source_unit: BOXES
+    description_blocks:
+      source_sha256: 3588c553d81094f19c14db0fd5de3ff18bd5393f60cd80d4bd739c72420e6252
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'PRINTED CIRCUIT BOARD ASSEMBLY
+
+            (PCBA)'
+          occurrence: 1
   doc_8579256f8379d46f9812543881dc9d2390d26bd92071ffc84f4a310a96eb2711:
     lexical:
     - key: recipient_postal
@@ -529,10 +747,10 @@ sources:
       - text: port said, Egypt , port said ,free Zone
         all: true
     retire:
-      anchor:documentPatch.parties.shipper.address: Crosses new company and postal
-        owners; complete current-label owners supply both.
-      agent:cargo:g1:gross_weight: Current numeric owner covers all three numeric
-        weights; KG remains fixed unit text.
+      anchor:documentPatch.parties.shipper.address: Crosses new company and postal owners; complete current-label
+        owners supply both.
+      agent:cargo:g1:gross_weight: Current numeric owner covers all three numeric weights; KG remains
+        fixed unit text.
     bindings:
       agent:customs:acid_reference:
         occurrences:
@@ -554,6 +772,13 @@ sources:
         expression: '{documentPatch.route.transshipmentPort.name}'
       anchor:documentPatch.placeOfIssue.name:
         expression: '{documentPatch.placeOfIssue.name}'
+    description_blocks:
+      source_sha256: ba129bff72e9f31a4153452569f7c4052dbba82a648d2623c3530af013de029c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: stock lot plastic rolls and adhesive.
+          occurrence: 1
   doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397:
     bindings:
       anchor:documentPatch.parties.shipper.address:
@@ -574,11 +799,31 @@ sources:
     surfaces:
       anchor:documentPatch.transport.vesselName:
         expression: '{documentPatch.transport.vesselName} {documentPatch.transport.voyageNumber}'
+    description_blocks:
+      source_sha256: 374c96017985829c09fe76b55b4201560e07933815c41cb00f407a060adfb61c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'POLYESTER YARN DTY 100D/144F
+
+            SIM SD RW AA GRADE
+
+            POLYESTER YARN DTY 150D/288F
+
+            SIM SD RW AA GRADE'
+          occurrence: 1
   doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d:
     retire:
-      agent:cargo:gross_weight: Full wrapper superseded by its exact typed numeric/count
-        core. Retain immutable unit/framing bytes; any printed package noun is independently
-        bound to the same current package category.
+      agent:cargo:gross_weight: Full wrapper superseded by its exact typed numeric/count core. Retain
+        immutable unit/framing bytes; any printed package noun is independently bound to the same current
+        package category.
+    description_blocks:
+      source_sha256: 34147a9056aa07ad74e2abd65372b530b8eb846d8605e1a9d4bf576b794a7937
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTS FOR CARS & EQUIPMENT AND PERSONAL EFFECTS
+          occurrence: 1
   doc_1f166783ba401a283cf52679d7f13894c143e245992cc4bab1eb9cea384db720:
     lexical: []
     bindings:
@@ -590,12 +835,30 @@ sources:
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
         kind: package
-  doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f: {}
+    description_blocks:
+      source_sha256: 655bdceaac038b7c86d696146f56f9fb957ff338322a9d28319de44279184642
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'ROYAL PURPLE OIL, SYNFILM 46,
+
+            HIGH PERFORMANCE LUBRICATION,
+
+            THRUST CHAMBER, (5 GALLON) P/N: 10841'
+          occurrence: 1
+  doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f:
+    description_blocks:
+      source_sha256: bf5d62d247afbfee8b4a73dbce716172ede9d0d2091bf5e46c96f262629ef7ed
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED AUTO SPARE PARTS
+          occurrence: 1
   doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85:
     retire:
-      agent:package_words:0: Full wrapper superseded by its exact typed numeric/count
-        core. Retain immutable unit/framing bytes; any printed package noun is independently
-        bound to the same current package category.
+      agent:package_words:0: Full wrapper superseded by its exact typed numeric/count core. Retain immutable
+        unit/framing bytes; any printed package noun is independently bound to the same current package
+        category.
     add:
     - key: reviewed:word_total:package_noun
       paths:
@@ -613,6 +876,15 @@ sources:
           occurrence: 1
         - text: 554-705-850
           occurrence: 2
+    description_blocks:
+      source_sha256: 89fd2bbc09d374fab2c95c320968d106d6f1ea475d83472f2ff481ecad62523d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'POY 250D/48F DOPE DYED BLACK AA
+
+            GRADE'
+          occurrence: 1
   doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
     bindings:
       agent:reference:government:ein:0:
@@ -625,11 +897,18 @@ sources:
         occurrences:
         - text: UNITED STATES
           occurrence: 2
+    description_blocks:
+      source_sha256: 82d2d5c61f8ab8cf0c307d8b1fbd7af33d720b40c51ab037abc995c689b41b6d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: INSHELL WALNUTS
+          occurrence: 1
   doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
     retire:
-      agent:cargo:package_quantity_words: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
+      agent:cargo:package_quantity_words: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
     bindings:
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
         paths:
@@ -637,9 +916,22 @@ sources:
         - documentPatch.parties.consignee.contactDetails.phoneNumbers[1]
     surfaces:
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
-        expression: '{documentPatch.parties.consignee.contactDetails.phoneNumbers[0]}
-          / {documentPatch.parties.consignee.contactDetails.phoneNumbers[1]}'
-  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9: {}
+        expression: '{documentPatch.parties.consignee.contactDetails.phoneNumbers[0]} / {documentPatch.parties.consignee.contactDetails.phoneNumbers[1]}'
+    description_blocks:
+      source_sha256: ea2f131a479d0598fae2d1cafc6720352250ad5fa8b2a569f362650d9fd63de0
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: MATERIAL FOR BAGS
+          occurrence: 1
+  doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9:
+    description_blocks:
+      source_sha256: 7a7a1f4c7aedd71abf46f31247291090d441f2d021153bd841b4adbf92b061c4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PRIME PINE KD LUMBER
+          occurrence: 1
   doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
     lexical:
     - key: lexical_00
@@ -652,10 +944,9 @@ sources:
     tare_baselines:
       agent:tare_weight_summary:
         kg: '18660'
-        reason: The summary caption Weight in Kgs Total:5CONTAINER(S) immediately
-          precedes the row51069.166 18660 250,000 under Cargo/Tare/Measurement columns.
-          Historical numeric sidecar explicitly certifies18660 as total tare for the
-          five-container topology.
+        reason: The summary caption Weight in Kgs Total:5CONTAINER(S) immediately precedes the row51069.166
+          18660 250,000 under Cargo/Tare/Measurement columns. Historical numeric sidecar explicitly certifies18660
+          as total tare for the five-container topology.
         sourceSha256: bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690
     tare_owners:
       agent:tare_weight_summary:
@@ -664,8 +955,29 @@ sources:
       - 2
       - 3
       - 4
-  doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910: {}
-  doc_36d2930f49cb3d8d79acd2968fea98a5b6e279ce3b37c7752660333cab609b47: {}
+    description_blocks:
+      source_sha256: bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 6070 PIECES TIRES
+          occurrence: 1
+  doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910:
+    description_blocks:
+      source_sha256: acbe909c8f6705461e1ac204e2f284f1b4e31a37f3fdc0f4073f8085d43188ba
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
+  doc_36d2930f49cb3d8d79acd2968fea98a5b6e279ce3b37c7752660333cab609b47:
+    description_blocks:
+      source_sha256: 8b44d49203520ed94ee31ecc912a39d7cc5a0b8489c05bb68e2b06399c1cffde
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Petroleum Equipment
+          occurrence: 1
   doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635:
     lexical:
     - key: invoice_party_name
@@ -677,6 +989,13 @@ sources:
         occurrence: 1
       - text: SE WIRING SYSTEMS EGYPT S
         occurrence: 1
+    description_blocks:
+      source_sha256: 7fbac22528efb2442c556df4d0c311fb31545ad2d6b7af40541303d7d62d2d8d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_3d0d37486449c3c49624bfe731eeb881647ea6763af6b75719ecf9fce89aa70c:
     bindings:
       anchor:documentPatch.parties.consignee.address:
@@ -701,6 +1020,13 @@ sources:
       agent:precarriage_reference:
         paths:
         - documentPatch.route.placeOfReceipt.name
+    description_blocks:
+      source_sha256: 6484a30e9acfc228927b10bdae80e9d7b2b5bbff7c3f301346ee24e53bc83731
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SPARE PART MOTORCYCLE TWO WHEELER
+          occurrence: 1
   doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
     bindings:
       agent:container_equipment_type:
@@ -708,6 +1034,13 @@ sources:
         - documentPatch.containerInformation[0].sizeCategory
         - documentPatch.containerInformation[0].typeCategory
         kind: equipment
+    description_blocks:
+      source_sha256: a656513c940ae9c83bc01bb7a9972cabf1bd160192208626c5e881ef01ffea98
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED MACHINES TAPE AND ACCESSORIES
+          occurrence: 1
   doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66:
     bindings:
       anchor:documentPatch.parties.consignee.name:
@@ -734,16 +1067,21 @@ sources:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]
     lexical: []
+    description_blocks:
+      source_sha256: c9b909e8cfbb9010eb320a61bbbfd5c635b13bac366d57213679fec7079821bb
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: AUTO PARTS
+          occurrence: 1
   doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf:
     retire:
-      agent:delivery_agent_contact_fragment: Synthetic-only consolidation prints the
-        complete sampled email within the delivery-agent block; replace its prefix
-        and continuation marker as one region.
-      agent:delivery_agent_email: The remote suffix belongs to the same email, now
-        printed completely within the owning party block.
-      agent:delivery_agent_extension: Complete phone[1] owner includes the extension
-        and slash; fictional sampled phone may omit that extension without leaving
-        stale digits.
+      agent:delivery_agent_contact_fragment: Synthetic-only consolidation prints the complete sampled
+        email within the delivery-agent block; replace its prefix and continuation marker as one region.
+      agent:delivery_agent_email: The remote suffix belongs to the same email, now printed completely
+        within the owning party block.
+      agent:delivery_agent_extension: Complete phone[1] owner includes the extension and slash; fictional
+        sampled phone may omit that extension without leaving stale digits.
     add:
     - key: reviewed:delivery_agent:whole_email
       paths:
@@ -772,14 +1110,20 @@ sources:
         date_path: documentPatch.issueDate
         format: '%d/%m/%Y'
     delete:
-      reviewed:delivery_agent:obsolete_email_suffix: The complete sampled email is
-        now printed inside the delivery-agent block, with no continuation marker or
-        stale source domain.
+      reviewed:delivery_agent:obsolete_email_suffix: The complete sampled email is now printed inside
+        the delivery-agent block, with no continuation marker or stale source domain.
     lexical: []
     bindings:
       anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
         occurrences:
         - text: +20 3 4814950 / EXT 112
+          occurrence: 1
+    description_blocks:
+      source_sha256: ab9c44fb7b8c3b3f73ad5e4ff16be63de536e7e7fa9c00d229306898662bfa40
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SPARE PARTS FOR GAS COOKER
           occurrence: 1
   doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885:
     bindings:
@@ -818,7 +1162,33 @@ sources:
 
           ELAAM ST FROM ELGAIAA ST. MANSOURA 35511, EGYPT'
         occurrence: 1
-  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565: {}
+    description_blocks:
+      source_sha256: 256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: '6 FORKLIFT AND ACCESSORIES
+
+            Model no 2ET4000 SN: FN549564
+
+            Model no 2ET4000 SN: FN549565
+
+            Model no 2ET3500 SN: FN535626
+
+            Model NO 2ET4000 SN: FN537896
+
+            Model No 8FBCHU25 SN: 64061
+
+            Model no 8FBCHU25 SN:64095'
+          occurrence: 1
+  doc_370e140ab048444ffa726b600122bb613edfd93a808e6db6da68e16f9301d565:
+    description_blocks:
+      source_sha256: 098f6bafe9639889561e7e70d1395c8927ff978b8b7d54969eb9bc908694a8c4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: CAR SPARE PARTS
+          occurrence: 1
   doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b:
     surfaces:
       agent:cargo:g1:qty_mt:
@@ -828,6 +1198,13 @@ sources:
       agent:shipment_agent:phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    description_blocks:
+      source_sha256: a3989cf20bf8d98734650dc0792c5e41ba5377b8e9e22a895d993c8f55762091
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PP HP 5101RC
+          occurrence: 1
   doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04:
     lexical:
     - key: lexical_00
@@ -842,9 +1219,8 @@ sources:
     tare_baselines:
       agent:tare_weight_value:
         kg: '3840'
-        reason: The same mass block prints gross16.493,200KGS and tare3.840KGS, establishing
-          period grouping and comma decimal notation. Historical numeric sidecar independently
-          records3840kg.
+        reason: The same mass block prints gross16.493,200KGS and tare3.840KGS, establishing period grouping
+          and comma decimal notation. Historical numeric sidecar independently records3840kg.
         sourceSha256: e0548a5a6ddcafbc25e5e24d6e33812939e4927d250a68b4ee329c138a0ba41a
     bindings:
       agent:shipper_export_identifier:
@@ -856,20 +1232,87 @@ sources:
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[3]:
         paths:
         - documentPatch.parties.consignee.contactDetails.phoneNumbers[1]
-  doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815: {}
-  doc_6826506aea2aa821aec274d2197753bd8d933e1ff004825ed06968a4b9416d2d: {}
-  doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1: {}
-  doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745: {}
-  doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4: {}
+    description_blocks:
+      source_sha256: e0548a5a6ddcafbc25e5e24d6e33812939e4927d250a68b4ee329c138a0ba41a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DENIM FABRIC
+          occurrence: 1
+  doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815:
+    description_blocks:
+      source_sha256: 6f9ffebae25866cc5956370be47502cf7813f5116d5ea13102217638cef35c09
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'DIAM2 44X24.5 - SEA
+
+            / 40028510 - DIAM2.'
+          occurrence: 1
+  doc_6826506aea2aa821aec274d2197753bd8d933e1ff004825ed06968a4b9416d2d:
+    description_blocks:
+      source_sha256: 317ef874e8f54c2a5b240cd1562f3daa41e9dcda9a30146eafdf91826f56388b
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: OPTICAL FILM
+          occurrence: 1
+  doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1:
+    description_blocks:
+      source_sha256: e202215c8464f8626f16eb7b9a633eecae267fc493cf5a02991639beabe9abd3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
+  doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745:
+    description_blocks:
+      source_sha256: b1fda9a2cfa8ebc2c9abbdef33f5851692d90888a6700ec0297dd84eba59dfbd
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
+  doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4:
+    description_blocks:
+      source_sha256: 65f4d7c92ec38315452d7bc03f6ea1cabd7c04e29385a99d5aa85eb66bb1491f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 100% POLYESTER FDY 300D/288F BRIGHT TRILOBAL AA GRADE
+          occurrence: 1
   doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31:
     tare_baselines:
       agent:tare_weight:
         kg: '3900'
-        reason: Tara:3,900 is next to Total Weight:22,993.80, demonstrating comma
-          grouping and decimal point. Historical numeric sidecar independently records3900kg.
+        reason: Tara:3,900 is next to Total Weight:22,993.80, demonstrating comma grouping and decimal
+          point. Historical numeric sidecar independently records3900kg.
         sourceSha256: 798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4
-  doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b: {}
-  doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93: {}
+    description_blocks:
+      source_sha256: 798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'S.J 95%
+
+            COT 30/1 + 5% SPANDEX'
+          occurrence: 1
+  doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b:
+    description_blocks:
+      source_sha256: b607c8c9ceb69674f69f549b9ae60252231d71d892b9c09d936aef22b40b7f81
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
+  doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93:
+    description_blocks:
+      source_sha256: cc1a9dc19107f7a29277a03a3f598a31141801e4bfee1b118f9b049e789df283
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9:
     bindings:
       anchor:documentPatch.parties.shipper.name:
@@ -915,12 +1358,10 @@ sources:
       - text: CABLES
         occurrence: 5
     retire:
-      anchor:documentPatch.parties.consignee.city: The remote continuation is absent
-        from the current party-block-only target and is removed only in future synthetic
-        rendering.
-      anchor:documentPatch.parties.consignee.country: The remote continuation is absent
-        from the current party-block-only target and is removed only in future synthetic
-        rendering.
+      anchor:documentPatch.parties.consignee.city: The remote continuation is absent from the current
+        party-block-only target and is removed only in future synthetic rendering.
+      anchor:documentPatch.parties.consignee.country: The remote continuation is absent from the current
+        party-block-only target and is removed only in future synthetic rendering.
     add:
     - key: reviewed:consignee:obsolete_marker
       kind: other_text
@@ -961,19 +1402,25 @@ sources:
       - text: STREET 4668 RIYADH, SAUDI ARABIA
         occurrence: 2
     delete:
-      reviewed:consignee:obsolete_marker: Remove continuation marker after its remote
-        unlabelled postal continuation is removed in synthetic rendering.
-      reviewed:consignee:obsolete_continuation: Do not retain unlabelled source locality
-        outside the generated consignee postal owner; current real OCR and target
-        are unchanged.
-      reviewed:represented_party:obsolete_marker: Remove dangling marker; registration
-        identifier and its caption remain.
-      reviewed:notify:obsolete_marker: Keep the VAT caption/value but remove its obsolete
-        continuation marker.
-      reviewed:notify:duplicate_address_head: The complete notify postal address has
-        one coupled owner in its party block; remove remote duplicated head.
-      reviewed:notify:duplicate_address_tail: The complete notify postal address has
-        one coupled owner in its party block; remove remote duplicated tail.
+      reviewed:consignee:obsolete_marker: Remove continuation marker after its remote unlabelled postal
+        continuation is removed in synthetic rendering.
+      reviewed:consignee:obsolete_continuation: Do not retain unlabelled source locality outside the generated
+        consignee postal owner; current real OCR and target are unchanged.
+      reviewed:represented_party:obsolete_marker: Remove dangling marker; registration identifier and
+        its caption remain.
+      reviewed:notify:obsolete_marker: Keep the VAT caption/value but remove its obsolete continuation
+        marker.
+      reviewed:notify:duplicate_address_head: The complete notify postal address has one coupled owner
+        in its party block; remove remote duplicated head.
+      reviewed:notify:duplicate_address_tail: The complete notify postal address has one coupled owner
+        in its party block; remove remote duplicated tail.
+    description_blocks:
+      source_sha256: 1bb37e6a9678a5cb206a714c736bdce281ae6920c41d37cd178f40648707b3ed
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: CABLES
+          occurrence: 5
   doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0:
     tare_owners:
       agent:cargo:container_measurement:tare_0:
@@ -984,24 +1431,29 @@ sources:
     tare_baselines:
       agent:cargo:container_measurement:tare_0:
         kg: '2230'
-        reason: The first cargo row prints KGS 26028.000, KGS 2230 and CBM 25.000
-          before BMOU1278180; the pinned source template explicitly identifies this
-          as container_measurement:tare_0. Its equipment owner is the first container,
-          not the cargo group index.
+        reason: The first cargo row prints KGS 26028.000, KGS 2230 and CBM 25.000 before BMOU1278180;
+          the pinned source template explicitly identifies this as container_measurement:tare_0. Its equipment
+          owner is the first container, not the cargo group index.
         sourceSha256: 4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1
       agent:cargo:total_tare:
         kg: '4460'
-        reason: 'Under Weight in Kgs: Total: 2 CONTAINER(S), OCR prints 51862.000
-          gross, 4460 tare and 50.000 volume. The aggregate owns both listed containers.
-          Its exact difference from the sole printed row tare, 4460 - 2230 = 2230
-          kg, establishes the one missing private row without adding a public target
-          or an OCR occurrence.'
+        reason: 'Under Weight in Kgs: Total: 2 CONTAINER(S), OCR prints 51862.000 gross, 4460 tare and
+          50.000 volume. The aggregate owns both listed containers. Its exact difference from the sole
+          printed row tare, 4460 - 2230 = 2230 kg, establishes the one missing private row without adding
+          a public target or an OCR occurrence.'
         sourceSha256: 4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1
     bindings:
       anchor:documentPatch.cargoPackages[1].typeCategory:
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
         kind: package
+    description_blocks:
+      source_sha256: 4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: COATING STEEL COILS
+          occurrence: 1
   doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f:
     lexical:
     - key: lexical_00
@@ -1042,16 +1494,44 @@ sources:
         occurrence: 2
       - text: SE WIRING SYSTEMS EGYPT S
         occurrence: 3
-  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40: {}
+    description_blocks:
+      source_sha256: 7b2b4add62d54c14901a4010b7704c3fb270dc387f269561da9d3aec4a482afa
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
+  doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40:
+    description_blocks:
+      source_sha256: f27e2a240eadc40e4a3b92dae5fdc0bc8032d77bf70a3c47d9da398e50c4ace7
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PVC TAPE
+          occurrence: 1
   doc_926e04e23df588fc33da547ec1a11fe2c98fe5030c911d770651f56662f78d3f:
     bindings:
       anchor:documentPatch.billOfLadingNumber:
         paths: []
+    description_blocks:
+      source_sha256: 7665b6937098c458e3c81dfbc5f720ddc86a08539c0de1a9a0fc27876c2c6371
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: WATER HEATERS
+          occurrence: 1
   doc_92da45e47852cb1c6b8c7dedd3228be6b5a00293109a478929134e32452981c8:
     bindings:
       agent:customs:foreign_exporter_country:
         occurrences:
         - text: UNITED STATES
+          occurrence: 1
+    description_blocks:
+      source_sha256: e6bc5677d8a1273d173e238e8ce862e6e80bc1bf880e2b1874a53a95f5d3c476
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: OILFIELD EQUIPMENT
           occurrence: 1
   doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3:
     bindings:
@@ -1063,16 +1543,30 @@ sources:
         occurrences:
         - text: EGYPT
           occurrence: 4
+    description_blocks:
+      source_sha256: 2304e41162ccb2b8e890547de28199016cd3ba8038496922cb25feff594f2a8d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_a65cb58e57acb4f70bc4227864cf653d982426479fe9da2cbe21329f717e100c:
     lexical: []
     surfaces:
       anchor:documentPatch.transport.vesselName:
         expression: '{documentPatch.transport.vesselName}'
+    description_blocks:
+      source_sha256: cedc5076fa5360154444e4e05e33b87bce317c0266ca2bacf4908396725ecebb
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: ACCESSORIES STOCK
+          occurrence: 1
   doc_a7ede7d8228b5677c41f6f8e8ba9a724eec8e7fc87984d802b5653166c58f149:
     retire:
-      agent:derived:package_words: Full wrapper superseded by its exact typed numeric/count
-        core. Retain immutable unit/framing bytes; any printed package noun is independently
-        bound to the same current package category.
+      agent:derived:package_words: Full wrapper superseded by its exact typed numeric/count core. Retain
+        immutable unit/framing bytes; any printed package noun is independently bound to the same current
+        package category.
     add:
     - key: reviewed:word_total:package_noun
       paths:
@@ -1084,12 +1578,26 @@ sources:
     surfaces:
       anchor:documentPatch.transport.voyageNumber:
         expression: '{documentPatch.transport.voyageNumber}'
+    description_blocks:
+      source_sha256: 82194284b9e4baaf776709efc24f8657e43202bd0e2efbacb39867c5602f0a6a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SANITARY WARE
+          occurrence: 1
   doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348:
     bindings:
       agent:source:delivery_agent:fax:
         paths: []
         occurrences:
         - text: '{+}20 2 2480 10 11'
+          occurrence: 1
+    description_blocks:
+      source_sha256: 484b6e8908f017aa325ad134563dfea312010f4a66b3db5787848d7018f80eb3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: EQUIPMENT USED AND SECOND HAND SPARE PARTS FOR CARS
           occurrence: 1
   doc_b9603de62c87f239f82034a16c6da13a35efa97235c4921da5164c8e1efa4fe5:
     lexical:
@@ -1102,12 +1610,47 @@ sources:
 
           ZIP CODE: 42538'
         occurrence: 1
-  doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8: {}
+    description_blocks:
+      source_sha256: 6c81c0f00349f7a3f41fd4a57ec49ec0cf4aa3d4d1b75fd092d3da7c9036de75
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: WHITE LINER
+          occurrence: 1
+        - text: NAVY BLUE LINER
+          occurrence: 1
+        - text: DENIM FABRIC
+          occurrence: 1
+        - text: PULL BEAR BOX
+          occurrence: 1
+        - text: PACKAGING BAG
+          occurrence: 1
+        - text: PACKAGING BAG
+          occurrence: 2
+        - text: GRAY FELT
+          occurrence: 1
+        - text: WHITE INTERLINING
+          occurrence: 1
+  doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8:
+    description_blocks:
+      source_sha256: 2d39c25a2cbec59e4d23153de792e1b1072fbfaa3614e238c23fdbf71574bf86
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FRESH AVOCADOS
+          occurrence: 1
   doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc:
     lexical: []
     surfaces:
       anchor:documentPatch.containers[0].sealNumbers[1]:
         expression: '{documentPatch.containerInformation[0].sealNumbers[1]}'
+    description_blocks:
+      source_sha256: 0d08e624b43a386ebb1c6729958b6d0164ef9a8d6de1e486bd565fb03acd6129
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FROZEN OX OFFALS LIVER (HALAL)
+          occurrence: 1
   doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
     bindings:
       anchor:documentPatch.forwardingAndExportReferences[0]:
@@ -1138,15 +1681,29 @@ sources:
     tare_baselines:
       agent:container:0:tare_weight:value:
         kg: '2280'
-        reason: Explicit container MEDU3157130 tare caption prints 2,280 kgs; comma
-          thousands notation. Historical numeric sidecar independently records2280kg.
+        reason: Explicit container MEDU3157130 tare caption prints 2,280 kgs; comma thousands notation.
+          Historical numeric sidecar independently records2280kg.
         sourceSha256: 2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003
+    description_blocks:
+      source_sha256: 2d0ce947be5791f4353b1204c558fd35e23f88b6b393778a32f82b4e55953003
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SCAFFOLDING ACCESSORIES
+          occurrence: 1
   doc_c5b964bcc181979b9267cc25f2cb6df4de953cce340ef21b1851231be3cf76e6:
     bindings:
       anchor:documentPatch.route.portOfLoading.country:
         paths:
         - documentPatch.route.portOfLoading.country
         - documentPatch.freight.paymentPlace.country
+    description_blocks:
+      source_sha256: 9a33244ca1e0a945d48d1ea5205d752e192c448d700bd0d63074551ae05424a8
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DTY 70D/48F HIM SD RW AA GRADE
+          occurrence: 1
   doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd:
     lexical:
     - key: lexical_00
@@ -1182,6 +1739,13 @@ sources:
     surfaces:
       anchor:documentPatch.parties.shipper.name:
         expression: '{documentPatch.parties.shipper.name}'
+    description_blocks:
+      source_sha256: 9ccc66ee4d2b0cdb5813f4c61ecea630a50263955f733f11fba0a5deffc3f0da
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: LED OUTDOOR LIGHTING COMPONENTS
+          occurrence: 1
   doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770:
     lexical:
     - key: lexical_00
@@ -1194,96 +1758,105 @@ sources:
           Cairo, EG Egypt'
         occurrence: 1
     retire:
-      agent:aggregate_container_receipt_suffix: CNTRS is a fixed equipment noun following
-        the independently owned 7 x 40HC receipt, not another size/type receipt.
+      agent:aggregate_container_receipt_suffix: CNTRS is a fixed equipment noun following the independently
+        owned 7 x 40HC receipt, not another size/type receipt.
     tare_baselines:
       agent:container:0:tare_weight:
         kg: '3850'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
       agent:container:1:tare_weight:
         kg: '3700'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
       agent:container:2:tare_weight:
         kg: '3860'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
       agent:container:3:tare_weight:
         kg: '3820'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
       agent:container:4:tare_weight:
         kg: '3820'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
       agent:container:5:tare_weight:
         kg: '3820'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
       agent:container:6:tare_weight:
         kg: '3820'
-        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted
-          row puts this comma-grouped value between its exact container ID and40HC
-          equipment. The same rows print gross weights such as1,861.12 KG and4,085.574
-          KG, proving comma grouping and decimal point. Pinned historical numeric
+        reason: Source column heading is 'Container No TareW. Cnttp Seal'. Each quoted row puts this comma-grouped
+          value between its exact container ID and40HC equipment. The same rows print gross weights such
+          as1,861.12 KG and4,085.574 KG, proving comma grouping and decimal point. Pinned historical numeric
           sidecar independently records integer kilograms and tare ownership per container.
         sourceSha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+    description_blocks:
+      source_sha256: 0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'LOCOMOTIVE SPARE
+
+            PARTS'
+          occurrence: 1
   doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6:
     retire:
-      agent:aux:container:0:gross_weight: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
-      agent:aux:container:1:gross_weight: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
-      agent:aux:container:2:gross_weight: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
-      agent:aux:container:3:gross_weight: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
-      agent:aux:container:4:gross_weight: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
-      agent:aux:container:5:gross_weight: Full wrapper superseded by its exact typed
-        numeric/count core. Retain immutable unit/framing bytes; any printed package
-        noun is independently bound to the same current package category.
+      agent:aux:container:0:gross_weight: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
+      agent:aux:container:1:gross_weight: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
+      agent:aux:container:2:gross_weight: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
+      agent:aux:container:3:gross_weight: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
+      agent:aux:container:4:gross_weight: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
+      agent:aux:container:5:gross_weight: Full wrapper superseded by its exact typed numeric/count core.
+        Retain immutable unit/framing bytes; any printed package noun is independently bound to the same
+        current package category.
+    description_blocks:
+      source_sha256: 5b7dbb62bfdb9a148200d9b54cff5cb9c80a37f41c31506b4d62d32967f403ee
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836:
     retire:
-      agent:weight:container:0: Full wrapper superseded by its exact typed numeric/count
-        core. Retain immutable unit/framing bytes; any printed package noun is independently
-        bound to the same current package category.
-      agent:weight:container:1: Full wrapper superseded by its exact typed numeric/count
-        core. Retain immutable unit/framing bytes; any printed package noun is independently
-        bound to the same current package category.
-      agent:weight:container:2: Full wrapper superseded by its exact typed numeric/count
-        core. Retain immutable unit/framing bytes; any printed package noun is independently
-        bound to the same current package category.
+      agent:weight:container:0: Full wrapper superseded by its exact typed numeric/count core. Retain
+        immutable unit/framing bytes; any printed package noun is independently bound to the same current
+        package category.
+      agent:weight:container:1: Full wrapper superseded by its exact typed numeric/count core. Retain
+        immutable unit/framing bytes; any printed package noun is independently bound to the same current
+        package category.
+      agent:weight:container:2: Full wrapper superseded by its exact typed numeric/count core. Retain
+        immutable unit/framing bytes; any printed package noun is independently bound to the same current
+        package category.
     lexical:
     - key: invoice_party_name
       kind: name
@@ -1301,6 +1874,13 @@ sources:
         occurrence: 2
       - text: SE WIRING SYSTEMS EGYPT S
         occurrence: 3
+    description_blocks:
+      source_sha256: b4875191dea2869b159f6eeaca2f82b02a1e39c924042938b3e9040fb7d901a1
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f:
     lexical:
     - key: lexical_00
@@ -1316,12 +1896,26 @@ sources:
 
           00001 Egypt'
         occurrence: 1
+    description_blocks:
+      source_sha256: dc073748c007dd89cd63248329d2cd5fc936ac2bc591eb6f5ddd9008cc5f52f6
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DISMANTLED CAT966F SN 1SL01980
+          occurrence: 1
   doc_367913879a2bbc9c2a4acb8b4a16b7d657ae54ca64beccfa1079fd8133d9ff83:
     surfaces:
       anchor:documentPatch.transport.vesselName:
         expression: '{documentPatch.transport.vesselName}'
       anchor:documentPatch.transport.voyageNumber:
         expression: '{documentPatch.transport.voyageNumber}'
+    description_blocks:
+      source_sha256: 31e3f5c4337a2c6b7449734c65a4840751709eb76045955c9dc446f368246ef1
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FLOUR MILL MACHINERY EQUIPMENTS
+          occurrence: 1
   doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
     bindings:
       anchor:documentPatch.transport.vesselName:
@@ -1335,7 +1929,21 @@ sources:
     surfaces:
       anchor:documentPatch.transport.vesselName:
         expression: '{documentPatch.transport.vesselName}/{documentPatch.transport.voyageNumber}'
-  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0: {}
+    description_blocks:
+      source_sha256: 69f87c8a6fe9915ee338594c43ad76ba95d73a4b9836714b27e938bc565445a4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Metal Ceiling Tiles
+          occurrence: 1
+  doc_eed2a09c8a00867456b1b46247e02d903d1e87b68b82425b937146cd0aaae1b0:
+    description_blocks:
+      source_sha256: 98f7227feefc79e9374883d6b98da1a2fcd9e7d1c5e0dbcf3025d254a9ad8d94
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: EDIBLE WATERMELON SEEDS
+          occurrence: 1
   doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc:
     bindings:
       anchor:documentPatch.parties.shipper.name:
@@ -1362,6 +1970,13 @@ sources:
 
           11835, EGYPT'
         occurrence: 1
+    description_blocks:
+      source_sha256: 6d0a0c32b5c909318ee794a1642164f57c75955046d264d5e1731fad7d53010e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: WHITISH SESAME SEEDS FOR CONSUMPTION
+          occurrence: 1
   doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
     bindings:
       agent:operational:equipment_receipt:
@@ -1392,10 +2007,10 @@ sources:
       reviewed:delivery:caption:
         expression: FINAL PLACE OF DELIVERY
     retire:
-      agent:equipment:iso_summary: Replace the source-only opaque summary with an
-        explicitly owned counted equipment receipt for the four printed containers.
-      agent:document:mobile_id: Move this explicit star-marked shipper contact into
-        the primary shipper block.
+      agent:equipment:iso_summary: Replace the source-only opaque summary with an explicitly owned counted
+        equipment receipt for the four printed containers.
+      agent:document:mobile_id: Move this explicit star-marked shipper contact into the primary shipper
+        block.
     add:
     - key: reviewed:equipment_receipt:iso_summary
       kind: equipment
@@ -1430,16 +2045,23 @@ sources:
       - text: POINT AND COUNTRY OF ORIGIN OF GOODS
         occurrence: 1
     delete:
-      reviewed:shipper:remote_mobile: Exact retired continuation moved to its directly
-        owned party block in synthetic input only.
+      reviewed:shipper:remote_mobile: Exact retired continuation moved to its directly owned party block
+        in synthetic input only.
+    description_blocks:
+      source_sha256: cd77894d30ff14bb07ac4911a1a806da587daaaee259a2ce4e25a102db232b60
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: KITCHEN WARE
+          occurrence: 1
   doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71:
     dependent_text:
     - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
       source: 21 DAYS DEMURRAGE FREETIME IN ALEXANDRIA
       expression: 21 DAYS DEMURRAGE FREETIME IN {documentPatch.route.portOfDischarge.name}
     retire:
-      agent:demurrage_freetime: One exact whole-clause owner synchronizes public handling
-        labels with sampled route locations.
+      agent:demurrage_freetime: One exact whole-clause owner synchronizes public handling labels with
+        sampled route locations.
     add:
     - key: reviewed:route_owned_handling
       paths:
@@ -1458,15 +2080,21 @@ sources:
         paths:
         - documentPatch.transport.vesselName
         - documentPatch.transport.voyageNumber
+    description_blocks:
+      source_sha256: 51736dd68184092af4c6b1c2ecb49315275709544c06e1354ae31af4a7b66d13
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: TEXTILE PAINT
+          occurrence: 1
   doc_678e2007fc5f522280e74c9937c7569cabc18930d4f6df9a5851c5a065450e49:
     dependent_text:
     - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
       source: CARGO IN TRANSIT TO KABARI EFS BONDED WAREHOUSE
-      expression: CARGO IN TRANSIT TO {documentPatch.route.placeOfDelivery.name} BONDED
-        WAREHOUSE
+      expression: CARGO IN TRANSIT TO {documentPatch.route.placeOfDelivery.name} BONDED WAREHOUSE
     retire:
-      anchor:documentPatch.route.finalDestination.name: One exact whole-clause owner
-        synchronizes public handling labels with sampled route locations.
+      anchor:documentPatch.route.finalDestination.name: One exact whole-clause owner synchronizes public
+        handling labels with sampled route locations.
     add:
     - key: reviewed:route_owned_handling
       paths:
@@ -1480,6 +2108,13 @@ sources:
         expression: '{documentPatch.goodsItemDetails[0].handlingInstructions[0]}'
       agent:transport_voyage_surface:
         expression: V.{documentPatch.transport.voyageNumber}
+    description_blocks:
+      source_sha256: 8eb03349d1ca566f41ec3fb1450ed8110afa869b6ee1ede257938f49d824b55a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DOXYCYCLINE HYCLATE EP8.0 /BP2014
+          occurrence: 1
   doc_67b1e5a1803b8c7a266988ad23e39a23a182996a721cb5a6791abc892c07d3da:
     lexical:
     - key: destination_office_postal
@@ -1497,17 +2132,38 @@ sources:
       agent:destination_office_phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    description_blocks:
+      source_sha256: 3e7bef66521d4c326ff9b7fe029c097fd2d77c5850ea48a8dcf14604083d9310
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FILTER
+          occurrence: 1
   doc_6e9952c654c60496917c25ab27e11153539616ec8dd2ba01c480f28de75eac99:
     bindings:
       agent:pre_carriage_location:
         paths:
         - documentPatch.route.placeOfReceipt.name
+    description_blocks:
+      source_sha256: 2c260bb63d69cbe3f6f65ddda9fdcace6d23c434e9edd02524fa5acefed2e920
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: HYDRAULIC MOTORS
+          occurrence: 1
   doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b:
     bindings:
       anchor:documentPatch.route.portOfLoading.name:
         paths:
         - documentPatch.route.portOfLoading.name
         - documentPatch.placeOfIssue.name
+    description_blocks:
+      source_sha256: 7836ac0c4dcafc85c5adaaf5bf3a0e9dcae748899d1ca3f67a244ccbcdc7854d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLASTIC CAPS
+          occurrence: 1
   doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114:
     lexical:
     - key: lexical_00
@@ -1525,17 +2181,16 @@ sources:
           ALEXANDRIA EGYPT'
         occurrence: 2
     retire:
-      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]: All
-        printed delivery contacts are consolidated under one exact contact-line owner.
-      agent:delivery_agent_phone_1_residual: Old residual binding mixed two phones,
-        extension and email prefix; replace with explicitly bound complete contact
-        lines.
-      agent:delivery_agent_domain: Remote email suffix is removed after complete email
-        is printed within its delivery-agent block.
-      agent:consignee_contact_phone: Current target assigns this phone to notify;
-        print explicitly inside notify block rather than use a remote continuation.
-      agent:consignee_contact_email: Current target assigns this email to notify;
-        print explicitly inside notify block rather than use a remote continuation.
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]: All printed delivery
+        contacts are consolidated under one exact contact-line owner.
+      agent:delivery_agent_phone_1_residual: Old residual binding mixed two phones, extension and email
+        prefix; replace with explicitly bound complete contact lines.
+      agent:delivery_agent_domain: Remote email suffix is removed after complete email is printed within
+        its delivery-agent block.
+      agent:consignee_contact_phone: Current target assigns this phone to notify; print explicitly inside
+        notify block rather than use a remote continuation.
+      agent:consignee_contact_email: Current target assigns this email to notify; print explicitly inside
+        notify block rather than use a remote continuation.
     add:
     - key: reviewed:delivery_agent:complete_contacts
       kind: other_text
@@ -1591,23 +2246,38 @@ sources:
 
           EMAIL: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}'
     delete:
-      reviewed:delivery_agent:obsolete_email_suffix: Complete sampled email is printed
-        in the delivery-agent block; no old domain remains.
-      reviewed:consignee:obsolete_marker: There are no consignee contact targets to
-        continue; remove obsolete marker without adding contacts to this party.
-      reviewed:notify:obsolete_remote_contacts: Both current contact targets are now
-        explicitly printed in the notify-party block; remove their exact remote source
-        continuation.
-  doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0: {}
+      reviewed:delivery_agent:obsolete_email_suffix: Complete sampled email is printed in the delivery-agent
+        block; no old domain remains.
+      reviewed:consignee:obsolete_marker: There are no consignee contact targets to continue; remove obsolete
+        marker without adding contacts to this party.
+      reviewed:notify:obsolete_remote_contacts: Both current contact targets are now explicitly printed
+        in the notify-party block; remove their exact remote source continuation.
+    description_blocks:
+      source_sha256: 03f4651c952622a33e5426e3aff8415955c07197918aa0f5bbaa7b20f7ad900a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: POF SHRINK FILM
+          occurrence: 1
+  doc_719e3e96aec901d2d5389d60c84b3d969d31901db22010d6e07099da4228a2c0:
+    description_blocks:
+      source_sha256: fce3b5d6ad59b7f7aaf7a7ba9135b8c6d69c0aa48fe4809c80c6319239aa5e0d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'TREATED SPECIAL TEXTILE BAGS FOR FOOD & BAKERY. PASTRY TOOLS, PASTRY BAG EXPORT, PB_
+            THERMOHAUSER EXPORT PASTRY BAG WITH REINFORCED TIP, SEAM AND HANGER
+
+            **NON STACKABLE**'
+          occurrence: 1
   doc_16d6794496661ad5b9c0fca18f91d4eb1a80f62a4def2aa44239ef9908082d8f:
     retire:
-      agent:destination_office_city: Duplicate locality after destination-office contacts;
-        complete postal owner already contains the locality.
-      agent:destination_office_country: Duplicate country after destination-office
-        contacts; complete postal owner already supports the country target.
-      agent:total_container_package_count: Split composite receipt into immutable
-        ONE Container(s) (topology retained), exact mutable written package count
-        and typed package noun; no full-wrapper overwrite.
+      agent:destination_office_city: Duplicate locality after destination-office contacts; complete postal
+        owner already contains the locality.
+      agent:destination_office_country: Duplicate country after destination-office contacts; complete
+        postal owner already supports the country target.
+      agent:total_container_package_count: Split composite receipt into immutable ONE Container(s) (topology
+        retained), exact mutable written package count and typed package noun; no full-wrapper overwrite.
     add:
     - key: reviewed:destination_office:duplicate_locality
       kind: other_text
@@ -1625,8 +2295,8 @@ sources:
       - text: Package(s)
         occurrence: 1
     delete:
-      reviewed:destination_office:duplicate_locality: Remove only the duplicated locality/country
-        pair after the contacts; preserve complete postal region, phone and email.
+      reviewed:destination_office:duplicate_locality: Remove only the duplicated locality/country pair
+        after the contacts; preserve complete postal region, phone and email.
     bindings:
       agent:destination_office_email:
         paths:
@@ -1634,6 +2304,13 @@ sources:
       agent:destination_office_phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    description_blocks:
+      source_sha256: 59eaf2f68a72bbdd956ff8721380df8fc4852219c35832f4e5e379547c36b57c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: CLOTHES ACCESSORIES
+          occurrence: 1
   doc_04f208b154bf4f6d561f7619d3c74bba3c2f4f27d1bff5909923e2f44525b82b:
     lexical:
     - key: shipper_postal
@@ -1647,24 +2324,38 @@ sources:
 
           TELANGANA INDIA'
     retire:
-      agent:cargo:g1:gross_weight_total: Exact numeric core now owned by shipment_gross;
-        leave the adjacent KGS unit literal outside that numeric span.
+      agent:cargo:g1:gross_weight_total: Exact numeric core now owned by shipment_gross; leave the adjacent
+        KGS unit literal outside that numeric span.
+    description_blocks:
+      source_sha256: 7ad672a719a51ae2e8f02b6c629e649460244b0cb7650fb4b1194a646bf99842
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES AND TUBES
+          occurrence: 1
   doc_3cd9f3a3f445afd9804cd5d60bed28b687bee502bc8c4857bfe0f957658e02e8:
     tare_baselines:
       agent:cargo:tare_weight:value:
         kg: '3890'
-        reason: Explicit container INKU6736541 tare caption prints3,890kgs; comma
-          thousands notation. Historical numeric sidecar independently records3890kg.
+        reason: Explicit container INKU6736541 tare caption prints3,890kgs; comma thousands notation.
+          Historical numeric sidecar independently records3890kg.
         sourceSha256: a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e
+    description_blocks:
+      source_sha256: a3a21f88bc9c633d006d1641209441e79c949c2be0565e318ad5c7a2e4a2ce1e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: GLUCOSE MONITOR SYSTEM
+          occurrence: 1
   doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671:
     lexical: []
     retire:
-      agent:notify_email: Synthetic-only contact consolidation replaces this remote
-        fragment with a directly owned party contact region.
-      agent:notify_phone: Synthetic-only contact consolidation replaces this remote
-        fragment with a directly owned party contact region.
-      agent:contact_person: Synthetic-only contact consolidation replaces this remote
-        fragment with a directly owned party contact region.
+      agent:notify_email: Synthetic-only contact consolidation replaces this remote fragment with a directly
+        owned party contact region.
+      agent:notify_phone: Synthetic-only contact consolidation replaces this remote fragment with a directly
+        owned party contact region.
+      agent:contact_person: Synthetic-only contact consolidation replaces this remote fragment with a
+        directly owned party contact region.
     add:
     - key: reviewed:word_total:package_noun
       paths:
@@ -1704,9 +2395,23 @@ sources:
 
           CONTACT: {documentPatch.parties.notifyParties[0].contactDetails.contactName}'
     delete:
-      reviewed:notify:remote_contacts: Exact source-owned continuation fragment retired
-        after its value is placed directly in the designated party block.
-  doc_6700b15cb07e7c68b3486b20b240e9045dc112e898d9f6d28c104b1c92be64f2: {}
+      reviewed:notify:remote_contacts: Exact source-owned continuation fragment retired after its value
+        is placed directly in the designated party block.
+    description_blocks:
+      source_sha256: e804d2a389306dee3a3a645905fc9c1c275bdc7082e14b15aea04fcf65bcbcf4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PINE SAWN TIMBER,
+          occurrence: 1
+  doc_6700b15cb07e7c68b3486b20b240e9045dc112e898d9f6d28c104b1c92be64f2:
+    description_blocks:
+      source_sha256: e70e44a397133de3c19e6138ad32c7361dfc3bcae64ab79d900113e247c8f684
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SACHET PACKING MACHINE
+          occurrence: 1
   doc_b2ba22f257b0c7b650dc8bc2909623d2c5001842b497ede54098c83f01b548c2:
     lexical: []
     surfaces:
@@ -1723,8 +2428,22 @@ sources:
         paths:
         - documentPatch.route.portOfDischarge.name
         - documentPatch.route.portOfDischarge.country
+    description_blocks:
+      source_sha256: 29b4fc513d244694cf190a152a26611f7cbe40da12b6bd1a8835d35f6cb23c4a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: HONDA ENGINES
+          occurrence: 1
   doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6:
     lexical: []
+    description_blocks:
+      source_sha256: 8d17fc23800a4f27b097b1917aae47c69d150b4ca4fb601038cf9d7f8c5395d6
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: COMPRESSORS
+          occurrence: 1
   doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27:
     lexical:
     - key: lexical_00
@@ -1741,19 +2460,18 @@ sources:
     dependent_text:
     - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
       source: CONSOLIDATED CARGO IN TRANSIT TO MINA AL BASAL BONDED WAREHOUSE - ONWARDS
-      expression: CONSOLIDATED CARGO IN TRANSIT TO {documentPatch.route.finalDestination.name}
-        BONDED WAREHOUSE - ONWARDS
+      expression: CONSOLIDATED CARGO IN TRANSIT TO {documentPatch.route.finalDestination.name} BONDED
+        WAREHOUSE - ONWARDS
     - path: documentPatch.goodsItemDetails[0].handlingInstructions[1]
-      source: INLAND CARRIAGE FROM ALEXANDRIA TO MINA AL BASAL BONDED WAREHOUSE IS
-        ARRANGED BY THE CONSIGNEE FOR HIS EXCLUSIVE ACCOUNT AND RISK.
-      expression: INLAND CARRIAGE FROM {documentPatch.route.portOfDischarge.name}
-        TO {documentPatch.route.finalDestination.name} BONDED WAREHOUSE IS ARRANGED
-        BY THE CONSIGNEE FOR HIS EXCLUSIVE ACCOUNT AND RISK.
+      source: INLAND CARRIAGE FROM ALEXANDRIA TO MINA AL BASAL BONDED WAREHOUSE IS ARRANGED BY THE CONSIGNEE
+        FOR HIS EXCLUSIVE ACCOUNT AND RISK.
+      expression: INLAND CARRIAGE FROM {documentPatch.route.portOfDischarge.name} TO {documentPatch.route.finalDestination.name}
+        BONDED WAREHOUSE IS ARRANGED BY THE CONSIGNEE FOR HIS EXCLUSIVE ACCOUNT AND RISK.
     retire:
-      agent:cargo:0:consolidated_status: One exact whole-clause owner synchronizes
-        public handling labels with sampled route locations.
-      agent:operational:bonded_warehouse_clause: One exact whole-clause owner synchronizes
-        public handling labels with sampled route locations.
+      agent:cargo:0:consolidated_status: One exact whole-clause owner synchronizes public handling labels
+        with sampled route locations.
+      agent:operational:bonded_warehouse_clause: One exact whole-clause owner synchronizes public handling
+        labels with sampled route locations.
     add:
     - key: reviewed:route_owned_handling
       paths:
@@ -1788,6 +2506,13 @@ sources:
       agent:consignee_phone:
         paths:
         - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+    description_blocks:
+      source_sha256: 24cc85a2e2925b8bdaeff52e529418f9e2ba6f9d906df813b629060c9513fefb
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: VALVE PARTS
+          occurrence: 1
   doc_8690d0c8cafd9da230841edd9d3c042852ff02eabae0fc9215e43fe79e4610c1:
     bindings:
       anchor:documentPatch.parties.shipper.city:
@@ -1848,10 +2573,10 @@ sources:
           KH'
         occurrence: 2
     retire:
-      agent:party:agent:0:mobile: Synthetic-only contact consolidation replaces this
-        remote fragment with a directly owned party contact region.
-      agent:party:agent:0:email: Synthetic-only contact consolidation replaces this
-        remote fragment with a directly owned party contact region.
+      agent:party:agent:0:mobile: Synthetic-only contact consolidation replaces this remote fragment with
+        a directly owned party contact region.
+      agent:party:agent:0:email: Synthetic-only contact consolidation replaces this remote fragment with
+        a directly owned party contact region.
     add:
     - key: reviewed:shipper:direct_phone
       kind: other_text
@@ -1895,13 +2620,19 @@ sources:
 
           EMAIL: {documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]}'
     delete:
-      reviewed:consignee:retired_continuation_marker: Exact source-owned continuation
-        fragment retired after its value is placed directly in the designated party
-        block.
-      reviewed:shipper:remote_phone: Exact source-owned continuation fragment retired
+      reviewed:consignee:retired_continuation_marker: Exact source-owned continuation fragment retired
         after its value is placed directly in the designated party block.
-      reviewed:notify:remote_email: Exact source-owned continuation fragment retired
-        after its value is placed directly in the designated party block.
+      reviewed:shipper:remote_phone: Exact source-owned continuation fragment retired after its value
+        is placed directly in the designated party block.
+      reviewed:notify:remote_email: Exact source-owned continuation fragment retired after its value is
+        placed directly in the designated party block.
+    description_blocks:
+      source_sha256: d10c1fc4c706ed7494774fafb61a97402e2bc1871f796539609fc922714f6ce3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: NEW AGR CULTURAL SPARE PARTS
+          occurrence: 1
   doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524:
     lexical: []
     bindings:
@@ -1912,13 +2643,19 @@ sources:
     surfaces:
       anchor:documentPatch.route.portOfLoading.name:
         expression: '{documentPatch.route.portOfLoading.name}, {documentPatch.route.portOfLoading.country}'
+    description_blocks:
+      source_sha256: 1a07ee4fe7f0237fead7a5a26fa5e8c96142a8567e174d082718c0d4f10af196
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SPARE PARTS FOR TWO & THREE-WHEELERS
+          occurrence: 1
   doc_981329be1e276077740da76d2092e7a6623b2d7455197b87f34dd5b84798fd96:
     retire:
-      agent:shipper:province: Synthetic-only full postal consolidation puts the complete
-        new address in the shipper block; no independent remote province remains.
-      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]: Rebound
-        into explicit TEL line at the former in-party SH> marker; the complete old
-        remote continuation is removed.
+      agent:shipper:province: Synthetic-only full postal consolidation puts the complete new address in
+        the shipper block; no independent remote province remains.
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]: Rebound into explicit TEL line
+        at the former in-party SH> marker; the complete old remote continuation is removed.
     bindings:
       anchor:documentPatch.parties.shipper.country:
         occurrences:
@@ -1952,9 +2689,9 @@ sources:
 
           TEL: {documentPatch.parties.shipper.contactDetails.phoneNumbers[0]}'
     delete:
-      reviewed:shipper:obsolete_continuation: The current complete address and phone
-        are printed inside their shipper block by declared lexical/phone owners; remove
-        the exact obsolete continuation, not unrelated goods text.
+      reviewed:shipper:obsolete_continuation: The current complete address and phone are printed inside
+        their shipper block by declared lexical/phone owners; remove the exact obsolete continuation,
+        not unrelated goods text.
     lexical:
     - key: lexical_00
       kind: postal
@@ -1967,49 +2704,54 @@ sources:
 
           BEIYUANSTREET,YIWU,'
         occurrence: 1
+    description_blocks:
+      source_sha256: f8446cf568e8fb4056adac871cfbffa969c65161e929318eff99874b55eec132
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: CURTAIN ACCESSORIES PLASTIC RING
+          occurrence: 1
+        - text: CURTAIN ROD
+          occurrence: 1
+        - text: CURTAIN TRACK
+          occurrence: 1
   doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9:
     tare_baselines:
       agent:source:tare_weight_value:container:0:
         kg: '2180'
-        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
-          The historical numeric sidecar records each tare as integer kilograms. There
-          are six printed tare owners for eight containers; no owner is invented for
-          the final two.
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS. The historical
+          numeric sidecar records each tare as integer kilograms. There are six printed tare owners for
+          eight containers; no owner is invented for the final two.
         sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
       agent:source:tare_weight_value:container:1:
         kg: '2160'
-        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
-          The historical numeric sidecar records each tare as integer kilograms. There
-          are six printed tare owners for eight containers; no owner is invented for
-          the final two.
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS. The historical
+          numeric sidecar records each tare as integer kilograms. There are six printed tare owners for
+          eight containers; no owner is invented for the final two.
         sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
       agent:source:tare_weight_value:container:2:
         kg: '2280'
-        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
-          The historical numeric sidecar records each tare as integer kilograms. There
-          are six printed tare owners for eight containers; no owner is invented for
-          the final two.
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS. The historical
+          numeric sidecar records each tare as integer kilograms. There are six printed tare owners for
+          eight containers; no owner is invented for the final two.
         sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
       agent:source:tare_weight_value:container:3:
         kg: '2200'
-        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
-          The historical numeric sidecar records each tare as integer kilograms. There
-          are six printed tare owners for eight containers; no owner is invented for
-          the final two.
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS. The historical
+          numeric sidecar records each tare as integer kilograms. There are six printed tare owners for
+          eight containers; no owner is invented for the final two.
         sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
       agent:source:tare_weight_value:container:4:
         kg: '2100'
-        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
-          The historical numeric sidecar records each tare as integer kilograms. There
-          are six printed tare owners for eight containers; no owner is invented for
-          the final two.
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS. The historical
+          numeric sidecar records each tare as integer kilograms. There are six printed tare owners for
+          eight containers; no owner is invented for the final two.
         sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
       agent:source:tare_weight_value:container:5:
         kg: '2100'
-        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS.
-          The historical numeric sidecar records each tare as integer kilograms. There
-          are six printed tare owners for eight containers; no owner is invented for
-          the final two.
+        reason: European dot-grouping is demonstrated by nearby NET WEIGHT:25.000,00KGS. The historical
+          numeric sidecar records each tare as integer kilograms. There are six printed tare owners for
+          eight containers; no owner is invented for the final two.
         sourceSha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
     bindings:
       agent:derived:equipment_receipt_summary:
@@ -2031,7 +2773,21 @@ sources:
         - documentPatch.containerInformation[7].sizeCategory
         - documentPatch.containerInformation[7].typeCategory
         kind: equipment
-  doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870: {}
+    description_blocks:
+      source_sha256: 33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SODA ASH DENSE
+          occurrence: 1
+  doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870:
+    description_blocks:
+      source_sha256: 01e4a47afdb57d1ee80da0f43c3c22e8ffa25d5627c2f3802864e5b8b61876bb
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: GLASS LIDS
+          occurrence: 1
   doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8:
     lexical:
     - key: lexical_00
@@ -2039,8 +2795,7 @@ sources:
       paths:
       - documentPatch.parties.shipper.addressLine
       occurrences:
-      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-293/A/A1 RD NO. 2, BANJARA
-          HILLS HY-
+      - text: 'UNIT NO. 201 2ND FLR, APURUPA PCH COMPLEX 8-2-293/A/A1 RD NO. 2, BANJARA HILLS HY-
 
           BAD-34 TELANGANA- INDIA'
         occurrence: 1
@@ -2059,6 +2814,15 @@ sources:
       agent:carrier:destination_office_phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+    description_blocks:
+      source_sha256: 8cd779e26f3f2a46860e71927321457dbff82f767f3a5b94674615b27883c7da
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'PLSTONE BRAND TYRES,TUBES (TRICYCLE TYRE 3
+
+            WHEELERS TYRES)'
+          occurrence: 1
   doc_a286601bd0cd0b6bcad8a7fd3236a84daff2e9120ec343912ee08488df35eca1:
     tare_owners:
       agent:cargo:container_tare:1:
@@ -2095,6 +2859,13 @@ sources:
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
     lexical: []
+    description_blocks:
+      source_sha256: b47ab9d783e1b1bb16b95c04b35f8d3f97d5fcc27f4d6f13951bf34405f14970
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PAPER
+          occurrence: 1
   doc_058d92bbc08fce97814b33b71d9e5f9700d8a83c595180477b131fb5cafcb8e1:
     bindings:
       anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
@@ -2103,12 +2874,32 @@ sources:
 
             02 2269 3193'
           all: true
+      anchor:documentPatch.cargoPackages[0].quantity:
+        paths: []
+      anchor:documentPatch.cargoPackages[0].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        occurrences:
+        - text: PACKAGES
+          occurrence: 1
+        - text: PACKAGES
+          occurrence: 2
+        - text: PACKAGES
+          occurrence: 3
+        - text: PACKAGES
+          occurrence: 4
+        - text: PACKAGES
+          occurrence: 5
+        - text: PACKAGES
+          occurrence: 6
     retire:
-      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
-      agent:cargo:gross_weight: Reviewed current scalar owners cover every mutable
-        value in this wrapper; its intervening newline or printed unit stays literal.
+      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its own
+        current category owner.
+      agent:cargo:gross_weight: Reviewed current scalar owners cover every mutable value in this wrapper;
+        its intervening newline or printed unit stays literal.
+      agent:package:source_declared_count: Replaced by declared shipment quantity/type owners; no fixed
+        accounting echoes.
     lexical:
     - key: v004
       kind: postal
@@ -2123,6 +2914,19 @@ sources:
 
           Egypt'
         all: true
+    description_blocks:
+      source_sha256: 87c0bde4ae8092109f3dc8a78ed7ad86aa3e0816f521c3311a679c8992792c76
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Beverage base energy drink for Volt yellow
+          occurrence: 1
+    surfaces:
+      anchor:documentPatch.cargoPackages[0].quantity:
+        contained_quantity:
+          quantity_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+          source_quantity: 600
+          source_unit: BOXES
   doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137:
     lexical:
     - key: lexical_00
@@ -2147,11 +2951,17 @@ sources:
 
           6th of October city Giza Egypt'
         occurrence: 2
+    description_blocks:
+      source_sha256: 71f16b98ad850d4e4ab266f45a283b9994bc729bf6bc23ea68fa50977009d103
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_069cc83033b015f717fe7f0c1fda884d194b9a30c6347caf2099c49ce83f44b9:
     delete:
-      anchor:documentPatch.cargoGroups[0].additionalInformation[0]: 'Synthetic-only
-        deletion of source-only WOOD PACKAGE: NOT APPLICABLE, avoiding a fixed wood
-        qualifier on sampled packaging.'
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]: 'Synthetic-only deletion of source-only
+        WOOD PACKAGE: NOT APPLICABLE, avoiding a fixed wood qualifier on sampled packaging.'
     bindings:
       agent:cargo_classification_reference:
         paths:
@@ -2190,11 +3000,18 @@ sources:
 
           ELHOUSSIEN - CAIRO - EGYPT'
         occurrence: 2
+    description_blocks:
+      source_sha256: 458ed52a26aa467e051680ca56fe53d80bab44d666bc00bc0a37bc7e60bffd49
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PALM NUT
+          occurrence: 1
   doc_06a7c8b2f289f5deace4b575749753bd83b282c555490c0cdcdaca136a308999:
     retire:
-      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede the old wrapper; static
+        punctuation/unit/order framing remains in source. Package noun, when present, has its own current
+        category owner.
     bindings:
       anchor:documentPatch.route.placeOfReceipt.name:
         paths:
@@ -2230,12 +3047,25 @@ sources:
 
           TEE AND UNION'
         occurrence: 1
+    description_blocks:
+      source_sha256: aea3ee62ff65ce74bb7ec833349ff30c0dc6eb2802140d24a0e70df157853a13
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: '1012322163DXH DEGREE 1
+
+            ELBOW,REDUCER,SOCKE
+
+            T,EQUAL TEE,REDUCING
+
+            TEE AND UNION'
+          occurrence: 1
   doc_0b217756017ed8653fa475f636dcf34d06a69bb186db4eea838c5b3e3b3825be:
     retire:
-      agent:derived:cargo:0:total_gross_weight: One printed container and one shipment
-        total; replace redundant double dependency with same current scalar owner.
-      agent:derived:cargo:0:total_volume: One printed container and one shipment total;
-        replace redundant double dependency with same current scalar owner.
+      agent:derived:cargo:0:total_gross_weight: One printed container and one shipment total; replace
+        redundant double dependency with same current scalar owner.
+      agent:derived:cargo:0:total_volume: One printed container and one shipment total; replace redundant
+        double dependency with same current scalar owner.
     add:
     - key: reviewed:agent:derived:cargo:0:total_gross_weight
       kind: decimal_measurement
@@ -2252,13 +3082,20 @@ sources:
       - text: '5.832'
         occurrence: 2
     lexical: []
+    description_blocks:
+      source_sha256: 0c5020d0811b8aaf800d672fe9e8a88065ae440566bf7d736434c16f81504f78
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: EXTINGUISHANT CONTROL PANEL
+          occurrence: 1
   doc_0befdb08de58ec60dc09801036b6ed2e25baeffb764fa745e5aef236c3420462:
     retire:
-      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
-      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Retire
-        old remote email before replacing the exact remote fragment.
+      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its own
+        current category owner.
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Retire old remote email
+        before replacing the exact remote fragment.
     add:
     - key: reviewed:remote_consignee_contact
       kind: other_text
@@ -2269,9 +3106,16 @@ sources:
           AMRELGAMMAL257@GMAIL.COM'
         occurrence: 1
     delete:
-      reviewed:remote_consignee_contact: Synthetic-only removal of remote contact
-        outside primary party block; current target footprint stays unchanged.
+      reviewed:remote_consignee_contact: Synthetic-only removal of remote contact outside primary party
+        block; current target footprint stays unchanged.
     lexical: []
+    description_blocks:
+      source_sha256: fa1dff8faa45c5fc1613fd21e2e2f8d4684956886a368d9421d6a9b0f7d6b250
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: ALUMINUM BOTTLE
+          occurrence: 1
   doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef:
     bindings:
       agent:exporter_id_formatted:
@@ -2279,12 +3123,11 @@ sources:
         - text: IT02822620981
           occurrence: 1
     delete:
-      review:exporter_registration_format_prefix: Source-only IT-02 classification
-        wrapper is removed when the exporter registration is sampled independently
-        of the original Italian registration system.
+      review:exporter_registration_format_prefix: Source-only IT-02 classification wrapper is removed
+        when the exporter registration is sampled independently of the original Italian registration system.
     retire:
-      agent:cargo:0:description_surface: Two reviewed product fragments and two explicit
-        HS owners replace the old composite; parentheses and dash stay literal.
+      agent:cargo:0:description_surface: Two reviewed product fragments and two explicit HS owners replace
+        the old composite; parentheses and dash stay literal.
     add:
     - key: review:exporter_registration_format_prefix
       kind: other_text
@@ -2307,11 +3150,20 @@ sources:
       - text: 7202 9300
         all: true
     lexical: []
+    description_blocks:
+      source_sha256: f73e09e31f4cc931234a8bec872f51c1252bac0be0393cc9246dbc1965e4167d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: LOW CARBON FERRO CHROME
+          occurrence: 1
+        - text: '- FERRO NIOBIUM'
+          occurrence: 1
   doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d:
     retire:
-      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.address: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its own
+        current category owner.
     bindings:
       agent:source:signature_date:
         kind: date
@@ -2342,25 +3194,46 @@ sources:
 
           EGYPT'
         occurrence: 1
+    description_blocks:
+      source_sha256: ccef14fc48ce7af66b7b8c003a117215c2802ab92ddc2b0f589fa6c3bb16fda2
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: z-8311M.90
+          occurrence: 1
   doc_13280227dd27777efe2aea6d700e0a3e6ad755cd1e9c7ac54736596f6deb3cd1:
     tare_baselines:
       agent:equipment:container_tare_weight:0:
         kg: '3820'
         sourceSha256: 4ec0d41b8f869d799b3680459b2c71b1a00eb9d30e2ae76606d1193de3537fd3
-        reason: Reviewed container table TareW. 3,820 next to a 40HC identifier; comma
-          groups kilograms, not decimal kilograms.
+        reason: Reviewed container table TareW. 3,820 next to a 40HC identifier; comma groups kilograms,
+          not decimal kilograms.
     lexical: []
+    description_blocks:
+      source_sha256: 4ec0d41b8f869d799b3680459b2c71b1a00eb9d30e2ae76606d1193de3537fd3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DISMANTLED CAT 966G SN CAT966GLANZ00633
+          occurrence: 1
   doc_16abe25cb6edd3204f3604db97367f4eef1576d58eef9870ac46a7d878bb2e82:
     bindings:
       agent:consignee_contact_phone:
         paths:
         - documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
     retire:
-      agent:total_gross_weight: Reviewed current scalar owners cover every mutable
-        value in this wrapper; its intervening newline or printed unit stays literal.
-      agent:total_volume: Reviewed current scalar owners cover every mutable value
-        in this wrapper; its intervening newline or printed unit stays literal.
+      agent:total_gross_weight: Reviewed current scalar owners cover every mutable value in this wrapper;
+        its intervening newline or printed unit stays literal.
+      agent:total_volume: Reviewed current scalar owners cover every mutable value in this wrapper; its
+        intervening newline or printed unit stays literal.
     lexical: []
+    description_blocks:
+      source_sha256: 8b429417c5e4ce4e6ebda7dd32b5c50331156b692b3cd67f1fdef489c4cf6519
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: TYRES AND TUBES
+          occurrence: 1
   doc_1b796092eb37f8f7fc1b236f83728dcbb396bc73f5e521e82fdfb39256054448:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -2369,6 +3242,21 @@ sources:
         - '%b.%d, %Y'
         case: upper
     lexical: []
+    description_blocks:
+      source_sha256: 504bb7b373924c76c49e69e2f35e993c1b195c10622d2533b0abd72bdcc5f4ca
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'COMP ASS''Y 6VSX14 AD GAMMA ECV
+
+            HANON P/NO CA500EDFAC04P
+
+            CASE & PARTS ASSY-HTR
+
+            HANON P/NO'
+          occurrence: 1
+        - text: DH140EDFAB05P,DH140EDFAD05P,DH140EDFBB05P
+          occurrence: 1
   doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c:
     bindings:
       anchor:documentPatch.route.placeOfReceipt.country:
@@ -2412,24 +3300,30 @@ sources:
       - text: PHONE:+2 01287158637
         occurrence: 1
     retire:
-      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replace
-        omitted split remote email with exact synthetic-only deletion, including its
-        caption.
-      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Current
-        gold excludes remote phone. Remove this synthetic-only contact and its caption
-        together.
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replace omitted split remote
+        email with exact synthetic-only deletion, including its caption.
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Current gold excludes remote
+        phone. Remove this synthetic-only contact and its caption together.
     delete:
-      review:removed_remote_contacts: Source-only obsolete party contacts removed
-        from new synthetic documents; originals remain unchanged.
+      review:removed_remote_contacts: Source-only obsolete party contacts removed from new synthetic documents;
+        originals remain unchanged.
     postal_country_owners:
       documentPatch.parties.shipper.country:
       - lexical_00_01
     lexical: []
+    description_blocks:
+      source_sha256: 7853ce5a82d5d0337de10810a3ca542e7cfc4772006754acd74accf85ef3d1b7
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: '0034001125A WM DRAIN PUMPS
+
+            0020806022U WM DRAIN PUMPS'
+          occurrence: 1
   doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146:
     retire:
-      agent:package_count_words: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
+      agent:package_count_words: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
     add:
     - key: wrapper_noun:agent:package_count_words
       kind: package
@@ -2443,13 +3337,19 @@ sources:
         paths:
         - documentPatch.goodsItemDetails[0].description
     lexical: []
+    description_blocks:
+      source_sha256: 1743f1de09e2a1d5383a24d31aa17f4b7e1a1a18513acf26f0da19feb49d0e74
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'PSN: LIGHTERS'
+          occurrence: 1
   doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031:
     retire:
-      agent:package_quantity_in_words: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Complete synthetic-only
-        case-range removal owns these old serial fragments.
+      agent:package_quantity_in_words: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Complete synthetic-only case-range removal
+        owns these old serial fragments.
     add:
     - key: review:obsolete_case_serial_ranges
       kind: other_text
@@ -2475,11 +3375,22 @@ sources:
         paths:
         - documentPatch.parties.shipper.name
     delete:
-      review:obsolete_case_serial_ranges: Original case serial ranges enumerate
-        210 plus 260 cartons, fixing the old total of 470. Omit the complete
-        unlabelled case-range block from variable-quantity synthetic descendants;
-        preserve real source OCR and the independently rendered shipper/origin marks.
+      review:obsolete_case_serial_ranges: Original case serial ranges enumerate 210 plus 260 cartons,
+        fixing the old total of 470. Omit the complete unlabelled case-range block from variable-quantity
+        synthetic descendants; preserve real source OCR and the independently rendered shipper/origin
+        marks.
     lexical: []
+    description_blocks:
+      source_sha256: 607321707fc88e78341d5c6e63381dfd5718752f611eca8e623e79e1955a1ca3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'NE 20/1 100% USA COTTON
+
+            COMBED COMPACT CONTAMINATION
+
+            FREE YARN FOR KNITTING'
+          occurrence: 1
   doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50:
     bindings:
       anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
@@ -2498,6 +3409,13 @@ sources:
 
           T OF SUN CITY, CAIRO, EGYPT'
         occurrence: 1
+    description_blocks:
+      source_sha256: 82a30944810c66e173e1fe7b7cf22c5ec8e4f826922b4a6a0b6915457755b93c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FURNITURE SPARE PARTS
+          occurrence: 1
   doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834:
     bindings:
       anchor:documentPatch.parties.consignee.country:
@@ -2566,12 +3484,26 @@ sources:
 
           RD NO. 2, BANJARA HILLS HY-BAD-34 TELANGANA- INDIA'
         all: true
+    description_blocks:
+      source_sha256: aab451125e83415dbd1ce2491c61c65a65fcb93987719b4805778fd558764235
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES & TUBES
+          occurrence: 1
   doc_2c12ef6c4701d8225a5d6a6389bb7f9fb3818331316c30b0733f1359ca978fe1:
     lexical: []
+    description_blocks:
+      source_sha256: a58a0c586d14cbf99c851a99e4a3a5e9c8d55a62f4f69fe9af00d6a837e32a47
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: STATIONERY ITEMS
+          occurrence: 1
   doc_2d4248d34bf6ee2e021c5c31fc673c292811c026164c762208e18b6fc5c945eb:
     retire:
-      agent:operational:consignee_account: The exact whole handling-clause owner
-        now includes the unchanged consignee-account phrase.
+      agent:operational:consignee_account: The exact whole handling-clause owner now includes the unchanged
+        consignee-account phrase.
     dependent_text:
     - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
       source: CARGO TRANSIT TO ISMAILIA FREE ZONE ON CNEE'S ACCOUNT
@@ -2606,6 +3538,15 @@ sources:
       reviewed:route_owned_handling:
         expression: '{documentPatch.goodsItemDetails[0].handlingInstructions[0]}'
     lexical: []
+    description_blocks:
+      source_sha256: 71a5fc61ec4474cd8b5af32e8cea887765a93e744ab44684f60338a170df2855
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PVC COMPOUNDS
+          occurrence: 1
+        - text: FILTER
+          occurrence: 1
   doc_2dbf5b7fc6901b8fe7f0bd5d9fea3cd703b6a7c0166fd4954422107b339e5e35:
     surfaces:
       anchor:documentPatch.transport.vesselName:
@@ -2613,13 +3554,35 @@ sources:
       anchor:documentPatch.transport.voyageNumber:
         expression: '{documentPatch.transport.voyageNumber}'
     lexical: []
+    description_blocks:
+      source_sha256: ce4cb00de67ecd149e9d7622d001332b23be783af97c49c3ebf181f535e43739
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: BOLIVYA CHAIR FRAME( LOOKS LIKE WALNUTKUBIK)
+          occurrence: 1
+        - text: FABRIC
+          occurrence: 1
+        - text: SLIDING WARDROBE RAIL SYSTEM (SAMPLE)
+          occurrence: 1
   doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8:
     delete:
-      agent:party:consignee:0:contact_location: Synthetic-only omission of the dangling
-        CHICAGO, IL after the Cairo consignee phone. It has no current target and
-        unresolved source role; do not infer or silently assign it to either party
-        or receipt. Original source and explicit CHICAGO RAMP receipt are preserved.
+      agent:party:consignee:0:contact_location: Synthetic-only omission of the dangling CHICAGO, IL after
+        the Cairo consignee phone. It has no current target and unresolved source role; do not infer or
+        silently assign it to either party or receipt. Original source and explicit CHICAGO RAMP receipt
+        are preserved.
     lexical: []
+    description_blocks:
+      source_sha256: eb8c1d6f8448dbdb39c4bda33ab3d75148c9426dd6e9826777fc0481b269712d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED DISMANTLED CATERPILLAR
+
+            950 WHEEL LOADER
+
+            S/N: 39992'
+          occurrence: 1
   doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
     surfaces:
       anchor:documentPatch.shippedOnBoardDate:
@@ -2635,14 +3598,39 @@ sources:
       occurrences:
       - text: 'NO.959 NANHAI WEST ROAD,JIAOZUO,HENAN PROVINCE,CHINA,POST CODE: 454003'
         occurrence: 1
+    description_blocks:
+      source_sha256: eec7fc79e71c4e369c31ad13a0c2b3e1b899b8ac8b949c117e1905b7110d19f6
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'STAMPING FOIL
+
+            PLASTIC CORE
+
+            PAPER CORE'
+          occurrence: 1
   doc_361e7fedebcee73017bb5db0ed3ea4e70d6aa64c9a2b0c0cdfa2258db165b4aa:
     bindings:
       agent:invoice_party:tt_ocean_logistics:
         paths:
         - documentPatch.parties.shipper.name
     lexical: []
+    description_blocks:
+      source_sha256: fde52bf249f36fc966944dac807afbc31e5550c982513b3c162e75152662696c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: COMPONENTS, NON HAZ
+          occurrence: 1
   doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5:
     lexical: []
+    description_blocks:
+      source_sha256: 1174416e50999abb4d9f9cd9d7e4895d49a56bb0aedafb487fe852ae4512580e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FROZEN BONELESS BEEF - TOPSIDE CAP ON
+          occurrence: 1
   doc_3d0bcc2def0b777a2b626b9bfa1e7d1e227923b8d43a9474c07b4502929e3c03:
     lexical:
     - key: lexical_00
@@ -2654,12 +3642,28 @@ sources:
 
           REET OFFICE NO:9P.POX 2147'
         occurrence: 1
+    description_blocks:
+      source_sha256: fd0744b15493b8f93edd2a346e07dd9c326b1158d3545b9bac346659b752dec5
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTES FOR TRUCKS AND EQUIPMENTS
+          occurrence: 1
   doc_43192029e089291b2e537c6d6252f1adb15970922ef113b1baa2d29f15be93ae:
     bindings:
       agent:route:place_of_delivery_reference:
         paths:
         - documentPatch.route.placeOfDelivery.name
     lexical: []
+    description_blocks:
+      source_sha256: 7bb82d76b0ad4f11ca649573316d4c6b09c99c9594d2dd1e2a3d64661d2c599e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: GARMENT STEAMERS
+          occurrence: 1
+        - text: GARMENT STEAMER SPARE PARTS
+          occurrence: 1
   doc_447a805ad536c989a57583429e379e0bfb1493ae5a572b33ea3736f0ea1e4025:
     surfaces:
       agent:cargo:g1:weight:value:1089:
@@ -2677,19 +3681,45 @@ sources:
 
           Damnhour City :Behira zip code:5832456'
         occurrence: 1
+    description_blocks:
+      source_sha256: 312830a7ef5397eb61bc1d6f0e33593444a46c0533119cd743a72e60abe5908f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'JetSki #2 YDV16372I324 2024 SEA-DOO RXP-X 325 AUDIO'
+          occurrence: 1
   doc_4799921c130f9f5971dec476b815a3454a6b59b5d1f08d60dc0e1bab61b002e9:
     lexical: []
+    description_blocks:
+      source_sha256: e1f451211154056405b299f2f914353b12953b5f0a02e5c0d89bf80f73ee9a5b
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'POLYURETHANE SYSTEMS
+
+            KIMFOOT AA 04408'
+          occurrence: 1
+        - text: CROSSKIM AA 31408
+          occurrence: 1
+        - text: IZOKIM AA 008
+          occurrence: 1
   doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
     bindings:
       agent:invoice_party:momen_magdy_mustafa_abdi:
         paths:
         - documentPatch.parties.consignee.name
     lexical: []
+    description_blocks:
+      source_sha256: 3acbff49e6c2f79af14ed6115f539f180abbb27bd7daece2bd07a19391d3cac3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED DISMANTLED CAT980H WHEEL LOADER SERIAL NUMBER CAT0980HCJMS02375.
+          occurrence: 1
   doc_4afa4c6f78a980386b7f0b6e73893db728a16e49714fc71d7f671c32d40ce8b4:
     retire:
-      agent:package:0:total_in_words: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
+      agent:package:0:total_in_words: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
     lexical:
     - key: exact_tokens_0
       kind: postal
@@ -2702,13 +3732,65 @@ sources:
 
           TELANGANA- INDIA'
         all: true
+    description_blocks:
+      source_sha256: 974d55ade361200f8a705682d2a3654b75fe01a8f096e966243fd87e182e1f2f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TUBES.
+          occurrence: 1
   doc_4e766b207e0913cbf720427ebbb3a37e8ef0508b2ed94876763de81224b882bb:
     lexical: []
+    description_blocks:
+      source_sha256: 08ab65a91544033b8d4678b5db9ed8e34bcbb70740c3e74759316572478807bf
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED AND NEW EQUIPMENT:
+
+
+            COOLING COMPRESSOR
+
+            BURNER & ACCESSORIES
+
+            ELECTROMOTOR
+
+            VENTILATORS
+
+            PUMPS
+
+            TOOLS
+
+            LATHE
+
+            ELEKTRO TRANSMISSION
+
+            KOMPRESSOR
+
+            COOLING COMPRESSOR
+
+            AIR CYCLINDER
+
+            AIR DRYER
+
+            BLOWER
+
+            BLOWER
+
+            PERSONALITY GOODS
+
+            DRILLING MACHINE
+
+            HYDRAULCIC PUMP
+
+            WELDING MACHINE
+
+            CAPACITOR'
+          occurrence: 1
   doc_51d5f8302e5b4e1f70a50cf4eaed3fd51cc1d661d5953acc25a1e9e76983874e:
     retire:
-      agent:derived:package_quantity_words: Exact current core(s) supersede the old
-        wrapper; static punctuation/unit/order framing remains in source. Package
-        noun, when present, has its own current category owner.
+      agent:derived:package_quantity_words: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
     add:
     - key: review:delivery_contact_name:0
       kind: name
@@ -2749,16 +3831,31 @@ sources:
 
           INDIA'
         all: true
+    description_blocks:
+      source_sha256: e7261482031549ac3805d27035153daa07e420a504c303de5f5caa478ea0c9ed
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES,TUBES (TRICYCLE TYRE 3 WHEELERS TYRES)
+          occurrence: 1
   doc_52f97e4d31a4030a771c4a9c854e9bfc585219ffb320d8cbb4f95781acd8c5e0:
     bindings:
       agent:container_equipment_receipt:0:
         occurrences:
-        - text: "1 X 20'"
+        - text: 1 X 20'
     retire:
-      anchor:documentPatch.billOfLadingNumber: Reviewed current scalar owners cover
-        every mutable value in this wrapper; its intervening newline or printed unit
-        stays literal.
+      anchor:documentPatch.billOfLadingNumber: Reviewed current scalar owners cover every mutable value
+        in this wrapper; its intervening newline or printed unit stays literal.
     lexical: []
+    description_blocks:
+      source_sha256: a02f03db8e5d640279cf7769bf661ce1cfaa16c4d5ad3020c6af56cbdcd0f7a4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'PC003211
+
+            SPARE PARTS OF CIRCUIT BREAKER'
+          occurrence: 1
   doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98:
     bindings:
       agent:contact:local_agent:email:0:
@@ -2785,6 +3882,13 @@ sources:
         paths:
         - documentPatch.route.placeOfReceipt.name
     lexical: []
+    description_blocks:
+      source_sha256: ccd7e2afb587a98506465208b76d19f046651acbfa1bddd28dd9e8b193f007b0
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: TEXTILE PIECE GOODS
+          occurrence: 1
   doc_535a8d9173b4b0cc659cc6f314943214a3339b071b13ae9682abfb8d7c8d7af5:
     bindings:
       agent:invoice_party:mohamed_morsy_ali_ahmed:
@@ -2800,6 +3904,13 @@ sources:
 
           REET OFFICE NO:9P.POX 2147'
         occurrence: 1
+    description_blocks:
+      source_sha256: 49735e433f12455c18cfd141d6df29ab5222b6d141bfa7f75de110fde36a198b
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTS FOR TRUCKS AND EQUIPMNETS
+          occurrence: 1
   doc_53d4726a0e27f4420f9c6dc7b414906181773ea80cc49eb7c296cb7871a911dd:
     lexical:
     - key: exact_tokens_0
@@ -2813,11 +3924,17 @@ sources:
 
           TELANGANA- INDIA'
         all: true
+    description_blocks:
+      source_sha256: 859676a846cffd7725c4f164e01b1d8d57ac9d3485d3f978f61855f706591da7
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES AND TUBES([PASSENGER TYRES])
+          occurrence: 1
   doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e:
     retire:
-      anchor:documentPatch.billOfLadingNumber: Reviewed current scalar owners cover
-        every mutable value in this wrapper; its intervening newline or printed unit
-        stays literal.
+      anchor:documentPatch.billOfLadingNumber: Reviewed current scalar owners cover every mutable value
+        in this wrapper; its intervening newline or printed unit stays literal.
     bindings:
       anchor:documentPatch.parties.notifyParties[0].contactDetails.contactName:
         paths:
@@ -2842,8 +3959,26 @@ sources:
         - '%b %d,%Y'
         case: upper
     lexical: []
+    description_blocks:
+      source_sha256: 8bb53092d808fc52151a8f3fba4e2060e7562cd97719c63e8958418982d1f02b
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED SPARE PARTS FOR CARS,
+
+            USED EQUIPMENT AND PERSONAL EFFECTS'
+          occurrence: 1
   doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c:
     lexical: []
+    description_blocks:
+      source_sha256: dc33d39cae7564f52011e3bee1318eaa46e4e7827f39ce0cb56d8edb5999164a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'SPARE PARTS FOR WASTE WATER TREATMENT PLANT- CONOSCREEN
+
+            MICROFILTER'
+          occurrence: 1
   doc_5c5e51a90b1e941b75e5619d9b4a56ef05149842da9709984fa9bee730c19715:
     bindings:
       agent:shipping_agent_email:
@@ -2862,9 +3997,8 @@ sources:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.contactName
     retire:
-      anchor:documentPatch.route.placeOfDelivery.name: Current reviewed target omits
-        the contradictory source delivery field; remove the whole private field in
-        synthetic descendants.
+      anchor:documentPatch.route.placeOfDelivery.name: Current reviewed target omits the contradictory
+        source delivery field; remove the whole private field in synthetic descendants.
     add:
     - key: review:delivery_agent_caption
       kind: other_text
@@ -2897,23 +4031,36 @@ sources:
       - text: 'TOTAL PALLET:'
         occurrence: 1
     delete:
-      review:contradictory_delivery_field: Reviewed source has an origin-city value
-        under delivery inconsistent with its destination, and no current delivery
-        label. Synthetic template removes that private contradictory field rather
-        than inventing a gold route value.
+      review:contradictory_delivery_field: Reviewed source has an origin-city value under delivery inconsistent
+        with its destination, and no current delivery label. Synthetic template removes that private contradictory
+        field rather than inventing a gold route value.
     lexical: []
+    description_blocks:
+      source_sha256: 3821114abd7eb8d93497e4a7cc22ac2883f617ba267dcbd99fec2de3d083c8c3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: COMM-48-A105CS-L CAIRO SERIES LED LUMINAIRE, 105W.
+          occurrence: 1
   doc_5ce1f67ec555860a4e33a8351b9689243f9bbfb5ad30f8d3f7bc612126edf2d5:
     lexical: []
+    description_blocks:
+      source_sha256: 7e15da271e59ae5a262e88d90ae72241034b1de181bf8ba6de47b312a0674cd3
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FRESH PEARS
+          occurrence: 1
   doc_5ffbf8421800ef773833ad581145fbdb266e358a5e83a15880a07c741ef4d9e4:
     bindings:
       agent:egypt:phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
     retire:
-      anchor:documentPatch.forwardingAndExportReferences[0]: Source-only proforma
-        reference is owned by an explicit identifier sampler.
-      anchor:documentPatch.forwardingAndExportReferences[1]: Source-only proforma
-        date is owned by the coherent shipment date shift.
+      anchor:documentPatch.forwardingAndExportReferences[0]: Source-only proforma reference is owned by
+        an explicit identifier sampler.
+      anchor:documentPatch.forwardingAndExportReferences[1]: Source-only proforma date is owned by the
+        coherent shipment date shift.
     add:
     - key: review:proforma_invoice_reference
       kind: identifier
@@ -2928,22 +4075,70 @@ sources:
       - text: 1.MAR.2024
         occurrence: 1
     lexical: []
+    description_blocks:
+      source_sha256: 5a6e815e41af6ec2166fa6c8bb654b83926338ccab914c66e7e1caf2397be5a8
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: BYD/F3/CKD-PARTS COMPONENTS
+          occurrence: 1
   doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3:
     bindings:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         paths:
         - documentPatch.parties.consignee.name
     lexical: []
+    description_blocks:
+      source_sha256: faf1ea5834fd82663549672f3f4fc940803a1749c086afa61df641ca4e3b674a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'WATER FLANGE OIL DIPSTICK FUNNEL
+
+            WATER PIPE AIR INTAKE HOSE
+
+            THERMOSTAT EXPANSION TANK
+
+            TEMPERATURE SENSOR OIL COOLER
+
+            RADIATOR CAP OIL DIPSTICK OIL FILTER CAP'
+          occurrence: 1
   doc_66dc43776f8a86039dc383d63e27192ad6199db8fc1b6d301f129897779b5f40:
     bindings:
       agent:equipment:container_receipt:0:
         occurrences:
-        - text: "1 x 40'"
+        - text: 1 x 40'
     lexical: []
+    description_blocks:
+      source_sha256: 3f20582215bc1f39e01ebd1fdebbc421be4b6a963ef94fa08019e5eee608a35d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Whey Permeate VersiLac Dairy Product Solids
+          occurrence: 1
   doc_68c5e5dd81c606ac459903fccbe2b0474ed59fa81756a53567d314ca9225153a:
     lexical: []
+    description_blocks:
+      source_sha256: 9e443965f9a5793335aa7a8809ab0c9591e57ab8616a2f8807d9cedac3583bc7
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: AUTO SPARE PARTS
+          occurrence: 1
   doc_68d08294f302764335935c9f2d43b9270ae174a5612cec9f8b1bb4b6da742b10:
     lexical: []
+    description_blocks:
+      source_sha256: 391f252708cb0f3bc3dea212f606ca11b342ffcacd846cba19e67b9147c15217
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED MACHINES WITH ACCESSORIES
+          occurrence: 1
+    bindings:
+      anchor:documentPatch.cargoGroups[0].description:
+        occurrences:
+        - text: USED MACHINES WITH ACCESSORIES
+          occurrence: 1
   doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512:
     bindings:
       agent:local_agent:email:
@@ -2956,12 +4151,18 @@ sources:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
     lexical: []
+    description_blocks:
+      source_sha256: b379fb07f89207afa39c8d7245c671ef24172f367d5b4c0cc75a347dfc446bce
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: STAINLESS STEEL SINK WITH DRAIN KIT
+          occurrence: 1
   doc_71569af6c254af7ecc70408624855fede2f7587a2a8841b2e9001f6fdf8b4eb2:
     retire:
       anchor:documentPatch.cargoAllocationGroups[0].allocations[0].packageQuantity|documentPatch.cargoPackages[0].quantity: Exact
-        current core(s) supersede the old wrapper; static punctuation/unit/order framing
-        remains in source. Package noun, when present, has its own current category
-        owner.
+        current core(s) supersede the old wrapper; static punctuation/unit/order framing remains in source.
+        Package noun, when present, has its own current category owner.
     lexical:
     - key: exact_tokens_0
       kind: postal
@@ -2974,6 +4175,13 @@ sources:
 
           RD NO. 2, BANJARA HILLS HY-BAD-34,TELANGANA- INDIA'
         all: true
+    description_blocks:
+      source_sha256: cb45e269c44e6b444aaedad19399a6fb50d4aaf9f2221590938367f3a4fad7f2
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES,TUBES
+          occurrence: 1
   doc_73576135bddebf063b7d50b25a4683fdf6a738749240f9377630a4224bc7037f:
     bindings:
       anchor:documentPatch.placeOfIssue.name:
@@ -2984,7 +4192,8 @@ sources:
         paths:
         - documentPatch.parties.consignee.name
     retire:
-      anchor:documentPatch.placeOfIssue.country: The DE code belongs to the fixed German issuing-agent postal address, not the sampled issue locality. Print the issue country with its locality instead.
+      anchor:documentPatch.placeOfIssue.country: The DE code belongs to the fixed German issuing-agent
+        postal address, not the sampled issue locality. Print the issue country with its locality instead.
     surfaces:
       anchor:documentPatch.placeOfIssue.name:
         expression: '{documentPatch.placeOfIssue.name}, {documentPatch.placeOfIssue.country}'
@@ -2996,6 +4205,15 @@ sources:
       occurrences:
       - text: JOHN DEERE SP A RE PARTS FOR AG RICULTURAL MACHINERY
         occurrence: 1
+    description_blocks:
+      source_sha256: bf73892f5156e9b8891e1101e1e68683e671392e88cc421007541c18faa75b93
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'JOHN DEERE SP A RE PARTS FOR AG RICULTURAL MACHINERY
+
+            - NOT RESTRICTED -'
+          occurrence: 1
   doc_738b9fde206a8a90d6ef0155513300da4e7cb8de736be39e750d684b7a335c47:
     lexical:
     - key: lexical_00
@@ -3007,11 +4225,18 @@ sources:
 
           REET OFFICE NO:9P.POX 2147'
         occurrence: 1
+    description_blocks:
+      source_sha256: 0670ee319424549920e9f10f2ae3bd16696ce319fdfe4548a60725af015b5dea
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED GENERATORS AND USED EQUIPMENTS AND USED EQUIPMENT PARTS AND USED MACHINERY
+          occurrence: 1
   doc_73fdbd1579a4a58c93396ee704aae57e81f214d5706346eb88611e5257271280:
     retire:
-      anchor:documentPatch.parties.notifyParties[0].name: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.notifyParties[0].name: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its own
+        current category owner.
     bindings:
       agent:party:notify:0:email:
         paths:
@@ -3020,6 +4245,13 @@ sources:
         paths:
         - documentPatch.parties.shipper.contactDetails.phoneNumbers[0]
     lexical: []
+    description_blocks:
+      source_sha256: 143b86a06765605b3130479fa1f13302110e15d0f1c9fd00731a7b79cd33e14f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: TEXTILE FABRICS
+          occurrence: 1
   doc_74181921e0c8f89c4c0b1c43906e7304d500f250b31243919039472dd4395dd3:
     bindings:
       agent:consignee_tax_identifier:
@@ -3037,13 +4269,19 @@ sources:
         - text: '20226390172'
           occurrence: 2
     lexical: []
+    description_blocks:
+      source_sha256: aa0a911ea88d9e421f8cf12f12ca758ea15db56c0865dc0c459299264970686f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: REAL SEAMLESS PIPES
+          occurrence: 1
   doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e:
     retire:
-      agent:source:gross_weight: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
-      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replaced
-        by exact synthetic-only remote-contact deletion.
+      agent:source:gross_weight: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replaced by exact synthetic-only
+        remote-contact deletion.
     add:
     - key: reviewed:remote_contact_removed
       kind: other_text
@@ -3052,9 +4290,17 @@ sources:
       - text: '*EMAIL:MOHAMED.NEWIR@EAI-ALSAFY.COM'
         occurrence: 1
     delete:
-      reviewed:remote_contact_removed: Current target excludes remote contact; preserve
-        real source unchanged.
+      reviewed:remote_contact_removed: Current target excludes remote contact; preserve real source unchanged.
     lexical: []
+    description_blocks:
+      source_sha256: b1fc5064db50b69335c05687ea25c4cc2acf9ed71cc1619a4c3dd3844aa3536c
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'TELEVISION PARTS FOR PRODUCTION
+
+            (COVER,PLASTIC BAR,ETC.)'
+          occurrence: 1
   doc_76e93c16eabc55cacc7f2f6c8018e42776289390a41cb4ba392443744b01ca25:
     bindings:
       anchor:documentPatch.route.placeOfReceipt.name:
@@ -3065,8 +4311,24 @@ sources:
         - documentPatch.placeOfIssue.name
         - documentPatch.freight.paymentPlace.name
     lexical: []
+    description_blocks:
+      source_sha256: 7f5573b657c96c0e0ec2ad29adb3947841762cb8d52bfefebb81a1211ff25b25
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED SPARE PARTS
+
+            FOR CARS'
+          occurrence: 1
   doc_7750e3d96684f1f97a45fb42be766b700a1316caadb001b5ac47d6a420882f42:
     lexical: []
+    description_blocks:
+      source_sha256: 1dbb68d62556d5bce2eb75d794b600947ae5113d8c20619bb1e783bc38ba0519
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: CHEMICAL PRODUCTS FOR TANNERY INDUSTRY
+          occurrence: 1
   doc_7e0657d1c16a39390d2a8c05715b1a2c3779f66bf582805256474bd61dec91e7:
     bindings:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
@@ -3076,6 +4338,15 @@ sources:
       anchor:documentPatch.transport.voyageNumber:
         expression: '{documentPatch.transport.voyageNumber}'
     lexical: []
+    description_blocks:
+      source_sha256: 498f02a61a7e546e5b11abb847d1df5625d8f9946daf1abb681dcd2788bacbd5
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'Lubricating oils
+
+            NON HAZARDOUS'
+          occurrence: 1
   doc_7f8fafe78ae25013135d1a1a187235c9d038134a43f38352aa6f39cf72e5b8fe:
     add:
     - key: review:obsolete_private_contact_continuation
@@ -3097,23 +4368,35 @@ sources:
       - text: 'CARTON NOS.: 1721 TO 2150'
         occurrence: 1
     delete:
-      review:obsolete_private_contact_continuation: Synthetic-only omission of an
-        unlabelled historical contact continuation in the goods area. The sampled
-        parties have their own contact fields; retaining these original personal
-        details would create a conflicting shipment contact. Preserve real OCR.
-      review:obsolete_carton_serial_ranges: Original carton serial ranges encode 430+430
-        original cartons. Omit these private mark lines from variable-package synthetic
-        descendants, preserving real source OCR and independent lot marks.
+      review:obsolete_private_contact_continuation: Synthetic-only omission of an unlabelled historical
+        contact continuation in the goods area. The sampled parties have their own contact fields; retaining
+        these original personal details would create a conflicting shipment contact. Preserve real OCR.
+      review:obsolete_carton_serial_ranges: Original carton serial ranges encode 430+430 original cartons.
+        Omit these private mark lines from variable-package synthetic descendants, preserving real source
+        OCR and independent lot marks.
     retire:
       agent:contact:consignee:mobile_1: Complete private contact continuation owns this fragment.
       agent:contact:consignee:mobile_2: Complete private contact continuation owns this fragment.
       agent:contact:consignee:email: Complete private contact continuation owns this fragment.
       agent:contact:consignee:person: Complete private contact continuation owns this fragment.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Complete synthetic-only
-        carton-range line removal owns this old fragment.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]: Complete synthetic-only
-        carton-range line removal owns this old fragment.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Complete synthetic-only carton-range line
+        removal owns this old fragment.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]: Complete synthetic-only carton-range line
+        removal owns this old fragment.
     lexical: []
+    description_blocks:
+      source_sha256: 5ba3919d54da5463dd62f75729331667bbfff724c2ad15968c7a4f6234d94125
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: '100 PCT COTTON YARN
+
+            NE 24/2 CARDED WEAVING RAW
+
+            YARN CONTAMINATION CONTROLLED
+
+            AUTOCONED SPLICED YARN ON CONES'
+          occurrence: 1
   doc_81877adfaa979b7c2d76df6b9f53c124e4597cfab3a90dad63ada1e32f0393cd:
     bindings:
       agent:customs:acid_number:
@@ -3121,8 +4404,22 @@ sources:
         - text: '7116074432024030012'
           occurrence: 1
     lexical: []
+    description_blocks:
+      source_sha256: daf4cdaf46b8dbc5c44ed4ef30d70860ff6dbfdf12f8bb81cabdef48e8ba9017
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: RAW MATERIAL
+          occurrence: 1
   doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5:
     lexical: []
+    description_blocks:
+      source_sha256: f93a27fc2d1a8a844b5d2f43cbd4548ee16fe4ad114a0de4679054ad29a27dd1
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: HOTELS EQUIPMENT
+          occurrence: 1
   doc_8572f110c037463e9299abe5af46df77dff78bc1da4c87442a9351de5ce5418d:
     bindings:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
@@ -3132,26 +4429,70 @@ sources:
       agent:cargo:0:marks_and_origin:
         expression: MADE IN {documentPatch.goodsItemDetails[0].origin.name}
     lexical: []
+    description_blocks:
+      source_sha256: 94438c1e6308769d15fc72ac932c8b32da8316acaa912f0de97f03bf192fa62b
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'DOMESTIC SEWING MACHINE
+
+            HEAD ONLY WITH STANDARD ACCESSORIES
+
+            ACCESSORIES MODEL: JA2-1 WITHOUT FEED
+
+            DROP BLACK COLOUR'
+          occurrence: 1
   doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7:
     bindings:
       agent:contact:forwarding_email:
         occurrences:
         - text: '** EMAIL: REDFWD.LOGS@GMAIL.COM'
     delete:
-      agent:contact:forwarding_email: Synthetic-only omission of the original unlabelled
-        shipment-agent email continuation. No target party owns this separate contact;
-        preserve real source OCR rather than invent a party assignment.
+      agent:contact:forwarding_email: Synthetic-only omission of the original unlabelled shipment-agent
+        email continuation. No target party owns this separate contact; preserve real source OCR rather
+        than invent a party assignment.
     lexical: []
+    description_blocks:
+      source_sha256: 26af9fbda983fe7e17362db63a37ebb4195e2379c63934553634c92a56348923
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED MACHINERY AND USED SPARE PARTS
+
+            USED FORKLIFTS: FB25-401363, F199-00306, FB15-81E08309
+
+            USED FORKAWA: 30-1-1606'
+          occurrence: 1
   doc_883be4ced35b67c0b48c70f98c61914f3c737b3d635dc0658f26ecdfdbebb66d:
     delete:
-      agent:route:portOfLoading:source_only_location_0: Remove redundant displaced
-        discharge-port text under the loading heading; the explicit discharge field
-        remains fully rendered.
+      agent:route:portOfLoading:source_only_location_0: Remove redundant displaced discharge-port text
+        under the loading heading; the explicit discharge field remains fully rendered.
     lexical: []
+    description_blocks:
+      source_sha256: 0fb4f297e0042717c3dfede72dddfdff718a20e6569ab83d451a5d3f998afc73
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: GARMENTS & ACCESSORIES & BAGS
+          occurrence: 1
   doc_914681ee19c83f2729d3ba64d3c3f9ef86d77352ae7351d1df33704ce8816dac:
     lexical: []
+    description_blocks:
+      source_sha256: 4b9c5de38886a43d4003f8e9119e55841c64d49b7eb27a93ad254b7fd1111258
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DISMANTLED CAT936 SN
+          occurrence: 1
   doc_9182d47fdd9e7e65866bb87cc281d113f8659bd62583e9f278d418b49a374f4c:
     lexical: []
+    description_blocks:
+      source_sha256: c5a3c5b8eba5803ac5849378ab535da9b02592668796984c3def8339ae5560cf
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: AUTO SPARE PARTS
+          occurrence: 1
   doc_92bc5451eb186398e16b01e3f2a183c2c67205e3fd3f87cec9e6ee70d3266330:
     bindings:
       agent:source:consignee:tax_id:
@@ -3167,14 +4508,23 @@ sources:
       - text: 01002262694
         occurrence: 2
     lexical: []
+    description_blocks:
+      source_sha256: d15d26585145d62e0e007530faca18c3708beeebbe308f82b9bda81450387b63
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: '1992 USED JOHN DEERE 9600 COMBINE
+
+            VIN: H09600X646721'
+          occurrence: 1
   doc_947097576fb4db13657a658d43d15b7d1ecf0abec9dede73b9a98f43cbb19bdc:
     retire:
-      anchor:documentPatch.parties.notifyParties[0].country: Exact current core(s)
-        supersede the old wrapper; static punctuation/unit/order framing remains in
-        source. Package noun, when present, has its own current category owner.
-      anchor:documentPatch.parties.consignee.country: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.notifyParties[0].country: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its own
+        current category owner.
+      anchor:documentPatch.parties.consignee.country: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its own
+        current category owner.
     bindings:
       anchor:documentPatch.route.placeOfReceipt.name:
         paths:
@@ -3195,6 +4545,13 @@ sources:
 
           CF45 4ER U.K'
         all: true
+    description_blocks:
+      source_sha256: 96ab00fe5e2f07480532756d895986a2eac8a6804ebde94605bba191056562f4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: MEDICAL DEVICES
+          occurrence: 1
   doc_97e9b467b37f213e5f9566b74b2bb392fa0239b30a0681bf157d763740802eae:
     bindings:
       anchor:documentPatch.parties.consignee.city:
@@ -3212,6 +4569,13 @@ sources:
       source: TO BE AT PORT SAID FREE ZONE
       expression: TO BE AT {documentPatch.route.finalDestination.name}
     lexical: []
+    description_blocks:
+      source_sha256: 4e23a8eb6483971c7ed4b45f4991cd5a39cc8062e6525171036e95c1a767e8b1
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED VEHICLE AUTO PARTS
+          occurrence: 1
   doc_97efe837d0a87d40b07f5f532477670ce38700e5c8e01d715fc443983242a8c5:
     bindings:
       agent:aux:cargo_release:phone_1:
@@ -3250,14 +4614,28 @@ sources:
         - '%-d,%Y'
         case: upper
     lexical: []
+    description_blocks:
+      source_sha256: 2f14afcd888f8bc938ba7155079a46130c11700d11814f7a36cbfde1d7221900
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'AUTOMOTIVE PARTS
+
+            ADPE AV SKD KIT'
+          occurrence: 1
   doc_9839db703d177b5af7fbb9b454f5c1932c2e64c81ad5958c18e4a620e2d08363:
     lexical: []
+    description_blocks:
+      source_sha256: dffdf7b23dfa4648e1e1e8ba18d9c119caf3bee181c076320af30b6a334f27fd
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DRFLODENT TOOTHBRUSH
+          occurrence: 1
   doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627:
     retire:
-      agent:transport:pre_carriage:vessel: Replaced by coherent full pre-carriage
-        leg.
-      agent:transport:pre_carriage:voyage: Replaced by coherent full pre-carriage
-        leg.
+      agent:transport:pre_carriage:vessel: Replaced by coherent full pre-carriage leg.
+      agent:transport:pre_carriage:voyage: Replaced by coherent full pre-carriage leg.
     add:
     - key: reviewed:pre_carriage_leg
       kind: other_text
@@ -3266,8 +4644,22 @@ sources:
       - text: GSL VINIA 345N
         occurrence: 1
     lexical: []
+    description_blocks:
+      source_sha256: e241301dac64eeca34429f93d2ccb48d056d16a30cb165b26f783e983320f21d
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: MATERIAL FOR LCD TV
+          occurrence: 1
   doc_9ad49fcc846c53b1780f28a74c0cd1073d7bb2d812e5b5a76d2744b1ba4a7f02:
     lexical: []
+    description_blocks:
+      source_sha256: ba8690f58b0177821547e61bec61558d52a03f7b227972d96b21938c94038060
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: IGNITION COIL
+          occurrence: 1
   doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
     bindings:
       agent:party:destination_office:phone:
@@ -3280,6 +4672,23 @@ sources:
         paths:
         - documentPatch.route.placeOfReceipt.country
     lexical: []
+    description_blocks:
+      source_sha256: dcb13e0e9d93ef736734e6d6b5c27a68eab24ccc8b46518e9d645c752397d027
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'IRON OXIDE YELLOW S910
+
+            IRON OXIDE YELLOW S920
+
+            IRON OXIDE RED S130
+
+            IRON OXIDE RED S110
+
+            IRON OXIDE BLACK S318
+
+            ULTRAMARINE BLUE U03'
+          occurrence: 1
   doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e:
     bindings:
       agent:secondary_document_date:
@@ -3298,14 +4707,31 @@ sources:
         format: '%d %b %Y'
         case: upper
     delete:
-      anchor:documentPatch.transport.vesselFlagCountry: Synthetic-only removal of
-        old vessel flag because vessel name is resampled independently.
+      anchor:documentPatch.transport.vesselFlagCountry: Synthetic-only removal of old vessel flag because
+        vessel name is resampled independently.
     lexical: []
+    description_blocks:
+      source_sha256: b71ddf8917a10524bf26359803aaedeb7d6d3fc464e029be4ad263e564074098
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'INDUCTION LINER
+
+            R-WSE-900F (412875) DIA36.1MM
+
+            R-WSE-900F (411651) DIA47.0MM
+
+            R-WSE-900F (413821) DIA47.0MM
+
+            R-WSE-900F (412046) DIA47.0MM
+
+            R-WSE-900F (413126) DIA47.0MM'
+          occurrence: 1
   doc_a5265d59407c00f400dc92be45ad35f487fcb440c2f405c0381b7a75fc76b3c6:
     retire:
-      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede the old wrapper; static
+        punctuation/unit/order framing remains in source. Package noun, when present, has its own current
+        category owner.
     bindings:
       anchor:documentPatch.parties.notifyParties[0].country:
         paths:
@@ -3316,13 +4742,36 @@ sources:
         - documentPatch.parties.deliveryAgent.country
         - documentPatch.route.portOfDischarge.country
     lexical: []
+    description_blocks:
+      source_sha256: 9f8c6b6bc4ea3ab918e8ac7f9a932b79e3a5abe95abf67823931b9ebef81815e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'SPARE PARTS FOR BLOCK
+
+            MAKING PLANT'
+          occurrence: 1
   doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a:
     lexical: []
+    description_blocks:
+      source_sha256: 80136e66c0b445252f685c900129d40222bb28c888e607993a3e18e98c6018f9
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: DENTAL MATERIAL, NON DG
+          occurrence: 1
   doc_b2b9200dc9c342c00181c08441a6448967f04a9bc9c52d2c0a87307b5faa667e:
     retire:
-      anchor:documentPatch.parties.shipper.name: Both named principal and represented
-        party now have reviewed lexical regions; ON BEHALF OF stays literal.
+      anchor:documentPatch.parties.shipper.name: Both named principal and represented party now have reviewed
+        lexical regions; ON BEHALF OF stays literal.
     lexical: []
+    description_blocks:
+      source_sha256: 1e6002c4fb7c2d0192503000beb5556826fab26a53e74b571b14fd571cf69ece
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: used computers, LCDs and laptops
+          occurrence: 1
   doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6:
     bindings:
       agent:foreign_exporter_country_code:
@@ -3341,11 +4790,17 @@ sources:
 
           ELMELIK'
         all: true
+    description_blocks:
+      source_sha256: 750fcdeb438c7f27d4249009969a48de86c639a07f99ce836a87c16a045222dc
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: LOADER
+          occurrence: 1
   doc_ba3dad0d0a66a8db07e3a9331d039372017db5ca20cb185f466e1acbaaafc025:
     retire:
-      agent:package_total_in_words: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
+      agent:package_total_in_words: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
     bindings:
       anchor:documentPatch.parties.consignee.country:
         paths:
@@ -3392,6 +4847,13 @@ sources:
 
           INDIA'
         all: true
+    description_blocks:
+      source_sha256: 8ab7a8a14dc497839a953639111b750ebda0963234ee7e5905a11643dee0a81e
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TUBES
+          occurrence: 1
   doc_ba5ba8aca1594542cabae39db308a99d28aafa43571917e5a4617ef78d7b9fd1:
     surfaces:
       anchor:documentPatch.cargoPackages[0].typeCategory:
@@ -3416,8 +4878,22 @@ sources:
 
           EGYPT'
         all: true
+    description_blocks:
+      source_sha256: b163d00f5daa933df4d49ca4aeb54690266b91e6bf8734e691a534888fc8db9f
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SPARE PARTS FOR CO2 PLANT-1
+          occurrence: 1
   doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555:
     lexical: []
+    description_blocks:
+      source_sha256: 7290e6e3e39a96142854326678e66e8a1a988c4c1e8ed1dfba207bed5f589c03
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTS FOR TRUCKS
+          occurrence: 1
   doc_c4df0ac5aa163d35076de464c960fe29b4eb22e91650b1aa888a870442d58f34:
     bindings:
       agent:route:destination_office:email:
@@ -3427,6 +4903,13 @@ sources:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
     lexical: []
+    description_blocks:
+      source_sha256: eaf8a1b8c08e1823fa01afddba171c7e8fcbb39b2f530fa9881d5344648b259b
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: MATERIAL OF BAGS
+          occurrence: 1
   doc_c77f84d77c138ecfc14851fafb14bdf875393be86644494fecabc7e03df4c618:
     lexical:
     - key: exact_tokens_0
@@ -3438,6 +4921,15 @@ sources:
 
           DUBAI, UAE'
         all: true
+    description_blocks:
+      source_sha256: a1ad414e7eea95e57bcccbffa1187d9382bccd27f8b207c7d69f8d6c65848c26
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED SPARE PARTS FOR CARS AND
+
+            EQUIPMENTS, AND PERSONAL EFFECTS'
+          occurrence: 1
   doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932:
     bindings:
       agent:route:portOfDischarge:location_variant:alexandria:
@@ -3447,15 +4939,41 @@ sources:
         paths:
         - documentPatch.route.placeOfDelivery.name
     lexical: []
+    description_blocks:
+      source_sha256: 1eac48f726468b1de6e1f4522e00944cc3efe39d7824115d428520cf1e1b3ddb
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: TEXTILE FABRIC
+          occurrence: 1
+    add:
+    - key: review:obsolete_product_quantity
+      kind: other_text
+      paths: []
+      occurrences:
+      - text: 211615MTS
+        occurrence: 1
+    retire:
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]: Reviewed source-only ownership replaces
+        the removed additional-information target.
+    delete:
+      review:obsolete_product_quantity: The source-only textile length belongs to the original fabric
+        commodity, not newly sampled goods; delete only in synthetic rendering.
   doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982:
     lexical: []
+    description_blocks:
+      source_sha256: 4de07f2aa8a1a56386d203a1e865f1ae83a282a45f02909083ae832c611889c9
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire and raw materials for wiring harnesses
+          occurrence: 1
   doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0:
     retire:
-      anchor:documentPatch.forwardingAndExportReferences[0]: Explicit shipping-bill
-        identifier and date owners replace the source-only composite reference.
-      agent:package_total_in_words: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
+      anchor:documentPatch.forwardingAndExportReferences[0]: Explicit shipping-bill identifier and date
+        owners replace the source-only composite reference.
+      agent:package_total_in_words: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
     add:
     - key: review:shipping_bill_reference
       kind: identifier
@@ -3470,13 +4988,20 @@ sources:
       - text: 20/03/2024
         occurrence: 1
     lexical: []
+    description_blocks:
+      source_sha256: e7b1157f041a40765328f5205b6f163c65f3f76c823437be1d64a6a1483c40bc
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES
+          occurrence: 1
   doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f:
     tare_baselines:
       agent:container:0:tare_weight:
         kg: '3820'
         sourceSha256: d74b964b0e26de92a82ca0a81e779c79cb831c84c722af9c856c8f459e5a09d4
-        reason: Reviewed container table TareW. 3,820 next to a 40HC identifier; comma
-          groups kilograms, not decimal kilograms.
+        reason: Reviewed container table TareW. 3,820 next to a 40HC identifier; comma groups kilograms,
+          not decimal kilograms.
     lexical:
     - key: exact_tokens_0
       kind: name
@@ -3487,6 +5012,13 @@ sources:
 
           OMAR MAHMOUD ABDALHA AL TAHAN'
         all: true
+    description_blocks:
+      source_sha256: d74b964b0e26de92a82ca0a81e779c79cb831c84c722af9c856c8f459e5a09d4
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTS FOR CARS AND EQUIPMENTS AND PERSONAL EFFECTS
+          occurrence: 1
   doc_d97350b6c1883d0c0198bc4a2d410a09429b88be518eacf41a2d3d3ecc3aee84:
     bindings:
       agent:egyptian_importer_name:
@@ -3542,8 +5074,22 @@ sources:
 
           Egypt'
         occurrence: 1
+    description_blocks:
+      source_sha256: 5f3cfe977278d4f9e2314f46f898587e386496de10c996bc77cf3923a170ea47
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PARANCHI FUNE
+          occurrence: 1
   doc_db7177f54a3bba09125c0f174a27a4d74ce1ccadfdc57392a9bc4f004534fb2b:
     lexical: []
+    description_blocks:
+      source_sha256: 3e811f705f5454902fff3062a127d897baf7e3f6cd00cb15d42124dfe5b4d4eb
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: USED SPARE PARTS OF TRUCKS AND USED EQUIPMENTS AND PERSONAL EFFECTS
+          occurrence: 1
   doc_e28ff6f73f4cea776bf1f1ffc0564bf160aa745c062a5f4b1dec1f2ce1650f80:
     bindings:
       agent:customs:egyptian_importer_name:
@@ -3559,11 +5105,27 @@ sources:
 
           WESTBURY NY, US 11590'
         all: true
+    description_blocks:
+      source_sha256: a2609144b90cd0f688a249df10298a2a791c24fdd5daa126725b70eb32371b00
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: SHELLED ALMONDS
+          occurrence: 1
   doc_e3caae788c043bdd153db98cb10ab2d44b17975c94dc7db3da8018c74aed06aa:
     retire:
-      agent:legal:clause_number_fragment_1: Complete reviewed destination-legal-clause
-        rewrite supersedes its isolated static clause number.
+      agent:legal:clause_number_fragment_1: Complete reviewed destination-legal-clause rewrite supersedes
+        its isolated static clause number.
     lexical: []
+    description_blocks:
+      source_sha256: efae986a4460a59588c50bf7b3cd51c27a9a0c6edfcd81b0c582e9a998fca518
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'JETSKI YAMAHA FOR PERSONAL USE
+
+            VIN: US-YAMA25721920 ENGINE: JF18MBN1006246'
+          occurrence: 1
   doc_e4313a4aed3f5b961982c911df0dd415bc80411414952c0c49e092f25ef457d6:
     lexical:
     - key: lexical_00
@@ -3588,11 +5150,18 @@ sources:
 
           6th of October city Giza Egypt'
         occurrence: 2
+    description_blocks:
+      source_sha256: 9f0e2795b37f059088d72459c3bce1a614b55d883270db4eac2016903ea746f6
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: Plastic reels, automotive wire
+          occurrence: 1
   doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb:
     retire:
-      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.consignee.name: Exact current core(s) supersede the old wrapper; static
+        punctuation/unit/order framing remains in source. Package noun, when present, has its own current
+        category owner.
     tare_owners:
       agent:cargo:tare_weight_total:
       - 0
@@ -3602,8 +5171,30 @@ sources:
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
     lexical: []
+    description_blocks:
+      source_sha256: 7eebc2ebb99b303d5095de5b6fb887b580cd146d8893916ca62b8355409d3f32
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'VISICO LE4423 BOREALIS OCTABIN LD
+
+            POLYETHYLENE'
+          occurrence: 1
   doc_e7bcc7250fb936b489fde09b24278c488da83d706867b73c639c3ab3477bb72b:
     lexical: []
+    description_blocks:
+      source_sha256: 8da53d5423179385de4c602e75b5e3c621461ef0986a5b215571af847649c347
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: 'USED AMAZONE LARGE AREA SPREADERS (FERTILIZER SPREADER)
+
+            ZG-B 8200
+
+            MACHINE-NO. ZGB0008155
+
+            CONSTRUCTION YEAR 2009'
+          occurrence: 1
   doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53:
     lexical:
     - key: lexical_00
@@ -3617,6 +5208,34 @@ sources:
 
           Brazil'
         occurrence: 1
+    description_blocks:
+      source_sha256: e1d259f3a6196c304bcbf4438fae76e4aa46846524836c5bcb97dd762f0a0a76
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: ORAFTI GR SACO 25 KG(1T)
+          occurrence: 1
+    retire:
+      agent:package_summary: Replaced by declared shipment quantity/type owners; no fixed accounting echoes.
+    bindings:
+      anchor:documentPatch.cargoPackages[0].quantity:
+        paths: []
+      anchor:documentPatch.cargoPackages[0].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        occurrences:
+        - text: Pallet
+          occurrence: 1
+        - text: Pallet
+          occurrence: 2
+        - text: PALLETS
+          occurrence: 1
+    surfaces:
+      anchor:documentPatch.cargoPackages[0].quantity:
+        contained_quantity:
+          quantity_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+          source_quantity: 240
+          source_unit: SACOS
   doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea:
     bindings:
       anchor:documentPatch.route.portOfLoading.country:
@@ -3633,15 +5252,28 @@ sources:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         paths:
         - documentPatch.parties.consignee.name
+      anchor:documentPatch.cargoPackages[0].quantity:
+        paths: []
+      anchor:documentPatch.cargoPackages[0].typeCategory:
+        paths:
+        - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+        occurrences:
+        - text: PALLETS
+          occurrence: 1
+        - text: PALLETS
+          occurrence: 2
     retire:
-      anchor:documentPatch.forwardingAndExportReferences[0]: Separate reviewed invoice
-        identifier and date owners preserve the printed composite syntax.
-      anchor:documentPatch.forwardingAndExportReferences[1]: Separate reviewed shipping-bill
-        identifier and date owners preserve the printed composite syntax.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]: Remove the complete
-        obsolete serial range caption and value for variable inner package counts.
-      agent:cargo:source_mark:box_no: Complete obsolete box-range removal owns its
-        caption too.
+      anchor:documentPatch.forwardingAndExportReferences[0]: Separate reviewed invoice identifier and
+        date owners preserve the printed composite syntax.
+      anchor:documentPatch.forwardingAndExportReferences[1]: Separate reviewed shipping-bill identifier
+        and date owners preserve the printed composite syntax.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]: Remove the complete obsolete serial range
+        caption and value for variable inner package counts.
+      agent:cargo:source_mark:box_no: Complete obsolete box-range removal owns its caption too.
+      agent:package:source:pallets: Replaced by declared shipment quantity/type owners; no fixed accounting
+        echoes.
+      agent:cargo:container_package_count: Replaced by declared shipment quantity/type owners; no fixed
+        accounting echoes.
     add:
     - key: review:invoice_reference
       kind: identifier
@@ -3682,9 +5314,22 @@ sources:
       - text: 'Consignee:'
         occurrence: 1
     delete:
-      review:obsolete_box_range: Synthetic-only obsolete package-serial mark removal;
-        original source remains available.
+      review:obsolete_box_range: Synthetic-only obsolete package-serial mark removal; original source
+        remains available.
     lexical: []
+    description_blocks:
+      source_sha256: bf3f885b68a8181d598441979c98cf73023d2f9be5f03a0fb2253d1a7a0e526a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: RATHIPON BROWN 6RL
+          occurrence: 1
+    surfaces:
+      anchor:documentPatch.cargoPackages[0].quantity:
+        contained_quantity:
+          quantity_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+          source_quantity: 54
+          source_unit: BOXES
   doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c:
     bindings:
       agent:party:shipper:0:exporter_contact_email:
@@ -3694,8 +5339,8 @@ sources:
         paths:
         - documentPatch.parties.shipper.contactDetails.contactName
     retire:
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Split exact private
-        consignee locality/country mark into paired sampled geographic owners.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Split exact private consignee locality/country
+        mark into paired sampled geographic owners.
     add:
     - key: review:consignee_mark:name
       kind: location
@@ -3713,6 +5358,13 @@ sources:
       agent:cargo:0:marks_and_origin_surface:
         expression: MADE IN {documentPatch.goodsItemDetails[0].origin.name}
     lexical: []
+    description_blocks:
+      source_sha256: 3d6d57a7823a19afe38ec105beab3755a128b63c9082982396ed520b8b7934ec
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: METER - FULL SET
+          occurrence: 1
   doc_f3e4072968c7d4137c63a3b583373777d6d9418b402c44851961935295d76454:
     bindings:
       agent:customs:acid_number:
@@ -3724,12 +5376,12 @@ sources:
         - text: NINGBO, ZHEJIANG
           occurrence: 1
     retire:
-      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replaced
-        by exact synthetic-only remote-contact deletion.
-      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Replaced
-        by exact synthetic-only remote-contact deletion.
-      agent:commercial:freight:payment_place_region: Complete payment locality replaces
-        stale province suffix.
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]: Replaced by exact synthetic-only
+        remote-contact deletion.
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Replaced by exact synthetic-only
+        remote-contact deletion.
+      agent:commercial:freight:payment_place_region: Complete payment locality replaces stale province
+        suffix.
     add:
     - key: reviewed:remote_contact_removed
       kind: other_text
@@ -3742,9 +5394,15 @@ sources:
           MOBILE : 01000285858'
         occurrence: 1
     delete:
-      reviewed:remote_contact_removed: Current target excludes remote contact; preserve
-        real source unchanged.
+      reviewed:remote_contact_removed: Current target excludes remote contact; preserve real source unchanged.
     lexical: []
+    description_blocks:
+      source_sha256: 283d06c72b761d007601e05fe11f1aee2591f5367f34643f9d71b7d76e4c646a
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: HOT FIX
+          occurrence: 1
   doc_f98e69891b70ffdb7141bcf2e80184b58029037dda7e0851469faa01ed268469:
     bindings:
       anchor:documentPatch.route.placeOfReceipt.country:
@@ -3756,6 +5414,13 @@ sources:
         - documentPatch.route.portOfLoading.country
         - documentPatch.placeOfIssue.country
     lexical: []
+    description_blocks:
+      source_sha256: 50892a3dbd7ef8bff65e3df23fb196f911cdf3e580a6da954e21fc361ea977c9
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: STAINLESS STEEL MIXED HEADS AND TAILS
+          occurrence: 1
   doc_fabe32eb22c937940c4af0bbd6838f42def474d16e8ca544f48471c7a42d2076:
     bindings:
       anchor:documentPatch.route.placeOfReceipt.name:
@@ -3821,23 +5486,27 @@ sources:
       - text: OFFICE 4 ESTATE NO35, PORT SAID, EGYPT
         occurrence: 1
     retire:
-      anchor:documentPatch.parties.notifyParties[0].address: Full repeated postal
-        block and explicit continuation deletion replace the fragmented old address;
-        company suffix is not the country owner.
-      anchor:documentPatch.parties.deliveryAgent.address: Full repeated postal block
-        and explicit continuation deletion replace the fragmented old address; company
-        suffix is not the country owner.
-      anchor:documentPatch.parties.deliveryAgent.country: Full repeated postal block
-        and explicit continuation deletion replace the fragmented old address; company
-        suffix is not the country owner.
+      anchor:documentPatch.parties.notifyParties[0].address: Full repeated postal block and explicit continuation
+        deletion replace the fragmented old address; company suffix is not the country owner.
+      anchor:documentPatch.parties.deliveryAgent.address: Full repeated postal block and explicit continuation
+        deletion replace the fragmented old address; company suffix is not the country owner.
+      anchor:documentPatch.parties.deliveryAgent.country: Full repeated postal block and explicit continuation
+        deletion replace the fragmented old address; company suffix is not the country owner.
     surfaces:
       review:delivery_complete_postal:
         expression: '{documentPatch.parties.deliveryAgent.addressLine}'
     delete:
-      review:delivery_obsolete_continuation: Synthetic template consolidates the same
-        repeated delivery postal address at the delivery-party location. The obsolete
-        partial continuation is removed, with original OCR unchanged.
+      review:delivery_obsolete_continuation: Synthetic template consolidates the same repeated delivery
+        postal address at the delivery-party location. The obsolete partial continuation is removed, with
+        original OCR unchanged.
     lexical: []
+    description_blocks:
+      source_sha256: 7fe5672155f113b32ffadc4c736d0eb8b0ac6f1172df85f3e66b41227207a118
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: STAINLESS STEEL SINK WITH DRAIN KIT
+          occurrence: 1
   doc_fc68b5d99830e0c3241e03375fe2cb7149dd77c80ec74b9a0bedb180bb700546:
     bindings:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
@@ -3855,5 +5524,19 @@ sources:
 
           500034 TELANGANA INDIA'
         all: true
+    description_blocks:
+      source_sha256: a7e68c4317be90992e0dc94324bb7983d5bd77b32f98e529583512dc73534a15
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: PLSTONE BRAND TYRES AND TUBES
+          occurrence: 1
   doc_fd095586cec635eb6fd40f725b988e9eccc085ca09b77f0ede99892d2acba2c3:
     lexical: []
+    description_blocks:
+      source_sha256: 12fb1317949444eac7533973fedd96144192c141ff6fafaa1fb4791b52d07343
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - text: FRESH APPLES
+          occurrence: 1

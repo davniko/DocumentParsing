@@ -20,6 +20,7 @@ from document_ocr.label_schemas.bill_of_lading import (
     CargoText,
     ContactDetails,
     CountryText,
+    DescriptionText,
     FreightTerms,
     GoodsOrigin,
     Mass,
@@ -474,22 +475,26 @@ class ContainerInformationV7(ContainerInformationV6):
 
 
 class PackagesV7(NumberAndTypeOfPackagesV6):
-    """Inner-level package facts, not outer pallet/container counts."""
+    """Declared shipment package accounting, with quantity and type at the same level."""
 
     packageQuantity: NonNegativeQuantity | None = Field(
         default=None,
         description=(
-            "Printed inner-level package count, or exact sum of complete same-level "
-            "portions for this goods item. Distinguish package count from "
-            "pieces/product capacity and avoid double-counting aggregate and portions. "
-            "Serial-number ranges and mass divided by capacity do not establish a target count."
+            "Declared shipment package count for this goods item, or exact sum of its "
+            "complete same-level portions. Establish the unit from package/count columns, "
+            "container package rows or an explicit shipment declaration. Keep it paired "
+            "with its package type; quantity may be unknown when the type is known. "
+            "Container counts, product capacities, serial ranges and mass/capacity division "
+            "are not package totals. Never add a total to its portions or nested packing."
         ),
     )
     typeCategory: CategoryToken | None = Field(
         default=None,
         description=(
             "Canonical package category from the supplied package vocabulary, selected "
-            "by printed meaning. Never invent category tokens; use typeOfPackages when "
+            "by the declared shipment unit paired with packageQuantity. A generic aggregate "
+            "of mixed handling units can remain PACKAGE_PACKAGE. Never invent tokens; "
+            "use typeOfPackages when "
             "the vocabulary does not cover the printed type."
         ),
     )
@@ -503,7 +508,7 @@ class PackagesV7(NumberAndTypeOfPackagesV6):
 
 
 class PlacementV7(SplitGoodsPlacementV6):
-    """Goods-to-container association, optionally with its inner-package count."""
+    """Goods-to-container association, optionally counted in the declared shipment unit."""
 
     equipmentIdentifier: ContainerIdentifier = Field(
         pattern=r"^[A-Z]{3}[UJZ][0-9]{7}$",
@@ -519,10 +524,13 @@ class PlacementV7(SplitGoodsPlacementV6):
     packageQuantity: NonNegativeQuantity | None = Field(
         default=None,
         description=(
-            "Count of this goods item's packages in this container, at its labeled "
-            "package level. Unknown count stays absent while supported membership "
-            "remains; do not distribute totals evenly or force partial allocations to "
-            "balance."
+            "Count owned by this container in the same declared accounting unit as the "
+            "goods package rows. An explicit whole-shipment declaration for one container "
+            "supports this goods item's declared total when the sole container is identified. "
+            "One surviving ID "
+            "in an incomplete multi-container source does not establish this condition. "
+            "Keep known membership with unknown count; no equal splits, forced balancing "
+            "or conversion between nested packing levels."
         ),
     )
 
@@ -710,21 +718,24 @@ class GoodsItemDetailsV7(LabelSchemaModel):
     remain unallocated rather than guessed into separate goods.
     """
 
-    description: CargoText | None = Field(
+    description: DescriptionText | None = Field(
         default=None,
         description=(
-            "Complete product-owned wording in uppercase: identity, brand, "
-            "model/product/article codes, "
-            "composition, "
-            "specifications, condition, lot qualifiers, proper shipping name and "
-            "printed package capacity. Join lines with spaces in source order. A "
-            "description column may also contain shipment quantities/masses, destinations "
-            "and shipment/administrative references: these are separate facts, not product "
-            "wording. Exclude "
-            "extracted HS/DG codes and generic disclaimers. Condition means an observed "
-            "condition of this cargo, not a carrier's standard damage/liability clause. "
-            "Package capacity requires an explicit per-package relation; a repeated "
-            "count beside a package name does not establish capacity."
+            "Copy the main product-description block in printed order, including genuine "
+            "product continuations across pages or interleaved columns. Keep one occurrence "
+            "of repeated blocks. Start after headings and generic loading/package declarations. "
+            "Preserve embedded packing, counts, capacities, weights and qualifiers, "
+            "including origin/market wording. Uppercase and join physical lines with spaces; "
+            "preserve punctuation and every included word/number. Exclude separately owned "
+            "Marks/Numbers, commercial/customs/invoice references, accounting columns or "
+            "standalone totals, detached tracking/batch or auxiliary packing passages, "
+            "equipment/party data, carrier boilerplate and separately "
+            "identified HS/DG code fields. Resolve boundaries from connected headings and "
+            "layout, not a shared column alone. Product specifications in separate Marks "
+            "remain outside description. Codes within product lines stay unless separately "
+            "identified as references; a broad table heading alone does not establish that. "
+            "Use the bounded passage rather than gathering detached product-related facts; "
+            "retain attached qualifiers without word-by-word filtering."
         ),
     )
     grossWeight: CargoMassV7 | None = Field(
@@ -763,8 +774,8 @@ class GoodsItemDetailsV7(LabelSchemaModel):
             "rather than requiring a separate marks caption. Standalone customs/"
             "administrative references, package-type captions, container IDs and seals "
             "have other meanings. For doubtful column ownership inspect the PDF layout "
-            "and complete block before assigning. Product wording also printed on "
-            "package labels still belongs in description."
+            "and complete block before assigning. Text in a separately owned Marks block "
+            "stays here, including product specifications; it does not supplement description."
         ),
     )
     hsCodes: tuple[HsCode, ...] | None = Field(
@@ -807,11 +818,13 @@ class GoodsItemDetailsV7(LabelSchemaModel):
         default=None,
         min_length=1,
         description=(
-            "Goods-owned package facts at the inner level (bags on pallets→bags). "
-            "Containment must be established by the source; the mere presence of two "
-            "package types does not rank them as inner and outer. Keep "
-            "source-distinct package rows; outer packing is not a second target level. "
-            "Do not emit aggregate and component counts twice."
+            "The document's declared shipment package count/type, established by package "
+            "columns, explicit container package rows or shipment declarations. Neither "
+            "innermost nor outermost packing is an automatic default. Retain disjoint "
+            "same-scope package groups; nested contents and supporting packing are context, "
+            "not additive target rows. A declared generic total over mixed handling units "
+            "stays generic. Emit the aggregate or its disjoint components, not both; "
+            "a known type can remain without an OCR-supported quantity."
         ),
     )
     splitGoodsPlacement: tuple[PlacementV7, ...] | None = Field(

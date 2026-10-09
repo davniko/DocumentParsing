@@ -118,8 +118,17 @@ def _pure_cargo_text(value: str) -> str:
     return value
 
 
+def _description_text(value: str) -> str:
+    # A containment cue inside product wording is not a whole-value disclaimer.
+    # Ownership/completeness is established from the source, not token blacklists.
+    if _CARGO_BOILERPLATE.fullmatch(value.strip(" .,;:")):
+        raise ValueError("description is standalone carrier boilerplate")
+    return value
+
+
 AddressText = Annotated[ApplicationText, AfterValidator(_pure_address)]
 CargoText = Annotated[ApplicationText, AfterValidator(_pure_cargo_text)]
+DescriptionText = Annotated[ApplicationText, AfterValidator(_description_text)]
 
 
 def _has_content(model: LabelSchemaModel, *, ignore: frozenset[str] = frozenset()) -> bool:

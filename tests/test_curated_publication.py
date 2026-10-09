@@ -146,6 +146,23 @@ def test_complete_publication_replays_every_candidate_and_preserves_sources(camp
     assert publish_campaign(campaign) == result
 
 
+def test_uncertain_description_boundary_blocks_publication(campaign):
+    add_finding(campaign)
+    sid = campaign.config["source_ids"][0]
+    review_path = campaign.output / "reviews" / f"{sid}.json"
+    receipt = json.loads(review_path.read_text())
+    receipt["review"]["findings"][0].update(
+        field="documentPatch.goodsItemDetails[0].description",
+        problem="Unresolved main product boundary: continuation or detached packing table.",
+        evidence="NEW SHIPMENT",
+        correction="Inspect the source layout and adjudicate the boundary.",
+    )
+    write(review_path, receipt)
+    with pytest.raises(ValueError, match="missing publication prerequisite"):
+        publish_campaign(campaign)
+    assert not (campaign.output / "manifest.json").exists()
+
+
 def test_publication_uses_exact_nonuniform_template_quotas(campaign):
     for index, row in enumerate(campaign.rows.values()):
         row["target"] = {

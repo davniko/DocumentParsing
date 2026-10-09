@@ -14,10 +14,9 @@ from document_ocr.synthesis.template_compiler.contact_values import validate_mai
 CONTACT_PROMPT = (
     "Write realistic fictional business emails and websites for the supplied new companies. "
     "The original contacts are style examples; create new contacts belonging to the new name. "
-    "Match the examples' contact style: free-mail examples use a free-mail provider; "
-    "corporate examples use plausible company domains and natural mailbox names. "
-    "Retain the website form (such as WWW. or https://). When examples share a company domain, "
-    "the new contacts share one too. Return only the requested contact values. "
+    "Use plausible company domains or free-mail providers and natural mailbox names. "
+    "Email and website domains are independent. Retain the website form "
+    "(such as WWW. or https://). Return only the requested contact values. "
     "For unnamed parties, generate contacts in the supplied role and original contact style. "
     "These are synthetic training text, not verified or contactable businesses."
 )
@@ -178,7 +177,6 @@ def unpack_contacts(output: BaseModel, parties: list[ContactParty]) -> dict[str,
     payload = contact_output_type(parties).model_validate(output.model_dump()).model_dump()
     results = {}
     for i, party in enumerate(parties):
-        domains = {}
         for field in party.fields:
             value = payload[f"p{i}"][field.key]
             if value != value.strip() or any(c.isspace() for c in value):
@@ -202,10 +200,6 @@ def unpack_contacts(output: BaseModel, parties: list[ContactParty]) -> dict[str,
                 or value.casefold() == field.original.casefold()
             ):
                 raise ValueError("contact retained a source identity or placeholder domain")
-            old_host = contact_host(field.original, field.kind)
-            if old_host in domains and domains[old_host] != host:
-                raise ValueError("contacts that shared a source domain diverged")
-            domains[old_host] = host
             for path in field.paths:
                 results.setdefault(party.sample_id, {})[path] = value
     return results

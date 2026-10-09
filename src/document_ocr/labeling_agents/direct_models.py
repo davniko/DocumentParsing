@@ -96,14 +96,18 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "alone does not turn its text into an equipment identifier."
     ),
     "cargo": (
-        "Review each group's complete product wording, including specifications and printed "
-        "per-package capacity, plus codes, markings, DG, origin and handling. "
-        "Grouping, shipment counts/masses/volumes and container allocations belong exclusively "
-        "to the cargo-accounting reviewer, which resolves their shared row ownership. "
-        "Inspect existing lists before "
-        "calling a handling instruction missing. Layout establishes associations; "
-        "extract product wording even when printed in a package-label block. Field meaning "
-        "distinguishes product identity, markings, quantities, references and destinations."
+        "Check complete transcription of the main goods-description block and genuine "
+        "continuations, "
+        "including embedded packing/count/weight phrases, in printed order. Resolve block "
+        "boundaries with layout when needed. Separately owned Marks, references, accounting "
+        "and boilerplate remain outside description even when their words concern the goods. "
+        "Exclude generic loading introductions and detached tracking/packing passages; "
+        "retain attached product qualifiers. Unresolved boundaries need an ambiguous finding "
+        "with the competing interpretations and a recommendation, not a guessed pass. "
+        "Also check codes, markings, DG, origin and handling. The accounting reviewer owns "
+        "grouping, structured counts/masses/volumes and allocations; description can retain "
+        "the same printed numbers without asserting their structured meaning. Inspect existing "
+        "lists before calling a handling instruction missing."
     ),
 }
 

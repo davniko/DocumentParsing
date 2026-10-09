@@ -1,6 +1,6 @@
 """Small source-first cargo accounting model, separate from the training target.
 
-The map retains shared and outer quantities without projecting them onto products.
+The map retains shared quantities and contextual packing without projecting them onto products.
 Literal checks establish presence only; the model still establishes ownership.
 """
 
@@ -50,17 +50,12 @@ class CargoProduct(LabelSchemaModel):
     key: str = Field(min_length=1, description="Unique local key used by statements, e.g. g1.")
     description: str = Field(
         min_length=1,
-        description=(
-            "OCR product description identifying this group, including distinguishing "
-            "models/specifications/lots and printed per-package capacity. Classification "
-            "codes and shipping marks are "
-            "separate facts, not added description wording."
-        ),
+        description=GoodsItemDetailsV7.model_fields["description"].description,
     )
 
 
 class CargoCount(LabelSchemaModel):
-    """An explicitly printed count at one packing or product level."""
+    """A printed package/count fact with its declared-accounting or contextual role."""
 
     quantity: float | None = Field(
         default=None,
@@ -72,11 +67,13 @@ class CargoCount(LabelSchemaModel):
         min_length=1,
         description="Printed package/unit name, e.g. CARTONS, BAGS, PALLETS or PIECES.",
     )
-    level: Literal["target", "outer", "product_capacity"] = Field(
+    level: Literal["target", "packing_context", "product_capacity"] = Field(
         description=(
-            "target=innermost identified shipment packaging; outer=containing packaging; "
-            "product_capacity=retail/set contents. Pallets can be target when no inner "
-            "shipment packaging is identified."
+            "target=document-declared shipment accounting unit, whether physically inner "
+            "or outer; packing_context=contained or supporting packing not selected for "
+            "shipment accounting; product_capacity=retail/set contents. Use package columns, "
+            "container package rows and shipment declarations to establish the role. "
+            "Container/equipment counts do not belong in packages."
         ),
     )
 
@@ -118,6 +115,9 @@ class CargoStatement(LabelSchemaModel):
             "OCR-present container IDs only: omit presentation spaces and adjacent "
             "seal/type/tare text. Empty when unidentified. Multiple "
             "goods and containers do not imply every possible membership."
+            " An explicit whole-shipment declaration for one container can establish "
+            "ownership of its package count when that sole container is identified; "
+            "one surviving ID alone does not establish single-container scope."
         )
     )
     scope: Literal["portion", "goods_total", "shared_total", "shipment_total"] = Field(
@@ -129,8 +129,10 @@ class CargoStatement(LabelSchemaModel):
     )
     packages: list[CargoCount] = Field(
         description=(
-            "Printed counts/types by packing level; empty when none is stated. "
-            "Do not derive counts here."
+            "Printed package counts/types with their accounting roles; retain nested "
+            "packing as context and disjoint shipment units as separate target entries. "
+            "Quantity remains null when unstated. Keep equipment counts separate; "
+            "do not derive counts here."
         )
     )
     grossWeight: CargoMeasure | None = Field(
@@ -145,9 +147,10 @@ class CargoStatement(LabelSchemaModel):
     explanation: str = Field(
         min_length=1,
         description=(
-            "Brief ownership explanation, including row/continuation direction where "
-            "material. PDF may establish this ownership but cannot supply values "
-            "absent from OCR."
+            "Brief ownership explanation, including the declared shipment package unit "
+            "and row/continuation direction where material. A sole-container allocation "
+            "requires source-established shipment cardinality, not merely one retained ID. "
+            "PDF can establish ownership but cannot supply values absent from OCR."
         ),
     )
 
@@ -177,8 +180,10 @@ class CargoSourceMap(LabelSchemaModel):
     )
     uncertainties: list[str] = Field(
         description=(
-            "Unresolved source associations or conflicting OCR facts only. Correct "
-            "omission of PDF-only values or out-of-schema information is not uncertainty."
+            "Unresolved source associations, conflicting declarations or unresolved package "
+            "accounting level, with competing printed facts. An unstated quantity can "
+            "remain unknown; correct omission of PDF-only or out-of-schema values is not "
+            "uncertainty."
         )
     )
 
@@ -262,7 +267,7 @@ class CargoFactFinding(ReviewFinding):
 
 
 class CargoFactReview(SectionReview):
-    """Review descriptions and cargo facts without issuing relationship edits."""
+    """Review copied description text and cargo facts without changing accounting fields."""
 
     findings: list[CargoFactFinding] = Field(
         description="Defects in cargo facts only; never package/allocation edits."
@@ -438,8 +443,8 @@ def cargo_numeric_findings(
                         suggestedCorrection=(
                             "Retain OCR-supported facts; omit this unsupported "
                             "amount or establish its complete same-level OCR "
-                            "derivation. Do not infer a local allocation from "
-                            "a shipment total."
+                            "derivation. A shipment total needs independently established "
+                            "container ownership before it can be a local allocation."
                         ),
                     )
                 )

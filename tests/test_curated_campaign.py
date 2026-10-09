@@ -172,13 +172,20 @@ def test_review_schema_owns_complete_shipment_coverage_and_identity():
         unpack_review(schema.model_validate(payload), ["duplicate", "duplicate"])
 
 
-def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(tmp_path):
+def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "document_ocr.synthesis.curated_campaign.contained_packing_context",
+        lambda blueprint, target: [{"contained_quantity": 240, "printed_contained_unit": "SACOS"}],
+    )
     campaign = Campaign.__new__(Campaign)
     campaign.output = tmp_path
     campaign.config = {"seed": 42, "variants_per_source": 2}
     campaign.variant_counts = {"source": 5}
     campaign.casing = SimpleNamespace(target="uppercase")
     campaign.replay_candidate = lambda candidate: None
+    campaign.blueprint = lambda sid: SimpleNamespace(ownership_data={})
     (tmp_path / "candidates").mkdir()
     candidates = []
     for variant in range(1, 6):
@@ -197,6 +204,7 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(tm
         requests.append(prompt)
         assert stage == "rendered-review" and "SHIPMENT s0\n" in prompt
         assert "SHIPMENT s2\n" not in prompt
+        assert "contained_quantity: 240" in prompt and "printed_contained_unit: SACOS" in prompt
         return model.model_validate({key: {"findings": []} for key in model.model_fields})
 
     campaign.calls = SimpleNamespace(call=call)
@@ -242,6 +250,41 @@ def test_variable_quota_contacts_batch_by_shipment_and_replay_without_calls(tmp_
         assert single["values"] == receipt["values"][f"sample{i}"]
     asyncio.run(campaign.generate_contacts("source"))
     assert sizes == [4, 4, 2]
+
+
+def test_independent_contact_domains_need_no_correction_or_regeneration(tmp_path):
+    from document_ocr.synthesis.curated_contacts import ContactField, ContactParty
+
+    campaign = Campaign.__new__(Campaign)
+    campaign.output = tmp_path
+    campaign.config = {"variants_per_source": 2}
+    party = ContactParty(
+        "sample",
+        "NEW COMPANY",
+        "NETHERLANDS",
+        (
+            ContactField("c0", "email", "info@oldcompany.com", ("email",)),
+            ContactField("c1", "website", "www.oldcompany.com", ("website",)),
+        ),
+    )
+    campaign.contact_requests = lambda sid: [party]
+    calls = []
+
+    async def call(stage, sid, model, system, prompt):
+        calls.append(stage)
+        return model.model_validate(
+            {
+                "p0": {
+                    "c0": "newcompany.info@gmail.com",
+                    "c1": "www.newcompany.com",
+                }
+            }
+        )
+
+    campaign.calls = SimpleNamespace(call=call)
+    assert asyncio.run(campaign.generate_contacts("source"))["fields"] == 2
+    asyncio.run(campaign.generate_contacts("source"))
+    assert calls == ["company-contacts"]
 
 
 @pytest.mark.parametrize(
@@ -658,6 +701,19 @@ def test_wording_context_and_bounds_use_printed_private_or_rounded_mass(
         unpack_wording(output, [request])
     values["product"] = "LOADER, OPERATING WEIGHT 13,143 KG"
     assert unpack_wording(wording_output_type([request]).model_validate({"s0": values}), [request])
+
+
+def test_wording_receives_private_contained_packing(postal_campaign, monkeypatch):
+    facts = [{"contained_quantity": 240, "printed_contained_unit": "SACOS"}]
+    monkeypatch.setattr(
+        "document_ocr.synthesis.curated_campaign.contained_packing_context",
+        lambda blueprint, target: facts,
+    )
+    fixture = postal_campaign
+    request = wording_request(fixture.blueprint, fixture.scenario, "sample")
+    assert "contained_packing:" in request.context
+    assert "contained_quantity: 240" in request.context
+    assert "printed_contained_unit: SACOS" in request.context
 
 
 def test_campaign_wording_request_prepares_actual_physical_context(postal_campaign, monkeypatch):

@@ -84,15 +84,15 @@
       },
       "files": {
         "alignment.json": "b496516626b36e4e8b6aab93df8641784ba1d63fc2f4fc4a5c035a73e473c9cd",
-        "contract.json": "4794dc3f4b53ea0ceceb190246d33858b49f17ed527f4c88e2dd49e478908232",
+        "contract.json": "d3fcc50aad21173a4bc070df4e0b45fa84e3cd69dcfbe543d55f926e12cab7e3",
         "source-positioned.txt": "b90d375e366c9e501654ace992ac257c2090722c86d96714929836e4021fa3b8",
         "source.txt": "d76d0c9c7d94e1005e460228dc87ec03374e946d3174a601301bd19d5e7d0c1e",
-        "target.json": "98a6df952bf4486e42ac56536d083c8a1acf9e4af2d32eb4f0f36eeeee8dcea7",
+        "target.json": "a27ea444ab76c578c98603be0ca01747d15315af9ec34cb1542dd6a0a06054a4",
         "template.json": "9100f03454a3bc4605b668d075625538516370d42fbebd025eebfb5732d55e52"
       },
       "sourceInputSha256": "d76d0c9c7d94e1005e460228dc87ec03374e946d3174a601301bd19d5e7d0c1e",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "e92923bb459f57cb03736d58c1f6b7aed909fc81c846a9405d7a125aff58721a"
+      "targetSha256": "4bab1baee4f6b42d9542aa1f694274f0475c4770c67e9fa2d2a57386a1377b78"
     },
     "doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397": {
       "capability": {
@@ -157,11 +157,10 @@
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "allowed_package_categories": [
-          "PACKAGE_BOX",
-          "PACKAGE_CARTON"
+          "PACKAGE_PACKAGE"
         ],
         "family": "ambient",
-        "quantity_multiple": 20,
+        "quantity_multiple": 1,
         "route_topology": {
           "fields": {
             "placeOfReceipt": "placeOfReceipt",
@@ -189,15 +188,15 @@
       },
       "files": {
         "alignment.json": "f3a71edec4474df4f43d5e79d59843b40619bab78acf0a892b2fb538f5426b43",
-        "contract.json": "9c2b44f4caa061c8510dd460c8fd381c33f1fd54ae1450d0adf567a2ce33137a",
+        "contract.json": "dd909b4cba1c1f9a9f2395207be5b639efe107f939849e509951240031d621fb",
         "source-positioned.txt": "bcef922863104b4dd90786853e656fa3d9238838b357dc9c912c61d2988ce4ff",
         "source.txt": "87c0bde4ae8092109f3dc8a78ed7ad86aa3e0816f521c3311a679c8992792c76",
-        "target.json": "63fef2fde47168580a28558ecc1363aa044a3ab967dc7de6e0f27c132f26bc05",
+        "target.json": "6d274e9faeceeab8ed49a028283aafc46cb17bc1452e9280d8edbe6b71e9b090",
         "template.json": "44e2ea07292565abb66bb98bb792022857f715e4ae0f6c6611ac78d6969f2955"
       },
       "sourceInputSha256": "87c0bde4ae8092109f3dc8a78ed7ad86aa3e0816f521c3311a679c8992792c76",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "a4fbeea4222a47703670b3afda86ee4f1d0a9ad4d08b135719799bb4a9570b4a"
+      "targetSha256": "298d0993add0ee579af7a0c4dd97b157c8406e526831818d3ac2a65ec116b9c7"
     },
     "doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -229,7 +228,7 @@
         "contract.json": "7101c1fbebae5292768b79828c50dbde68891227863967355e60e6192b128d99",
         "source-positioned.txt": "f5722300b6095a43109c6375af88f94f786441863f99df79c1a9cbdccedc32a8",
         "source.txt": "71f16b98ad850d4e4ab266f45a283b9994bc729bf6bc23ea68fa50977009d103",
-        "target.json": "1331e6d7b5bd0476500c37137a9977ccc286b39261cb4373e30aef296d375c64",
+        "target.json": "90210ce6be4a051c8981d307e936af6d573675c3be9064d88cfd2886ed46003b",
         "template.json": "7dd4adf82675330ee45a84626e76e8235229688f046a1b196da760ac441c2361"
       },
       "sourceInputSha256": "71f16b98ad850d4e4ab266f45a283b9994bc729bf6bc23ea68fa50977009d103",
@@ -266,7 +265,7 @@
         "contract.json": "4b8c9a4984d92cef66fb715cbdab851f423e62f6e2f9aee9d1dad5c40e11a370",
         "source-positioned.txt": "2dee670ac11bf18812c4b4d43fdfc82302b62b50be74e0abfbff65ba3ac0040e",
         "source.txt": "458ed52a26aa467e051680ca56fe53d80bab44d666bc00bc0a37bc7e60bffd49",
-        "target.json": "79b33a6d73a66b4e4fa665985f914e3bfe7cd03614733bb734e892f6fa9478df",
+        "target.json": "8c39cd1613506c1e14357b4452cc4c172ffe99695fafab41ebfc21e5e2ac60cd",
         "template.json": "7c124c623e22003a1d9c73aab15ca900a20ab6a2681d1e729360afff1bf8512f"
       },
       "sourceInputSha256": "458ed52a26aa467e051680ca56fe53d80bab44d666bc00bc0a37bc7e60bffd49",
@@ -292,15 +291,15 @@
       },
       "files": {
         "alignment.json": "e9d0eb1f8881e43c14ea536d85e9f0aef0ff4fd196e8b50dc8a3612250419721",
-        "contract.json": "80ba4cb3053141c9fce79cd721ce6cc5b641422015df0ce2612b01f86679226a",
+        "contract.json": "44628a02c28b0d3bb4db42c74546d6f176ae85265bed1f5bf1ea488ff800bb85",
         "source-positioned.txt": "b99eaf53a93eb783567e303d71ca678af2f21b311672f66d754c1830636a7045",
         "source.txt": "aea3ee62ff65ce74bb7ec833349ff30c0dc6eb2802140d24a0e70df157853a13",
-        "target.json": "98d6c2495fc1ff37b20388780ca902b7b2a3691681062627b0098d7e2585bee8",
+        "target.json": "8d8562b83f659b3f793e06819536e4a8da0a445c445438148b8e66fdef661c96",
         "template.json": "dc584db084b4a8fb050498c2202f99dc639d6ec43d0cd011f6ed1d70018551c6"
       },
       "sourceInputSha256": "aea3ee62ff65ce74bb7ec833349ff30c0dc6eb2802140d24a0e70df157853a13",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "eae93119130541f19a25a357d83c5dafc28ad31a7ebf3a6be1764cf9553562b1"
+      "targetSha256": "35e5cd713af3abe666d3151c03e4c327b6f7f231039fa3f18474dce9a050b1ea"
     },
     "doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30": {
       "capability": {
@@ -390,7 +389,7 @@
         "contract.json": "a4ada920e7f64eb674329ed0757d896adaa87aa4598be3ed8df5a8995d84de94",
         "source-positioned.txt": "d554b52f3c8e359206eca930db0314580bf9b8b0900b837c4afebee9993a48f7",
         "source.txt": "0c5020d0811b8aaf800d672fe9e8a88065ae440566bf7d736434c16f81504f78",
-        "target.json": "bf833fc499375abb97013f47747d928197bd7ab829fb949a2ab06c57f1c05a3b",
+        "target.json": "e90c5dfffc0d7dc15ac1a3a419b53413c60ffa63f01e4aa3aae5f49ec8cf99ea",
         "template.json": "39952818486df47d1472b9c3be5d036b27027df5b5eaa1c92115488a4050144e"
       },
       "sourceInputSha256": "0c5020d0811b8aaf800d672fe9e8a88065ae440566bf7d736434c16f81504f78",
@@ -431,7 +430,7 @@
         "contract.json": "83d3d8e417cdffac621b92b7c359310d08f6fb7fd236f2f1ab8d618cf91f8600",
         "source-positioned.txt": "fa340ff9fbbde69ef8abbef1feff320d40c044fd1ae1397286cfe0809375db7a",
         "source.txt": "fa1dff8faa45c5fc1613fd21e2e2f8d4684956886a368d9421d6a9b0f7d6b250",
-        "target.json": "fdbd9da59d79ba005e216099f495ba69f819e9a2f9842bd1e11795bd42dbdf8d",
+        "target.json": "b618d49828b24542a80632fa24a547a1be1d6f09cde992de6be734303682c6bf",
         "template.json": "8b75fa7cf6f54e17d51558fb701d9d07da40b393ef879b021bf6acce76408cc0"
       },
       "sourceInputSha256": "fa1dff8faa45c5fc1613fd21e2e2f8d4684956886a368d9421d6a9b0f7d6b250",
@@ -466,7 +465,7 @@
         "contract.json": "61d97dfacd0dfd39c4b2c54cf61f011a40a4ce0de0bc054ac1dce56d6d8a4a74",
         "source-positioned.txt": "01ceb8692672a874edef0c8a3434235300f155cf59ea1f8f44e6aff3fd8d43a0",
         "source.txt": "f73e09e31f4cc931234a8bec872f51c1252bac0be0393cc9246dbc1965e4167d",
-        "target.json": "68f2788e9f507bc64c05bb51073879c8bd4ebbd2aaa69bf1f8b957bb6fb37307",
+        "target.json": "39577d5a8213fcf7b888599a19ce4c0a205ed785f67785c8e78fc1662e662e3f",
         "template.json": "ef92ad0fdc425b5ae05fe05d4b3369c2d112d9b77ec33b403838d43fafb93c02"
       },
       "sourceInputSha256": "f73e09e31f4cc931234a8bec872f51c1252bac0be0393cc9246dbc1965e4167d",
@@ -477,9 +476,6 @@
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "family": "ambient",
-        "required_private_measures": [
-          "grossWeight"
-        ],
         "route_topology": {
           "fields": {
             "portOfDischarge": "destination",
@@ -495,14 +491,17 @@
             "documentPatch.parties.shipper": "origin"
           },
           "rationale": "Reviewed current source route, issue/payment and explicit party-country roles. Equal printed locations share one node; distinct localities retain separate nodes in the same source-relative country, and explicitly third-country parties or issuance retain an independent country. Registry sampling is synthetic topology, not a carrier sailing schedule."
-        }
+        },
+        "required_private_measures": [
+          "grossWeight"
+        ]
       },
       "files": {
         "alignment.json": "60d5a227ddf1cd9054c31134d2e11347b9cd0defbbde3420331606c678bc831a",
         "contract.json": "730bda4156babfa36f5f8f3167f2a5c4db134ba158f27ca0cc3716d32d40e330",
         "source-positioned.txt": "8acfda880a135ce904a089715e349ebf5cac80373efa17c248b17235cb82eece",
         "source.txt": "ccef14fc48ce7af66b7b8c003a117215c2802ab92ddc2b0f589fa6c3bb16fda2",
-        "target.json": "3cde513ffaea3dc6cf77cea4daa4830230f863344f27bbbfb8f8f30b3e1a2048",
+        "target.json": "e80f905d2acdcd11974d48c47bcb2245ce079ad3ef4ed6dee7fc4b6b542a9f78",
         "template.json": "90f4f8dade2da134da8526578abb683096b1e082b3efdb02ab38dd85c1cf5d0a"
       },
       "sourceInputSha256": "ccef14fc48ce7af66b7b8c003a117215c2802ab92ddc2b0f589fa6c3bb16fda2",
@@ -534,7 +533,7 @@
         "contract.json": "cc59d5f83f959f4f735129e4cbdd0b1c037f88b91673e8f0f9146ab885e46197",
         "source-positioned.txt": "61a6a65fb1ed1c116681b1d5b12df65e5832c9e1626aae1c5a53e1b954a8fd0c",
         "source.txt": "4ec0d41b8f869d799b3680459b2c71b1a00eb9d30e2ae76606d1193de3537fd3",
-        "target.json": "3b0f29a566c45d87bf9c9dd9e0d7eccec6595091a8f8e6cdff8364847ea2917f",
+        "target.json": "42499412481c86be09eb2dc6a674bb75c8745ec52a6530de5d4eb1e62cbe4c6d",
         "template.json": "ffddfc4cb1b78e504053fb132e0b8ce976e1d598ad9ce27f10fe31a525c4c295"
       },
       "sourceInputSha256": "4ec0d41b8f869d799b3680459b2c71b1a00eb9d30e2ae76606d1193de3537fd3",
@@ -628,7 +627,7 @@
         "contract.json": "cafcf56871490961efe1d17581432941a227ffecfac7754e6f54882b4d41ba54",
         "source-positioned.txt": "7797afd44a9a2d11a8e6264d8946ba3d531ce9d3cc7d89c7c8f558721ced5ae5",
         "source.txt": "8b429417c5e4ce4e6ebda7dd32b5c50331156b692b3cd67f1fdef489c4cf6519",
-        "target.json": "f6fe5d7c9efec6a85247debfd8a6574deb455c12081f150e86dfa0d87530914a",
+        "target.json": "d643c660c823e26383d11e2c31debbecf80bae03e4727151793c61897c610305",
         "template.json": "2048f13dcd2e9cfb897503fd26e160ec2552c6eb7d4524f8a01f11038a30f5a8"
       },
       "sourceInputSha256": "8b429417c5e4ce4e6ebda7dd32b5c50331156b692b3cd67f1fdef489c4cf6519",
@@ -791,7 +790,7 @@
         "contract.json": "a89cf76d7f7cbd58b0e264a5ad27b7c017b00b457e3782ec2941d1f00e765c72",
         "source-positioned.txt": "8caed60a7aabbf0974b6d1f75bf24cdaefb1d7a3bb43b756be7b0c10125dda31",
         "source.txt": "504bb7b373924c76c49e69e2f35e993c1b195c10622d2533b0abd72bdcc5f4ca",
-        "target.json": "0ba687aa8d0c065d4fcca73ad1040ddc5feba2df403d0720f3db0120b468f451",
+        "target.json": "e0e1f2aac53dee45c505e7a0a300bae98b500b205aa92f2132a7af273c1f13a6",
         "template.json": "f664e0913bb36b43652d2deb9771092a57c3ea352f5c608781bd4ec6d614ea2a"
       },
       "sourceInputSha256": "504bb7b373924c76c49e69e2f35e993c1b195c10622d2533b0abd72bdcc5f4ca",
@@ -825,7 +824,7 @@
         "contract.json": "e49448a024cee1419675c7046631326b0dfa913ae32b3ace3420b5ebc50dd695",
         "source-positioned.txt": "80ba26230c6f4cdbcfa61312064d1f69d03aefa53cf35bf2ccc6e6e94a1a0f0e",
         "source.txt": "7853ce5a82d5d0337de10810a3ca542e7cfc4772006754acd74accf85ef3d1b7",
-        "target.json": "fc59c22ab2cd638ab946e14e5aac30b7aa585209e3e326a3d629d7ef6231c957",
+        "target.json": "d21ce45995f89195041fb5744995792f36c2d0463fab38ae2ee35cd062206155",
         "template.json": "adcbb7da99c841096110363729702454462e611b86aa1c6dd68e76275035e30e"
       },
       "sourceInputSha256": "7853ce5a82d5d0337de10810a3ca542e7cfc4772006754acd74accf85ef3d1b7",
@@ -963,15 +962,15 @@
       },
       "files": {
         "alignment.json": "7d47aa88cfe637a4580a1e540f7238da79380b4c899c9d707974223ea5960b0a",
-        "contract.json": "1addf5511c3964a1b4f9d43fbedd0835b626770b5e85f7a505b75dfa2a7169ed",
+        "contract.json": "fad657102580aa6417ceef7a80d803283d627c194649cb18a18fc0542cad2ea6",
         "source-positioned.txt": "fe4ad0014800e167eee78acc29b4e1a9014518270e8c892e7d159feeb1f6d55f",
         "source.txt": "1743f1de09e2a1d5383a24d31aa17f4b7e1a1a18513acf26f0da19feb49d0e74",
-        "target.json": "ad539e85b62782390603ee58451f0fdc01e9b3674bfa608b18bc78de09ca922d",
+        "target.json": "36c6339d6dd4e81733b34c8adf4d5afe702693440e26ba69de7d14ca3f6504ad",
         "template.json": "b4937840d637bc7997d76e6a87a511616ee934f807e6ee886af89e645ea469a5"
       },
       "sourceInputSha256": "1743f1de09e2a1d5383a24d31aa17f4b7e1a1a18513acf26f0da19feb49d0e74",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "34513d35e955955df99bd412594afac2949dcb2c10f00c62dd50bb72c7df3d74"
+      "targetSha256": "b31d80a4e0c68201265e90628fe142b62a7acae34e187a477971e4d9662d266c"
     },
     "doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524": {
       "capability": {
@@ -1133,7 +1132,7 @@
         "contract.json": "2875fd483102836c3313ad264fd74d0fa8c25e452d435c88ee929be1740fdb92",
         "source-positioned.txt": "c630337412dc23a60bca661998608235e4827b502b57645e3532b1b406edb9fd",
         "source.txt": "607321707fc88e78341d5c6e63381dfd5718752f611eca8e623e79e1955a1ca3",
-        "target.json": "74ede988514a1c1c20fdd7b267bbee02b556d3351a31730267040e9e914354be",
+        "target.json": "a0464d06155f21c6f754c2373a099516589c90c1b3089725ca076ae975350498",
         "template.json": "0648887869cfcdd9d008b58514817d33ee79cddd148bcc4cd83d67cebbaf1149"
       },
       "sourceInputSha256": "607321707fc88e78341d5c6e63381dfd5718752f611eca8e623e79e1955a1ca3",
@@ -1172,7 +1171,7 @@
         "contract.json": "b590b0345e1a5f7f099ccbc33cff9c2b6f229118fc49654fb6e7e1ec1b9ba8c5",
         "source-positioned.txt": "80120893d6b9e49d48ae1278f8b4967ac4efa5b01d87d9dc2ac197248cb2aef2",
         "source.txt": "82a30944810c66e173e1fe7b7cf22c5ec8e4f826922b4a6a0b6915457755b93c",
-        "target.json": "ec837e2435d6a7d013ac8a6f7601b9853a877241e56f7fa52f0a8837cc68461d",
+        "target.json": "0081b1d56cb6e1c3b8dd575bad8825a7892ac66681f7c1a8af84df391a97b420",
         "template.json": "5979c1d5bce61825814f23743341a520bd88ae97ea877e449ebe73c9673b520a"
       },
       "sourceInputSha256": "82a30944810c66e173e1fe7b7cf22c5ec8e4f826922b4a6a0b6915457755b93c",
@@ -1215,7 +1214,7 @@
         "contract.json": "c9ce161bb1d188b103b8b1cdb1b6cf863a2853c01c32c615d7dad8e7a365949b",
         "source-positioned.txt": "6a8935b22d70ca088f23b26e68b5c11fe16c1190e77de9a8de9f2ebe57c3dae0",
         "source.txt": "aab451125e83415dbd1ce2491c61c65a65fcb93987719b4805778fd558764235",
-        "target.json": "1027e430b1139d3804d00c3e3251e39d5b2966ec44c04cc3d5e49e9e90a6e566",
+        "target.json": "b8487da365e50ec74158843e359be37ab525edd97eb30b86b0508acade2b7257",
         "template.json": "c77007f67c23d36916199b79724e3c0f55369405235a853e5dc8ce1bc3d53276"
       },
       "sourceInputSha256": "aab451125e83415dbd1ce2491c61c65a65fcb93987719b4805778fd558764235",
@@ -1268,7 +1267,7 @@
         "contract.json": "08d7b9033e647144a3ce0bd6928d3ec16fa88f9ed6dc5cf85acef43a6bbe1e11",
         "source-positioned.txt": "63ccf90ed2ee50cc890c6dd5be088dd289016412c250c0e8e1c510caef13994c",
         "source.txt": "a58a0c586d14cbf99c851a99e4a3a5e9c8d55a62f4f69fe9af00d6a837e32a47",
-        "target.json": "d2018fbc9bc9a3784154b080ac15269c806e2ff3f605ce8d6fde4aa05555b060",
+        "target.json": "136df0cc89d4aaab0b9b81b91f055919f7952f3a3163298b33ca0ed6e7af7275",
         "template.json": "23feb3685701b94248f1adc210cc28755f78b8b34ab9bacc581a28efa14c645d"
       },
       "sourceInputSha256": "a58a0c586d14cbf99c851a99e4a3a5e9c8d55a62f4f69fe9af00d6a837e32a47",
@@ -1318,7 +1317,7 @@
         "contract.json": "b9dd1ae362f49cc1ef01cfe487d2b14767921b68ec58032978cd6c77aff2a58d",
         "source-positioned.txt": "250df5eef9304f4ee2f9308e3d9706d63340ff01d0814028da8848801222e4c9",
         "source.txt": "71a5fc61ec4474cd8b5af32e8cea887765a93e744ab44684f60338a170df2855",
-        "target.json": "95a98c24282ff2aa9d06add0cf7194f6776098a5b613dd32d209429bd0afa477",
+        "target.json": "d85839fc74b6a383ad3c0ecc692dc979cf7ca462c2d422e68f6a6b8732709075",
         "template.json": "f6647217d6525988e048c815c2589a5f21af08297ea2a4391cf6546f8164efb0"
       },
       "sourceInputSha256": "71a5fc61ec4474cd8b5af32e8cea887765a93e744ab44684f60338a170df2855",
@@ -1350,7 +1349,7 @@
         "contract.json": "a6b165ed0565a77ced0b42f3025b8550f0ac1a84f2e5d92730cd1ba7b4992d1b",
         "source-positioned.txt": "eac918d0b7f2b7a86c0ec9d5dec1b6a6ef19faa558f8a76db0f28dd12226a19e",
         "source.txt": "ce4cb00de67ecd149e9d7622d001332b23be783af97c49c3ebf181f535e43739",
-        "target.json": "16cacd61197a7e2e1f12d653c3dfb7ae66ce3d8e4823441b10489504659c0b1d",
+        "target.json": "6e20b543b044e0bb21aacfa34fe96b1e64a2bd9d2543bb635563e241252cc549",
         "template.json": "3a1f12977a9373362e034edfac9a2584fae1be6d79920326038ee7ab93afd628"
       },
       "sourceInputSha256": "ce4cb00de67ecd149e9d7622d001332b23be783af97c49c3ebf181f535e43739",
@@ -1393,7 +1392,7 @@
         "contract.json": "e9002c939a334db50f42a4d7aab621681d5515294fbf636b4398d944bd8e12da",
         "source-positioned.txt": "f0e38de7fc3e88ca1a36c1985f8207d1349caa5b7aa65582eb0de0d6a1a890ea",
         "source.txt": "eb8c1d6f8448dbdb39c4bda33ab3d75148c9426dd6e9826777fc0481b269712d",
-        "target.json": "6ae7238fb1144cdb9c1db2a5ae4e7662875ee368ce4b1d6b69fb48fc5c44f68f",
+        "target.json": "3a0dd6911a70b80858bec3138928734c859c372a4973caa90a824abc56532088",
         "template.json": "77611257280ac58310c9758024d329cbdfbf2a66fedd64e80870dc43f0d4567d"
       },
       "sourceInputSha256": "eb8c1d6f8448dbdb39c4bda33ab3d75148c9426dd6e9826777fc0481b269712d",
@@ -1452,7 +1451,7 @@
         "contract.json": "a7041190a534779a46c16d50ff6ad91414d44b86bc0ae5efc95102943dc4111c",
         "source-positioned.txt": "b07c8a44002c72846a4d2ae9212c10a932b143c70d07e4c79fbc52d181dcf22e",
         "source.txt": "eec7fc79e71c4e369c31ad13a0c2b3e1b899b8ac8b949c117e1905b7110d19f6",
-        "target.json": "e2b6fa25633fdd07f65d9270cd4b56f073650d764f4644385acc06c365290bbf",
+        "target.json": "d76f0cdbfef2918c15215547ad6363f61c5b391627468342f457b131071459fc",
         "template.json": "fbd8cf79e4f152f9e1bc9d9143f682914c3efa8d1d14111f22e49294235b228c"
       },
       "sourceInputSha256": "eec7fc79e71c4e369c31ad13a0c2b3e1b899b8ac8b949c117e1905b7110d19f6",
@@ -1488,15 +1487,15 @@
       },
       "files": {
         "alignment.json": "a0f4956333475da0bfdfe7ba59b2fd68d9513efb183be0280460001679cbcf05",
-        "contract.json": "8d57c76ade7d181aeadb1838a681af9a22cd6ae57467317d374620b9205f230a",
+        "contract.json": "677adb84d60b215b47a52b3c24a203343f089a4b815f011958061281fed0999c",
         "source-positioned.txt": "11f09c4bad25401c8dff07b0bc90f81c77c04a0f9910141a3d647f56c593950c",
         "source.txt": "bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690",
-        "target.json": "b9544e0a15e4777441b70885ec0bf3ff6249c83e9972e2670aeda010fb6dbb4e",
+        "target.json": "d467c68fd1f06563213d2ba8fe79a77355dab76afadd99e9539af35d8726bae7",
         "template.json": "3e12c028ce1287f69acb1b5ca67870af36c89005be377c49ffc0e3ed186b42f1"
       },
       "sourceInputSha256": "bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "d51380e12694c9aee353bec20b8790f8d4f1dc4733c7d34c35c1912057dd564d"
+      "targetSha256": "288dff7debb21efdac3d7cca5f9dd2d6d49520e669a9addce33463c5461b9945"
     },
     "doc_35d0cc56adc2c3544531fa31aca769786dcf15250896db49720944f0c31ec910": {
       "capability": {
@@ -1565,7 +1564,7 @@
         "contract.json": "6b16848ae3d6310bb31f0be8eaab700cc1f5552ec9f5f361e512767bcf521a27",
         "source-positioned.txt": "bb91f13c2d99a7f80bf533ce24ccdbe089584da592a417d389990d87a9f0902a",
         "source.txt": "fde52bf249f36fc966944dac807afbc31e5550c982513b3c162e75152662696c",
-        "target.json": "891993c2ceaa0c456b80c1f8088689aed0bea6c47fc8eae039df576e2dee17a9",
+        "target.json": "a8ab9f8ecce87d0d2b686992bc7c497bb6ceafbccc651adfdd8efbb37e19166c",
         "template.json": "57a6187f34eb1b009ef239eba52498c1c194614d15af5be723568af68274e2e2"
       },
       "sourceInputSha256": "fde52bf249f36fc966944dac807afbc31e5550c982513b3c162e75152662696c",
@@ -1698,7 +1697,7 @@
         "contract.json": "f0240e7cfd30d62ebc6b5a85f258ca32e7996b253fa3225d8192e9eba7d44dd5",
         "source-positioned.txt": "7d17f7734b6af1a9f8565d879d002f0a22807c03d4fbdaa4c5c81fda8182c6f8",
         "source.txt": "1174416e50999abb4d9f9cd9d7e4895d49a56bb0aedafb487fe852ae4512580e",
-        "target.json": "b9f55d4d1ac243c0bb62a494626bd76e2e84379104bd6f9b402d64486ee04e38",
+        "target.json": "50d49f5a3c98d72846085614c9ad28d000ca3992151befd66fdec5b8145f969d",
         "template.json": "26c59305ca53cf42184e43c7a1d1c57b3a2b1b616be2d399185cbc13671b98a9"
       },
       "sourceInputSha256": "1174416e50999abb4d9f9cd9d7e4895d49a56bb0aedafb487fe852ae4512580e",
@@ -1799,7 +1798,7 @@
         "contract.json": "9385a72943dc0c7cdbb4ff9c390a9b003bb7dad8786618333ac92a188e8b4fc9",
         "source-positioned.txt": "b3a3aaafc0e1fb854a4c158b8cac1dc26e97e44f4bb27ff334db109036a46cca",
         "source.txt": "fd0744b15493b8f93edd2a346e07dd9c326b1158d3545b9bac346659b752dec5",
-        "target.json": "35ec0f7575568f9770042b120bd104a7aa82e2a0ee20fdaf624558775ce3885b",
+        "target.json": "dfa2c0754914e3c98755df7351944089df46171949da4b667815e4daaa873dc1",
         "template.json": "4861a8cdec7ec95b25269486e5367a53cf3bf6c2ac8f0a2c3276479a70877531"
       },
       "sourceInputSha256": "fd0744b15493b8f93edd2a346e07dd9c326b1158d3545b9bac346659b752dec5",
@@ -1866,15 +1865,15 @@
       },
       "files": {
         "alignment.json": "8cb891a67d2ddc10dc28db00b4bc883c0a966b04d468cabfa56bb5d634dc1f35",
-        "contract.json": "2b56aa8c1846fd80a16e1d13e81de64a2f3e1eab8d9e1f8cfc033e5e8e920a7d",
+        "contract.json": "4ed147a1ffc9b08d79f7f15edbbfc1af36725e87bfd8e156413e58365b2236a5",
         "source-positioned.txt": "c36a826a93359fa5a8a5c750ac6f1b519b6a956d2e8d52d2e3920d4582cec935",
         "source.txt": "0a91a50491fcfd9fc8eeeac6a67357ebb0e2cf38892d56616672cfbf65bd9924",
-        "target.json": "1ad87343b827d4b24a7d34eee981dd0e9098ad8ebc5de025a214b8632d91157b",
+        "target.json": "a8469425b201d341a5cb0f39cccd092a7385d3068d45800629782bc92cab70a0",
         "template.json": "316ccae748b924293b8dac9add48d35c9d7ab62990746bd4717cce39cf9002a9"
       },
       "sourceInputSha256": "0a91a50491fcfd9fc8eeeac6a67357ebb0e2cf38892d56616672cfbf65bd9924",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "b4550a7a1290bd15f6720fbf1440c3d1ac186e74606c5265a4cbddeebc333540"
+      "targetSha256": "dd75b7a5ba2da4de707e8077a38f7d99e2a31f7c0ce65359a724653b63ae77fe"
     },
     "doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8": {
       "capability": {
@@ -1899,15 +1898,15 @@
       },
       "files": {
         "alignment.json": "4617932e20a3b687bf6dd0c40c751558f7ec911b5f779bb252f0dd35a4b48748",
-        "contract.json": "40d905375dc9a277d09a78694aadac8a27bc1efffb38099556b333afef7dc975",
+        "contract.json": "44c9fce283c98fd111f58e8a5e4b33fff282bb2939788623dedda625b549efdd",
         "source-positioned.txt": "fc00a83d5bafbe79de137f2cbd243c9d6b8153864c5ec48744ff0ac8e2d5aa0a",
         "source.txt": "f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7",
-        "target.json": "bb54c5a6edae58bb3f7a6b215fcbc35367dea0894c57c61a74f50aa59fe57adc",
+        "target.json": "4e570563f00800fdb80503479cd086410224d3564b745a12e80900afd8c6f416",
         "template.json": "f8f12b164fb2496a059752d88b7d553f34611fb7eea80a58c1b2193b8ee9e824"
       },
       "sourceInputSha256": "f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "2b6cbdbc6b70008d195f8cb5bd446119571f84eae861c8b40c8c0213a9460dc8"
+      "targetSha256": "b97729da000f003c907f76ef537ce996a9aabf305df3c19e21bf1793d98706a9"
     },
     "doc_43192029e089291b2e537c6d6252f1adb15970922ef113b1baa2d29f15be93ae": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -1948,7 +1947,7 @@
         "contract.json": "32cdec481a4687d91bbaf2bd390d6972daa0bede40889e54fc726b7e722817c9",
         "source-positioned.txt": "9bb88646d50d3a1ff7e07a3f21423ca7e3a7914a412dd6a8beb9251b2fc266d8",
         "source.txt": "7bb82d76b0ad4f11ca649573316d4c6b09c99c9594d2dd1e2a3d64661d2c599e",
-        "target.json": "16580c2535619e455f172f350e8d5e9e51b3fa159c310701eb4df3db7c982906",
+        "target.json": "0834a4fb58d38f0da48ef7a2735fae997fde412656041edf9876e9879caeed6d",
         "template.json": "34683b2670172752981e908b65e0fc18bf5a114615a0ea9fba982df7d4744d15"
       },
       "sourceInputSha256": "7bb82d76b0ad4f11ca649573316d4c6b09c99c9594d2dd1e2a3d64661d2c599e",
@@ -2004,7 +2003,7 @@
         "contract.json": "f2bb0c588b46152629defd9ddcf8260b85c90cd2957da446f5d3de486f15274f",
         "source-positioned.txt": "7e7d4d49f9dd219e6b15897e1cb2624779228955515cbfe9478ca5880f3b0085",
         "source.txt": "312830a7ef5397eb61bc1d6f0e33593444a46c0533119cd743a72e60abe5908f",
-        "target.json": "a3772c1e240126ad43252a8647951f067cf6cbc2fbab6daf0d6ce0acc0cdaaee",
+        "target.json": "7e212996fb4fc068439d31f791a48efe99a0e4acd613a124284a408d68bbe3be",
         "template.json": "0603c8b5285c7b72f2bb9d5ac6007e32777798c68e58912f8ed2813e85ddb3f6"
       },
       "sourceInputSha256": "312830a7ef5397eb61bc1d6f0e33593444a46c0533119cd743a72e60abe5908f",
@@ -2036,7 +2035,7 @@
         "contract.json": "dfbba8edf9c1a209d97bec4e923dce6617b1e9758d60b219333d4a6e0b54a30e",
         "source-positioned.txt": "f2e14cb92378d4f4a27175c9014f534a4384850b645375c41e899670a22edd87",
         "source.txt": "e1f451211154056405b299f2f914353b12953b5f0a02e5c0d89bf80f73ee9a5b",
-        "target.json": "326b371818fbb85b023a8e6bb26fe98d4a96c1e990684497ee91f9a09bdb1736",
+        "target.json": "f066f434094ec988932c8c4d762594ca657435d3c0e7933b1d82ba8a5853e0d2",
         "template.json": "fdd868dd546b31573900bcb357ebb0f19203edc4b778b75995317d3c072b73c9"
       },
       "sourceInputSha256": "e1f451211154056405b299f2f914353b12953b5f0a02e5c0d89bf80f73ee9a5b",
@@ -2086,15 +2085,15 @@
       },
       "files": {
         "alignment.json": "eda3faafdb2fc0aa163fbb8ef076f88e809a778e805a2f67f36b6053f9d67600",
-        "contract.json": "35ecf8a732c06be64ad25d68766f2d0b7f6c3b5f55df88716837b58bcab8440b",
+        "contract.json": "3ddabacd4c5589a7a4b1481c026fec8962b34e9ee40c815c112652dc456d615a",
         "source-positioned.txt": "adf203acd09b656afcae445d375ff3c7146c2ee67b606e9a13726dbbe7858039",
         "source.txt": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
-        "target.json": "b849065970cd7ef0b7555bb4c3dc4115698c53243cad17ec26b2e734864803f4",
+        "target.json": "d8b9b441eea672581439ea97999fa02747bdbac65ef49e8828cea3dee12b24ef",
         "template.json": "e015b86e18f2a17a6fd90371b828496d9e2da02e67a7d1d1348e6346188a743f"
       },
       "sourceInputSha256": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "c3bb3c3dcf17f6bc7bfec246ad9bf22435a7a19bebd753f45b4fc376bdeaef84"
+      "targetSha256": "7f52fff9dea99ce2c54423b4cde724a869973e2703f02d8e7c7e4ddfe7ba8fd8"
     },
     "doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -2135,7 +2134,7 @@
         "contract.json": "55222a87ac22a099a2c83a0bf08ada882ba6a526a2afc29b16c36b0863c23918",
         "source-positioned.txt": "1ce4a6e8eaa1e73cfdb45698bb5ecf218db283178e28f5d3abfdeb54b1713130",
         "source.txt": "3acbff49e6c2f79af14ed6115f539f180abbb27bd7daece2bd07a19391d3cac3",
-        "target.json": "a544108ada22b5441ec295db13046d761426b8d1be7c9bda3a5b3771cebe1b37",
+        "target.json": "9a914b78fa9cf06195df24078dbbffbcec4458d2727ed90b7b904956a4b7c4fc",
         "template.json": "752a6699034d4186dd63fc4c29e891d1fc8c2ed6b798e946062231b2f00f5146"
       },
       "sourceInputSha256": "3acbff49e6c2f79af14ed6115f539f180abbb27bd7daece2bd07a19391d3cac3",
@@ -2176,7 +2175,7 @@
         "contract.json": "cca5d0405a9ee80b7235bec023a7af3ec5ebc0380ee997e196bcf1c2a393b72a",
         "source-positioned.txt": "5fe9ea35251ef7760594b98469ba1e2c3903bf692bca99cc1fcbfb10daf9ffa9",
         "source.txt": "974d55ade361200f8a705682d2a3654b75fe01a8f096e966243fd87e182e1f2f",
-        "target.json": "aeed7322ef9011b1f21f42c33869593947e3050a05e9cca45dac22a873a20447",
+        "target.json": "89b9c367df33cf22f9cbb5bffa6f17bee1378a47113d0deeaf3f91ff4c8e5e83",
         "template.json": "455fe66fc36e72af84c6e04fd81aa8789e2afe54c3b2b21b8a464cf9aa0b6631"
       },
       "sourceInputSha256": "974d55ade361200f8a705682d2a3654b75fe01a8f096e966243fd87e182e1f2f",
@@ -2229,7 +2228,7 @@
         "contract.json": "e724b5061f14c9c068e939a2d7661b0dc34a238bd3d997dd46c52cb22d638a46",
         "source-positioned.txt": "072b9167ae45020780a25479600439f5f74cabfbc5c4230dd01422cdfac2b6ff",
         "source.txt": "08ab65a91544033b8d4678b5db9ed8e34bcbb70740c3e74759316572478807bf",
-        "target.json": "87317b443f5263e37737658e10963e53881b4ec984ffaa5a27a9c2bdc55596af",
+        "target.json": "620dd6d758a3e22e12c9e570cba02a76e6a5e9677d57d266ebbb19a65c88b218",
         "template.json": "1c963f9d19f61b5f45df44d2db04d4827bcd799e97fedf423690109f602d4c7e"
       },
       "sourceInputSha256": "08ab65a91544033b8d4678b5db9ed8e34bcbb70740c3e74759316572478807bf",
@@ -2308,7 +2307,7 @@
         "contract.json": "33d2ed3d04be95a239f9a1b8ae8bd40a97a270a326b78799a89da06677550e4d",
         "source-positioned.txt": "9d18049ecb4a9a4165ab5b5fbba035842df96e4f038888f4ec65793301e4775c",
         "source.txt": "e7261482031549ac3805d27035153daa07e420a504c303de5f5caa478ea0c9ed",
-        "target.json": "2b52c2378a9911631eca335e1634333ce6b4ccbb22ded9d3d6ddac0230858ef2",
+        "target.json": "da5a7cba471786cd670aee857e9fd8e71e08256834aafcf13005717da0ea2694",
         "template.json": "b17a1bcc4f94b6eba38634a25faf11f8c28b556e42d3878168a672b970726972"
       },
       "sourceInputSha256": "e7261482031549ac3805d27035153daa07e420a504c303de5f5caa478ea0c9ed",
@@ -2373,15 +2372,15 @@
       },
       "files": {
         "alignment.json": "ab9e04c897fee0af0cb97a7fbc666886660bc0709f44b43d65129dd808f573b8",
-        "contract.json": "feed0a4fa43884a41d4616cc3a5a6f26f36a9b78d6ba748ebf63a95ca0ee72cd",
+        "contract.json": "b4c970b337a6cf2e9acecf0702038a6ce936ab5e9350c1c28a8c24078f5e9d6b",
         "source-positioned.txt": "c78aa57f525e805c97f6e80b29f8028813e63f33190e017c85bd4d9f307e9aa9",
         "source.txt": "a02f03db8e5d640279cf7769bf661ce1cfaa16c4d5ad3020c6af56cbdcd0f7a4",
-        "target.json": "3b660421d61d5177e5adaa0e9086bf09d27202e5432d858aa516fd00a6a3991d",
+        "target.json": "672b4bdca03f8530580cbbb8868f225f69f4257c1af01abca51a4e60e16dad1f",
         "template.json": "0cc3ebb1e197ad4de3e352f30d3dd44fa226d89d4802a03e7f3b55426325eab1"
       },
       "sourceInputSha256": "a02f03db8e5d640279cf7769bf661ce1cfaa16c4d5ad3020c6af56cbdcd0f7a4",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "67a1d248dae4a0594a44e713b4e5104e8e21a647489a4a51b4423b0a9efe10f8"
+      "targetSha256": "9e4acf0162c166f0485538b616e73d800197559f8e896bbaa4139eb8d8cbacab"
     },
     "doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -2407,7 +2406,7 @@
         "contract.json": "6cc12e5fc72ad0c24d1f956376ddc418a828d094740ddf1ab08dc23ffc7ad5a9",
         "source-positioned.txt": "a4a80d4ca1c62612f13e9ca302c88d154e050bf8b96bd5ca38790f41c804a78f",
         "source.txt": "ccd7e2afb587a98506465208b76d19f046651acbfa1bddd28dd9e8b193f007b0",
-        "target.json": "631a02c81c34d6f6dfd148a32d86e317bd24c7dd2e0d91d19e3edef8d74cfbf8",
+        "target.json": "49831e19110a047928856fa6c8a9070b8a06217ad3674cd06c0f18aa0dc11ce6",
         "template.json": "4532ebe658771e4657cb5779f7922a7f6b7e458f15247e14a97b15f77c9cb55b"
       },
       "sourceInputSha256": "ccd7e2afb587a98506465208b76d19f046651acbfa1bddd28dd9e8b193f007b0",
@@ -2444,7 +2443,7 @@
         "contract.json": "a16e6b9c83aafcb83b95a9cf2c6b376d09356f9e6b59295c9ce88304a96c64ca",
         "source-positioned.txt": "cbd6ab9e4ae8fc68a6c757011691e2d7d02d2f3ec3ce237987e5d46137c6d865",
         "source.txt": "49735e433f12455c18cfd141d6df29ab5222b6d141bfa7f75de110fde36a198b",
-        "target.json": "ac30cc3aafc63d7ca8e3772fc20c028540afa1b65a9e4dcfe8043f2128445d2a",
+        "target.json": "717a5470311dd931b406acbc2ae9b8ef837e6083d1ea890787f1606965f4776a",
         "template.json": "76c6c0fc892c55535c76f5fe5510b1226647e3492d338867458537a1bdbb0281"
       },
       "sourceInputSha256": "49735e433f12455c18cfd141d6df29ab5222b6d141bfa7f75de110fde36a198b",
@@ -2485,7 +2484,7 @@
         "contract.json": "9cade8a697949ffbbf65d86777c185058c9bf4c1b3a59a47e286e6dfca986f52",
         "source-positioned.txt": "fa2a22a55a08afffafcb01a7a893f191db15caf64e19adb207d4d355025bcd7b",
         "source.txt": "859676a846cffd7725c4f164e01b1d8d57ac9d3485d3f978f61855f706591da7",
-        "target.json": "82e6c59930b6105b8cff2152b155f8d0684e2562da457ad58f6c190fcb3a249b",
+        "target.json": "d986ff36b37b09d5ddd5f09e7ba86c57f8d10196c437800771d466621b7487ad",
         "template.json": "5a6dd0f9ebbc5b645f452e70aba436c56176eacd350d9df65f3402b14eea0bc9"
       },
       "sourceInputSha256": "859676a846cffd7725c4f164e01b1d8d57ac9d3485d3f978f61855f706591da7",
@@ -2526,7 +2525,7 @@
         "contract.json": "0c8eb9d72e0aeac91c6f614d9efa4990e064ba043b8c281082b2a66c6a58db62",
         "source-positioned.txt": "baba4126994cc1ad19b1a20e692df42168324c0d44fff1f4e96bedcb4562b1ef",
         "source.txt": "8bb53092d808fc52151a8f3fba4e2060e7562cd97719c63e8958418982d1f02b",
-        "target.json": "842ead141c581156c77c89becab6ff7df54e9b78519a3b8b3c841379f741f43a",
+        "target.json": "e2fc5f572d606a57735abb176e1c66083474a4111a8068f864f7f1b8e89be8d1",
         "template.json": "4a9615d768fee26fb1b1ff24114e471fa0968494fab62a62c0cdb1618cc127af"
       },
       "sourceInputSha256": "8bb53092d808fc52151a8f3fba4e2060e7562cd97719c63e8958418982d1f02b",
@@ -2557,7 +2556,7 @@
         "contract.json": "663a6db1f0a97cc38b34032933c35b2059da70b2ef033ec4acf09317f41eab9d",
         "source-positioned.txt": "97311763a18b6161552f1e133c12cb486e5a37d8d8948b07f58261354cfdaff3",
         "source.txt": "dc33d39cae7564f52011e3bee1318eaa46e4e7827f39ce0cb56d8edb5999164a",
-        "target.json": "22a31024898781457116cce9bf7ae23e1509765c37db1542e78ccb83283ba204",
+        "target.json": "dc263f382b6b8a1b2f0d4af74bc729ffbdcc97f198709cc6950d8770af060463",
         "template.json": "ba02e65088a4821afae3c28ceefb7cb2cd7c48a66abcf3bce0f127b206a77efa"
       },
       "sourceInputSha256": "dc33d39cae7564f52011e3bee1318eaa46e4e7827f39ce0cb56d8edb5999164a",
@@ -2572,7 +2571,7 @@
           "8542"
         ],
         "allowed_package_categories": [
-          "PACKAGE_BOX"
+          "PACKAGE_PALLET"
         ],
         "family": "ambient",
         "physical_profile": "source_bundle",
@@ -2596,19 +2595,20 @@
             }
           },
           "rationale": "Reviewed printed port roles and repeated from/to/via declarations; endpoints vary internationally. Ports are synthetic geography, not scheduled carrier services."
-        }
+        },
+        "quantity_multiple": 2
       },
       "files": {
         "alignment.json": "24536fa7982674fdf0527f4744fdaa5b23840304b2fe312334deae2a7c3217db",
-        "contract.json": "e30ea1800374e4f26106798c266f03927f70e541ac3cc4376ae3f40a10cace6d",
+        "contract.json": "75c3aaea08ce4174be78fe253e57b693bb0a432beb2e52458b4b16a0feac9983",
         "source-positioned.txt": "ab532fb9d06d33a5a99c882a36afe25a04acb73753c3a03eb2b339745513861e",
         "source.txt": "3588c553d81094f19c14db0fd5de3ff18bd5393f60cd80d4bd739c72420e6252",
-        "target.json": "ca0d79bed73f07415008ea2f2b214967cf9fcf777810f577848f41bbef14dcb8",
+        "target.json": "50771bce14e3d7905d338b7f9c82058bc21772ef97ecaa8b7ff9ec4ccb363717",
         "template.json": "b57093663d572ee697854d6d9a8fd6ad696256e511527369d4083c76295fc410"
       },
       "sourceInputSha256": "3588c553d81094f19c14db0fd5de3ff18bd5393f60cd80d4bd739c72420e6252",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "2c80e4330a6e40576003b4883945e73c2bd73335a3eba8a53a8c312d9ffdbb58"
+      "targetSha256": "191a50f02158ce4b58c606cbaf73c29b7442770510f7a06b12397d5e32610c12"
     },
     "doc_56e593aee2fe694e60f1049d8ede69ba55418e197f1a3a8d8d436c333ecc1815": {
       "capability": {
@@ -2641,15 +2641,15 @@
       },
       "files": {
         "alignment.json": "03f38b9d50bb5b64c1553d2ebe45fec2559f298f111ed8e3676db3a55a1e60ff",
-        "contract.json": "177ddb354b3ce6ec61973230bb35c23713bef5b55a9c8e678d462bf851911177",
+        "contract.json": "7c37b528666ce3046880cf24297a017e194dfcd657101748a32ea5107021798d",
         "source-positioned.txt": "8228e6d9c41822c8612db4d73650ed71724b2ce192d4b7b75d4f09cf9f2dd24b",
         "source.txt": "6f9ffebae25866cc5956370be47502cf7813f5116d5ea13102217638cef35c09",
-        "target.json": "fdee979026ac9d89d3348ec7a1f6b23891b5c329880ba1f498cd2f0b04800909",
+        "target.json": "1172f665d6e5139cc205f4c648ceb9660a7a66ba365b5b24e9de96f23e4d7895",
         "template.json": "8b3759c4e7921f67766b82b95717be1045a198971589cde9c37d70afea3d86bf"
       },
       "sourceInputSha256": "6f9ffebae25866cc5956370be47502cf7813f5116d5ea13102217638cef35c09",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "a5f205f776a9a6b4f9314f5b0746ebb44ed76b5e4eac8293c1e069b1a9a46b1e"
+      "targetSha256": "f514bcdf511300724fe05d5fb0ea3d0610c2b5757e3c96e322afe838a64c8230"
     },
     "doc_59c439556d2ce433a4936abcff776a0378e050349cc5f97aac56b64f016d508b": {
       "capability": {
@@ -2709,7 +2709,7 @@
         "contract.json": "e737a7384e2aa1b46bd933755404b7051f759c26d15e57cf86b31904a997a514",
         "source-positioned.txt": "6165e72478ee230766de329bc34821be0937d921d5429213c6e9c03ec1486b7b",
         "source.txt": "3821114abd7eb8d93497e4a7cc22ac2883f617ba267dcbd99fec2de3d083c8c3",
-        "target.json": "87d84c904231b4f29e76f5e237acac91bc009c3a2145306f55fb1a37c280560d",
+        "target.json": "b9a936f0159bb2068e5cf09b95648036e5f135ffe144398b97886913d0dcee6a",
         "template.json": "b176502f8322fdc3898c71063e9f6ec730dc5d7eb755761bf8e1f8876509838b"
       },
       "sourceInputSha256": "3821114abd7eb8d93497e4a7cc22ac2883f617ba267dcbd99fec2de3d083c8c3",
@@ -2745,7 +2745,7 @@
         "contract.json": "8b773f0c276d011ea7304615485a7a123d4b5e35188b7a488fbca0720116579d",
         "source-positioned.txt": "6f1bf0729ad6fc24158c91f0d8e0a7c923f5c831c8e0cf0444fe8fce7d149930",
         "source.txt": "7e15da271e59ae5a262e88d90ae72241034b1de181bf8ba6de47b312a0674cd3",
-        "target.json": "3d6f7d0198580828eba01b40f82312b9e0cd1e9bb77212c792ea12cddf9037d0",
+        "target.json": "07429b0d50e0a372b6380c25ec93f2f70d0900eab87f2ffd14f747fdb6f580e4",
         "template.json": "40cccf1f4c9e063e7a59041310f715727e91f2cbc0564f7a6973364baed55c89"
       },
       "sourceInputSha256": "7e15da271e59ae5a262e88d90ae72241034b1de181bf8ba6de47b312a0674cd3",
@@ -2828,7 +2828,7 @@
         "contract.json": "ea8cb1905014ea105752c6696e6519d90a5171234ca1051c42ef2c32e1ed5b04",
         "source-positioned.txt": "22c2e756fd802ec7fc761228814673f303b05ef13f957deac2ec637ceaa69bcd",
         "source.txt": "5a6e815e41af6ec2166fa6c8bb654b83926338ccab914c66e7e1caf2397be5a8",
-        "target.json": "06c391844d83e53859f5562223ebdd91afddb98f8e95a8d69a96b6d69c387fc5",
+        "target.json": "71ec1bd4929221a5834fc260adc32e3fce380de6b7ddadd9348ac68da50f3cb4",
         "template.json": "1779ee972c1148f9c13f17fd64ba2854c151316cfbcfaeb514379e17d3061f40"
       },
       "sourceInputSha256": "5a6e815e41af6ec2166fa6c8bb654b83926338ccab914c66e7e1caf2397be5a8",
@@ -2869,7 +2869,7 @@
         "contract.json": "236587dd2b6b6e1dec99ef96320c70d631bdc4b615ab0ef5141116cd31f761d5",
         "source-positioned.txt": "986085721060b9e048a786097d3d8cedbc14310d528bffc0c333b523a574a701",
         "source.txt": "faf1ea5834fd82663549672f3f4fc940803a1749c086afa61df641ca4e3b674a",
-        "target.json": "d6d445192e496ac4b5b8b74d7bc98f92598b4584d44820101967866ff00f0ca7",
+        "target.json": "66726e62274e621eed3ed2bcce240f55a1c7754cbdc1d1602085775108cf7ba8",
         "template.json": "cb570f2e3045d447fe7728b6f0d4846251566e1ecf8b7d8791286f0ab95d02b3"
       },
       "sourceInputSha256": "faf1ea5834fd82663549672f3f4fc940803a1749c086afa61df641ca4e3b674a",
@@ -2982,7 +2982,7 @@
         "contract.json": "a292dca631b7bbf8ce9e18417468c4731c13c1de38546b5309f840a3219deb54",
         "source-positioned.txt": "79bb5e398a687edd8d67d5c39e08e0ba3c37125461120765840ba33346bdc549",
         "source.txt": "3f20582215bc1f39e01ebd1fdebbc421be4b6a963ef94fa08019e5eee608a35d",
-        "target.json": "df8ac840e14c98fd5fe0ddf18a22b9a5fcdc1a6a23e7906ca19fae85d7d522d2",
+        "target.json": "f8566f4d379fbf42b4b4a2d89f2a8d24ff5104bfe3e1f9c8f4e31633751035c5",
         "template.json": "3b566ad2fbd7e80ef48d7f77202fbf9e707ab7c12b12a1892aa07b67a13a7803"
       },
       "sourceInputSha256": "3f20582215bc1f39e01ebd1fdebbc421be4b6a963ef94fa08019e5eee608a35d",
@@ -3130,7 +3130,7 @@
         "contract.json": "6df6ee66628a353b1967629119343c0427d4ff77b3f6d8943d31a5bd62da731a",
         "source-positioned.txt": "2444c38e5a93843606b0e107dbf99012dcee99517efd6a0ee58f30cbe2118068",
         "source.txt": "9e443965f9a5793335aa7a8809ab0c9591e57ab8616a2f8807d9cedac3583bc7",
-        "target.json": "ef11efb6a93a1301a966f61e2f6ff40f9ad9d5014680b24c3383780ee508f1e9",
+        "target.json": "8da1340ef870854eea1feffb8fc531acead8e5a8a7dec73ae7f6b67c50883dcd",
         "template.json": "8d1256dab2325e470e836132a64272662ae00983c86b647aad64cff4f65fbe4e"
       },
       "sourceInputSha256": "9e443965f9a5793335aa7a8809ab0c9591e57ab8616a2f8807d9cedac3583bc7",
@@ -3141,9 +3141,6 @@
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "family": "ambient",
-        "required_private_measures": [
-          "grossWeight"
-        ],
         "route_topology": {
           "fields": {
             "portOfDischarge": "destination",
@@ -3158,19 +3155,22 @@
             "documentPatch.parties.shipper": "origin"
           },
           "rationale": "Reviewed current source route, issue/payment and explicit party-country roles. Equal printed locations share one node; distinct localities retain separate nodes in the same source-relative country, and explicitly third-country parties or issuance retain an independent country. Registry sampling is synthetic topology, not a carrier sailing schedule."
-        }
+        },
+        "required_private_measures": [
+          "grossWeight"
+        ]
       },
       "files": {
         "alignment.json": "b7dacc2a219978468781d012a0265ad7c733f2b11a495e6161e8fa2df9d02abc",
-        "contract.json": "a14e996e3144afb150560e1f4fdeaa9cf4d05f0a866c228496eefeb65e90520d",
+        "contract.json": "685ab4ba9bcb2eeec36b058b33547e6a7c153beb54ef22fce2f526bde93a0a64",
         "source-positioned.txt": "3dafec622440ec91014f6931b325a9ae165262921a3a4fb708ba587f2fe0a148",
         "source.txt": "391f252708cb0f3bc3dea212f606ca11b342ffcacd846cba19e67b9147c15217",
-        "target.json": "3a7f239ffd2d0ac4e835c6ef9412daca0d793d4f8d8c96c11d1e505126aaa599",
+        "target.json": "45c1e5e9039963b667d475af116e6fddc9e47ebedb16d8e093c37b356e826318",
         "template.json": "a4d374f81b7b73dcf97062af36719d6ad19387b723ae4181ad4743ec3df49101"
       },
       "sourceInputSha256": "391f252708cb0f3bc3dea212f606ca11b342ffcacd846cba19e67b9147c15217",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "a8b2ba190adf776f0816afe2b8b0bf0d96876483b69082b31a6490e7faa0e8c7"
+      "targetSha256": "71bdd2b1d06dd62fa80c9d0d0190c207b99cc1ff7f35de1a653f0534709c4d6d"
     },
     "doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1": {
       "capability": {
@@ -3234,7 +3234,7 @@
         "contract.json": "e00594b3c92dd517438150dbfa4f3cdc75a530b35162f7e0cc7c87265e9dc58d",
         "source-positioned.txt": "af7705d35175a47556d896ba8202a90e39c4929966c3355175c2923053402984",
         "source.txt": "b379fb07f89207afa39c8d7245c671ef24172f367d5b4c0cc75a347dfc446bce",
-        "target.json": "6f67a2328e7a9f73c9d3725d25613ef8659f75db06580f641b1f246c4ab4e5a0",
+        "target.json": "8e3681ec415061ec2e758f25d2e0d5e6d1910576df1560feed98c58392d062d7",
         "template.json": "a7deb795bde0202025c75e56aa61fdc1953d35ca38da1d55481324b656e85a16"
       },
       "sourceInputSha256": "b379fb07f89207afa39c8d7245c671ef24172f367d5b4c0cc75a347dfc446bce",
@@ -3370,7 +3370,7 @@
         "contract.json": "9dd85636379769f287b95ffcb185f7abdfb8d821d9038b9880aa15a33129c78e",
         "source-positioned.txt": "04f477a19611ddac16f9b1f88662eddbb39b5f7754abe81225c7589f854135c9",
         "source.txt": "cb45e269c44e6b444aaedad19399a6fb50d4aaf9f2221590938367f3a4fad7f2",
-        "target.json": "7f4d0a4934db23a732e730635935edb94b251a27bb2fe8809ce4a3a531186c53",
+        "target.json": "54249a8a7b11de304a5a3d7b6722db40f22e6b21e14732db968121e93620df92",
         "template.json": "e3efb682d3e109131e1f23b18c70d897855e1781cdc84fc6b6fb05bc0497ba06"
       },
       "sourceInputSha256": "cb45e269c44e6b444aaedad19399a6fb50d4aaf9f2221590938367f3a4fad7f2",
@@ -3404,15 +3404,15 @@
       },
       "files": {
         "alignment.json": "475f1fe16c09c43f779bfb68be1c790093fcec6d405d0f6dcf1b86d392ca5769",
-        "contract.json": "15b2759a0f9c88539eeabdc95d802791449a708a6e983530e3b81b3d4f6c594d",
+        "contract.json": "6102cf162abf8365311f13faa6a1c91d472e8aab595a1c33de8826b2fdcc8fd2",
         "source-positioned.txt": "76e220bb6b60b0fc0af11fa2146c9c0c2d94766b5f3eb74fa67def5e5271c90e",
         "source.txt": "fce3b5d6ad59b7f7aaf7a7ba9135b8c6d69c0aa48fe4809c80c6319239aa5e0d",
-        "target.json": "b7c964f086f14d74f410be48a728ce4c200e9e7aa3d1762db74b9da8781c738d",
+        "target.json": "6d189abb6c75dc0b8cb21213f8231909e63239f2609467dd443fd334311c71f2",
         "template.json": "ec0db3a4140ecceee5c236140219a701e0e20d8e2ba33092e1cbc4fd939b761b"
       },
       "sourceInputSha256": "fce3b5d6ad59b7f7aaf7a7ba9135b8c6d69c0aa48fe4809c80c6319239aa5e0d",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "e131b9081767f9b300a8c4b55771109ef8b7a5c50b9ea20d62e3f25e85fcf8bc"
+      "targetSha256": "537881d9aea7f173d0c5959087b8e7bc458bf664f7cdbd1c7a88579c3b5c1a3c"
     },
     "doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4": {
       "capability": {
@@ -3461,15 +3461,15 @@
       },
       "files": {
         "alignment.json": "e304f382fd1be5429685d4de7b5b27ea885d909ef5e3fbd6757221ef007a61d7",
-        "contract.json": "dcd640dde18c7a81a31d61fe9b6d185d6ef4496837a4e764b8528e36af4956f2",
+        "contract.json": "61ac1b4b2088edc8843c4457dc63607c14d6d8699a6a0696e3d0b9558c1352d8",
         "source-positioned.txt": "02d82d9025758f5f2f6ba5fc3a7df0469f1713db0b623e43ae4168d7d18a0cdc",
         "source.txt": "bf73892f5156e9b8891e1101e1e68683e671392e88cc421007541c18faa75b93",
-        "target.json": "40d64ca744b1c4e99c79e3822bd926cbb5e6f6dd83878f812d031873ec292b9c",
+        "target.json": "83b349c46380bc43b6608dfb5a870bc6e8846565b8ea3498c516a2e40185bb1d",
         "template.json": "19944159aabe25d140eff69a4d2525257547706a9609b3226fd637aaceadb05c"
       },
       "sourceInputSha256": "bf73892f5156e9b8891e1101e1e68683e671392e88cc421007541c18faa75b93",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "e0931e34ca7c04c7e7044918a9c1ef3e174e76bb141e87931aa593f4321c18c9"
+      "targetSha256": "0fed10b01e502345372aba35c2405624373348adba42f9dd4ca9a6fe89c2a131"
     },
     "doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31": {
       "capability": {
@@ -3517,7 +3517,7 @@
         "contract.json": "7ece6a2b56a886ca2645cd5266a57fc1fd55bfeeeea2c12e2270b1bb6d995215",
         "source-positioned.txt": "75ea040dba1062794da83f10c51860e0aae584c07733dc96d029f61fdd643b0b",
         "source.txt": "0670ee319424549920e9f10f2ae3bd16696ce319fdfe4548a60725af015b5dea",
-        "target.json": "23a783b55f30e90ae6144a1af73bfddb3abb8146a8c68d0e28ba01ddc579a0d7",
+        "target.json": "3196cbb641e5a49cf6dd1b9c7d2fd553d4584a43293802deb7448f858da832b8",
         "template.json": "072bc49fd16aba6a40676820ada07f6808afabdbc7314ffe3b0db56ba0ea2b96"
       },
       "sourceInputSha256": "0670ee319424549920e9f10f2ae3bd16696ce319fdfe4548a60725af015b5dea",
@@ -3551,7 +3551,7 @@
         "contract.json": "ccbfcbd556e267b4fd2af7db654a24a05b0217f3dc55bcfabd0634168a698a18",
         "source-positioned.txt": "d8ba5fdfd1b38d5a505f81837034ea4af9b412245ea0fff564961e990bcf5b98",
         "source.txt": "143b86a06765605b3130479fa1f13302110e15d0f1c9fd00731a7b79cd33e14f",
-        "target.json": "1e29b7901f660fb2e98984d836adf723c8005c83c297a5ec60b48e898c93a796",
+        "target.json": "b6d76e3cba8ca78e6e255652cc60eb3180c3fce9699258c869a4655e11f1c88b",
         "template.json": "acccd4dc971669153196d51d588dd72a77b48a858c5c0ba6d88054b10ab83426"
       },
       "sourceInputSha256": "143b86a06765605b3130479fa1f13302110e15d0f1c9fd00731a7b79cd33e14f",
@@ -3584,7 +3584,7 @@
         "contract.json": "13addfd33451d894359620781e468d6da3fba253abf1f07de2d44e5e803aabed",
         "source-positioned.txt": "d9ab6d2c02adab533dfc64372d38cd0a663331cbe63494e003a53ee6be2d314d",
         "source.txt": "aa0a911ea88d9e421f8cf12f12ca758ea15db56c0865dc0c459299264970686f",
-        "target.json": "428f0da26e1108f993546a155985e0f0642208ff7ae18510c0e6d8f8da73b7cf",
+        "target.json": "1c6a3cbba8c3aa707a6d815336a35d6cf153eeb1a55edd127dd8ef79936ce3a9",
         "template.json": "44c6016d38ed9f3a7c710fcfd06f3f0b095b76374af06215a31395d74a5c356a"
       },
       "sourceInputSha256": "aa0a911ea88d9e421f8cf12f12ca758ea15db56c0865dc0c459299264970686f",
@@ -3664,7 +3664,7 @@
         "contract.json": "3e1bfae6f4d7acc18aba4dd76e1522fcd5b427a66a69d28318c43b903230b795",
         "source-positioned.txt": "feb947e37465b33065aab0280633f813e91b80e8202f38cc5b4692c13c9467ea",
         "source.txt": "b1fc5064db50b69335c05687ea25c4cc2acf9ed71cc1619a4c3dd3844aa3536c",
-        "target.json": "7f87ceb750774f010d220174bf05322a43b24ab69ad5bbdc8550e6619ded79ba",
+        "target.json": "33d5b048b372248ae7365996de3c88d74693a982df225c35d38daa6c7daba081",
         "template.json": "8eb90bfee5e40512439e702702dda333443ec58c950c66bef77dac3d73e08c8f"
       },
       "sourceInputSha256": "b1fc5064db50b69335c05687ea25c4cc2acf9ed71cc1619a4c3dd3844aa3536c",
@@ -3768,7 +3768,7 @@
         "contract.json": "37f038a87c3206790b688fff615480d37de87f5fce977c0e97a24b89673ae75d",
         "source-positioned.txt": "8cfe6d1c07aae0054ebec651ce7bb8badee6b8eb4e0e488e9daacba3d27c1e85",
         "source.txt": "7f5573b657c96c0e0ec2ad29adb3947841762cb8d52bfefebb81a1211ff25b25",
-        "target.json": "2a231c81373d6113ba1de8a2d8b7e71a9609b070adc806a993532a01a078a9fb",
+        "target.json": "c93e9e172fe033f472eb8c97cc4fbe2fddc60b9973dd9cd84d965203786f2835",
         "template.json": "9a8e50d3c00803a131e2a547c8b42263ae8c413f989c9919858aa56cf46ae4d3"
       },
       "sourceInputSha256": "7f5573b657c96c0e0ec2ad29adb3947841762cb8d52bfefebb81a1211ff25b25",
@@ -3801,7 +3801,7 @@
         "contract.json": "ca7501db368f4b553edd9e078f1db580383b827b8c0a6ed1dc8a6787404ce012",
         "source-positioned.txt": "4f22cffb25aab811fcce2a7613b4999e5951ffba02c4fff989d08b04c97a3b1f",
         "source.txt": "1dbb68d62556d5bce2eb75d794b600947ae5113d8c20619bb1e783bc38ba0519",
-        "target.json": "936e5ad114cf468b6f9d60e820f438adf5cd9f1c4f8b3d27905f3867fe8896d0",
+        "target.json": "d7321e86385a11d3490f3a356233f10dadfe72cbec25317bfe6f0d7e50071912",
         "template.json": "ef12d2806de48415c75d4b3d959736d3bfab09c3c45e4868f5fefb519fbb1836"
       },
       "sourceInputSha256": "1dbb68d62556d5bce2eb75d794b600947ae5113d8c20619bb1e783bc38ba0519",
@@ -3860,7 +3860,7 @@
         "contract.json": "5b156838aae10b79bcdc62aeacf7c6f800af2d6724c0d59b344f35eadcb401a6",
         "source-positioned.txt": "f9bc69f2de7d92f58211334bfdfd2cd2ed2d362114946939430e2ebf37bc12ab",
         "source.txt": "498f02a61a7e546e5b11abb847d1df5625d8f9946daf1abb681dcd2788bacbd5",
-        "target.json": "16e66936038b1e5eb9ed06ee245cec8991863cbde461db54e8e9df3e15bd7759",
+        "target.json": "0010db07fea5f4875ae49e88d810c25be9e9f75aab23df2eaaa1c987435a1523",
         "template.json": "5ae85a9af697e33d0faa149dbe8ce4863623029b1f1baa0e84c5fd6d7c273599"
       },
       "sourceInputSha256": "498f02a61a7e546e5b11abb847d1df5625d8f9946daf1abb681dcd2788bacbd5",
@@ -3899,7 +3899,7 @@
         "contract.json": "c4d5cd5a2fc1f1449ced1342a85fc0de0fe966a657bfb8137e4165eb35171f7a",
         "source-positioned.txt": "27e8c28bce171c5b0b3b957e75ab691b7fb4c914f7f29b0dcf273d774469b069",
         "source.txt": "5ba3919d54da5463dd62f75729331667bbfff724c2ad15968c7a4f6234d94125",
-        "target.json": "1d6b20ca4a03a35c17138822a7a0313f6c295982378d053cb126fc1ea49784b8",
+        "target.json": "3578762b415b312cc4cf9034e3175416aefa71c8eb0f7ab4202edb9638203d9a",
         "template.json": "3d240ef2091ccc80667279b9934a152a372926c8e0dd12f0da43ad50a48c627d"
       },
       "sourceInputSha256": "5ba3919d54da5463dd62f75729331667bbfff724c2ad15968c7a4f6234d94125",
@@ -3931,7 +3931,7 @@
         "contract.json": "e10378ec8e0858680c4045f3f63f48f82db7b4f087b011d1046832a9ac6dc5c4",
         "source-positioned.txt": "96f700f78373f10146c734b4b67a0b8b8c466ec4dc370170860c3784367e82c8",
         "source.txt": "daf4cdaf46b8dbc5c44ed4ef30d70860ff6dbfdf12f8bb81cabdef48e8ba9017",
-        "target.json": "633ef52661fe906cf10cc58c417830a595cd40468e1ef3bac19ad2ef02fc52d1",
+        "target.json": "bdf892b074172b488b6bf35b4d7592043eb7512b16e426d07617d9080674e8e3",
         "template.json": "4c8ea3a6e82515700a8ab99450491a4211692394fd3eced590e2de5cb93eddcd"
       },
       "sourceInputSha256": "daf4cdaf46b8dbc5c44ed4ef30d70860ff6dbfdf12f8bb81cabdef48e8ba9017",
@@ -3975,7 +3975,7 @@
         "contract.json": "0ce98aa1bd1820ea1067c5df69eb22e5601d4b1c1120b393451ccce15b90d7b9",
         "source-positioned.txt": "fb20a2ec23cb47dd3d693da730a12e1906da1f59744a9f6a69691ffe05921ac7",
         "source.txt": "f93a27fc2d1a8a844b5d2f43cbd4548ee16fe4ad114a0de4679054ad29a27dd1",
-        "target.json": "19677c6bb2bbf6a2654a25396cdece7c00bb4fb849ff193a3857540452c95895",
+        "target.json": "833ff4cbf3d1b8db16a15da7e823636a7cc9864a42b81be0ee8f14a606e8fb96",
         "template.json": "9950cd0b03be0f287bcce10aa2935413fe1203a1c0c0d53e9ab2199e9cd11f92"
       },
       "sourceInputSha256": "f93a27fc2d1a8a844b5d2f43cbd4548ee16fe4ad114a0de4679054ad29a27dd1",
@@ -4005,7 +4005,7 @@
         "contract.json": "d4ab2fac139f4d94499575f5f217a404e540a95dfbd152b04006d44fc997fcba",
         "source-positioned.txt": "09cc56a2973cd23018287a15db8ab97f466ba5aa79a5e10a3a06e7c6aa8e5776",
         "source.txt": "94438c1e6308769d15fc72ac932c8b32da8316acaa912f0de97f03bf192fa62b",
-        "target.json": "b75b94ee104c9f04a19422fe4c0edc6fe471d6fec475f4e16abe19d99fb3093b",
+        "target.json": "07ce5978ac11c7abcb9771e9d60aa73c52aadbb38df49f76dea8c904146a2f49",
         "template.json": "a8e72796d82010476fe0450cc8b0eb7cf1f4038f1501c3b3110a7a557e4a7b11"
       },
       "sourceInputSha256": "94438c1e6308769d15fc72ac932c8b32da8316acaa912f0de97f03bf192fa62b",
@@ -4176,7 +4176,7 @@
         "contract.json": "88c92d0a8cad5b7cce390064569fdee31d39c0f018be1f85d75ba9dd3c193ece",
         "source-positioned.txt": "b82ec5b4693418c2af772337b9f30a6dd17387319bf7490a07cc44c8043a49cf",
         "source.txt": "26af9fbda983fe7e17362db63a37ebb4195e2379c63934553634c92a56348923",
-        "target.json": "68d126bddf9d8505ee97e66266746f37846c5c643abc9df92819ba5be32123af",
+        "target.json": "130a080aef080e5f64471876ed26632b592936f8d971d8ce6912c2c0840298e7",
         "template.json": "8f1dac406dba434ef03295ccccddc8157f63c22e45842dba704e566c940398d9"
       },
       "sourceInputSha256": "26af9fbda983fe7e17362db63a37ebb4195e2379c63934553634c92a56348923",
@@ -4219,7 +4219,7 @@
         "contract.json": "4898b862fb26bce32b8901ca516840bfc98956804e69cc51e7c1d76b9b000d48",
         "source-positioned.txt": "519d0b811d690a983231f92c8023d244989dbe804976b1d8e36352ada15f0edd",
         "source.txt": "0fb4f297e0042717c3dfede72dddfdff718a20e6569ab83d451a5d3f998afc73",
-        "target.json": "fb64fdc09350cbafe4b4f2f14b0c4a11fedac103e03b60e5082bd8040d98ceda",
+        "target.json": "f92d16fb57f13265ba1c0266e3eb690966535efb7a16ddb30514eade3770916b",
         "template.json": "312e2d6cf171a9a1cabb3df1cd4e8b7d3d2bc17c2dc9d46dbe40b523a7957665"
       },
       "sourceInputSha256": "0fb4f297e0042717c3dfede72dddfdff718a20e6569ab83d451a5d3f998afc73",
@@ -4243,15 +4243,15 @@
       },
       "files": {
         "alignment.json": "1cc40cd014317cc256a6ec7ffd68a14add4a6c4f4a110c00827cbaccd80aabd5",
-        "contract.json": "00bd6c8fc23c7ac9f76083fac0f68e768d664f3c5fd719301547bc9d666f8c7c",
+        "contract.json": "e40fabcb383629cb4d9fd4fdf873c4239061bfcb1c5eba63b453c3ff04d85d8d",
         "source-positioned.txt": "249ae8806523469a95a6ddf7c9f09b116f7b5b86ca4690c3b59e122ffffcb5f3",
         "source.txt": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
-        "target.json": "c6ff52ebd85861aaa58a1885965de8eb5fd3c2d7908dcbf28378dab3d38866c5",
+        "target.json": "34d6195758e74f7d6b3c7e23b96a04a355c2ac3c974811926b028ceff40b9b92",
         "template.json": "5a219616056b25cc791301036fc83a7343698179b3aeb50691ce3b4983623043"
       },
       "sourceInputSha256": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "b23ae2619232b39d72f56c79ec1811ea8b63f3b5ef7ce0cfe71d00cc799c2de7"
+      "targetSha256": "706c639493d1cdacfff5a51dbfe0a9cca4b58b38be43c5a14fe4cbe1f1a150ed"
     },
     "doc_8bc1663bd7ba8117551ff7eed6498fad4c51af3cf177e852b716a95b5e35f67f": {
       "capability": {
@@ -4313,7 +4313,7 @@
         "contract.json": "8b84c1985094a0e1feaf7edec129d4056c8a42af190df6bb4eedb25f0555b43a",
         "source-positioned.txt": "bebfd4b1040c836f1e8cd23a01cdf1d398122f0332d6d77b6a033f4bfe07ad8d",
         "source.txt": "4b9c5de38886a43d4003f8e9119e55841c64d49b7eb27a93ad254b7fd1111258",
-        "target.json": "501dadd4f880028058348a28c6d2574d1b670459a8b7e0fefa8907f3d3518f5e",
+        "target.json": "ae79971a2e4b4b786ede534b23fb2d91ae4e8fe66b4cb03a00bec76383115b8d",
         "template.json": "a23f8c9ed60b26438f8fc14cd5220732527360def1afe4ef9dfc0e6eea236bb5"
       },
       "sourceInputSha256": "4b9c5de38886a43d4003f8e9119e55841c64d49b7eb27a93ad254b7fd1111258",
@@ -4346,7 +4346,7 @@
         "contract.json": "9788b85bcc4993c3f62a90ae4e131e353f1f37310a63dc6b67d6a718d76f2f20",
         "source-positioned.txt": "d01ca5c3d51d552eacf8985c3b03b010ac13ec5c541518ff33674edc5d67d0d3",
         "source.txt": "c5a3c5b8eba5803ac5849378ab535da9b02592668796984c3def8339ae5560cf",
-        "target.json": "d77d4302181a00d3bb3ed5edbbb3e569ab9e4312420e877424e207c8dd798bd0",
+        "target.json": "19408fa8a0b689432af481ceb9c4692bef4eccea0df873d34b5ab6dc8f1013c8",
         "template.json": "c3d3aa5a2682cf54d1359b38ef16d08b447d59091c038607770aa28485db63a4"
       },
       "sourceInputSha256": "c5a3c5b8eba5803ac5849378ab535da9b02592668796984c3def8339ae5560cf",
@@ -4398,7 +4398,7 @@
         "contract.json": "7e8b02a11bcab82c4c056df9fefbc21ffad8c8f6be437faaa6d80398b7f656af",
         "source-positioned.txt": "0ee8e8715b23e8bf7756d8cbba87d7eb4924a2bcf5a4791d3cef4882d6f6a5cc",
         "source.txt": "d15d26585145d62e0e007530faca18c3708beeebbe308f82b9bda81450387b63",
-        "target.json": "524621c42b81f0580fe0579da50046b75dd54e3ae9768a6a4e649d0cbce73191",
+        "target.json": "fbc2100d4b44d0fc915ab46473edde849f6fde1cb113f0f9aa5c5a5d2fe879b0",
         "template.json": "14c71140cb9df3a5da3ef3e5203d25d9f0d16e0abbcf24a61c7ecad9797fb813"
       },
       "sourceInputSha256": "d15d26585145d62e0e007530faca18c3708beeebbe308f82b9bda81450387b63",
@@ -4463,7 +4463,7 @@
         "contract.json": "bc31c4b065b633f7e3bace4150cfe9c373fd80b237b5a501a837582223f7dc72",
         "source-positioned.txt": "1cb4ebea3bcb3477f93202481a69d14583c44c11bc28bbe5d1e573f4275e5576",
         "source.txt": "96ab00fe5e2f07480532756d895986a2eac8a6804ebde94605bba191056562f4",
-        "target.json": "b11d529c97e043ae65c311c5b011dba5752551327144b7f2bc8cd05c394e4bb3",
+        "target.json": "55bd8f83dee764b27f3c36279ce86388f31fac85b0a7f16a6c016bfe5f34c600",
         "template.json": "ff4d3e8a983959fd857da1107bc1e9fa1b04ab1b62d34be73b177439b9647c79"
       },
       "sourceInputSha256": "96ab00fe5e2f07480532756d895986a2eac8a6804ebde94605bba191056562f4",
@@ -4499,7 +4499,7 @@
         "contract.json": "85309801e833d0f682d2c5c32213cbbb25c4fc1233093a7ad56dde872661ddc3",
         "source-positioned.txt": "44abb206fc23728aec15c1933501d4c81c310b278ceddb0b9e39f91f294686f0",
         "source.txt": "4e23a8eb6483971c7ed4b45f4991cd5a39cc8062e6525171036e95c1a767e8b1",
-        "target.json": "1d4ee1840dcee36e6424303b05b1318f41b8ba203038696d75fdd5ca578ef3fd",
+        "target.json": "6b250b022a6e03c74dfdd39878db87c9b99799a189d9afbbfb536be05551a212",
         "template.json": "72c31c205777783e87e01ce817c68eafe5794a6328cda9f613d120eb7c212bbb"
       },
       "sourceInputSha256": "4e23a8eb6483971c7ed4b45f4991cd5a39cc8062e6525171036e95c1a767e8b1",
@@ -4538,7 +4538,7 @@
         "contract.json": "c59c781ece7b7cc3cf1079eade3d99b4b8bb00f6479b1d18139c1fb233b9f39a",
         "source-positioned.txt": "b3a18c1962cdaa78b746774f21bd8f716a398a6c83f4c01ef861212c808e9ae9",
         "source.txt": "2f14afcd888f8bc938ba7155079a46130c11700d11814f7a36cbfde1d7221900",
-        "target.json": "b28baa2b58956eb3e8cf7fe3abea218d80a70b335b35a3f8bb3636eeace08a6f",
+        "target.json": "046b8dceef8f95d6639cf84b6dea563436e826cb9b6db555e6a39d8fa47b470f",
         "template.json": "f3013f5213b5924a4f68ba57778e6f48e7b411c6d1849e34c168c1a0dc0c64de"
       },
       "sourceInputSha256": "2f14afcd888f8bc938ba7155079a46130c11700d11814f7a36cbfde1d7221900",
@@ -4605,7 +4605,7 @@
         "contract.json": "b7ed3db7a0ca57cac65daf7611e6a724819a88b910149b5ed20109a6423d42e0",
         "source-positioned.txt": "dfd6f20653feb9e8c5c54eebf9aaf9f984ff04dd5859991541ae167ae3be34d1",
         "source.txt": "dffdf7b23dfa4648e1e1e8ba18d9c119caf3bee181c076320af30b6a334f27fd",
-        "target.json": "2971726ee7c58aa49955b2c553376d592dd89f5e898d4a30fd96d5001a463e30",
+        "target.json": "fa3913d0fa85cef6e34e8567d5e931785e48a9e3a457faa70194e01065f7ef99",
         "template.json": "8e1c019537373f2960f42edd9096b5469c1263874a3c7daa5656135d0a1a5cec"
       },
       "sourceInputSha256": "dffdf7b23dfa4648e1e1e8ba18d9c119caf3bee181c076320af30b6a334f27fd",
@@ -4656,7 +4656,7 @@
         "contract.json": "7a890e228b17e7abc806756b663093109bfdcb3ae96f101c48dbb2856294b4f0",
         "source-positioned.txt": "7a938cff127f57a371ddf28ed63c7aec0bdf4a28f60222d6fd58917743223499",
         "source.txt": "e241301dac64eeca34429f93d2ccb48d056d16a30cb165b26f783e983320f21d",
-        "target.json": "998d850317678ed7270e9ec39a3eb4ac030d46b25240429e71fb6eac03e78167",
+        "target.json": "e59494a318fa542351f1a28c0506b4935c402ffec5c8f63afa186468b008528f",
         "template.json": "ea2b1b7614299b338d7644d58c56214649e7112f55ec4305c42ad8d571356830"
       },
       "sourceInputSha256": "e241301dac64eeca34429f93d2ccb48d056d16a30cb165b26f783e983320f21d",
@@ -4694,7 +4694,7 @@
         "contract.json": "f68ab69da8dda8080c7f2f672908dfe58708425992a7e880f39e5bb779219727",
         "source-positioned.txt": "676b1938c916615b2348b213d7d3ca2b67fa591e7bf604b0f7e2ca280fd00807",
         "source.txt": "ba8690f58b0177821547e61bec61558d52a03f7b227972d96b21938c94038060",
-        "target.json": "19c40e61deaa7cf32283f57d7f2b1aee71f329a7400ddc9b850bd75330f51920",
+        "target.json": "37d90cb1d53f7d7b9c1ffcda757900e348d840fc02468da4f2d561c37fac5eb1",
         "template.json": "4b3ca99a8bc3fcbfa7882a77f125a4cba14f27dadf61730c2bbe12e9768296fe"
       },
       "sourceInputSha256": "ba8690f58b0177821547e61bec61558d52a03f7b227972d96b21938c94038060",
@@ -4728,7 +4728,7 @@
         "contract.json": "8ec88802ac0ed3fe872c649a7bdd95c417e4096ba0253eb36bdeb88bfc883107",
         "source-positioned.txt": "616bf2d7a9b37d79b6dd881e1e11cc7dc12e764ef23a362e4c769e806c8b93ce",
         "source.txt": "dcb13e0e9d93ef736734e6d6b5c27a68eab24ccc8b46518e9d645c752397d027",
-        "target.json": "5492cb3be5a8aa453e0819bb1b9954c42647f4d0936f2ed96d2f420165df26a5",
+        "target.json": "2737b5e15e009991fb9a38f339510be1bed376b719f8820ea6d950ef2e2532d0",
         "template.json": "a50037cc464a96736b6b1a208b8546bae6da2873aab8d2686f56f9778f81b7f3"
       },
       "sourceInputSha256": "dcb13e0e9d93ef736734e6d6b5c27a68eab24ccc8b46518e9d645c752397d027",
@@ -4763,7 +4763,7 @@
         "contract.json": "18803d486ce0be70ad8cba68ae51834b3518b194995767a4476e8157e5e15a96",
         "source-positioned.txt": "e032a46be3c6673e1f2e799c391e46432d740c097532ab814a976033fb6f1305",
         "source.txt": "b71ddf8917a10524bf26359803aaedeb7d6d3fc464e029be4ad263e564074098",
-        "target.json": "f7d49182d6769904cde079b3867d67db2977a7c3721d913df1a1d70a293f6be0",
+        "target.json": "1f37cfb41a7270be7516e578150981549581d1dfee2daa7fb7c4a32fee12fa7e",
         "template.json": "434ce55c739f6718e12b1515135013dac2af5004b8da1da3e17044770bae0d14"
       },
       "sourceInputSha256": "b71ddf8917a10524bf26359803aaedeb7d6d3fc464e029be4ad263e564074098",
@@ -4834,7 +4834,7 @@
         "contract.json": "923f0d1c39390f649a38b702d0741cfc8edd3cc995368fb605a814afa9a4168c",
         "source-positioned.txt": "aafc293888eb988ebf19cce304dd47e6ef74d6fc7109f4eb406615d80752777a",
         "source.txt": "b47ab9d783e1b1bb16b95c04b35f8d3f97d5fcc27f4d6f13951bf34405f14970",
-        "target.json": "449b95a43b16b3c165ea49ca166e917280e581ca7fee758358714440b2ed815c",
+        "target.json": "bdd9594f20080d4ae8e3b7a627ccd276b17730245730169127f8ee7e7fd74ec1",
         "template.json": "36397dc253e10d17fcf0916e1bb999e8639ccda2eb1a63e426b05b836a6c188e"
       },
       "sourceInputSha256": "b47ab9d783e1b1bb16b95c04b35f8d3f97d5fcc27f4d6f13951bf34405f14970",
@@ -4900,7 +4900,7 @@
         "contract.json": "9c2f295af270a961da34bba93fdabd1e934fdccc81c12dec1efdc983f0a05ae6",
         "source-positioned.txt": "9c4fad466466af6559b866026855bcf0b1fd859af5124a0f8c1c48967ef2b7a6",
         "source.txt": "9f8c6b6bc4ea3ab918e8ac7f9a932b79e3a5abe95abf67823931b9ebef81815e",
-        "target.json": "64c8b57c77f5981c1fbe8af39709c2611bc1d2d9e5010a0fa9c7c3821aa27fef",
+        "target.json": "e3c4a6ebc6534000d7080f8e5d5e5d6939e0c55f7dc10e1127a7ed2f57f076cb",
         "template.json": "c1bbbb25bfcc0530895fc4441ca3da97fedaa9a95fb6501be36d9e24afd42cad"
       },
       "sourceInputSha256": "9f8c6b6bc4ea3ab918e8ac7f9a932b79e3a5abe95abf67823931b9ebef81815e",
@@ -5115,7 +5115,7 @@
         "contract.json": "0647452f95b8690162c7150690c256fe4a4137165c8c004358c922d86179ee92",
         "source-positioned.txt": "772e7cad01b61bafc729c04f494df126c6242a97f767587843c6961914c6d871",
         "source.txt": "80136e66c0b445252f685c900129d40222bb28c888e607993a3e18e98c6018f9",
-        "target.json": "dc9ed686bc3323c4955537b2220ec93ecca41209809cf8d4ff04908a408acaa9",
+        "target.json": "c568a5b3e521b9c312f48ea95bf91aac1859d49d714098921a345acf7f3fec0c",
         "template.json": "57b79eb4832ce3cb1c7cde00d1ecbeaca34212e5248270921a3c677b866aecce"
       },
       "sourceInputSha256": "80136e66c0b445252f685c900129d40222bb28c888e607993a3e18e98c6018f9",
@@ -5151,7 +5151,7 @@
         "contract.json": "9e98738c19175e80cdb37a7e5f893cf74fbda0d5ec259d01f662ee7bf03afd89",
         "source-positioned.txt": "bf398816069359d986e5e40a228576d2b637ad0956f57c2b31bfc2147a74885e",
         "source.txt": "1e6002c4fb7c2d0192503000beb5556826fab26a53e74b571b14fd571cf69ece",
-        "target.json": "7375be6f84ec043f90c10e484d46d7052e25131cac438bbe4a4adbe394079f97",
+        "target.json": "c5486e4787da0f43a5886b63de659d6388c494506e05e95d1dd2fd337919ea05",
         "template.json": "bd59616eaf24c61ec1c7a4f1b7a43f3f076f04addc11e9618c8d94dac262bc4f"
       },
       "sourceInputSha256": "1e6002c4fb7c2d0192503000beb5556826fab26a53e74b571b14fd571cf69ece",
@@ -5257,7 +5257,7 @@
         "contract.json": "027a66a9f44d5a94fbca22cb0a0e07270cbb4ed80a5b80c158b1159534d8c55f",
         "source-positioned.txt": "40a5b2cff75c3c8d95f5521167986a0318bbc746e67d2dbf613c05f74ab58084",
         "source.txt": "750fcdeb438c7f27d4249009969a48de86c639a07f99ce836a87c16a045222dc",
-        "target.json": "e9412ada52db8fb5fe6fa8e60ae29e3d3b62eb2770103f29f3ef12d83a44c348",
+        "target.json": "c384dccf59afbc828db74e44d1c337b37116415f92ea265ea74993dd50971964",
         "template.json": "684b5f6737b1822c4400402d2590d965e3a43c6721d5dc201220ab29cd0e52b6"
       },
       "sourceInputSha256": "750fcdeb438c7f27d4249009969a48de86c639a07f99ce836a87c16a045222dc",
@@ -5346,15 +5346,15 @@
       },
       "files": {
         "alignment.json": "0ba4831687d30e7e2b550b5702e50da237bb4ffdb97e900095329b535c6ed831",
-        "contract.json": "53981f5ce6751bcf4bf8d9ab8ea13081fc985468c2be660ccf6915c78ddded21",
+        "contract.json": "0bae2a714901ac5fefafacdbd1bccf9e303b3d96fdef06c1171cde8ed7776509",
         "source-positioned.txt": "a63a417d7532f921d64db5f79ad7db4f18362173f48417d52eb2922fe9a8a8a7",
         "source.txt": "6c81c0f00349f7a3f41fd4a57ec49ec0cf4aa3d4d1b75fd092d3da7c9036de75",
-        "target.json": "e9d564997c08bfc50f9bcdc2e22e27d6d3c9a9d9037da10a2fde9f28b368737c",
+        "target.json": "0fe3f5a126416370ee219215f812409ad6c1401a0c95aa178810fdf528361564",
         "template.json": "986898497a0c9e5c234cf192e2c9f227e4c9f46308785dce6ce6eef7a490a08a"
       },
       "sourceInputSha256": "6c81c0f00349f7a3f41fd4a57ec49ec0cf4aa3d4d1b75fd092d3da7c9036de75",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "735b45d5b561517dccfa988b67e8798656ffb8e20e9b94cf30934891d6555e86"
+      "targetSha256": "50611c3881741cf21d91679f44e01e7672aede7bb3b59c78285a63b22bcb5b4d"
     },
     "doc_ba3dad0d0a66a8db07e3a9331d039372017db5ca20cb185f466e1acbaaafc025": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -5390,7 +5390,7 @@
         "contract.json": "d167ba39f5431b821aa08da9346ae607fd9d2f983b0416ee7a332cb9e35cd78a",
         "source-positioned.txt": "17ead7e3295e4838bd1886029117301bea5643d001027168e33f7119d904ed47",
         "source.txt": "8ab7a8a14dc497839a953639111b750ebda0963234ee7e5905a11643dee0a81e",
-        "target.json": "d03649e6a8ef99e4968ee1843fef0a1f9a95a1e5f0297277575db9bec9d920f1",
+        "target.json": "648fb94c3781364fd7599543eb10b18bcd7f0c9898a9977f084b6563ff833944",
         "template.json": "c005cf478c6c97f8c56dbc1e3b7e4af00621c5fbf391797500c3a16ee7561c68"
       },
       "sourceInputSha256": "8ab7a8a14dc497839a953639111b750ebda0963234ee7e5905a11643dee0a81e",
@@ -5431,7 +5431,7 @@
         "contract.json": "b574a9b88466f2ba95a26407e3eed737c4c575b53a8d3517c4a2139b9c24dc4b",
         "source-positioned.txt": "103f08ee74fa000226e5b0efc288229d6e422fa0f7b1cd3ce16b5bfa4aab05d2",
         "source.txt": "b163d00f5daa933df4d49ca4aeb54690266b91e6bf8734e691a534888fc8db9f",
-        "target.json": "1ce45a23dd431ec9e4508dcdc7a39fee556c4fb05e2cfa4be923d5407f057ce2",
+        "target.json": "2c2048cd18d3367e48d9c269e5303a410eb2de6017dee3fa050dbe38534cad02",
         "template.json": "38e39d123751975f827afde497348382ddc49c1e8eec56453aae541045990a76"
       },
       "sourceInputSha256": "b163d00f5daa933df4d49ca4aeb54690266b91e6bf8734e691a534888fc8db9f",
@@ -5580,22 +5580,22 @@
               "HS CODE: 8703231900",
               "Gross Cargo Weight: 1,996.000 kgs. 15.582 cu. m."
             ],
-            "target_sha256": "0b4bf971bd04939e2241773878dac210e5119e996217fd2f6473466a3d24c9df",
+            "target_sha256": "ea1dc27854aa97f6670ed904238343a836dcb047afe1082c5dd32fc4560cbdaf",
             "whole_unit_count": 1
           }
         }
       },
       "files": {
         "alignment.json": "0fc4b287e6afa1758bb0f9fb6b94e373678772aee101bf9c4d0940c430fb6528",
-        "contract.json": "7f3e3c1c1962275869d49cef86a05fb7989910bbf2726611e1dbd391036f78e1",
+        "contract.json": "ac27ac6b28f6490640dd522ec765d0c7532afe7c5e9d2ce6cee07b8ca6d7ef30",
         "source-positioned.txt": "1ea499097dba00af0f07c27c0c9ed1ae72ff925775c184a308e0c0d149c54013",
         "source.txt": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
-        "target.json": "36dc42b2b5ebc384217602c4ac2189c3782303f7ff29dfab918687a011e8255c",
+        "target.json": "aa4495f90bbe454581bd15b9643e2e587d102f9e089ef66a0bcd860982076f30",
         "template.json": "f1bd9265a38739c8fccca04c3d7eed4d8437c2d56361fe39c15df4e25dbb62a8"
       },
       "sourceInputSha256": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "4e6e79581a740ab41190c6ff92f737f91c66435dea9ea3f7fa4c4934837c48e6"
+      "targetSha256": "db854ec845b3c9e8eee9d2d2e1c25fcbdfe0dcafdd6a73fb1d017046620e9f7f"
     },
     "doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -5625,7 +5625,7 @@
         "contract.json": "1fee2fbcf791858823a84d1901aa2e2267abd0fc3f5acabd507a3efe6db211e5",
         "source-positioned.txt": "bf7743ba56a1a752e365e3f7e4a45fce67b53ae8383360ca3d8b961d47763d58",
         "source.txt": "7290e6e3e39a96142854326678e66e8a1a988c4c1e8ed1dfba207bed5f589c03",
-        "target.json": "f9b23e09402ee731f328eafbbc4479ba54d7369fb7594a17641a14e81bbeeddc",
+        "target.json": "28cf55432b29db6e1c92a63bb055ba852e31bbfe24b13e9d38afae0ed6f1dc7f",
         "template.json": "12aa82a5e9100f5dd486e6a98b9d89ce5e9400beb332c5106dc3d1e6b5b45e57"
       },
       "sourceInputSha256": "7290e6e3e39a96142854326678e66e8a1a988c4c1e8ed1dfba207bed5f589c03",
@@ -5696,7 +5696,7 @@
         "contract.json": "cdbda5a1a14933d5b5dd505936a417ef549869d905430d745eaf677ea4b47c01",
         "source-positioned.txt": "cc12612cc97e93657006eab846c4c9ef2eec527b528080d7eddc598cb8366b93",
         "source.txt": "eaf8a1b8c08e1823fa01afddba171c7e8fcbb39b2f530fa9881d5344648b259b",
-        "target.json": "bd63e1e052fd31c85b7f4e892acde51d1954fd17149df6365b6bb043f32e1d70",
+        "target.json": "666cb972b6f20e5ba3f9c45491e34858d629e4abfd76eb99766f5e672b87a30c",
         "template.json": "95e3375b2902f45bbff69e09e347bf90d9902a55906b6fb0d85b0d7d5e87eb9d"
       },
       "sourceInputSha256": "eaf8a1b8c08e1823fa01afddba171c7e8fcbb39b2f530fa9881d5344648b259b",
@@ -5800,7 +5800,7 @@
         "contract.json": "0d9d1dc245ad64947a9c3e0b980afd18b41c3df52cadc6588c89454a31ec94f1",
         "source-positioned.txt": "937b7aed6e07c926375d0bc6c33e75a3ef48c5fe81c7474267e7894236cfc7a3",
         "source.txt": "a1ad414e7eea95e57bcccbffa1187d9382bccd27f8b207c7d69f8d6c65848c26",
-        "target.json": "566ccee1129b4e652d41ce7145f674f1eff19688c674020523e1536513d04afe",
+        "target.json": "981aa9eed70566f452c54c9af71f0882ae42fae4d5cf7f50f060edd9aa23e8c9",
         "template.json": "e708aa265050523a39d35f811efcb92115761a537372cffddeeff3f6a75dc84d"
       },
       "sourceInputSha256": "a1ad414e7eea95e57bcccbffa1187d9382bccd27f8b207c7d69f8d6c65848c26",
@@ -5876,7 +5876,7 @@
         "contract.json": "d0785631f8e2c8ff1d0f8de6a74d7ae140daa384bb1eb2fb3ddf1eb92ef725dc",
         "source-positioned.txt": "b53af78df567f8fc3e902f44747a57abbb09939781c708d74a72b9aa2ccf52c2",
         "source.txt": "1eac48f726468b1de6e1f4522e00944cc3efe39d7824115d428520cf1e1b3ddb",
-        "target.json": "f496420d410cafd83014acf7ecef0b3f5fc948efb26abaecd77ed23875bebe15",
+        "target.json": "52b5837d5e555ec666b2cc12da50efdc67e2a5b93c37c7b7509a4da9fca7d528",
         "template.json": "d2a706be60ece7d0046d2ea01a7aff5dd75bc7d6b95fbe99831e04c578ae18d9"
       },
       "sourceInputSha256": "1eac48f726468b1de6e1f4522e00944cc3efe39d7824115d428520cf1e1b3ddb",
@@ -5912,7 +5912,7 @@
         "contract.json": "4689dbea863f550ea272c8801c113521c166666a604caee6c664a6a1341c225a",
         "source-positioned.txt": "9cf3eea796b86f03d7a825a72029f9b74a8206448d94fc10cd6969aef6be7a90",
         "source.txt": "4de07f2aa8a1a56386d203a1e865f1ae83a282a45f02909083ae832c611889c9",
-        "target.json": "4e8eb974669a3864a0bcced77bf21719b7c22cbf228a193428de3a4aaf7d3d06",
+        "target.json": "590fcba64cf7ffbcb04c10904b16f36ed8a99e19989e66dbbdb7621e2a96ec79",
         "template.json": "4e16539a2aef68951d1c37097057f0e486381ac28536b17f1e3a9feb71099391"
       },
       "sourceInputSha256": "4de07f2aa8a1a56386d203a1e865f1ae83a282a45f02909083ae832c611889c9",
@@ -5987,7 +5987,7 @@
         "contract.json": "14eddbcae5ef895d1414b902eea0ec68105e3d11376e8d5eb9a5a41e302f1e87",
         "source-positioned.txt": "582a51c69841edcfc625579b7bbf5c127185fc8e46068f8dcc5651ddf3f20aee",
         "source.txt": "e7b1157f041a40765328f5205b6f163c65f3f76c823437be1d64a6a1483c40bc",
-        "target.json": "8d98f18565fa193801d865fa45c8d5b83d9d6ec3d7e1d5b35621139145077519",
+        "target.json": "2dd9b571f97ebf28c1642bb48bfc25be54d6b8480cb4f075aa806f18541c45ba",
         "template.json": "f8518db4cab4b97a6ccf040f7d8c60192166a5115fb099c69df54adbb2751aa9"
       },
       "sourceInputSha256": "e7b1157f041a40765328f5205b6f163c65f3f76c823437be1d64a6a1483c40bc",
@@ -6098,7 +6098,7 @@
         "contract.json": "247c9bc1187ece3494a05ef2e3a32351a658c4125cf6569a9c51942196141971",
         "source-positioned.txt": "f4692064723c93b7bb369b8ce47d5e7f74c9ca28133bbe797812a767eda72e50",
         "source.txt": "d74b964b0e26de92a82ca0a81e779c79cb831c84c722af9c856c8f459e5a09d4",
-        "target.json": "a481abdee4ab5bedcf29b128be11e2c0af5f60d4966a933b29784ab8ce7b60db",
+        "target.json": "765c2ef8d4242c12ee9c17ec8181252ca64e16210bfced12bd5a8b82a9f8197d",
         "template.json": "21a6a5a44b56c093093ad4a6455577a7d3df1bc72ebd4355b430c0019bb4066a"
       },
       "sourceInputSha256": "d74b964b0e26de92a82ca0a81e779c79cb831c84c722af9c856c8f459e5a09d4",
@@ -6151,7 +6151,7 @@
         "contract.json": "98df2f1638cea28ee13e8a6de81549cf08e2c61e8ac6916acc77e28234e19a27",
         "source-positioned.txt": "740e3fe700c476a623c4508bd61c7481899560d2e1a7fcba31a815ee76684651",
         "source.txt": "5f3cfe977278d4f9e2314f46f898587e386496de10c996bc77cf3923a170ea47",
-        "target.json": "4451a3e9e2d236a555c745e4316ae26b067500afee20b1304f371946e226b78a",
+        "target.json": "0c724636047d16f4e1f7dafdc793ba3d0b429f8c656b9f04d684dd2976d2d8b6",
         "template.json": "9fd894a7e94ef94673bcec1322229aa74818448f08f7975c44807acd5c82f4ff"
       },
       "sourceInputSha256": "5f3cfe977278d4f9e2314f46f898587e386496de10c996bc77cf3923a170ea47",
@@ -6187,7 +6187,7 @@
         "contract.json": "20d2f6ce9d9065bb325cd5b6285d997dae11bdd9f2bdcdbe2f56ece624e0a843",
         "source-positioned.txt": "15ec22193c64dbe850565d537dd6d70ba81e3d67ee0571605109dc5567a9ec26",
         "source.txt": "3e811f705f5454902fff3062a127d897baf7e3f6cd00cb15d42124dfe5b4d4eb",
-        "target.json": "f6a80662a64ba7c53102f0ed2e3a3511d43d36e12a126660afee8b7dfc54396f",
+        "target.json": "0d146779229783ca9b04bb2dae1b7cc1a9d59b8b403cfacb9025c454b4e402e4",
         "template.json": "7c5fbd0256cb305e8ba6fc0ad8e0f850d0b73726e9604400676e5f61dfa12d60"
       },
       "sourceInputSha256": "3e811f705f5454902fff3062a127d897baf7e3f6cd00cb15d42124dfe5b4d4eb",
@@ -6225,7 +6225,7 @@
         "contract.json": "a758e80df10d5ac24a910b901209eae87088b8a3ee5005a00d4ad10284ea6ed6",
         "source-positioned.txt": "b8b3f7654a2c0aa509dee68990c88d783a49e03f3b1bba3b09f30fbb49acdd07",
         "source.txt": "a2609144b90cd0f688a249df10298a2a791c24fdd5daa126725b70eb32371b00",
-        "target.json": "1f6257ba4d29bb8401dcbd5c759422ffe1b91c0bc87faab8db344a86f65e5e5e",
+        "target.json": "4fa87c6433b82ded4829791ff6ea2ffccd476a675f76072edc9f0d5343c3a721",
         "template.json": "11b69cf99c36a5b131d49267a5d6764c4341db76e17d8f14815f21d581d1f84e"
       },
       "sourceInputSha256": "a2609144b90cd0f688a249df10298a2a791c24fdd5daa126725b70eb32371b00",
@@ -6264,7 +6264,7 @@
         "contract.json": "565571294934ef7960c07c5f40b12aaf69dc3cbfe7bb3b8ef7175904735a62ef",
         "source-positioned.txt": "7ea704a51acb4987e1a4adb7be14d2da873f8364d43ddfaef6f6b7a91ba646e1",
         "source.txt": "efae986a4460a59588c50bf7b3cd51c27a9a0c6edfcd81b0c582e9a998fca518",
-        "target.json": "12a4543839a0b794fc70a078519156a031d071bc33f93dd1a8ef2defbbc2bf6a",
+        "target.json": "ee4d97561aaa3db30d43f5136d337273312fb88e1822396d817eaa1e118e8ee7",
         "template.json": "4bd5a4e3ab758266f8715e6c3ea2528e01c8d27d7fedb27e829ad38516545517"
       },
       "sourceInputSha256": "efae986a4460a59588c50bf7b3cd51c27a9a0c6edfcd81b0c582e9a998fca518",
@@ -6301,7 +6301,7 @@
         "contract.json": "cb0cd7c52306a4587579232a1affaa2577a0d00f8583f147ce83e1800c6224ce",
         "source-positioned.txt": "21847c15691d29707cf5ae70f9649c6251b022ce0f44e97d36de24b3693cdbef",
         "source.txt": "9f0e2795b37f059088d72459c3bce1a614b55d883270db4eac2016903ea746f6",
-        "target.json": "5f24d1f498cb3bb45500350b0ecd087a3ddc0ab79ab0eed9ddf805b5a7ca259a",
+        "target.json": "650d5811102fd37ea5832e7b1ef6302e7b2798390068379ff245fe5d5c5600f8",
         "template.json": "367b2b8cf184d1cd443ce480e1093c466050d11bc9572c2a7fce62d493d36814"
       },
       "sourceInputSha256": "9f0e2795b37f059088d72459c3bce1a614b55d883270db4eac2016903ea746f6",
@@ -6345,7 +6345,7 @@
         "contract.json": "1d5ced06e35584b4dff7780f30c7d7b2bceb0d882a25f07b258fa59b93ef3919",
         "source-positioned.txt": "0549c606d1503b0d95f6c290dd0d73ab46d6666e05f32c596e58775665f61d70",
         "source.txt": "7eebc2ebb99b303d5095de5b6fb887b580cd146d8893916ca62b8355409d3f32",
-        "target.json": "d2f18d246d9f15a12e5fc2d60a440af3d2a20d2e44eac7a01401ad4ef56b691b",
+        "target.json": "3896b4560db449bc0c82ab0f6b72cf824a8a4ec5c9567f1ca78f0acfce614105",
         "template.json": "5a1ba5ec8f5c06e61ec302276947212b18ee811f5779575e8b302db126545b43"
       },
       "sourceInputSha256": "7eebc2ebb99b303d5095de5b6fb887b580cd146d8893916ca62b8355409d3f32",
@@ -6417,7 +6417,7 @@
         "contract.json": "4fb2a90806d6cbf798ff3d085470ab4f02099403bc1d6f531198e02e2edc04f2",
         "source-positioned.txt": "5cbde859cfb5181d6a5278210b74cc8e907192f252f26bef432cded141d49155",
         "source.txt": "8da53d5423179385de4c602e75b5e3c621461ef0986a5b215571af847649c347",
-        "target.json": "8359eb132410789de82c18cc999241ed9b356e5a9752db57a3c9585e0d2db455",
+        "target.json": "8b1fc67aa2bce24631589561a239a2cb8b0f5e06d89ce590912a9fea1e97a0cc",
         "template.json": "bcfaa91498045c4286eb7ac1224094ecf50c314b73eef923a19b1c729188650a"
       },
       "sourceInputSha256": "8da53d5423179385de4c602e75b5e3c621461ef0986a5b215571af847649c347",
@@ -6486,27 +6486,24 @@
       },
       "files": {
         "alignment.json": "11d33fa1455c7da8fd0dfa0effb4073697480bfbb6774eb66b434cf5513b8f2a",
-        "contract.json": "65519ec8776121a83d8df84e1529d362bbcfff9847ab5a0745d84aa2ab4ac92b",
+        "contract.json": "9fad128ab3f1f4b715f6fa7c0888f8f680e6de30cdcf1b8160ce074e48a964a3",
         "source-positioned.txt": "4c4d66cec29b3f7a306eacee9da81ab02731bd94391e9b24a11761ebfba3bdf2",
         "source.txt": "e804d2a389306dee3a3a645905fc9c1c275bdc7082e14b15aea04fcf65bcbcf4",
-        "target.json": "64e09c29412ec1c6bab422f045ba94ddfbd147f05537bb0535404c69d4dbc7e7",
+        "target.json": "ffd6d98db6a4d8e85e59f7a5b1ffd072a14b7357fe07b29e44bf9154927f0031",
         "template.json": "549f3e3dec7d25fc4f7e52c0113c0c4964e0a754232c95f61e28964111dc869f"
       },
       "sourceInputSha256": "e804d2a389306dee3a3a645905fc9c1c275bdc7082e14b15aea04fcf65bcbcf4",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "47b7d20808d143ecc3ceb3a23d3f0ff61a9c4f19c0790b3ce7b29e75ad4298c9"
+      "targetSha256": "52600d8265ea7a1ade50a1bfd632397dc854446f2fffd45a83fe906c168726fc"
     },
     "doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "allowed_package_categories": [
-          "PACKAGE_BAG",
-          "PACKAGE_SACK",
-          "PACKAGE_BOX",
-          "PACKAGE_CARTON"
+          "PACKAGE_PALLET"
         ],
         "family": "ambient",
-        "quantity_multiple": 6,
+        "quantity_multiple": 1,
         "route_topology": {
           "fields": {
             "placeOfDelivery": "destination",
@@ -6517,28 +6514,37 @@
           "issue_node": "origin",
           "nodes": {},
           "rationale": "Manually reviewed printed source route/party roles. Repeated source places share a node; distinct receipt, issue, onward destination, transshipment and third-country roles remain distinct. No carrier-schedule inference."
-        }
+        },
+        "allowed_hs_headings": [
+          "1108"
+        ],
+        "allowed_hs_codes": [
+          "110811",
+          "110812",
+          "110813",
+          "110814",
+          "110819",
+          "110820"
+        ],
+        "physical_profile": "source_bundle"
       },
       "files": {
         "alignment.json": "1b7ba89e5c1d28a846b6ed3994f742118d819c9be9ed40d5caefcbd206f4707b",
-        "contract.json": "c9a0812ae771919db98c53ec6ed19223cd4d47309aa912492c922b1ace34898d",
+        "contract.json": "8bbfcd550a9a4a06cfeb333faf5e44112a784ac612524be32a258973a179d26a",
         "source-positioned.txt": "87da96624be6fba89aa745543a3651b6eb84faa1be4d5dd347f8813ca9e8fb74",
         "source.txt": "e1d259f3a6196c304bcbf4438fae76e4aa46846524836c5bcb97dd762f0a0a76",
-        "target.json": "a2f58a45e448d237d587d8005d0057b016ef46ce8c4e2ab01546a046e06948ba",
+        "target.json": "9f246a50201ab32ad2958459647bfccbaa9cf4915f31f9f99f1356f04943c08e",
         "template.json": "c2384bec0ec8fff584be7442bc9047b122653e6038358e272619bf58df67b0a9"
       },
       "sourceInputSha256": "e1d259f3a6196c304bcbf4438fae76e4aa46846524836c5bcb97dd762f0a0a76",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "8d5f5037dfbe00801fcf42941ce6acd726af13775b621622c0895460e5cd878e"
+      "targetSha256": "34ddcda7d750fa888bdfd042a57244984b58098761cce4a0710e2f9306cb116c"
     },
     "doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
         "allowed_package_categories": [
-          "PACKAGE_BAG",
-          "PACKAGE_SACK",
-          "PACKAGE_BOX",
-          "PACKAGE_CARTON"
+          "PACKAGE_PALLET"
         ],
         "family": "ambient",
         "quantity_multiple": 5,
@@ -6562,16 +6568,16 @@
         }
       },
       "files": {
-        "alignment.json": "e821a017877c5b17590e7b512c96877600987f3d1fdfcb249e28d194035a7cd5",
-        "contract.json": "b4d174190f1f52fb802cf98dd3adb526aa646d6500e86f2bd3bb5cc29b829645",
-        "source-positioned.txt": "a059006b1b15562526df93db973230d45382a62a4023b74b1859a1a0cb1deba1",
-        "source.txt": "197948a603f6318d2bb8436166097fe02df05e43e06756444a91b49eb4792b94",
-        "target.json": "b2aa8266836eb4ec49a5a9b35dc5a55b5e84df6a92c124c1078dd127fe4b62cf",
-        "template.json": "4d27f6bb11b9a12268492424b3722291cc0c8d5aefc6b1013d2465ddcf90917a"
+        "alignment.json": "436899740b4f34efc24f7b316c193d11e59f7409a1f2c1ced589215426e89a7b",
+        "contract.json": "b4c0cbef65f833b6fdb9d39c705f0664ac9058fa396a20bb7a4857d956704744",
+        "source-positioned.txt": "83d0a7d595d88d7978cf3b880dec764ef1804031e0c886b830fece48f0e41a71",
+        "source.txt": "bf3f885b68a8181d598441979c98cf73023d2f9be5f03a0fb2253d1a7a0e526a",
+        "target.json": "da4281b24a6f8f2dca18da7b22e5525a82d79592ae8cda1785e0891f7bf3a479",
+        "template.json": "47e0dfd4caed0468999cc529eb2cae043c0cddfd5cd4c70e38a51157f554e515"
       },
-      "sourceInputSha256": "197948a603f6318d2bb8436166097fe02df05e43e06756444a91b49eb4792b94",
+      "sourceInputSha256": "bf3f885b68a8181d598441979c98cf73023d2f9be5f03a0fb2253d1a7a0e526a",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "215afd827c6cfb310b4672caae4944677a5ecf9ca01f9e60f60bab68557c20f8"
+      "targetSha256": "7859aed9a949f1afd5052b2a937e05467a15371ac74632a407193ac45fba3078"
     },
     "doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -6604,7 +6610,7 @@
         "contract.json": "7c8b8fd2b21c1ea0a7b54f088fa636b6159d76aa2103fe75915754f8564b0d5a",
         "source-positioned.txt": "9c8c0b551603572f2bc6ca1ae5b0c9d35f3d15131017d4dde64dba2f25552ae5",
         "source.txt": "3d6d57a7823a19afe38ec105beab3755a128b63c9082982396ed520b8b7934ec",
-        "target.json": "4380c2fa559fcdaaffbb93d5f844ee82a94fb126bbd09b05c702a2de88259623",
+        "target.json": "7dd4290a9600df4ac0acf2b16dc9e0a2d81f1e240a94f828f74c8d74da5ab78c",
         "template.json": "c444330e20456d8da44e6d9e18872a434b28b6a42d3d78772d09afae1cd141ef"
       },
       "sourceInputSha256": "3d6d57a7823a19afe38ec105beab3755a128b63c9082982396ed520b8b7934ec",
@@ -6677,7 +6683,7 @@
         "contract.json": "4d349a9ba2ad2d8cefe0f3e25efc3aa1cdb64c77eb007c159356223c3815c183",
         "source-positioned.txt": "f576efbfc4ef104acfebaf7f1a2ae3e0d207bf5ecef58dc4e407a0b5e07704c6",
         "source.txt": "283d06c72b761d007601e05fe11f1aee2591f5367f34643f9d71b7d76e4c646a",
-        "target.json": "66e4845cedb376a712325fd86125b50b6f6016302d7d55f416492fb9a9915434",
+        "target.json": "9d6a99288bb1597c2c3899aae7ff29772d6a4ef665ddee0ca68b1d52c3a4f9a3",
         "template.json": "e6101bacefec4b1c50d2a8f4518734fad852173eb7a8f70106f0d70e337530bb"
       },
       "sourceInputSha256": "283d06c72b761d007601e05fe11f1aee2591f5367f34643f9d71b7d76e4c646a",
@@ -6747,7 +6753,7 @@
         "contract.json": "38f593bb8e6aafac50c22017d277b421a5537644d6d35a5818c2942d6da00bf5",
         "source-positioned.txt": "c5b5d318516df3eb22621bdf6fc200778fd6042d4e21fe7746668048b598e0ef",
         "source.txt": "50892a3dbd7ef8bff65e3df23fb196f911cdf3e580a6da954e21fc361ea977c9",
-        "target.json": "24dbf8e71273b86b36d97f5a4b3ffad1b819437aad5b8ac1ec443d8d444fbcce",
+        "target.json": "138cbdbe46644334a5f2d5ea0725558785204be6f64ce8b57e6fcb33b5e58946",
         "template.json": "40634617411835935f7e1453b06b0138030e63225ba46a7aa62dc5857637f826"
       },
       "sourceInputSha256": "50892a3dbd7ef8bff65e3df23fb196f911cdf3e580a6da954e21fc361ea977c9",
@@ -6781,7 +6787,7 @@
         "contract.json": "fe1afb249801d6ef6d248d6abc3cdea65a0e10a7ed9c7c6ec131538dd63b94fc",
         "source-positioned.txt": "ecfed123d72b1ef2780b15f5090ce04b567310a5e265176d38fcd9da5b96b8d2",
         "source.txt": "7fe5672155f113b32ffadc4c736d0eb8b0ac6f1172df85f3e66b41227207a118",
-        "target.json": "97976b10c502342afdaa5eadd5c6e435847bca5777cdf6d3b43c18a1470c1b76",
+        "target.json": "b6adf933585cea664b5175afdb84fca63559e28b6590c43e862e38bfb5223466",
         "template.json": "1d876dfd3a293eab2ec9be789c71ef8206a323759c80d3f34f4e438b240b6c57"
       },
       "sourceInputSha256": "7fe5672155f113b32ffadc4c736d0eb8b0ac6f1172df85f3e66b41227207a118",
@@ -6863,7 +6869,7 @@
         "contract.json": "10198ad5b59f9845b23ec16a51dd04e4bd0d21c03e0ddf2f1aa2e2b92eb7c692",
         "source-positioned.txt": "5ce3564a4cf0ea7cff6f5911096482b6f2bb507692983953865c2a4a10e84805",
         "source.txt": "a7e68c4317be90992e0dc94324bb7983d5bd77b32f98e529583512dc73534a15",
-        "target.json": "22d0eac69fe6885b9e82b2b6f44756c99fbede76edf6948cdf05c4f73a835da1",
+        "target.json": "ea0960a8bcf40e9f162626008f346d69d3bf4dd0b5c323e7bf04a9bfade23e3d",
         "template.json": "b8e2c9197217417cdf45387e1e29de793d23c94bd2c8e0a388a6b581124dc6ff"
       },
       "sourceInputSha256": "a7e68c4317be90992e0dc94324bb7983d5bd77b32f98e529583512dc73534a15",
@@ -6902,7 +6908,7 @@
         "contract.json": "88309fcfc0b40c4d99bafa60db414a59daedc48195c7a0cf0baaa795ae366a6e",
         "source-positioned.txt": "9ff5fb7518edacd14da07a11eb2888dc7d2b0841352afab8d9c1b7c53972a706",
         "source.txt": "12fb1317949444eac7533973fedd96144192c141ff6fafaa1fb4791b52d07343",
-        "target.json": "a7d11b1eaf5274ae0da0e5a849586ce5ad2c3ad7355f00bb9b3468289af52b1e",
+        "target.json": "a496ffb8a27719ae9a138cebff265971e38d8a8bb75ea7ddac7ca94cc116ea9e",
         "template.json": "f2311bdb183692abd8f44f2c92df58375bfd929f3df4a88b6b90845f8af0e331"
       },
       "sourceInputSha256": "12fb1317949444eac7533973fedd96144192c141ff6fafaa1fb4791b52d07343",
@@ -6911,93 +6917,163 @@
     }
   },
   "dependencies": {
-    "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_expansion100.yaml",
+    "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_description_blocks_next.yaml",
     "paddleFiles": {
       "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1/lines.parquet": "551259d32105c38c3335a47b466b91048609a7c95f2152f9df64438887891402",
       "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1/pages.parquet": "dd8f5582cdb671648d1f5af24e8a573ee86a84efa6fb9582234725732846d799"
     },
     "paddleRun": "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1",
     "sampling": {
-      "commodity_phrases": {
-        "path": "artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl",
-        "records": 5612,
-        "sha256": "05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078"
-      },
+      "ambient_hs_chapters": [
+        "11",
+        "25",
+        "39",
+        "40",
+        "42",
+        "44",
+        "48",
+        "49",
+        "50",
+        "51",
+        "52",
+        "53",
+        "54",
+        "55",
+        "56",
+        "57",
+        "58",
+        "59",
+        "60",
+        "61",
+        "62",
+        "63",
+        "64",
+        "65",
+        "66",
+        "67",
+        "68",
+        "69",
+        "70",
+        "72",
+        "73",
+        "74",
+        "75",
+        "76",
+        "78",
+        "79",
+        "80",
+        "81",
+        "82",
+        "83",
+        "84",
+        "85",
+        "86",
+        "87",
+        "88",
+        "89",
+        "90",
+        "91",
+        "92",
+        "94",
+        "95",
+        "96"
+      ],
       "countries": {
         "path": "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json",
-        "records": null,
-        "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00"
-      },
-      "ecics": {
-        "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl",
-        "records": 3480,
-        "sha256": "51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f"
-      },
-      "hmt": {
-        "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl",
-        "records": 2934,
-        "sha256": "bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2"
-      },
-      "hs_manifest": {
-        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json",
-        "records": null,
-        "sha256": "7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e"
-      },
-      "hs_metadata": {
-        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
-        "records": null,
-        "sha256": "4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7"
-      },
-      "hs_report": {
-        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
-        "records": null,
-        "sha256": "13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513"
-      },
-      "localities": {
-        "path": "artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl",
-        "records": 34106,
-        "sha256": "a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc"
+        "sha256": "f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00",
+        "records": null
       },
       "locations": {
         "path": "artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl",
-        "records": 111561,
-        "sha256": "c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278"
+        "sha256": "c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278",
+        "records": 111561
       },
+      "world_ports": {
+        "path": "artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl",
+        "sha256": "b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb",
+        "records": 3032
+      },
+      "localities": {
+        "path": "artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl",
+        "sha256": "a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc",
+        "records": 34106
+      },
+      "hs_manifest": {
+        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json",
+        "sha256": "7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e",
+        "records": null
+      },
+      "hs_metadata": {
+        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json",
+        "sha256": "4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7",
+        "records": null
+      },
+      "hs_report": {
+        "path": "artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv",
+        "sha256": "13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513",
+        "records": null
+      },
+      "commodity_phrases": {
+        "path": "artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl",
+        "sha256": "05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078",
+        "records": 5612
+      },
+      "hmt": {
+        "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl",
+        "sha256": "bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2",
+        "records": 2934
+      },
+      "ecics": {
+        "path": "artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl",
+        "sha256": "51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f",
+        "records": 3480
+      },
+      "transport_capacity": {
+        "policy": "source_type_aware_maersk_upper_bounds_v1",
+        "published_reference_margin_fraction": 0.0,
+        "twenty_standard_payload_kg": 28300.0,
+        "twenty_standard_volume_m3": 33.2,
+        "forty_standard_payload_kg": 28870.0,
+        "forty_standard_volume_m3": 67.7,
+        "forty_high_cube_payload_kg": 28690.0,
+        "forty_high_cube_volume_m3": 76.4,
+        "forty_five_high_cube_payload_kg": 27650.0,
+        "forty_five_high_cube_volume_m3": 86.0,
+        "out_of_gauge_payload_kg": 47300.0,
+        "unclassified_payload_kg": 47300.0,
+        "unclassified_volume_m3": 86.0
+      },
+      "quantity_scale_min": "0.6",
+      "quantity_scale_max": "1.2",
+      "scale_steps": 60,
       "maximum_candidates": 512,
       "observed_hs_overrides": {
         "doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092": {
+          "source_target_sha256": "2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88",
           "from_hs6": [
             "080800"
           ],
-          "rationale": "Synthesis-only observed fresh-apple bundle: chilled APPLES identify authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed 080800 and extraction labels remain unchanged.",
-          "source_target_sha256": "2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88",
+          "to_hs6": [
+            "080810"
+          ],
           "source_text_literals": [
             "APPLES",
             "HS CODE:080800",
             "TEMP.2CE",
             "2C TILL PLUS 2C 20 CBM/HR"
           ],
-          "to_hs6": [
-            "080810"
-          ]
+          "rationale": "Synthesis-only observed fresh-apple bundle: chilled APPLES identify authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed 080800 and extraction labels remain unchanged."
         }
       },
-      "quantity_scale_max": "1.2",
-      "quantity_scale_min": "0.6",
-      "scale_steps": 60,
       "thermal": {
-        "chilled": {
-          "maximum": 0,
-          "minimum": 0,
+        "frozen": {
+          "minimum": -24,
+          "maximum": -18,
           "step": 0.5
         },
-        "chilled_chapters": [
-          "02",
-          "03"
-        ],
-        "frozen": {
-          "maximum": -18,
-          "minimum": -24,
+        "chilled": {
+          "minimum": 0,
+          "maximum": 0,
           "step": 0.5
         },
         "frozen_chapters": [
@@ -7008,47 +7084,87 @@
           "16",
           "20"
         ],
+        "chilled_chapters": [
+          "02",
+          "03"
+        ],
         "package_categories": [
           "PACKAGE_CARTON",
           "PACKAGE_BOX",
           "PACKAGE_PACKAGE"
         ]
-      },
-      "transport_capacity": {
-        "forty_five_high_cube_payload_kg": 27650.0,
-        "forty_five_high_cube_volume_m3": 86.0,
-        "forty_high_cube_payload_kg": 28690.0,
-        "forty_high_cube_volume_m3": 76.4,
-        "forty_standard_payload_kg": 28870.0,
-        "forty_standard_volume_m3": 67.7,
-        "out_of_gauge_payload_kg": 47300.0,
-        "policy": "source_type_aware_maersk_upper_bounds_v1",
-        "published_reference_margin_fraction": 0.0,
-        "twenty_standard_payload_kg": 28300.0,
-        "twenty_standard_volume_m3": 33.2,
-        "unclassified_payload_kg": 47300.0,
-        "unclassified_volume_m3": 86.0
-      },
-      "world_ports": {
-        "path": "artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl",
-        "records": 3032,
-        "sha256": "b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb"
       }
     },
     "sourceDataset": {
       "files": {
-        "manifest.json": "4b9a9fc4793afdbcbb7fc272a899ff48dfb7341cb2bbae73cb1733d6219928d2",
-        "train.jsonl": "a3927a4470c9939dd7aecabf7346c98a2c6cce5640af7561a1a72a11c5d37458",
-        "validation.jsonl": "14d306aff64e2903a8496d5809279ec42f4e9672b6d50432e72b8d170ec50f68"
+        "manifest.json": "41386c3aaa52c8638ae4eadea3ef6f914de74512011676a4be62be9e29038b5c",
+        "train.jsonl": "fdea44387a15ed1e08129712778a4b04ca2f96ca588e4e912e75632527631f91",
+        "validation.jsonl": "9f3b4c36fe5d6310b3fb79a6d380a06d24d2fe8583acf80748d83861b2fe94da"
       },
       "path": "data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660"
     },
     "taskConstraints": {
-      "path": "configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json",
-      "sha256": "e28b53511556d5ba77bc98cadd422c9e29f3f66a8e3c8ce32f82aa6a2d9b35cc"
+      "path": "configs/training/production/contracts/mpci_bl_real600_synthetic1500_reduced_v7_description_blocks_v1/task-constraints.json",
+      "sha256": "f461eff96893022a06a2ef990ba53dedde30d7d2b2c4857ddfbf5f4a521780aa"
     }
   },
   "description": "Reusable admitted current-schema templates; campaign outputs/calls/reviews remain separate.",
+  "descriptionBoundaryRepair": {
+    "backup": "data/curated/backups/description-boundaries-20261009",
+    "coordinatesChanged": 0,
+    "currentTaskConstraintsSha256": "6fb6b6b1dedbd76f78829255a4334c3fb5df745a55b22913485a25caf5ac63cb",
+    "inputsChanged": 0,
+    "nonDescriptionTargetsChanged": 0,
+    "policy": "main-product-passage-v2",
+    "realReviewed": 660,
+    "report": "docs/description-boundary-repair-2026-10-09.md",
+    "source_receipts": "docs/analysis/description-boundary-repair-20261009/source-decisions.json",
+    "syntheticReplayed": 1500,
+    "synthetic_receipts": "docs/analysis/description-boundary-repair-20261009/synthetic-receipts.json",
+    "templatesChanged": 33,
+    "templatesCompiled": 200
+  },
+  "descriptionPolicyContractMigration": {
+    "after": {
+      "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_description_blocks_next.yaml",
+      "taskConstraints": {
+        "path": "configs/training/production/contracts/mpci_bl_real600_synthetic1500_reduced_v7_description_blocks_v1/task-constraints.json",
+        "sha256": "a52a0ef04ba5a3c6f60eea4b0830c7210479a6d0a608ed63917a64c372c3bd5d"
+      }
+    },
+    "before": {
+      "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_expansion100.yaml",
+      "taskConstraints": {
+        "path": "configs/training/production/contracts/mpci_bl_real660_reduced_v7_r16_positions/task-constraints.json",
+        "sha256": "e28b53511556d5ba77bc98cadd422c9e29f3f66a8e3c8ce32f82aa6a2d9b35cc"
+      }
+    },
+    "beforeSha256": "1a81c89a18e60b674f3319e6b62166c4aa0f2e9c2ece862d82f148673ca3f46e",
+    "policy": "complete-description-blocks-v1"
+  },
+  "descriptionPolicyRepair": {
+    "compiledSources": 200,
+    "historicalAdmissionsRemainHistorical": true,
+    "pendingSourceDatasetAndSchemaDependencyRefresh": false,
+    "receipt": "docs/analysis/description-policy-repair-20261009/template-stage/receipt.json",
+    "sourceAdjudications": {
+      "root-decisions.json": "b74c0c38d51090a95b5a9e6c634c80574b8533b8af355ebb5d4b690c4c8cd604",
+      "train001-220.json": "bba5688cc149c284007551edae7491e5b65d7be12da03b03e64f8e9315097760",
+      "train221-440.json": "70b1243a8249d8928817514d9bb5c47391320f20aa96c6abb72fc4ff1aa2d6bc",
+      "train441-600-validation.json": "2cda1f41241e2731fdda07d26ed075b2c062fe3c1b551b5488e4c14e0327728a"
+    },
+    "staged": false
+  },
+  "followupIntegrityRepair": {
+    "date": "2026-10-08",
+    "previousSharedFiles": {
+      "auxiliary.yaml": "12adae600faa947ac9407be12443e6d4d7a99bb8d309b96006bbbcad73dd9109",
+      "ownership.yaml": "f66ca9aa4baeb63b41dc04389d546030d868c689c315e3b4b63696c98ae9433b"
+    },
+    "reason": "EXID numeric core shares the exporter registration draw; source national prefix becomes sampled origin code.",
+    "report": "docs/kie-synthesis-followup-integrity-2026-10-08.md",
+    "source": "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04"
+  },
   "labelPolicyMigration": {
     "inputsUnchanged": true,
     "policy": "mandatory_consignee_negotiability_explicit_notify_reference_v1"
@@ -7056,42 +7172,121 @@
   "maintenance": [
     {
       "campaign": "curated-v7-expansion1000-v1",
-      "date": "2026-10-08",
-      "report": "docs/kie-synthesis-expansion1000-2026-10-08.md",
       "changedFileHashes": [
         {
-          "source": "doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834",
-          "file": "contract.json",
+          "after": "c9ce161bb1d188b103b8b1cdb1b6cf863a2853c01c32c615d7dad8e7a365949b",
           "before": "ecb75d43a35635286cd69296bf472d1aebf008e31a7f693ba3fbfc47a2cfde7f",
-          "after": "c9ce161bb1d188b103b8b1cdb1b6cf863a2853c01c32c615d7dad8e7a365949b"
+          "file": "contract.json",
+          "source": "doc_291f67b362ee47301b9f9827535d4b15bd2076a79ab875adccb2509954630834"
         },
         {
-          "file": "auxiliary.yaml",
+          "after": "12adae600faa947ac9407be12443e6d4d7a99bb8d309b96006bbbcad73dd9109",
           "before": "328ccd69b0a6e2e79d373ab298717a73620a47bb7fc8853e06f7f85440086362",
-          "after": "12adae600faa947ac9407be12443e6d4d7a99bb8d309b96006bbbcad73dd9109"
+          "file": "auxiliary.yaml"
         },
         {
-          "file": "ownership.yaml",
+          "after": "f66ca9aa4baeb63b41dc04389d546030d868c689c315e3b4b63696c98ae9433b",
           "before": "de0bf0023b2b6608e227e704baa4ac8682c88a8ab82251e6f772a7ba090c397e",
-          "after": "f66ca9aa4baeb63b41dc04389d546030d868c689c315e3b4b63696c98ae9433b"
+          "file": "ownership.yaml"
         }
-      ]
+      ],
+      "date": "2026-10-08",
+      "report": "docs/kie-synthesis-expansion1000-2026-10-08.md"
     }
   ],
-  "followupIntegrityRepair": {
-    "date": "2026-10-08",
-    "report": "docs/kie-synthesis-followup-integrity-2026-10-08.md",
-    "source": "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04",
-    "reason": "EXID numeric core shares the exporter registration draw; source national prefix becomes sampled origin code.",
-    "previousSharedFiles": {
-      "auxiliary.yaml": "12adae600faa947ac9407be12443e6d4d7a99bb8d309b96006bbbcad73dd9109",
-      "ownership.yaml": "f66ca9aa4baeb63b41dc04389d546030d868c689c315e3b4b63696c98ae9433b"
+  "packageAccountingRepair": {
+    "policy": "declared-shipment-accounting-v1",
+    "preflightPlans": 400,
+    "report": "docs/package-accounting-repair-2026-10-09.md",
+    "sources": [
+      {
+        "category": "PACKAGE_PALLET",
+        "containedQuantity": 54,
+        "declaredQuantity": 5,
+        "identityReplay": true,
+        "source": "doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea"
+      },
+      {
+        "category": "PACKAGE_PACKAGE",
+        "containedQuantity": 600,
+        "declaredQuantity": 20,
+        "identityReplay": true,
+        "source": "doc_058d92bbc08fce97814b33b71d9e5f9700d8a83c595180477b131fb5cafcb8e1"
+      },
+      {
+        "category": "PACKAGE_PALLET",
+        "containedQuantity": 240,
+        "declaredQuantity": 6,
+        "identityReplay": true,
+        "source": "doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53"
+      },
+      {
+        "category": "PACKAGE_PALLET",
+        "containedQuantity": 146,
+        "declaredQuantity": 4,
+        "identityReplay": true,
+        "source": "doc_551657f34bc93b4b7db213ad8cf35ac0be759fa35d32967097f1b4a766ff6525"
+      }
+    ],
+    "templatesCompiled": 200,
+    "privatePackingRefinement": {
+      "source": "doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53",
+      "printedUnit": "SACOS",
+      "before": {
+        "allowed_package_categories": [
+          "PACKAGE_PALLET"
+        ],
+        "family": "ambient",
+        "quantity_multiple": 1,
+        "route_topology": {
+          "fields": {
+            "placeOfDelivery": "destination",
+            "placeOfReceipt": "origin",
+            "portOfDischarge": "destination",
+            "portOfLoading": "origin"
+          },
+          "issue_node": "origin",
+          "nodes": {},
+          "rationale": "Manually reviewed printed source route/party roles. Repeated source places share a node; distinct receipt, issue, onward destination, transshipment and third-country roles remain distinct. No carrier-schedule inference."
+        }
+      },
+      "after": {
+        "allowed_package_categories": [
+          "PACKAGE_PALLET"
+        ],
+        "family": "ambient",
+        "quantity_multiple": 1,
+        "route_topology": {
+          "fields": {
+            "placeOfDelivery": "destination",
+            "placeOfReceipt": "origin",
+            "portOfDischarge": "destination",
+            "portOfLoading": "origin"
+          },
+          "issue_node": "origin",
+          "nodes": {},
+          "rationale": "Manually reviewed printed source route/party roles. Repeated source places share a node; distinct receipt, issue, onward destination, transshipment and third-country roles remain distinct. No carrier-schedule inference."
+        },
+        "allowed_hs_headings": [
+          "1108"
+        ],
+        "allowed_hs_codes": [
+          "110811",
+          "110812",
+          "110813",
+          "110814",
+          "110819",
+          "110820"
+        ],
+        "physical_profile": "source_bundle"
+      },
+      "reason": "Source-proven sack/pallet physical bundle with registry starch varieties; polymer-domain trial rejected offline because no complete eligible donor existed. Private sampled counts and exact printed units reach generation and review."
     }
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "b481cda078d33d92f52dc0857728b7891f389afb8cdfd90dfb7478721471144a",
-    "ownership.yaml": "2b740fe26b3862c646ee2a3978ba27cf37f287a644f974b6f8f00c5622b72568",
+    "auxiliary.yaml": "0b99b4b2bd88c73a030840848991200172fa330b8976ae7d0aec54785a8e604d",
+    "ownership.yaml": "5d2ee08270a884527c6b5772c9ba6f063a99f00278843c93dcbf285c3f0947cf",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513"
   },
