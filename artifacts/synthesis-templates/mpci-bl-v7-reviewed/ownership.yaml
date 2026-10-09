@@ -4662,6 +4662,11 @@ sources:
           occurrence: 1
   doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
     bindings:
+      agent:reference:external_reference:
+        # Keep CN-02- literal; this suffix is the third occurrence of the exporter ID.
+        occurrences:
+        - text: 91320282050282384L
+          occurrence: 3
       agent:party:destination_office:phone:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]

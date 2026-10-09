@@ -3089,6 +3089,8 @@ sources:
     spans: []
   doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
     bindings:
+      agent:reference:external_reference:
+        identifier: source_reference_91320282050282384L
       agent:party:shipper:tax_id:
         identifier: source_reference_91320282050282384L
       agent:party:consignee:tax_id:

@@ -7192,6 +7192,12 @@
       ],
       "date": "2026-10-08",
       "report": "docs/kie-synthesis-expansion1000-2026-10-08.md"
+    },
+    {
+      "change": "Shared exporter-ID suffix; CN-02- stays literal.",
+      "date": "2026-10-09",
+      "receipt": "docs/analysis/external-reference-suffix-repair-20261009/receipt.json",
+      "source": "doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae"
     }
   ],
   "packageAccountingRepair": {
@@ -7285,8 +7291,8 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "0b99b4b2bd88c73a030840848991200172fa330b8976ae7d0aec54785a8e604d",
-    "ownership.yaml": "5d2ee08270a884527c6b5772c9ba6f063a99f00278843c93dcbf285c3f0947cf",
+    "auxiliary.yaml": "efd965bb46f61e39343911482070f3d0a79797cc167300add0aad48395507f04",
+    "ownership.yaml": "2f19f85b35076913e13509330828949b3ef1d6a68c59aebbb33eeb9c79318ed4",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513"
   },

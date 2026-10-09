@@ -1,9 +1,11 @@
 from copy import deepcopy
 from dataclasses import replace
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
-from test_curated_templates import compile_sampling_blueprint, source_fixture
+import yaml
+from test_curated_templates import build_owned_blueprint, compile_sampling_blueprint, source_fixture
 
 from document_ocr.synthesis.curated_auxiliary import (
     _render_recipe,
@@ -293,6 +295,59 @@ def test_repeated_identifiers_share_one_value_and_auxiliary_dates_share_chronolo
         - date.fromisoformat(values["invoice"])
     ).days == 11
     assert "issueDate" not in private_target["documentPatch"]
+
+
+@pytest.mark.parametrize("seed", [0, 1, 17, 202610094])
+def test_composite_reference_rebind_preserves_prefix_and_reuses_exporter_id(seed):
+    row, contract, history = source_fixture()
+    identifier = "91320282050282384L"
+    prefix = "CN-02-"
+    row["joinedRawText"] += f"EXPORTER {identifier}\nREFERENCE {prefix}{identifier}\n"
+    raw = row["joinedRawText"].encode()
+    for key, surface in (("exporter", identifier), ("reference", prefix + identifier)):
+        start = raw.index(surface.encode())
+        history["bindings"].append({
+            "logical_key": key,
+            "target_paths": [],
+            "value_kind": "identifier",
+            "occurrences": [{
+                "byte_start": start,
+                "byte_end": start + len(surface),
+                "source_text": surface,
+            }],
+        })
+    blueprint = build_owned_blueprint(row, history, contract, {
+        "bindings": {"reference": {"occurrences": [{"text": identifier, "occurrence": 2}]}},
+    })
+    blueprint = augment_auxiliary_blueprint(blueprint, {"sources": {"sample": {
+        "bindings": {key: {"identifier": "exporter"} for key in ("exporter", "reference")},
+    }}})
+    values, _ = auxiliary_surfaces(
+        blueprint, scenario(), row["target"], DeterministicStream(seed, "test", "sample")
+    )
+    assert values["reference"] == values["exporter"] != identifier
+    rendered, labels, proof = render_sampling_blueprint(
+        blueprint, row["target"], {}, surface_values=values
+    )
+    assert rendered == row["joinedRawText"].replace(identifier, values["exporter"])
+    assert prefix + values["exporter"] in rendered
+    assert labels == row["target"] and proof["unchangedBytesPreserved"]
+
+
+def test_reviewed_catalog_declares_embedded_exporter_suffix_dependency():
+    catalog = (
+        Path(__file__).resolve().parents[1] / "artifacts/synthesis-templates/mpci-bl-v7-reviewed"
+    )
+    source = "doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae"
+    ownership = yaml.safe_load((catalog / "ownership.yaml").read_text())["sources"][source]
+    auxiliary = load_auxiliary_contract(catalog / "auxiliary.yaml")["sources"][source]
+    key = "agent:reference:external_reference"
+    assert ownership["bindings"][key]["occurrences"] == [
+        {"text": "91320282050282384L", "occurrence": 3}
+    ]
+    assert auxiliary["bindings"][key] == auxiliary["bindings"][
+        "agent:reference:shipper_exporter_id"
+    ] == auxiliary["bindings"]["agent:party:shipper:tax_id"]
 
 
 def test_auxiliary_surface_collision_is_an_error_not_silent_overwrite():

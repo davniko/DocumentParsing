@@ -190,3 +190,57 @@ Final validation SHA-256: `9f3b4c36fe5d6310b3fb79a6d380a06d24d2fe8583acf80748d83
 Final 16-sample plain pilot SHA-256: `eda10ee7d44a8abceca382b8bb40a9250cbc0a02bce4c856bf6875151be83a74`.
 
 Final positioned pilot SHA-256: `82fa9aec2f793237744dda001f731a45b85082a36c3df83fb51abada7b0bb5f1`.
+
+## Corrected-data training comparison prepared (2026-10-09)
+
+The existing, unrun `descblocks` rank-48 configuration linked above has been refreshed
+after the [final footer repair](external-reference-suffix-repair-2026-10-09.md). It
+includes all main-product-passage description and declared packaging/allocation
+corrections, plus the seven synthetic input-only footer corrections. Its name is
+retained to avoid creating another duplicate experiment recipe.
+
+Current pinned files:
+
+- Train: `0340136994089effdd153cc76bc052dd95179c60b2868711a036d717989da642`
+  — 600 real + 1,500 synthetic records.
+- Validation: `9f3b4c36fe5d6310b3fb79a6d380a06d24d2fe8583acf80748d83861b2fe94da`
+  — the same 60 real documents, with repaired labels.
+
+Comparison with the completed rank-48 run's saved configuration confirms unchanged
+model/tokenizer revisions, rank 48, alpha 32, EVA initialization, learning rate
+0.0001, ScheduleFree AdamW, 33 optimizer-owned warmup steps (5% of 660 updates),
+microbatch 1, accumulation 32, seeds, compact targets, input-only positional prompt,
+10 epochs, and all other training/evaluation settings. Evaluation and checkpoint
+saving remain every 165 updates (epochs 2.5, 5, 7.5 and 10); all scheduled checkpoints
+are retained and the best field-F1 checkpoint is loaded/exported. The new run/adapter
+identity keeps previous outputs intact. Dataset pins, the updated schema/category
+contract and policy tags are the intended differences. No model checkpoint is resumed.
+
+Validation performed through the freshly rebuilt **same training Docker image**:
+
+- Full schema/hash/record inspection: 2,160 records pass; host inspection takes
+  1.51 seconds (1,433 records/second).
+- Actual tokenizer/cache preparation: 40.24 seconds; **zero truncated inputs and
+  zero excluded targets**. Train maxima: 8,066 input / 3,139 target tokens. Validation
+  maxima: 5,698 input / 1,348 target tokens. Existing limits (19,200 / 5,500) and
+  validation generation budget (3,072) remain unchanged.
+- 32 targeted configuration/optimizer tests pass on the host. One Torch-dependent
+  test is skipped there because Torch is container-only; the image lacks pytest,
+  so its equivalent CPU-only optimizer probe is run directly in that image.
+- A new comparison regression test rejects unintended hyperparameter changes.
+  Ruff and `git diff --check` pass.
+
+Only configuration, its regression test and this documentation change in this
+preparation step. No dataset edits, GPU model loading or training were performed.
+No hot path changed, so these preparation timings are not a training-speed benchmark.
+Tokenization cache files were generated for the corrected dataset.
+
+When comparing results, rescore earlier saved predictions against these repaired
+validation labels as well as reporting historical metrics: label corrections make
+a raw comparison of the two runs' originally logged scores non-identical in target.
+
+```bash
+docker compose --profile training run --rm --build kie-trainer train \
+  --config configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic1500_descblocks_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml \
+  --project-root /workspace
+```

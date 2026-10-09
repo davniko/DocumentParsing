@@ -36,6 +36,39 @@ def test_rank48_comparison_changes_only_rank_identity_retention_and_warmup() -> 
     assert actual == baseline
 
 
+def test_corrected_data_comparison_preserves_rank48_training_settings() -> None:
+    baseline = load_training_config(_config_path(48)).model_dump(mode="python")
+    corrected_path = PRODUCTION / (
+        "t5gemma2_270m_lora.mpci_bl_real600_synthetic1500_descblocks_positions_"
+        "inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml"
+    )
+    actual = load_training_config(corrected_path).model_dump(mode="python")
+
+    baseline["run"]["run_id"] = baseline["run"]["run_id"].replace(
+        "-synthetic1500-", "-synthetic1500-descblocks-"
+    )
+    baseline["peft"]["adapter_name"] = baseline["peft"]["adapter_name"].replace(
+        "_synthetic1500_", "_synthetic1500_descblocks_"
+    )
+    # Corrected inputs/targets and their schema/category contract have new pins.
+    # Paths, split membership counts, preprocessing and all hyperparameters stay fixed.
+    for split in ("train", "validation"):
+        original_source = baseline["dataset"]["splits"][split][0]
+        corrected_source = actual["dataset"]["splits"][split][0]
+        assert corrected_source["sha256"] != original_source["sha256"]
+        original_source["sha256"] = corrected_source["sha256"]
+    assert actual["task_constraints"]["path"] == (
+        "configs/training/production/contracts/"
+        "mpci_bl_real600_synthetic1500_reduced_v7_description_blocks_v1/task-constraints.json"
+    )
+    baseline["task_constraints"] = actual["task_constraints"]
+    baseline["logging"]["mlflow"]["tags"].update(
+        description_policy="main-product-passage-v2",
+        package_policy="declared-shipment-accounting-v1",
+    )
+    assert actual == baseline
+
+
 def test_rank48_training_arguments_keep_all_scheduled_checkpoints(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

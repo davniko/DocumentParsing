@@ -4,7 +4,7 @@ Date: 2026-10-09. Follow-up to the [eight-template repair pilot](package-account
 
 ## Scope and selection
 
-Twelve additional templates, two freshly generated variants each: 24 new validation samples. None overlaps the preceding eight-template pilot. This is deliberately risk-stratified coverage, not a prevalence estimate from random sampling. The current training/validation dataset remains separate and unchanged.
+Twelve additional templates, two freshly generated variants each: 24 new validation samples. None overlaps the preceding eight-template pilot. This is deliberately risk-stratified coverage, not a prevalence estimate from random sampling. The pilot remains separate from training. A subsequent [footer-only repair](external-reference-suffix-repair-2026-10-09.md) updated seven existing synthetic training inputs and two pilot inputs; all labels and coordinates remain unchanged.
 
 Configuration: [pilot.yaml](analysis/package-accounting-extension12-20261009/pilot.yaml). All selected sources belong to the active reviewed 200-template catalog. Offline source-readiness and all 24 scenario preflights passed before generation (5.90 seconds, peak RSS 439.77 MiB, no paid requests).
 
@@ -38,7 +38,7 @@ The source boundaries were checked against the current OCR/targets before genera
 
 **24/24 new samples completed generation, rendering, semantic review, replay validation and position publication.** Together with the preceding pilot this gives **40 samples from 20 distinct templates**. The expanded test found no unresolved description-target, declared-package-level or allocation mismatch in its final samples. It did require the bounded corrections described below; this was not a flawless first generation attempt.
 
-Every sample's complete rendered text and target was supplied to the semantic reviewer, not just a numeric inventory or excerpt. Final review receipts bind the exact candidate hashes and contain zero findings. The root and an additional code-agent review supplied another inspection layer; [adjudication notes](analysis/package-accounting-extension12-20261009/semantic-adjudication.md) specify its coverage and one remaining **untargeted auxiliary-footer limitation**. That limitation is not hidden by the zero-findings model report.
+Every sample's complete rendered text and target was supplied to the semantic reviewer, not just a numeric inventory or excerpt. Final review receipts bind the exact candidate hashes and contain zero findings. The root and an additional code-agent review supplied another inspection layer; [adjudication notes](analysis/package-accounting-extension12-20261009/semantic-adjudication.md) specify its coverage and the **untargeted auxiliary-footer limitation** it found. That limitation was subsequently repaired as described below. The two changed candidates have explicit manual exact-delta review receipts preserving the original full-text model reviews; no new model review is claimed.
 
 ### Packaging and description evidence
 
@@ -68,9 +68,9 @@ Description lengths range from 23 to 1,857 characters. This includes short DG na
 
 These events demonstrate rejection and recovery, not a guarantee that generation cannot propose an error. No new document-specific rule was added to production code. The original failed-call ledger and generation summary remain intact rather than being rewritten to imply first-pass success.
 
-### Remaining auxiliary issue: two inspection samples
+### Auxiliary issue: resolved in a subsequent narrow repair
 
-Both `9bd26a2b` variants retain the source footer `CN-02-91320282050282384L` under `ADDITIONAL EXTERNAL REFERENCES`, although the mutable shipper/exporter ID was resampled. The historical composite-reference binding prevents the nested shorter identifier from independently replacing this suffix. This is a real incomplete-resampling issue in an **excluded target field**, not a package, allocation or description error. It is left visible in this isolated inspection cohort and recorded for a targeted future composite-reference rebind. The two samples are not being silently admitted to training as wholly resampled documents.
+Both `9bd26a2b` variants originally retained the source footer `CN-02-91320282050282384L` under `ADDITIONAL EXTERNAL REFERENCES`, although the mutable shipper/exporter ID was resampled. The historical composite-reference binding prevented the nested shorter identifier from independently replacing this suffix. This was an incomplete-resampling issue in an **excluded target field**, not a package, allocation or description error. Following the user's clarification that the prefix may remain literal flavor text, the live template now binds only the suffix to the shared exporter ID. Both pilot inputs and all seven affected current synthetic training inputs are repaired. Labels, coordinates, the prefix and unrelated text are unchanged. See the [repair report and exact receipts](external-reference-suffix-repair-2026-10-09.md).
 
 Some unrelated carrier/registration boilerplate also remains source-fixed by design. The pass does not claim to regenerate every printed identifier. Generated email/website pairs were absent in these twelve families, so this extension adds no new live contact-domain coverage; the existing independent-domain regression tests still pass.
 
@@ -100,7 +100,7 @@ The gallery contains **all 24 documents / 54 plotted pages**. The root visually 
 - **4/4 geometry corruptions rejected** independently.
 - Final replay/publication-precondition inventory: 7.03–7.08 seconds across two checks, peak RSS 820.74 MiB. Geometry baseline/probes: 6.65 seconds, peak RSS 477.98 MiB. Position synthesis: 1.70 seconds. Full 54-page plot/coverage audit: 1.96 seconds. Final rendering: 0.94 seconds for 24 samples. These are measured operation runtimes after Python imports, not a before/after speedup claim; no production hot path was changed in this extension.
 - `git diff --check` passes.
-- The current 2,100-train / 60-validation dataset files and the preceding 16-sample pilot match their pre-test hashes. No samples were merged into training, no training configuration changed, and no training started.
+- At initial pilot completion, the 2,100-train / 60-validation dataset files and the preceding 16-sample pilot matched their pre-test hashes. The subsequent footer repair changes seven existing synthetic training inputs, with its own exact before/after receipt; it leaves validation and the preceding pilot untouched. No samples were merged into training, no training configuration changed, and no training started.
 
 [Exact integrity/count/hash receipt](analysis/package-accounting-extension12-20261009/validation.json), [geometry negative controls](../artifacts/kie-synthesis-production/package-accounting-extension12-20261009/audit/geometry-independent-probes.json), [full geometry validation](../artifacts/kie-synthesis-production/package-accounting-extension12-20261009/positions-reflow-v1/audit/validation.json).
 
@@ -124,4 +124,4 @@ All 32 calls, including failed proposals, repairs and the changed-candidate rere
 - [Geometry gallery](../artifacts/kie-synthesis-production/package-accounting-extension12-20261009/positions-reflow-v1/audit/GALLERY.md).
 - [Plain dataset publication manifest](../artifacts/kie-synthesis-production/package-accounting-extension12-20261009/manifest.json).
 
-The extended test supports the repaired goods-description boundaries and declared-package/allocation policy on twelve additional, deliberately difficult families. The safeguards correctly reject unsupported shipment facts and geometrically unsafe expansion; scoped review/adjudication remains necessary. The disclosed composite-reference footer is a separate future synthesis improvement, not an unresolved accounting repair. These artifacts are a completed validation cohort, kept separate from production training data.
+The extended test supports the repaired goods-description boundaries and declared-package/allocation policy on twelve additional, deliberately difficult families. The safeguards correctly reject unsupported shipment facts and geometrically unsafe expansion; scoped review/adjudication remains necessary. The disclosed composite-reference footer has also been repaired without changing any targets. These artifacts are a completed validation cohort, kept separate from production training data.

@@ -1,3 +1,8 @@
+# Corrected-data comparison against the completed rank-48 / alpha-32 run.
+# Includes main-product-passage descriptions, declared packaging/allocation repairs,
+# and the final repeated-exporter-ID footer fix (2026-10-09).
+# Same 600 real + 1,500 synthetic training records and 60 real validation records.
+# All training settings stay unchanged; evaluation labels now follow the repaired policy.
 schema_version: 1
 task: bill_of_lading_extraction_v7_reduced
 objective: seq2seq_teacher_forcing
@@ -31,7 +36,7 @@ dataset:
   splits:
     train:
     - path: data/curated/mpci-bl-real600-synthetic1500-v7-positions-v1/train.jsonl
-      sha256: e2ad4444fdf87d2d3932337c252b7b426d8c8d1d1661070e5215b04df0ac8847
+      sha256: 0340136994089effdd153cc76bc052dd95179c60b2868711a036d717989da642
       records: 2100
     validation:
     - path: data/curated/mpci-bl-real600-synthetic1500-v7-positions-v1/validation.jsonl
