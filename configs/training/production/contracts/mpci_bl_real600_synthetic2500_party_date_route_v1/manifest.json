@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-10",
+  "task": "bill_of_lading_extraction_v7_reduced",
+  "previousContract": "configs/training/production/contracts/mpci_bl_real600_synthetic1500_reduced_v7_description_blocks_v1",
+  "files": {
+    "task-constraints.json": "be8ba7b284e1e16f8664bd8a3383e07dca89e20caadad254d2f26fe0c257338d",
+    "schema.json": "a38b0124ed8ea7e5cece2fc2b6cee63e2b39a09749a0672ab0fbfe94c430d268",
+    "prompt-schema.json": "ee928b3c65e63bd697533495b4cfe7d5a231e0cc1776b88364540181ed93a600"
+  }
+}

@@ -23,7 +23,8 @@ _UNITS = {
     "metric_tonne": ("mass", Decimal(1000), r"METRIC\s+TONNES?|TONNES?|MTS?"),
     "pound": ("mass", Decimal("0.45359237"), r"POUNDS?|LBS?"),
     "cubic_metre": ("volume", Decimal(1), r"CBM|M3|M³|CU\.?\s*M\.?"),
-    "cubic_foot": ("volume", Decimal("0.028316846592"), r"CBF|FT3|FT³|CU\.?\s*FT\.?"),
+    # FTQ (UN/CEFACT Rec. 20) and its CF trade alias are printed by carriers.
+    "cubic_foot": ("volume", Decimal("0.028316846592"), r"CBF|FTQ|CF|FT3|FT³|CU\.?\s*FT\.?"),
 }
 
 

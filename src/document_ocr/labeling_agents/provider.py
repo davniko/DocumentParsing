@@ -154,15 +154,15 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
     "masterBillOfLadingNumber": "Explicitly headed master Bill of Lading number.",
     "issueDate": (
         "Document issue date only, normalized to YYYY-MM-DD; never use departure, sailing, or "
-        "ETD; named-month and ordinal dates are unambiguous; whenever both leading numeric "
-        "components are 12 or below, interpret the printed token as day/month/year even if another "
-        "date in the document uses a different order; never use geographic locality to choose it."
+        "ETD. Use an explicit printed format or unambiguous evidence from the same source "
+        "convention first; otherwise ambiguous numeric dates are day/month/year. Never omit "
+        "only for order ambiguity or use country, issuer or language to choose an order."
     ),
     "shippedOnBoardDate": (
         "Explicit shipped/on-board date normalized to YYYY-MM-DD; never use departure, sailing, "
-        "or ETD; whenever both leading numeric components are 12 or below, interpret the printed "
-        "token as day/month/year even if another date in the document uses a different order; "
-        "never use geographic locality to choose it."
+        "or ETD. Use an explicit printed format or unambiguous evidence from the same source "
+        "convention first; otherwise ambiguous numeric dates are day/month/year. Never omit "
+        "only for order ambiguity or use country, issuer or language to choose an order."
     ),
     "negotiability": (
         "Always emit negotiable for an actual consignee TO ORDER/equivalent instruction; "

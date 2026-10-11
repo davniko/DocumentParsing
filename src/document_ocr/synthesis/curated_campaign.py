@@ -24,6 +24,7 @@ from document_ocr.synthesis.curated import (
     digest,
     flat,
     interpolate,
+    locate,
     save,
 )
 from document_ocr.synthesis.curated_auxiliary import (
@@ -44,6 +45,7 @@ from document_ocr.synthesis.curated_contacts import (
     request_hash as contact_request_hash,
 )
 from document_ocr.synthesis.curated_descriptions import validate_description_regions
+from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix
 from document_ocr.synthesis.curated_identifiers import declared_identifier_values
 from document_ocr.synthesis.curated_ownership import (
     apply_dependent_text,
@@ -59,6 +61,7 @@ from document_ocr.synthesis.curated_physical import (
     PhysicalRenderPlan,
     PhysicalSupport,
     prepare_physical_render,
+    validate_source_physical_requirements,
 )
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
 from document_ocr.synthesis.curated_routes import validate_route_values
@@ -75,9 +78,11 @@ from document_ocr.synthesis.curated_scenarios import (
 from document_ocr.synthesis.curated_templates import (
     SamplingBlueprint,
     render_sampling_blueprint,
+    validate_postal_country_owner,
     wrap_owned_text,
 )
 from document_ocr.synthesis.curated_wording import (
+    IDENTITY_KIND_REQUIREMENTS,
     WORDING_PROMPT,
     RenderedReview,
     WordingBatch,
@@ -107,6 +112,148 @@ from document_ocr.synthesis.vessel_lexical import vessel_name_fit_exclusion_reas
 def party_path(path: str) -> str | None:
     match = re.match(r"documentPatch\.parties\.[^.]+", path)
     return match[0] if match else None
+
+
+def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
+    """Certify separately generated actors without inventing extraction roles."""
+    declarations = blueprint.ownership_data.get("related_actors", {})
+    if not isinstance(declarations, dict):
+        raise ValueError("related actors require a variable-to-context mapping")
+    if not declarations:
+        return declarations
+    variables = {v.key: v for v in blueprint.contract.variables}
+    leaves = flat(blueprint.target)
+    for key, declaration in declarations.items():
+        if (
+            key not in variables
+            or variables[key].kind not in {"name", "postal"}
+            or not isinstance(declaration, dict)
+            or set(declaration) != {"context_party", "relationship"}
+            or declaration["relationship"]
+            not in {"on_behalf", "care_of", "account_of", "agent_for"}
+        ):
+            raise ValueError("related actor requires a known lexical key and explicit relationship")
+        role = declaration["context_party"]
+        if not isinstance(role, str) or party_path(role + ".name") != role or not any(
+            path.startswith(role + ".") for path in leaves
+        ):
+            raise ValueError("related actor context must name a present concrete party")
+        if any(
+            binding.path == role + ".name" and "{" + key + "}" in binding.expression
+            for binding in blueprint.contract.targets
+        ):
+            raise ValueError("related actor cannot be concatenated into its context party name")
+        variable = variables[key]
+        if variable.kind == "name":
+            pattern = r"(?<!\w)" + r"\s+".join(
+                re.escape(token) for token in variable.value.split()
+            ) + r"(?!\w)"
+            owned = [locate(blueprint.source, occurrence) for occurrence in variable.occurrences]
+            for match in re.finditer(pattern, blueprint.source, re.I):
+                start = len(blueprint.source[:match.start()].encode())
+                end = len(blueprint.source[:match.end()].encode())
+                if not any(a <= start and end <= b for a, b in owned):
+                    raise ValueError(
+                        f"related actor has an unowned repeated source identity: {key}"
+                    )
+    return declarations
+
+
+def validate_lexical_owners(blueprint: SamplingBlueprint) -> None:
+    """Every lexical target needs a mutable owner of its semantic kind."""
+    kinds = {variable.key: variable.kind for variable in blueprint.contract.variables}
+    generated = {
+        binding.path: {
+            kinds[key]
+            for key in re.findall(r"\{([a-z][a-z0-9_]*)\}", binding.expression)
+            if key in kinds
+        }
+        for binding in blueprint.contract.targets
+    }
+    missing = []
+    for path in flat(blueprint.target):
+        expected = None
+        if path.endswith(".addressLine"):
+            expected = "postal"
+        elif path.endswith(".description"):
+            expected = "product"
+        elif ".parties." in path and path.endswith(".name"):
+            expected = "name"
+        if expected is not None and expected not in generated.get(path, set()):
+            missing.append(path)
+    if missing:
+        raise ValueError(f"lexical targets lack mutable source wording owners: {sorted(missing)}")
+    related_actor_contexts(blueprint)
+
+
+def certified_identity_kinds(blueprint: SamplingBlueprint) -> dict[str, str]:
+    """Read explicit source declarations, never infer identity shape from wording."""
+    declarations = blueprint.ownership_data.get("identity_kinds", {})
+    name_keys = {v.key for v in blueprint.contract.variables if v.kind == "name"}
+    if not isinstance(declarations, dict) or (
+        set(declarations) - name_keys
+        or any(
+            not isinstance(kind, str) or kind not in IDENTITY_KIND_REQUIREMENTS
+            for kind in declarations.values()
+        )
+    ):
+        raise ValueError("identity kinds require known name keys and explicit supported meanings")
+    return declarations
+
+
+def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]) -> str:
+    """Expose certified component meaning and actual generated text to review."""
+    declarations = certified_identity_kinds(blueprint)
+    related = related_actor_contexts(blueprint)
+    if not declarations and not related:
+        return ""
+    components = []
+    for key, kind in declarations.items():
+        paths = [
+            binding.path
+            for binding in blueprint.contract.targets
+            if "{" + key + "}" in binding.expression
+        ]
+        if not paths and key in related:
+            actor = related[key]
+            paths = [f"related {actor['relationship']} actor for {actor['context_party']}"]
+        if not paths or key not in values:
+            raise ValueError("certified identity review requires owned generated components")
+        components.append(
+            f"{', '.join(paths)} ({kind}): {IDENTITY_KIND_REQUIREMENTS[kind]}\n"
+            f"Generated component:\n{values[key]}"
+        )
+    context = (
+        "\nSOURCE-CERTIFIED IDENTITY COMPONENTS\n" + "\n\n".join(components)
+        if components
+        else ""
+    )
+    variables = {v.key: v for v in blueprint.contract.variables}
+    relationships = []
+    for key, actor in related.items():
+        if key not in values:
+            raise ValueError("related actor review requires its generated component")
+        paths = [
+            binding.path
+            for binding in blueprint.contract.targets
+            if "{" + key + "}" in binding.expression
+        ]
+        ownership = ", ".join(paths) if paths else "source-only context; no extraction-party field"
+        relationships.append(
+            f"{actor['relationship']} with {actor['context_party']}: {ownership}\n"
+            f"Reviewed source meaning: {variables[key].meaning}\n"
+            f"Generated {variables[key].kind}:\n{values[key]}"
+        )
+    if relationships:
+        context += (
+            "\nSOURCE-CERTIFIED RELATED ACTOR OWNERSHIP\n"
+            "The primary target represents A only. Independently named B is relationship "
+            "context, not an omitted second party role. Source-only postal context must "
+            "not be transferred into A's address merely because it follows B in the "
+            "same printed box. Explicit care-of recipient routing stays in the address.\n"
+            + "\n\n".join(relationships)
+        )
+    return context
 
 
 def wording_request_hash(request: WordingRequest) -> str:
@@ -247,6 +394,8 @@ def wording_request(
     physical_plan: PhysicalRenderPlan | None = None,
 ) -> WordingRequest:
     bindings = blueprint.contract.targets
+    identity_kinds = certified_identity_kinds(blueprint)
+    related_actors = related_actor_contexts(blueprint)
     identities = list(scenario.goods_identities)
     product_keys = {v.key for v in blueprint.contract.variables if v.kind == "product"}
     product_groups = [
@@ -274,8 +423,30 @@ def wording_request(
             continue
         owners = [b for b in bindings if "{" + variable.key + "}" in b.expression]
         roles = sorted({p for binding in owners if (p := party_path(binding.path)) is not None})
-        if roles:
+        if variable.key in related_actors:
+            actor = related_actors[variable.key]
+            geo = scenario.party_localities[actor["context_party"]]
+            role = f"{actor['context_party']} related {actor['relationship']} {variable.kind}"
+            requirement = (
+                f"Separate fictional actor in the printed {actor['relationship']} relationship "
+                f"with {actor['context_party']}. This is not an additional extraction-party "
+                "function and must not be merged into that party's legal name. "
+            )
+            if variable.kind == "name":
+                requirement += (
+                    "Generate one distinct identity only, matching the example's legal/trading "
+                    "or personal identity structure; exclude postal, contact and relationship "
+                    "framing. Independently owned repeated occurrences reuse this identity."
+                )
+            else:
+                requirement += (
+                    f"Generate postal components only in {geo.name}, {geo.country} "
+                    f"({geo.country_code}), matching the example's address hierarchy. "
+                    "Exclude names, contacts, tax data and relationship framing."
+                )
+        elif roles:
             identity_roles = roles
+            direct_roles = set()
             if variable.kind == "name":
                 direct_roles = {
                     role
@@ -284,49 +455,77 @@ def wording_request(
                     and binding.expression.strip() == "{" + variable.key + "}"
                     and (role := party_path(binding.path)) is not None
                 }
-                # A represented company's complete name can also be embedded in
-                # a principal's composite identity. Its own party supplies its
-                # geography; the principal's address need not share that place.
+                # A repeated legal identity uses its directly owned party's
+                # locality, even when another role references the same identity.
                 if len(direct_roles) == 1:
                     identity_roles = sorted(direct_roles)
             locations = {scenario.party_localities[p].model_dump_json() for p in identity_roles}
-            if len(locations) != 1:
+            shared_identity = variable.kind == "name" and len(direct_roles) > 1
+            if len(locations) != 1 and not shared_identity:
                 raise ValueError(
                     f"shared party region has conflicting sampled geography: {variable.key}"
                 )
             geo = scenario.party_localities[identity_roles[0]]
             requirement = f"New party in {geo.name}, {geo.country} ({geo.country_code})."
+            if shared_identity and len(locations) > 1:
+                offices = sorted(
+                    {
+                        f"{scenario.party_localities[p].name}, "
+                        f"{scenario.party_localities[p].country}"
+                        for p in identity_roles
+                    }
+                )
+                requirement = (
+                    "One new fictional identity shared by these party roles, "
+                    "with offices in " + "; ".join(offices) + "."
+                )
             if variable.kind == "postal":
                 requirement += (
-                    " Generate this postal component jointly with the other components "
-                    "of this role. Use the example's component kinds and approximate line span; "
-                    "POSTAL ASSEMBLY defines the complete address and required geography. "
+                    " Postal components only: exclude party identities, tax/registration "
+                    "data, contacts and captions. Genuine named sites remain postal components. "
+                    "Generate this role's components jointly, retaining the example's hierarchy "
+                    "and approximate line span. POSTAL ASSEMBLY defines required geography. "
                     "Use the supplied locality spelling once. A literal locality/country "
                     "in the assembly is supplied by the host. Choose street/site names "
                     "without reusing that locality/country inside them."
                 )
             else:
-                requirement += " A new fictional identity, not a renamed version of the example."
+                requirement += (
+                    " New identity only. Exclude postal, tax/registration and "
+                    "contact/manager/agent statements."
+                )
+                if variable.key not in identity_kinds:
+                    requirement += (
+                        " Match the example's legal/trading or personal identity structure. "
+                        "An uncaptioned proprietor stays uncaptioned."
+                    )
                 if identity_roles != roles:
                     requirement += (
                         f" Its complete identity belongs to {identity_roles[0]}; "
-                        "reuse it unchanged inside the other party names."
+                        "reuse it unchanged in its other explicitly owned occurrences."
                     )
             role = ", ".join(roles) + " " + variable.kind
         elif variable.kind == "product":
             requirement = (
-                "Write this portion of the jointly generated commercial description. "
-                "The complete source shows descriptive depth, list presentation and qualifiers, "
-                "not identities to copy. Use natural item boundaries and fictional product "
-                "variants, models or serials where appropriate. Product dimensions and capacities "
-                "may describe the goods. Shipment packing, package capacities, totals, transport "
-                "settings and HS/customs captions belong to the host-rendered facts, not this "
-                "product wording. Return final commercial text, without editing commentary."
+                "Final product wording only; party identities, addresses and contacts belong "
+                "to their own fields. Generate this portion jointly with other requested goods "
+                "regions at the source's descriptive depth and list structure. Include every "
+                "sampled identity and its attributes; fictional variants, models, dimensions "
+                "and rated capacities are allowed. Shipment packing, fills, totals, transport "
+                "settings and HS/customs captions are host-owned, not wording to invent."
             )
             role = "goods description"
         else:
             raise ValueError(f"lexical region has no current owner: {variable.key}")
-        fields.append(WordingField(variable.key, role, variable.occurrences[0].text, requirement))
+        fields.append(
+            WordingField(
+                variable.key,
+                role,
+                variable.occurrences[0].text,
+                requirement,
+                identity_kinds.get(variable.key),
+            )
+        )
     if not goods_only:
         fields.extend(field for field, _ in contact_wording_fields(blueprint, scenario).values())
     loading = scenario.route_locations.get("portOfLoading", scenario.origin)
@@ -337,16 +536,19 @@ def wording_request(
     )
     if via := scenario.route_locations.get("transshipmentPort"):
         context += f"\nPrinted transshipment location: {via.name}, {via.country}."
-    context += "\nSAMPLED COMMODITY BRIEF\n" + "\n".join(identity.phrase for identity in identities)
-    context += (
-        "\nGenerate a plausible commercial assortment around this brief. Exact HS-to-product "
-        "classification is not the wording objective. Generate all description regions "
-        "together as one coherent commercial description. Repeated uses of a region share "
-        "the same value. Output only wording a shipper would print; schema, annotation "
-        "and generation instructions are context, never product text."
-    )
-    for binding in product_groups:
-        context += f"\nDESCRIPTION ASSEMBLY {binding.path}: {binding.expression}"
+    generated_products = product_keys - host_products.keys()
+    if generated_products:
+        context += "\nSAMPLED COMMODITY BRIEF\n" + "\n".join(i.phrase for i in identities)
+        context += (
+            "\nGenerate requested regions as one coherent commercial description: a "
+            "concise commodity identity, a specification passage, or a product list, matching "
+            "the source's descriptive depth. Represent every sampled identity at that level "
+            "of detail. Exact HS-to-product classification is not the wording objective. "
+            "Repeated uses share one value; output final commercial wording only. "
+            "Schema instructions are context, never product text."
+        )
+        for binding in product_groups:
+            context += f"\nDESCRIPTION ASSEMBLY {binding.path}: {binding.expression}"
     cargo = physical_plan.target["documentPatch"] if physical_plan else scenario.cargo
     physical = {
         "goods": [
@@ -376,14 +578,16 @@ def wording_request(
         + yaml.safe_dump(physical, sort_keys=False, allow_unicode=True)
     )
     if thermal := scenario.provenance.get("thermalCommodityContext"):
-        context += (
-            "\nSAMPLED COLD-CHAIN COMMODITY AND SETTINGS\n"
-            + yaml.safe_dump(thermal, sort_keys=False, allow_unicode=True)
-            + "Describe the sampled commodity in its stated chilled/frozen/fresh form. "
-            "The source description illustrates presentation, not the product to preserve. "
-            "Where an observed produce extension supplies a description, retain that "
-            "commodity's form. Temperature and ventilation are rendered separately."
+        context += "\nSAMPLED COLD-CHAIN COMMODITY AND SETTINGS\n" + yaml.safe_dump(
+            thermal, sort_keys=False, allow_unicode=True
         )
+        if generated_products:
+            context += (
+                "Describe the sampled commodity in its stated chilled/frozen/fresh form. "
+                "The source description illustrates presentation, not the product to preserve. "
+                "Where an observed produce extension supplies a description, retain that "
+                "commodity's form. Temperature and ventilation are rendered separately."
+            )
     for binding in bindings:
         if goods_only:
             break
@@ -405,12 +609,15 @@ def wording_request(
             "Braced keys are generated regions; literal text is supplied by the host."
         )
     groups = tuple(
-        tuple(
-            key
-            for key in re.findall(r"\{([a-z][a-z0-9_]*)\}", b.expression)
-            if key in product_keys and key not in host_products
-        )
+        group
         for b in product_groups
+        if (
+            group := tuple(
+                key
+                for key in re.findall(r"\{([a-z][a-z0-9_]*)\}", b.expression)
+                if key in product_keys and key not in host_products
+            )
+        )
     )
     goods = cargo.get("goodsItemDetails", [])
     gross = goods[0].get("grossWeight") if len(goods) == 1 else None
@@ -508,6 +715,95 @@ def combine_surfaces(*groups: dict[str, str | list[str]]) -> dict[str, str | lis
                 raise ValueError(f"conflicting render ownership: {key}")
             result[key] = value
     return result
+
+
+def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list[str]]:
+    """Use both publication checks: complete geography and certified country owners."""
+    assembled = flat(assemble_lexical_target(blueprint, target, values, scenario))
+    errors: dict[str, list[str]] = {}
+    for role, location in scenario.party_localities.items():
+        address = assembled.get(role + ".addressLine")
+        if address is None:
+            continue
+        try:
+            validate_postal_geography(
+                address,
+                locality=location.name,
+                country=location.country,
+                country_code=location.country_code,
+                country_labelled=role + ".country" in assembled,
+            )
+        except ValueError as error:
+            errors.setdefault(role, []).append(str(error))
+    for region in blueprint.regions:
+        if region.kind != "postal" or region.curated_key not in values:
+            continue
+        for path in region.target_paths:
+            if not path.endswith(".country") or (role := party_path(path)) is None:
+                continue
+            location = scenario.party_localities[role]
+            try:
+                validate_postal_country_owner(
+                    values[region.curated_key],
+                    str(assembled[path]),
+                    location.country_code,
+                    path,
+                )
+            except ValueError as error:
+                message = f"Region {region.curated_key}: {error}"
+                if message not in errors.setdefault(role, []):
+                    errors[role].append(message)
+    return errors
+
+
+def postal_correction_context(blueprint, scenario, target, keys) -> str:
+    """Expose exact per-party assemblies and country owners, without unrelated goods context."""
+    leaves, lines = flat(target), []
+    for binding in blueprint.contract.targets:
+        if not binding.path.endswith(".addressLine"):
+            continue
+        if not keys.intersection(re.findall(r"\{([a-z][a-z0-9_]*)\}", binding.expression)):
+            continue
+        role = party_path(binding.path)
+        location = scenario.party_localities[role]
+        country_path = role + ".country"
+        owners = sorted(
+            {
+                region.curated_key
+                for region in blueprint.regions
+                if region.kind == "postal"
+                and region.curated_key
+                and country_path in region.target_paths
+            }
+        )
+        lines.extend(
+            [
+                f"POSTAL ASSEMBLY {role}: {lexical_expression(blueprint, binding, scenario)}",
+                f"LOCALITY: {location.name!r}, exactly once in the complete address.",
+            ]
+        )
+        if country_path not in leaves:
+            lines.append("COUNTRY: omitted from this party's printed address; keep that omission.")
+        elif owners:
+            lines.append(
+                f"COUNTRY: {location.country!r}, exactly once in the complete address. "
+                "Copy the supplied spelling and accents. "
+                "Use the name alone, without an added ISO code."
+            )
+            lines.append(
+                "COUNTRY OWNER REGIONS: " + ", ".join(owners) + ". "
+                "Keep the country inside its certified owner region, not in another component."
+            )
+        else:
+            lines.append(
+                f"COUNTRY: {location.country!r}. The country is already supplied by a "
+                "host-owned literal in the assembly; retain that literal spelling/name/code "
+                "and keep generated regions free of that country name and code."
+            )
+        lines.append(
+            "Braced keys are generated; literal text is supplied by the host and already counts."
+        )
+    return "\n".join(lines)
 
 
 def remaining_text_surfaces(blueprint: SamplingBlueprint, target: dict, supplied: dict) -> dict:
@@ -754,8 +1050,26 @@ class Campaign:
             self.root / self.config["ownership"],
         )
         blueprint = augment_auxiliary_blueprint(blueprint, self.auxiliary)
+        validate_lexical_owners(blueprint)
+        certified_identity_kinds(blueprint)
         validate_description_regions(blueprint.description_blocks, blueprint.regions)
         cap = self.capabilities[sid]
+        for group in cap.party_locality_groups:
+            group.validate_source(row, self.catalog.countries)
+            group.validate_blueprint(blueprint)
+        if "equipment_mix" in blueprint.ownership_data:
+            mix = PrintedEquipmentMix.model_validate(blueprint.ownership_data["equipment_mix"])
+            if cap.equipment_mix is not None and cap.equipment_mix != mix:
+                raise ValueError("campaign equipment mix conflicts with source ownership")
+            # The fixed printed mix is an immutable template requirement, not
+            # a campaign distribution knob. Every campaign inherits it.
+            cap = cap.model_copy(update={"equipment_mix": mix})
+            self.capabilities[sid] = cap
+        validate_source_physical_requirements(blueprint, cap)
+        if cap.equipment_mix is not None:
+            cap.equipment_mix.validate_source(
+                blueprint.source, blueprint.target["documentPatch"].get("containerInformation", [])
+            )
         validate_contained_quantity_sampling(
             blueprint, multiple=cap.quantity_multiple, fixed=cap.fixed_package_quantity
         )
@@ -768,19 +1082,31 @@ class Campaign:
 
     def plan(self, sid: str, variant: int) -> tuple[SamplingBlueprint, ShipmentScenario, str, dict]:
         blueprint = self.blueprint(sid)
+        sample_id = "syn_full_v7_" + digest([sid, self.config["seed"], variant])[:24]
+        target = None
+
+        def validate_candidate(candidate: ShipmentScenario) -> None:
+            nonlocal target
+            target = public_identity_updates(
+                apply_replacements(blueprint.target, candidate.replacements),
+                candidate,
+                DeterministicStream(self.config["seed"], "full-current-v7", sample_id),
+            )
+            target = apply_dependent_text(blueprint, target)
+            # The exact source grid belongs to candidate admission, not to a
+            # late failure after selecting a shipment (or after a paid call).
+            # Contract errors propagate; only typed draw incompatibilities retry.
+            prepare_physical_render(blueprint, candidate, target, support=self.physical_support)
+
         scenario = self.catalog.sample(
             self.rows[sid],
             seed=self.config["seed"],
             variant=variant,
             capabilities=self.capabilities[sid],
+            validate_candidate=validate_candidate,
         )
-        sample_id = "syn_full_v7_" + digest([sid, self.config["seed"], variant])[:24]
-        target = public_identity_updates(
-            apply_replacements(blueprint.target, scenario.replacements),
-            scenario,
-            DeterministicStream(self.config["seed"], "full-current-v7", sample_id),
-        )
-        target = apply_dependent_text(blueprint, target)
+        if target is None:
+            raise ValueError("scenario acceptance did not validate its target")
         if old_vessel := target["documentPatch"].get("transport", {}).get("vesselName"):
             candidates = tuple(v for v in self.vessels if v != old_vessel)
             stream = DeterministicStream(self.config["seed"], "full-current-v7", sample_id)
@@ -795,6 +1121,7 @@ class Campaign:
     def preflight(self, plans: list[tuple]) -> None:
         """Reject broken deterministic source/physical contracts before paid wording."""
         for blueprint, scenario, sample_id, target in plans:
+            validate_lexical_owners(blueprint)
             physical = prepare_physical_render(
                 blueprint, scenario, target, support=self.physical_support
             )
@@ -852,7 +1179,15 @@ class Campaign:
                             ]
                         }
                     )
-                    wording.update(validate_wording(batch, [request]))
+                    try:
+                        accepted = validate_wording(batch, [request])
+                    except ValueError:
+                        # A new policy can invalidate earlier cached wording.
+                        # Send it through the same recorded, bounded repair as
+                        # a fresh invalid response; never silently reuse it.
+                        pending.append(request)
+                    else:
+                        wording.update(accepted)
                     continue
             pending.append(request)
         batch_size = self.config["variants_per_source"]
@@ -1053,29 +1388,19 @@ class Campaign:
             values = combine_surfaces(receipt["values"], host_product_wording(blueprint, scenario))
             assembled = flat(assemble_lexical_target(blueprint, target, values, scenario))
             failed, keys = [], set()
-            for role, location in scenario.party_localities.items():
+            for role, errors in postal_wording_errors(blueprint, scenario, target, values).items():
                 address_path = role + ".addressLine"
-                if address_path not in assembled:
-                    continue
-                try:
-                    validate_postal_geography(
-                        assembled[address_path],
-                        locality=location.name,
-                        country=location.country,
-                        country_code=location.country_code,
-                        country_labelled=role + ".country" in assembled,
-                    )
-                except ValueError as error:
-                    failed.append(
-                        f"{role}: {error}. Previous complete address: {assembled[address_path]}"
-                    )
-                    for binding in blueprint.contract.targets:
-                        if binding.path == address_path:
-                            keys.update(
-                                v.key
-                                for v in blueprint.contract.variables
-                                if v.kind == "postal" and "{" + v.key + "}" in binding.expression
-                            )
+                failed.append(
+                    f"{role}: {'; '.join(errors)}. "
+                    f"Previous complete address: {assembled[address_path]}"
+                )
+                for binding in blueprint.contract.targets:
+                    if binding.path == address_path:
+                        keys.update(
+                            v.key
+                            for v in blueprint.contract.variables
+                            if v.kind == "postal" and "{" + v.key + "}" in binding.expression
+                        )
             if not failed:
                 continue
             if not keys:
@@ -1085,18 +1410,19 @@ class Campaign:
                     f.key,
                     f.role,
                     values[f.key],
-                    f.requirement + " This is a fresh synthetic postal rewrite, not transcription. "
+                    "Fresh synthetic postal rewrite under the supplied POSTAL ASSEMBLY rules. "
                     "Choose new street/site wording without the sampled locality or "
                     "country inside street, building, district or region names. "
-                    "Use the locality and requested country once across the complete "
-                    "assembly; one mention suffices when their names are identical.",
+                    "Preserve approximate hierarchy and line span. Place required geography "
+                    "in its specified region; one mention suffices when locality and country "
+                    "coincide.",
                 )
                 for f in original.fields
                 if f.key in keys
             )
             request = WordingRequest(
                 sample_id,
-                original.context
+                postal_correction_context(blueprint, scenario, target, keys)
                 + "\nPOSTAL CORRECTION\n"
                 + "\n".join(failed)
                 + "\nRewrite these fictional postal regions jointly. The old values show "
@@ -1118,18 +1444,16 @@ class Campaign:
                 sid,
                 wording_output_type(batch),
                 "Correct fictional postal text. The supplied old values FAILED validation; "
-                "they are not formatting examples. Return corrected regions only. Each complete "
-                "address must contain its supplied locality exactly once and its requested "
-                "country exactly once. Host-owned literal components already count. If a "
+                "they are not formatting examples. Return corrected regions only. Follow each "
+                "party's explicit LOCALITY, COUNTRY and COUNTRY OWNER rules. Some parties omit "
+                "country; preserve that omission. Host-owned literal components already count. "
+                "If a "
                 "fictional street/site name repeats the locality, choose a different street/site "
-                "name. Preserve approximate address hierarchy and use uppercase text.",
+                "name. Preserve approximate address hierarchy and use uppercase text. "
+                "Return final postal text only, without editing or validation commentary.",
                 "\n\n---\n\n".join(
                     f"SHIPMENT s{index}\n"
-                    + "\n".join(
-                        line
-                        for line in request.context.splitlines()
-                        if line.startswith(("POSTAL ASSEMBLY", "documentPatch.parties."))
-                    )
+                    + request.context
                     + "\n\n"
                     + "\n\n".join(
                         f"REGION {field.key} ({field.role})\n{field.requirement}\n"
@@ -1145,28 +1469,16 @@ class Campaign:
             path, receipt, failed, blueprint, scenario, target = changes[request.sample_id]
             before = deepcopy(receipt["values"])
             receipt["values"].update(proposed[request.sample_id])
-            assembled = flat(
-                assemble_lexical_target(
+            post_errors = [
+                f"{role}: {error}"
+                for role, errors in postal_wording_errors(
                     blueprint,
+                    scenario,
                     target,
                     combine_surfaces(receipt["values"], host_product_wording(blueprint, scenario)),
-                    scenario,
-                )
-            )
-            post_errors = []
-            for role, location in scenario.party_localities.items():
-                if role + ".addressLine" not in assembled:
-                    continue
-                try:
-                    validate_postal_geography(
-                        assembled[role + ".addressLine"],
-                        locality=location.name,
-                        country=location.country,
-                        country_code=location.country_code,
-                        country_labelled=role + ".country" in assembled,
-                    )
-                except ValueError as error:
-                    post_errors.append(f"{role}: {error}")
+                ).items()
+                for error in errors
+            ]
             remaining.extend(f"{request.sample_id}: {error}" for error in post_errors)
             receipt.setdefault("corrections", []).append(
                 {
@@ -1350,6 +1662,7 @@ class Campaign:
                 )
                 + "\nTARGET VALUES\n"
                 + yaml.safe_dump(candidate["target"], sort_keys=False, allow_unicode=True)
+                + identity_review_context(self.blueprint(sid), candidate["renderValues"])
                 + "\nHOST-RENDERED CONTAINED PACKING (private facts, not extra target rows)\n"
                 + yaml.safe_dump(
                     contained_packing_context(self.blueprint(sid), candidate["target"]),

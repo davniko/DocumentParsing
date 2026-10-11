@@ -33,6 +33,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from document_ocr.atomic import read_regular_file_bytes
+from document_ocr.date_policy import render_numeric_date
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.label_schemas.bill_of_lading_v5 import (
     ContainerSizeCategory,
@@ -540,6 +541,8 @@ def _render_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
     if old == new:
         return raw
     compact = raw.strip()
+    if re.fullmatch(r"\d{1,4}([-/\. ])\d{1,2}\1\d{2,4}", compact):
+        return render_numeric_date(raw, old, new)
     prefix_length = len(raw) - len(raw.lstrip())
     suffix_length = len(raw) - len(raw.rstrip())
     matching_formats = []
@@ -552,6 +555,14 @@ def _render_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
             matching_formats.append(date_format)
     if not matching_formats:
         raise ValueError(f"unsupported certified date surface: {raw!r}")
+    timestamped = re.fullmatch(
+        r"(?P<date>\d{1,2}([-/\. ])\d{1,2}\2\d{2,4})(?P<time>\s+\d{1,2}:.*)",
+        compact,
+    )
+    if timestamped is not None:
+        rendered_date = render_numeric_date(timestamped["date"], old, new)
+        suffix = raw[len(raw) - suffix_length :] if suffix_length else ""
+        return raw[:prefix_length] + rendered_date + timestamped["time"] + suffix
 
     # A named month can have identical full and abbreviated spelling. This is
     # typography, not date ambiguity: use the compact named-month convention
@@ -563,9 +574,8 @@ def _render_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
         if "%B" not in value or value.replace("%B", "%b") not in matching_formats
     ]
 
-    # Equivalent numeric day/month formats can parse the same ambiguous source. Their
-    # output is identical for a uniformly shifted target only when the target day/month
-    # coincide. Refuse ambiguity rather than silently selecting a locale convention.
+    # Numeric surfaces were handled by the shared evidence-first/day-first policy.
+    # Any remaining conflicting named-month renderings are a typography ambiguity.
     rendered_candidates = {
         _preserve_unpadded_day(
             compact,
@@ -1966,25 +1976,10 @@ def _render_certified_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
             f"{new.year:04d}" if len(tokens[year_index]) == 4 else f"{new.year % 100:02d}"
         )
         unassigned.remove(year_index)
-        day_candidates = tuple(index for index in unassigned if int(tokens[index]) == old.day)
-        month_candidates = tuple(index for index in unassigned if int(tokens[index]) == old.month)
-        if old.day == old.month and day_candidates == month_candidates and len(day_candidates) == 2:
-            if new.day != new.month:
-                raise ValueError(
-                    f"numeric date has no certified day/month ordering: {raw!r}; "
-                    "locale guessing is forbidden"
-                )
-            # Either ordering produces the same new date; no locale inference is needed.
-            day_candidates = (min(day_candidates),)
-            month_candidates = (max(month_candidates),)
-        if (
-            len(day_candidates) != 1
-            or len(month_candidates) != 1
-            or day_candidates == month_candidates
-        ):
-            raise ValueError(f"numeric date has ambiguous day/month positions: {raw!r}")
-        day_index = day_candidates[0]
-        month_index = month_candidates[0]
+        # Source canonical support was checked above. For future text, year-first
+        # is explicit; otherwise the rendered date must use the DMY default.
+        first, second = sorted(unassigned)
+        day_index, month_index = (second, first) if year_index == 0 else (first, second)
         replacements[day_index] = f"{new.day:0{len(tokens[day_index])}d}"
         replacements[month_index] = f"{new.month:0{len(tokens[month_index])}d}"
     else:

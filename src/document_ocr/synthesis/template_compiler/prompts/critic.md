@@ -15,10 +15,16 @@ Return `pass` only when all of the following are true:
   source-only when the source target lacks its dangerousGoods record. Check
   every printed UN, class and packing-group value against its cargo-group
   owner; repeated equal declarations are not extra target records.
-- For a party name with an affiliation or care-of relation, verify that the
-  affiliated organization and the target name share one mutable contract; an
-  independently sampled source-only affiliate can leave a stale label or
-  create self-affiliation. Verify legal suffixes belong to the name rather
+- For related party actors, verify that the target name and its postal/contact
+  data describe one resolved entity. A compound name joining acting and
+  represented companies is a source-label ownership issue, even if it replays
+  exactly. A acting on behalf of B targets the primary printed company A, with
+  A-owned details only. B remains audit context unless independently assigned
+  another printed party role. Distinct actors require distinct mutable identities; a genuine
+  care-of postal recipient can remain in the address through its owned
+  relationship, without joining that recipient into the target legal name.
+  An unresolved entity selection requires review, not a guessed actor or
+  forwarding-agent role. Verify legal suffixes belong to the name rather
   than a neighboring address slot. Adjacent phone and email slots need a
   reviewed separator before generated values can be safely inserted.
 - Every public identity, alias, domain, office, and signature relationship of the fixed carrier

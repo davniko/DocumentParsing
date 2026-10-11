@@ -12,6 +12,36 @@ only within their stated scope. Independently printed telephone numbers remain
 extractable; standalone abbreviated suffixes/extensions are not separate numbers
 and must not be expanded by guessing missing prefixes.
 
+## Related party identities and postal ownership (2026-10-10)
+
+The user explicitly selected **the primary printed company A** for an `A ON
+BEHALF OF B` / `A O/B B` relationship in a shipper or consignee block. Keep only
+A's identity in `name`, with A-owned postal and contact values. Record B and the
+relationship outside the extraction target in audit metadata. A relationship is
+not one long company name, and does not by itself establish a forwarding-agent
+or NVOCC role. Separately printed independent roles remain separately extractable.
+
+Care-of (`C/O`, `CARE OF`) names describe postal routing: put the primary party
+in `name` and the printed care-of recipient with its postal block in
+`addressLine`. Do not erase a genuine named recipient as ordinary name pollution.
+An account (`A/C`) organization or named represented principal is relationship
+context, not part of the primary party's legal name. Capacity captions such as
+`AS AGENT`, `AS PRINCIPAL` and `NVOCC` are not legal-name suffixes.
+
+An address explicitly attached to B cannot become A's address. An undifferentiated
+A/O-B postal block does not establish which entity owns the address: preserve
+the OCR and archive the postal context with ownership unresolved, while omitting
+that uncertain component from A's target. This does not hold back a resolved A
+identity or independently established contacts. Do not assign ownership from
+real-world headquarters, country, language, or company-name knowledge.
+
+This is an explicit training-target policy. The MPCI business specification
+separately defines the B/L shipper and forwarding agent; it does not make `O/B`
+an automatic forwarding-agent classification. Its ultimate-party filing
+requirements must not be confused with a legal-name concatenation in this KIE
+target. See the [MPCI business specification](https://naic.icp.gov.ae/portal/assets/mpci-guidelines/UAE%20MPCI%20Business%20Specification%20Document%20V1.0.pdf),
+table10 and appendixC.
+
 ## Goods identity: accounting, not number of product names
 
 The baseline currently retains documents with one labeled goods entry. A long
@@ -259,6 +289,50 @@ train R8 or R9 with the live full-field schema/prompt by accident: use its froze
 contract, or perform an explicit aligned projection before the next training run.
 Historical runs and datasets retain their recorded contracts. No training
 configuration is redirected or training launched by this annotation campaign.
+
+## Date normalization: source evidence, otherwise DD-MM (2026-10-10)
+
+Every structured date field follows the same rule. First identify the date's
+document role: an issue date, shipped/on-board date, invoice date and departure
+date are not interchangeable.
+
+- A four-digit-year-first numeric date uses year-month-day. A written month or
+  explicitly stated format establishes the printed convention.
+- Otherwise use unambiguous numeric dates only when they establish the same
+  source convention for the date being interpreted. Do not infer a convention
+  from country, issuer, carrier or language.
+- If both day/month orders remain valid and the source does not establish an
+  order, assume **DD-MM**: the first number is the day, the second is the month.
+  `03/06/2025` therefore becomes `2025-06-03`. Order ambiguity alone must not
+  remove a supported date label.
+- An impossible, incomplete or genuinely conflicting date is still a review
+  issue; this default does not invent a year or resolve conflicting printed
+  values. Preserve the distinction between missing role evidence and ambiguous
+  numeric presentation.
+
+This supersedes both the earlier month-first default and the later erroneous
+instruction to omit dates when both orders are possible. It applies to real,
+validation and synthetic targets, extraction/review descriptions, and template
+date rendering. A synthetic target must agree with its final printed date under
+this rule; a hidden source format or previous ISO label cannot establish an order
+that the rendered OCR does not supply. Raw date-bearing reference text remains
+source text unless the target actually defines a normalized date field.
+
+## Route-role occurrence ownership (2026-10-10)
+
+A location target requires the location occurrence retained in OCR for that
+transport role, or an explicit declaration assigning one occurrence to multiple
+roles. Identical spelling in a discharge, payment, issue-place or party-address
+field is not evidence of a separate delivery role. PDF layout may establish the
+role of text that OCR retained despite a missing/detached heading; it must not
+restore a wholly omitted value occurrence using another role's equal string.
+This distinction applies to every route role, not only place of delivery.
+
+Templates must bind a location to its reviewed role occurrence. A shared sampled
+destination node makes existing discharge/delivery values agree; it does not
+authorize adding a role absent from the source target and its evidence. Retain
+supported identical discharge and delivery fields rather than deduplicating
+different roles.
 
 ## Negotiability: actual consignee instruction
 

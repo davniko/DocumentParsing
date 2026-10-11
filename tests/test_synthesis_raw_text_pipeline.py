@@ -16,6 +16,7 @@ import document_ocr.synthesis.raw_text_pipeline as raw_text_pipeline
 import document_ocr.synthesis.template_compiler.descendant as descendant
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import load_synthesis_raw_text_pipeline_config
+from document_ocr.synthesis.container_semantics import review_source_equipment_surface
 from document_ocr.synthesis.raw_text_pipeline import (
     _validate_pipeline_config_file,
     preflight_raw_text_pipeline,
@@ -335,7 +336,7 @@ def test_extended_date_grammars_cover_agent_and_timestamp_surfaces() -> None:
             "2023-11-28",
             "2025-07-10",
         )
-        == "07/10/2025 12:00:00 AM"
+        == "10/07/2025 12:00:00 AM"
     )
     assert (
         descendant._render_date_surface("23 MAY 2025", "2025-05-23", "2025-11-13") == "13 NOV 2025"
@@ -351,8 +352,7 @@ def test_extended_date_grammars_cover_agent_and_timestamp_surfaces() -> None:
         descendant._render_date_surface("MARCH 28, 2025", "2025-03-28", "2025-11-13")
         == "NOVEMBER 13, 2025"
     )
-    with pytest.raises(ValueError, match="ambiguous certified date"):
-        descendant._render_date_surface("05/05/2025", "2025-05-05", "2025-11-13")
+    assert descendant._render_date_surface("05/05/2025", "2025-05-05", "2025-11-13") == "13/11/2025"
 
 
 def test_unowned_numeric_randomization_is_forbidden() -> None:
@@ -403,7 +403,12 @@ def test_indexed_whole_container_receipt_is_rendered_without_inventing_an_identi
         target=target,
     )
 
-    assert output.replacements == {"slot_receipt": "01X40' STANDARD HEIGHT REFRIGERATED"}
+    assert output.replacements == {"slot_receipt": "01X40'RE"}
+    equipment = review_source_equipment_surface(
+        output.replacements["slot_receipt"].split("X", 1)[1], temperature_present=False
+    )
+    assert equipment.size_category == "FORTY_FOOT_STANDARD_HEIGHT"
+    assert equipment.type_category == "REFRIGERATED"
     assert "FBIU5385937" not in output.replacements["slot_receipt"]
 
 
@@ -838,9 +843,11 @@ def test_target_linked_location_code_cannot_reuse_an_unresolved_source_city() ->
         )
 
 
-def test_ambiguous_numeric_date_does_not_invent_a_locale() -> None:
-    with pytest.raises(ValueError, match="locale guessing is forbidden"):
+def test_ambiguous_numeric_date_uses_day_first_policy_not_locale() -> None:
+    assert (
         descendant._render_certified_date_surface("05/05/2025", "2025-05-05", "2026-08-19")
+        == "19/08/2026"
+    )
     assert (
         descendant._render_certified_date_surface("05/05/2025", "2025-05-05", "2026-08-08")
         == "08/08/2026"
@@ -1750,6 +1757,8 @@ def test_changed_formal_range_uses_proven_deterministic_cardinality(
     binding = _coherence_binding()
     case = SimpleNamespace(
         document_id="doc_changed_range",
+        cargo_policy=None,
+        source_locked_auxiliary_keys=frozenset(),
         customs_presentation=None,
         route_context_presentation=None,
         dangerous_goods_facts=(),
@@ -1785,6 +1794,8 @@ def test_unchanged_coherence_member_preserves_the_certified_source(
     binding = _coherence_binding()
     case = SimpleNamespace(
         document_id="doc_unchanged_range",
+        cargo_policy=None,
+        source_locked_auxiliary_keys=frozenset(),
         customs_presentation=None,
         route_context_presentation=None,
         dangerous_goods_facts=(),
@@ -1833,6 +1844,8 @@ def test_typed_target_that_violates_a_slot_envelope_routes_to_residual(
     )
     case = SimpleNamespace(
         document_id="doc_ocr_variant",
+        cargo_policy=None,
+        source_locked_auxiliary_keys=frozenset(),
         customs_presentation=None,
         route_context_presentation=None,
         dangerous_goods_facts=(),

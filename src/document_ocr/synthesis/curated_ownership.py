@@ -244,6 +244,7 @@ def build_owned_blueprint(
         allow_empty = region.key in declarations.get("delete", {})
         regions.append(replace(region, target_paths=tuple(sorted(paths)), allow_empty=allow_empty))
     blueprint = replace(blueprint, regions=tuple(regions), ownership_data=declarations)
+    _contact_name_surfaces(blueprint, row["target"])
     for key, recipe in declarations.get("surfaces", {}).items():
         if "contained_quantity" in recipe:
             contained_quantity_surfaces(blueprint, row["target"], key, recipe["contained_quantity"])
@@ -279,7 +280,7 @@ def load_owned_blueprint(
 
 
 def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
-    """Rebind reviewed handling clauses to sampled route names without changing facts."""
+    """Rebind reviewed handling clauses to sampled route names and countries."""
     declarations = blueprint.ownership_data.get("dependent_text", [])
     if not isinstance(declarations, list):
         raise ValueError("dependent_text must be a list of reviewed handling clauses")
@@ -310,15 +311,19 @@ def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
         if not references or "{" in literal or "}" in literal:
             raise ValueError(f"dependent text expression has invalid placeholders: {path}")
         for reference in references:
-            if not re.fullmatch(r"documentPatch\.route\.[A-Za-z][A-Za-z0-9]*\.name", reference):
-                raise ValueError(f"dependent text only accepts route name references: {reference}")
+            if not re.fullmatch(
+                r"documentPatch\.route\.[A-Za-z][A-Za-z0-9]*\.(?:name|country)", reference
+            ):
+                raise ValueError(
+                    f"dependent text only accepts route name or country references: {reference}"
+                )
             if any(
                 not isinstance(leaves.get(reference), str) or not leaves[reference].strip()
                 for leaves in (source, sampled)
             ):
-                raise ValueError(f"dependent text route name is absent or invalid: {reference}")
+                raise ValueError(f"dependent text route value is absent or invalid: {reference}")
         # The reviewed expression may replace a printed alias with the canonical
-        # route name; the exact source declaration above pins that decision.
+        # route value; the exact source declaration above pins that decision.
         value = re.sub(r"\{([^{}]+)\}", lambda m: sampled[m[1]], expression)
         if sampled.get(path) not in (original, value):
             raise ValueError(f"dependent text handling instruction is absent or conflicts: {path}")
@@ -331,12 +336,81 @@ def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
     return result
 
 
+def _contact_name_surfaces(blueprint: SamplingBlueprint, target: dict) -> dict[str, list[str]]:
+    """Route combined contact labels to their exact, individually owned name slots.
+
+    One scalar may contain several people, but their printed occurrences are
+    not copies of that scalar. Complete source-component coverage is required
+    before wording generation; explicit reviewed splits also cover OCR-broken
+    names which cannot be matched by whitespace/case normalization alone.
+    """
+    before, after = flat(blueprint.target), flat(target)
+    recipes = blueprint.ownership_data.get("surfaces", {})
+    surfaces = {}
+    for path, source in before.items():
+        if not path.endswith(".contactName") or ";" not in source:
+            continue
+        old = source.split("; ")
+        new = after[path].split("; ")
+        if len(old) < 2 or len(new) != len(old) or any(not part.strip() for part in new):
+            raise ValueError(f"generated combined contact has wrong name count: {path}")
+        normalized = [" ".join(part.split()).casefold() for part in old]
+        covered = set()
+        for region in blueprint.regions:
+            if path not in region.target_paths:
+                continue
+            recipe = recipes.get(region.key)
+            if recipe is not None:
+                index = recipe.get("index")
+                if (
+                    recipe.get("split_path") != path
+                    or recipe.get("separator") != "; "
+                    or recipe.get("count") != len(old)
+                    or not isinstance(index, int)
+                    or isinstance(index, bool)
+                    or not 0 <= index < len(old)
+                ):
+                    raise ValueError(f"invalid combined contact split recipe: {region.key}")
+                covered.add(index)
+                continue
+            printed = " ".join(region.source.split()).casefold()
+            if printed == " ".join(source.split()).casefold():
+                indices = list(range(len(old)))
+                value = after[path]
+            else:
+                indices = [index for index, part in enumerate(normalized) if printed == part]
+                if len(indices) != 1:
+                    raise ValueError(
+                        f"combined contact needs an exact component or reviewed split: {region.key}"
+                    )
+                value = new[indices[0]]
+            covered.update(indices)
+            if region.curated_key is not None:
+                if len(indices) != len(old):
+                    raise ValueError(
+                        f"partial combined contact needs split ownership: {region.key}"
+                    )
+                continue
+            count = len(blueprint.historical_bindings[region.key]["occurrences"])
+            values = surfaces.setdefault(region.key, [None] * count)
+            previous = values[region.occurrence]
+            if previous is not None and previous != value:
+                raise ValueError(f"conflicting combined contact ownership: {region.key}")
+            values[region.occurrence] = value
+        if covered != set(range(len(old))):
+            raise ValueError(f"combined contact has unowned name components: {path}")
+    if any(value is None for values in surfaces.values() for value in values):
+        raise ValueError("combined contact has partly owned repeated occurrences")
+    return surfaces
+
+
 def ownership_surfaces(
     blueprint: SamplingBlueprint, target: dict, scenario: Any
 ) -> dict[str, str | list[str]]:
     """Render explicitly declared source-bound dependencies and unit aliases."""
     leaves = flat(target)
-    result = dict(blueprint.ownership_data.get("constants", {}))
+    result = _contact_name_surfaces(blueprint, target)
+    result.update(blueprint.ownership_data.get("constants", {}))
     result.update({key: "" for key in blueprint.ownership_data.get("delete", {})})
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
         if "contained_quantity" in recipe:

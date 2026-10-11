@@ -69,7 +69,7 @@ def contained_quantity_surfaces(
     for occurrence in binding["occurrences"]:
         source = occurrence["source_text"]
         suffix = source_bytes[occurrence["byte_end"] :].decode("utf-8")
-        if not re.match(r"\s+" + re.escape(unit) + r"(?!\w)", suffix):
+        if not re.match(r"\s*" + re.escape(unit) + r"(?!\w)", suffix):
             raise ValueError(f"contained unit does not follow its source count: {key}")
         if source.casefold() == _number_to_words(inner).casefold():
             value = _number_to_words(count.numerator)

@@ -708,6 +708,40 @@ def test_whole_product_override_replaces_old_identity_not_just_one_fragment():
         compile_sampling_blueprint(row, old, contract, ownership_overrides=(incomplete,))
 
 
+@pytest.mark.parametrize("kind", ["location", "owned_text", "identifier"])
+def test_non_product_override_has_complete_binding_metadata_on_physical_path(kind):
+    from document_ocr.synthesis.curated_physical import validate_source_physical_requirements
+    from document_ocr.synthesis.curated_scenarios import SourceCapabilities
+
+    row, contract, old = source_fixture()
+    path = "documentPatch.route.portOfLoading.name"
+    override = LexicalOwnership(
+        key="reviewed_loading",
+        kind=kind,
+        target_paths=(path,),
+        occurrences=(Occurrence(text="MUMBAI", occurrence=2, presentation="text"),),
+    )
+    blueprint = compile_sampling_blueprint(row, old, contract, ownership_overrides=(override,))
+    validate_source_physical_requirements(blueprint, SourceCapabilities(family="ambient"))
+    binding = blueprint.historical_bindings[override.key]
+    assert binding["value_kind"] == kind
+    occurrence = binding["occurrences"][0]
+    assert row["joinedRawText"].encode()[
+        occurrence["byte_start"] : occurrence["byte_end"]
+    ].decode() == occurrence["source_text"] == "MUMBAI"
+    target = deepcopy(row["target"])
+    target["documentPatch"]["route"]["portOfLoading"]["name"] = "SANTOS"
+    scenario = SimpleNamespace(
+        party_localities={
+            "documentPatch.parties.shipper": SimpleNamespace(country_code="IN", country="INDIA")
+        }
+    )
+    surfaces = ownership_surfaces(blueprint, target, scenario)
+    assert surfaces[override.key] == "SANTOS"
+    text, labels, _ = render_sampling_blueprint(blueprint, target, {}, surface_values=surfaces)
+    assert "PORT: SANTOS" in text and labels == target
+
+
 def test_hs_collapse_retains_all_printed_surfaces_but_not_duplicate_targets():
     before = {
         "g.hsCodes[0]": "020622",
@@ -912,10 +946,12 @@ def test_numeric_constant_is_unfrozen_only_after_exact_historical_ownership():
         render_sampling_blueprint(unowned, target, {})
 
 
-def handling_dependency_fixture():
+def handling_dependency_fixture(*, include_country=False):
     row, contract, old = source_fixture()
     paths = [f"documentPatch.goodsItemDetails[0].handlingInstructions[{i}]" for i in range(2)]
     clauses = ["21 DAYS DEMURRAGE FREETIME IN BOMBAY", "CARGO IN TRANSIT TO MUMBAI WAREHOUSE"]
+    if include_country:
+        clauses[1] = "CARGO IN TRANSIT TO MUMBAI, INDIA WAREHOUSE"
     row["target"]["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] = clauses
     text = "\n".join(clauses)
     row["joinedRawText"] += text + "\n"
@@ -945,6 +981,11 @@ def handling_dependency_fixture():
         ],
         "surfaces": {"handling": {"expression": "{" + paths[0] + "}\n{" + paths[1] + "}"}},
     }
+    if include_country:
+        declaration["dependent_text"][1]["expression"] = (
+            "CARGO IN TRANSIT TO {documentPatch.route.portOfLoading.name}, "
+            "{documentPatch.route.portOfLoading.country} WAREHOUSE"
+        )
     return row, build_owned_blueprint(row, old, contract, declaration)
 
 
@@ -982,6 +1023,69 @@ def test_handling_dependencies_rebind_reviewed_route_aliases_and_render_all_clau
     assert apply_dependent_text(blueprint, target) is target
 
 
+def test_handling_dependencies_compose_reviewed_country_and_name_and_render():
+    row, blueprint = handling_dependency_fixture(include_country=True)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["route"]["portOfLoading"].update(
+        name="ROTTERDAM", country="NETHERLANDS"
+    )
+    before = deepcopy(target)
+    updated = apply_dependent_text(blueprint, target)
+    expected = [
+        "21 DAYS DEMURRAGE FREETIME IN ROTTERDAM",
+        "CARGO IN TRANSIT TO ROTTERDAM, NETHERLANDS WAREHOUSE",
+    ]
+    assert updated["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == expected
+    assert target == before and blueprint.target == row["target"]
+    assert apply_dependent_text(blueprint, updated) == updated
+    text, rendered, proof = render_sampling_blueprint(
+        blueprint,
+        updated,
+        {},
+        surface_values=ownership_surfaces(
+            blueprint,
+            updated,
+            SimpleNamespace(
+                party_localities={
+                    "documentPatch.parties.shipper": SimpleNamespace(country_code="IN")
+                }
+            ),
+        ),
+    )
+    assert all(clause in " ".join(text.split()) for clause in expected)
+    assert rendered == updated
+    assert set(proof["changedTargetPaths"]) <= set(proof["coveredTargetPaths"])
+
+
+@pytest.mark.parametrize("scope", ["source", "sampled"])
+@pytest.mark.parametrize("value", [None, "", " ", 42, True, [], {}])
+def test_handling_country_dependencies_reject_invalid_values_atomically(scope, value):
+    row, blueprint = handling_dependency_fixture(include_country=True)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["route"]["portOfLoading"]["name"] = "ROTTERDAM"
+    invalid = blueprint.target if scope == "source" else target
+    invalid["documentPatch"]["route"]["portOfLoading"]["country"] = value
+    before = deepcopy(target)
+    source_before = deepcopy(blueprint.target)
+    with pytest.raises(ValueError, match="route value is absent or invalid"):
+        apply_dependent_text(blueprint, target)
+    assert target == before and blueprint.target == source_before
+
+
+@pytest.mark.parametrize("scope", ["source", "sampled"])
+def test_handling_country_dependencies_reject_missing_values_atomically(scope):
+    row, blueprint = handling_dependency_fixture(include_country=True)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["route"]["portOfLoading"]["name"] = "ROTTERDAM"
+    invalid = blueprint.target if scope == "source" else target
+    del invalid["documentPatch"]["route"]["portOfLoading"]["country"]
+    before = deepcopy(target)
+    source_before = deepcopy(blueprint.target)
+    with pytest.raises(ValueError, match="route value is absent or invalid"):
+        apply_dependent_text(blueprint, target)
+    assert target == before and blueprint.target == source_before
+
+
 @pytest.mark.parametrize(
     ("change", "error"),
     [
@@ -994,10 +1098,10 @@ def test_handling_dependencies_rebind_reviewed_route_aliases_and_render_all_clau
         ("stale_source", "differs from pinned target"),
         ("literal_only", "invalid placeholders"),
         ("malformed_expression", "invalid placeholders"),
-        ("non_route_name", "only accepts route name"),
-        ("missing_source_route", "route name is absent or invalid"),
-        ("missing_sampled_route", "route name is absent or invalid"),
-        ("invalid_sampled_route", "route name is absent or invalid"),
+        ("unsupported_route_field", "only accepts route name or country"),
+        ("missing_source_route", "route value is absent or invalid"),
+        ("missing_sampled_route", "route value is absent or invalid"),
+        ("invalid_sampled_route", "route value is absent or invalid"),
         ("missing_handling", "absent or conflicts"),
         ("conflicting_handling", "absent or conflicts"),
     ],
@@ -1026,8 +1130,10 @@ def test_handling_dependencies_fail_closed_without_partial_target_changes(change
         item["expression"] = "CARGO IN TRANSIT"
     elif change == "malformed_expression":
         item["expression"] = "CARGO IN TRANSIT TO {{documentPatch.route.portOfLoading.name}"
-    elif change == "non_route_name":
-        item["expression"] = "CARGO IN TRANSIT TO {documentPatch.route.portOfLoading.country}"
+    elif change == "unsupported_route_field":
+        item["expression"] = "CARGO IN TRANSIT TO {documentPatch.route.portOfLoading.identifier}"
+        blueprint.target["documentPatch"]["route"]["portOfLoading"]["identifier"] = "INBOM"
+        target["documentPatch"]["route"]["portOfLoading"]["identifier"] = "NLRTM"
     elif change == "missing_source_route":
         del blueprint.target["documentPatch"]["route"]["portOfLoading"]["name"]
     elif change == "missing_sampled_route":
@@ -1042,3 +1148,114 @@ def test_handling_dependencies_fail_closed_without_partial_target_changes(change
     with pytest.raises(ValueError, match=error):
         apply_dependent_text(blueprint, target)
     assert target == before
+
+
+def contact_component_fixture(*, missing_second=False, repeated=False, whole=False):
+    path = "documentPatch.parties.deliveryAgent.contactDetails.contactName"
+    raw = "CONTACT\nAlice: 111\nBob: 222\n"
+    if whole:
+        raw = "CONTACT\nAlice; Bob: 111\n"
+    if repeated:
+        raw *= 2
+    row = {
+        "documentId": "contact-components",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "non_negotiable",
+                "parties": {
+                    "deliveryAgent": {
+                        "name": "CONTACT",
+                        "contactDetails": {"contactName": "ALICE; BOB"},
+                    }
+                },
+            },
+        },
+    }
+    names = ["Alice; Bob"] if whole else ["Alice"] if missing_second else ["Alice", "Bob"]
+    occurrences = sorted(
+        [
+            dict(byte_start=m.start(), byte_end=m.end(), source_text=name)
+            for name in names
+            for m in re.finditer(re.escape(name), raw)
+        ],
+        key=lambda o: o["byte_start"],
+    )
+    historical = dict(
+        document_id=row["documentId"],
+        bindings=[
+            dict(
+                logical_key="names",
+                target_paths=[path],
+                value_kind="contact_name",
+                occurrences=occurrences,
+            )
+        ],
+    )
+    contract = SourceContract(
+        variables=[
+            dict(
+                key="company",
+                kind="name",
+                value="CONTACT",
+                meaning="Company identity",
+                required_literals=[],
+                occurrences=[dict(text="CONTACT", occurrence=1, presentation="text")],
+            )
+        ],
+        targets=[dict(path=path.split(".contactDetails")[0] + ".name", expression="{company}")],
+        fixed_context="Two printed contacts.",
+    )
+    return row, historical, contract
+
+
+@pytest.mark.parametrize("repeated", [False, True])
+@pytest.mark.parametrize("whole", [False, True])
+def test_combined_contact_routes_individual_or_whole_occurrences(repeated, whole):
+    row, historical, contract = contact_component_fixture(repeated=repeated, whole=whole)
+    blueprint = build_owned_blueprint(row, historical, contract, {})
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["deliveryAgent"]["contactDetails"]["contactName"] = (
+        "CAROL; DAVE"
+    )
+    surfaces = ownership_surfaces(blueprint, target, None)
+    text, actual, _ = render_sampling_blueprint(blueprint, target, {}, surface_values=surfaces)
+    assert text == row["joinedRawText"].replace("Alice", "CAROL").replace("Bob", "DAVE")
+    assert actual == target
+
+
+def test_combined_contact_missing_component_fails_before_wording():
+    row, historical, contract = contact_component_fixture(missing_second=True)
+    with pytest.raises(ValueError, match="combined contact has unowned name components"):
+        build_owned_blueprint(row, historical, contract, {})
+
+
+def test_combined_contact_rejects_wrong_generated_component_count():
+    row, historical, contract = contact_component_fixture()
+    blueprint = build_owned_blueprint(row, historical, contract, {})
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["deliveryAgent"]["contactDetails"]["contactName"] = "CAROL"
+    with pytest.raises(ValueError, match="wrong name count"):
+        ownership_surfaces(blueprint, target, None)
+
+
+def test_combined_contact_explicit_split_covers_reviewed_broken_name():
+    row, historical, contract = contact_component_fixture(missing_second=True)
+    row["joinedRawText"] = row["joinedRawText"].replace("Bob", "B\nob")
+    path = "documentPatch.parties.deliveryAgent.contactDetails.contactName"
+    declarations = {
+        "add": [
+            dict(key="second", kind="contact_name", paths=[path], occurrences=[dict(text="B\nob")])
+        ],
+        "surfaces": {"second": dict(split_path=path, separator="; ", count=2, index=1)},
+    }
+    blueprint = build_owned_blueprint(row, historical, contract, declarations)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["deliveryAgent"]["contactDetails"]["contactName"] = (
+        "CAROL; DAVE"
+    )
+    text, _, _ = render_sampling_blueprint(
+        blueprint, target, {}, surface_values=ownership_surfaces(blueprint, target, None)
+    )
+    assert text == "CONTACT\nCAROL: 111\nDAVE: 222\n"

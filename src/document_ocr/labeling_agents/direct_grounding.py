@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from document_ocr.labeling_agents.date_grounding import date_fidelity_findings
 from document_ocr.labeling_agents.direct_cargo import identifier_present
 from document_ocr.labeling_agents.direct_models import ReviewFinding, Section
 
@@ -75,6 +76,7 @@ def source_fidelity_findings(
         if re.search(pattern, ocr, flags=re.IGNORECASE) is None
     ]
     if section == "metadata_freight":
+        findings.extend(date_fidelity_findings(patch, ocr))
         instructions = order_consignment_candidates(ocr)
         if instructions and patch.get("negotiability") != "negotiable":
             findings.append(

@@ -96,14 +96,32 @@ The observed `ghcr.io/astral-sh/uv ... error getting credentials ... exit status
 
 The exact empty-output failure did not reproduce during diagnosis: the helper returned the recognized missing-credentials response, and anonymous metadata lookup succeeded. We have confirmed the failing layer from the supplied error, not the internal cause of the intermittent Windows helper failure. Replacing pinned images or altering training dependencies would not address that layer.
 
-For these **public** base images, use an isolated Docker client configuration without changing existing credentials:
+Follow-up on 2026-10-09: process tracing found why the previous flag-only workaround
+was incomplete. With Docker Compose v5.4.0, Compose directly launches the Buildx
+`bake` plugin without forwarding Docker's `--config` argument. The child opened
+`/home/davidn/.docker/config.json`, although Docker and Compose opened the requested
+temporary directory. Setting `DOCKER_CONFIG` in the command environment makes the
+child use that same directory. Docker documents this environment variable in its
+[CLI configuration reference](https://docs.docker.com/reference/cli/docker/#configuration-files).
+
+For these **public** base images, use an isolated Docker client configuration
+**also passed through the environment**, without changing existing credentials:
 
 ```bash
 mpci_docker_config="$(mktemp -d /tmp/mpci-docker-public.XXXXXX)"
 
+DOCKER_CONFIG="$mpci_docker_config" \
 docker --config "$mpci_docker_config" compose --profile training run --rm --build kie-trainer train \
   --config configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic1500_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml \
   --project-root /workspace
 ```
 
-This isolated configuration was tested: default Unix-socket context, Compose discovery, exact pinned uv metadata, and the complete training-image build with dependency verification all succeeded. The training launch above is for the user; it was **not** executed during diagnosis. This avoids the failing helper for public pulls but does not supply private-registry credentials. A permanent repair to the normal client requires diagnosing Docker Desktop's Windows/WSL helper integration; no global Docker configuration or saved login was changed, and Docker Desktop was not restarted.
+The environment-based build passed. Its process trace shows all three processes
+using the temporary configuration, with no normal Docker configuration access or
+credential-helper execution. Flag-only builds may also succeed while the Windows
+helper happens to work; build success alone did not prove isolation. The training
+launch above is for the user; it was **not** executed during diagnosis. This avoids
+the configured failing helper for public pulls but does not supply private-registry
+credentials. A permanent repair to the normal client requires diagnosing Docker
+Desktop's Windows/WSL helper integration; no global Docker configuration or saved
+login was changed, and Docker Desktop was not restarted.

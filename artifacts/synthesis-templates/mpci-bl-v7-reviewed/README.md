@@ -1,16 +1,97 @@
 # MPCI V7 reviewed synthesis templates
 
-This is the reusable **200-source catalog**, not a generation-run directory.
+This is the reusable **360-source catalog**, not a generation-run directory.
+
+## Current 360-source pool — 2026-10-10
+
+Three additive cohorts of 20 sources are now admitted. Their 120 actual pilot
+descendants passed individual source/render/label inspection, independent
+semantic review, production publication checks and coordinate validation before
+admission. All 360 installed source/target contracts replay exactly; all 120
+pilot candidates also replay against the installed catalog. Admission preserves
+the original 300 case assets and source declarations. These pilot samples have
+**not** been added to the active 3,100-record training dataset.
+
+Admission receipts, in committed order:
+
+- [300 → 320: cohort 03](../../kie-synthesis-production/curated-v7-template-expansion360-v1/batch03/audit/catalog-admission.json).
+- [320 → 340: cohort 02](../../kie-synthesis-production/curated-v7-template-expansion360-v1/batch02/audit/catalog-admission.json).
+- [340 → 360: cohort 01](../../kie-synthesis-production/curated-v7-template-expansion360-v1/batch01/audit/catalog-admission.json).
+- [Final source/candidate replay and preservation proof](../../kie-synthesis-production/curated-v7-template-expansion360-v1/audit/final-registry360-validation.json).
+- [Expansion report](../../../docs/kie-synthesis-expansion360-results-2026-10-10.md).
+
+`manifest.json.cases[documentId].sourceDataset` records the authority for each
+new case; where absent, use `manifest.json.dependencies.sourceDataset.path`.
+The original 300 sources and cohorts 02/03 use the reviewed R16 real dataset.
+Cohort 01 uses a frozen isolated source-authority snapshot with three explicitly
+reviewed target corrections. The original real dataset remains unchanged. A
+campaign must use its cases' designated authority; inspection snapshots are not
+a fallback around dependency checks.
+
+The 300-source recipes and initial 100-source relocation notes below describe
+earlier cohorts. They do not automatically select the expanded 360-source pool.
+
+## Historical 300-source maintenance and initial admission
+
 The initial admission evidence is the 200-sample expansion campaign:
 [full report](../../../docs/kie-synthesis-expansion100-2026-10-07.md).
+
+## Current party/date/route maintenance — 2026-10-10
+
+The [published repair](../../../docs/kie-party-date-route-repair-2026-10-10.md)
+updates 44 source cases and their ownership/dependency declarations. For A acting
+on behalf of B, targets select primary printed A with only A-owned postal/contact
+data; B is separate audit/source-only generation context unless another printed
+role independently supports it. Genuine C/O recipients remain postal routing.
+Every repeated occurrence of a declared related identity must share its mutable
+owner; an uncovered repeat is rejected before paid generation.
+
+Numeric date labels use visible format evidence, otherwise DD-MM; numeric order
+ambiguity does not justify dropping a supported date. Three source capabilities
+no longer synthesize delivery labels whose OCR occurrence was omitted. Source
+text/positions remain exact; all 300 current source/target replays pass.
+
+The current 300-source recipes are
+[coverage1000](../../../configs/synthesis/mpci_bl_curated_v7_coverage1000.yaml)
+and [template-expansion300](../../../configs/synthesis/mpci_bl_curated_v7_template_expansion300.yaml).
+They use the repaired R16 source authority, current declarations and repinned
+task constraints. Older recipes/campaign receipts below remain historical
+evidence; they are not an instruction to bypass current dependency checks.
+
+Actual fresh synthesis tested ten policy-bearing sources, with complete rendered
+reviews, direct inspection and production coordinate validation. See the
+[hash-bound inventory](../../../docs/analysis/party-date-route-repair-20261010/UPSTREAM-INVENTORY.md).
+The current mixed dataset is also repaired; existing completed training-run
+snapshots are deliberately unchanged.
+
+## Current field-boundary maintenance — 2026-10-10
+
+The catalog includes the source-proven package-heading, repeated-total,
+legal-clause, description-boundary and duplicate-country repairs, plus mutable
+identity owners for formerly fixed composite names. Optional identity-kind
+certificates distinguish people, organizations, and organization/proprietor
+composites. VAT spellings share a draw only through an explicitly certified
+`canonical_identity`; independent identifiers remain independent.
+
+The generation API now exposes semantic field aliases, retains existing internal
+keys, and gives each requested field a concise ownership description. Final text
+review receives the certified identity components as well as rendered OCR and
+targets. Existing postal/accounting holds and bounded follow-ups remain active;
+uncertain values are not silently stripped or published.
+
+The two corrected source targets are mirrored into the canonical real dataset.
+`manifest.json` pins the current case files, shared declarations and source
+dataset; historical campaign receipts are retained as history. The running mixed
+training dataset is not rewritten by catalog maintenance. Full details and the
+repaired sibling dataset are in the [repair report](../../../docs/kie-synthesis-field-boundary-repair-2026-10-10.md).
 
 ## Contents
 
 ```text
 mpci-bl-v7-reviewed/
   manifest.json               # case hashes, capabilities, shared dependencies
-  ownership.yaml             # 200 current-field ownership/format declarations
-  auxiliary.yaml             # 200 source-only dependency/printing declarations
+  ownership.yaml             # 360 current-field ownership/format declarations
+  auxiliary.yaml             # 360 source-only dependency/printing declarations
   selection-history.yaml     # admission and rejected-candidate history
   position-calibration.json   # hash-pinned source spacing/density priors
   cases/
@@ -23,7 +104,8 @@ mpci-bl-v7-reviewed/
       alignment.json         # measured source-line/region correspondence
 ```
 
-`contract.json` and `template.json` were **moved**, not regenerated. The shared
+At the initial 100-source relocation, `contract.json` and `template.json` were
+**moved**, not regenerated. The shared
 declarations were relocated and restricted to the 100 admitted IDs; every active
 entry remains semantically identical. Thirteen excluded candidates remain in the
 original campaign with their review evidence and are not members of this catalog.
@@ -39,7 +121,7 @@ Its `source_contracts` and `historical_catalog` both point to `cases/`; its
 campaign-local template directories. Its source capabilities/topologies are
 also indexed per source in `manifest.json`, for reuse and comparison.
 
-The completed full-catalog recipe is
+The completed earlier 200-source recipe is
 [`mpci_bl_curated_v7_expansion1000.yaml`](../../../configs/synthesis/mpci_bl_curated_v7_expansion1000.yaml):
 three new descendants per original source and seven per newly admitted source,
 with a per-call batch limit of two. Its new seed/output preserve all existing campaigns. See the
@@ -176,7 +258,7 @@ than treating that historical coverage as the present implementation.
 
 ## Second 100-source admission — 2026-10-08
 
-The catalog now contains 200 admitted sources. The additional 100 produced 200
+At this admission the catalog reached 200 sources. The additional 100 produced 200
 reviewed descendants with audited positions. They add 11 negotiable families,
 bringing the pool to 12, and preserve 29 explicit `sameAs: consignee` families.
 All new sources are from the current real training split. Validation IDs, OCR
@@ -196,3 +278,54 @@ samples exactly (the previous 500 plus these 200).
 Per-source OCR/label snapshots remain local ignored data, as before. The compact
 manifest, shared declarations, calibration and this guide are versioned; keeping
 those files alone does not replace preserving/transferring the `cases/` assets.
+
+## Third 100-source admission — 2026-10-09
+
+The catalog now contains **300 admitted sources**. All 100 new templates passed
+current source/target ownership checks and ten host-only stress draws each, then
+generated two complete descendants each. Every final rendered OCR/target pair
+has a current model review and explicit adjudication where needed; **200/200
+published samples have zero unresolved findings**. Existing description-block,
+declared-package/allocation, casing and party-instruction policies are retained.
+
+All 200 final geometry receipts passed independent exact text/label preservation,
+source occurrence, line/page, normalized-coordinate and transform checks. All
+35 diagnostic PNGs across 20 documents were actually inspected. Four optional
+reflow proposals were declined with explicit reasons and full preservation of
+prior anchors, not partially applied. Overall positional coverage is 84.86%,
+goods-description coverage 78.32%; unsupported positions remain explicit unknowns.
+
+See [the complete results and admission report](../../../docs/kie-synthesis-expansion300-results-2026-10-09.md)
+and the manifest's latest `admissions` event. New source snapshots live in
+`cases/` here; the 200 descendants, call receipts, reviews and inspection galleries
+remain in `artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1/`.
+The isolated two-descendant recipe retains its staging paths for exact historical
+replay. A new production recipe should select sources and capabilities from this
+manifest and use the shared `cases/`, `ownership.yaml` and `auxiliary.yaml` paths,
+with a fresh output directory and seed.
+
+Admission revalidated all 1,500 existing synthetic inputs/targets, 2,160 current
+schema/position-preservation records and 1,000 old-template plans. All 1,200 old
+case assets and old source declarations remain unchanged. The current training
+mixture remains **600 real + 1,500 synthetic / 60 validation**; these 200 pilot
+descendants were not added to it. The final suite passes 494 tests. No training
+or GPU workload was launched by this admission.
+
+## Multi-contact ownership correction — 2026-10-10
+
+The shared ownership inventory now covers every name in the existing combined
+`contactName` labels for sources `147a2626`, `0ba3ad4f` and `85b6388a`. These are
+source occurrence/field routing corrections, not new labels or changed source
+text. The latter two reuse historical notify-contact roles and printed
+continuation markers; the explicitly reviewed `Y\nEHIA FARID` occurrence is one
+name. Current synthesis routes each contact component to its own owned slot
+instead of repeating the complete semicolon list in every slot. Missing
+component ownership fails source readiness before paid generation.
+
+All 300 source blueprints and 1,000 exact host plans pass after this correction.
+The ownership/manifest before-images and exact old/new hashes are preserved in
+`docs/analysis/synthesis-next1000-production-20261009/contact-ownership/`.
+No case assets, source labels, source OCR, auxiliary declarations or existing
+dataset files were changed. The old 1,500 dataset has 28 descendants from four
+other families requiring only contact-slot input deduplication; those repairs
+are staged separately for the new combined dataset, preserving the old copy.

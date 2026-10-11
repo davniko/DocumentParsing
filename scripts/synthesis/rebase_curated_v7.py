@@ -20,6 +20,7 @@ from document_ocr.synthesis.curated import (
     flat,
     save,
 )
+from document_ocr.synthesis.curated_descriptions import compile_description_blocks
 from document_ocr.synthesis.template_compiler.descendant import _number_word_phrase
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,24 +67,24 @@ def placement_paths(row, template):
     for binding in template["bindings"]:
         for value in binding.get("realization", {}).get("target_values", []):
             match = re.fullmatch(
-                r"documentPatch\.cargoAllocationGroups\[0\]\.allocations\[(\d+)\]\.containerNumber",
+                r"documentPatch\.cargoAllocationGroups\[(\d+)\]\.allocations\[(\d+)\]\.containerNumber",
                 value["target_path"],
             )
             if not match:
                 continue
-            identity = re.sub(r"[\s/-]", "", str(value["source_value"]))
+            identity = re.sub(r"[\s/.-]", "", str(value["source_value"]))
             if identity not in current:
                 raise ValueError(
                     f"historical allocation equipment is absent from current labels: {identity}"
                 )
             if any(
-                re.sub(r"[\s/-]", "", occurrence["source_text"]) != identity
+                re.sub(r"[\s/.-]", "", occurrence["source_text"]) != identity
                 for occurrence in binding["occurrences"]
             ):
                 raise ValueError(
                     "allocation identity is not proven by its historical source surfaces"
                 )
-            index = int(match[1])
+            index = (int(match[1]), int(match[2]))
             if index in result and result[index] != current[identity]:
                 raise ValueError("historical allocation index has conflicting equipment identities")
             result[index] = current[identity]
@@ -95,13 +96,14 @@ def numeric_paths(binding, leaves, placements):
     for original in binding["target_paths"]:
         path = translated(original)
         match = re.fullmatch(
-            r"documentPatch\.cargoAllocationGroups\[0\]\.allocations\[(\d+)\]\.packageQuantity",
+            r"documentPatch\.cargoAllocationGroups\[(\d+)\]\.allocations\[(\d+)\]\.packageQuantity",
             original,
         )
-        if match and int(match[1]) in placements:
+        coordinate = (int(match[1]), int(match[2])) if match else None
+        if coordinate in placements:
             path = (
                 "documentPatch.goodsItemDetails[0].splitGoodsPlacement["
-                + str(placements[int(match[1])])
+                + str(placements[coordinate])
                 + "].packageQuantity"
             )
         if (
@@ -229,6 +231,11 @@ def prints_unit(raw, variable, unit, *, allow_absent=False):
 
 def draft(row, template, numeric, hints):
     raw, leaves = row["joinedRawText"], flat(row["target"])
+    description_blocks = (
+        compile_description_blocks(raw, row["target"], hints["description_blocks"])
+        if "description_blocks" in hints
+        else None
+    )
     variables, targets, missing = [], {}, []
     occupied = []
     identities = {}
@@ -239,8 +246,8 @@ def draft(row, template, numeric, hints):
     }
     current_placements = patch.get("goodsItemDetails", [{}])[0].get("splitGoodsPlacement", [])
     allocation_rows = {
-        (0, old): equipment_indices[current_placements[new]["equipmentIdentifier"]]
-        for old, new in placements.items()
+        coordinate: equipment_indices[current_placements[new]["equipmentIdentifier"]]
+        for coordinate, new in placements.items()
     }
     by_key = {binding["logical_key"]: binding for binding in template["bindings"]}
     numeric_sources = {}
@@ -268,8 +275,18 @@ def draft(row, template, numeric, hints):
             continue
         pattern = r"\s+".join(map(re.escape, value.split()))
         if kind == "container":
-            pattern = r"[\s/\-]*".join(map(re.escape, value))
+            pattern = r"[\s/.\-]*".join(map(re.escape, value))
         matches = [(m.start(), m.end()) for m in re.finditer(pattern, raw, re.I)]
+        if kind == "product" and description_blocks is not None:
+            approved = next(field for field in description_blocks.fields if field.path == path)
+            matches = [
+                (a, b)
+                for a, b in matches
+                if any(
+                    span.start <= len(raw[:a].encode()) and len(raw[:b].encode()) <= span.end
+                    for span in approved.spans
+                )
+            ]
         if not matches:
             missing.append(
                 dict(path=path, value=value, reason="no exact whitespace/case-normalized surface")
@@ -505,6 +522,16 @@ def draft(row, template, numeric, hints):
         targets[path] = field["expression"]
         for key, (kind, quote, meaning) in field["parts"].items():
             matches = [m.span() for m in re.finditer(re.escape(quote), raw)]
+            if kind == "product" and description_blocks is not None:
+                approved = next(field for field in description_blocks.fields if field.path == path)
+                matches = [
+                    (a, b)
+                    for a, b in matches
+                    if any(
+                        span.start <= len(raw[:a].encode()) and len(raw[:b].encode()) <= span.end
+                        for span in approved.spans
+                    )
+                ]
             if not matches:
                 raise ValueError(f"hint quote absent: {quote}")
             if any(a < d and c < b for a, b in matches for c, d in occupied):

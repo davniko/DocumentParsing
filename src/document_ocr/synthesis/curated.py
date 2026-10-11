@@ -417,7 +417,7 @@ def surface(variable: Variable, occurrence: Occurrence, value: str) -> str:
         )
     if variable.kind in {"container", "identifier"}:
         # Keep source separators while replacing significant identifier characters.
-        separators = r"[\s/\-]" if variable.kind == "container" else r"\s"
+        separators = r"[\s/.\-]" if variable.kind == "container" else r"\s"
         old = re.sub(separators, "", occurrence.text)
         if old == variable.value and len(value) == len(old):
             it = iter(value)
@@ -459,7 +459,7 @@ def compile_contract(
                 printed = " ".join(occurrence.text.split()).upper()
                 expected = " ".join(variable.value.split()).upper()
                 if variable.kind in {"identifier", "container"}:
-                    separators = r"[\s/\-]" if variable.kind == "container" else r"\s"
+                    separators = r"[\s/.\-]" if variable.kind == "container" else r"\s"
                     printed, expected = (
                         re.sub(separators, "", printed),
                         re.sub(separators, "", expected),

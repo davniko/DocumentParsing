@@ -6,11 +6,13 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.country_registry import CountryEntry, CountryRegistry
 from document_ocr.synthesis.curated_routes import RouteTopology, validate_route_values
 from document_ocr.synthesis.curated_scenarios import (
+    CandidateIncompatibility,
     ScenarioCatalog,
     ScenarioLocation,
     ScenarioSamplingConfig,
@@ -445,6 +447,29 @@ def test_route_party_nodes_reject_unknown_conflicting_or_symbolic_assignments():
     assert "documentPatch.parties.notifyParties[0]" not in result.party_localities
 
 
+def test_notify_reference_contact_overrides_inherit_referenced_geography():
+    source = source_row()
+    source["target"]["documentPatch"]["parties"]["notifyParties"] = [
+        {"sameAs": "consignee", "contactDetails": {"phoneNumbers": ["+201234567890"]}},
+        {"sameAs": "shipper", "contactDetails": {"contactName": "ALICE"}},
+        {"sameAs": "consignee"},
+    ]
+    original = deepcopy(source)
+    result = catalog([source]).sample(
+        source, seed=1, variant=1, capabilities=SourceCapabilities(family="ambient")
+    )
+    assert (
+        result.party_localities["documentPatch.parties.notifyParties[0]"]
+        == result.party_localities["documentPatch.parties.consignee"]
+    )
+    assert (
+        result.party_localities["documentPatch.parties.notifyParties[1]"]
+        == result.party_localities["documentPatch.parties.shipper"]
+    )
+    assert "documentPatch.parties.notifyParties[2]" not in result.party_localities
+    assert source == original
+
+
 @pytest.mark.parametrize("unsupported", ["localities", "contacts"])
 def test_party_owned_route_nodes_require_locality_and_contact_support(unsupported):
     source, policy = onward_delivery_source_and_policy()
@@ -649,6 +674,101 @@ def test_sampling_changes_identity_geography_and_exact_joint_quantities_without_
         assert result.provenance["candidateAttempts"] == 1
         assert sum(r["shareNumerator"] for r in result.provenance["physicalRows"]) == quantity
     assert results[0] == support.sample(source, seed=42, variant=1, capabilities=cap)
+
+
+def test_candidate_acceptance_is_replayable_and_preserves_an_already_valid_draw():
+    source = source_row()
+    support = catalog([source])
+    cap = SourceCapabilities(family="ambient")
+    expected = support.sample(source, seed=42, variant=1, capabilities=cap)
+    seen = []
+    actual = support.sample(
+        source, seed=42, variant=1, capabilities=cap, validate_candidate=seen.append
+    )
+    assert actual == expected == seen[0]
+
+    def reject_first_then_accept():
+        checked = []
+
+        def validate(candidate):
+            checked.append(candidate)
+            if len(checked) == 1:
+                raise CandidateIncompatibility("six positive source rows cannot fit two units")
+
+        result = support.sample(
+            source, seed=42, variant=1, capabilities=cap, validate_candidate=validate
+        )
+        return result, checked
+
+    result, checked = reject_first_then_accept()
+    assert checked[0] == expected
+    assert result == checked[1] == reject_first_then_accept()[0]
+    assert result.source_id == expected.source_id and result.variant == expected.variant
+    assert (result.origin, result.destination) == (expected.origin, expected.destination)
+    assert result.provenance["candidateAttempts"] == 2
+    assert result.provenance["rejectedCandidates"] == {
+        "six positive source rows cannot fit two units": 1
+    }
+
+
+def test_candidate_acceptance_is_bounded_when_every_draw_is_infeasible():
+    source = source_row()
+    support = catalog([source], maximum_candidates=3)
+    checked = []
+
+    def reject(candidate):
+        checked.append(candidate)
+        raise CandidateIncompatibility("source grid infeasible")
+
+    with pytest.raises(ValueError, match=r"after 3 draws.*source grid infeasible.*3"):
+        support.sample(
+            source,
+            seed=42,
+            variant=1,
+            capabilities=SourceCapabilities(family="ambient"),
+            validate_candidate=reject,
+        )
+    assert len(checked) == 3
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("invalid source contract"),
+        KeyError("owner"),
+        TypeError("unexpected schema type"),
+        RuntimeError("bug"),
+        ValidationError.from_exception_data(
+            "SourceContract", [{"type": "missing", "loc": ("owner",), "input": {}}]
+        ),
+    ],
+)
+@pytest.mark.parametrize("stage", ["cargo", "acceptance"])
+def test_candidate_loop_never_retries_untyped_contract_or_programming_errors(
+    monkeypatch, error, stage
+):
+    source = source_row()
+    support = catalog([source], maximum_candidates=8)
+    calls = []
+
+    def fail(*args, **kwargs):
+        calls.append(1)
+        raise error
+
+    options = {}
+    if stage == "cargo":
+        monkeypatch.setattr(support, "_cargo", fail)
+    else:
+        options["validate_candidate"] = fail
+    with pytest.raises(type(error)) as caught:
+        support.sample(
+            source,
+            seed=42,
+            variant=1,
+            capabilities=SourceCapabilities(family="ambient"),
+            **options,
+        )
+    assert caught.value is error and len(calls) == 1
 
 
 def test_contact_domain_retries_only_unsupported_draws_and_records_exclusions():
@@ -902,6 +1022,191 @@ def test_membership_only_does_not_invent_allocation_counts_and_repeated_parties_
         result.party_localities["documentPatch.parties.notifyParties[0]"]
         == result.party_localities["documentPatch.parties.consignee"]
     )
+
+
+def test_repeated_party_punctuation_does_not_resample_geography():
+    source = source_row()
+    patch = source["target"]["documentPatch"]
+    patch["parties"]["consignee"]["addressLine"] = "14 B ROAD, EGYPT"
+    notify = deepcopy(patch["parties"]["consignee"])
+    notify.update(name="Recipient", addressLine="14 B ROAD EGYPT")
+    patch["parties"]["notifyParties"] = [notify]
+    result = catalog([source]).sample(
+        source, seed=3, variant=1, capabilities=SourceCapabilities(family="ambient")
+    )
+    assert (
+        result.party_localities["documentPatch.parties.notifyParties[0]"]
+        == (result.party_localities["documentPatch.parties.consignee"])
+    )
+
+
+def test_repeated_party_identity_retains_address_numbers_and_token_order():
+    from document_ocr.synthesis.curated_scenarios import _party_signature
+
+    def signature(text):
+        return _party_signature({"name": "RECIPIENT", "addressLine": text})
+
+    assert signature("14 B ROAD, EGYPT") != signature("15 B ROAD EGYPT")
+    assert signature("14 B ROAD EGYPT") != signature("B ROAD 14 EGYPT")
+
+
+def locality_group_fixture():
+    source = source_row()
+    parties = source["target"]["documentPatch"]["parties"]
+    parties["consignee"]["addressLine"] = "14 B ROAD EGYPT"
+    parties["notifyParties"] = [
+        {
+            "name": "RECIPIENT TRADING ALIAS",
+            "addressLine": "14 B ROAD EGYPT CAIRO",
+            "country": "EGYPT",
+        }
+    ]
+    source["joinedRawText"] = "CONSIGNEE\n14 B ROAD EGYPT\nNOTIFY\n14 B ROAD EGYPT CAIRO"
+    group = {
+        "source_sha256": sha256_bytes(source["joinedRawText"].encode()),
+        "shared_postal_key": "shared_postal",
+        "members": {
+            "documentPatch.parties.consignee": {"text": "14 B ROAD EGYPT", "occurrence": 1},
+            "documentPatch.parties.notifyParties[0]": {
+                "text": "14 B ROAD EGYPT",
+                "occurrence": 2,
+            },
+        },
+        "rationale": "Reviewed repeated full street/site; notify adds a postal continuation.",
+    }
+    support = catalog([source])
+    support.localities = {
+        code: tuple(
+            values[0].model_copy(update={"name": f"CITY {code} {i}", "registry_id": f"{code}{i}"})
+            for i in range(8)
+        )
+        for code, values in support.localities.items()
+    }
+    return source, group, support
+
+
+def test_certified_postal_group_shares_locality_without_merging_identity_or_other_draws():
+    source, group, support = locality_group_fixture()
+    plain = SourceCapabilities(family="ambient")
+    grouped = SourceCapabilities(family="ambient", party_locality_groups=[group])
+    changed = 0
+    for variant in range(1, 9):
+        before = support.sample(source, seed=23, variant=variant, capabilities=plain)
+        after = support.sample(source, seed=23, variant=variant, capabilities=grouped)
+        consignee, notify = tuple(group["members"])
+        changed += before.party_localities[consignee] != before.party_localities[notify]
+        assert after.party_localities[consignee] == after.party_localities[notify]
+        assert before.party_localities[consignee] == after.party_localities[consignee]
+        assert (
+            before.party_localities["documentPatch.parties.shipper"]
+            == after.party_localities["documentPatch.parties.shipper"]
+        )
+        assert before.origin == after.origin and before.destination == after.destination
+        assert before.cargo == after.cargo and before.replacements == after.replacements
+    assert changed > 0
+    assert "party_locality_groups" not in plain.model_dump(mode="json")
+    assert (
+        source["target"]["documentPatch"]["parties"]["notifyParties"][0]["name"]
+        != (source["target"]["documentPatch"]["parties"]["consignee"]["name"])
+    )
+
+
+@pytest.mark.parametrize(
+    "defect",
+    ["hash", "occurrence", "absent_occurrence", "target", "country", "missing_role", "same_as"],
+)
+def test_postal_group_rejects_invalid_source_certificate(defect):
+    source, group, support = locality_group_fixture()
+    notify = source["target"]["documentPatch"]["parties"]["notifyParties"][0]
+    if defect == "hash":
+        group["source_sha256"] = "0" * 64
+    elif defect == "occurrence":
+        group["members"]["documentPatch.parties.notifyParties[0]"]["occurrence"] = 1
+    elif defect == "absent_occurrence":
+        group["members"]["documentPatch.parties.notifyParties[0]"]["occurrence"] = 3
+    elif defect == "target":
+        notify["addressLine"] = "15 B ROAD EGYPT"
+    elif defect == "country":
+        notify["country"] = "CHINA"
+    elif defect == "missing_role":
+        group["members"]["documentPatch.parties.deliveryAgent"] = group["members"].pop(
+            "documentPatch.parties.notifyParties[0]"
+        )
+    else:
+        notify["sameAs"] = "consignee"
+    cap = SourceCapabilities(family="ambient", party_locality_groups=[group])
+    with pytest.raises(ValueError, match=r"postal|locality"):
+        support.sample(source, seed=23, variant=1, capabilities=cap)
+
+
+def test_postal_group_rejects_cross_country_route_and_overlapping_groups():
+    source, group, support = locality_group_fixture()
+    cap = SourceCapabilities(
+        family="ambient",
+        party_locality_groups=[group],
+        party_sides={"documentPatch.parties.notifyParties[0]": "origin"},
+    )
+    with pytest.raises(ValueError, match="route countries"):
+        support.sample(source, seed=23, variant=1, capabilities=cap)
+    with pytest.raises(ValueError, match="disjoint"):
+        SourceCapabilities(family="ambient", party_locality_groups=[group, group])
+
+
+def test_postal_group_preserves_transitive_repeated_identity_constraint():
+    source, group, support = locality_group_fixture()
+    parties = source["target"]["documentPatch"]["parties"]
+    parties["deliveryAgent"] = deepcopy(parties["notifyParties"][0])
+    cap = SourceCapabilities(family="ambient", party_locality_groups=[group])
+    scenario = support.sample(source, seed=23, variant=1, capabilities=cap)
+    roles = [*group["members"], "documentPatch.parties.deliveryAgent"]
+    assert len({scenario.party_localities[role].registry_id for role in roles}) == 1
+
+
+def test_postal_group_cannot_hide_country_conflict_behind_identical_party_signature():
+    source, group, support = locality_group_fixture()
+    parties = source["target"]["documentPatch"]["parties"]
+    parties["notifyParties"][0] = deepcopy(parties["consignee"])
+    cap = SourceCapabilities(
+        family="ambient",
+        party_locality_groups=[group],
+        party_sides={"documentPatch.parties.notifyParties[0]": "origin"},
+    )
+    with pytest.raises(ValueError, match="route countries"):
+        support.sample(source, seed=23, variant=1, capabilities=cap)
+
+
+def test_postal_certificate_requires_matching_compiled_shared_owner():
+    from document_ocr.synthesis.curated_parties import PartyLocalityGroup
+
+    source, raw, _ = locality_group_fixture()
+    group = PartyLocalityGroup.model_validate(raw)
+    regions = []
+    for path, evidence in group.members.items():
+        start, end = evidence.span(source["joinedRawText"])
+        regions.append(
+            SimpleNamespace(
+                start=start,
+                end=end,
+                curated_key=group.shared_postal_key,
+                kind="postal",
+                target_paths=(path + ".addressLine",),
+            )
+        )
+    blueprint = SimpleNamespace(source=source["joinedRawText"], regions=regions)
+    group.validate_blueprint(blueprint)
+    regions[1].target_paths = ("documentPatch.parties.shipper.addressLine",)
+    with pytest.raises(ValueError, match="same-party shared postal owner"):
+        group.validate_blueprint(blueprint)
+
+
+def test_shared_postal_occurrence_uses_exact_utf8_byte_spans():
+    from document_ocr.synthesis.curated_parties import PostalOccurrence
+
+    text = "📦 CONSIGNEE\n12 RUE ÉTÉ\nNOTIFY\n12 RUE ÉTÉ"
+    evidence = PostalOccurrence(text="12 RUE ÉTÉ", occurrence=2)
+    start, end = evidence.span(text)
+    assert text.encode()[start:end].decode() == evidence.text
+    assert start == len("📦 CONSIGNEE\n12 RUE ÉTÉ\nNOTIFY\n".encode())
 
 
 def test_explicit_capability_restrictions_are_not_silently_widened():

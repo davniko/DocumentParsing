@@ -91,6 +91,123 @@ def row(raw, goods, containers=()):
     }
 
 
+def test_allocation_identity_allows_printed_separator_not_changed_digits(rebase):
+    source = row(
+        "MCLU 510204.9\n",
+        {"splitGoodsPlacement": [{"equipmentIdentifier": "MCLU5102049"}]},
+        ["MCLU5102049"],
+    )
+    historical = {
+        "bindings": [
+            {
+                "occurrences": [{"source_text": "MCLU 510204.9"}],
+                "realization": {
+                    "target_values": [
+                        {
+                            "target_path": "documentPatch.cargoAllocationGroups[0]."
+                            "allocations[0].containerNumber",
+                            "source_value": "MCLU5102049",
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+    assert rebase.placement_paths(source, historical) == {(0, 0): 0}
+    historical["bindings"][0]["occurrences"][0]["source_text"] = "MCLU 510205.9"
+    with pytest.raises(ValueError, match="not proven"):
+        rebase.placement_paths(source, historical)
+
+
+def test_allocations_rebase_all_historical_groups_by_identity(rebase):
+    source = row(
+        "MSCU1234566\nCMAU1234567\n",
+        {
+            "splitGoodsPlacement": [
+                {"equipmentIdentifier": "CMAU1234567", "packageQuantity": 9},
+                {"equipmentIdentifier": "MSCU1234566", "packageQuantity": 4},
+            ]
+        },
+        ["MSCU1234566", "CMAU1234567"],
+    )
+    historical = {
+        "bindings": [
+            {
+                "occurrences": [{"source_text": identity}],
+                "realization": {
+                    "target_values": [
+                        {
+                            "target_path": f"documentPatch.cargoAllocationGroups[{group}]."
+                            "allocations[0].containerNumber",
+                            "source_value": identity,
+                        }
+                    ]
+                },
+            }
+            for group, identity in enumerate(["MSCU1234566", "CMAU1234567"])
+        ]
+    }
+    mapping = rebase.placement_paths(source, historical)
+    assert mapping == {(0, 0): 1, (1, 0): 0}
+    owner = {
+        "target_paths": ["documentPatch.cargoAllocationGroups[1].allocations[0].packageQuantity"]
+    }
+    path = "documentPatch.goodsItemDetails[0].splitGoodsPlacement[0].packageQuantity"
+    assert rebase.numeric_paths(owner, {path: 9}, mapping) == [path]
+
+
+def test_container_dot_separator_replays_and_renders_on_the_actual_contract_path(rebase):
+    from document_ocr.synthesis.curated import render
+
+    source = row("MCLU 510204.9\n", {}, ["MCLU5102049"])
+    source["target"]["documentPatch"].pop("goodsItemDetails")
+    draft, missing = rebase.draft(source, {"bindings": []}, {}, {})
+    assert not missing
+    contract = SourceContract.model_validate(draft)
+    compile_contract(source, contract)
+    variable = next(v for v in contract.variables if v.kind == "container")
+    values = {v.key: v.value for v in contract.variables}
+    values[variable.key] = "MSCU1234566"
+    rendered, target, _ = render(source, contract, values)
+    assert rendered == "MSCU 123456.6\n"
+    assert (
+        target["documentPatch"]["containerInformation"][0]["equipmentIdentifier"] == "MSCU1234566"
+    )
+
+
+def test_product_matching_stays_in_certified_description_occurrence(rebase):
+    from document_ocr.synthesis.curated import digest
+
+    raw = "ÉXPORT\nSHIPPER\nBOOK TRADING LTD\nDESCRIPTION\nBOOK\nMARKS\nBOOK\n"
+    source = row(raw, {"description": "BOOK"})
+    source["target"]["documentPatch"]["parties"] = {"shipper": {"name": "BOOK TRADING LTD"}}
+    declaration = {
+        "source_sha256": digest(raw.encode()),
+        "fields": [
+            {
+                "path": "documentPatch.goodsItemDetails[0].description",
+                "spans": [{"text": "BOOK", "occurrence": 2}],
+            }
+        ],
+    }
+    contract, missing = rebase.draft(
+        source, {"bindings": []}, {}, {"description_blocks": declaration}
+    )
+    assert not missing
+    product = next(v for v in contract["variables"] if v["kind"] == "product")
+    assert product["occurrences"] == [{"text": "BOOK", "occurrence": 2, "presentation": "text"}]
+    assert (
+        next(v for v in contract["variables"] if v["kind"] == "name")["value"] == "BOOK TRADING LTD"
+    )
+    with pytest.raises(ValueError, match="SHA-256"):
+        rebase.draft(
+            source,
+            {"bindings": []},
+            {},
+            {"description_blocks": declaration | {"source_sha256": "0" * 64}},
+        )
+
+
 def test_extra_count_occurrences_certify_both_digits_and_words(rebase):
     raw = "12 PACKAGES\nTWELVE (12) PACKAGES ONLY\nTHIRTEEN\n"
     source = row(raw, {"numberAndTypeOfPackages": [{"packageQuantity": 12}]})

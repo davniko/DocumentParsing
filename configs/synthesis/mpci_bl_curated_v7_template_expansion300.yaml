@@ -1,0 +1,741 @@
+dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
+output: artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1
+ownership: artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1/staging/ownership.yaml
+auxiliary: artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1/staging/auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real600_synthetic2500_party_date_route_v1/task-constraints.json
+task_constraints_sha256: be8ba7b284e1e16f8664bd8a3383e07dca89e20caadad254d2f26fe0c257338d
+seed: 202610095
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 202610082
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 202610082
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 2.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids:
+- doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb
+- doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005
+- doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d
+- doc_2f680d56da4dec7386191f7ed6e343a3506a2790c130be1acd1f4ef8270823ba
+- doc_a4cb81c178d0efc633a9eb6ede4245755240e921e17c538d8b7d405ab2eea94e
+- doc_efcc5ff31199867fd996d0da05a15f712b7b08128af067b9faf63e3e14245d11
+- doc_147a26262d50ea52c96fabd869b4f47c8a0187cc40526de515a0e64370475c7d
+- doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08
+- doc_600a1e8927a5aeb14c85eb98ee4fa39063d4f892779bc507dfb63a11ffa6993c
+- doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c
+- doc_6c5e700d90753d44af4b8dcd0df70bb24c1a3df767b7a66a23b2eb58c29ee829
+- doc_6aea1cb2433725478047603c3f7cc46691b800c5867b77d2a4b1883864e3ae6b
+- doc_dd8cea1cfa0d47caf799ccbc2ec38062a84f599a6411fa7be76811af3b14e47c
+- doc_efdbe49b49d61ea431f1d3b32b687458ef3ee3254e0e25b44170643afdb3c8db
+- doc_e5a6a40300b6e50a58dd6db5e6c1c9da7f58d71b15ab3dc683561b711eb99325
+- doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7
+- doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53
+- doc_cdc8d9982c35a830769223e839ce48815011172ec6600e29d15f41724d078ada
+- doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33
+- doc_0bd3ce7b5dd84812d58987e15385efa2e95506302e90d847a9b689495b9cd009
+- doc_7ade3b47b133e8ff1b536d24dbf62848d38e177f883e130ad63fe53bc07b6c85
+- doc_3056615e8eef37402744ca3a7debc11d8fd859f1eabb144efac0277ee4a63b88
+- doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046
+- doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a
+- doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9
+- doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c
+- doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f
+- doc_f766e12f23dc32b7dc32b249afb058b2dc296ca1fd8fd53e83d0d3ddcaab2298
+- doc_9ea52ed1c8cb06c6e0f1101616f98b6b1c0a75209c37821e56f374adbc66a538
+- doc_f256749bd9718a0bae20e7cdd8fe6942a7b1e3759f3089b86a23d7524f5638f0
+- doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15
+- doc_7b12b9055a542c5d1fe3968ed5e078914df02aad42d9372783092da79a294aa9
+- doc_aaa232a216de9ef75450afe2ccf0f0431ed33ed3c0526e98ea5e640574aa1aa0
+- doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee
+- doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95
+- doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2
+- doc_e3f9ccd4f59c13aa210fac82f8fc57e0f130a51191b2e861e90f72998524e590
+- doc_88deddadf982fd5c5920c4f64487fc06a0db25f6e8a3e7cd76efd0168960a10b
+- doc_a2c343f9fa07a4ae4f79028f01675b82b381fbae7cc6fa78ad5897b9dc957ce4
+- doc_85b6388a7b1c945306fa41d1a3ab6aedd258398bd5b8fac758a68b74125838b0
+- doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf
+- doc_ea28ee0b84bcec057cfc84b67bdd08ff9d840c3952e45ecc7772bf5359e86ee6
+- doc_53cf4d9917f9c1736f3d09087d3d745ebeec296fb34f26b3c2a2fa09dfd73695
+- doc_532f728a495e87935e2f52910f9b1b7caac004fe1c4f18dab90feb5d8d6acc1a
+- doc_78e8864ab17a0618fcb175fa298ee69c317983fc5cf5156836a8610ce85722e7
+- doc_257db44ac681e2860a171f07a2dc6f23f552c7e3b39532eb9c417db84c15dc6c
+- doc_7638303ade5eb3f32e08d24d1bd0b98063a011164b60e3fd614f594d806db22e
+- doc_b7eadb8c8196f893829907b2a31c4a20995da640fcc43c12b6fb3b80fce312ce
+- doc_3bb79a8d45f3cd76eda5ed208d63786e7212519188596bcb01e307f6f0d145d3
+- doc_89227fc3b249d56ae4d3bed3dcd8e4f67f463f1438b7fe3825b3e4236618217b
+- doc_8a9d1985846eea756fb2763b0e91ae3c09d9b8de7905eca1283885219a44a37a
+- doc_9b35d0b6f5596f9a71d2d0caa21e43ba2637608deb0ffd872d8bc2a0948ba170
+- doc_ecb172534201c4018e786081e3f1048a7dd7608bfd2dc8aca14289eaafc557dd
+- doc_8f8f18572da70a3b13eabe71927697edc4b22225e3bb2a9e18780cbae494ea50
+- doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5
+- doc_9496d43382e6fb5f75235fc4a1cd3baab8df9ffa3802661709434fc309ab7d09
+- doc_1b176673edbe31b74ba03995b85ee9be6d0d22218f2764df4648462f7cfd15fa
+- doc_e2b4856695c8d37601f2649074af0e7d2776b9a03b18202a086385146191c728
+- doc_cd979d32956a8f530c956636c1be4c7fb18f9f310b1ff468fd401535734f207c
+- doc_dd26bb9b2c0f406e994884ca9906ac2f135c4cf53c777337590d78ce8ead835e
+- doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946
+- doc_b739c4ad3551a0622571d4dae96b1e22107b00c60adba02556bf3634e4050858
+- doc_531130c43011b1411f42d23557aff766d695cdf91d7c09c65407f04088090088
+- doc_381ea09fc895afd58d149ee9280baf2cf7d8d004cb8ebbf78e53c0701cc94fc8
+- doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38
+- doc_4d2079f3818cad059ffc67bcabab200a25e6dc9fbdf9edc63e263e188d9256c7
+- doc_7046a05d78e117cb543998ff9a0bddff933376d5bb38903721801711a3ff7e89
+- doc_388e54a6628e5be102e49a12f307f489cf69ceceadd90b2e3bd65f9f824cdfdc
+- doc_635b24d9c8f04747ddd8f7ddea82423ce5a75ed8e714c6b35500b8d8a26d50f9
+- doc_a177de46a81ab0e061b8bf391f74e741b70004f5b9f9dc0d6da8bde10ab853fb
+- doc_67eff10181fc88c158efc5a99d33807643b4771ce39f64e90f358b0e6c721d7f
+- doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850
+- doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049
+- doc_f8aba530eff537ac789cdaea82cfe64ef3c11ff0d378029bc7aaefa869702172
+- doc_62f59e68172bac00dbaebd95fb23d2b495b56b1261b7b6cf5be4247073a09bbe
+- doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc
+- doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691
+- doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a
+- doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed
+- doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f
+- doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d
+- doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd
+- doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09
+- doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e
+- doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+- doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e
+- doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e
+- doc_4f210d63ddf9d0045dc1d402764d11c989a4053e1416eca0ee379ccff20421c2
+- doc_c92e59000dc7f8a89e5822297b060d4e56d345b42ccc9d1987f64be1ce8688ef
+- doc_e18486c69179f0a9a6cb73e85c76385f07d13e1fd3237a250cc3d4d74eab9566
+- doc_157fadd2fe95dc1d3db419a9cd870e46050803f4b8799c25a49e0f5e493fb371
+- doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675
+- doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934
+- doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f
+- doc_6ae6ae84b328010ba26fe12c15aca4cfa2cfc5d1668c432907d13d462a6065f6
+- doc_7c5b19dd8b6dd42a1cebf7b7d7bf5560f0cf6c72a2bf52a95f0e39c70ddfddac
+- doc_35fe798bf179df185a08fbf79f1ba23f0041c540973f1413636b194b58768ef5
+- doc_ff351983f3d19423f89976e4cf80b9aba80b6f0b8f9842fbf23696f964b24331
+- doc_ed35ae43ff1921cf77b119a98957af4953ef71ff9510d0d571d4e0bd7a14c975
+- doc_5a9931ac4afe45793441d9d50bbd931a5e72eaefbe346eb66aee78f40c3640c0
+sampling:
+  ambient_hs_chapters:
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
+      from_hs6:
+      - 080800
+      to_hs6:
+      - 080810
+      source_text_literals:
+      - APPLES
+      - HS CODE:080800
+      - TEMP.2CE
+      - 2C TILL PLUS 2C 20 CBM/HR
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify
+        authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed
+        080800 and extraction labels remain unchanged.'
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+capabilities:
+  doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8701'
+    physical_profile: source_whole_units
+  doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+    - volume
+  doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d:
+    family: ambient
+    identity_count: 1
+  doc_2f680d56da4dec7386191f7ed6e343a3506a2790c130be1acd1f4ef8270823ba:
+    family: ambient
+    identity_count: 1
+  doc_a4cb81c178d0efc633a9eb6ede4245755240e921e17c538d8b7d405ab2eea94e:
+    family: ambient
+    identity_count: 1
+  doc_efcc5ff31199867fd996d0da05a15f712b7b08128af067b9faf63e3e14245d11:
+    family: ambient
+    identity_count: 1
+  doc_147a26262d50ea52c96fabd869b4f47c8a0187cc40526de515a0e64370475c7d:
+    family: ambient
+    identity_count: 1
+  doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08:
+    family: ambient
+    identity_count: 2
+  doc_600a1e8927a5aeb14c85eb98ee4fa39063d4f892779bc507dfb63a11ffa6993c:
+    family: ambient
+    identity_count: 1
+  doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_6c5e700d90753d44af4b8dcd0df70bb24c1a3df767b7a66a23b2eb58c29ee829:
+    family: ambient
+    identity_count: 2
+  doc_6aea1cb2433725478047603c3f7cc46691b800c5867b77d2a4b1883864e3ae6b:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+  doc_dd8cea1cfa0d47caf799ccbc2ec38062a84f599a6411fa7be76811af3b14e47c:
+    family: ambient
+    identity_count: 1
+  doc_efdbe49b49d61ea431f1d3b32b687458ef3ee3254e0e25b44170643afdb3c8db:
+    family: ambient
+    identity_count: 1
+  doc_e5a6a40300b6e50a58dd6db5e6c1c9da7f58d71b15ab3dc683561b711eb99325:
+    family: ambient
+    identity_count: 1
+  doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+  doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53:
+    family: ambient
+    identity_count: 1
+  doc_cdc8d9982c35a830769223e839ce48815011172ec6600e29d15f41724d078ada:
+    family: ambient
+    identity_count: 1
+  doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_0bd3ce7b5dd84812d58987e15385efa2e95506302e90d847a9b689495b9cd009:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+    - volume
+  doc_7ade3b47b133e8ff1b536d24dbf62848d38e177f883e130ad63fe53bc07b6c85:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_3056615e8eef37402744ca3a7debc11d8fd859f1eabb144efac0277ee4a63b88:
+    family: ambient
+    identity_count: 1
+  doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      nodes: {}
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a:
+    family: ambient
+    identity_count: 1
+  doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9:
+    family: ambient
+    identity_count: 1
+  doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c:
+    family: ambient
+    identity_count: 1
+  doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f:
+    family: ambient
+    identity_count: 1
+  doc_f766e12f23dc32b7dc32b249afb058b2dc296ca1fd8fd53e83d0d3ddcaab2298:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      nodes:
+        issue:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_9ea52ed1c8cb06c6e0f1101616f98b6b1c0a75209c37821e56f374adbc66a538:
+    family: ambient
+    identity_count: 1
+  doc_f256749bd9718a0bae20e7cdd8fe6942a7b1e3759f3089b86a23d7524f5638f0:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15:
+    family: ambient
+    identity_count: 1
+  doc_7b12b9055a542c5d1fe3968ed5e078914df02aad42d9372783092da79a294aa9:
+    family: ambient
+    identity_count: 3
+  doc_aaa232a216de9ef75450afe2ccf0f0431ed33ed3c0526e98ea5e640574aa1aa0:
+    family: ambient
+    identity_count: 1
+  doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee:
+    family: ambient
+    identity_count: 1
+  doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95:
+    family: ambient
+    identity_count: 1
+  doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2:
+    family: ambient
+    identity_count: 1
+  doc_e3f9ccd4f59c13aa210fac82f8fc57e0f130a51191b2e861e90f72998524e590:
+    family: ambient
+    identity_count: 1
+  doc_88deddadf982fd5c5920c4f64487fc06a0db25f6e8a3e7cd76efd0168960a10b:
+    family: ambient
+    identity_count: 1
+  doc_a2c343f9fa07a4ae4f79028f01675b82b381fbae7cc6fa78ad5897b9dc957ce4:
+    family: ambient
+    identity_count: 1
+  doc_85b6388a7b1c945306fa41d1a3ab6aedd258398bd5b8fac758a68b74125838b0:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+    route_topology:
+      nodes:
+        issue_place:
+          kind: locality
+          country_from: origin
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+      issue_node: issue_place
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue_place
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+  doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      nodes:
+        final:
+          kind: locality
+          country_from: destination
+      fields:
+        portOfLoading: origin
+        portOfDischarge: destination
+        finalDestination: final
+      issue_node: origin
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+  doc_ea28ee0b84bcec057cfc84b67bdd08ff9d840c3952e45ecc7772bf5359e86ee6:
+    family: ambient
+    identity_count: 1
+  doc_53cf4d9917f9c1736f3d09087d3d745ebeec296fb34f26b3c2a2fa09dfd73695:
+    family: ambient
+    identity_count: 1
+  doc_532f728a495e87935e2f52910f9b1b7caac004fe1c4f18dab90feb5d8d6acc1a:
+    family: ambient
+    identity_count: 1
+  doc_78e8864ab17a0618fcb175fa298ee69c317983fc5cf5156836a8610ce85722e7:
+    family: ambient
+    identity_count: 1
+  doc_257db44ac681e2860a171f07a2dc6f23f552c7e3b39532eb9c417db84c15dc6c:
+    family: ambient
+    identity_count: 1
+  doc_7638303ade5eb3f32e08d24d1bd0b98063a011164b60e3fd614f594d806db22e:
+    family: ambient
+    identity_count: 1
+  doc_b7eadb8c8196f893829907b2a31c4a20995da640fcc43c12b6fb3b80fce312ce:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8703'
+  doc_3bb79a8d45f3cd76eda5ed208d63786e7212519188596bcb01e307f6f0d145d3:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - netWeight
+  doc_89227fc3b249d56ae4d3bed3dcd8e4f67f463f1438b7fe3825b3e4236618217b:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_8a9d1985846eea756fb2763b0e91ae3c09d9b8de7905eca1283885219a44a37a:
+    family: ambient
+    identity_count: 1
+  doc_9b35d0b6f5596f9a71d2d0caa21e43ba2637608deb0ffd872d8bc2a0948ba170:
+    family: vehicle
+    identity_count: 1
+    allowed_hs_headings:
+    - '8703'
+    required_private_measures:
+    - volume
+  doc_ecb172534201c4018e786081e3f1048a7dd7608bfd2dc8aca14289eaafc557dd:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_8f8f18572da70a3b13eabe71927697edc4b22225e3bb2a9e18780cbae494ea50:
+    family: ambient
+    identity_count: 1
+  doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5:
+    family: dg_chemical
+    identity_count: 1
+  doc_9496d43382e6fb5f75235fc4a1cd3baab8df9ffa3802661709434fc309ab7d09:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_1b176673edbe31b74ba03995b85ee9be6d0d22218f2764df4648462f7cfd15fa:
+    family: ambient
+    identity_count: 1
+  doc_e2b4856695c8d37601f2649074af0e7d2776b9a03b18202a086385146191c728:
+    family: ambient
+    identity_count: 1
+  doc_cd979d32956a8f530c956636c1be4c7fb18f9f310b1ff468fd401535734f207c:
+    family: ambient
+    identity_count: 1
+  doc_dd26bb9b2c0f406e994884ca9906ac2f135c4cf53c777337590d78ce8ead835e:
+    family: ambient
+    identity_count: 1
+  doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946:
+    family: frozen
+    identity_count: 1
+  doc_b739c4ad3551a0622571d4dae96b1e22107b00c60adba02556bf3634e4050858:
+    family: ambient
+    identity_count: 1
+  doc_531130c43011b1411f42d23557aff766d695cdf91d7c09c65407f04088090088:
+    family: ambient
+    identity_count: 1
+  doc_381ea09fc895afd58d149ee9280baf2cf7d8d004cb8ebbf78e53c0701cc94fc8:
+    family: ambient
+    identity_count: 1
+  doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38:
+    family: ambient
+    identity_count: 1
+  doc_4d2079f3818cad059ffc67bcabab200a25e6dc9fbdf9edc63e263e188d9256c7:
+    family: ambient
+    identity_count: 1
+  doc_7046a05d78e117cb543998ff9a0bddff933376d5bb38903721801711a3ff7e89:
+    family: ambient
+    identity_count: 1
+  doc_388e54a6628e5be102e49a12f307f489cf69ceceadd90b2e3bd65f9f824cdfdc:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_635b24d9c8f04747ddd8f7ddea82423ce5a75ed8e714c6b35500b8d8a26d50f9:
+    family: ambient
+    identity_count: 2
+    required_private_measures:
+    - netWeight
+  doc_a177de46a81ab0e061b8bf391f74e741b70004f5b9f9dc0d6da8bde10ab853fb:
+    family: ambient
+    identity_count: 1
+  doc_67eff10181fc88c158efc5a99d33807643b4771ce39f64e90f358b0e6c721d7f:
+    family: ambient
+    identity_count: 1
+  doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850:
+    family: ambient
+    identity_count: 1
+  doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049:
+    family: ambient
+    identity_count: 1
+  doc_f8aba530eff537ac789cdaea82cfe64ef3c11ff0d378029bc7aaefa869702172:
+    family: ambient
+    identity_count: 10
+  doc_62f59e68172bac00dbaebd95fb23d2b495b56b1261b7b6cf5be4247073a09bbe:
+    family: ambient
+    identity_count: 1
+  doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc:
+    family: ambient
+    identity_count: 1
+  doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - volume
+  doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a:
+    family: ambient
+    identity_count: 1
+  doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed:
+    family: ambient
+    identity_count: 4
+  doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f:
+    family: ambient
+    identity_count: 1
+  doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d:
+    family: frozen
+    identity_count: 1
+  doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd:
+    family: ambient
+    identity_count: 1
+  doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09:
+    family: ambient
+    identity_count: 1
+  doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e:
+    family: ambient
+    identity_count: 1
+  doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017:
+    family: ambient
+    identity_count: 1
+  doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e:
+    family: ambient
+    identity_count: 1
+  doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e:
+    family: ambient
+    identity_count: 1
+  doc_4f210d63ddf9d0045dc1d402764d11c989a4053e1416eca0ee379ccff20421c2:
+    family: ambient
+    identity_count: 1
+  doc_c92e59000dc7f8a89e5822297b060d4e56d345b42ccc9d1987f64be1ce8688ef:
+    family: ambient
+    identity_count: 1
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+  doc_e18486c69179f0a9a6cb73e85c76385f07d13e1fd3237a250cc3d4d74eab9566:
+    family: ambient
+    identity_count: 1
+  doc_157fadd2fe95dc1d3db419a9cd870e46050803f4b8799c25a49e0f5e493fb371:
+    family: ambient
+    identity_count: 1
+  doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675:
+    family: ambient
+    identity_count: 1
+  doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934:
+    family: ambient
+    identity_count: 1
+  doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+    - volume
+  doc_6ae6ae84b328010ba26fe12c15aca4cfa2cfc5d1668c432907d13d462a6065f6:
+    family: ambient
+    identity_count: 1
+  doc_7c5b19dd8b6dd42a1cebf7b7d7bf5560f0cf6c72a2bf52a95f0e39c70ddfddac:
+    family: ambient
+    identity_count: 1
+  doc_35fe798bf179df185a08fbf79f1ba23f0041c540973f1413636b194b58768ef5:
+    family: ambient
+    identity_count: 1
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+  doc_ff351983f3d19423f89976e4cf80b9aba80b6f0b8f9842fbf23696f964b24331:
+    family: ambient
+    identity_count: 1
+  doc_ed35ae43ff1921cf77b119a98957af4953ef71ff9510d0d571d4e0bd7a14c975:
+    family: ambient
+    identity_count: 1
+  doc_5a9931ac4afe45793441d9d50bbd931a5e72eaefbe346eb66aee78f40c3640c0:
+    family: ambient
+    identity_count: 1
+source_contracts: artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1/staging/cases
+historical_catalog: artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1/staging/cases

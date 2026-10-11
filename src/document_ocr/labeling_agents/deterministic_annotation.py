@@ -20,6 +20,7 @@ from typing import Any, Literal
 from pydantic import TypeAdapter, ValidationError
 
 from document_ocr.date_evidence import date_immediately_under_declared_value
+from document_ocr.date_policy import adjacent_printed_date_order, resolve_numeric_date
 from document_ocr.label_schemas.bill_of_lading import BillOfLadingLabel
 from document_ocr.label_schemas.bill_of_lading_v3 import (
     BillOfLadingDualCargoAnnotation,
@@ -1391,17 +1392,10 @@ def _parsed_dates(raw: str) -> set[date]:
 
 
 def _day_first_numeric_date(raw: str) -> date | None:
-    found = _NUMERIC_DATE_TOKEN.fullmatch(raw.strip())
-    if found is None:
+    if _NUMERIC_DATE_TOKEN.fullmatch(raw.strip()) is None:
         return None
-    first = int(found.group("first"))
-    second = int(found.group("second"))
-    year = int(found.group("year"))
-    if year < 100:
-        year += 2000 if year <= 68 else 1900
-    day, month = first, second
     try:
-        return date(year, month, day)
+        return resolve_numeric_date(raw, explicit_order="DMY")
     except ValueError:
         return None
 
@@ -1463,11 +1457,14 @@ def _date_matches(
             parsed = _parsed_dates(found.group())
             if expected not in parsed:
                 continue
-            if (
-                len(parsed) > 1
-                and _day_first_numeric_date(found.group()) != expected
-            ):
-                continue
+            if len(parsed) > 1:
+                try:
+                    order = adjacent_printed_date_order(source, found.start(), found.end())
+                    resolved = resolve_numeric_date(found.group(), explicit_order=order)
+                except ValueError:
+                    continue
+                if resolved != expected:
+                    continue
             matches.append(
                 _match(
                     path=path,

@@ -53,6 +53,31 @@ def test_both_levels_scale_without_relabeling_contents():
     assert proposal == original
 
 
+@pytest.mark.parametrize("separator", ["", " ", "\n"])
+def test_source_certified_count_accepts_compact_or_separated_unit(separator):
+    bp = blueprint(words=("54",))
+    bp.source = "54" + separator + "BOXES/2PLTS"
+    assert contained_quantity_surfaces(
+        bp,
+        target(10),
+        "contents",
+        {"quantity_path": PATH, "source_quantity": 54, "source_unit": "BOXES"},
+    ) == ["108"]
+
+
+@pytest.mark.parametrize("suffix", ["BOXESHOUSE", "BAGS", "XBOXES", "BOXES2"])
+def test_compact_count_still_requires_its_exact_complete_unit(suffix):
+    bp = blueprint(words=("54",))
+    bp.source = "54" + suffix
+    with pytest.raises(ValueError, match="does not follow"):
+        contained_quantity_surfaces(
+            bp,
+            target(10),
+            "contents",
+            {"quantity_path": PATH, "source_quantity": 54, "source_unit": "BOXES"},
+        )
+
+
 @pytest.mark.parametrize(
     "source,inner,new,expected", [(20, 600, 11, "330"), (6, 240, 8, "320"), (4, 146, 6, "219")]
 )

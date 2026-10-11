@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -44,7 +45,7 @@ class ContactParty:
 
 
 def contact_parties(source: dict, target: dict, sample_id: str) -> list[ContactParty]:
-    """Share named-company contacts; keep unnamed party roles independently owned."""
+    """Share company context, including explicit notify references, without copying labels."""
     before, after = flat(source), flat(target)
     groups = {}
     for path, original in before.items():
@@ -57,13 +58,36 @@ def contact_parties(source: dict, target: dict, sample_id: str) -> list[ContactP
             continue
         role = path.split(".contactDetails.")[0]
         name = after.get(role + ".name")
+        country = after.get(role + ".country", "")
+        reference = after.get(role + ".sameAs")
+        if reference is not None:
+            if reference not in ("shipper", "consignee") or not re.fullmatch(
+                r"documentPatch\.parties\.notifyParties\[\d+\]", role
+            ):
+                raise ValueError(f"invalid explicit contact party reference: {role}/{reference}")
+            referenced = target["documentPatch"]["parties"].get(reference)
+            if (
+                not isinstance(referenced, dict)
+                or not referenced
+                or referenced.get("sameAs") is not None
+            ):
+                raise ValueError(f"contact reference requires a concrete party: {reference}")
+            # sameAs omits repeated identity fields by design. Supply the named
+            # party's current context while retaining the notify contact paths.
+            name, country = referenced.get("name"), referenced.get("country")
+            if any(
+                value is not None and (not isinstance(value, str) or not value.strip())
+                for value in (name, country)
+            ):
+                raise ValueError(f"contact reference has invalid identity context: {reference}")
+            country = "" if country is None else country
         # Contact generation follows company identity, not the configurable
         # casing of its label/presentation. Keep repeats and request hashes
         # stable when only capitalization changes; endpoints themselves remain
         # case-preserved.
         identity = (
             name.upper() if name else None,
-            after.get(role + ".country", "").upper(),
+            country.upper(),
             None if name else role,
         )
         groups.setdefault(identity, {}).setdefault((kind, original), []).append(path)

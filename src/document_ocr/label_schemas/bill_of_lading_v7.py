@@ -123,7 +123,13 @@ class ContactsV7(ContactDetails):
 
 
 class RouteV7(BillOfLadingRoute):
-    """Shipment locations in supported transport roles, not inferred itinerary order."""
+    """Shipment locations in supported transport roles, not inferred itinerary order.
+
+    Assign each role from its OCR-retained occurrence or an explicit shared-role
+    declaration. Layout can resolve a retained occurrence's role despite a lost
+    or detached heading; it cannot restore a missing occurrence by borrowing an
+    equal location printed for another role.
+    """
 
     placeOfReceipt: LocationV7 | None = Field(
         default=None,
@@ -554,10 +560,15 @@ class ExtractionPartyV7(LabelSchemaModel):
             "Printed party identity in uppercase, preserving spelling and uncaptioned "
             "personal names"
             " under the company. Follow linked identity continuations even after a page "
-            "break or tax/contact lines. Preserve A ON BEHALF OF B in a shared named-party "
-            "postal block, not in a carrier signature's agent/principal clause; separate "
-            "competing identities/addresses require "
-            "review. Keep legal-name suffixes; exclude share-capital amounts, company "
+            "break or tax/contact lines. Represent one entity for the declared document "
+            "role, paired only with that entity's owned address, country and contacts. "
+            "ON BEHALF OF, O/B, C/O and AS AGENT OF express relationships between actors, "
+            "not aliases to concatenate into one legal name. For A acting on behalf "
+            "of B in this role's block, extract the primary printed company A, not B. "
+            "Use only A-owned postal and contact data; leave unresolved ownership "
+            "absent for review rather than borrow B's details. Genuine care-of postal routing "
+            "belongs to addressLine. Keep legal-name suffixes; exclude agency-role "
+            "captions, share-capital amounts, company "
             "registration boilerplate, bare TO ORDER and role captions. Postal zones, "
             "building/block designations and localities belong to addressLine even "
             "when they share a physical line with the company name."
@@ -573,7 +584,9 @@ class ExtractionPartyV7(LabelSchemaModel):
             "owned continuations after contacts/customs text or page headers, and postal "
             "department/landmark text; exclude names, contacts, tax/registration data, "
             "captions and formatting markers. Keep postcode/address values but omit "
-            "their POSTAL CODE/ZIP/ADD captions. Include each repeated postal component "
+            "their POSTAL CODE/ZIP/ADD captions. A genuine C/O or CARE OF recipient "
+            "belongs to the postal routing, not the party's legal name. Include each repeated "
+            "postal component "
             "once, even when one occurrence touches a postcode; retain all distinct "
             "postcode digits and building/district qualifiers. Repeated copies add no text. For "
             "alternative addresses select only an unambiguous primary address; if "
@@ -888,8 +901,9 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
             "date. Four-digit-year-first YYYY/MM/DD and YYYY-MM-DD use year-month-day. "
             "For other numeric dates, establish day/month order from an explicit format "
             "or unambiguous dates in the same source convention, never from country, "
-            "issuer or language. "
-            "If both orders remain possible, absence is the correct target."
+            "issuer or language. If both orders remain possible, assume DD-MM: "
+            "the first number is the day and the second the month. Normalize the "
+            "supported date; ambiguity of numeric order alone is not a reason to omit it."
         ),
     )
     shippedOnBoardDate: date | None = Field(
@@ -898,9 +912,10 @@ class BillOfLadingDocumentPatchV7(LabelSchemaModel):
             "Explicit shipped/on-board date normalized to YYYY-MM-DD, not a generic "
             "issue/sailing date. Four-digit-year-first YYYY/MM/DD and YYYY-MM-DD use "
             "year-month-day. For other numeric dates, establish day/month order from "
-            "source format evidence, "
-            "not country, issuer or language. If both orders remain possible, absence "
-            "is the correct target."
+            "an explicit format or unambiguous dates in the same source convention, "
+            "not country, issuer or language. If both orders remain possible, assume "
+            "DD-MM: the first number is the day and the second the month. Numeric "
+            "order ambiguity alone is not a reason to omit this supported date."
         ),
     )
     negotiability: Literal["negotiable", "non_negotiable"] | None = Field(

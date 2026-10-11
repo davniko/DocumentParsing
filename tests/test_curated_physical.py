@@ -7,13 +7,16 @@ from types import SimpleNamespace
 import pytest
 
 from document_ocr.synthesis.curated import SourceContract, digest
+from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix
 from document_ocr.synthesis.curated_physical import (
     PhysicalSupport,
     _couple_mass_rows,
     _distribute,
     _temperature_text,
     prepare_physical_render,
+    validate_source_physical_requirements,
 )
+from document_ocr.synthesis.curated_scenarios import CandidateIncompatibility, SourceCapabilities
 from document_ocr.synthesis.curated_templates import (
     compile_sampling_blueprint,
     render_sampling_blueprint,
@@ -22,6 +25,185 @@ from document_ocr.synthesis.generators import iso6346_check_digit
 from document_ocr.synthesis.template_compiler.equipment_tares import TareSupport
 
 PREFIX = "documentPatch.goodsItemDetails[0]"
+
+
+def test_source_readiness_requires_private_measures_before_donor_sampling():
+    _, blueprint, _, _ = fixture(public_mass=False)
+    with pytest.raises(ValueError, match="omits required private measures: grossWeight"):
+        validate_source_physical_requirements(blueprint, SourceCapabilities(family="ambient"))
+    validate_source_physical_requirements(
+        blueprint,
+        SourceCapabilities(
+            family="ambient",
+            required_private_measures=("grossWeight",),
+        ),
+    )
+    # Explicit same-source profiles cannot draw a different unsupported donor.
+    for profile in ("source_bundle", "source_whole_units"):
+        validate_source_physical_requirements(
+            blueprint,
+            SourceCapabilities(
+                family="vehicle" if profile == "source_whole_units" else "ambient",
+                physical_profile=profile,
+                allowed_hs_headings=("8701",) if profile == "source_whole_units" else (),
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    "small_limit,large_limit,accepted", [("4", "8", True), ("3.95", "7.95", False)]
+)
+def test_mixed_equipment_is_rechecked_jointly_after_source_rounding(
+    small_limit, large_limit, accepted
+):
+    from dataclasses import replace
+
+    row, blueprint, scenario, support = fixture()
+    for container in row["target"]["documentPatch"]["containerInformation"]:
+        container.pop("sizeCategory")
+        container.pop("typeCategory")
+    text = blueprint.source + "1X20 DR\n1X40 HC\n"
+    blueprint = replace(blueprint, source=text, target=deepcopy(row["target"]))
+    certificate = PrintedEquipmentMix(
+        source_sha256=digest(text.encode()),
+        source_text_literals=("1X20 DR\n1X40 HC",),
+        members=[
+            dict(
+                count=1, sizeCategory="TWENTY_FOOT_STANDARD_HEIGHT", typeCategory="GENERAL_PURPOSE"
+            ),
+            dict(count=1, sizeCategory="FORTY_FOOT_HIGH_CUBE", typeCategory="GENERAL_PURPOSE"),
+        ],
+    )
+    capacities = [
+        {"payloadKg": small_limit, "volumeM3": None},
+        {"payloadKg": large_limit, "volumeM3": None},
+    ]
+    scenario.provenance["equipmentMix"] = {
+        "certificate": certificate.model_dump(mode="json"),
+        "capacities": capacities,
+    }
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["grossWeight"]["value"] = 11.7
+    # Before rounding, the shares are 3.9 and 7.8. Rendering produces 4 and 8.
+    if accepted:
+        plan = prepare_physical_render(blueprint, scenario, target, support=support)
+        assert plan.receipt["rows"]["grossWeight"] == ["4", "8"]
+        assert plan.receipt["equipmentMix"]["assignment"] == [0, 1]
+        assert "sizeCategory" not in plan.target["documentPatch"]["containerInformation"][0]
+    else:
+        with pytest.raises(
+            CandidateIncompatibility, match="cannot fit the printed equipment mix after rounding"
+        ):
+            prepare_physical_render(blueprint, scenario, target, support=support)
+
+
+def declared_measure_fixture(*, components=False):
+    from dataclasses import replace
+
+    row, _, scenario, support = fixture()
+    row["joinedRawText"] = "TOTAL 0.030 MT\nPART A 10.00 KGS\nPART B 20.00 KGS\nPACKAGES 10\n"
+    entries = (
+        ("total", "0.030", "metric_tonne", None),
+        ("first", "10.00", "kilogram", 0),
+        ("second", "20.00", "kilogram", 1),
+    )
+    bindings, certificates = [], {}
+    for key, printed, unit, index in entries:
+        start = row["joinedRawText"].index(printed)
+        bindings.append(
+            dict(
+                logical_key=key,
+                target_paths=[PREFIX + ".grossWeight.value"] if index is None else [],
+                value_kind="decimal_measurement",
+                group_key="cargo:gross_weight",
+                occurrences=[
+                    dict(byte_start=start, byte_end=start + len(printed), source_text=printed)
+                ],
+            )
+        )
+        certificates[key] = dict(measure="grossWeight", baseline=printed, unit=unit)
+        if index is not None:
+            certificates[key]["component" if components else "row"] = True if components else index
+    blueprint = compile_sampling_blueprint(
+        row,
+        dict(
+            document_id=row["documentId"],
+            source_sha256=digest(row["joinedRawText"].encode()),
+            bindings=bindings,
+        ),
+        SourceContract(
+            variables=[
+                dict(
+                    key="packages",
+                    kind="count",
+                    value="10",
+                    meaning="Declared package count",
+                    required_literals=[],
+                    occurrences=[dict(text="10", occurrence=2, presentation="number")],
+                )
+            ],
+            targets=[
+                dict(
+                    path=PREFIX + ".numberAndTypeOfPackages[0].packageQuantity",
+                    expression="{packages}",
+                )
+            ],
+            fixed_context="Source-certified unit and ownership.",
+        ),
+    )
+    return (
+        row,
+        replace(blueprint, ownership_data={"measure_owners": certificates}),
+        scenario,
+        support,
+    )
+
+
+@pytest.mark.parametrize("components", [False, True])
+def test_declared_foreign_unit_and_components_render_exact_conserving_measures(components):
+    row, blueprint, scenario, support = declared_measure_fixture(components=components)
+    original = deepcopy(row)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["grossWeight"]["value"] = 12
+    plan = prepare_physical_render(blueprint, scenario, target, support=support)
+    assert plan.surface_values == {"total": ["0.012"], "first": ["4.00"], "second": ["8.00"]}
+    assert plan.target == target
+    rendered, _, _ = render_sampling_blueprint(
+        blueprint, target, plan.variable_values, surface_values=plan.surface_values
+    )
+    assert rendered == "TOTAL 0.012 MT\nPART A 4.00 KGS\nPART B 8.00 KGS\nPACKAGES 10\n"
+    assert row == original
+
+
+@pytest.mark.parametrize(
+    ("key", "field", "value", "message"),
+    [
+        ("total", "unit", "cubic_metre", "wrong dimension"),
+        ("first", "row", 2, "outside source equipment"),
+        ("first", "row", True, "outside source equipment"),
+        ("first", "baseline", "11", "does not print"),
+        ("total", "baseline", "NaN", "invalid declared source"),
+        ("total", "unknown", "x", "unknown measure certificate"),
+    ],
+)
+def test_declared_measure_certificates_reject_corrupted_contracts(key, field, value, message):
+    row, blueprint, scenario, support = declared_measure_fixture()
+    blueprint.ownership_data["measure_owners"][key][field] = value
+    with pytest.raises(ValueError, match=message):
+        prepare_physical_render(blueprint, scenario, row["target"], support=support)
+
+
+def test_declared_components_must_partition_one_total_and_cannot_be_container_rows():
+    row, blueprint, scenario, support = declared_measure_fixture(components=True)
+    blueprint.ownership_data["measure_owners"]["first"]["row"] = 0
+    with pytest.raises(ValueError, match="cannot also be a container row"):
+        prepare_physical_render(blueprint, scenario, row["target"], support=support)
+    blueprint.ownership_data["measure_owners"]["first"].pop("row")
+    blueprint.ownership_data["measure_owners"].pop("second")
+    # Uncertified second becomes an independent total and the contract fails,
+    # rather than silently treating the unowned remainder as a component.
+    with pytest.raises(ValueError):
+        prepare_physical_render(blueprint, scenario, row["target"], support=support)
 
 
 def fixture(*, public_mass=True):
@@ -124,6 +306,21 @@ def test_physical_rows_reconcile_printed_precision_and_replay_without_mutation()
     assert output == "TOTAL 12\nROW A 4.00\nROW B 8.00\n"
     assert receipt["unchangedBytesPreserved"]
     assert plan.receipt["rows"]["grossWeight"] == ["4", "8"]
+
+
+@pytest.mark.parametrize("weights,total", [([1] * 6, "2"), ([1, 1, 100], "10")])
+def test_positive_source_lattice_infeasibility_is_a_typed_candidate_rejection(weights, total):
+    with pytest.raises(CandidateIncompatibility, match="cannot exactly represent"):
+        _distribute(Decimal(total), [Decimal(w) for w in weights], Decimal(1))
+
+
+@pytest.mark.parametrize(
+    "weights,total,quantum", [([], "2", "1"), ([0, 1], "2", "1"), ([1, 1], "2.1", "1")]
+)
+def test_invalid_distribution_inputs_remain_hard_errors(weights, total, quantum):
+    with pytest.raises(ValueError) as caught:
+        _distribute(Decimal(total), [Decimal(w) for w in weights], Decimal(quantum))
+    assert not isinstance(caught.value, CandidateIncompatibility)
 
 
 def test_private_measures_are_donor_owned_and_do_not_invent_public_labels():
@@ -315,7 +512,13 @@ def test_operational_targets_and_all_regulatory_class_surfaces_change_together()
     target = deepcopy(row["target"])
     goods = target["documentPatch"]["goodsItemDetails"][0]
     goods["handlingInstructions"] = ["VENTILATION: 20 CBM/HR", "PLUS 2C TILL PLUS 2C"]
-    goods["dangerousGoods"] = [{"unNumber": "3342", "hazardCategory": "SOURCE_CATEGORY"}]
+    goods["dangerousGoods"] = [
+        {
+            "unNumber": "3342",
+            "hazardCategory": "SOURCE_CATEGORY",
+            "packingGroupCategory": "LOW_DANGER",
+        }
+    ]
     for container in target["documentPatch"]["containerInformation"]:
         container["temperatureSetpoint"] = {"value": 2.0, "unit": "celsius"}
     bindings = {
@@ -342,6 +545,11 @@ def test_operational_targets_and_all_regulatory_class_surfaces_change_together()
             "value_kind": "identifier",
             "occurrences": [{"source_text": "NO.3342"}],
         },
+        "packing": {
+            "target_paths": [PREFIX + ".dangerousGoods[0].packingGroupCategory"],
+            "value_kind": "category",
+            "occurrences": [{"source_text": "PACKING GROUP: III"}],
+        },
     }
     regions = (*blueprint.regions, *(SimpleNamespace(key=k, curated_key=None) for k in bindings))
     blueprint = replace(
@@ -350,7 +558,8 @@ def test_operational_targets_and_all_regulatory_class_surfaces_change_together()
     for container in target["documentPatch"]["containerInformation"]:
         container["temperatureSetpoint"]["value"] = -3.0
     scenario.provenance.update(
-        ventilationCbmPerHour="10", dgPrintedFacts={"class": "8", "unNumber": "1824"}
+        ventilationCbmPerHour="10",
+        dgPrintedFacts={"class": "8", "unNumber": "1824", "packingGroup": "II"},
     )
     plan = prepare_physical_render(blueprint, scenario, target, support=support)
     assert plan.target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [
@@ -361,6 +570,7 @@ def test_operational_targets_and_all_regulatory_class_surfaces_change_together()
     assert plan.surface_values["temperature_value"] == ["-3.0"]
     assert plan.surface_values["class"] == ["8"] * 5
     assert plan.surface_values["un"] == ["NO.1824"]
+    assert plan.surface_values["packing"] == ["PACKING GROUP: II"]
 
 
 def test_row_rounding_is_exact_for_large_and_fractional_totals():
@@ -478,9 +688,10 @@ def test_length_only_receipt_preserves_private_observation_unless_public_pair_re
     after = dict(before, sizeCategory="FORTY_FOOT_HIGH_CUBE")
     kwargs = dict(format_equipment=_complete_equipment_surface, number_words=lambda n: "TWO")
     assert project_receipt("2 x 40'", [before] * 2, [after] * 2, **kwargs) == "2 x 40'"
-    assert project_receipt(
-        "2 x 40'", [before] * 2, [after] * 2, preserve_length_only=False, **kwargs
-    ) == "2 x 40HC"
+    assert (
+        project_receipt("2 x 40'", [before] * 2, [after] * 2, preserve_length_only=False, **kwargs)
+        == "2 x 40HC"
+    )
     mixed = project_receipt(
         "2 x 40'", [before] * 2, [before, after], preserve_length_only=False, **kwargs
     )

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -23,7 +23,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
+from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
 from document_ocr.synthesis.curated_goods import RegistryThermalPolicy
+from document_ocr.synthesis.curated_parties import PartyLocalityGroup, share_party_localities
 from document_ocr.synthesis.curated_routes import GoodsOriginIdentifier, RouteTopology
 from document_ocr.synthesis.dangerous_goods_registry import (
     DangerousGoodsHmtRecord,
@@ -40,7 +42,11 @@ from document_ocr.synthesis.hs_registry import (
 from document_ocr.synthesis.template_compiler.contact_values import _phone_prefix
 from document_ocr.synthesis.template_compiler.dangerous_goods_packaging import profile
 from document_ocr.synthesis.thermal_goods import classify_thermal_hs
-from document_ocr.synthesis.transport_capacity import capacity_limits, equipment_capacity
+from document_ocr.synthesis.transport_capacity import (
+    capacity_limits,
+    classify_equipment,
+    equipment_capacity,
+)
 
 Family = Literal["ambient", "frozen", "chilled", "dg_chemical", "dg_vehicle", "vehicle"]
 _MEASURES = ("grossWeight", "netWeight", "volume")
@@ -49,6 +55,23 @@ _MASS_FACTORS = {
     "metric_tonne": Decimal(1000),
     "pound": Decimal("0.45359237"),
 }
+
+
+class CandidateIncompatibility(ValueError):
+    """A sampled draw cannot fit its declared domain or source numeric grid.
+
+    Only this error is eligible for bounded cargo resampling. Invalid source
+    contracts, missing ownership, schema errors and unexpected exceptions are
+    not candidate failures and must propagate without retry.
+    """
+
+
+def _party_signature(party: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Same ordered identity/address words; punctuation never hides a new site."""
+    return tuple(
+        tuple(re.findall(r"\w+", party.get(field, "").casefold()))
+        for field in ("name", "addressLine")
+    )
 
 
 class FilePin(BaseModel):
@@ -196,7 +219,15 @@ class SourceCapabilities(BaseModel):
             "keep them private rather than adding target fields."
         ),
     )
+    equipment_mix: PrintedEquipmentMix | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Fixed printed equipment mix without individual identifier classification.",
+    )
     party_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
+    party_locality_groups: tuple[PartyLocalityGroup, ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
     location_sides: dict[str, Literal["origin", "destination"]] = Field(default_factory=dict)
     route_topology: RouteTopology | None = Field(
         default=None, exclude_if=lambda value: value is None
@@ -212,6 +243,9 @@ class SourceCapabilities(BaseModel):
 
     @model_validator(mode="after")
     def valid_domains(self) -> SourceCapabilities:
+        grouped_parties = [path for group in self.party_locality_groups for path in group.members]
+        if len(set(grouped_parties)) != len(grouped_parties):
+            raise ValueError("party locality certificates must use disjoint member groups")
         if any(re.fullmatch(r"[0-9]{4}", value) is None for value in self.allowed_hs_headings):
             raise ValueError("HS domains require exact four-digit headings")
         if any(re.fullmatch(r"[0-9]{6}", value) is None for value in self.allowed_hs_codes):
@@ -438,7 +472,7 @@ def _observation(row: Mapping[str, Any], family: Family | None = None) -> CargoO
 
 def _pick[T](values: Sequence[T], stream: DeterministicStream) -> T:
     if not values:
-        raise ValueError("no compatible scenario candidates")
+        raise CandidateIncompatibility("no compatible scenario candidates")
     return values[stream.randbelow(len(values))]
 
 
@@ -694,6 +728,8 @@ class ScenarioCatalog:
         ScenarioLocation, ScenarioLocation, dict[str, ScenarioLocation], dict[str, Any], dict
     ]:
         patch = row["target"]["documentPatch"]
+        for group in capabilities.party_locality_groups:
+            group.validate_source(row, self.countries)
         topology = capabilities.route_topology
         if topology is not None:
             topology.validate_source(patch)
@@ -853,7 +889,8 @@ class ScenarioCatalog:
                 if key in freight["paymentPlace"]:
                     replacements[f"{path}.{key}"] = getattr(location, key)
         parties: dict[str, ScenarioLocation] = {}
-        repeated_parties: dict[tuple[str, str], ScenarioLocation] = {}
+        party_country_assignments: dict[str, str] = {}
+        repeated_parties: dict[tuple[tuple[str, ...], tuple[str, ...]], ScenarioLocation] = {}
         for role, values in patch.get("parties", {}).items():
             entries = values if isinstance(values, list) else [values]
             for i, party in enumerate(entries):
@@ -870,8 +907,12 @@ class ScenarioCatalog:
                     )
                 )
                 country = nodes[node].country_code
+                party_country_assignments[path] = country
                 location = _pick(self.localities[country], stream.derive(path))
-                signature = (party.get("name", ""), party.get("addressLine", ""))
+                # Label punctuation and casing are not separate office identities.
+                # Preserve the ordered tokens (including all address numbers),
+                # so different sites are never joined merely by company name.
+                signature = _party_signature(party)
                 if all(signature):
                     if signature in repeated_parties:
                         if (
@@ -888,6 +929,24 @@ class ScenarioCatalog:
                 parties[path] = location
                 if "country" in party:
                     replacements[f"{path}.country"] = location.country
+        if capabilities.party_locality_groups:
+            parties = share_party_localities(
+                capabilities.party_locality_groups,
+                patch,
+                parties,
+                party_country_assignments,
+                _party_signature,
+            )
+        # A symbolic notify party may still print its own contact overrides.
+        # These use the referenced party's geography, not a separately sampled
+        # identity. Resolve after concrete parties so dict order cannot matter.
+        for i, party in enumerate(patch.get("parties", {}).get("notifyParties", [])):
+            if party.get("sameAs") is None or not party.get("contactDetails"):
+                continue
+            reference = f"documentPatch.parties.{party['sameAs']}"
+            if reference not in parties:
+                raise ValueError("notify contact reference lacks a sampled concrete party")
+            parties[f"documentPatch.parties.notifyParties[{i}]"] = parties[reference]
         return (
             origin,
             destination,
@@ -899,6 +958,15 @@ class ScenarioCatalog:
                 if capabilities.require_contact_support
                 else {},
                 "rejectedDraws": rejected,
+                **(
+                    {
+                        "partyLocalityGroups": [
+                            sorted(group.members) for group in capabilities.party_locality_groups
+                        ]
+                    }
+                    if capabilities.party_locality_groups
+                    else {}
+                ),
                 **(
                     {
                         "routeNodes": {k: v.model_dump() for k, v in nodes.items()},
@@ -953,9 +1021,7 @@ class ScenarioCatalog:
                 if cap.physical_profile in {"source_bundle", "source_whole_units"}
                 else (*self.observations, source)
             )
-        required = {f for f in _MEASURES if f in source.goods} | set(
-            cap.required_private_measures
-        )
+        required = {f for f in _MEASURES if f in source.goods} | set(cap.required_private_measures)
         for donor in observations:
             thermal = cap.family in {"frozen", "chilled"}
             family_matches = (
@@ -1123,7 +1189,7 @@ class ScenarioCatalog:
                     _normalized_chemical_identity(self.phrases[code])
                 )
             ):
-                raise ValueError(
+                raise CandidateIncompatibility(
                     "ordinary source cannot emit exact regulated or grade-conditional chemical: "
                     f"{self.phrases[code]} / UN {','.join(hazard['unNumbers'])}"
                 )
@@ -1175,7 +1241,9 @@ class ScenarioCatalog:
         empirical = [c for c in codes if c not in self.thermal_codes[cap.family]]
         if empirical:
             if len(codes) != 1 or codes[0] not in donor.hs6 or donor.family != cap.family:
-                raise ValueError("empirical thermal extension requires its exact commodity bundle")
+                raise CandidateIncompatibility(
+                    "empirical thermal extension requires its exact commodity bundle"
+                )
             temperature = _temperature(donor.containers)
             if temperature is None:
                 raise ValueError("observed produce identity lacks a carrying temperature")
@@ -1221,7 +1289,9 @@ class ScenarioCatalog:
                 for t in source.goods.get("handlingInstructions", ())
             )
         ):
-            raise ValueError("printed ventilation requires commodity-supported settings")
+            raise CandidateIncompatibility(
+                "printed ventilation requires commodity-supported settings"
+            )
         containers = [deepcopy(dict(c)) for c in source.containers]
         allocations = goods.get("splitGoodsPlacement", [])
         quantities = [int(a["packageQuantity"]) for a in allocations if "packageQuantity" in a]
@@ -1278,7 +1348,9 @@ class ScenarioCatalog:
                 (canonical / unit_factor).quantize(quantum, rounding=ROUND_HALF_UP)
             )
             if goods[field]["value"] <= 0:
-                raise ValueError("sampled physical measure rounds to zero at source precision")
+                raise CandidateIncompatibility(
+                    "sampled physical measure rounds to zero at source precision"
+                )
         # Missing public labels do not mean that a source template has no
         # printed mass/cube. Carry those facts from the same sampled donor,
         # not from an unrelated source commodity's per-package density.
@@ -1288,7 +1360,7 @@ class ScenarioCatalog:
             if field not in goods
         }
         if any(value <= 0 for value in private_measures.values()):
-            raise ValueError("sampled private physical measure must be positive")
+            raise CandidateIncompatibility("sampled private physical measure must be positive")
         all_measures = {
             field: _canonical_measure(goods, field) for field in _MEASURES if field in goods
         } | private_measures
@@ -1297,7 +1369,7 @@ class ScenarioCatalog:
             and "grossWeight" in all_measures
             and all_measures["netWeight"] > all_measures["grossWeight"]
         ):
-            raise ValueError("sampled net weight exceeds gross weight")
+            raise CandidateIncompatibility("sampled net weight exceeds gross weight")
         if "description" in goods:
             goods["description"] = "; ".join(i.phrase for i in identities)
         if "hsCodes" in goods:
@@ -1311,11 +1383,13 @@ class ScenarioCatalog:
                 ):
                     if key in entry:
                         if value is None:
-                            raise ValueError(f"sampled DG tuple lacks printed source field {key}")
+                            raise CandidateIncompatibility(
+                                f"sampled DG tuple lacks printed source field {key}"
+                            )
                         entry[key] = value
                 if "subsidiaryHazardCategories" in entry:
                     if not dg_record.subsidiary_hazard_categories:
-                        raise ValueError(
+                        raise CandidateIncompatibility(
                             "sampled DG tuple lacks the source's subsidiary-hazard slot"
                         )
                     entry["subsidiaryHazardCategories"] = list(
@@ -1328,7 +1402,9 @@ class ScenarioCatalog:
                     container[field] = sampled[field]
             if "temperatureSetpoint" in container:
                 if thermal_context is None:
-                    raise ValueError("sampled cold-chain bundle has no carrying setpoint")
+                    raise CandidateIncompatibility(
+                        "sampled cold-chain bundle has no carrying setpoint"
+                    )
                 temperature = Decimal(str(thermal_context["temperatureCelsius"]))
                 value = (
                     temperature
@@ -1341,6 +1417,10 @@ class ScenarioCatalog:
                     "verified gross mass requires an explicit tare/row-weight contract"
                 )
         if containers:
+            if classify_equipment(donor.containers[0]) == "unsupported_reefer":
+                raise CandidateIncompatibility(
+                    "reefer size/type pair has no source-supported capacity contract"
+                )
             capacity = equipment_capacity(donor.containers[0], self.limits)
             shares = (
                 [Decimal(a["packageQuantity"]) / quantity for a in allocations]
@@ -1348,25 +1428,39 @@ class ScenarioCatalog:
                 else [Decimal(1) / len(containers)] * len(containers)
             )
             peak = max(shares)
-            if (
+            if cap.equipment_mix is None and (
                 "grossWeight" in all_measures
                 and all_measures["grossWeight"] * peak > capacity.payload_kg
             ):
-                raise ValueError("sampled row exceeds equipment payload capacity")
-            if (
+                raise CandidateIncompatibility("sampled row exceeds equipment payload capacity")
+            if cap.equipment_mix is None and (
                 "volume" in all_measures
                 and capacity.volume_m3 is not None
                 and all_measures["volume"] * peak > capacity.volume_m3
             ):
-                raise ValueError("sampled row exceeds equipment enclosed volume")
+                raise CandidateIncompatibility("sampled row exceeds equipment enclosed volume")
         if cap.family == "dg_chemical":
             if "grossWeight" in all_measures and all_measures["grossWeight"] / quantity > 400:
-                raise ValueError("chemical package mass exceeds non-bulk synthesis envelope")
+                raise CandidateIncompatibility(
+                    "chemical package mass exceeds non-bulk synthesis envelope"
+                )
             if "volume" in all_measures and all_measures["volume"] / quantity > Decimal(".45"):
-                raise ValueError("chemical package cube exceeds non-bulk synthesis envelope")
+                raise CandidateIncompatibility(
+                    "chemical package cube exceeds non-bulk synthesis envelope"
+                )
+        mix_capacities = None
+        mix_assignment = None
+        if cap.equipment_mix is not None:
+            mix_capacities = cap.equipment_mix.capacities(self.limits)
+            loads = [
+                {field: value * share for field, value in all_measures.items()} for share in shares
+            ]
+            mix_assignment = capacity_assignment(loads, mix_capacities)
+            if mix_assignment is None:
+                raise CandidateIncompatibility("sampled loads cannot fit the printed equipment mix")
         by_number = {a["equipmentIdentifier"]: a for a in allocations}
         physical_rows = []
-        for container in containers:
+        for index, container in enumerate(containers):
             number = container["equipmentIdentifier"]
             allocation = by_number.get(number, {})
             numerator = allocation.get("packageQuantity", 1)
@@ -1377,7 +1471,9 @@ class ScenarioCatalog:
                     "quantity": allocation.get("packageQuantity"),
                     "shareNumerator": numerator,
                     "shareDenominator": denominator,
-                    "capacity": {
+                    "capacity": mix_capacities[mix_assignment[index]]
+                    if mix_capacities is not None
+                    else {
                         "payloadKg": str(capacity.payload_kg),
                         "volumeM3": str(capacity.volume_m3)
                         if capacity.volume_m3 is not None
@@ -1422,6 +1518,16 @@ class ScenarioCatalog:
             "physicalRows": physical_rows,
             **(
                 {
+                    "equipmentMix": {
+                        "certificate": cap.equipment_mix.model_dump(mode="json"),
+                        "capacities": mix_capacities,
+                    }
+                }
+                if cap.equipment_mix is not None
+                else {}
+            ),
+            **(
+                {
                     "privatePhysicalMeasures": {
                         field: {
                             "value": str(value),
@@ -1456,8 +1562,14 @@ class ScenarioCatalog:
         seed: int,
         variant: int,
         capabilities: SourceCapabilities,
+        validate_candidate: Callable[[ShipmentScenario], None] | None = None,
     ) -> ShipmentScenario:
         sid = source_row["documentId"]
+        if capabilities.equipment_mix is not None:
+            capabilities.equipment_mix.validate_source(
+                source_row["joinedRawText"],
+                source_row["target"]["documentPatch"].get("containerInformation", []),
+            )
         if (
             variant < 1
             or sid not in self.train
@@ -1486,7 +1598,7 @@ class ScenarioCatalog:
                 cargo, receipt = self._cargo(
                     source, donor, capabilities, identities, dg_record, draw
                 )
-            except ValueError as error:
+            except CandidateIncompatibility as error:
                 failures[str(error)] += 1
                 continue
             for index, goods in enumerate(cargo["goodsItemDetails"]):
@@ -1501,7 +1613,7 @@ class ScenarioCatalog:
                 for field, value in container.items():
                     if value != source.containers[i][field]:
                         replacements[f"documentPatch.containerInformation[{i}].{field}"] = value
-            return ShipmentScenario(
+            scenario = ShipmentScenario(
                 source_id=sid,
                 variant=variant,
                 origin=origin,
@@ -1533,6 +1645,13 @@ class ScenarioCatalog:
                     **receipt,
                 },
             )
+            if validate_candidate is not None:
+                try:
+                    validate_candidate(scenario)
+                except CandidateIncompatibility as error:
+                    failures[str(error)] += 1
+                    continue
+            return scenario
         raise ValueError(
             f"no physically compatible scenario after {self.config.maximum_candidates} draws: "
             f"{dict(failures)}"

@@ -128,6 +128,146 @@ def test_contact_only_roles_preserve_absent_identity_and_do_not_merge_unrelated_
     assert request_hash(requests) == request_hash(contact_parties(source, source, "sample"))
 
 
+@pytest.mark.parametrize("reference", ["shipper", "consignee"])
+def test_symbolic_notify_contacts_use_referenced_company_without_copying_identity(reference):
+    source = {
+        "documentPatch": {
+            "parties": {
+                reference: {"name": "OLD COMPANY", "country": "EGYPT"},
+                "notifyParties": [
+                    {
+                        "sameAs": reference,
+                        "contactDetails": {"emailAddresses": ["M.AROUSSY@ITACEGYPT.NET"]},
+                    }
+                ],
+            }
+        }
+    }
+    target = deepcopy(source)
+    target["documentPatch"]["parties"][reference].update(
+        name="Atlantic Steel Distribution (UK) Limited", country="United Kingdom"
+    )
+    before = deepcopy(target)
+    requests = contact_parties(source, target, "sample")
+    assert len(requests) == 1
+    party = requests[0]
+    assert party.name == "ATLANTIC STEEL DISTRIBUTION (UK) LIMITED"
+    assert party.country == "UNITED KINGDOM"
+    assert party.role is None
+    assert party.fields[0].paths == (
+        "documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]",
+    )
+    assert "COMPANY p0: ATLANTIC STEEL DISTRIBUTION (UK) LIMITED" in contact_prompt(requests)
+    assert "COUNTRY: UNITED KINGDOM" in contact_prompt(requests)
+    assert "identity is not supplied" not in contact_prompt(requests)
+    values = unpack_contacts(
+        contact_output_type(requests).model_validate({"p0": {"c0": "atlantic.sales@gmail.com"}}),
+        requests,
+    )["sample"]
+    fixed = apply_contacts(target, values, requests)
+    assert fixed["documentPatch"]["parties"]["notifyParties"][0] == {
+        "sameAs": reference,
+        "contactDetails": {"emailAddresses": ["atlantic.sales@gmail.com"]},
+    }
+    assert target == before
+    assert request_hash(requests) != request_hash(contact_parties(source, source, "sample"))
+    target["documentPatch"]["parties"][reference]["name"] = party.name
+    target["documentPatch"]["parties"][reference]["country"] = party.country
+    assert request_hash(requests) == request_hash(contact_parties(source, target, "sample"))
+
+
+def test_symbolic_notify_groups_repeated_contact_with_named_company_but_keeps_override():
+    source, target, _ = parties()
+    source["documentPatch"]["parties"]["notifyParties"][0] = {
+        "sameAs": "consignee",
+        "contactDetails": {"emailAddresses": ["INFO@OLDLIFT.COM", "SECOND@OLDLIFT.COM"]},
+    }
+    target["documentPatch"]["parties"]["notifyParties"][0] = deepcopy(
+        source["documentPatch"]["parties"]["notifyParties"][0]
+    )
+    requests = contact_parties(source, target, "sample")
+    assert len(requests) == 1
+    assert len(requests[0].fields) == 3
+    assert len(requests[0].fields[0].paths) == 2
+    assert requests[0].fields[2].original == "SECOND@OLDLIFT.COM"
+    assert len(requests[0].fields[2].paths) == 1
+
+
+def test_symbolic_contact_reference_does_not_invent_missing_company_name():
+    source = {
+        "documentPatch": {
+            "parties": {
+                "consignee": {"addressLine": "12 ROAD", "country": "INDIA"},
+                "notifyParties": [
+                    {
+                        "sameAs": "consignee",
+                        "contactDetails": {"emailAddresses": ["oldnotify@gmail.com"]},
+                    }
+                ],
+            }
+        }
+    }
+    requests = contact_parties(source, source, "sample")
+    assert requests[0].name is None
+    assert requests[0].country == "INDIA"
+    assert requests[0].role == "documentPatch.parties.notifyParties[0]"
+    source["documentPatch"]["parties"]["consignee"].pop("country")
+    assert contact_parties(source, source, "sample")[0].country == ""
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "unsupported",
+        "missing",
+        "null",
+        "empty",
+        "nested",
+        "invalid_name",
+        "invalid_country",
+        "wrong_role",
+    ],
+)
+def test_invalid_explicit_contact_references_fail_without_mutation(change):
+    source, target, _ = parties()
+    # The shared-company fixture intentionally aliases both party dictionaries;
+    # invalid-reference cases need independent concrete and symbolic parties.
+    for document in (source, target):
+        document["documentPatch"]["parties"]["notifyParties"] = deepcopy(
+            document["documentPatch"]["parties"]["notifyParties"]
+        )
+    source["documentPatch"]["parties"]["consignee"].pop("contactDetails")
+    target["documentPatch"]["parties"]["consignee"].pop("contactDetails")
+    notify = target["documentPatch"]["parties"]["notifyParties"][0]
+    notify.pop("name")
+    notify.pop("country")
+    notify["sameAs"] = "consignee"
+    members = target["documentPatch"]["parties"]
+    if change == "unsupported":
+        notify["sameAs"] = "deliveryAgent"
+    elif change == "missing":
+        members.pop("consignee")
+    elif change == "null":
+        members["consignee"] = None
+    elif change == "empty":
+        members["consignee"] = {}
+    elif change == "nested":
+        members["consignee"]["sameAs"] = "shipper"
+    elif change == "invalid_name":
+        members["consignee"]["name"] = " "
+    elif change == "invalid_country":
+        members["consignee"]["country"] = 1
+    elif change == "wrong_role":
+        members["consignee"]["sameAs"] = "shipper"
+        source["documentPatch"]["parties"]["consignee"]["contactDetails"] = {
+            "emailAddresses": ["wrongrole@example.com"]
+        }
+    before = deepcopy(target)
+    with pytest.raises(ValueError, match=r"contact.*reference"):
+        contact_parties(source, target, "sample")
+    assert target == before
+
+
 @pytest.mark.parametrize(
     "email",
     [

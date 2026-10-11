@@ -20,6 +20,7 @@ from document_ocr.synthesis.container_semantics import (
     review_source_equipment_surface,
 )
 from document_ocr.synthesis.curated import digest, flat
+from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
 from document_ocr.synthesis.curated_measurements import (
     format_measure as _format,
 )
@@ -29,7 +30,11 @@ from document_ocr.synthesis.curated_measurements import (
 from document_ocr.synthesis.curated_measurements import (
     printed_quantum as _quantum,
 )
-from document_ocr.synthesis.curated_scenarios import ShipmentScenario
+from document_ocr.synthesis.curated_scenarios import (
+    CandidateIncompatibility,
+    ShipmentScenario,
+    SourceCapabilities,
+)
 from document_ocr.synthesis.curated_templates import SamplingBlueprint, current_path
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.rendering import _numeric_interpretations
@@ -103,6 +108,10 @@ class _Owner:
     baseline: Decimal
     surfaces: tuple[str, ...]
     curated: bool
+    # Source measures may use another unit or be a declared partition of the
+    # cargo mass, rather than an independently sampled shipment total.
+    source_scale: Decimal = Decimal(1)
+    component: bool = False
 
 
 def _role(metadata: str, paths: Sequence[str]) -> tuple[str, int | None] | None:
@@ -162,6 +171,44 @@ def _owners(blueprint: SamplingBlueprint) -> tuple[_Owner, ...]:
         if "measure_path" in recipe
     }
     aggregates = []
+    declarations = blueprint.ownership_data.get("measure_owners", {})
+    if not isinstance(declarations, dict):
+        raise ValueError("measure_owners must map active numeric bindings to certificates")
+    for key, declaration in declarations.items():
+        if key not in active or key in converted_aliases:
+            raise ValueError(f"declared measure requires an active independent source owner: {key}")
+        if set(declaration) - {"measure", "baseline", "unit", "row", "component"}:
+            raise ValueError(f"unknown measure certificate fields: {key}")
+        measure = declaration.get("measure")
+        unit = declaration.get("unit")
+        if measure not in _MEASURES or unit not in _FACTORS:
+            raise ValueError(f"invalid declared physical dimension/unit: {key}")
+        if (measure == "volume") != (unit == "cubic_metre"):
+            raise ValueError(f"declared physical unit has the wrong dimension: {key}")
+        row = declaration.get("row")
+        component = declaration.get("component", False)
+        if not isinstance(component, bool) or (component and row is not None):
+            raise ValueError(f"physical component cannot also be a container row: {key}")
+        containers = blueprint.target["documentPatch"].get("containerInformation", [])
+        if row is not None and (type(row) is not int or not 0 <= row < len(containers)):
+            raise ValueError(f"declared measure row is outside source equipment: {key}")
+        baseline = Decimal(str(declaration["baseline"]))
+        if not baseline.is_finite() or baseline < 0:
+            raise ValueError(f"invalid declared source measurement baseline: {key}")
+        binding = blueprint.historical_bindings[key]
+        if binding["value_kind"] != "decimal_measurement":
+            raise ValueError(f"declared measure owner is not a numeric measurement: {key}")
+        surfaces = tuple(o["source_text"] for o in binding["occurrences"])
+        for surface in surfaces:
+            _token(surface, baseline)
+        goods = blueprint.target["documentPatch"].get("goodsItemDetails", [{}])[0]
+        canonical_unit = goods.get(measure, {}).get(
+            "unit", "cubic_metre" if measure == "volume" else "kilogram"
+        )
+        scale = _FACTORS[unit] / _FACTORS[canonical_unit]
+        result.append(
+            _Owner(key, measure, row, baseline * scale, surfaces, False, scale, component)
+        )
     sums = {
         "sum_gross_weight": "grossWeight",
         "sum_net_weight": "netWeight",
@@ -171,6 +218,7 @@ def _owners(blueprint: SamplingBlueprint) -> tuple[_Owner, ...]:
         if (
             key not in active
             or key in converted_aliases
+            or key in declarations
             or binding["value_kind"] not in {"decimal_measurement", "integer"}
         ):
             continue
@@ -266,7 +314,7 @@ def _owners(blueprint: SamplingBlueprint) -> tuple[_Owner, ...]:
             raise ValueError("physical sum has missing or cyclic owned dependencies")
     for measure in _MEASURES:
         selected = [o for o in result if o.measure == measure]
-        if len({o.baseline for o in selected if o.row is None}) > 1:
+        if len({o.baseline for o in selected if o.row is None and not o.component}) > 1:
             raise ValueError(
                 f"shipment measurement owners have conflicting source totals: {measure}"
             )
@@ -281,11 +329,59 @@ def _owners(blueprint: SamplingBlueprint) -> tuple[_Owner, ...]:
         )
         if source_rows and set(source_rows) == expected_rows:
             source_sum = sum(source_rows.values(), Decimal(0))
-            if any(o.row is None and o.baseline != source_sum for o in selected):
+            if any(
+                o.row is None and not o.component and o.baseline != source_sum for o in selected
+            ):
                 raise ValueError(
                     f"complete source measurement rows contradict shipment total: {measure}"
                 )
+        components = [o for o in selected if o.component]
+        if components:
+            totals = {o.baseline for o in selected if o.row is None and not o.component}
+            if len(totals) != 1 or sum((o.baseline for o in components), Decimal(0)) != next(
+                iter(totals)
+            ):
+                raise ValueError(
+                    f"physical components do not partition one source total: {measure}"
+                )
+        if any(o.key in declarations for o in selected):
+            public = blueprint.target["documentPatch"].get("goodsItemDetails", [{}])[0].get(measure)
+            if public is not None:
+                expected = Decimal(str(public["value"]))
+                totals = {o.baseline for o in selected if o.row is None and not o.component}
+                if totals:
+                    if totals != {expected}:
+                        raise ValueError(
+                            f"declared source total differs from current gold: {measure}"
+                        )
+                elif (
+                    set(source_rows) != expected_rows
+                    or sum(source_rows.values(), Decimal(0)) != expected
+                ):
+                    raise ValueError(
+                        f"declared source rows do not prove current gold total: {measure}"
+                    )
     return tuple(result)
+
+
+def validate_source_physical_requirements(
+    blueprint: SamplingBlueprint, capabilities: SourceCapabilities
+) -> None:
+    """Require donor support for every certified positive, source-only measure."""
+    # These profiles deliberately retain this source's own physical bundle;
+    # they cannot select an unrelated donor lacking its private measurements.
+    if capabilities.physical_profile in {"source_bundle", "source_whole_units"}:
+        return
+    goods = blueprint.target["documentPatch"]["goodsItemDetails"][0]
+    required = {
+        owner.measure
+        for owner in _owners(blueprint)
+        if owner.baseline > 0 and owner.measure not in goods
+    }
+    if missing := required - set(capabilities.required_private_measures):
+        raise ValueError(
+            "source capability omits required private measures: " + ", ".join(sorted(missing))
+        )
 
 
 def _distribute(
@@ -308,8 +404,12 @@ def _distribute(
     for i in order[:remainder]:
         values[i] += 1
     result = [value * quantum for value in values]
-    if sum(result) != total or any(v < 0 if allow_zero else v <= 0 for v in result):
-        raise ValueError("positive physical row allocation cannot exactly represent the total")
+    if sum(result) != total:
+        raise ValueError("physical row allocation failed exact conservation")
+    if any(v < 0 if allow_zero else v <= 0 for v in result):
+        raise CandidateIncompatibility(
+            "positive physical row allocation cannot exactly represent the total"
+        )
     return result
 
 
@@ -337,13 +437,13 @@ def _couple_mass_rows(rows, totals, lattices, receipts, weights):
     if net_quantum >= gross_quantum:
         slack = totals["grossWeight"] * gross_factor - totals["netWeight"] * net_factor
         if slack < 0:
-            raise ValueError("shipment net mass exceeds its gross mass")
+            raise CandidateIncompatibility("shipment net mass exceeds its gross mass")
         extra = _distribute(slack, weights, gross_quantum, allow_zero=True)
         rows["grossWeight"] = [(n + e) / gross_factor for n, e in zip(net, extra, strict=True)]
     else:
         bounded_net = _distribute(totals["netWeight"] * net_factor, gross, net_quantum)
         if any(n > g for n, g in zip(bounded_net, gross, strict=True)):
-            raise ValueError("shipment net mass exceeds its gross mass")
+            raise CandidateIncompatibility("shipment net mass exceeds its gross mass")
         rows["netWeight"] = [n / net_factor for n in bounded_net]
 
 
@@ -361,7 +461,11 @@ def _measure_totals(blueprint, scenario, target, owners, support):
         relevant = [o for o in owners if o.measure == measure]
         if not relevant:
             continue
-        quantum = max(_quantum(s, o.baseline) for o in relevant for s in o.surfaces)
+        quantum = max(
+            _quantum(s, o.baseline / o.source_scale) * o.source_scale
+            for o in relevant
+            for s in o.surfaces
+        )
         lattices[measure] = quantum
         if measure in goods:
             amount = Decimal(str(goods[measure]["value"]))
@@ -389,14 +493,14 @@ def _measure_totals(blueprint, scenario, target, owners, support):
                     f"different-product donor lacks required private {measure}; "
                     "declare the source's required_private_measures before sampling"
                 )
-            totals_seen = {o.baseline for o in relevant if o.row is None}
+            totals_seen = {o.baseline for o in relevant if o.row is None and not o.component}
             if len(totals_seen) != 1:
                 raise ValueError(f"source-only {measure} lacks a unique owned total or donor fact")
             amount = totals_seen.pop() * quantity / source_quantity
             method = "source_owned_private_per_package_measure"
         total = amount.quantize(quantum, rounding=ROUND_HALF_UP)
         if total <= 0:
-            raise ValueError(f"physical {measure} rounds to zero")
+            raise CandidateIncompatibility(f"physical {measure} rounds to zero")
         if measure in goods:
             goods[measure]["value"] = float(total)
         totals[measure] = total
@@ -417,7 +521,7 @@ def _measure_totals(blueprint, scenario, target, owners, support):
         and totals["netWeight"] * _FACTORS[receipts["netWeight"]["unit"]]
         > totals["grossWeight"] * _FACTORS[receipts["grossWeight"]["unit"]]
     ):
-        raise ValueError("printed numeric rounding would make net exceed gross")
+        raise CandidateIncompatibility("printed numeric rounding would make net exceed gross")
     return totals, lattices, receipts
 
 
@@ -563,6 +667,18 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
                 output.append(
                     re.sub(r"(?<!\d)" + re.escape(code) + r"(?!\d)", dg["unNumber"], text)
                 )
+        elif dg and any(p.endswith(".packingGroupCategory") for p in paths):
+            codes = {"HIGH_DANGER": "I", "MEDIUM_DANGER": "II", "LOW_DANGER": "III"}
+            source_codes = {codes[before[p]] for p in paths if p.endswith(".packingGroupCategory")}
+            if len(source_codes) != 1 or dg.get("packingGroup") not in codes.values():
+                raise ValueError("DG packing-group owner requires one source and sampled group")
+            code = source_codes.pop()
+            output = []
+            for text in texts:
+                pattern = r"(?<!\w)" + re.escape(code) + r"(?!\w)"
+                if len(re.findall(pattern, text)) != 1:
+                    raise ValueError("DG packing-group owner lacks exactly its source group")
+                output.append(re.sub(pattern, dg["packingGroup"], text))
         if output is not None:
             surfaces[key] = output
     receipt["temperature"] = [str(v) for v in thermal] if thermal else None
@@ -914,6 +1030,14 @@ def prepare_physical_render(
         raise ValueError("physical plan/source identity mismatch")
     target = deepcopy(sampled_target)
     owners = _owners(blueprint)
+    equipment_mix = scenario.provenance.get("equipmentMix")
+    if equipment_mix is not None:
+        certificate = PrintedEquipmentMix.model_validate(equipment_mix["certificate"])
+        certificate.validate_source(
+            blueprint.source, blueprint.target["documentPatch"].get("containerInformation", [])
+        )
+        if len(equipment_mix["capacities"]) != sum(m.count for m in certificate.members):
+            raise ValueError("equipment mix capacity count differs from its source certificate")
     totals, lattices, measures_receipt = _measure_totals(
         blueprint, scenario, target, owners, support
     )
@@ -931,14 +1055,32 @@ def prepare_physical_render(
             )
     _couple_mass_rows(rows, totals, lattices, measures_receipt, weights)
     values, surfaces = {}, {}
+    components = {}
+    for measure, total in totals.items():
+        partition = [o for o in owners if o.measure == measure and o.component]
+        if partition:
+            components.update(
+                zip(
+                    (o.key for o in partition),
+                    _distribute(total, [o.baseline for o in partition], lattices[measure]),
+                    strict=True,
+                )
+            )
     for owner in owners:
         if owner.row is not None and owner.row >= len(weights):
             raise ValueError(f"physical row index exceeds sampled equipment: {owner.key}")
-        value = totals[owner.measure] if owner.row is None else rows[owner.measure][owner.row]
+        value = (
+            components[owner.key]
+            if owner.component
+            else (totals[owner.measure] if owner.row is None else rows[owner.measure][owner.row])
+        )
         if owner.curated:
             values[owner.key] = str(value)
         else:
-            surfaces[owner.key] = [_format(text, owner.baseline, value) for text in owner.surfaces]
+            surfaces[owner.key] = [
+                _format(text, owner.baseline / owner.source_scale, value / owner.source_scale)
+                for text in owner.surfaces
+            ]
     leaves = flat(target)
     for variable in blueprint.contract.variables:
         if variable.kind != "count":
@@ -989,6 +1131,7 @@ def prepare_physical_render(
     for measure, row_values in rows.items():
         if sum(row_values) != totals[measure]:
             raise ValueError("physical row conservation failed")
+    actual_rows = []
     for index, row in enumerate(physical_rows):
         capacity = row["capacity"]
         actual = {}
@@ -1014,16 +1157,35 @@ def prepare_physical_render(
                     / (totals[counterpart] * _FACTORS[measures_receipt[counterpart]["unit"]])
                 )
                 actual[field] = actual[counterpart] * ratio
-        if actual.get("grossWeight", 0) > Decimal(capacity["payloadKg"]):
-            raise ValueError("rendered row exceeds sampled equipment payload after rounding")
-        if capacity["volumeM3"] is not None and actual.get("volume", 0) > Decimal(
-            capacity["volumeM3"]
+        actual_rows.append(actual)
+        if equipment_mix is None and actual.get("grossWeight", 0) > Decimal(capacity["payloadKg"]):
+            raise CandidateIncompatibility(
+                "rendered row exceeds sampled equipment payload after rounding"
+            )
+        if (
+            equipment_mix is None
+            and capacity["volumeM3"] is not None
+            and actual.get("volume", 0) > Decimal(capacity["volumeM3"])
         ):
-            raise ValueError("rendered row exceeds sampled enclosed volume after rounding")
+            raise CandidateIncompatibility(
+                "rendered row exceeds sampled enclosed volume after rounding"
+            )
         if (
             "netWeight" in actual
             and "grossWeight" in actual
             and actual["netWeight"] > actual["grossWeight"]
         ):
-            raise ValueError("rendered row net mass exceeds its gross mass")
+            raise CandidateIncompatibility("rendered row net mass exceeds its gross mass")
+    if equipment_mix is not None:
+        assignment = capacity_assignment(actual_rows, equipment_mix["capacities"])
+        if assignment is None:
+            raise CandidateIncompatibility(
+                "rendered loads cannot fit the printed equipment mix after rounding"
+            )
+        receipt["equipmentMix"] = {
+            "basis": "feasible_assignment_not_identifier_classification",
+            "certificate": equipment_mix["certificate"],
+            "capacities": equipment_mix["capacities"],
+            "assignment": list(assignment),
+        }
     return PhysicalRenderPlan(target, values, surfaces, receipt)

@@ -89,7 +89,7 @@ def _validate_recipe(recipe: dict) -> None:
     options = {
         "text": {"prefix", "suffix"},
         "target": {"prefix", "suffix"},
-        "identifier": {"prefix"},
+        "identifier": {"prefix", "canonical_identity"},
         "date": {"format", "publish_target"},
         "phone": set(),
         "transport_leg": {"source_voyage"},
@@ -97,6 +97,11 @@ def _validate_recipe(recipe: dict) -> None:
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
+    if "canonical_identity" in recipe and (
+        not isinstance(recipe["canonical_identity"], str)
+        or not re.fullmatch(r"[A-Z0-9]+", recipe["canonical_identity"])
+    ):
+        raise ValueError("canonical identifier identity requires uppercase ASCII letters/digits")
     if action == "party_location" and (
         not isinstance(recipe["party_location"], str)
         or not recipe["party_location"].startswith("documentPatch.parties.")
@@ -299,8 +304,11 @@ def _render_recipe(
             raise ValueError(f"auxiliary alias lacks sampled target: {recipe['target']}")
         return recipe.get("prefix", "") + value + recipe.get("suffix", "")
     if "identifier" in recipe:
-        # Same source identifier, even with hyphens/spaces, shares one new value.
-        identity = re.sub(r"[^A-Z0-9]", "", original.upper())
+        # Source punctuation variants share an identity by default. Only an
+        # explicit reviewed alias may join occurrences whose actual digits differ.
+        identity = recipe.get("canonical_identity")
+        if identity is None:
+            identity = re.sub(r"[^A-Z0-9]", "", original.upper())
         length = max(6, len(re.sub(r"\D", "", identity)))
         digits = str(
             10 ** (length - 1)

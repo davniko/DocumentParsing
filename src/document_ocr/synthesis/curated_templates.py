@@ -50,6 +50,19 @@ from document_ocr.synthesis.template_compiler.descendant import (
 )
 
 
+def validate_postal_country_owner(text: str, country: str, code: str | None, path: str) -> None:
+    """Require the sampled country inside its certified printed postal owner."""
+    postal_text = " ".join(text.split())
+    terminal_code = bool(
+        code and re.search(r"(?<!\w)" + re.escape(code) + r"[\s,;.)]*$", postal_text)
+    )
+    if (
+        not re.search(r"(?<!\w)" + re.escape(country) + r"(?!\w)", postal_text, re.I)
+        and not terminal_code
+    ):
+        raise ValueError(f"sampled country absent from owned postal text: {path}")
+
+
 def current_path(path: str) -> str:
     """Translate structural names only; never resurrect discarded label fields."""
     path = path.replace(".cargoGroups[", ".goodsItemDetails[")
@@ -222,12 +235,16 @@ def compile_sampling_blueprint(
                 )
             )
     overrides = []
+    override_occurrences: dict[str, list[dict[str, Any]]] = {}
     removed_keys: set[str] = set()
     for override in ownership_overrides:
         if not override.target_paths or not set(override.target_paths) <= leaves.keys():
             raise ValueError(f"ownership override needs existing current leaves: {override.key}")
         for index, occurrence in enumerate(override.occurrences):
             start, end = locate(row["joinedRawText"], occurrence)
+            override_occurrences.setdefault(override.key, []).append(
+                dict(byte_start=start, byte_end=end, source_text=occurrence.text)
+            )
             overlaps = [r for r in regions if start < r.end and r.start < end]
             if any(not (start <= r.start and r.end <= end) for r in overlaps):
                 raise ValueError(
@@ -328,7 +345,8 @@ def compile_sampling_blueprint(
         historical[override.key] = {
             "logical_key": override.key,
             "target_paths": list(override.target_paths),
-            "occurrences": [o.model_dump(mode="json") for o in override.occurrences],
+            "value_kind": override.kind,
+            "occurrences": override_occurrences[override.key],
         }
     lexical_overrides = [o for o in ownership_overrides if o.kind in {"name", "postal", "product"}]
     if lexical_overrides:
@@ -622,21 +640,11 @@ def render_sampling_blueprint(
                 text = wrap_owned_text(region.source, value, product=region.kind == "product")
             # A nested country target must actually occur inside its postal
             # replacement; ownership alone does not prove a retained country.
-            postal_text = " ".join(text.split())
             for path in region.target_paths if text != region.source else changed_paths:
-                code = certified_country_codes.get(path)
-                terminal_country_code = bool(
-                    code and re.search(r"(?<!\w)" + re.escape(code) + r"[\s,;.)]*$", postal_text)
-                )
-                if (
-                    ".parties." in path
-                    and path.endswith(".country")
-                    and not re.search(
-                        r"(?<!\w)" + re.escape(str(after[path])) + r"(?!\w)", postal_text, re.I
+                if ".parties." in path and path.endswith(".country"):
+                    validate_postal_country_owner(
+                        text, str(after[path]), certified_country_codes.get(path), path
                     )
-                    and not terminal_country_code
-                ):
-                    raise ValueError(f"sampled country absent from owned postal text: {path}")
             covered.update(changed_paths)
         elif region.key in surface_values:
             supplied = surface_values[region.key]

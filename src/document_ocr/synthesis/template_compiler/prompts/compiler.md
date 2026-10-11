@@ -143,11 +143,17 @@ owned by a reusable, carrier-bound rendering contract.
   issue requiring review, not an unprinted fact that can be certified for extraction training.
   Do not invent source text, move evidence from another role, or treat an inferred locality as
   visible evidence to satisfy this requirement.
-- If a labelled party name includes `ON BEHALF OF`, `O/B`, `C/O`, or `AS AGENT OF`,
-  the affiliated organization is part of the same name contract. Do not generate
-  it independently as source-only text while retaining it in the name label.
-  Keep fixed relationship syntax literal where it lies outside the mutable
-  organization span. A legal suffix glued to an address in OCR belongs to the
+- A party target represents one role-owned entity and its own postal/contact data.
+  `ON BEHALF OF`, `O/B`, `C/O` and `AS AGENT OF` relate actors; they do not turn
+  different organizations into aliases of one legal name. For A acting on behalf
+  of B, the extraction entity is the primary printed company A. Its postal and
+  contacts must belong to A; archive B and unresolved shared-block postal data
+  outside the extraction target. A compound source label needs correction before
+  compilation, not a contract that legitimizes concatenating it. A genuine care-of recipient may remain part of the postal
+  address while remaining a separately owned actor for generation. Keep
+  relationship framing literal outside mutable organization spans and preserve
+  separately printed roles without inventing a forwarding-agent function.
+  A legal suffix glued to an address in OCR belongs to the
   name only when the evidence unambiguously supports the split; otherwise
   request review. Do not assign the suffix to the address slot.
 - Adjacent phone and email spans without a printed separator require a reviewed

@@ -93,6 +93,49 @@ def test_rank48_training_arguments_keep_all_scheduled_checkpoints(
     assert arguments.warmup_steps == 33
 
 
+def test_real600_synthetic5000_config_preserves_previous_training_settings() -> None:
+    stem = "t5gemma2_270m_lora.mpci_bl_real600_synthetic"
+    suffix = "positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml"
+    baseline = load_training_config(PRODUCTION / f"{stem}2500_boundaries_{suffix}")
+    expanded = load_training_config(PRODUCTION / f"{stem}5000_uae_{suffix}")
+    expected = baseline.model_dump(mode="python")
+    actual = expanded.model_dump(mode="python")
+
+    assert expanded.run.run_id != baseline.run.run_id
+    assert expanded.peft.adapter_name != baseline.peft.adapter_name
+    assert sum(source.records for source in expanded.dataset.splits.train) == 5600
+    assert sum(source.records for source in expanded.dataset.splits.validation) == 60
+    assert expanded.dataset.splits.validation[0].sha256 == (
+        baseline.dataset.splits.validation[0].sha256
+    )
+    assert expanded.logging.mlflow.tags["real_train_records"] == "600"
+    assert expanded.logging.mlflow.tags["synthetic_train_records"] == "5000"
+    assert expanded.logging.mlflow.tags["synthetic_source_templates"] == "360"
+
+    updates_per_epoch = math.ceil(5600 / 32)
+    total_updates = math.ceil(updates_per_epoch * expanded.optimization.num_train_epochs)
+    assert total_updates == 1750
+    assert expanded.optimization.schedule_free_adamw is not None
+    assert expanded.optimization.schedule_free_adamw.warmup_steps == math.ceil(
+        0.05 * total_updates
+    ) == 88
+    assert expanded.evaluation.steps == expanded.checkpoint.steps == math.ceil(
+        2.5 * updates_per_epoch
+    ) == 438
+    assert expanded.checkpoint.total_limit is None
+    assert expanded.checkpoint.load_best_model_at_end is True
+
+    # Only dataset identity and proportional timing change; all other settings match.
+    expected["run"]["run_id"] = actual["run"]["run_id"]
+    expected["peft"]["adapter_name"] = actual["peft"]["adapter_name"]
+    expected["dataset"]["splits"] = actual["dataset"]["splits"]
+    expected["optimization"]["schedule_free_adamw"]["warmup_steps"] = 88
+    expected["evaluation"]["steps"] = 438
+    expected["checkpoint"]["steps"] = 438
+    expected["logging"]["mlflow"]["tags"] = actual["logging"]["mlflow"]["tags"]
+    assert actual == expected
+
+
 def test_rank48_warmup_covers_five_percent_of_configured_optimizer_updates() -> None:
     config = load_training_config(_config_path(48))
     optimization = config.optimization

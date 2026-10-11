@@ -203,15 +203,17 @@ sources:
       count: 1
       value:
         text: at any port of discharge in {destination_country}
-    - quote: Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No. 207
-        for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall be
-        auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: Carrier draw Merchant's attention to the fact that as per Egyptian New
+        Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: Carrier draws Merchant's attention to the applicable destination customs requirements and
-          cargo clearance deadlines.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: Carrier draws Merchant's attention to the applicable destination customs
+          requirements and cargo clearance deadlines.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Import reference for the shipment as declared by shipper.
@@ -316,10 +318,12 @@ sources:
         prefix: CH
   doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
     spans:
-    - quote: MERCHANTS MUST PROVIDE THE CARRIER WITH ACID NUMBER AND HS CODE CONCERNING THEIR SHIPMENT
+    - quote: MERCHANTS MUST PROVIDE THE CARRIER WITH ACID NUMBER AND HS CODE CONCERNING
+        THEIR SHIPMENT
       count: 1
       value:
-        text: MERCHANTS MUST PROVIDE THE CARRIER WITH IMPORT REFERENCE AND HS CODE CONCERNING THEIR SHIPMENT
+        text: MERCHANTS MUST PROVIDE THE CARRIER WITH IMPORT REFERENCE AND HS CODE
+          CONCERNING THEIR SHIPMENT
     bindings:
       agent:cargo:foreign_exporter:country:
         text: '{origin_country}'
@@ -413,14 +417,6 @@ sources:
         text: Maersk {destination_country} ({destination_port})
   doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
     bindings:
-      anchor:documentPatch.shippedOnBoardDate:
-        date: '2026-01-02'
-        format: '%d/%m/%Y'
-        publish_target: documentPatch.shippedOnBoardDate
-      anchor:documentPatch.issueDate:
-        date: '2026-01-09'
-        format: '%d/%m/%Y'
-        publish_target: documentPatch.issueDate
       agent:invoice_date:
         date: '2025-12-11'
       agent:shipping_bill_date:
@@ -529,12 +525,10 @@ sources:
       anchor:documentPatch.parties.deliveryAgent.city:
         party_location: documentPatch.parties.deliveryAgent
         field: name
-      anchor:documentPatch.issueDate:
-        date: '2023-11-03'
-        format: '%m/%d/%Y'
     spans:
-    - quote: THESE COMMODITIES, TECHNOLOGY OR SOFTWARE WERE EXPORTED FROM THE UNITED STATES IN ACCORDANCE
-        WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION CONTRARY TO U.S. LAW PROHIBITED.
+    - quote: THESE COMMODITIES, TECHNOLOGY OR SOFTWARE WERE EXPORTED FROM THE UNITED
+        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION
+        CONTRARY TO U.S. LAW PROHIBITED.
       count: 1
       value:
         text: THESE COMMODITIES ARE SUBJECT TO APPLICABLE EXPORT REGULATIONS.
@@ -599,10 +593,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -621,8 +616,8 @@ sources:
       agent:reference:government:ein:0:
         identifier: registration
     spans:
-    - quote: 'THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED STATES IN ACCORDANCE
-        WITH THE EXPORT ADMINISTRATION REGULATIONS.
+    - quote: 'THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED
+        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS.
 
         DIVERSION CONTRARY TO U.S. LAW PROHIBITED.'
       count: 1
@@ -651,10 +646,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -694,10 +690,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -758,10 +755,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1140,14 +1138,6 @@ sources:
         identifier: import_reference
       agent:customs:importer_tax_number:
         identifier: registration
-      anchor:documentPatch.shippedOnBoardDate:
-        date: '2023-01-02'
-        format: '%d.%m.%Y'
-        publish_target: documentPatch.shippedOnBoardDate
-      anchor:documentPatch.issueDate:
-        date: '2023-01-02'
-        format: '%d.%m.%Y'
-        publish_target: documentPatch.issueDate
     spans:
     - quote: at Alexandria terminal
       count: 1
@@ -1198,8 +1188,9 @@ sources:
       agent:party:notify:reference:
         identifier: commercial_reference
     spans:
-    - quote: THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED STATES IN ACCORDANCE
-        WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION CONTRARY TO U.S. LAW PROHIBITED.
+    - quote: THESE COMMODITIES, TECHNOLOGY, OR SOFTWARE WERE EXPORTED FROM THE UNITED
+        STATES IN ACCORDANCE WITH THE EXPORT ADMINISTRATION REGULATIONS. DIVERSION
+        CONTRARY TO U.S. LAW PROHIBITED.
       count: 1
       value:
         text: THESE COMMODITIES ARE SUBJECT TO APPLICABLE EXPORT REGULATIONS.
@@ -1232,10 +1223,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1 (one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1 (one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1258,14 +1250,15 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by
       count: 1
       value:
-        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS, INCLUDING
-    - quote: Customs without any notice if Merchant fails to take delivery within 1(one) month from the
-        date of discharge.
+        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS,
+          INCLUDING
+    - quote: Customs without any notice if Merchant fails to take delivery within
+        1(one) month from the date of discharge.
       count: 1
       value:
         text: CUSTOMS CLEARANCE AND DELIVERY REQUIREMENTS.
@@ -1333,14 +1326,6 @@ sources:
         text: '{origin_code}'
       agent:party:freight_payer:short:
         target: documentPatch.parties.shipper.name
-      agent:party:continuation_shipper:address:
-        text: 'INDEPENDENT CORRESPONDENCE OFFICE:
-
-          C/O Brodies LLP Capital Square,
-
-          58 Morrison Street, Edinburgh,
-
-          Scotland, EH3 8BP, UK'
       agent:identifier:ncm:
         target: documentPatch.goodsItemDetails[0].hsCodes[0]
       agent:identifier:ruc:
@@ -1412,10 +1397,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1574,10 +1560,11 @@ sources:
       count: 1
       value:
         text: bound to the destination
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1585,8 +1572,10 @@ sources:
     bindings:
       agent:consignee:vat_number:
         identifier: registration
+        canonical_identity: '643668997'
       agent:notify:0:vat_number:
         identifier: registration
+        canonical_identity: '643668997'
       agent:acid:
         identifier: import_reference
       agent:import_permit:
@@ -1597,6 +1586,7 @@ sources:
         identifier: registration
       agent:importer_vat:
         identifier: registration
+        canonical_identity: '643668997'
       agent:consignee:commercial_registration:
         identifier: registration
       agent:notify:0:commercial_registration:
@@ -1812,10 +1802,6 @@ sources:
         identifier: registration
       agent:acid_reference:
         identifier: import_reference
-      agent:affiliate_address:
-        text: 'INDEPENDENT CORRESPONDENCE OFFICE:
-
-          AL SAFIYA-BLDG/HOR AL ANZ/PLOT N. 1974-0 UNITED ARAB EMIRATES'
     spans:
     - quote: 'VAT '
       count: 1
@@ -2016,15 +2002,17 @@ sources:
       agent:cargo:acid_reference:
         identifier: source_reference_1000753712024120044
     spans:
-    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2069,15 +2057,17 @@ sources:
       agent:cargo_cif_term:
         text: CIF {destination_port}, {destination_country}
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2129,12 +2119,12 @@ sources:
       agent:customs:consignee_tax_id:
         identifier: source_reference_755118553
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver’s
-        prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected
+        fm receiver’s prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal are to be collected
-          from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal
+          are to be collected from receivers prior to releasing the cargo.
   doc_16abe25cb6edd3204f3604db97367f4eef1576d58eef9870ac46a7d878bb2e82:
     bindings:
       agent:consignee_tax_id:
@@ -2172,15 +2162,17 @@ sources:
       anchor:documentPatch.cargoGroups[0].additionalInformation[1]:
         target: documentPatch.goodsItemDetails[0].description
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2279,12 +2271,12 @@ sources:
       agent:cargo:0:importer_tax_id:
         identifier: source_reference_494032855
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver's
-        prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected
+        fm receiver's prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal are to be collected
-          from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal
+          are to be collected from receivers prior to releasing the cargo.
   doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8:
     bindings:
       agent:customs:foreign_exporter_id:
@@ -2298,12 +2290,12 @@ sources:
       agent:party:shipper:0:fax:
         phone: documentPatch.parties.shipper
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected FM receiver's
-        prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected
+        FM receiver's prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal are to be collected
-          from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal
+          are to be collected from receivers prior to releasing the cargo.
   doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
     bindings:
       agent:acid_number:
@@ -2406,12 +2398,12 @@ sources:
       agent:consignee_fax:
         phone: documentPatch.parties.consignee
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver's
-        prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected
+        fm receiver's prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal are to be collected
-          from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal
+          are to be collected from receivers prior to releasing the cargo.
   doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
     bindings:
       agent:acid_number:
@@ -2609,20 +2601,23 @@ sources:
       agent:shipper_fax:
         phone: documentPatch.parties.shipper
     spans:
-    - quote: 93. Reloading empty containers to remain for receiver's account at any port of discharge
-        in Egypt.
+    - quote: 93. Reloading empty containers to remain for receiver's account at any
+        port of discharge in Egypt.
       count: 1
       value:
-        text: 93. Reloading empty containers to remain for receiver's account at the port of discharge.
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+        text: 93. Reloading empty containers to remain for receiver's account at the
+          port of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2750,15 +2745,17 @@ sources:
       agent:party:notify:0:tax_id:
         identifier: source_reference_557726832
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -2816,21 +2813,23 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country
     spans:
-    - quote: 112. Off loading of containers full from truck and reloading of empty onto truck at Port
-        Said to be at Receiver’s risk and expenses.
+    - quote: 112. Off loading of containers full from truck and reloading of empty
+        onto truck at Port Said to be at Receiver’s risk and expenses.
       count: 1
       value:
-        text: Off loading and reloading of empty containers onto trucks at the port of discharge are for
-          the account of the Merchant.
-    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+        text: Off loading and reloading of empty containers onto trucks at the port
+          of discharge are for the account of the Merchant.
+    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3001,14 +3000,15 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country_code
     spans:
-    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by
+    - quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3164,6 +3164,8 @@ sources:
         identifier: source_reference_439869676
       agent:customs:exporter_registration_number:
         identifier: source_reference_US01301195991
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.shipper
   doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6:
     bindings:
       agent:foreign_exporter_identifier:
@@ -3280,12 +3282,12 @@ sources:
   doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f:
     bindings: {}
     spans:
-    - quote: Any transportation expss of containers at Alexandria terminal to be collected fm receiver’s
-        prior releasing the cargo.
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected
+        fm receiver’s prior releasing the cargo.
       count: 1
       value:
-        text: Any transportation expenses of containers at the discharge terminal are to be collected
-          from receivers prior to releasing the cargo.
+        text: Any transportation expenses of containers at the discharge terminal
+          are to be collected from receivers prior to releasing the cargo.
     - quote: PORT SAID FREE ZONE
       count: 1
       value:
@@ -3342,21 +3344,23 @@ sources:
       agent:customs:acid:
         identifier: source_reference_9992023110000050293
     spans:
-    - quote: 112. Off loading of containers full from truck and reloading of empty onto truck at Port
-        Said to be at Receiver's risk and expenses.
+    - quote: 112. Off loading of containers full from truck and reloading of empty
+        onto truck at Port Said to be at Receiver's risk and expenses.
       count: 1
       value:
-        text: Off loading and reloading of empty containers onto trucks at the port of discharge are for
-          the account of the Merchant.
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+        text: Off loading and reloading of empty containers onto trucks at the port
+          of discharge are for the account of the Merchant.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3384,15 +3388,17 @@ sources:
         party_location: documentPatch.parties.shipper
         field: country
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3491,6 +3497,8 @@ sources:
       agent:exporter:country:long:
         party_location: documentPatch.parties.shipper
         field: country
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.shipper
     spans: []
   doc_fabe32eb22c937940c4af0bbd6838f42def474d16e8ca544f48471c7a42d2076:
     bindings:
@@ -3517,15 +3525,17 @@ sources:
         party_location: documentPatch.parties.deliveryAgent
         field: name
     spans:
-    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law No.
-        207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo shall
-        be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one) month
-        from the date of discharge.
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       count: 1
       value:
-        text: 367. Merchants are responsible for taking delivery within the applicable destination customs
-          time limits.
-    - quote: Preliminary Customs registration number for shipment bound to Egypt as declared by shipper.
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
       count: 1
       value:
         text: Preliminary customs registration reference as declared by shipper.
@@ -3546,3 +3556,2042 @@ sources:
         identifier: source_reference_7305349522025030019
       agent:exporter_identifier:
         identifier: source_reference_PL5273067939
+  doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb:
+    bindings:
+      agent:consignee_tax_id:
+        identifier: source_reference_378747150
+      agent:cargo_acid_number:
+        identifier: source_reference_3787471502024070025
+      agent:importer_tax_id:
+        identifier: source_reference_378471502
+      agent:foreign_exporter_id:
+        identifier: source_reference_DE363399408
+      agent:delivery_agent_tax_id:
+        identifier: source_reference_297923900
+    spans: []
+  doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005:
+    bindings:
+      agent:acid_number:
+        identifier: source_reference_3671719532023100235
+      agent:egyptian_importer_tax_id:
+        identifier: source_reference_367171953
+      agent:importer_tax_id:
+        identifier: source_reference_IT13471010150
+      agent:notify_country:
+        party_location: documentPatch.parties.consignee
+        field: country
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        party_location: documentPatch.parties.consignee
+        field: country
+  doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d:
+    bindings:
+      agent:party:shipper:0:tax_identifier:
+        identifier: source_reference_03035350986
+      agent:party:consignee:0:tax_identifier:
+        identifier: source_reference_474407675
+      agent:party:notify:0:tax_identifier:
+        identifier: source_reference_474407675
+      agent:customs:acid_reference:
+        identifier: source_reference_4744076752024020028
+  doc_2f680d56da4dec7386191f7ed6e343a3506a2790c130be1acd1f4ef8270823ba:
+    bindings:
+      agent:customs:acid_reference:
+        identifier: source_reference_4284985232023080011
+      agent:importer_tax_id:
+        identifier: source_reference_428498523
+      agent:routing_city:
+        party_location: documentPatch.parties.shipper
+        field: name
+      agent:release_location:
+        target: documentPatch.route.portOfLoading.name
+      agent:destination_clause_country:
+        text: '{destination_country}'
+  doc_a4cb81c178d0efc633a9eb6ede4245755240e921e17c538d8b7d405ab2eea94e:
+    bindings:
+      agent:shipment:acid_number:
+        identifier: source_reference_5939523832024100057
+      agent:shipment:importer_tax_id:
+        identifier: source_reference_593952383
+      agent:shipment:exporter_id:
+        identifier: source_reference_36AABCA7371G1ZQ
+      agent:shipment:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:shipment:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_efcc5ff31199867fd996d0da05a15f712b7b08128af067b9faf63e3e14245d11:
+    bindings:
+      agent:shipper:exporter_id:
+        identifier: source_reference_AE02100204996100003
+      agent:consignee:importer_tax_id:
+        identifier: source_reference_215753593
+      agent:customs:acid_reference:
+        identifier: source_reference_2157535932024010190
+      agent:notify:importer_tax_id:
+        identifier: source_reference_215753593
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        text: '{destination_port} FREE ZONE'
+    spans: []
+  doc_147a26262d50ea52c96fabd869b4f47c8a0187cc40526de515a0e64370475c7d:
+    bindings:
+      agent:customs:acid_number:
+        identifier: source_reference_5939523832024080077
+      agent:customs:importer_tax_id:
+        identifier: source_reference_593952383
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_36AABCA7371G1ZQ
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08:
+    bindings:
+      agent:customs:acid_number:
+        identifier: source_reference_5939523832025070028
+      agent:customs:egyptian_importer_tax_id:
+        identifier: source_reference_593952383
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_36AABCA7371G1ZQ
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+    spans:
+    - quote: 'Total Number Of Packages(In words):'
+      count: 1
+      value:
+        text: 'Total Number Of Packages:'
+  doc_600a1e8927a5aeb14c85eb98ee4fa39063d4f892779bc507dfb63a11ffa6993c:
+    bindings:
+      agent:source:consignee:tax_id:
+        identifier: source_reference_463642376
+      agent:source:cargo:acid:
+        identifier: source_reference_4636423762023120017
+      agent:source:cargo:import_tax_id:
+        identifier: source_reference_463642376
+      agent:source:cargo:export_country:poland:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c:
+    bindings:
+      agent:customs:acid:
+        identifier: source_reference_2002777152024020057
+      agent:customs:importer_tax_id:
+        identifier: source_reference_200277715
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_RUT213448350011
+  doc_6c5e700d90753d44af4b8dcd0df70bb24c1a3df767b7a66a23b2eb58c29ee829:
+    bindings:
+      agent:h_acid_reference:
+        identifier: source_reference_4525850072024040018
+      agent:egyptian_importer_tax_id:
+        identifier: source_reference_452585007
+      agent:foreign_exporter_id:
+        identifier: source_reference_308400000273
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      anchor:documentPatch.cargoGroups[0].origin.name:
+        party_location: documentPatch.parties.shipper
+        field: country
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        target: documentPatch.goodsItemDetails[0].origin.name
+        prefix: 'Made in '
+  doc_6aea1cb2433725478047603c3f7cc46691b800c5867b77d2a4b1883864e3ae6b:
+    bindings:
+      agent:aux:acid-number:
+        identifier: source_reference_2050151822024030110
+    spans:
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
+      count: 1
+      value:
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
+      count: 1
+      value:
+        text: Preliminary customs registration reference as declared by shipper.
+  doc_dd8cea1cfa0d47caf799ccbc2ec38062a84f599a6411fa7be76811af3b14e47c:
+    bindings:
+      agent:source:acid_reference:
+        identifier: source_reference_5284268502025040017
+      agent:source:shipper:country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:source:forwardingAgent:fax:
+        phone: documentPatch.parties.forwardingAgent
+    spans: []
+  doc_efdbe49b49d61ea431f1d3b32b687458ef3ee3254e0e25b44170643afdb3c8db:
+    bindings:
+      agent:customs:importer_tax_id:
+        identifier: source_reference_100061052
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_FR96800891004
+      agent:customs:acid:
+        identifier: source_reference_1000610522023070022
+  doc_e5a6a40300b6e50a58dd6db5e6c1c9da7f58d71b15ab3dc683561b711eb99325:
+    bindings:
+      agent:customs:acid_reference:
+        identifier: source_reference_3160917072025040029
+      agent:customs:importer_vat:
+        identifier: source_reference_316091707
+      agent:customs:exporter_registration:
+        identifier: source_reference_DE178690941
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7:
+    bindings:
+      agent:customs:acid:
+        identifier: source_reference_3405571172025040034
+      agent:customs:importer_tax_id:
+        identifier: source_reference_340557117
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_231362601
+      agent:party:shipper:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:party:shipper:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.consignee
+  doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53:
+    bindings:
+      agent:acid_number:
+        identifier: source_reference_3478104542025030223
+  doc_cdc8d9982c35a830769223e839ce48815011172ec6600e29d15f41724d078ada:
+    bindings:
+      agent:customs:acid_reference:
+        identifier: source_reference_3745316252022050010N
+      agent:customs:shipping_bill_number:
+        identifier: source_reference_1430407
+      agent:customs:ie_code:
+        identifier: source_reference_1288000138
+      agent:legal:country_clause_heading:
+        text: '{destination_country} CLAUSE'
+  doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33:
+    bindings:
+      agent:aux:acid:
+        identifier: source_reference_2105802832023090532
+      agent:aux:importer_tax_id:
+        identifier: source_reference_210580283
+      agent:aux:foreign_exporter_id:
+        identifier: source_reference_581523495
+      agent:aux:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:derived:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:aux:customs_reference:
+        identifier: source_reference_X20230929174973
+  doc_0bd3ce7b5dd84812d58987e15385efa2e95506302e90d847a9b689495b9cd009:
+    bindings:
+      agent:customs:aci_number:
+        identifier: source_reference_1004890952023050309
+      agent:importer:organization:
+        target: documentPatch.parties.consignee.name
+      agent:party:deliveryAgent:fax:
+        phone: documentPatch.parties.deliveryAgent
+    spans: []
+  doc_7ade3b47b133e8ff1b536d24dbf62848d38e177f883e130ad63fe53bc07b6c85:
+    bindings:
+      agent:customs:acid:
+        identifier: source_reference_2074100972022070099
+      agent:customs:importer_tax_id:
+        identifier: source_reference_207410097
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_0125538009342
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:party:shipper:fax:
+        phone: documentPatch.parties.shipper
+      agent:party:consignee:fax:
+        phone: documentPatch.parties.consignee
+      agent:party:notify:fax:
+        phone: documentPatch.parties.notifyParties[0]
+  doc_3056615e8eef37402744ca3a7debc11d8fd859f1eabb144efac0277ee4a63b88:
+    bindings:
+      agent:aux:foreign_exporter_id:
+        identifier: source_reference_CN0191370523MA3D57AC2L
+      agent:aux:consignee_tax_id:
+        identifier: source_reference_440378737
+      agent:aux:notify_tax_id:
+        identifier: source_reference_440378737
+      agent:aux:acid_reference:
+        identifier: source_reference_4403787372023080037
+      agent:aux:importer_tax_id:
+        identifier: source_reference_440378737
+      agent:aux:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:aux:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046:
+    bindings:
+      agent:customs:exporter_registration_id:
+        identifier: source_reference_125143420RT0001
+      agent:customs:importer_tax_id:
+        identifier: source_reference_100071155
+      agent:customs:importer_tax_id:repeat:
+        identifier: source_reference_100071155
+      agent:customs:cers_number:
+        identifier: source_reference_RC6223202308312865685
+      agent:customs:acid_number:
+        identifier: source_reference_1000711552023070046
+      agent:customs:exporter_registration_id:repeat:
+        identifier: source_reference_125143420RT0001
+      agent:customs:acid_number:repeat:
+        identifier: source_reference_1000711552023070046
+      agent:party:shipper:fax:
+        phone: documentPatch.parties.shipper
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        text: CFR {destination_port}
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        text: '{destination_country}'
+    spans: []
+  doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a:
+    bindings:
+      agent:customs:tax_id:
+        identifier: source_reference_712098623
+      agent:customs:acid:
+        identifier: source_reference_7120986232024020108
+      agent:customs:exporter_id:
+        identifier: source_reference_13655794
+      agent:customs:exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:customs:exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9:
+    bindings:
+      agent:customs:acid_number:
+        identifier: source_reference_4822863852023100069
+      agent:customs:buyer_tax_id:
+        identifier: source_reference_482286385
+      agent:customs:foreign_exporter_registration:
+        identifier: source_reference_C15130584
+      agent:customs:iec_number:
+        identifier: source_reference_3096003459
+      agent:commercial:terms:
+        text: CIF {destination_port}, {destination_country}
+  doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c:
+    bindings:
+      agent:consignee:tax_id:
+        identifier: source_reference_207496153
+      agent:acid_reference:
+        identifier: source_reference_2074961532025030170
+      agent:importer:tax_id:
+        identifier: source_reference_207496153
+      agent:foreign_exporter:country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter:country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f:
+    bindings:
+      agent:shipper:tax_identifier:
+        identifier: source_reference_05547514000185
+      agent:acid_reference:
+        identifier: source_reference_1004962962024060100
+      agent:party:deliveryAgent:fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_f766e12f23dc32b7dc32b249afb058b2dc296ca1fd8fd53e83d0d3ddcaab2298:
+    bindings:
+      agent:source:acid_number:
+        identifier: source_reference_2595506632024030050
+      agent:source:foreign_exporter_id:
+        identifier: source_reference_592766332
+  doc_9ea52ed1c8cb06c6e0f1101616f98b6b1c0a75209c37821e56f374adbc66a538:
+    bindings:
+      agent:acid_number:
+        identifier: source_reference_2049633892024040106
+      agent:tax_id:
+        identifier: source_reference_204963389
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:delivery_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_f256749bd9718a0bae20e7cdd8fe6942a7b1e3759f3089b86a23d7524f5638f0:
+    bindings:
+      agent:shipper_tax_id:
+        identifier: source_reference_03AABCM4692E1ZP
+      agent:customs_acid:
+        identifier: source_reference_4822863852024050081
+      agent:egypt_importer_tax_id:
+        identifier: source_reference_482286385
+      agent:egypt_importer_tax_id_formatted:
+        identifier: source_reference_482286385
+  doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15:
+    bindings:
+      agent:acid_reference:
+        identifier: source_reference_3743503532025100026
+      agent:egyptian_importer_tax_id:
+        identifier: source_reference_374350353
+      agent:shipper_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:shipper_fax:
+        phone: documentPatch.parties.shipper
+      agent:consignee_fax:
+        phone: documentPatch.parties.consignee
+  doc_7b12b9055a542c5d1fe3968ed5e078914df02aad42d9372783092da79a294aa9:
+    bindings:
+      agent:customs:acid:
+        identifier: source_reference_7552234892023090018
+      agent:customs:importer_tax_number:
+        identifier: source_reference_755223489
+      agent:customs:exporter_number:
+        identifier: source_reference_1540520023
+      agent:party:deliveryAgent:0:fax:0:
+        target: documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[3]
+  doc_aaa232a216de9ef75450afe2ccf0f0431ed33ed3c0526e98ea5e640574aa1aa0:
+    bindings:
+      agent:customs:acid:
+        identifier: source_reference_2916764132025100128
+      agent:customs:vat:
+        identifier: source_reference_291676413
+      agent:customs:exporter_registration:
+        identifier: source_reference_23445
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee:
+    bindings:
+      agent:customs:acid:
+        identifier: source_reference_4622863852025100018
+      agent:customs:tax_id:
+        identifier: source_reference_482286385
+      agent:egypt:address:city:
+        party_location: documentPatch.parties.deliveryAgent
+        field: name
+  doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95:
+    bindings:
+      agent:customs:acid_number:
+        identifier: source_reference_3522925552023070723
+      agent:customs:importer_vat:
+        identifier: source_reference_352292555
+      agent:customs:exporter_registration:
+        identifier: source_reference_AE01173184
+      agent:customs:exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.shipper
+      agent:party:shipper:0:fax:
+        phone: documentPatch.parties.shipper
+      agent:party:consignee:0:fax:
+        phone: documentPatch.parties.consignee
+      agent:party:notify:0:fax:
+        phone: documentPatch.parties.notifyParties[0]
+  doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2: {}
+  doc_e3f9ccd4f59c13aa210fac82f8fc57e0f130a51191b2e861e90f72998524e590: {}
+  doc_88deddadf982fd5c5920c4f64487fc06a0db25f6e8a3e7cd76efd0168960a10b:
+    bindings:
+      agent:party:deliveryAgent:0:fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_a2c343f9fa07a4ae4f79028f01675b82b381fbae7cc6fa78ad5897b9dc957ce4:
+    bindings:
+      agent:customs:acid_reference:
+        identifier: source_reference_2000435602024030471
+      agent:importer_tax_id:
+        identifier: source_reference_200043560
+      agent:exporter_id:
+        identifier: source_reference_760139049
+      anchor:documentPatch.parties.deliveryAgent.city:
+        party_location: documentPatch.parties.deliveryAgent
+        field: name
+  doc_85b6388a7b1c945306fa41d1a3ab6aedd258398bd5b8fac758a68b74125838b0:
+    bindings:
+      agent:shipment:acid:
+        identifier: source_reference_1002928952023050066
+      agent:party:shipper:contact_name:
+        target: documentPatch.parties.shipper.contactDetails.contactName
+      agent:party:shipper:contact_fax:
+        phone: documentPatch.parties.shipper
+      agent:party:shipper:website:
+        target: documentPatch.parties.shipper.contactDetails.websiteUrls[0]
+    spans:
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
+      count: 1
+      value:
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
+      count: 1
+      value:
+        text: Preliminary customs registration reference as declared by shipper.
+  doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf:
+    bindings:
+      agent:acid_number:
+        identifier: source_reference_1000713762025020684
+      anchor:documentPatch.cargoGroups[0].description:
+        target: documentPatch.goodsItemDetails[0].description
+  doc_ea28ee0b84bcec057cfc84b67bdd08ff9d840c3952e45ecc7772bf5359e86ee6:
+    bindings:
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_53cf4d9917f9c1736f3d09087d3d745ebeec296fb34f26b3c2a2fa09dfd73695:
+    bindings:
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      anchor:documentPatch.parties.consignee.city:
+        party_location: documentPatch.parties.consignee
+        field: name
+      agent:party:shipper:fax:0:
+        phone: documentPatch.parties.shipper
+  doc_532f728a495e87935e2f52910f9b1b7caac004fe1c4f18dab90feb5d8d6acc1a:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_78e8864ab17a0618fcb175fa298ee69c317983fc5cf5156836a8610ce85722e7:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_257db44ac681e2860a171f07a2dc6f23f552c7e3b39532eb9c417db84c15dc6c:
+    bindings:
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:consignee_fax:
+        phone: documentPatch.parties.consignee
+  doc_7638303ade5eb3f32e08d24d1bd0b98063a011164b60e3fd614f594d806db22e: {}
+  doc_b7eadb8c8196f893829907b2a31c4a20995da640fcc43c12b6fb3b80fce312ce: {}
+  doc_3bb79a8d45f3cd76eda5ed208d63786e7212519188596bcb01e307f6f0d145d3:
+    bindings:
+      agent:fax_number:shipper:
+        phone: documentPatch.parties.shipper
+  doc_89227fc3b249d56ae4d3bed3dcd8e4f67f463f1438b7fe3825b3e4236618217b:
+    bindings:
+      agent:shipper_fax:
+        phone: documentPatch.parties.shipper
+  doc_8a9d1985846eea756fb2763b0e91ae3c09d9b8de7905eca1283885219a44a37a:
+    bindings:
+      agent:delivery_agent:fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_9b35d0b6f5596f9a71d2d0caa21e43ba2637608deb0ffd872d8bc2a0948ba170: {}
+  doc_ecb172534201c4018e786081e3f1048a7dd7608bfd2dc8aca14289eaafc557dd: {}
+  doc_8f8f18572da70a3b13eabe71927697edc4b22225e3bb2a9e18780cbae494ea50:
+    bindings:
+      anchor:documentPatch.parties.shipper.country:
+        party_location: documentPatch.parties.shipper
+        field: country
+    spans:
+    - quote: ACID REF EGYPT
+      count: 1
+      value:
+        text: IMPORT REFERENCE
+  doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5:
+    bindings:
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:exporter_registration_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_9496d43382e6fb5f75235fc4a1cd3baab8df9ffa3802661709434fc309ab7d09: {}
+  doc_1b176673edbe31b74ba03995b85ee9be6d0d22218f2764df4648462f7cfd15fa:
+    bindings:
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_e2b4856695c8d37601f2649074af0e7d2776b9a03b18202a086385146191c728:
+    bindings:
+      agent:shipper_fax:
+        phone: documentPatch.parties.shipper
+      agent:consignee_fax:
+        phone: documentPatch.parties.consignee
+  doc_cd979d32956a8f530c956636c1be4c7fb18f9f310b1ff468fd401535734f207c:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_dd26bb9b2c0f406e994884ca9906ac2f135c4cf53c777337590d78ce8ead835e:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        party_location: documentPatch.parties.consignee
+        field: name
+      reviewed:repeated_consignee_marks_country:
+        party_location: documentPatch.parties.consignee
+        field: country
+      agent:cargo:0:contact_phone:
+        target: documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+      agent:shipper:fax:0:
+        phone: documentPatch.parties.shipper
+      agent:cargo:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:cargo:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946:
+    bindings:
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:destination_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_b739c4ad3551a0622571d4dae96b1e22107b00c60adba02556bf3634e4050858:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        text: '{destination_port}'
+  doc_531130c43011b1411f42d23557aff766d695cdf91d7c09c65407f04088090088:
+    bindings:
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:fax:shipper:0:
+        phone: documentPatch.parties.shipper
+      agent:delivery_term:destination_name:
+        target: documentPatch.route.portOfDischarge.name
+      agent:delivery_term:destination_country:
+        target: documentPatch.route.portOfDischarge.country
+  doc_381ea09fc895afd58d149ee9280baf2cf7d8d004cb8ebbf78e53c0701cc94fc8:
+    bindings:
+      agent:exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38: {}
+  doc_4d2079f3818cad059ffc67bcabab200a25e6dc9fbdf9edc63e263e188d9256c7: {}
+  doc_7046a05d78e117cb543998ff9a0bddff933376d5bb38903721801711a3ff7e89:
+    bindings:
+      agent:cargo:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:party:shipper:fax:
+        phone: documentPatch.parties.shipper
+      agent:cargo:contact_phone_repeat:
+        target: documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        target: documentPatch.parties.consignee.addressLine
+  doc_388e54a6628e5be102e49a12f307f489cf69ceceadd90b2e3bd65f9f824cdfdc: {}
+  doc_635b24d9c8f04747ddd8f7ddea82423ce5a75ed8e714c6b35500b8d8a26d50f9:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:received_for_shipment_date:
+        date: '2024-09-25'
+        format: '%Y-%m-%d'
+      agent:destination_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_a177de46a81ab0e061b8bf391f74e741b70004f5b9f9dc0d6da8bde10ab853fb:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        party_location: documentPatch.parties.consignee
+        field: name
+      reviewed:repeated_consignee_marks_country:
+        party_location: documentPatch.parties.consignee
+        field: country
+      agent:cargo_contact_phone:
+        target: documentPatch.parties.consignee.contactDetails.phoneNumbers[0]
+      agent:shipper_fax:
+        phone: documentPatch.parties.shipper
+      agent:delivery_terms:
+        text: CIF {destination_port}, {destination_country}
+  doc_67eff10181fc88c158efc5a99d33807643b4771ce39f64e90f358b0e6c721d7f:
+    bindings:
+      agent:aux:customs:exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:aux:customs:exporter_country_name:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:aux:shipper:fax:0:
+        phone: documentPatch.parties.shipper
+  doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049: {}
+  doc_f8aba530eff537ac789cdaea82cfe64ef3c11ff0d378029bc7aaefa869702172:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_62f59e68172bac00dbaebd95fb23d2b495b56b1261b7b6cf5be4247073a09bbe:
+    bindings:
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.shipper.name
+  doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc:
+    bindings:
+      agent:auxiliary:declared_destination_port:
+        text: '{destination_port} PORT'
+  doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691: {}
+  doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].origin.name:
+        text: '{origin_country}'
+      agent:operations:fax:delivery_agent:
+        phone: documentPatch.parties.deliveryAgent
+  doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed:
+    bindings:
+      agent:delivery_term_location:
+        text: '{origin_port}, {origin_country}'
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f:
+    spans:
+    - quote: ACID REF EGYPT
+      count: 1
+      value:
+        text: IMPORT REFERENCE
+  doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d:
+    spans:
+    - quote: ACID REF EGYPT
+      count: 1
+      value:
+        text: IMPORT REFERENCE
+    bindings: {}
+  doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd:
+    bindings:
+      agent:party:foreign_exporter:country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:party:foreign_exporter:country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09:
+    bindings:
+      agent:foreign_exporter_country:
+        text: MAURITIUS
+      agent:foreign_exporter_country_code:
+        text: MU
+      agent:destination_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+    spans:
+    - quote: Maersk line India Pvt Ltd
+      count: 1
+      value:
+        text: carrier
+  doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e:
+    bindings:
+      agent:party:deliveryAgent:fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017:
+    bindings:
+      agent:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e:
+    bindings:
+      agent:destination_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+      agent:cargo_row_text_paper:
+        target: documentPatch.goodsItemDetails[0].description
+  doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e: {}
+  doc_4f210d63ddf9d0045dc1d402764d11c989a4053e1416eca0ee379ccff20421c2:
+    bindings: {}
+    spans:
+    - quote: 'TEL: 002 066-3244646'
+      count: 1
+      value:
+        target: documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+        prefix: 'TEL: '
+  doc_c92e59000dc7f8a89e5822297b060d4e56d345b42ccc9d1987f64be1ce8688ef: {}
+  doc_e18486c69179f0a9a6cb73e85c76385f07d13e1fd3237a250cc3d4d74eab9566:
+    bindings: {}
+    spans:
+    - quote: 'Fax: (+203) 4863088'
+      count: 1
+      value:
+        target: documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[3]
+        prefix: 'Fax: '
+  doc_157fadd2fe95dc1d3db419a9cd870e46050803f4b8799c25a49e0f5e493fb371: {}
+  doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675:
+    spans:
+    - quote: 'EXPORTER REGISTRATION COUNTRY: TAIWAN'
+      count: 1
+      value:
+        target: documentPatch.parties.notifyParties[0].country
+        prefix: 'EXPORTER REGISTRATION COUNTRY: '
+    - quote: 886-2-26568788
+      count: 1
+      value:
+        phone: documentPatch.parties.notifyParties[0]
+    bindings: {}
+  doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934:
+    bindings:
+      agent:reviewed:foreign_exporter:country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f:
+    spans:
+    - quote: EXPORTER REGISTRATION COUNTRY:TAIWAN
+      count: 1
+      value:
+        target: documentPatch.parties.notifyParties[0].country
+        prefix: 'EXPORTER REGISTRATION COUNTRY:'
+    - quote: 886-2-26568788
+      count: 1
+      value:
+        phone: documentPatch.parties.notifyParties[0]
+    bindings: {}
+  doc_6ae6ae84b328010ba26fe12c15aca4cfa2cfc5d1668c432907d13d462a6065f6:
+    bindings:
+      reviewed:notify_exporter_country:
+        party_location: documentPatch.parties.notifyParties[0]
+        field: country
+      reviewed:notify_fax:
+        phone: documentPatch.parties.notifyParties[0]
+  doc_7c5b19dd8b6dd42a1cebf7b7d7bf5560f0cf6c72a2bf52a95f0e39c70ddfddac:
+    bindings:
+      reviewed:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      reviewed:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+    spans:
+    - quote: +86-536-5512593
+      count: 1
+      value:
+        phone: documentPatch.parties.shipper
+  doc_35fe798bf179df185a08fbf79f1ba23f0041c540973f1413636b194b58768ef5: {}
+  doc_ff351983f3d19423f89976e4cf80b9aba80b6f0b8f9842fbf23696f964b24331:
+    bindings: {}
+    spans:
+    - quote: (20-62)-3710139
+      count: 1
+      value:
+        phone: documentPatch.parties.deliveryAgent
+  doc_ed35ae43ff1921cf77b119a98957af4953ef71ff9510d0d571d4e0bd7a14c975:
+    spans:
+    - quote: EXPORTER REGISTRATION COUNTRY:TAIWAN
+      count: 1
+      value:
+        target: documentPatch.parties.notifyParties[0].country
+        prefix: 'EXPORTER REGISTRATION COUNTRY:'
+    - quote: 886-2-26568788
+      count: 1
+      value:
+        phone: documentPatch.parties.notifyParties[0]
+    bindings: {}
+  doc_5a9931ac4afe45793441d9d50bbd931a5e72eaefbe346eb66aee78f40c3640c0:
+    bindings:
+      reviewed:shipper_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      reviewed:shipper_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      reviewed:shipper_exporter_id_country_prefix:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_b5b7d7a7c422317426d5cd511e58f2d517c220445a2c3086080faf84998b7959:
+    bindings:
+      agent:aux:consignee:tax_id:
+        identifier: source_reference_100423221
+      agent:aux:notify:tax_id:
+        identifier: source_reference_100423221
+      agent:aux:delivery_agent:tax_id:
+        identifier: source_reference_476913098
+      agent:aux:customs:acid:
+        identifier: source_reference_1004232212024080684
+      reviewed:pre_carriage_leg:
+        transport_leg: pre_carriage
+        source_voyage: HW434R
+      agent:aux:shipper_phone:fax:
+        phone: documentPatch.parties.shipper
+    spans: []
+  doc_56f7785e67d8a18fc9a891cf555c6220092ed3205251332f886aea9322e7f438:
+    bindings:
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:shipper_vat_identifier:
+        identifier: private_shipper_IT0201230650465
+      agent:consol_reference:
+        identifier: private_consol_CIT791825
+      agent:consignee_vat_identifier:
+        identifier: private_importer_213159066
+      agent:notify_vat_identifier:
+        identifier: private_importer_213159066
+      agent:acid_number:
+        identifier: private_acid_213159062025110010
+      agent:importer_tax_identifier:
+        identifier: private_importer_213159066
+      agent:foreign_exporter_tax_identifier:
+        identifier: private_shipper_IT01230650465
+      agent:delivery_agent_tax_identifier:
+        identifier: private_delivery_200227475
+      agent:delivery_agent_commercial_registration:
+        identifier: private_delivery_8904
+      agent:delivery_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7:
+    bindings:
+      agent:shipper_cnpj:
+        identifier: exporter
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: shipment_reference
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: export_reference
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        identifier: export_reference
+        prefix: 3BR
+      agent:service_contract_number:
+        identifier: service_contract
+      agent:due_reference:
+        identifier: export_reference
+        prefix: 23BR
+      agent:nf_reference:
+        identifier: invoice
+      agent:proc_reference:
+        identifier: shipment
+      agent:ruc_reference:
+        identifier: export_reference
+        prefix: 3BR
+      agent:acid_reference:
+        identifier: import_reference
+      agent:importer_tax_id:
+        identifier: importer
+      agent:foreign_exporter_id:
+        identifier: exporter
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_0262ae4032906f502a5ad8dc46c742bd2065109d728eb1449c8675211be22a22:
+    bindings:
+      agent:inclusive_range:documentPatch.cargoPackages[0].quantity:
+        identifier: commercial
+      agent:party:notify:0:vat_number:
+        identifier: commercial
+      agent:customs:acid:
+        identifier: commercial
+      agent:customs:importer_vat_number:
+        identifier: commercial
+      agent:customs:exporter_registration_number:
+        identifier: commercial
+      agent:customs:acid_repeat:
+        identifier: commercial
+      agent:customs:importer_vat_number_repeat:
+        identifier: commercial
+      agent:customs:exporter_registration_number_repeat:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: commercial
+        prefix: 'SI NO:'
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]:
+        identifier: commercial
+        prefix: 'P/O:'
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: commercial
+  doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069:
+    bindings:
+      agent:commercial:reference:appi:page1:
+        identifier: commercial
+        prefix: APPI
+      agent:commercial:reference:po:page1:
+        identifier: commercial
+      agent:commercial:service_contract:
+        identifier: commercial
+      agent:commercial:reference:appi:page2:
+        identifier: commercial
+        prefix: APPI
+      agent:commercial:reference:po:page2:
+        identifier: commercial
+      agent:party:shipper:0:exporter_id:
+        identifier: commercial
+      agent:party:consignee:0:acid_number:
+        identifier: commercial
+      agent:party:consignee:0:tax_id:
+        identifier: commercial
+      agent:party:consignee:0:importer_id:
+        identifier: commercial
+  doc_16386c0aa2b17689bc1c50255197ae82cc63fc3e749ae7b8581a691312390b57:
+    bindings:
+      agent:notify:0:vat_reference:
+        identifier: commercial
+      agent:customs:taiwan_ipc_tax_id:
+        identifier: commercial
+      agent:customs:acid:
+        identifier: commercial
+      agent:customs:importer_vat:
+        identifier: commercial
+      agent:customs:exporter_registration_number:
+        identifier: commercial
+      agent:legal:customer_code:
+        identifier: commercial
+      agent:legal:tax_reference:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: commercial
+        prefix: 'SI NO:'
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        identifier: commercial
+        prefix: 'P/O: '
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: commercial
+  doc_917b1eda0bed13c4a90c965821b7400f3d6aa1a3f1f2ee1d4f78d73594566c41:
+    bindings:
+      agent:party:notify:0:vat:
+        identifier: commercial
+      agent:customs:acid:
+        identifier: commercial
+      agent:customs:importer_vat:
+        identifier: commercial
+      agent:customs:exporter_registration:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[10]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[11]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[12]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[13]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[14]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[15]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[16]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[17]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[18]:
+        identifier: commercial
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[19]:
+        identifier: commercial
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: commercial
+  doc_cbd4c10514b4f35a26fee9a99ab053023ace7ff91370af4c202d58343099d11a:
+    bindings:
+      agent:foreign_exporter_id:
+        identifier: commercial
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39:
+    bindings:
+      agent:customs:acid_reference:
+        identifier: import_reference
+      agent:customs:importer_vat_number:
+        identifier: importer
+      agent:customs:exporter_registration_number:
+        identifier: exporter
+      agent:customs:exporter_registration_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customer_code:shipper:
+        identifier: customer
+        prefix: 229CAC
+      agent:customer_code:consignee:
+        identifier: customer
+  doc_64c427232623fc7b72f8c5f786cccd6853f12d2f237f513496f2562bc57043b9:
+    bindings:
+      agent:document:booking_ref:
+        identifier: private_booking_EBKG05883492
+      agent:customs:acid_number:
+        identifier: private_import_5939523832023020108
+      agent:customs:exporter_tax_id:
+        identifier: private_exporter_36AABCA7371G1ZQ
+      agent:customs:importer_tax_id:
+        identifier: private_importer_593952383
+      agent:party:deliveryAgent:0:fax:
+        phone: documentPatch.parties.deliveryAgent
+  doc_551f3a340047d71e39413508f5f4f189705044a7c78972479731f63db1793c65:
+    bindings:
+      agent:foreign_exporter_id:
+        identifier: commercial
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:consignee_fax:
+        phone: documentPatch.parties.consignee
+      agent:notify_fax:
+        phone: documentPatch.parties.notifyParties[0]
+  doc_08ec8a5ff38973d6b448d6210beae09dfa6daa1df935781d0bcdb31b567b958b:
+    bindings:
+      agent:destination_office_address:
+        party_location: documentPatch.parties.deliveryAgent
+        field: name
+      closed_office_country_repeat:
+        party_location: documentPatch.parties.deliveryAgent
+        field: country
+      agent:customs:invoice_date:
+        date: '2025-03-19'
+        format: '%d/%m/%Y'
+      agent:customs:proforma_invoice_date:
+        date: '2025-01-28'
+        format: '%d.%m.%Y'
+      agent:document:letter_date:
+        date: '2025-05-28'
+        format: '%d %B %Y'
+      agent:booking:initial_sailed_date:
+        date: '2025-03-29'
+        format: '%d.%m.%Y'
+      agent:transport:actual_sailing_date:
+        date: '2025-04-10'
+        format: '%d.%m.%Y'
+      agent:customs:acid_generation_date:
+        date: '2025-04-16'
+        format: '%d %B %Y'
+      agent:transport:booking_etd_date:
+        date: '2025-04-10'
+        format: '%d %B %Y'
+      agent:customs:shipper_tax_id:
+        identifier: private_exporter_1027771543
+      agent:customs:foreign_exporter_id:
+        identifier: private_exporter_1027771543
+      agent:customs:egyptian_importer_tax_id:
+        identifier: private_importer_203564014
+      agent:customs:author_number:
+        identifier: private_author_2035640147025010905
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: private_invoice_BFL202425025A
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        identifier: private_proforma_BFLEXP24250024
+      agent:document:security_number:
+        identifier: private_security_YP7THF
+      agent:shipment:correct_acid_number:
+        identifier: private_current_acid_2035640142025040266
+      agent:shipment:prior_acid_number:
+        identifier: private_prior_acid_2035640142025010905
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110:
+    bindings:
+      agent:booking_reference:
+        identifier: commercial
+      agent:acid_identifier:
+        identifier: commercial
+      agent:importex_tax_number:
+        identifier: commercial
+      agent:exporter_tax_number:
+        identifier: commercial
+  doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26:
+    bindings:
+      agent:acid_reference:
+        identifier: source_reference_4354281602025030048
+      agent:importer_tax_id:
+        identifier: source_reference_435428160
+      agent:exporter_identification_number:
+        identifier: source_reference_1830671
+      notify_continuation_country:
+        party_location: documentPatch.parties.notifyParties[0]
+        field: country
+      agent:consignee_fax:
+        phone: documentPatch.parties.notifyParties[0]
+      agent:booking_reference:
+        identifier: private_booking_M470039782
+        prefix: M
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: private_proforma_5400034264
+  doc_ccfee841a37ac088b6380a62b500d2e4c74b1da3fb2360d48e21e526654f728c:
+    bindings:
+      fresh_aux_0_1:
+        identifier: exporter
+      fresh_aux_1_2:
+        identifier: exporter
+      fresh_aux_2_3:
+        identifier: importer
+      fresh_aux_3_4:
+        identifier: import_reference
+      fresh_aux_4_5:
+        identifier: import_reference
+      fresh_aux_5_6:
+        identifier: importer
+      fresh_aux_6_7:
+        party_location: documentPatch.parties.shipper
+        field: country
+      fresh_aux_7_8:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      fresh_aux_8_9:
+        phone: documentPatch.parties.consignee
+  doc_ad628fa28b92b94d57cbd461e44a3a1469c92468442c5ac30b028edf597c030c:
+    bindings:
+      fresh_aux_0_1:
+        identifier: import_reference
+      fresh_aux_1_2:
+        identifier: importer
+      fresh_aux_2_3:
+        identifier: exporter
+      fresh_aux_3_4:
+        party_location: documentPatch.parties.shipper
+        field: country
+      fresh_aux_4_5:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_234df0afb308c9c24a1b75a4937fe287e3d8365e0aa369a5915ae3bb4a102eca:
+    bindings:
+      fresh_aux_0_1:
+        identifier: import_reference
+      fresh_aux_1_2:
+        identifier: importer
+      fresh_aux_2_3:
+        identifier: exporter
+      fresh_aux_3_4:
+        party_location: documentPatch.parties.shipper
+        field: country
+      fresh_aux_4_5:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_d670d18ff1b6a0a43f2136970b1bed4776448ec1efbc6b3a33a59c30d89775c5:
+    bindings:
+      broader_aux_0_0:
+        phone: documentPatch.parties.shipper
+      broader_aux_1_0:
+        identifier: exporter
+      broader_aux_2_0:
+        identifier: importer
+      broader_aux_3_0:
+        identifier: import_reference
+      broader_aux_4_0:
+        identifier: importer
+        canonical_identity: '533495636'
+      broader_aux_5_0:
+        identifier: exporter
+      broader_aux_6_0:
+        identifier: registration
+  doc_6b76fc16c3438c1510bf896d727f41a958dea11b2c221cde5b7ff085f1cc54a4:
+    bindings:
+      broader_aux_0_0:
+        identifier: booking
+      broader_aux_1_0:
+        identifier: import_reference
+      broader_aux_2_0:
+        identifier: importer
+      broader_aux_3_0:
+        identifier: exporter
+  doc_5adf9d4938ec501c6cf104f0a54590d001e9e807f65fed068fe707ce390551d9:
+    bindings:
+      broader_aux_0_0:
+        target: documentPatch.parties.deliveryAgent.name
+      broader_aux_1_0:
+        identifier: invoice
+      broader_aux_2_0:
+        identifier: export_reference
+      broader_aux_3_0:
+        date: '2025-05-08'
+        format: '%d.%m.%Y'
+      broader_aux_3_1:
+        date: '2025-05-08'
+        format: '%d.%m.%Y'
+      broader_aux_4_0:
+        identifier: exporter
+      broader_aux_5_0:
+        identifier: import_reference
+      broader_aux_6_0:
+        identifier: importer
+      broader_aux_7_0:
+        identifier: exporter
+      broader_aux_8_0:
+        party_location: documentPatch.parties.shipper
+        field: country
+      broader_aux_9_0:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_8a73dafe3f20a7adedeaa66e6b12c4919396b4e38dec67d20a5ec5ddd972870e:
+    bindings:
+      agent:commercial:incoterm_surface:
+        text: CFR {destination_port}, {destination_country}
+      agent:invoice:date:
+        date: '2023-08-04'
+        format: '%d %b %Y'
+      agent:carrier:destination_office_fax:
+        phone: documentPatch.parties.deliveryAgent
+      agent:contact:importer_phone:
+        phone: documentPatch.parties.consignee
+      agent:invoice:reference:
+        identifier: reviewed_private_reference
+      agent:customs:acid_number:
+        identifier: reviewed_private_reference
+      agent:customs:importer_vat:
+        identifier: reviewed_private_reference
+      agent:customs:exporter_vat:
+        identifier: reviewed_private_reference
+      agent:document:bill_number:
+        identifier: reviewed_private_reference
+  doc_9a55d93af2ef648108068bb8d01c83061e53ea6a44fbee761a3a2f9bedf8e375:
+    bindings:
+      agent:party:consignee:tax_id:
+        identifier: source_reference_205012086
+      agent:cargo:acid_number:
+        identifier: source_reference_2050120862023050021
+      agent:party:shipper:tax_id:
+        identifier: source_reference_382633836
+      agent:forwarding_agent:fmc_reference:
+        identifier: reviewed_private_fmc_reference
+        prefix: FMC#
+      anchor:documentPatch.forwardingAndExportReferences[2]:
+        identifier: reviewed_private_aes_reference
+        prefix: X
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.consignee
+  doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290: {}
+  doc_8c54d9747c25cdec7c9c1f5f386a195ebb75a0dddead6e81994372a1f6be62a5:
+    bindings:
+      agent:shipper_cnpj:
+        identifier: source_reference_09483354000370
+      agent:customs:import_permit:
+        identifier: source_reference_168720232911125552
+      agent:customs:acid:
+        identifier: source_reference_5161268302023110042
+      agent:customs:importer_tax_id:
+        identifier: source_reference_516126830
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_09483354000370
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:customs:foreign_exporter_registration:
+        identifier: source_reference_90768
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: reviewed_export_reference
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        identifier: reviewed_export_reference
+      agent:booking_reference:
+        identifier: reviewed_private_reference
+      agent:cargo:standard_reference:
+        identifier: reviewed_private_reference
+  doc_98612b712449d9041fb1db28fa76b2133f550bd641c6355990791152b3c960ca:
+    bindings:
+      agent:acid_identifier:
+        identifier: source_reference_4793074822024020010
+      agent:importer_tax_id:
+        identifier: source_reference_479307482
+      agent:foreign_exporter_id:
+        identifier: source_reference_NL003992529B89
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:shipper_vat_identifier:
+        identifier: source_reference_NL003992529B89
+      agent:booking_reference:
+        identifier: source_reference_NL003992529B89
+  doc_74860ac93c4ff471c2eba6032feaf8e3ce0cf30f34f5347bf1834781f42e192b:
+    bindings:
+      import_reference:
+        identifier: import_reference
+      importer:
+        identifier: importer
+      importer_repeat:
+        identifier: importer
+      exporter:
+        identifier: exporter
+      exporter_repeat:
+        identifier: exporter
+      export_country:
+        text: '{origin_country}'
+      export_country_code:
+        text: '{origin_code}'
+      private_fax:
+        phone: documentPatch.parties.consignee
+      marks_identity:
+        identifier: marks_reference
+      issuing_agent:
+        target: documentPatch.placeOfIssue.name
+        prefix: 'CMA CGM '
+      signing_agent:
+        text: CMA CGM {origin_country} SHIPPING CO. LTD
+  doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301:
+    bindings:
+      agent:customs:acid_number:
+        identifier: source_reference_6628167142025050011
+      agent:customs:importer_tax_id:
+        identifier: source_reference_662816714
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_24AAAFA2660E1Z4
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      reviewed:attached_product:
+        target: documentPatch.goodsItemDetails[0].description
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]:
+        identifier: reviewed_lot
+        prefix: 'LOT NO. '
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: reviewed_export_reference
+      agent:export_reference:date:
+        date: '2025-05-15'
+        format: '%d.%m.%Y'
+      agent:booking_reference:
+        identifier: reviewed_private_reference
+      agent:notify:1:registration:
+        identifier: reviewed_private_reference
+      agent:party:consignee:vat:
+        identifier: reviewed_private_reference
+      agent:party:deliveryAgent:vat:
+        identifier: reviewed_private_reference
+  doc_b26179019509e8672a2b3a6957f04156c381f95605d92859494993dcbe311799:
+    bindings:
+      agent:source:notify_acid:
+        identifier: source_reference_565169637202302022
+      agent:customs:acid_reference:
+        identifier: source_reference_5651696372023020022
+      agent:source:shipper_reference:
+        identifier: reviewed_private_reference
+      agent:source:booking_reference:
+        identifier: reviewed_private_reference
+      agent:source:service_contract_number:
+        identifier: reviewed_private_reference
+      agent:source:exporter_registration:
+        identifier: reviewed_private_reference
+      agent:source:importer_taxation_number:
+        identifier: reviewed_private_reference
+  doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863:
+    bindings:
+      agent:acid_reference:
+        identifier: source_reference_4741593532025040496
+      agent:egyptian_importer_tax_id:
+        identifier: source_reference_474159353
+      agent:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+  doc_f36409a0d43ce2b8629e5328d3113eac32f18f3a223252da37860b4afdbc2e38:
+    bindings:
+      agent:acid_reference:
+        identifier: source_reference_1000823942024020278
+      agent:foreign_exporter_id:
+        identifier: source_reference_4018400
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:foreign_shipper_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:importer_vat_country:
+        party_location: documentPatch.parties.consignee
+        field: country
+      agent:importer_vat_number:
+        identifier: reviewed_private_reference
+      agent:purchase_order_reference:
+        identifier: reviewed_private_reference
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: reviewed_private_itn_reference
+        prefix: X
+  doc_c08ce779153fbfdef4e806602b3ac37c5fe2ec23aa89a05b052afdbf5b39a526:
+    bindings:
+      agent:aux:acid_reference:
+        identifier: source_reference_4842197662024070012
+      agent:aux:egyptian_importer_tax_id:
+        identifier: source_reference_484219766
+      agent:customs:foreign_exporter_registration_type:
+        text: COMPANY REGISTRATION NUMBER
+      agent:aux:foreign_exporter_id:
+        identifier: source_reference_100225870300003
+    spans: []
+  doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1:
+    bindings:
+      agent:customs:exporter_id:
+        identifier: source_reference_4538100159
+      agent:customs:importer_tax_id:
+        identifier: source_reference_684274507
+      agent:customs:acid_number:
+        identifier: source_reference_6842745072023030055
+      agent:shipper:fax:
+        phone: documentPatch.parties.shipper
+    spans: []
+  doc_11c21de2133e425f792ff209249c38808b2701f3b1970d6485cb33189af24b83:
+    bindings:
+      agent:acid_number:
+        identifier: source_reference_2001162232024040019
+      agent:pan_arab_tax_id:
+        identifier: source_reference_200116223
+      agent:shipper_ein:
+        identifier: reviewed_private_reference
+      agent:consignee_identifier:
+        identifier: reviewed_private_reference
+      agent:notify_identifier:
+        identifier: reviewed_private_reference
+      agent:booking_reference:
+        identifier: reviewed_private_reference
+      agent:service_contract_number:
+        identifier: reviewed_private_reference
+      agent:shipper_registration_number:
+        identifier: reviewed_private_reference
+      agent:import_permit_number:
+        identifier: reviewed_private_reference
+      agent:export_reference:
+        identifier: reviewed_private_reference
+  doc_11da8a8c9f0e33daafa39cf0a8c9d216edb9caa1b170e201c1f12559fed234d8:
+    bindings:
+      agent:document:shipper_cnpj:
+        identifier: source_reference_09483354000370
+      agent:customs:acid:
+        identifier: source_reference_4749134062023090201
+      agent:customs:importer_tax_id:
+        identifier: source_reference_474913406
+      agent:customs:foreign_exporter_id:
+        identifier: source_reference_09483354000370
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:customs:import_permit:
+        identifier: source_reference_1691202325910210
+    spans: []
+  doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a:
+    bindings:
+      agent:source:shipper:foreign_exporter_id:
+        identifier: source_reference_BE0416375270
+      agent:source:customs:acid:
+        identifier: source_reference_5499470432024060046
+      agent:source:customs:importer_tax_id:
+        identifier: source_reference_549947043
+      agent:source:shipper:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:source:shipper:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:source:shipper:trade_registration_location:
+        party_location: documentPatch.parties.shipper
+        field: name
+      agent:source:shipper:trade_registration_number:
+        identifier: reviewed_private_reference
+    spans:
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1 (one) month from the date
+        of discharge.
+      count: 1
+      value:
+        text: 367. Merchants are responsible for taking delivery within the applicable
+          destination customs time limits.
+    - quote: Preliminary Customs registration number for shipment bound to Egypt as
+        declared by shipper.
+      count: 1
+      value:
+        text: Preliminary customs registration reference as declared by shipper.
+  doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f:
+    bindings:
+      agent:aux:acid_reference:
+        identifier: source_reference_7060185242024110031
+      agent:aux:tax_identifier_on_behalf:
+        identifier: source_reference_7691798756ON
+      reviewed:repeated_product:
+        target: documentPatch.goodsItemDetails[0].description
+      agent:aux:booking_reference:
+        identifier: reviewed_private_reference
+      agent:aux:vat_id:
+        identifier: reviewed_private_reference
+      agent:aux:notify_1_registration:
+        identifier: reviewed_private_reference
+  doc_9ec60e8e32ff401b8616bbc9513bf87334259c70237dcfc5109a4b42995c77fb:
+    bindings:
+      fresh_aux_0_1:
+        identifier: import_reference
+      fresh_aux_0_2:
+        identifier: import_reference
+      fresh_aux_1_3:
+        identifier: import_reference
+      fresh_aux_2_4:
+        identifier: importer
+      fresh_aux_2_5:
+        identifier: importer
+      fresh_aux_3_6:
+        identifier: exporter
+      fresh_aux_3_7:
+        identifier: exporter
+      fresh_aux_4_8:
+        identifier: registration
+  doc_a9d8521a848cd882ea8e989cb9c3addf11536c46a03575a7e3f02b429a38796d:
+    bindings:
+      fresh_aux_0:
+        identifier: exporter
+      fresh_aux_1:
+        identifier: importer
+      fresh_aux_2:
+        identifier: registration
+      fresh_aux_3:
+        identifier: import_reference
+  doc_27e75cc82b67666232bebbf1a02758707ead92c60859283ba7600fbb02ed0515:
+    bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.emailAddresses[0]:
+        target: documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        target: documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      agent:booking_reference:
+        identifier: reviewed_private_reference
+      agent:acid_number:
+        identifier: reviewed_private_reference
+      agent:exporter_id:
+        identifier: reviewed_private_reference
+      agent:importer_id:
+        identifier: reviewed_private_reference
+      agent:service_contract_number:
+        identifier: reviewed_private_reference
+  doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf:
+    bindings:
+      fresh_aux_0_1:
+        identifier: importer
+      fresh_aux_1_2:
+        identifier: exporter
+      fresh_aux_2_3:
+        identifier: import_reference
+      fresh_aux_3_4:
+        phone: documentPatch.parties.consignee
+  doc_90b0c6a0df1763159d9c0508ba7749c5d6279f3dc55306c29db98e60dcae7fa0:
+    bindings:
+      agent:acid_reference:
+        identifier: source_reference
+      agent:importer_tax_id:
+        identifier: source_reference
+      agent:importer_tax_id_repeat:
+        identifier: source_reference
+      agent:foreign_exporter_id:
+        identifier: source_reference
+      agent:foreign_exporter_id_repeat:
+        identifier: source_reference
+      agent:foreign_exporter_post_code:
+        identifier: source_reference
+      agent:commercial_register_number:
+        identifier: source_reference
+      agent:vat_number:
+        identifier: source_reference
+      agent:foreign_exporter_country:
+        text: '{origin_country}'
+      agent:foreign_exporter_country_code:
+        text: '{origin_code}'
+      agent:delivery_agent_location_qualifier:
+        target: documentPatch.route.portOfDischarge.name
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        text: '{destination_country}'
+  doc_015c845e2f76bb3969df161bc93a9674f7d7dde2c9f0b31a24ee54c8e301efd0:
+    bindings:
+      agent:source:acid_number:
+        identifier: source_reference_NO5939523832023020082
+      agent:source:importer_tax_id:
+        identifier: source_reference_ID593952383
+      agent:source:exporter_tax_id:
+        identifier: source_reference_ID36AABCA7371G1ZQ
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.consignee.name
+      agent:booking_reference:
+        identifier: source_reference
+    spans: []
+  doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c:
+    bindings:
+      agent:customs:acid_reference:
+        identifier: source_reference_1000232662025110013
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        text: '{destination_port}, {destination_country}'
+      agent:aux:precarriage:vessel_voyage:
+        transport_leg: pre_carriage
+        source_voyage: 941 S
+      agent:aux:booking_reference:
+        identifier: source_reference
+      agent:aux:shipper_reference:
+        identifier: source_reference
+      agent:aux:import_vat_id:
+        identifier: source_reference
+      agent:aux:documentary_credit_date:
+        date: '2025-11-17'
+        format: '%y%m%d'
+      agent:aux:export_registration:
+        identifier: source_reference
+      agent:aux:documentary_credit:
+        identifier: source_reference
+      agent:aux:shipped_on_board:vessel_voyage:
+        transport_leg: pre_carriage
+        source_voyage: 941 S
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.shipper.name
+    spans: []
+  doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d:
+    bindings:
+      agent:acid_reference:
+        identifier: source_reference_4381548192025050016
+      agent:exporter_vat_number:
+        identifier: source_reference_360870238
+      agent:reference_number:
+        identifier: source_reference
+      agent:importer_vat_number:
+        identifier: source_reference
+      agent:destination_agent_vat_number:
+        identifier: source_reference
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: source_reference
+      agent:cargo_country_code:
+        text: '{origin_code}'
+  doc_ef2a195937de0e2cefcf20e1e1e51b3a2e386e4a9ab3963fb84ecc3d077c8d65:
+    bindings:
+      agent:acid_identifier:
+        identifier: source_reference_2050179242024060024
+      agent:consignee_tax_number:
+        identifier: source_reference
+      agent:purchase_order_number:
+        identifier: source_reference
+      agent:cargo_reference_or172_1262:
+        identifier: source_reference
+      agent:delivery_agent_vat_number:
+        identifier: source_reference
+      agent:delivery_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.consignee.name
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        party_location: documentPatch.parties.consignee
+        field: country
+  doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f:
+    bindings:
+      agent:customs:acid_number:
+        identifier: source_reference_3350933372023050028
+      agent:customs:exporter_id:
+        identifier: source_reference_91321291MA1ML37KXM
+      agent:customs:importer_id:
+        identifier: source_reference_335093337
+      agent:cargo:foreign_exporter:country_code:
+        text: '{origin_code}'
+      agent:party:consignee:0:fax:
+        phone: documentPatch.parties.consignee
+      agent:party:notify:0:fax:
+        phone: documentPatch.parties.notifyParties[0]
+      agent:commercial:service_contract:
+        identifier: source_reference
+      anchor:documentPatch.parties.shipper.country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      anchor:documentPatch.parties.consignee.country:
+        party_location: documentPatch.parties.consignee
+        field: country
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.consignee
+  doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee:
+    bindings:
+      agent:identifier:acid:
+        identifier: source_reference_3249510272023050023
+      agent:identifier:shipper:vat:
+        identifier: source_reference
+      agent:identifier:tax:
+        identifier: source_reference
+      agent:reference:booking:
+        identifier: source_reference
+      agent:document:issue_auxiliary_number:
+        identifier: source_reference
+      agent:document:reference:324035279:
+        identifier: source_reference
+  doc_baf806435410f5474705794f489b31e103a654b9ca3a5853524a1feb46955dd4:
+    bindings:
+      agent:consignee_tax_identifier:
+        identifier: source_reference_204967996
+      agent:acid_number:
+        identifier: source_reference_2049679962023050193
+      agent:egyptian_importer_tax_id:
+        identifier: source_reference_204967996
+      agent:foreign_exporter_identifier:
+        identifier: source_reference_1031160058
+      agent:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:origin_country:
+        text: '{origin_country}'
+      agent:shipper_vat_identifier:
+        identifier: source_reference
+      agent:delivery_agent_vat_identifier:
+        identifier: source_reference
+      agent:loading_terminal_reference:
+        identifier: source_reference
+      agent:consignee_fax_number:
+        phone: documentPatch.parties.consignee
+      agent:purchase_order_date:
+        date: '2022-10-26'
+        format: '%m/%d/%Y 12:00AM'
+      agent:consignee_commercial_register:
+        identifier: source_reference
+      agent:purchase_order:F6913:
+        identifier: source_reference
+      agent:purchase_order:F6915:
+        identifier: source_reference
+      agent:purchase_order:F6916-2022:
+        identifier: source_reference
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: source_reference
+      anchor:documentPatch.parties.shipper.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.shipper
+  doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff:
+    bindings:
+      agent:exporter_vat_id:
+        identifier: source_reference
+      agent:importer_tax_id:
+        identifier: source_reference
+      agent:consignee_acid:
+        identifier: source_reference_1004631342025040027
+      agent:booking_reference:
+        identifier: source_reference
+      reviewed:shipper_postal_repeat:
+        target: documentPatch.parties.shipper.addressLine
+  doc_6c14020dbba1bd713b31bd4c6c839b5ccfb976421e9eeee5aefd55534c8c2213:
+    bindings:
+      agent:party:consignee:tax_id:
+        identifier: source_reference_674717597
+      agent:document:secondary_date:
+        date: '2023-09-16'
+        format: '%B %d, %Y'
+      anchor:documentPatch.cargoGroups[0].origin.name:
+        target: documentPatch.route.placeOfReceipt.name
+    spans:
+    - quote: Any transportation expss of containers at Alexandria terminal to be collected
+        fm receiver’s prior releasing the cargo.
+      count: 1
+      value:
+        text: Any transportation expenses of containers at the discharge terminal
+          are to be collected from receivers prior to releasing the cargo.
+  doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5:
+    bindings:
+      agent:acid_number:
+        identifier: source_reference_5945051862025050012
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: vehicle_chassis
+  doc_b5b6f81b1369aded3aff5e99c76d3c32d7e90c5fa0e2c5cf4584c74db17d9f55:
+    bindings:
+      fresh_aux_0_1:
+        identifier: exporter
+      fresh_aux_1_2:
+        identifier: importer
+      fresh_aux_2_3:
+        identifier: importer
+      fresh_aux_3_4:
+        identifier: import_reference
+      fresh_aux_4_5:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      fresh_aux_5_6:
+        phone: documentPatch.parties.shipper
+      fresh_aux_6_7:
+        identifier: contract
+      fresh_aux_7_8:
+        identifier: registration
+  doc_0690f5b97c27e36615d1be2063865ff50b6eb5bfaf98aeca96d45f07c5607d88:
+    bindings:
+      fresh_aux_0_1:
+        identifier: import_reference
+      fresh_aux_1_2:
+        identifier: importer
+      fresh_aux_2_3:
+        identifier: exporter
+      fresh_aux_3_4:
+        party_location: documentPatch.parties.shipper
+        field: country
+      fresh_aux_4_5:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      reviewed:private_shared_party_fax:
+        phone: documentPatch.parties.consignee
+  doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5:
+    bindings:
+      fresh_aux_0_1:
+        identifier: exporter
+      fresh_aux_1_2:
+        identifier: importer
+      fresh_aux_1_3:
+        identifier: importer
+      fresh_aux_1_4:
+        identifier: importer
+      fresh_aux_2_5:
+        identifier: invoice
+      fresh_aux_3_6:
+        identifier: import_reference
+      fresh_aux_4_7:
+        identifier: importer
+      fresh_aux_5_8:
+        identifier: exporter
+      fresh_aux_6_9:
+        party_location: documentPatch.parties.shipper
+        field: country
+  doc_a3e3c1e3c3d3a24d554f0e5ce647e106c7557768da461671d85e2f9757998929:
+    bindings:
+      fresh_aux_0_1:
+        identifier: import_reference
+      fresh_aux_1_2:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      fresh_aux_2_3:
+        identifier: exporter
+      fresh_aux_3_4:
+        identifier: importer
+      fresh_aux_4_5:
+        identifier: importer
+      fresh_aux_5_6:
+        identifier: contract
+      fresh_aux_6_7:
+        identifier: registration
+  doc_3b8d782408cad7106d58af31667fce246567c57d28904353d9be7768f10e50b5:
+    bindings:
+      broader_aux_0_0:
+        identifier: exporter
+        canonical_identity: US01204838657
+      broader_aux_1_0:
+        identifier: importer
+      broader_aux_1_1:
+        identifier: importer
+      broader_aux_2_0:
+        identifier: importer
+      broader_aux_3_0:
+        identifier: export_reference
+      broader_aux_4_0:
+        identifier: import_reference
+      broader_aux_5_0:
+        target: documentPatch.parties.shipper.name
+      broader_aux_6_0:
+        identifier: exporter
+        canonical_identity: US01204838657
+      broader_aux_7_0:
+        identifier: registration
+  doc_4d278a8b8742fa0c352bce50b9ec68bc2c9220681076b91ad831795938fd8536:
+    bindings:
+      broader_aux_0_0:
+        identifier: import_reference
+      broader_aux_1_0:
+        phone: documentPatch.parties.shipper
+      broader_aux_2_0:
+        identifier: exporter
+      broader_aux_3_0:
+        identifier: importer
+      broader_aux_4_0:
+        identifier: contract
+      broader_aux_5_0:
+        identifier: registration
+  doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25:
+    bindings:
+      agent:booking_reference:
+        identifier: true
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: true
+      agent:cargo:acid_reference:
+        identifier: true
+      agent:customs:importer_tax_id:
+        identifier: true
+      agent:customs:foreign_exporter_id:
+        identifier: true
+      agent:customs:foreign_exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:foreign_exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      agent:document:security_number:
+        identifier: true
+  doc_8d813987eb450221071e7a512f828c559400b15e7cbf5a7270d636d1a6415829:
+    bindings:
+      agent:customs:exporter_id:
+        identifier: true
+      agent:customs:exporter_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      agent:customs:exporter_country_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: true
+      anchor:documentPatch.forwardingAndExportReferences[1]:
+        date: '2025-05-03'
+        format: '%d/%m/%Y'
+      agent:customs:acid_reference:
+        identifier: true
+      agent:customs:egypt_importer_tax_id:
+        identifier: true
+      agent:document:booking_number:
+        identifier: true
+      agent:equipment:security_number:page1:
+        identifier: true
+      agent:equipment:security_number:page2:
+        identifier: true
+  doc_353927ef3eed47b54fb16f06d9fba7c911cfb39b036a51b5afec0305b6e5ac3c:
+    bindings:
+      shipper_ref:
+        identifier: reference
+      importer:
+        identifier: importer
+      importer_party:
+        identifier: importer
+      importer_city:
+        party_location: documentPatch.parties.consignee
+        field: name
+      exporter:
+        identifier: exporter
+      acid:
+        identifier: import_reference
+      export_country:
+        party_location: documentPatch.parties.shipper
+        field: country
+      export_code:
+        party_location: documentPatch.parties.shipper
+        field: country_code

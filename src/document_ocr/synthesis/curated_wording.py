@@ -8,12 +8,26 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, create_model
 
+from document_ocr.label_schemas.bill_of_lading import ApplicationText
 from document_ocr.synthesis.curated_casing import TargetCasing
+
+_APPLICATION_TEXT = TypeAdapter(ApplicationText)
+IdentityKind = Literal["individual", "organization", "organization_with_proprietor"]
+IDENTITY_KIND_REQUIREMENTS = {
+    "individual": "Individual party: generate only the person's full personal name.",
+    "organization": "Organization: generate only its legal or trading organization name.",
+    "organization_with_proprietor": (
+        "Organization with an uncaptioned proprietor: generate the organization name "
+        "followed by the proprietor's personal name, without a contact or job-title caption."
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -22,6 +36,16 @@ class WordingField:
     role: str
     example: str
     requirement: str
+    identity_kind: IdentityKind | None = None
+
+    def __post_init__(self) -> None:
+        if self.identity_kind is not None and (
+            not isinstance(self.identity_kind, str)
+            or self.identity_kind not in IDENTITY_KIND_REQUIREMENTS
+            or not self.role.endswith(" name")
+            or self.role == "contact name"
+        ):
+            raise ValueError("identity kind requires a certified party-name field")
 
 
 @dataclass(frozen=True)
@@ -142,6 +166,15 @@ The host has sampled registry commodity identities, routes, equipment, packaging
 the model has written fictional names and postal addresses. Compare the final text and labels
 with those supplied facts. Check coherent product meaning, DG/thermal compatibility, repeated facts,
 postal ownership and geography, stale source names/localities, and accounting quantities.
+Check field meaning even when a generated value matches its label exactly: party names contain
+identities, postal fields contain address components, contacts contain contact information,
+and goods descriptions contain product wording. Flag a company identity inserted into its
+address or a tax/contact/manager caption inserted into its name. Genuine named sites and
+uncaptioned proprietors are permitted; explain ambiguous ownership rather than deleting them.
+Where source-certified identity components are supplied, enforce their declared meaning:
+organization means organization identity only, individual means a person's identity only,
+and organization_with_proprietor means both. An added proprietor in an organization-only
+component is a mismatch even if its name is repeated correctly in the target.
 HS codes must agree between sampled facts, printed codes and labels; exact HS-to-product
 classification is not this synthesis task. Plausible related products, fictional models,
 serials, dimensions and capacities may enrich a description. Description continuations
@@ -177,16 +210,17 @@ Review the rendered text, not just the proposed labels."""
 
 
 WORDING_PROMPT = """Write fictional Bill of Lading training text from the supplied shipment facts.
-Return the requested text regions only. Facts and quantities are already chosen by the host.
+Return exactly the requested fields; other supplied facts are compatibility context.
 Generate genuinely new company/person identities. Generate each party's postal fragments
 together, appropriate to its supplied locality and country, with roughly the example's
 component hierarchy and line span. Examples show structure, not facts to copy. Punctuation
 may change. A locality/country belongs once in the complete address, in its requested region.
 Keep postal text separate from company names, contacts, tax IDs and headings.
-Write natural commercial goods wording that retains every supplied product attribute.
-Generate all description fragments jointly, using the complete source as an example of
-descriptive depth and list presentation. Use natural item boundaries without line or
-character quotas. Fictional product variants and technical qualifiers are welcome.
+When description fields are requested, write natural commercial goods wording retaining
+every supplied product attribute. Generate those fragments jointly, using the source's
+presentation: concise identity, specification passage, or product list. Represent every
+sampled identity at that level of detail. Use natural item boundaries without line or
+character quotas. Variants and technical qualifiers follow the source's descriptive depth.
 Host-owned shipment packing, unit fill weights, totals, transport instructions and customs
 captions are rendered separately; generate only product identity and specifications here.
 Choose product form compatible with supplied contained packing, as well as declared packaging.
@@ -221,6 +255,20 @@ def validate_postal_geography(
     departures for correction; do not delete apparently duplicate text or guess
     aliases. Country-only text cannot satisfy a distinct locality requirement.
     """
+    # These are literal orchestration captions, not ordinary postal vocabulary.
+    # Detect a copied instruction even when its geography happens to be correct.
+    if re.search(
+        r"\b(?:POSTAL\s+ASSEMBLY|COUNTRY\s+OWNER\s+REGIONS|INVALID\s+OLD\s+VALUE|"
+        r"PREVIOUS\s+COMPLETE\s+ADDRESS|POSTAL\s+CORRECTION)\b"
+        r"|(?:\b|_)POSTAL_COMPONENT_[0-9]+\b\s*[\"']?\s*:"
+        r"|\b[A-Z_][A-Z0-9_]*_POSTAL_COMPONENT_[0-9]+\b"
+        r"|\bLEXICAL_[0-9]+(?:_[0-9]+)*\b"
+        r"|\bDOCUMENTPATCH\.PARTIES\.[A-Z_][A-Z0-9_]*(?:\[[0-9]+\])?"
+        r"(?:\.ADDRESS(?:LINE|_LINE(?:_[0-9]+)?))?\s*[\"']?\s*:",
+        address,
+        re.I,
+    ):
+        raise ValueError("generated postal text contains a generation instruction caption")
 
     def normalized(value: str) -> str:
         text = unicodedata.normalize("NFKD", value.casefold())
@@ -400,7 +448,8 @@ def wording_prompt(requests: list[WordingRequest]) -> str:
         if not request.fields or len({f.key for f in request.fields}) != len(request.fields):
             raise ValueError("wording fields must be nonempty and uniquely keyed")
         fields = "\n\n".join(
-            f"FIELD {f.key} — {f.role}\n{f.requirement}\nStructure example:\n{f.example}"
+            f"FIELD {f.key} — {f.role}\n{wording_field_requirement(f)}\n"
+            f"Structure example:\n{f.example}"
             for f in request.fields
         )
         blocks.append(f"SHIPMENT {request.sample_id}\n{request.context}\n\n{fields}")
@@ -410,16 +459,30 @@ def wording_prompt(requests: list[WordingRequest]) -> str:
 def wording_output_type(requests: list[WordingRequest]) -> type[BaseModel]:
     """Native schema owns exact shipment/field coverage; the model writes values.
 
-    Short schema keys avoid asking the model to copy hashes and field names into
-    a free-form list. Field descriptions carry each region's precise semantics.
+    Semantic aliases identify the model-facing fields; internal ownership keys
+    remain the Pydantic field names and are restored by ordinary model_dump().
     """
+    if not requests or len({request.sample_id for request in requests}) != len(requests):
+        raise ValueError("native wording requires nonempty unique shipments")
     shipments = {}
     for index, request in enumerate(requests):
+        aliases = wording_api_keys(request)
         fields = {
-            field.key: (str, Field(min_length=1, description=field.role + ". " + field.requirement))
+            field.key: (
+                str,
+                Field(
+                    min_length=1,
+                    alias=aliases[field.key],
+                    description=field.role + ". " + wording_field_requirement(field),
+                ),
+            )
             for field in request.fields
         }
-        shipment = create_model(f"Shipment{index}", __config__=ConfigDict(extra="forbid"), **fields)
+        shipment = create_model(
+            f"Shipment{index}",
+            __config__=ConfigDict(extra="forbid", validate_by_name=True),
+            **fields,
+        )
         shipment.__doc__ = "All requested text regions for one independently sampled shipment."
         shipments[f"s{index}"] = (shipment, Field(description=f"Wording for shipment s{index}."))
     result = create_model(
@@ -431,16 +494,52 @@ def wording_output_type(requests: list[WordingRequest]) -> type[BaseModel]:
     return result
 
 
+def wording_field_requirement(field: WordingField) -> str:
+    """Expose an identity kind only when the source contract explicitly certifies it."""
+    if field.identity_kind is None:
+        return field.requirement
+    return field.requirement + " " + IDENTITY_KIND_REQUIREMENTS[field.identity_kind]
+
+
+def wording_api_keys(request: WordingRequest) -> dict[str, str]:
+    """Deterministic semantic schema aliases, independently numbered by owner/role."""
+    if not request.fields or len({f.key for f in request.fields}) != len(request.fields):
+        raise ValueError("wording fields must be nonempty and uniquely keyed")
+    seen: Counter[str] = Counter()
+    mapping = {}
+    for field in request.fields:
+        role = field.role.replace("documentPatch.parties.", "").replace(
+            "notifyParties", "notify_party"
+        )
+        if role == "contact name":
+            role = "personal contact name"
+        stem = re.sub(r"[^a-zA-Z0-9]+", "_", role).strip("_").lower()
+        if not stem:
+            raise ValueError("wording field requires a semantic role")
+        seen[stem] += 1
+        mapping[field.key] = f"{stem}_component_{seen[stem]}"
+    if len(set(mapping.values())) != len(mapping):
+        raise ValueError("wording semantic key collision")
+    return mapping
+
+
 def native_wording_prompt(requests: list[WordingRequest]) -> str:
     """Plain-text requirements also reach providers with external schema decoders."""
-    return "\n\n---\n\n".join(
-        f"SHIPMENT s{index}\n{request.context}\n\n"
-        + "\n\n".join(
-            f"{field.key} — {field.role}\n{field.requirement}\nStructure example:\n{field.example}"
+    blocks = []
+    for index, request in enumerate(requests):
+        mapping = wording_api_keys(request)
+        context = re.sub(
+            r"\{([a-z][a-z0-9_]*)\}",
+            lambda match, aliases=mapping: "{" + aliases.get(match[1], match[1]) + "}",
+            request.context,
+        )
+        fields = "\n\n".join(
+            f"{mapping[field.key]} — {field.role}\n{wording_field_requirement(field)}\n"
+            f"Structure example:\n{field.example}"
             for field in request.fields
         )
-        for index, request in enumerate(requests)
-    )
+        blocks.append(f"SHIPMENT s{index}\n{context}\n\n{fields}")
+    return "\n\n---\n\n".join(blocks)
 
 
 def unpack_wording(output: BaseModel, requests: list[WordingRequest]) -> dict[str, dict[str, str]]:
@@ -479,6 +578,43 @@ def has_shipment_accounting(text: str) -> bool:
     return _SHIPMENT_ACCOUNTING.search(text) is not None
 
 
+_IDENTITY_CAPTION = re.compile(
+    r"\b(?:ATN|ATTN|ATTENTION|CONTACT|AGENTE|MANAGER)\s*[:.]"
+    r"|(?:^|\n)\s*ATTN\s+\S"
+    r"|\b(?:MANAGING\s+DIRECTOR|GERENTE(?:\s+GENERAL)?)\b"
+    r"|\b(?:RIF|RFC|CIF|VAT|TIN|TAX\s*(?:ID|NUMBER)|REGISTRATION\s*(?:NO\.?|NUMBER))"
+    r"\s*[:#]?\s*[A-Z]?[- ]?\d",
+    re.I,
+)
+_ACTOR_RELATIONSHIP = re.compile(
+    r"\b(?:ON\s+BEHALF\s+OF|O\s*/\s*B|C\s*/\s*O|(?:IN\s+)?CARE\s+OF"
+    r"|A\s*/\s*C|AS\s+AGENTS?\s+OF|AS\s+PRINCIPAL)\b",
+    re.I,
+)
+_PRODUCT_PARTY_CAPTION = re.compile(
+    r"\b(?:DELIVERY\s+AGENT|CONSIGNEE|SHIPPER|NOTIFY\s+PARTY)"
+    r"\s+(?:CONTACT|ADDRESS|TELEPHONE|EMAIL)\s*:",
+    re.I,
+)
+
+
+def has_field_scope_caption(field: WordingField, text: str) -> bool:
+    """Hold explicit cross-field captions; do not classify uncaptained identities.
+
+    CONTACT TECHNOLOGIES may be a company and CO. KILDARE a postal component.
+    Ambiguous vocabulary and identity-in-address cases need semantic review;
+    this bounded gate never deletes or relocates generated text.
+    """
+    if field.role.endswith(" name"):
+        return (
+            _IDENTITY_CAPTION.search(text) is not None
+            or _ACTOR_RELATIONSHIP.search(text) is not None
+        )
+    if field.role == "goods description":
+        return _PRODUCT_PARTY_CAPTION.search(text) is not None
+    return False
+
+
 def validate_wording(
     batch: WordingBatch, requests: list[WordingRequest]
 ) -> dict[str, dict[str, str]]:
@@ -491,6 +627,10 @@ def validate_wording(
     descriptions_seen: dict[str, str] = {}
     for shipment in batch.shipments:
         fields = {f.key: f for f in expected[shipment.sample_id].fields}
+        reserved_field_lines = {
+            key.casefold()
+            for key in (*fields, *wording_api_keys(expected[shipment.sample_id]).values())
+        }
         if len(shipment.values) != len(fields) or {v.key for v in shipment.values} != set(fields):
             raise ValueError("wording output field coverage differs")
         values = {}
@@ -501,6 +641,10 @@ def validate_wording(
             text = "\n".join(line.strip() for line in value.text.splitlines() if line.strip())
             if not text:
                 raise ValueError(f"{value.key}: empty generated region")
+            if text.casefold() == "tbd":
+                raise ValueError(f"{value.key}: unfinished generated region")
+            for line in text.splitlines():
+                _APPLICATION_TEXT.validate_python(line)
             if re.search(r"\\[nr]", text):
                 raise ValueError(f"{value.key}: literal escaped line break in generated text")
             if any(re.match(r"\s*[,.;:]", line) for line in text.splitlines()):
@@ -509,10 +653,8 @@ def validate_wording(
                 r"(?<![\w.])0{5,6}(?![\w.])", text
             ):
                 raise ValueError(f"{value.key}: generated placeholder postcode")
-            if "name" in fields[value.key].role.casefold() and re.search(
-                r"(?im)^\s*(?:ATTN[.:]?\s+|ATTENTION\s*:)\S", text
-            ):
-                raise ValueError(f"{value.key}: contact caption inside an identity region")
+            if has_field_scope_caption(fields[value.key], text):
+                raise ValueError(f"{value.key}: identity/tax/contact caption outside its field")
             if "name" in fields[value.key].role.casefold() and (
                 re.sub(r"\W+", "", text).casefold()
                 == re.sub(r"\W+", "", fields[value.key].example).casefold()
@@ -535,6 +677,10 @@ def validate_wording(
                 raise ValueError(
                     f"{value.key}: generator context caption inside generated description"
                 )
+            if fields[value.key].role == "goods description" and any(
+                line.casefold() in reserved_field_lines for line in text.splitlines()
+            ):
+                raise ValueError(f"{value.key}: requested field key inside generated description")
             if fields[value.key].role == "goods description" and has_shipment_accounting(text):
                 raise ValueError(f"{value.key}: shipment accounting inside generated description")
             if fields[value.key].role == "goods description" and re.search(

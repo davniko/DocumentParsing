@@ -1,0 +1,450 @@
+dataset: artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/source-authority
+output: artifacts/kie-synthesis-production/curated-v7-uae2500-v1/authority
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: docs/analysis/synthesis-uae2500-20261011/campaign-auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real600_synthetic2500_party_date_route_v1/task-constraints.json
+task_constraints_sha256: be8ba7b284e1e16f8664bd8a3383e07dca89e20caadad254d2f26fe0c257338d
+seed: 202610111
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 202610111
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 202610111
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 1.5
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids:
+- doc_015c845e2f76bb3969df161bc93a9674f7d7dde2c9f0b31a24ee54c8e301efd0
+- doc_0690f5b97c27e36615d1be2063865ff50b6eb5bfaf98aeca96d45f07c5607d88
+- doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f
+- doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d
+- doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25
+- doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5
+- doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5
+- doc_353927ef3eed47b54fb16f06d9fba7c911cfb39b036a51b5afec0305b6e5ac3c
+- doc_3b8d782408cad7106d58af31667fce246567c57d28904353d9be7768f10e50b5
+- doc_4d278a8b8742fa0c352bce50b9ec68bc2c9220681076b91ad831795938fd8536
+- doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff
+- doc_6c14020dbba1bd713b31bd4c6c839b5ccfb976421e9eeee5aefd55534c8c2213
+- doc_8d813987eb450221071e7a512f828c559400b15e7cbf5a7270d636d1a6415829
+- doc_90b0c6a0df1763159d9c0508ba7749c5d6279f3dc55306c29db98e60dcae7fa0
+- doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c
+- doc_a3e3c1e3c3d3a24d554f0e5ce647e106c7557768da461671d85e2f9757998929
+- doc_b5b6f81b1369aded3aff5e99c76d3c32d7e90c5fa0e2c5cf4584c74db17d9f55
+- doc_baf806435410f5474705794f489b31e103a654b9ca3a5853524a1feb46955dd4
+- doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee
+- doc_ef2a195937de0e2cefcf20e1e1e51b3a2e386e4a9ab3963fb84ecc3d077c8d65
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
+      from_hs6:
+      - 080800
+      to_hs6:
+      - 080810
+      source_text_literals:
+      - APPLES
+      - HS CODE:080800
+      - TEMP.2CE
+      - 2C TILL PLUS 2C 20 CBM/HR
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify
+        authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed
+        080800 and extraction labels remain unchanged.'
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+capabilities:
+  doc_015c845e2f76bb3969df161bc93a9674f7d7dde2c9f0b31a24ee54c8e301efd0:
+    family: ambient
+    identity_count: 2
+    party_locality_groups:
+    - members:
+        documentPatch.parties.consignee:
+          occurrence: 1
+          text: WASAT ELBANDR STR MANZLA ELDAKAHLIA EGYPT
+        documentPatch.parties.notifyParties[0]:
+          occurrence: 2
+          text: WASAT ELBANDR STR MANZLA ELDAKAHLIA EGYPT
+      rationale: Individually reviewed source blocks repeat this complete street/site
+        component; the compiled postal variable has both address targets. Names or
+        optional postal suffixes differ, but this is a shared source locality, not
+        a company-name inference.
+      shared_postal_key: v005
+      source_sha256: f83a4170ccc42a4c316defb93128c9685d96276f8b2fceca36f5fdf9e2d21f41
+    route_topology:
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: placeOfReceipt
+      location_nodes: {}
+      nodes:
+        placeOfReceipt:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BAG_PLASTIC
+  doc_0690f5b97c27e36615d1be2063865ff50b6eb5bfaf98aeca96d45f07c5607d88:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f:
+    family: ambient
+    identity_count: 1
+    party_locality_groups:
+    - members:
+        documentPatch.parties.consignee:
+          occurrence: 1
+          text: 'BUILDING NO.15 W/4, HASSAN NASSAR
+
+            ST, EL LASALKY AREA (BEHIND CALTEX
+
+            OIL STATION), NEW MAADI, CAIRO'
+        documentPatch.parties.notifyParties[0]:
+          occurrence: 2
+          text: 'BUILDING NO.15 W/4, HASSAN NASSAR
+
+            ST, EL LASALKY AREA (BEHIND CALTEX
+
+            OIL STATION), NEW MAADI, CAIRO'
+      rationale: Individually reviewed source blocks repeat this complete street/site
+        component; the compiled postal variable has both address targets. Names or
+        optional postal suffixes differ, but this is a shared source locality, not
+        a company-name inference.
+      shared_postal_key: v004
+      source_sha256: 8b4d8094f0a49c321466bda7efe7845b80f929216993739cb70bcda784616546
+    destination_country: AE
+  doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d:
+    allowed_hs_headings:
+    - '8704'
+    allowed_package_categories:
+    - PACKAGE_VEHICLE
+    family: vehicle
+    identity_count: 1
+    destination_country: AE
+  doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25:
+    family: ambient
+    goods_origin_identifiers:
+      documentPatch.goodsItemDetails[0].origin.identifier:
+        kind: unlocode
+        node: origin
+    identity_count: 1
+    destination_country: AE
+  doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5:
+    family: ambient
+    identity_count: 15
+    destination_country: AE
+  doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5:
+    allowed_hs_headings:
+    - '8704'
+    allowed_package_categories:
+    - PACKAGE_VEHICLE
+    family: vehicle
+    identity_count: 1
+    destination_country: AE
+  doc_353927ef3eed47b54fb16f06d9fba7c911cfb39b036a51b5afec0305b6e5ac3c:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_3b8d782408cad7106d58af31667fce246567c57d28904353d9be7768f10e50b5:
+    family: ambient
+    identity_count: 2
+    destination_country: AE
+  doc_4d278a8b8742fa0c352bce50b9ec68bc2c9220681076b91ad831795938fd8536:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff:
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_6c14020dbba1bd713b31bd4c6c839b5ccfb976421e9eeee5aefd55534c8c2213:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfDischarge: destination
+        portOfLoading: origin
+        transshipmentPort: hub
+      issue_node: origin
+      nodes:
+        hub:
+          country_from: independent
+          kind: port
+        receipt:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_8d813987eb450221071e7a512f828c559400b15e7cbf5a7270d636d1a6415829:
+    family: ambient
+    goods_origin_identifiers:
+      documentPatch.goodsItemDetails[0].origin.identifier:
+        kind: unlocode
+        node: origin
+    identity_count: 1
+    destination_country: AE
+  doc_90b0c6a0df1763159d9c0508ba7749c5d6279f3dc55306c29db98e60dcae7fa0:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      fields:
+        finalDestination: final
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+        transshipmentPort: hub
+      issue_node: origin
+      nodes:
+        final:
+          country_from: destination
+          kind: port
+        hub:
+          country_from: independent
+          kind: port
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_a3e3c1e3c3d3a24d554f0e5ce647e106c7557768da461671d85e2f9757998929:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_b5b6f81b1369aded3aff5e99c76d3c32d7e90c5fa0e2c5cf4584c74db17d9f55:
+    family: ambient
+    identity_count: 2
+    destination_country: AE
+  doc_baf806435410f5474705794f489b31e103a654b9ca3a5853524a1feb46955dd4:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+  doc_ef2a195937de0e2cefcf20e1e1e51b3a2e386e4a9ab3963fb84ecc3d077c8d65:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+template_sampling:
+  samples: 133
+  source_counts:
+    doc_015c845e2f76bb3969df161bc93a9674f7d7dde2c9f0b31a24ee54c8e301efd0: 3
+    doc_0690f5b97c27e36615d1be2063865ff50b6eb5bfaf98aeca96d45f07c5607d88: 3
+    doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f: 4
+    doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d: 11
+    doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25: 4
+    doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5: 4
+    doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5: 6
+    doc_353927ef3eed47b54fb16f06d9fba7c911cfb39b036a51b5afec0305b6e5ac3c: 4
+    doc_3b8d782408cad7106d58af31667fce246567c57d28904353d9be7768f10e50b5: 13
+    doc_4d278a8b8742fa0c352bce50b9ec68bc2c9220681076b91ad831795938fd8536: 4
+    doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff: 8
+    doc_6c14020dbba1bd713b31bd4c6c839b5ccfb976421e9eeee5aefd55534c8c2213: 4
+    doc_8d813987eb450221071e7a512f828c559400b15e7cbf5a7270d636d1a6415829: 4
+    doc_90b0c6a0df1763159d9c0508ba7749c5d6279f3dc55306c29db98e60dcae7fa0: 4
+    doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c: 5
+    doc_a3e3c1e3c3d3a24d554f0e5ce647e106c7557768da461671d85e2f9757998929: 4
+    doc_b5b6f81b1369aded3aff5e99c76d3c32d7e90c5fa0e2c5cf4584c74db17d9f55: 21
+    doc_baf806435410f5474705794f489b31e103a654b9ca3a5853524a1feb46955dd4: 4
+    doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee: 4
+    doc_ef2a195937de0e2cefcf20e1e1e51b3a2e386e4a9ab3963fb84ecc3d077c8d65: 19

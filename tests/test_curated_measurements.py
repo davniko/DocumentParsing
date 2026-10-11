@@ -15,8 +15,8 @@ from document_ocr.synthesis.curated_templates import render_sampling_blueprint
 PREFIX = "documentPatch.goodsItemDetails[0]"
 
 
-def converted_fixture(*, pounds="1351.434", pound_unit="Lbs"):
-    raw = f"GROSS {pounds} {pound_unit}\n613.000 Kgs\nVOLUME 216.126 Cbf\n6.120 Cbm\n"
+def converted_fixture(*, pounds="1351.434", pound_unit="Lbs", volume_unit="Cbf"):
+    raw = f"GROSS {pounds} {pound_unit}\n613.000 Kgs\nVOLUME 216.126 {volume_unit}\n6.120 Cbm\n"
     target = {
         "schemaVersion": "7.0.0",
         "documentPatch": {
@@ -70,8 +70,9 @@ def converted_fixture(*, pounds="1351.434", pound_unit="Lbs"):
     return row, build_owned_blueprint(row, historical, contract, {"surfaces": recipes})
 
 
-def test_declared_unit_aliases_preserve_baseline_and_render_canonical_values_only():
-    row, blueprint = converted_fixture()
+@pytest.mark.parametrize("volume_unit", ["Cbf", "FTQ", "CF"])
+def test_declared_unit_aliases_preserve_baseline_and_render_canonical_values_only(volume_unit):
+    row, blueprint = converted_fixture(volume_unit=volume_unit)
     snapshot = deepcopy(row)
     baseline = ownership_surfaces(blueprint, row["target"], None)
     assert baseline == {"mass_alias": ["1351.434"], "volume_alias": ["216.126"]}
@@ -85,7 +86,9 @@ def test_declared_unit_aliases_preserve_baseline_and_render_canonical_values_onl
     rendered, _, _ = render_sampling_blueprint(
         blueprint, changed, {"mass": "1000", "volume": "10"}, surface_values=surfaces
     )
-    assert rendered == "GROSS 2204.623 Lbs\n1000.000 Kgs\nVOLUME 353.147 Cbf\n10.000 Cbm\n"
+    assert (
+        rendered == f"GROSS 2204.623 Lbs\n1000.000 Kgs\nVOLUME 353.147 {volume_unit}\n10.000 Cbm\n"
+    )
     assert row == snapshot
 
 
