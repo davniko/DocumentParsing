@@ -1,0 +1,1479 @@
+dataset: data/curated/mpci-bl-real-v7-reviewed-r17-paddle-positions-660
+output: artifacts/kie-synthesis-production/mixed-inventory-validation-v1
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: docs/analysis/mixed-equipment-production-20261012/campaign-auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real600_synthetic2500_party_date_route_v1/task-constraints.json
+task_constraints_sha256: be8ba7b284e1e16f8664bd8a3383e07dca89e20caadad254d2f26fe0c257338d
+seed: 2026101247
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 202610111
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 202610111
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 2.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids: &id001
+- doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed
+- doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397
+- doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a
+- doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f
+- doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137
+- doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e
+- doc_0bd3ce7b5dd84812d58987e15385efa2e95506302e90d847a9b689495b9cd009
+- doc_11da8a8c9f0e33daafa39cf0a8c9d216edb9caa1b170e201c1f12559fed234d8
+- doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825
+- doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25
+- doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09
+- doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39
+- doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85
+- doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4
+- doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f
+- doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee
+- doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a
+- doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15
+- doc_3056615e8eef37402744ca3a7debc11d8fd859f1eabb144efac0277ee4a63b88
+- doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8
+- doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301
+- doc_381ea09fc895afd58d149ee9280baf2cf7d8d004cb8ebbf78e53c0701cc94fc8
+- doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f
+- doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635
+- doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a
+- doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+- doc_4799921c130f9f5971dec476b815a3454a6b59b5d1f08d60dc0e1bab61b002e9
+- doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e
+- doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd
+- doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157
+- doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b
+- doc_551f3a340047d71e39413508f5f4f189705044a7c78972479731f63db1793c65
+- doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95
+- doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9
+- doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9
+- doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6
+- doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff
+- doc_67eff10181fc88c158efc5a99d33807643b4771ce39f64e90f358b0e6c721d7f
+- doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08
+- doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1
+- doc_6aea1cb2433725478047603c3f7cc46691b800c5867b77d2a4b1883864e3ae6b
+- doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512
+- doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850
+- doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745
+- doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4
+- doc_74181921e0c8f89c4c0b1c43906e7304d500f250b31243919039472dd4395dd3
+- doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b
+- doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93
+- doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38
+- doc_7f8fafe78ae25013135d1a1a187235c9d038134a43f38352aa6f39cf72e5b8fe
+- doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9
+- doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0
+- doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9
+- doc_8a73dafe3f20a7adedeaa66e6b12c4919396b4e38dec67d20a5ec5ddd972870e
+- doc_90b0c6a0df1763159d9c0508ba7749c5d6279f3dc55306c29db98e60dcae7fa0
+- doc_98612b712449d9041fb1db28fa76b2133f550bd641c6355990791152b3c960ca
+- doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae
+- doc_a286601bd0cd0b6bcad8a7fd3236a84daff2e9120ec343912ee08488df35eca1
+- doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3
+- doc_aaa232a216de9ef75450afe2ccf0f0431ed33ed3c0526e98ea5e640574aa1aa0
+- doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863
+- doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049
+- doc_b26179019509e8672a2b3a6957f04156c381f95605d92859494993dcbe311799
+- doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a
+- doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6
+- doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc
+- doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0
+- doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd
+- doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982
+- doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770
+- doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a
+- doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0
+- doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290
+- doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6
+- doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836
+- doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c
+- doc_e2b4856695c8d37601f2649074af0e7d2776b9a03b18202a086385146191c728
+- doc_e4313a4aed3f5b961982c911df0dd415bc80411414952c0c49e092f25ef457d6
+- doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb
+- doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013
+- doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671
+- doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee
+- doc_f36409a0d43ce2b8629e5328d3113eac32f18f3a223252da37860b4afdbc2e38
+- doc_f766e12f23dc32b7dc32b249afb058b2dc296ca1fd8fd53e83d0d3ddcaab2298
+- doc_f98e69891b70ffdb7141bcf2e80184b58029037dda7e0851469faa01ed268469
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
+      from_hs6:
+      - 080800
+      to_hs6:
+      - 080810
+      source_text_literals:
+      - APPLES
+      - HS CODE:080800
+      - TEMP.2CE
+      - 2C TILL PLUS 2C 20 CBM/HR
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify
+        authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed
+        080800 and extraction labels remain unchanged.'
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  load_profiles:
+    path: artifacts/sampling-registries/load-profiles.json
+    sha256: 920598be09985ad6cfd9dfc5821085e1debb2ae1d50d9d3d5005e9cc94df4020
+  equipment_inventory:
+    source_ids: *id001
+    mixed_probability: '0.5'
+    category_count_weights:
+      2: 1
+    modes:
+    - uniform
+    - mixed
+capabilities:
+  doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed:
+    family: ambient
+    identity_count: 4
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397:
+    family: ambient
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_049ad12d94bf5f6636510de5c91f0a70e5842542de33f93d75377a80f5cc3c8a:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_0bd3ce7b5dd84812d58987e15385efa2e95506302e90d847a9b689495b9cd009:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+    - volume
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_11da8a8c9f0e33daafa39cf0a8c9d216edb9caa1b170e201c1f12559fed234d8:
+    family: ambient
+    identity_count: 1
+    physical_profile: registry_form
+    quantity_multiple: 2
+    destination_country: AE
+    allowed_equipment_pairs: []
+  doc_17440e5e319e9a6b191257c675b6c5a4fb5a2a1d534307fabd6c291dd6aad825:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25:
+    family: ambient
+    goods_origin_identifiers:
+      documentPatch.goodsItemDetails[0].origin.identifier:
+        kind: unlocode
+        node: origin
+    identity_count: 1
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_20ae6638185070ef700645840240386188a675f6991ce947196f493e6ea68b85:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: payment
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        payment:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
+    family: ambient
+    required_private_measures:
+    - volume
+    route_topology:
+      fields:
+        placeOfDelivery: delivery
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes:
+        delivery:
+          country_from: destination
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_3056615e8eef37402744ca3a7debc11d8fd859f1eabb144efac0277ee4a63b88:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
+    family: ambient
+    required_private_measures:
+    - volume
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        payment:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: payment
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_381ea09fc895afd58d149ee9280baf2cf7d8d004cb8ebbf78e53c0701cc94fc8:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_3c5643cf78b8b0fc0105446c93d16210cb036f8e67ead4cf6a8eefb127c42635:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: independent
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_3dc8551dbaaba3ed066f05e5255c17cbffe941f787203b20c74b1c6843e7b85a:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_4799921c130f9f5971dec476b815a3454a6b59b5d1f08d60dc0e1bab61b002e9:
+    family: ambient
+    identity_count: 3
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.forwardingAgent: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: independent
+          kind: locality
+        placeOfReceipt:
+          country_from: origin
+          kind: locality
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_4fc21678ae8c728ae726dd27fa4d3f94365132267f734c455cf880e87f6b0d5b:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BAG_PLASTIC
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_551f3a340047d71e39413508f5f4f189705044a7c78972479731f63db1793c65:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_5ec952590afa6e837224a85f6b8018bb5c1bfdcdf67e6ede44d4e53f8e11ecd9:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_64a42811940b6b86cb2a4585af4f3c952249726f5ed1fb0db2149770df5994c6:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: payment
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        payment:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff:
+    allowed_equipment_pairs: []
+    family: ambient
+    identity_count: 1
+    physical_profile: registry_form
+  doc_67eff10181fc88c158efc5a99d33807643b4771ce39f64e90f358b0e6c721d7f:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08:
+    family: ambient
+    identity_count: 2
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_6a62368cd6e99dbfd61773e7c2ce25afae42f75b006306bebb8462199f8d95b1:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_6aea1cb2433725478047603c3f7cc46691b800c5867b77d2a4b1883864e3ae6b:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes: {}
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: independent
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_7227df7649223f8aca5afdb9b15484e90b7fff5addc86b6bd6cfd94c6a9cedc4:
+    family: ambient
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_74181921e0c8f89c4c0b1c43906e7304d500f250b31243919039472dd4395dd3:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_747d97790745857fa05f774c02db3c2030f8039b4f0f86c1767f8a34056d0b1b:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_76a9efad717f7db18c0d64d6c4b5b6967e53845a03403f05d0d9feda27dc3b93:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_7f8fafe78ae25013135d1a1a187235c9d038134a43f38352aa6f39cf72e5b8fe:
+    family: ambient
+    required_private_measures:
+    - grossWeight
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        third_party:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: third_party
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: receipt
+      location_nodes:
+        documentPatch.freight.paymentPlace: receipt
+      nodes:
+        receipt:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories:
+    - PACKAGE_BAG_PLASTIC
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_8a73dafe3f20a7adedeaa66e6b12c4919396b4e38dec67d20a5ec5ddd972870e:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_90b0c6a0df1763159d9c0508ba7749c5d6279f3dc55306c29db98e60dcae7fa0:
+    family: ambient
+    identity_count: 1
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_98612b712449d9041fb1db28fa76b2133f550bd641c6355990791152b3c960ca:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.notifyParties[0]: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_a286601bd0cd0b6bcad8a7fd3236a84daff2e9120ec343912ee08488df35eca1:
+    family: ambient
+    required_private_measures:
+    - volume
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_a317185960d6b573694f1d7687e7ef2eb73758a05a9e5d70a6f66c22159b88f3:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_aaa232a216de9ef75450afe2ccf0f0431ed33ed3c0526e98ea5e640574aa1aa0:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_b26179019509e8672a2b3a6957f04156c381f95605d92859494993dcbe311799:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      nodes: {}
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_b3aeb7ab7b0a87281bf9391bbb5fcab1b3b7a867b60da1bfd6be91697b2ec91a:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_b54eac08475183f42a2f4d8d60c2ad065714136cd816e6978dac1759c11236a6:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes:
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd:
+    family: ambient
+    route_topology:
+      fields:
+        finalDestination: final
+        placeOfDelivery: destination
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes:
+        final:
+          country_from: destination
+          kind: locality
+        third_party:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.shipper: third_party
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770:
+    family: ambient
+    identity_count: 3
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+        transshipmentPort: hub
+      issue_node: origin
+      location_nodes: {}
+      nodes:
+        hub:
+          country_from: independent
+          kind: port
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_d0d9e5583bef97d7eef1ff8be978d12ce727a2cc1bb6690a6ebe6ce9c04793d0:
+    family: ambient
+    identity_count: 2
+    route_topology:
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: placeOfReceipt
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      nodes:
+        placeOfReceipt:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.notifyParties[0]: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_d3c71ee6f5a19b7d46c5bd6385f7d9f4dd8e715d78e85095f06b1fd70b6426e6:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_d62c6d64b7fbafe0cd21977790e755ef7a2fc40f686d72c39f73c89d67267836:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: independent
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_e2b4856695c8d37601f2649074af0e7d2776b9a03b18202a086385146191c728:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_e4313a4aed3f5b961982c911df0dd415bc80411414952c0c49e092f25ef457d6:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb:
+    family: ambient
+    required_private_measures:
+    - volume
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: issue
+      nodes:
+        issue:
+          country_from: independent
+          kind: locality
+        shipper_region:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.shipper: shipper_region
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes:
+        third_party:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.shipper: third_party
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee:
+    family: ambient
+    identity_count: 1
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_f36409a0d43ce2b8629e5328d3113eac32f18f3a223252da37860b4afdbc2e38:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_f766e12f23dc32b7dc32b249afb058b2dc296ca1fd8fd53e83d0d3ddcaab2298:
+    family: ambient
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+  doc_f98e69891b70ffdb7141bcf2e80184b58029037dda7e0851469faa01ed268469:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: placeOfDelivery
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes:
+        placeOfDelivery:
+          country_from: destination
+          kind: port
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    allowed_equipment_pairs: []
+    physical_profile: registry_form
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+aliases:
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+    records: 405
+  equipment_registry:
+    path: artifacts/sampling-registries/equipment-aliases.json
+    sha256: 449160a10885d871b3ce1e9110819a586337c00945fdf6993affb6cf5d2487ad
+  package_mode: registry

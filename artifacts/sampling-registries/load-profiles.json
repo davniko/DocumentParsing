@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "paper_bag_powder",
+      "hs_headings": [
+        "1101"
+      ],
+      "form": "DRY WHEAT OR MESLIN FLOUR POWDER",
+      "package_category": "PACKAGE_BAG_PAPER",
+      "unit_gross_kg": "26",
+      "unit_net_kg": "25",
+      "unit_volume_m3": "0.09",
+      "quantity_min": 1,
+      "quantity_max": 480,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "multiwall_bag_powder",
+      "hs_headings": [
+        "1101"
+      ],
+      "form": "DRY WHEAT OR MESLIN FLOUR POWDER",
+      "package_category": "PACKAGE_BAG_PAPER_MULTI_WALL",
+      "unit_gross_kg": "26",
+      "unit_net_kg": "25",
+      "unit_volume_m3": "0.0416666666666667",
+      "quantity_min": 1,
+      "quantity_max": 480,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "plastic_bag_granules",
+      "hs_headings": [
+        "3901"
+      ],
+      "form": "DRY POLYETHYLENE GRANULES, NOT LIQUID OR PASTE",
+      "package_category": "PACKAGE_BAG_PLASTIC",
+      "unit_gross_kg": "26",
+      "unit_net_kg": "25",
+      "unit_volume_m3": "0.04",
+      "quantity_min": 1,
+      "quantity_max": 1000,
+      "rationale": "Reviewed extraction-training envelope: source families 4fc21678 and 88bab156 declare net/count ratios of 198000/7920 and 140000/5600, both 25 kg per bag; the latter explicitly prints HDPE bags. Gross mass 26 kg is a conservative chosen synthetic fact, not the source gross/net ratio. Volume 0.04 m3 scales the existing dry-granule envelope of 1.6 m3 per 1000 kg to 25 kg. The quantity interval is additionally bounded by sampled per-container payload and volume. Not an empirical shipping distribution or operational stowage approval; net/volume are rendered and labeled only where source ownership supports those measures."
+    },
+    {
+      "id": "jumbo_bag_granules",
+      "hs_headings": [
+        "3901"
+      ],
+      "form": "DRY POLYETHYLENE GRANULES, NOT LIQUID OR PASTE",
+      "package_category": "PACKAGE_BAG_JUMBO",
+      "unit_gross_kg": "1010",
+      "unit_net_kg": "1000",
+      "unit_volume_m3": "1.6",
+      "quantity_min": 1,
+      "quantity_max": 20,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "ibc_liquid_oil",
+      "hs_headings": [
+        "1507"
+      ],
+      "form": "NON-DG LIQUID SOYBEAN OIL",
+      "package_category": "PACKAGE_INTERMEDIATE_BULK_CONTAINER",
+      "unit_gross_kg": "940",
+      "unit_net_kg": "900",
+      "unit_volume_m3": "1.5",
+      "quantity_min": 1,
+      "quantity_max": 20,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "plastic_drum_liquid_oil",
+      "hs_headings": [
+        "1507"
+      ],
+      "form": "NON-DG LIQUID SOYBEAN OIL",
+      "package_category": "PACKAGE_DRUM_PLASTIC",
+      "unit_gross_kg": "190",
+      "unit_net_kg": "180",
+      "unit_volume_m3": "0.3",
+      "quantity_min": 1,
+      "quantity_max": 100,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "crate_motor",
+      "hs_headings": [
+        "8501"
+      ],
+      "form": "WHOLE ORDINARY ELECTRIC MOTORS WITHOUT INTEGRAL BATTERIES OR DG CONTENTS",
+      "package_category": "PACKAGE_CRATE",
+      "unit_gross_kg": "70",
+      "unit_net_kg": "65",
+      "unit_volume_m3": "0.3333333333333333",
+      "quantity_min": 1,
+      "quantity_max": 84,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "skid_motor",
+      "hs_headings": [
+        "8501"
+      ],
+      "form": "WHOLE ORDINARY ELECTRIC MOTORS ON DECLARED TRANSPORT SKIDS",
+      "package_category": "PACKAGE_SKID",
+      "unit_gross_kg": "600",
+      "unit_net_kg": "550",
+      "unit_volume_m3": "1.25",
+      "quantity_min": 1,
+      "quantity_max": 20,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "coil_steel",
+      "hs_headings": [
+        "7208"
+      ],
+      "form": "HOT-ROLLED STEEL IN COILED FORM, NOT FLAT SHEETS",
+      "package_category": "PACKAGE_COIL",
+      "unit_gross_kg": "3000",
+      "unit_net_kg": "2980",
+      "unit_volume_m3": "1.5",
+      "quantity_min": 1,
+      "quantity_max": 8,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "wooden_case_ceramic",
+      "hs_headings": [
+        "6912"
+      ],
+      "form": "SOLID CERAMIC TABLEWARE",
+      "package_category": "PACKAGE_CASE_WOODEN",
+      "unit_gross_kg": "300",
+      "unit_net_kg": "280",
+      "unit_volume_m3": "1.5",
+      "quantity_min": 1,
+      "quantity_max": 40,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    },
+    {
+      "id": "carton_ceramic",
+      "hs_headings": [
+        "6912"
+      ],
+      "form": "SOLID CERAMIC TABLEWARE",
+      "package_category": "PACKAGE_CARTON",
+      "unit_gross_kg": "30",
+      "unit_net_kg": "28",
+      "unit_volume_m3": "0.1222222222222222",
+      "quantity_min": 1,
+      "quantity_max": 180,
+      "rationale": "Reviewed extraction-training envelope based on the completed sampling variability pilots; not an empirical shipping distribution or operational stowage approval. Net mass is a chosen synthetic fact, only rendered/labeled when the source owns that measure."
+    }
+  ]
+}

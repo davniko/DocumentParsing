@@ -93,6 +93,8 @@ def six_row_campaign():
     campaign.catalog = catalog(rows)
     campaign.capabilities = {source["documentId"]: SourceCapabilities(family="ambient")}
     campaign.physical_support = PhysicalSupport.fit(rows)
+    campaign.equipment_inventories = {}
+    campaign.equipment_compatibility = {}
     campaign.blueprint = lambda sid: blueprint
     campaign.vessels = ()
     return campaign, source, blueprint

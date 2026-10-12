@@ -672,7 +672,7 @@ def test_measurement_freedom_is_decided_before_sampling_from_exact_dependency_co
         ("CTNR", (None, None, None)),
         ("LCL.", (None, None, None)),
         ("1 x 40RA", ("40", "REFRIGERATED", None)),
-        ("01 X 40RQ", ("40", "REFRIGERATED", None)),
+        ("01 X 40RQ", (None, "REFRIGERATED", "FORTY_FOOT_HIGH_CUBE")),
         ("20DRX1", (None, "GENERAL_PURPOSE", "TWENTY_FOOT_STANDARD_HEIGHT")),
     ],
 )
@@ -1330,17 +1330,17 @@ def test_unprinted_equipment_requires_proved_physical_numeric_dependencies(
 
 
 @pytest.mark.parametrize(
-    "description,size",
+    "description,size,kind",
     [
-        ("20'", "TWENTY_FOOT_STANDARD_HEIGHT"),
-        ("40", "FORTY_FOOT_HIGH_CUBE"),
-        ("45FT", "FORTY_FIVE_FOOT_HIGH_CUBE"),
-        ("40'RQ", "FORTY_FOOT_HIGH_CUBE"),
-        ("40RO", "FORTY_FOOT_HIGH_CUBE"),
-        ("1 x 40RA", "FORTY_FOOT_HIGH_CUBE"),
+        ("20'", "TWENTY_FOOT_STANDARD_HEIGHT", "GENERAL_PURPOSE"),
+        ("40", "FORTY_FOOT_STANDARD_HEIGHT", "GENERAL_PURPOSE"),
+        ("45FT", "FORTY_FIVE_FOOT_HIGH_CUBE", "REFRIGERATED"),
+        ("40'RQ", "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED"),
+        ("40RO", "FORTY_FOOT_STANDARD_HEIGHT", "REFRIGERATED"),
+        ("1 x 40RA", "FORTY_FOOT_HIGH_CUBE", "REFRIGERATED"),
     ],
 )
-def test_partial_equipment_retains_only_observed_labels(description, size):
+def test_partial_equipment_retains_only_observed_labels(description, size, kind):
     source = SimpleNamespace(
         target={
             "documentPatch": {
@@ -1353,7 +1353,7 @@ def test_partial_equipment_retains_only_observed_labels(description, size):
     target["documentPatch"]["containers"][0].update(
         containerNumber="NEWU7654321",
         sizeCategory=size,
-        typeCategory="REFRIGERATED",
+        typeCategory=kind,
     )
     assert cargo._observable_equipment_target(source, target) == {
         "documentPatch": {
@@ -1368,7 +1368,7 @@ def test_partial_equipment_retains_only_observed_labels(description, size):
         ("20'", {"TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE"}),
         (
             "40'",
-            {"FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE", "FORTY_FOOT_HIGH_CUBE|REFRIGERATED"},
+            {"FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE"},
         ),
         ("40RQ", {"FORTY_FOOT_HIGH_CUBE|REFRIGERATED"}),
         ("1 x 40RA", {"FORTY_FOOT_HIGH_CUBE|REFRIGERATED"}),

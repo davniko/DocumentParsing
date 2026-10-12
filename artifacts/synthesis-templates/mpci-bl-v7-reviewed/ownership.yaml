@@ -251,6 +251,8 @@ sources:
         - documentPatch.containerInformation[3].typeCategory
         occurrences:
         - text: 45G1
+        derivation: equipment_receipt
+        target_relationship: composite_target_surface
     description_blocks:
       source_sha256: 798ab362e72420646a59d902c7cc37d02c8cc8e461ff2159cdb48d91949f4f57
       fields:
@@ -998,6 +1000,15 @@ sources:
         - text: PRIME PINE KD LUMBER
           occurrence: 1
   doc_35136b22922177501a794351a470cce57d8873a40338c10058abf1712f0459e8:
+    omit:
+    - key: reviewed:omitted_unresolved_notify_owner
+      source_sha256: bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690
+      quote: 'Owner: Al Ghurair Centre LLC'
+      count: 1
+      reason: The separately printed owner is not proven to be the notify party;
+        omit its complete source-only caption and identity in synthetic descendants
+        instead of aliasing an unresolved entity to a target party. Preserve the
+        original source and all current public labels.
     lexical:
     - key: lexical_00
       kind: product
@@ -2094,6 +2105,14 @@ sources:
         relationship: on_behalf
   doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
     bindings:
+      anchor:documentPatch.containers[2].typeDescription:
+        paths:
+        - documentPatch.containerInformation[3].sizeCategory
+        - documentPatch.containerInformation[3].typeCategory
+      anchor:documentPatch.containers[3].typeDescription:
+        paths:
+        - documentPatch.containerInformation[2].sizeCategory
+        - documentPatch.containerInformation[2].typeCategory
       agent:operational:equipment_receipt:
         occurrences:
         - text: 40'HC
@@ -2107,6 +2126,8 @@ sources:
         - documentPatch.containerInformation[2].typeCategory
         - documentPatch.containerInformation[3].sizeCategory
         - documentPatch.containerInformation[3].typeCategory
+        derivation: equipment_receipt
+        target_relationship: composite_target_surface
       anchor:documentPatch.cargoGroups[0].origin.name:
         paths:
         - documentPatch.route.placeOfDelivery.name
@@ -7379,8 +7400,6 @@ sources:
         - text: '6'
           occurrence: 4
         - text: '6'
-          occurrence: 6
-        - text: '6'
           occurrence: 10
       anchor:documentPatch.cargoGroups[0].additionalInformation[0]:
         occurrences:
@@ -11010,6 +11029,14 @@ sources:
         under MARKING, not shipment totals. Their literal capacities are non-target
         context, not sampled gross/net facts.
   doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26:
+    omit:
+    - key: reviewed:obsolete_cargo_manufacturer
+      source_sha256: 249aff2d7a3387cb4bd51ced1af856d7f0fa9186951e9c4cc79797065fdfbba0
+      quote: 'MANUFACTURER: TOP GLOVE SDN BHD'
+      count: 1
+      reason: This explicit manufacturer belongs to the original glove cargo, outside
+        extracted description and party fields. Independently sampled commodities
+        do not supply a replacement manufacturer; omit the obsolete auxiliary claim.
     bindings:
       agent:consignee_telephone:
         paths:
@@ -11490,6 +11517,8 @@ sources:
       occurrences:
       - text: 40'FT
         occurrence: 1
+      derivation: equipment_receipt
+      target_relationship: composite_target_surface
     retire:
       agent:container:receipt: The generic length summary is superseded by separately
         owned count and explicit four 40HQ equipment rows; preserve all source bytes
@@ -12099,6 +12128,8 @@ sources:
       occurrences:
       - text: 20'
         occurrence: 10
+      derivation: equipment_receipt
+      target_relationship: composite_target_surface
     - key: reviewed:repeated_header_equipment
       kind: equipment
       paths:
@@ -12121,8 +12152,66 @@ sources:
       occurrences:
       - text: 20'
         occurrence: 9
+      derivation: equipment_receipt
+      target_relationship: composite_target_surface
   doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863:
     bindings:
+      anchor:documentPatch.containers[2].typeDescription:
+        paths:
+        - documentPatch.containerInformation[0].sizeCategory
+        - documentPatch.containerInformation[0].typeCategory
+      anchor:documentPatch.containers[3].typeDescription:
+        paths:
+        - documentPatch.containerInformation[1].sizeCategory
+        - documentPatch.containerInformation[1].typeCategory
+      anchor:documentPatch.containers[4].typeDescription:
+        paths:
+        - documentPatch.containerInformation[2].sizeCategory
+        - documentPatch.containerInformation[2].typeCategory
+      anchor:documentPatch.containers[5].typeDescription:
+        paths:
+        - documentPatch.containerInformation[3].sizeCategory
+        - documentPatch.containerInformation[3].typeCategory
+      anchor:documentPatch.containers[6].typeDescription:
+        paths:
+        - documentPatch.containerInformation[4].sizeCategory
+        - documentPatch.containerInformation[4].typeCategory
+      anchor:documentPatch.containers[7].typeDescription:
+        paths:
+        - documentPatch.containerInformation[5].sizeCategory
+        - documentPatch.containerInformation[5].typeCategory
+      anchor:documentPatch.containers[8].typeDescription:
+        paths:
+        - documentPatch.containerInformation[6].sizeCategory
+        - documentPatch.containerInformation[6].typeCategory
+      anchor:documentPatch.containers[9].typeDescription:
+        paths:
+        - documentPatch.containerInformation[7].sizeCategory
+        - documentPatch.containerInformation[7].typeCategory
+      anchor:documentPatch.containers[10].typeDescription:
+        paths:
+        - documentPatch.containerInformation[8].sizeCategory
+        - documentPatch.containerInformation[8].typeCategory
+      anchor:documentPatch.containers[11].typeDescription:
+        paths:
+        - documentPatch.containerInformation[9].sizeCategory
+        - documentPatch.containerInformation[9].typeCategory
+      anchor:documentPatch.containers[12].typeDescription:
+        paths:
+        - documentPatch.containerInformation[10].sizeCategory
+        - documentPatch.containerInformation[10].typeCategory
+      anchor:documentPatch.containers[13].typeDescription:
+        paths:
+        - documentPatch.containerInformation[11].sizeCategory
+        - documentPatch.containerInformation[11].typeCategory
+      anchor:documentPatch.containers[0].typeDescription:
+        paths:
+        - documentPatch.containerInformation[12].sizeCategory
+        - documentPatch.containerInformation[12].typeCategory
+      anchor:documentPatch.containers[1].typeDescription:
+        paths:
+        - documentPatch.containerInformation[13].sizeCategory
+        - documentPatch.containerInformation[13].typeCategory
       anchor:documentPatch.parties.consignee.country:
         paths:
         - documentPatch.parties.consignee.country
@@ -12218,132 +12307,132 @@ sources:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 2
+        row: 0
       agent:net_weight_container_3:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 3
+        row: 1
       agent:net_weight_container_4:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 4
+        row: 2
       agent:net_weight_container_5:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 5
+        row: 3
       agent:net_weight_container_6:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 6
+        row: 4
       agent:net_weight_container_7:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 7
+        row: 5
       agent:net_weight_container_8:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 8
+        row: 6
       agent:net_weight_container_9:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 9
+        row: 7
       agent:net_weight_container_10:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 10
+        row: 8
       agent:net_weight_container_11:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 11
+        row: 9
       agent:net_weight_container_12:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 12
+        row: 10
       agent:net_weight_container_13:
         measure: netWeight
         baseline: '18000.000'
         unit: kilogram
-        row: 13
+        row: 11
       agent:gross_weight_container_0:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 0
+        row: 12
       agent:gross_weight_container_1:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 1
+        row: 13
       agent:gross_weight_container_2:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 2
+        row: 0
       agent:gross_weight_container_3:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 3
+        row: 1
       agent:gross_weight_container_4:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 4
+        row: 2
       agent:gross_weight_container_5:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 5
+        row: 3
       agent:gross_weight_container_6:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 6
+        row: 4
       agent:gross_weight_container_7:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 7
+        row: 5
       agent:gross_weight_container_8:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 8
+        row: 6
       agent:gross_weight_container_9:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 9
+        row: 7
       agent:gross_weight_container_10:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 10
+        row: 8
       agent:gross_weight_container_11:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 11
+        row: 9
       agent:gross_weight_container_12:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 12
+        row: 10
       agent:gross_weight_container_13:
         measure: grossWeight
         baseline: '18198.000'
         unit: kilogram
-        row: 13
+        row: 11
     add: []
   doc_f36409a0d43ce2b8629e5328d3113eac32f18f3a223252da37860b4afdbc2e38:
     lexical:
@@ -12700,6 +12789,15 @@ sources:
         now own all repeated current and related bill references and compose the printed
         release instruction.
   doc_11c21de2133e425f792ff209249c38808b2701f3b1970d6485cb33189af24b83:
+    omit:
+    - key: reviewed:obsolete_inner_piece_tally
+      source_sha256: a024e039ae2d1d8e720e8a8bc7079b5de2ea1ba143e9d29cbd6cef10870fc033
+      quote: 919 PIECES
+      count: 1
+      reason: This separately printed inner-content tally belongs to the original
+        lumber, not the declared transport-unit total or certified main description.
+        Independently sampled commodity/load profiles do not supply this tally;
+        omit the obsolete auxiliary claim without changing the package target.
     surfaces: {}
     lexical: []
     description_blocks:
@@ -13603,6 +13701,15 @@ sources:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
   doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff:
+    omit:
+    - key: reviewed:omitted_detached_source_brand
+      source_sha256: a2f226960fc94ce0b84dc6af4b035be9358c450b18bfa17260ffca6e508d16cb
+      quote: 'BRAND: ASTUZINC ELECTRO 99.995%'
+      count: 1
+      reason: This detached source-only brand and zinc grade are outside the
+        certified goods-description block and would contradict independently
+        sampled commodities; omit the complete caption and value in synthetic
+        descendants. Preserve the original source and all current public labels.
     lexical: []
     description_blocks:
       source_sha256: a2f226960fc94ce0b84dc6af4b035be9358c450b18bfa17260ffca6e508d16cb

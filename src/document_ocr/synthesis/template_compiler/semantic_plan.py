@@ -391,6 +391,21 @@ def _target_party_path(role: str, index: int) -> str | None:
     return _TARGET_PARTY_PATHS.get(role)
 
 
+def _name_surface_conflicts(source: str, target: str) -> bool:
+    """Reject incompatible names, not abbreviated or composite name facets.
+
+    Ordered contractions are insufficient evidence of a different identity.
+    This is a conservative conflict veto, not a new proof of name equality.
+    """
+    if _surface_equivalent(source, target):
+        return False
+    shorter, longer = sorted((_normalized(source), _normalized(target)), key=len)
+    if not shorter:
+        return False
+    remainder = iter(longer)
+    return not all(character in remainder for character in shorter)
+
+
 def _entity_relationship(
     *,
     role: str,
@@ -406,6 +421,26 @@ def _entity_relationship(
         except (KeyError, IndexError):
             target_party = None
         if isinstance(target_party, Mapping):
+            target_name = target_party.get("name")
+            if isinstance(target_name, str) and target_name.strip():
+                for binding, field in members:
+                    if field != "name":
+                        continue
+                    if any(
+                        _name_surface_conflicts(source, target_name)
+                        for source in _source_texts(binding)
+                    ):
+                        if len(members) > 1:
+                            raise AuxiliarySemanticPlanReviewRequired(
+                                "conflicting auxiliary name requires explicit ownership "
+                                f"review for mixed party facets: {binding.logical_key}"
+                            )
+                        return (
+                            "independent",
+                            None,
+                            "An explicit auxiliary name conflicts with the structured party "
+                            "name; canonical role presence does not establish identity.",
+                        )
             return (
                 "same_as_target_party",
                 direct_path,

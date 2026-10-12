@@ -295,9 +295,19 @@ def singleton_equipment_surface(text: str) -> str:
     return counted["forward"] or counted["reverse"] if counted else text
 
 
+_FOOT_MARKER = r"(?:['\u2018\u2019\u2032`]|FT\.?|FEET|FOOT)"
+_INCH_MARKER = r'(?:["\u201c\u201d\u2033]|IN(?:CHES)?\.?)'
+_HEIGHT_VALUE = rf"(?P<height>[89])\s*(?:{_FOOT_MARKER}|[Xx\u00d7])\s*6(?:\s*{_INCH_MARKER})?"
+_DIMENSIONAL_PREFIX = rf"(?P<length>20|40|45)\s*(?:{_FOOT_MARKER})?\s*[Xx\u00d7]\s*"
+# With L x W x H, width is not a second height signal. The last dimension
+# supplies height; two-dimensional L x H expressions have no width.
 _DIMENSIONAL_SIZE = re.compile(
-    r"(20|40|45)\s*['\u2019`]\s*[Xx\u00d7]\s*(8|9)\s*['\u2019`]\s*6\s*[\"\u201d]?"
+    _DIMENSIONAL_PREFIX
+    + rf"(?:[0-9]{{1,2}}\s*{_FOOT_MARKER}(?:\s*[0-9]{{1,2}}(?:\s*{_INCH_MARKER})?)?"
+    rf"\s*[Xx\u00d7]\s*)?{_HEIGHT_VALUE}(?![A-Z0-9])",
+    re.I,
 )
+_EXPLICIT_DIMENSIONS = re.compile(_DIMENSIONAL_PREFIX + r"(?=[0-9])", re.I)
 _DIMENSIONAL_SIZES: dict[tuple[str, str], ContainerSizeCategory] = {
     ("20", "8"): "TWENTY_FOOT_STANDARD_HEIGHT",
     ("20", "9"): "TWENTY_FOOT_HIGH_CUBE",
@@ -306,11 +316,174 @@ _DIMENSIONAL_SIZES: dict[tuple[str, str], ContainerSizeCategory] = {
     ("45", "9"): "FORTY_FIVE_FOOT_HIGH_CUBE",
 }
 
+_REVERSED_COUNTABLE_TYPES = "|".join(
+    sorted(_COMPACT_TYPES.keys() | {"HC", "HQ", "H", "HICU", "HR", "RH", "RQ", "RFH"})
+)
+_COUNTABLE_EQUIPMENT_START = (
+    rf"(?:20|40|45|22|25|42|55|L5|(?:{_REVERSED_COUNTABLE_TYPES})\s*(?:20|40|45))"
+)
+_OWNED_COUNT_PREFIX = re.compile(
+    rf"^[1-9][0-9]*\s*[Xx]\s*(?={_COUNTABLE_EQUIPMENT_START})",
+    re.I,
+)
+_TERMINAL_MOVEMENT = re.compile(
+    r"[ \t]+(?:FCL/FCL[ \t]+CY/CY|FCL/FCL|FCL/LCL|LCL/FCL|LCL/LCL|CY/CY)[ \t]*$",
+    re.I,
+)
+_EXPLICIT_HIGH_HEIGHT = re.compile(
+    r"\b(?:HIGH ?(?:CUBE|CUBIC)|HI CUBE)\b|"
+    r"(?<![A-Z0-9])(?:20|40|45)\s*(?:HC|HQ|HICU)(?![A-Z0-9])|"
+    r"(?<![A-Z0-9])40\s*(?:RQ|HR|RH|HO)(?![A-Z0-9])|"
+    r"(?<![A-Z0-9])(?:HC|HQ|HICU)(?![A-Z0-9])"
+)
+_EXPLICIT_STANDARD_HEIGHT = re.compile(r"\bSTANDARD HEIGHT\b")
+_PRINTED_HEIGHT = re.compile(
+    rf"(?<![A-Z0-9]){_HEIGHT_VALUE}(?![A-Z0-9])",
+    re.I,
+)
+_EXPLICIT_ISO_HEIGHT = re.compile(r"(?<![A-Z0-9])(22|25|42|45|55|L5)\s*([A-Z][0-9O])(?![A-Z0-9])")
+_DIMENSION_AXIS = re.compile(r"\b(?:HEIGHT|WIDTH|LENGTH)\b", re.I)
+_HEIGHT_EQUIPMENT_WORDS = (
+    frozenset(" ".join(_TYPE_PRINTED_SURFACE.values()).split())
+    | frozenset(_COMPACT_TYPES)
+    | frozenset(
+        {
+            "DRY",
+            "REEF",
+            "REEFER",
+            "HR",
+            "RA",
+            "RH",
+            "RK",
+            "RO",
+            "RQ",
+            "RFH",
+            "HO",
+            "NOR",
+            "HC",
+            "HQ",
+            "HICU",
+            "HCPW",
+            "H",
+            "DR",
+            "GE",
+            "GO",
+            "SD",
+            "SD86",
+            "SD96",
+            "SH",
+            "ST",
+            "STD",
+            "VAN",
+            "FLAT",
+            "MAFI",
+            "HIGH",
+            "CUBE",
+            "CUBIC",
+            "HIGHCUBE",
+            "HI",
+            "STANDARD",
+            "HEIGHT",
+            "FT",
+            "FOOT",
+            "FEET",
+            "CONT",
+            "CONTAINER",
+            "CONTAINERS",
+            "S",
+            "20",
+            "40",
+            "45",
+        }
+    )
+)
+
+
+def _height_context_is_equipment(prefix: str) -> bool:
+    """Require a closed equipment descriptor when interpreting a printed height."""
+    normalized = _normalize(prefix)
+    iso = _iso_surface_parts(normalized)
+    if iso is not None and iso[0] in _ISO_SIZES and iso[2] in _ISO_TYPES:
+        return True
+    normalized = re.sub(r"\b(20|40|45)(?=[A-Z])", r"\1 ", normalized)
+    normalized = re.sub(r"\b([A-Z]{2})(20|40|45)\b", r"\2 \1", normalized)
+    tokens = frozenset(normalized.split())
+    return (
+        bool(tokens & {"20", "40", "45"}) and len(tokens) > 1 and tokens <= _HEIGHT_EQUIPMENT_WORDS
+    )
+
+
+def _printed_equipment_heights(surface: str, dimension: re.Match[str] | None) -> tuple[str, ...]:
+    """Read height only in dimensions or a source-owned equipment descriptor.
+
+    X between feet and inches is an OCR spelling of the quoted height, not a
+    multiplication to perform. Product dimensions and explicitly named width
+    must not change container size, even when their numbers are 8 and 6 or 9
+    and 6. This same reader supplies classification and contradiction checks.
+    """
+    heights = [dimension["height"]] if dimension is not None else []
+    start = dimension.end() if dimension is not None else 0
+    if _PRINTED_HEIGHT.search(surface, start) is None:
+        return tuple(heights)
+    owned_surface = (
+        dimension["length"] + " " + surface[start:] if dimension is not None else surface
+    )
+    first_axis = _DIMENSION_AXIS.search(owned_surface)
+    unnamed_context = owned_surface[: first_axis.start()] if first_axis else owned_surface
+    unnamed_descriptor = _PRINTED_HEIGHT.sub(" ", unnamed_context)
+    for match in _PRINTED_HEIGHT.finditer(surface, start):
+        # The leading dimensional expression has already supplied height and
+        # width ownership. Replace it by its length in later context checks so
+        # an additional explicit HEIGHT still participates in contradictions.
+        prefix = (
+            dimension["length"] + " " + surface[start : match.start()]
+            if dimension is not None
+            else surface[: match.start()]
+        )
+        axes = tuple(_DIMENSION_AXIS.finditer(prefix))
+        if axes:
+            if axes[-1][0].upper() != "HEIGHT":
+                continue
+            descriptor = prefix[: axes[0].start()]
+        else:
+            # The noun may follow the height in a table cell. Require the
+            # complete unnamed descriptor to contain only equipment words,
+            # so product dimensions on either side cannot promote the height.
+            descriptor = unnamed_descriptor
+        if _height_context_is_equipment(descriptor):
+            heights.append(match["height"])
+    return tuple(heights)
+
+
+def _conflicting_explicit_heights(surface: str, normalized: str, heights: tuple[str, ...]) -> bool:
+    """Check explicit height evidence inside one owned equipment expression.
+
+    Standard is a label default only when no height is printed. It must never
+    defeat a printed high-cube marker or repair mutually contradictory heights.
+    """
+    high = _EXPLICIT_HIGH_HEIGHT.search(normalized) is not None
+    standard = _EXPLICIT_STANDARD_HEIGHT.search(normalized) is not None
+    high |= "9" in heights
+    standard |= "8" in heights
+    # The target vocabulary has no 45-foot standard-height category. An
+    # explicitly printed 8'6 height cannot be overwritten by the 45-foot HC
+    # convention used when a height is absent.
+    if "8" in heights and re.match(
+        r"45(?:\s|['\u2018\u2019\u2032`]|[A-Z\u00d7])", surface.strip(), re.I
+    ):
+        high = True
+    for code in _EXPLICIT_ISO_HEIGHT.finditer(normalized):
+        kind = code[2].replace("O", "0")
+        if kind in _ISO_TYPES:
+            high |= code[1] in {"25", "45", "55", "L5"}
+            standard |= code[1] in {"22", "42"}
+    return high and standard
+
 
 def dimensional_equipment_size(value: str) -> ContainerSizeCategory | None:
     """Read explicit length/height only, without inferring the equipment type."""
     match = _DIMENSIONAL_SIZE.fullmatch(value.strip())
-    return _DIMENSIONAL_SIZES.get((match[1], match[2])) if match else None
+    return _DIMENSIONAL_SIZES.get((match["length"], match["height"])) if match else None
 
 
 def partial_equipment_constraint(
@@ -409,10 +582,51 @@ def review_source_equipment_surface(
             review_rule="missing_surface",
         )
     normalized = _normalize(printed_surface)
+    # Unwrap only the reviewed terminal movement vocabulary and one explicit
+    # leading count. ISO size digits are not literal lengths; 1X25G1 therefore
+    # needs this raw-text boundary before semantic classification.
+    equipment_surface = printed_surface.strip()
+    if (
+        equipment_surface.startswith("(")
+        and equipment_surface.endswith(")")
+        and equipment_surface.count("(") == equipment_surface.count(")") == 1
+    ):
+        equipment_surface = equipment_surface[1:-1].strip()
+    movement = _TERMINAL_MOVEMENT.search(equipment_surface)
+    if movement is not None:
+        equipment_surface = equipment_surface[: movement.start()]
+    count = _OWNED_COUNT_PREFIX.match(equipment_surface)
+    if count is not None:
+        equipment_surface = equipment_surface[count.end() :]
+    semantic_normalized = (
+        normalized if equipment_surface == printed_surface else _normalize(equipment_surface)
+    )
+    dimension = _DIMENSIONAL_SIZE.match(equipment_surface)
+    if dimension is None and _EXPLICIT_DIMENSIONS.match(equipment_surface):
+        return ReviewedEquipmentSurface(
+            printed_surface,
+            normalized,
+            "unresolved_source_surface",
+            None,
+            None,
+            "not_indicated",
+            "unsupported_explicit_dimensions",
+        )
+    printed_heights = _printed_equipment_heights(equipment_surface, dimension)
+    if _conflicting_explicit_heights(equipment_surface, semantic_normalized, printed_heights):
+        return ReviewedEquipmentSurface(
+            printed_surface,
+            normalized,
+            "unresolved_source_surface",
+            None,
+            None,
+            "not_indicated",
+            "conflicting_explicit_height_signals",
+        )
     # Equipment summaries commonly include a semantic heading before the count, for example
     # ``CONTAINER: 1 X 20FT GENERAL PURPOSE``. The count is structural, not part of the ISO/BIC
     # equipment meaning, and may occur either at the start or after that heading.
-    semantic = re.sub(r"(?:^| )[1-9][0-9]*X(?=(?:20|40|45))", " ", normalized).strip()
+    semantic = re.sub(r"(?:^| )[1-9][0-9]*X(?=(?:20|40|45))", " ", semantic_normalized).strip()
     semantic = re.sub(r"\b(20|40|45)(?=DRY\b)", r"\1 ", semantic)
     tokens = frozenset(semantic.split())
     # Real carrier equipment wording also spells HIGH CUBE as HIGH CUBIC.
@@ -632,7 +846,9 @@ def review_source_equipment_surface(
             )
 
     length: Literal[20, 40, 45] | None = None
-    if re.search(r"(?:^| )45", semantic):
+    if dimension is not None:
+        length = {"20": 20, "40": 40, "45": 45}[dimension["length"]]
+    elif re.search(r"(?:^| )45", semantic):
         length = 45
     elif re.search(r"(?:^| )40", semantic) or semantic in {
         "D40H",
@@ -773,15 +989,17 @@ def review_source_equipment_surface(
             review_rule="surface_has_no_reviewed_type_semantics",
         )
 
-    # Quoted dimensions normalize to ``40 X9 6``; unquoted dimensions can
-    # normalize to ``40X9 6``. X is the dimension separator, not part of height.
-    explicit_nine_six = bool(re.search(r"(?:^|[ X])9\s+6(?:\s|$)", semantic))
+    # Classification and conflict detection must use the same context-owned
+    # height evidence, including carrier OCR spellings such as 9x6.
+    explicit_nine_six = "9" in printed_heights
     if length == 45:
         size_category: ContainerSizeCategory = "FORTY_FIVE_FOOT_HIGH_CUBE"
         size_rule = "explicit_45_foot"
     elif length == 20:
         high_cube = bool(({"HIGH", "CUBE"} <= tokens) or ({"HI", "CUBE"} <= tokens)) or bool(
-            tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"} or explicit_nine_six
+            tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
+            or explicit_nine_six
+            or re.search(r"(?<![A-Z0-9])20(?:HC|HQ)(?![A-Z0-9])", semantic)
         )
         size_category = "TWENTY_FOOT_HIGH_CUBE" if high_cube else "TWENTY_FOOT_STANDARD_HEIGHT"
         size_rule = "explicit_20_foot_with_height_marker"
@@ -827,8 +1045,7 @@ def review_source_equipment_surface(
         )
 
     if size_category in {"TWENTY_FOOT_STANDARD_HEIGHT", "FORTY_FOOT_STANDARD_HEIGHT"} and not (
-        tokens & {"STD", "ST", "STANDARD", "SD86"}
-        or re.search(r"(?:^|[ X])8\s+6(?:\s|$)", semantic)
+        tokens & {"STD", "ST", "STANDARD", "SD86"} or "8" in printed_heights
     ):
         size_rule += "+default_standard_height"
 

@@ -176,9 +176,12 @@ organization means organization identity only, individual means a person's ident
 and organization_with_proprietor means both. An added proprietor in an organization-only
 component is a mismatch even if its name is repeated correctly in the target.
 HS codes must agree between sampled facts, printed codes and labels; exact HS-to-product
-classification is not this synthesis task. Plausible related products, fictional models,
-serials, dimensions and capacities may enrich a description. Description continuations
-belong to one accounting goods group; repeated printouts must remain consistent.
+classification is not this synthesis task. Classification references supply commodity context;
+their tariff alternatives and exclusions are not extra cargo requirements. Required product
+facts and the sampled physical form define the actual shipment. Plausible related products,
+fictional models, serials, dimensions and capacities may enrich a description.
+Description continuations belong to one accounting goods group;
+repeated printouts must remain consistent.
 Description labels copy the main product block and genuine product continuations in source
 order, including embedded packing/capacity qualifiers. Headings, loading declarations,
 standalone accounting and detached auxiliary/tracking passages remain outside it, as do Marks.
@@ -216,20 +219,23 @@ together, appropriate to its supplied locality and country, with roughly the exa
 component hierarchy and line span. Examples show structure, not facts to copy. Punctuation
 may change. A locality/country belongs once in the complete address, in its requested region.
 Keep postal text separate from company names, contacts, tax IDs and headings.
-When description fields are requested, write natural commercial goods wording retaining
-every supplied product attribute. Generate those fragments jointly, using the source's
-presentation: concise identity, specification passage, or product list. Represent every
-sampled identity at that level of detail. Use natural item boundaries without line or
-character quotas. Variants and technical qualifiers follow the source's descriptive depth.
-Host-owned shipment packing, unit fill weights, totals, transport instructions and customs
-captions are rendered separately; generate only product identity and specifications here.
-Choose product form compatible with supplied contained packing, as well as declared packaging.
+When description fields are requested, write natural commercial product wording.
+Required product facts and physical form describe the actual shipment. Classification
+references suggest the commodity subject and vocabulary; tariff scope and alternatives
+are context rather than extra shipment attributes. Use compatible product specifications.
+Generate fragments jointly at the source's descriptive depth and
+presentation: concise identity, specification passage, or product list. Cover each
+sampled commodity subject. Use natural item boundaries without line or
+character quotas.
+This request owns product identity and intrinsic specifications: material, form, grade,
+model, dimensions and technical properties. Package counts, package contents, fill weights,
+shipment masses, transport settings and references belong to separate host-rendered regions.
+Those facts remain outside the requested descriptions, including when an example mentions them.
+Keep the product physically compatible with the declared packaging and equipment.
 Begin with the product wording; keep loading introductions and standalone accounting
 statements outside these regions. Attached product qualifiers remain part of the passage.
-Any item masses or package contents must agree with the supplied shipment accounting.
-Keep product dimensions, size grades, material density and rated capacities distinct from mass.
-Use decimal points and optional comma thousands separators in newly generated quantities;
-state mass units explicitly as kilograms, grams, pounds or metric tonnes.
+Intrinsic product specifications may include dimensions, grades and operating ratings.
+Packing capacities and fill amounts remain host facts. Complete any product phrase or specification.
 Each shipment is an independent variant: vary its product wording and fictional identifiers.
 Use uppercase human-readable text. Separate physical lines with newlines when useful."""
 
@@ -582,6 +588,7 @@ _IDENTITY_CAPTION = re.compile(
     r"\b(?:ATN|ATTN|ATTENTION|CONTACT|AGENTE|MANAGER)\s*[:.]"
     r"|(?:^|\n)\s*ATTN\s+\S"
     r"|\b(?:MANAGING\s+DIRECTOR|GERENTE(?:\s+GENERAL)?)\b"
+    r"|\b(?:SHIPPER|CONSIGNEE|NOTIFY(?:\s+PARTY)?|DELIVERY\s+AGENT|FORWARDING\s+AGENT|CARRIER)\s*:"
     r"|\b(?:RIF|RFC|CIF|VAT|TIN|TAX\s*(?:ID|NUMBER)|REGISTRATION\s*(?:NO\.?|NUMBER))"
     r"\s*[:#]?\s*[A-Z]?[- ]?\d",
     re.I,
@@ -618,13 +625,13 @@ def has_field_scope_caption(field: WordingField, text: str) -> bool:
 def validate_wording(
     batch: WordingBatch, requests: list[WordingRequest]
 ) -> dict[str, dict[str, str]]:
+    """Validate every shipment independently; wording reuse is a diversity observation."""
     expected = {r.sample_id: r for r in requests}
     if len(batch.shipments) != len(expected) or {s.sample_id for s in batch.shipments} != set(
         expected
     ):
         raise ValueError("wording output shipment coverage differs")
     result = {}
-    descriptions_seen: dict[str, str] = {}
     for shipment in batch.shipments:
         fields = {f.key: f for f in expected[shipment.sample_id].fields}
         reserved_field_lines = {
@@ -716,18 +723,26 @@ def validate_wording(
             ):
                 raise ValueError("copied source description: " + ", ".join(group))
         result[shipment.sample_id] = values
+    return result
+
+
+def repeated_goods_descriptions(
+    requests: list[WordingRequest], wording: dict[str, dict[str, str]]
+) -> list[list[str]]:
+    """Report shipments sharing complete product wording, without rejecting valid labels.
+
+    Independent loads and equipment can legitimately accompany the same product
+    wording. Run this after validation; it describes lexical diversity rather
+    than certifying or invalidating any shipment's extraction supervision.
+    """
+    descriptions: dict[str, list[str]] = {}
+    for request in requests:
+        values = wording[request.sample_id]
         description = " ".join(
-            " ".join(values[key].upper().split())
-            for key, field in fields.items()
+            " ".join(values[field.key].upper().split())
+            for field in request.fields
             if field.role == "goods description"
         )
         if description:
-            if description in descriptions_seen:
-                raise ValueError(
-                    "duplicate generated description across shipments: "
-                    + descriptions_seen[description]
-                    + ", "
-                    + shipment.sample_id
-                )
-            descriptions_seen[description] = shipment.sample_id
-    return result
+            descriptions.setdefault(description, []).append(request.sample_id)
+    return [identities for identities in descriptions.values() if len(identities) > 1]

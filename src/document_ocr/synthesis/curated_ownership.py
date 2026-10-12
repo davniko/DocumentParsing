@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import TypeAdapter
 
 from document_ocr.synthesis.curated import (
     Occurrence,
@@ -22,6 +23,7 @@ from document_ocr.synthesis.curated import (
     TargetBinding,
     Variable,
     assign,
+    digest,
     flat,
     locate,
 )
@@ -29,12 +31,32 @@ from document_ocr.synthesis.curated_measurements import converted_measure_surfac
 from document_ocr.synthesis.curated_packaging import contained_quantity_surfaces
 from document_ocr.synthesis.curated_templates import (
     LexicalOwnership,
+    RenderRegion,
     SamplingBlueprint,
     compile_sampling_blueprint,
     current_path,
     substitute_expression_literals,
 )
 from document_ocr.synthesis.template_compiler.descendant import _package_candidate
+from document_ocr.synthesis.template_compiler.models import Derivation, TargetRelationship
+
+_DECLARED_DERIVATION = TypeAdapter(Derivation | None)
+_DECLARED_RELATIONSHIP = TypeAdapter(TargetRelationship)
+
+
+def _declared_binding_semantics(declaration: dict, binding: dict) -> None:
+    """Preserve reviewed compiler semantics instead of discarding them.
+
+    The existing compiler vocabulary remains authoritative. Actual scope,
+    exact source spans and derivation inputs are validated by compilation and
+    the typed renderer; metadata alone cannot certify those relationships.
+    """
+    if "derivation" in declaration:
+        binding["derivation"] = _DECLARED_DERIVATION.validate_python(declaration["derivation"])
+    if "target_relationship" in declaration:
+        binding["target_relationship"] = _DECLARED_RELATIONSHIP.validate_python(
+            declaration["target_relationship"]
+        )
 
 
 def _occurrences(raw: str, selectors: list[dict]) -> list[Occurrence]:
@@ -60,6 +82,132 @@ def _historical_occurrences(raw: str, selectors: list[dict]) -> list[dict]:
         start, end = locate(raw, occurrence)
         result.append(dict(byte_start=start, byte_end=end, source_text=occurrence.text))
     return result
+
+
+def _omit_reviewed_source_spans(
+    blueprint: SamplingBlueprint, declarations: dict
+) -> SamplingBlueprint:
+    """Omit exact obsolete context without consuming an extraction owner.
+
+    A source-level decision may enclose historical fields removed from the
+    current target. Retire their complete ownership, never just one occurrence
+    or an active lexical, measurement or target dependency.
+    """
+    omissions = declarations.get("omit", [])
+    if not isinstance(omissions, list):
+        raise ValueError("source omissions must be a list of reviewed exact spans")
+    if not omissions:
+        return blueprint
+    regions = list(blueprint.regions)
+    bindings = deepcopy(dict(blueprint.historical_bindings))
+    reviewed_spans: list[tuple[int, int]] = []
+    required = {"key", "source_sha256", "quote", "count", "reason"}
+    protected = {
+        key
+        for section in (
+            "surfaces",
+            "constants",
+            "delete",
+            "measure_owners",
+            "tare_owners",
+            "tare_baselines",
+            "identifier_policies",
+        )
+        for key in declarations.get(section, {})
+    }
+    leaves = flat(blueprint.target)
+    for item in omissions:
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValueError(
+                "source omission requires exactly key, source_sha256, quote, count and reason"
+            )
+        key, quote, count = item["key"], item["quote"], item["count"]
+        if (
+            not all(
+                isinstance(item[field], str) and item[field].strip()
+                for field in ("key", "source_sha256", "quote", "reason")
+            )
+            or not isinstance(count, int)
+            or isinstance(count, bool)
+            or count <= 0
+        ):
+            raise ValueError(
+                "source omission requires nonempty text and a positive occurrence count"
+            )
+        if item["source_sha256"] != digest(blueprint.source.encode()):
+            raise ValueError("reviewed source omission hash differs from source")
+        if key in bindings or any(variable.key == key for variable in blueprint.contract.variables):
+            raise ValueError(f"source omission key duplicates an existing owner: {key}")
+        matches = list(re.finditer(re.escape(quote), blueprint.source))
+        if len(matches) != count:
+            raise ValueError(f"reviewed source omission quote count differs: {key}")
+        spans = [
+            (
+                len(blueprint.source[: match.start()].encode()),
+                len(blueprint.source[: match.end()].encode()),
+            )
+            for match in matches
+        ]
+        if any(
+            start < old_end and old_start < end
+            for start, end in spans
+            for old_start, old_end in reviewed_spans
+        ):
+            raise ValueError("reviewed source omission spans overlap")
+        overlaps = [
+            region
+            for region in regions
+            if any(start < region.end and region.start < end for start, end in spans)
+        ]
+        if any(
+            region.target_paths
+            or region.curated_key is not None
+            or not any(start <= region.start and region.end <= end for start, end in spans)
+            for region in overlaps
+        ):
+            raise ValueError("reviewed source omission crosses an active or partly enclosed owner")
+        retired = {region.key for region in overlaps}
+        for owner in retired:
+            binding = bindings[owner]
+            if owner in protected or any(
+                leaf == current_path(path)
+                or leaf.startswith(current_path(path) + ".")
+                or leaf.startswith(current_path(path) + "[")
+                for path in binding.get("target_paths", [])
+                for leaf in leaves
+            ):
+                raise ValueError("reviewed source omission consumes an active rendering dependency")
+            if any(
+                not any(
+                    start <= occurrence["byte_start"] and occurrence["byte_end"] <= end
+                    for start, end in spans
+                )
+                for occurrence in binding["occurrences"]
+            ):
+                raise ValueError(
+                    "retired source owner has an occurrence outside the reviewed spans"
+                )
+        regions = [region for region in regions if region.key not in retired]
+        for owner in retired:
+            del bindings[owner]
+        for index, (start, end) in enumerate(spans):
+            regions.append(
+                RenderRegion(key, index, start, end, quote, (), "auxiliary", allow_empty=True)
+            )
+        bindings[key] = dict(
+            logical_key=key,
+            target_paths=[],
+            value_kind="other_text",
+            occurrences=[
+                dict(byte_start=start, byte_end=end, source_text=quote) for start, end in spans
+            ],
+        )
+        reviewed_spans.extend(spans)
+    return replace(
+        blueprint,
+        regions=tuple(sorted(regions, key=lambda region: region.start)),
+        historical_bindings=bindings,
+    )
 
 
 def build_owned_blueprint(
@@ -104,6 +252,7 @@ def build_owned_blueprint(
             by_key[key]["occurrences"] = _historical_occurrences(raw, update["occurrences"])
         if "kind" in update:
             by_key[key]["value_kind"] = update["kind"]
+        _declared_binding_semantics(update, by_key[key])
     for declaration in declarations.get("add", []):
         key = declaration["key"]
         if key in by_key:
@@ -117,6 +266,7 @@ def build_owned_blueprint(
             value_kind=declaration.get("kind", "other_text"),
             occurrences=_historical_occurrences(raw, declaration["occurrences"]),
         )
+        _declared_binding_semantics(declaration, by_key[key])
     # Equipment receipts and thermal structs are established typed relationships,
     # not an excuse to treat every parent-object span as every child scalar.
     for binding in by_key.values():
@@ -149,6 +299,7 @@ def build_owned_blueprint(
         ownership_overrides=overrides,
         description_blocks=declarations.get("description_blocks"),
     )
+    blueprint = _omit_reviewed_source_spans(blueprint, declarations)
     target_expressions = {
         binding.path: binding.expression for binding in blueprint.contract.targets
     }
@@ -241,7 +392,7 @@ def build_owned_blueprint(
             paths.discard(path)
             if region.key in keys:
                 paths.add(path)
-        allow_empty = region.key in declarations.get("delete", {})
+        allow_empty = region.allow_empty or region.key in declarations.get("delete", {})
         regions.append(replace(region, target_paths=tuple(sorted(paths)), allow_empty=allow_empty))
     blueprint = replace(blueprint, regions=tuple(regions), ownership_data=declarations)
     _contact_name_surfaces(blueprint, row["target"])
@@ -412,6 +563,9 @@ def ownership_surfaces(
     result = _contact_name_surfaces(blueprint, target)
     result.update(blueprint.ownership_data.get("constants", {}))
     result.update({key: "" for key in blueprint.ownership_data.get("delete", {})})
+    result.update(
+        {item["key"]: [""] * item["count"] for item in blueprint.ownership_data.get("omit", [])}
+    )
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
         if "contained_quantity" in recipe:
             result[key] = contained_quantity_surfaces(

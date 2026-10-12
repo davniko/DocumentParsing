@@ -731,6 +731,53 @@ def test_candidate_acceptance_is_bounded_when_every_draw_is_infeasible():
     assert len(checked) == 3
 
 
+def test_retry_rebuilds_all_cargo_replacements_from_fresh_geography(monkeypatch):
+    """A rejected changed leaf must not survive a retry back to its source value."""
+    from document_ocr.synthesis.curated import assign
+
+    source = source_row()
+    support = catalog([source])
+    before = deepcopy(source)
+    original = support._cargo
+    calls = []
+
+    def controlled_cargo(*args, **kwargs):
+        cargo, receipt = original(*args, **kwargs)
+        if calls:
+            cargo = deepcopy(source["target"]["documentPatch"])
+            cargo = {key: cargo[key] for key in ("goodsItemDetails", "containerInformation")}
+        else:
+            cargo["containerInformation"][1]["sizeCategory"] = "FORTY_FIVE_FOOT_HIGH_CUBE"
+            cargo["goodsItemDetails"][0]["numberAndTypeOfPackages"][0]["packageQuantity"] = 321
+        calls.append(deepcopy(cargo))
+        return cargo, receipt
+
+    monkeypatch.setattr(support, "_cargo", controlled_cargo)
+    checked = []
+
+    def validate(candidate):
+        checked.append(candidate)
+        if len(checked) == 1:
+            raise CandidateIncompatibility("controlled rejected cargo")
+        rebuilt = deepcopy(source["target"])
+        for path, value in candidate.replacements.items():
+            assign(rebuilt, path, deepcopy(value))
+        rebuilt = rebuilt["documentPatch"]
+        assert rebuilt["goodsItemDetails"] == candidate.cargo["goodsItemDetails"]
+        assert rebuilt["containerInformation"] == candidate.cargo["containerInformation"]
+
+    result = support.sample(
+        source,
+        seed=42,
+        variant=1,
+        capabilities=SourceCapabilities(family="ambient"),
+        validate_candidate=validate,
+    )
+    assert result.provenance["candidateAttempts"] == 2
+    assert result.cargo == calls[1]
+    assert source == before
+
+
 @pytest.mark.parametrize(
     "error",
     [

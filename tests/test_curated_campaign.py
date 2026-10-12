@@ -10,6 +10,7 @@ import pytest
 from document_ocr.synthesis.curated import Runner, SourceContract, digest
 from document_ocr.synthesis.curated_campaign import (
     Campaign,
+    _handling_replay_target,
     assemble_lexical_target,
     combine_surfaces,
     host_product_wording,
@@ -85,7 +86,11 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
         for key, value in location.items()
     }
     scenario = SimpleNamespace(party_localities={}, replacements=replacements, goods_identities=[])
-    proof = {"changedTargetPaths": ["documentPatch.goodsItemDetails[0].description"]}
+    proof = {
+        "changedTargetPaths": ["documentPatch.goodsItemDetails[0].description"],
+        "coveredTargetPaths": ["documentPatch.goodsItemDetails[0].description"],
+        "edits": [],
+    }
     candidate = {
         "target": target,
         "countryCodes": {},
@@ -115,6 +120,137 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
             run()
     else:
         assert run()["sampledIdentity"]
+
+
+def _handling_replay_fixture():
+    from document_ocr.synthesis.curated_physical import project_nested_equipment_handling
+    from document_ocr.synthesis.curated_templates import RenderRegion
+
+    source = "KEEP AT 3C IN 2X20DC\nOTHER HANDLING: KEEP COOL\n"
+    original = {
+        "documentPatch": {
+            "goodsItemDetails": [{"handlingInstructions": ["KEEP AT 3C IN 2X20DC", "KEEP COOL"]}]
+        }
+    }
+    start = source.index("2X20DC")
+    region = RenderRegion(
+        "equipment",
+        0,
+        start,
+        start + 6,
+        "2X20DC",
+        ("documentPatch.containerInformation[0].sizeCategory",),
+        "equipment",
+    )
+    blueprint = SimpleNamespace(source=source, target=original, regions=(region,))
+    edits = [
+        dict(key="temperature", occurrence=0, byteStart=8, byteEnd=9, before="3", after="-18"),
+        dict(
+            key="equipment",
+            occurrence=0,
+            byteStart=start,
+            byteEnd=start + 6,
+            before="2X20DC",
+            after="2 x 40RQ",
+        ),
+    ]
+    rendered = "KEEP AT -18C IN 2 x 40RQ\nOTHER HANDLING: KEEP COOL\n"
+    planned = deepcopy(original)
+    planned["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] = (
+        "KEEP AT -18C IN 2X20DC"
+    )
+    target, receipt = project_nested_equipment_handling(blueprint, rendered, planned, edits)
+    return blueprint, {
+        "target": target,
+        "joinedRawText": rendered,
+        "joinedRawTextSha256": digest(rendered.encode()),
+        "proof": {"edits": edits, "handlingProjection": receipt},
+    }
+
+
+def test_handling_replay_restores_only_exact_verified_parent_and_is_nonmutating():
+    blueprint, candidate = _handling_replay_fixture()
+    before = deepcopy(candidate)
+    target = _handling_replay_target(blueprint, candidate, casing="uppercase")
+    assert target == blueprint.target
+    assert candidate == before
+    assert target is not candidate["target"]
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "before",
+        "value",
+        "source_hash",
+        "render_hash",
+        "candidate_hash",
+        "spans",
+        "unrelated_parent",
+        "target",
+        "missing_fields",
+        "casing",
+    ],
+)
+def test_handling_replay_rejects_forged_receipt_or_target_without_masking_other_fields(defect):
+    blueprint, candidate = _handling_replay_fixture()
+    receipt = candidate["proof"]["handlingProjection"]
+    field = receipt["fields"][0]
+    if defect in {"before", "value"}:
+        field[defect] = "FORGED"
+    elif defect in {"source_hash", "render_hash"}:
+        receipt["sourceSha256" if defect == "source_hash" else "renderedSha256"] = "0" * 64
+    elif defect == "candidate_hash":
+        candidate["joinedRawTextSha256"] = "0" * 64
+    elif defect == "spans":
+        field["spans"][0]["sourceByteStart"] += 1
+    elif defect == "unrelated_parent":
+        field["path"] = "documentPatch.goodsItemDetails[0].handlingInstructions[1]"
+        field["before"] = "KEEP COOL"
+        field["value"] = "FORGED"
+        candidate["target"]["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][1] = (
+            "FORGED"
+        )
+    elif defect == "target":
+        candidate["target"]["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] = (
+            "FORGED"
+        )
+    elif defect == "missing_fields":
+        receipt["fields"] = []
+    else:
+        receipt["casing"] = "preserve"
+    before = deepcopy(candidate)
+    with pytest.raises(ValueError):
+        _handling_replay_target(blueprint, candidate, casing="uppercase")
+    assert candidate == before
+
+
+def test_handling_replay_missing_receipt_cannot_silently_reset_a_label():
+    blueprint, candidate = _handling_replay_fixture()
+    candidate["proof"].pop("handlingProjection")
+    result = _handling_replay_target(blueprint, candidate, casing="uppercase")
+    assert result is candidate["target"]
+    assert result != blueprint.target
+
+
+def test_handling_replay_never_masks_unrelated_handling_changes():
+    blueprint, candidate = _handling_replay_fixture()
+    candidate["target"]["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][1] = (
+        "FORGED UNRELATED HANDLING"
+    )
+    before = deepcopy(candidate)
+    result = _handling_replay_target(blueprint, candidate, casing="uppercase")
+    assert result["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [
+        "KEEP AT 3C IN 2X20DC",
+        "FORGED UNRELATED HANDLING",
+    ]
+    assert candidate == before
+
+
+def test_handling_replay_enforces_current_configured_casing():
+    blueprint, candidate = _handling_replay_fixture()
+    with pytest.raises(ValueError, match="projection receipt"):
+        _handling_replay_target(blueprint, candidate, casing="preserve")
 
 
 @pytest.mark.parametrize("repair_succeeds", [True, False])
@@ -201,7 +337,26 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
             "target": {},
             "joinedRawText": f"TEXT {variant}",
             "renderValues": {},
-            "scenario": {"party_localities": {}, "goods_identities": [], "provenance": {}},
+            "scenario": {
+                "party_localities": {},
+                "goods_identities": [
+                    {
+                        "hs6": "090111",
+                        "phrase": "GREEN COFFEE",
+                        "classification": {
+                            "authority": "fixture",
+                            "chapter_code": "09",
+                            "chapter_description": "Coffee, tea and spices",
+                            "heading_code": "0901",
+                            "heading_description": "Coffee",
+                            "description_path": ["Coffee", "Not roasted"],
+                            "same_heading_alternatives": [],
+                            "immediate_national_children": [],
+                        },
+                    }
+                ],
+                "provenance": {},
+            },
         }
         (tmp_path / "candidates" / f"{did}.json").write_text(json.dumps(candidate))
         candidates.append(candidate)
@@ -673,8 +828,7 @@ def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(p
             unpack_wording(schema.model_validate({"s0": bad}), [request])
     other = replace(request, sample_id="other")
     duplicate = wording_output_type([request, other]).model_validate({"s0": values, "s1": values})
-    with pytest.raises(ValueError, match="duplicate generated description"):
-        unpack_wording(duplicate, [request, other])
+    assert unpack_wording(duplicate, [request, other]) == {"s": values, "other": values}
 
 
 def test_represented_name_uses_its_complete_party_owner_geography(postal_campaign):
@@ -800,8 +954,9 @@ def test_wording_context_and_bounds_use_printed_private_or_rounded_mass(
     plain = wording_request(fixture.blueprint, scenario, "sample")
     request = wording_request(fixture.blueprint, scenario, "sample", physical_plan=plan)
     assert request.gross_weight_kg == Decimal("13143")
-    assert "printed_measure_totals:" in request.context
-    assert "13143.49" not in request.context
+    assert "TRANSPORT COMPATIBILITY" in request.context
+    assert "printed_measure_totals:" not in request.context
+    assert "13143" not in request.context
     assert wording_request_hash(request) != wording_request_hash(plain)
     values = {**fixture.receipt["values"], "product": "LOADER, OPERATING WEIGHT 13,143.1 KG"}
     output = wording_output_type([request]).model_validate({"s0": values})
@@ -819,9 +974,10 @@ def test_wording_receives_private_contained_packing(postal_campaign, monkeypatch
     )
     fixture = postal_campaign
     request = wording_request(fixture.blueprint, fixture.scenario, "sample")
-    assert "contained_packing:" in request.context
-    assert "contained_quantity: 240" in request.context
-    assert "printed_contained_unit: SACOS" in request.context
+    assert "containedPackageWordings:" in request.context
+    assert "SACOS" in request.context
+    assert "240" not in request.context
+    assert "contained_quantity" not in request.context
 
 
 def test_wording_preserves_source_presentation_without_universal_assortments(postal_campaign):
@@ -845,7 +1001,8 @@ def test_campaign_wording_request_prepares_actual_physical_context(postal_campai
     fixture.campaign.physical_support = support
     calls = []
 
-    def physical(blueprint, scenario, target, *, support):
+    def physical(blueprint, scenario, target, *, support, equipment_inventory):
+        assert equipment_inventory is None
         calls.append((blueprint, scenario, target, support))
         return PhysicalRenderPlan(
             target=target,
@@ -885,7 +1042,7 @@ def test_unasserted_source_zero_has_no_generation_measure_or_mass_bound(postal_c
     )
     request = wording_request(fixture.blueprint, fixture.scenario, "sample", physical_plan=plan)
     assert request.gross_weight_kg is None
-    assert "printed_measure_totals: {}" in request.context
+    assert "printed_measure_totals" not in request.context
     values = {**fixture.receipt["values"], "product": "MODEL A, UNIT WEIGHT 400 KG"}
     assert unpack_wording(wording_output_type([request]).model_validate({"s0": values}), [request])
 
@@ -915,8 +1072,8 @@ def test_generation_repairs_private_printed_gross_contradiction_before_saving(po
     async def call(stage, sid, output_type, system, prompt):
         calls.append(stage)
         values = dict(fixture.receipt["values"])
-        assert "printed_measure_totals:" in prompt
-        assert "13143" in prompt
+        assert "printed_measure_totals:" not in prompt
+        assert ("13143" in prompt) == (stage == "wording-validation-repair")
         values["product"] = (
             "LOADER, OPERATING WEIGHT 21,000 KG"
             if stage == "exact-wording"
@@ -964,6 +1121,48 @@ def test_generation_preflight_failure_makes_no_paid_request(postal_campaign, mon
         asyncio.run(fixture.campaign.generate("source"))
     assert calls == []
     assert not fixture.path.exists()
+
+
+def test_source_snapshot_checks_content_even_when_file_metadata_is_preserved(tmp_path):
+    import os
+
+    path = tmp_path / "ownership.yaml"
+    path.write_bytes(b"certified")
+    stamp = path.stat()
+    campaign = Campaign.__new__(Campaign)
+    campaign.source_ids = ["source"]
+    campaign._blueprints = {"source": object()}
+    campaign._blueprint_file_pins = {path: digest(path.read_bytes())}
+    campaign.equipment_inventories = {}
+    campaign.validate_source_readiness()
+    path.write_bytes(b"incorrect")
+    os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    with pytest.raises(ValueError, match="source files changed after snapshot certification"):
+        campaign.validate_source_readiness()
+
+
+def test_classification_context_is_not_a_second_product_form(postal_campaign):
+    fixture = postal_campaign
+    identity = fixture.scenario.goods_identities[0].model_copy(
+        update={"phrase": "STEEL, NOT IN COILS", "phrase_role": "classification_context"}
+    )
+    scenario = fixture.scenario.model_copy(
+        update={
+            "goods_identities": (identity,),
+            "provenance": {
+                "registryLoadProfile": {
+                    "form": "cold-rolled steel coils",
+                    "package_category": "PACKAGE_COIL",
+                }
+            },
+        }
+    )
+    request = wording_request(fixture.blueprint, scenario, "context-proof")
+    assert request.context.count("STEEL, NOT IN COILS") == 1
+    assert "contextual commodity scope, not shipment requirements" in request.context
+    assert "Physical form: cold-rolled steel coils" in request.context
+    assert "090111" not in request.context
+    assert "Include every sampled identity and its attributes" not in request.fields[-1].requirement
 
 
 def test_generated_postal_contract_rejects_omissions_and_adjacent_duplicates():
@@ -1256,6 +1455,7 @@ def postal_campaign(tmp_path):
     path.write_text(json.dumps(receipt))
     campaign = Campaign.__new__(Campaign)
     campaign.config = {"variants_per_source": 2}
+    campaign.equipment_inventories = {}
     campaign.output = tmp_path
     campaign.plans = lambda sid: [(blueprint, scenario, sample_id, deepcopy(target))]
     campaign.preflight = lambda plans: None  # These fixtures isolate paid-wording behavior.
@@ -1554,7 +1754,7 @@ def test_postal_correction_context_preserves_literal_country_and_country_code(po
         "documentPatch.parties.notifyParties[12].address_line_3:",
         "documentPatch.parties.shipper:",
         "documentPatch.parties.consignee:",
-        'documentPatch.parties.deliveryAgent\": \"',
+        'documentPatch.parties.deliveryAgent": "',
         "documentPatch.parties.notifyParties[0]:",
         "deliveryagent_postal_component_2",
         "shipper_postal_component_11",
@@ -1671,13 +1871,14 @@ def test_source_only_related_company_is_generated_without_a_public_party(postal_
     assert "represented_company" not in str(blueprint.target)
     from document_ocr.synthesis.curated_campaign import identity_review_context
 
-    context = identity_review_context(blueprint, {variable.key: 'NEW ACCOUNT BV'})
+    context = identity_review_context(blueprint, {variable.key: "NEW ACCOUNT BV"})
     assert "SOURCE-CERTIFIED RELATED ACTOR OWNERSHIP" in context
     assert "source-only context; no extraction-party field" in context
     assert "NEW ACCOUNT BV" in context
     with pytest.raises(ValueError, match="generated component"):
-        identity_review_context(replace(blueprint, ownership_data={
-            'related_actors': {variable.key: declaration}}), {})
+        identity_review_context(
+            replace(blueprint, ownership_data={"related_actors": {variable.key: declaration}}), {}
+        )
 
 
 def test_related_actor_repeated_identity_requires_every_source_occurrence(postal_campaign):
@@ -1685,7 +1886,9 @@ def test_related_actor_repeated_identity_requires_every_source_occurrence(postal
     from document_ocr.synthesis.curated_campaign import related_actor_contexts
 
     variable = Variable(
-        key="account_company", kind="name", value="RELATED ACCOUNT LTD",
+        key="account_company",
+        kind="name",
+        value="RELATED ACCOUNT LTD",
         meaning="One separately printed account company",
         required_literals=[],
         occurrences=[Occurrence(text="RELATED ACCOUNT LTD", occurrence=1, presentation="text")],
@@ -1696,15 +1899,24 @@ def test_related_actor_repeated_identity_requires_every_source_occurrence(postal
         contract=postal_campaign.blueprint.contract.model_copy(
             update={"variables": [*postal_campaign.blueprint.contract.variables, variable]}
         ),
-        ownership_data={"related_actors": {"account_company": {
-            "context_party": "documentPatch.parties.shipper", "relationship": "account_of",
-        }}},
+        ownership_data={
+            "related_actors": {
+                "account_company": {
+                    "context_party": "documentPatch.parties.shipper",
+                    "relationship": "account_of",
+                }
+            }
+        },
     )
     with pytest.raises(ValueError, match="unowned repeated source identity"):
         related_actor_contexts(blueprint)
-    variable.occurrences.append(Occurrence(
-        text="RELATED\nACCOUNT LTD", occurrence=1, presentation="text",
-    ))
+    variable.occurrences.append(
+        Occurrence(
+            text="RELATED\nACCOUNT LTD",
+            occurrence=1,
+            presentation="text",
+        )
+    )
     assert related_actor_contexts(blueprint)["account_company"]["relationship"] == "account_of"
 
 

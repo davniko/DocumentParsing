@@ -200,6 +200,7 @@ def contact_host(value: str, kind: str) -> str:
 def unpack_contacts(output: BaseModel, parties: list[ContactParty]) -> dict[str, dict[str, str]]:
     payload = contact_output_type(parties).model_validate(output.model_dump()).model_dump()
     results = {}
+    array_values: dict[tuple[str, str], dict[str, str]] = {}
     for i, party in enumerate(parties):
         for field in party.fields:
             value = payload[f"p{i}"][field.key]
@@ -225,6 +226,17 @@ def unpack_contacts(output: BaseModel, parties: list[ContactParty]) -> dict[str,
             ):
                 raise ValueError("contact retained a source identity or placeholder domain")
             for path in field.paths:
+                # A shared contact can populate several roles. Uniqueness belongs
+                # to each target list, not the company, request, or domain.
+                array_path = path.rsplit("[", 1)[0]
+                values = array_values.setdefault((party.sample_id, array_path), {})
+                previous_path = values.get(value)
+                if previous_path is not None and previous_path != path:
+                    raise ValueError(
+                        f"duplicate generated contact in {party.sample_id}/{array_path}: "
+                        f"{previous_path} and {path}"
+                    )
+                values[value] = path
                 results.setdefault(party.sample_id, {})[path] = value
     return results
 

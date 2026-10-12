@@ -6,13 +6,17 @@ import argparse
 import asyncio
 import fcntl
 import json
+import random
 import re
 import time
 from copy import deepcopy
+from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Literal
 
 import yaml
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from document_ocr.labeling_agents.direct_grounding import order_consignment_candidates
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
@@ -33,6 +37,7 @@ from document_ocr.synthesis.curated_auxiliary import (
     load_auxiliary_contract,
 )
 from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
+from document_ocr.synthesis.curated_commodity_brief import commodity_brief
 from document_ocr.synthesis.curated_contacts import (
     CONTACT_PROMPT,
     apply_contacts,
@@ -46,6 +51,15 @@ from document_ocr.synthesis.curated_contacts import (
 )
 from document_ocr.synthesis.curated_descriptions import validate_description_regions
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix
+from document_ocr.synthesis.curated_equipment_aliases import (
+    EquipmentAliasRegistry,
+    apply_equipment_aliases,
+)
+from document_ocr.synthesis.curated_equipment_inventory import (
+    compile_equipment_inventory,
+    project_equipment_inventory,
+    rebase_equipment_inventory_headers,
+)
 from document_ocr.synthesis.curated_identifiers import declared_identifier_values
 from document_ocr.synthesis.curated_ownership import (
     apply_dependent_text,
@@ -54,13 +68,17 @@ from document_ocr.synthesis.curated_ownership import (
     ownership_surfaces,
 )
 from document_ocr.synthesis.curated_packaging import (
+    compile_package_count_context,
     contained_packing_context,
+    project_package_aliases_with_context,
     validate_contained_quantity_sampling,
 )
 from document_ocr.synthesis.curated_physical import (
     PhysicalRenderPlan,
     PhysicalSupport,
     prepare_physical_render,
+    printed_tare_equipment_domain,
+    project_nested_equipment_handling,
     validate_source_physical_requirements,
 )
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
@@ -70,10 +88,13 @@ from document_ocr.synthesis.curated_sampling import (
     validate_instruction_inheritance,
 )
 from document_ocr.synthesis.curated_scenarios import (
+    FilePin,
+    GoodsIdentity,
     ScenarioCatalog,
     ScenarioSamplingConfig,
     ShipmentScenario,
     SourceCapabilities,
+    _pin,
 )
 from document_ocr.synthesis.curated_templates import (
     SamplingBlueprint,
@@ -91,6 +112,7 @@ from document_ocr.synthesis.curated_wording import (
     mass_in_kilograms,
     native_wording_prompt,
     rendered_review_prompt,
+    repeated_goods_descriptions,
     review_output_type,
     unpack_review,
     unpack_wording,
@@ -105,8 +127,26 @@ from document_ocr.synthesis.generators import (
     generate_from_surface_pattern,
     surface_pattern,
 )
+from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES, validate_package_alias_registry
+from document_ocr.synthesis.package_registry import load_package_registry
 from document_ocr.synthesis.template_compiler import contact_values
+from document_ocr.synthesis.template_compiler.descendant import _number_to_words
 from document_ocr.synthesis.vessel_lexical import vessel_name_fit_exclusion_reason
+
+
+class AliasSamplingPolicy(BaseModel):
+    """Independent reviewed wordings; absent policy preserves source rendering."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    equipment_registry: FilePin | None = None
+    package_registry: FilePin
+    package_mode: Literal["source", "registry"] = "source"
+
+    @model_validator(mode="after")
+    def counted_package_registry(self):
+        if self.package_registry.records is None:
+            raise ValueError("alias package registry requires an explicit entry count")
+        return self
 
 
 def party_path(path: str) -> str | None:
@@ -134,8 +174,10 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
         ):
             raise ValueError("related actor requires a known lexical key and explicit relationship")
         role = declaration["context_party"]
-        if not isinstance(role, str) or party_path(role + ".name") != role or not any(
-            path.startswith(role + ".") for path in leaves
+        if (
+            not isinstance(role, str)
+            or party_path(role + ".name") != role
+            or not any(path.startswith(role + ".") for path in leaves)
         ):
             raise ValueError("related actor context must name a present concrete party")
         if any(
@@ -145,13 +187,15 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
             raise ValueError("related actor cannot be concatenated into its context party name")
         variable = variables[key]
         if variable.kind == "name":
-            pattern = r"(?<!\w)" + r"\s+".join(
-                re.escape(token) for token in variable.value.split()
-            ) + r"(?!\w)"
+            pattern = (
+                r"(?<!\w)"
+                + r"\s+".join(re.escape(token) for token in variable.value.split())
+                + r"(?!\w)"
+            )
             owned = [locate(blueprint.source, occurrence) for occurrence in variable.occurrences]
             for match in re.finditer(pattern, blueprint.source, re.I):
-                start = len(blueprint.source[:match.start()].encode())
-                end = len(blueprint.source[:match.end()].encode())
+                start = len(blueprint.source[: match.start()].encode())
+                end = len(blueprint.source[: match.end()].encode())
                 if not any(a <= start and end <= b for a, b in owned):
                     raise ValueError(
                         f"related actor has an unowned repeated source identity: {key}"
@@ -224,9 +268,7 @@ def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]
             f"Generated component:\n{values[key]}"
         )
     context = (
-        "\nSOURCE-CERTIFIED IDENTITY COMPONENTS\n" + "\n\n".join(components)
-        if components
-        else ""
+        "\nSOURCE-CERTIFIED IDENTITY COMPONENTS\n" + "\n\n".join(components) if components else ""
     )
     variables = {v.key: v for v in blueprint.contract.variables}
     relationships = []
@@ -507,12 +549,12 @@ def wording_request(
             role = ", ".join(roles) + " " + variable.kind
         elif variable.kind == "product":
             requirement = (
-                "Final product wording only; party identities, addresses and contacts belong "
-                "to their own fields. Generate this portion jointly with other requested goods "
-                "regions at the source's descriptive depth and list structure. Include every "
-                "sampled identity and its attributes; fictional variants, models, dimensions "
-                "and rated capacities are allowed. Shipment packing, fills, totals, transport "
-                "settings and HS/customs captions are host-owned, not wording to invent."
+                "Complete commercial product wording, matching the source's level of detail "
+                "and list structure. Express the required commodity facts and physical form. "
+                "Classification wording supplies context, not extra required attributes. "
+                "Product variants and intrinsic specifications may enrich an example that "
+                "has that detail. Packing, fills, quantities, weights, transport settings and "
+                "codes are separate host-rendered facts."
             )
             role = "goods description"
         else:
@@ -531,19 +573,23 @@ def wording_request(
     loading = scenario.route_locations.get("portOfLoading", scenario.origin)
     context = (
         f"Loading: {loading.name}, {loading.country}. "
-        f"Discharge: {scenario.destination.name}, {scenario.destination.country}.\n"
-        "Goods: " + "; ".join(i.phrase for i in identities)
+        f"Discharge: {scenario.destination.name}, {scenario.destination.country}."
     )
     if via := scenario.route_locations.get("transshipmentPort"):
         context += f"\nPrinted transshipment location: {via.name}, {via.country}."
     generated_products = product_keys - host_products.keys()
+    profile = scenario.provenance.get("registryLoadProfile")
     if generated_products:
-        context += "\nSAMPLED COMMODITY BRIEF\n" + "\n".join(i.phrase for i in identities)
+        context += "\n" + commodity_brief(
+            identities, physical_form=profile["form"] if profile else None
+        )
         context += (
             "\nGenerate requested regions as one coherent commercial description: a "
             "concise commodity identity, a specification passage, or a product list, matching "
             "the source's descriptive depth. Represent every sampled identity at that level "
-            "of detail. Exact HS-to-product classification is not the wording objective. "
+            "of detail. Classification references are contextual alternatives; required "
+            "product facts and physical form govern the description. Exact HS-to-product "
+            "classification is not the wording objective. "
             "Repeated uses share one value; output final commercial wording only. "
             "Schema instructions are context, never product text."
         )
@@ -553,33 +599,46 @@ def wording_request(
     physical = {
         "goods": [
             {
-                k: v
-                for k, v in item.items()
-                if k
-                not in {"description", "hsCodes", "splitGoodsPlacement", "handlingInstructions"}
+                "packageCategories": [
+                    package["typeCategory"] for package in item.get("numberAndTypeOfPackages", [])
+                ],
             }
             for item in cargo.get("goodsItemDetails", [])
         ],
-        "equipment": [
-            {k: v for k, v in item.items() if k not in {"equipmentIdentifier", "sealNumbers"}}
-            for item in cargo.get("containerInformation", [])
+        "equipmentCategories": [
+            dict(zip(("sizeCategory", "typeCategory"), pair, strict=True))
+            for pair in sorted(
+                {
+                    (item.get("sizeCategory"), item.get("typeCategory"))
+                    for item in cargo.get("containerInformation", [])
+                },
+                key=lambda pair: tuple(value or "" for value in pair),
+            )
         ],
     }
-    if physical_plan:
-        physical["printed_measure_totals"] = {
-            key: {"value": value["total"], "unit": value["unit"]}
-            for key, value in physical_plan.receipt["measures"].items()
-            if value["method"] != "source_zero_unasserted"
-        }
     if contents := contained_packing_context(blueprint, {"documentPatch": cargo}):
-        physical["contained_packing"] = contents
+        physical["containedPackageWordings"] = sorted(
+            {item["printed_contained_unit"] for item in contents}
+        )
     context += (
-        "\nHOST-RENDERED PHYSICAL FACTS (compatibility context, not wording to repeat)\n"
+        "\nTRANSPORT COMPATIBILITY (categories only; accounting is host-rendered)\n"
         + yaml.safe_dump(physical, sort_keys=False, allow_unicode=True)
     )
+    if profile:
+        context += (
+            "\nPRESENTATION CONTEXT\nDeclared transport unit: "
+            + profile["package_category"].removeprefix("PACKAGE_").replace("_", " ")
+            + ". The host prints packing counts, package fills and shipment weights separately. "
+            "Product wording contains commodity identity and specifications, without standalone "
+            "shipment totals or a conflicting inner-package presentation."
+        )
     if thermal := scenario.provenance.get("thermalCommodityContext"):
-        context += "\nSAMPLED COLD-CHAIN COMMODITY AND SETTINGS\n" + yaml.safe_dump(
-            thermal, sort_keys=False, allow_unicode=True
+        # Product identities already own their cold-chain form. Numeric carriage
+        # settings are host facts, not product prose to regenerate.
+        context += "\nREQUIRED COLD-CHAIN PRODUCT FORM\n" + yaml.safe_dump(
+            {"profile": thermal["profile"], "productForm": thermal["productForm"]},
+            sort_keys=False,
+            allow_unicode=True,
         )
         if generated_products:
             context += (
@@ -622,7 +681,12 @@ def wording_request(
     goods = cargo.get("goodsItemDetails", [])
     gross = goods[0].get("grossWeight") if len(goods) == 1 else None
     if physical_plan:
-        gross = physical["printed_measure_totals"].get("grossWeight")
+        measure = physical_plan.receipt["measures"].get("grossWeight")
+        gross = (
+            {"value": measure["total"], "unit": measure["unit"]}
+            if measure and measure["method"] != "source_zero_unasserted"
+            else None
+        )
     return WordingRequest(
         sample_id,
         context,
@@ -854,6 +918,56 @@ def remaining_text_surfaces(blueprint: SamplingBlueprint, target: dict, supplied
     return grouped
 
 
+def _project_handling_labels(blueprint, text, target, proof, *, casing):
+    target, receipt = project_nested_equipment_handling(
+        blueprint, text, target, proof["edits"], casing=casing
+    )
+    if receipt is not None:
+        proof = deepcopy(proof)
+        proof["handlingProjection"] = receipt
+        proof["coveredTargetPaths"] = sorted(
+            set(proof["coveredTargetPaths"]) | {field["path"] for field in receipt["fields"]}
+        )
+        proof["changedTargetPaths"] = sorted(
+            set(proof["changedTargetPaths"])
+            | {field["path"] for field in receipt["fields"] if field["before"] != field["value"]}
+        )
+    return target, proof
+
+
+def _handling_replay_target(blueprint, candidate, *, casing):
+    """Restore derived parents only after independently verifying their receipt.
+
+    The ordinary renderer requires unowned static parents to keep their source
+    value. Their final value is derived from the owned child edits afterward.
+    Recompute that derivation before resetting replay inputs, so a fabricated
+    receipt cannot conceal unrelated handling changes. Complete render/proof
+    equality is still checked by the caller after this temporary restoration.
+    """
+    if "handlingProjection" not in candidate["proof"]:
+        return candidate["target"]
+    recorded = candidate["proof"]["handlingProjection"]
+    projected, receipt = project_nested_equipment_handling(
+        blueprint,
+        candidate["joinedRawText"],
+        candidate["target"],
+        candidate["proof"]["edits"],
+        casing=casing,
+    )
+    if (
+        receipt is None
+        or recorded != receipt
+        or projected != candidate["target"]
+        or receipt["renderedSha256"] != candidate["joinedRawTextSha256"]
+    ):
+        raise ValueError(
+            "handling projection receipt differs from independent source/edit authority"
+        )
+    return apply_replacements(
+        candidate["target"], {field["path"]: field["before"] for field in receipt["fields"]}
+    )
+
+
 def validate_sample(
     blueprint: SamplingBlueprint,
     scenario: ShipmentScenario,
@@ -862,7 +976,11 @@ def validate_sample(
     *,
     casing_policy: CasingPolicy | None = None,
 ) -> dict:
-    """Recompute every output; then check sampled facts and accounting invariants."""
+    """Replay supplied render inputs and check schema/accounting invariants.
+
+    Campaign.replay_candidate separately enforces complete pinned source,
+    scenario and wording authority; this component alone is not that gate.
+    """
     casing_policy = casing_policy or CasingPolicy()
     country_codes = {
         role + ".country": geo.country_code
@@ -873,12 +991,15 @@ def validate_sample(
         raise ValueError("country-code authority differs from the sampled registry geography")
     text, target, proof = render_sampling_blueprint(
         blueprint,
-        candidate["target"],
+        _handling_replay_target(blueprint, candidate, casing=casing_policy.target),
         candidate["renderValues"],
         surface_values=candidate["surfaceValues"],
         certified_country_codes=country_codes,
         render_casing=casing_policy.select(candidate["seed"], candidate["documentId"]),
         target_casing=casing_policy.target,
+    )
+    target, proof = _project_handling_labels(
+        blueprint, text, target, proof, casing=casing_policy.target
     )
     if (candidate["joinedRawText"], candidate["target"], candidate["proof"]) != (
         text,
@@ -1030,26 +1151,174 @@ class Campaign:
             raise ValueError("current training set has insufficient valid vessel-name support")
         self.physical_support = PhysicalSupport.fit(list(self.rows.values()))
         self.auxiliary = load_auxiliary_contract(root / config["auxiliary"])
+        self.alias_policy = (
+            AliasSamplingPolicy.model_validate(config["aliases"]) if "aliases" in config else None
+        )
+        self.equipment_alias_registry = (
+            EquipmentAliasRegistry.from_data(
+                json.loads(_pin(root, self.alias_policy.equipment_registry).read_text())
+            )
+            if self.alias_policy is not None and self.alias_policy.equipment_registry is not None
+            else None
+        )
+        if self.alias_policy is not None:
+            constraints = json.loads((root / config["task_constraints"]).read_text())
+            pin = self.alias_policy.package_registry
+            if pin.sha256 != constraints["packageRegistrySha256"]:
+                raise ValueError("alias package registry differs from task vocabulary authority")
+            packages = load_package_registry(
+                _pin(root, pin), expected_sha256=pin.sha256, expected_entries=pin.records
+            )
+            validate_package_alias_registry(
+                set(constraints["packageCategoryTokens"]),
+                {entry.categoryToken: entry.applicationCode for entry in packages.payload.entries},
+            )
+            if self.catalog.load_profiles is not None and any(
+                p.package_category not in PACKAGE_ALIASES
+                for p in self.catalog.load_profiles.profiles
+            ):
+                raise ValueError("load-profile package category has no reviewed task alias")
+        self._blueprints: dict[str, SamplingBlueprint] = {}
+        self._blueprint_file_pins: dict[Path, str] = {
+            path: digest(path.read_bytes())
+            for path in (
+                data / "train.jsonl",
+                data / "validation.jsonl",
+                root / config["auxiliary"],
+            )
+        }
+        policy = self.catalog.config.equipment_inventory
+        self.equipment_inventories = {}
+        self.equipment_compatibility = {}
+        if policy is not None:
+            if not set(policy.source_ids) <= set(self.source_ids):
+                raise ValueError("equipment inventory scope exceeds selected campaign sources")
+            for sid in policy.source_ids:
+                cap = self.capabilities[sid]
+                if cap.family != "ambient" or cap.physical_profile != "registry_form":
+                    raise ValueError("equipment inventory scope requires ambient registry forms")
+                blueprint = self.blueprint(sid)
+                self.equipment_inventories[sid] = compile_equipment_inventory(blueprint)
+                domain = printed_tare_equipment_domain(blueprint, self.physical_support)
+                if domain is not None:
+                    supported = sorted(
+                        domain.intersection(cap.allowed_equipment_pairs)
+                        if cap.allowed_equipment_pairs
+                        else domain
+                    )
+                    if not supported:
+                        raise ValueError("inventory equipment has no supported printed-tare domain")
+                    self.capabilities[sid] = self.capabilities[sid].model_copy(
+                        update={"allowed_equipment_pairs": tuple(supported)}
+                    )
+                    self.equipment_compatibility[sid] = {
+                        "basis": "source_owned_tares_and_train_observed_changed_pairs",
+                        "eligiblePairs": supported,
+                    }
+            self.catalog.bind_equipment_inventory(self.equipment_inventories)
+            for sid in policy.source_ids:
+                self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
+
+    def physical_render(self, blueprint, scenario, target):
+        """Compile physical facts, then independently realize their owned aliases."""
+        inventory = self.equipment_inventories.get(scenario.source_id)
+        plan = prepare_physical_render(
+            blueprint,
+            scenario,
+            target,
+            support=self.physical_support,
+            equipment_inventory=inventory,
+        )
+        if "aliases" not in self.config:
+            return plan
+        stream = DeterministicStream(
+            self.config["seed"], "curated-aliases-v1", f"{scenario.source_id}:{scenario.variant}"
+        )
+        surfaces, receipt = plan.surface_values, deepcopy(plan.receipt)
+        if scenario.source_id in self.equipment_compatibility:
+            receipt["equipmentCompatibility"] = self.equipment_compatibility[scenario.source_id]
+        if self.equipment_alias_registry is not None:
+            containers = plan.target["documentPatch"].get("containerInformation", [])
+            pairs = {(c.get("sizeCategory"), c.get("typeCategory")) for c in containers}
+            if any(None in pair for pair in pairs) or (inventory is None and len(pairs) != 1):
+                raise ValueError("registry alias sampling requires one complete equipment pair")
+            if inventory is not None:
+                aliases = {
+                    (size, kind): self.equipment_alias_registry.select(
+                        size, kind, stream.derive(f"equipment:{size}|{kind}")
+                    )
+                    for size, kind in sorted(pairs)
+                }
+                projected, owners = project_equipment_inventory(
+                    inventory,
+                    blueprint.target["documentPatch"]["containerInformation"],
+                    containers,
+                    format_equipment=lambda row, _source: aliases[
+                        row["sizeCategory"], row["typeCategory"]
+                    ],
+                    number_words=_number_to_words,
+                )
+                surfaces = {**surfaces, **projected}
+                receipt["equipmentInventoryAliases"] = {
+                    "aliases": [
+                        {"sizeCategory": size, "typeCategory": kind, "surface": value}
+                        for (size, kind), value in sorted(aliases.items())
+                    ],
+                    "owners": owners,
+                    "registrySha256": self.alias_policy.equipment_registry.sha256,
+                }
+            else:
+                size, kind = pairs.pop()
+                alias = self.equipment_alias_registry.select(size, kind, stream.derive("equipment"))
+                surfaces, owners = apply_equipment_aliases(blueprint, plan.target, surfaces, alias)
+                receipt["equipmentAlias"] = {
+                    "surface": alias,
+                    "owners": owners,
+                    "registrySha256": self.alias_policy.equipment_registry.sha256,
+                }
+        alias_plan = replace(plan, surface_values=surfaces)
+        count_context = compile_package_count_context(blueprint, alias_plan)
+        surfaces = project_package_aliases_with_context(
+            blueprint,
+            alias_plan,
+            count_context,
+            mode=self.alias_policy.package_mode,
+            rng=random.Random(
+                f"{self.config['seed']}:{scenario.source_id}:{scenario.variant}:package-aliases"
+            ),
+        )
+        receipt["packageAliasMode"] = self.alias_policy.package_mode
+        receipt["packageCountContext"] = [fact.receipt() for fact in count_context]
+        return replace(plan, surface_values=surfaces, receipt=receipt)
 
     def blueprint(self, sid: str) -> SamplingBlueprint:
-        envelope = json.loads(
-            (self.root / self.config["source_contracts"] / sid / "contract.json").read_text()
-        )
+        if sid in self._blueprints:
+            return self._blueprints[sid]
+        contract_path = self.root / self.config["source_contracts"] / sid / "contract.json"
+        historical_path = self.root / self.config["historical_catalog"] / sid / "template.json"
+        ownership_path = self.root / self.config["ownership"]
+        for path in (contract_path, historical_path, ownership_path):
+            observed = digest(path.read_bytes())
+            if path in self._blueprint_file_pins and self._blueprint_file_pins[path] != observed:
+                raise ValueError("campaign source files changed after snapshot certification")
+            self._blueprint_file_pins[path] = observed
+        envelope = json.loads(contract_path.read_text())
         row = self.rows[sid]
         if envelope["sourceSha256"] != digest(row["joinedRawText"].encode()) or envelope[
             "targetSha256"
         ] != digest(row["target"]):
             raise ValueError("source contract identity mismatch")
-        historical = json.loads(
-            (self.root / self.config["historical_catalog"] / sid / "template.json").read_text()
-        )
+        historical = json.loads(historical_path.read_text())
         blueprint = load_owned_blueprint(
             row,
             historical,
             SourceContract.model_validate(envelope["contract"]),
-            self.root / self.config["ownership"],
+            ownership_path,
         )
         blueprint = augment_auxiliary_blueprint(blueprint, self.auxiliary)
+        policy = self.catalog.config.equipment_inventory
+        if policy is not None and sid in policy.source_ids:
+            blueprint = rebase_equipment_inventory_headers(blueprint)
         validate_lexical_owners(blueprint)
         certified_identity_kinds(blueprint)
         validate_description_regions(blueprint.description_blocks, blueprint.regions)
@@ -1073,12 +1342,21 @@ class Campaign:
         validate_contained_quantity_sampling(
             blueprint, multiple=cap.quantity_multiple, fixed=cap.fixed_package_quantity
         )
+        self._blueprints[sid] = blueprint
         return blueprint
 
     def validate_source_readiness(self) -> None:
         """Check every selected source before any concurrent paid work starts."""
         for sid in self.source_ids:
             self.blueprint(sid)
+        # Immutable snapshots eliminate repeated YAML compilation. Stage
+        # boundaries still hash every dependency, including metadata-preserving
+        # edits, so caching cannot silently approve changed source contracts.
+        for path, expected in self._blueprint_file_pins.items():
+            if digest(path.read_bytes()) != expected:
+                raise ValueError("campaign source files changed after snapshot certification")
+        for sid in self.equipment_inventories:
+            self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
 
     def plan(self, sid: str, variant: int) -> tuple[SamplingBlueprint, ShipmentScenario, str, dict]:
         blueprint = self.blueprint(sid)
@@ -1096,7 +1374,7 @@ class Campaign:
             # The exact source grid belongs to candidate admission, not to a
             # late failure after selecting a shipment (or after a paid call).
             # Contract errors propagate; only typed draw incompatibilities retry.
-            prepare_physical_render(blueprint, candidate, target, support=self.physical_support)
+            self.physical_render(blueprint, candidate, target)
 
         scenario = self.catalog.sample(
             self.rows[sid],
@@ -1122,9 +1400,7 @@ class Campaign:
         """Reject broken deterministic source/physical contracts before paid wording."""
         for blueprint, scenario, sample_id, target in plans:
             validate_lexical_owners(blueprint)
-            physical = prepare_physical_render(
-                blueprint, scenario, target, support=self.physical_support
-            )
+            physical = self.physical_render(blueprint, scenario, target)
             before, after = flat(blueprint.target), flat(physical.target)
             changed = {path for path in after if before.get(path) != after[path]}
             owned = {path for region in blueprint.regions for path in region.target_paths}
@@ -1147,10 +1423,8 @@ class Campaign:
     def wording_request(
         self, blueprint: SamplingBlueprint, scenario: ShipmentScenario, sample_id: str, target: dict
     ) -> WordingRequest:
-        """Give language generation the actual printed public and private loads."""
-        physical = prepare_physical_render(
-            blueprint, scenario, target, support=self.physical_support
-        )
+        """Keep numeric loads private to validation; give wording categorical context."""
+        physical = self.physical_render(blueprint, scenario, target)
         return wording_request(blueprint, scenario, sample_id, physical_plan=physical)
 
     async def generate(self, sid: str) -> dict:
@@ -1222,8 +1496,8 @@ class Campaign:
                 )
                 accepted = unpack_wording(repaired, batch_requests)
             wording.update(accepted)
-        # Reused and newly generated fragments share the same batch-diversity
-        # checks; validating cached shipments one at a time would miss copies.
+        # Reused and new fragments share the same per-shipment correctness
+        # checks. Repeated product wording is reported separately as diversity.
         validate_wording(
             WordingBatch.model_validate(
                 {
@@ -1268,6 +1542,7 @@ class Campaign:
             "generated": len(plans),
             "contacts": contacts,
             "wordingValidationRepair": repair_error,
+            "repeatedGoodsDescriptions": repeated_goods_descriptions(requests, wording),
         }
 
     def contact_requests(self, sid: str) -> list:
@@ -1512,9 +1787,7 @@ class Campaign:
     def render(self, sid: str, variant: int, *, persist: bool = True) -> dict:
         blueprint, scenario, sample_id, target = self.plan(sid, variant)
         receipt = json.loads((self.output / "wording" / f"{sample_id}.json").read_text())
-        physical = prepare_physical_render(
-            blueprint, scenario, target, support=self.physical_support
-        )
+        physical = self.physical_render(blueprint, scenario, target)
         request = wording_request(blueprint, scenario, sample_id, physical_plan=physical)
         if receipt["requestSha256"] != wording_request_hash(request):
             raise ValueError(
@@ -1595,6 +1868,9 @@ class Campaign:
             render_casing=self.casing.select(self.config["seed"], sample_id),
             target_casing=self.casing.target,
         )
+        target, proof = _project_handling_labels(
+            blueprint, text, target, proof, casing=self.casing.target
+        )
         candidate = {
             "documentId": sample_id,
             "sourceDocumentId": sid,
@@ -1648,8 +1924,15 @@ class Campaign:
                     f"({location['country_code']})"
                     for role, location in facts["party_localities"].items()
                 )
-                + "\nSAMPLED COMMODITY BRIEF\n"
-                + "\n".join(f"{g['hs6']}: {g['phrase']}" for g in facts["goods_identities"])
+                + "\n"
+                + commodity_brief(
+                    [GoodsIdentity.model_validate(g) for g in facts["goods_identities"]],
+                    physical_form=(
+                        facts["provenance"]["registryLoadProfile"]["form"]
+                        if "registryLoadProfile" in facts["provenance"]
+                        else None
+                    ),
+                )
                 + (
                     "\nSAMPLED COLD-CHAIN IDENTITY, PRODUCT FORM AND SETTINGS\n"
                     + yaml.safe_dump(

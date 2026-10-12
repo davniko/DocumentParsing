@@ -1,10 +1,10 @@
 # MPCI extraction: run results and next experiments
 
-Updated: 2026-10-10. This is the consolidated results ledger for **nine completed runs**, including the latest expanded-coverage run **I**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
+Updated: 2026-10-11. This is the consolidated results ledger for **ten completed runs**, including the latest UAE expansion run **J**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
 
-**Current conclusion:** I is the strongest all-document field-score run in this ledger: saved-output F1/accuracy **0.8961/0.8555**, relation F1 **0.9348**, category F1 **0.8939**, and **59/60 valid JSON**. It actually trained on **2,500 synthetic +600 real =3,100 records**, not3,000 synthetic. Against the same full gold, H→I improves F1/accuracy **0.8690/0.8059→0.8961/0.8555**. On their54 jointly parseable documents the smaller content gain is **0.9036/0.8675→0.9102/0.8778**, including all addresses and descriptions. Parsing coverage contributes125 of145 additional correct values; matched content contributes20. Descriptions and allocation-quantity restraint regress locally, so this is not a uniform improvement. I's hash-verified best/exported checkpoint is **970, epoch10**. See [section14](#14-expanded-coverage-run-i-2500-synthetic--600-real).
+**Current conclusion:** J is the strongest all-document field-score run in this ledger: saved-output F1/accuracy **0.9017/0.8650**, relation F1 **0.9450**, category F1 **0.9009**, and **59/60 valid JSON**. It trained on **5,000 synthetic +600 real =5,600 records**, with rank48 unchanged. On the same full current gold, I→J improves F1/accuracy **0.8961/0.8555→0.9017/0.8650**. On the same58 jointly parseable documents, full-target scores improve **0.9060/0.8731→0.9128/0.8856**, including all addresses and descriptions. This gain is mainly precision/restraint; complete descriptions improve, addresses are nearly flat, and size/package categories still regress locally. J's hash-verified best/exported checkpoint is **1750, epoch10**. The joint >0.90 field-F1-and-accuracy goal remains unmet. See [section15](#15-uae-expansion-run-j-5000-synthetic--600-real).
 
-The latest results investigation performed local artifact inspection, CPU metric replay and source-text review only. It did **not** modify datasets, training/synthesis code, configs or checkpoints; run inference/training; or make paid model calls. **Sections3–12 preserve the earlier G-era analysis; section13 preserves the H-era comparison.** Their “current” wording describes those historical snapshots. I adds1,000 synthetic records and uses300 source-template families. Subsequent party/date/delivery label repairs were not used to train I; section14 reports its frozen training-time gold separately from today's repaired gold.
+The latest results investigation performed local artifact inspection, CPU metric replay and source-text review only. It did **not** modify datasets, training/synthesis code, configs or checkpoints; run inference/training; or make paid model calls. **Sections3–12 preserve the earlier G-era analysis; section13 preserves the H-era comparison; section14 preserves I.** Their “current” wording describes those historical snapshots. J adds2,500 UAE-destination synthetic records and uses the360-template registry. Approved party/date/delivery label repairs were not used to train I; section15 compares saved outputs on one common complete current gold. The subsequently integrated registry-form/equipment/package-alias sampler was **not used to produce J's training data**; its effect belongs to the next experiment.
 
 ## 1. Reading the metrics correctly
 
@@ -24,7 +24,7 @@ The latest results investigation performed local artifact inspection, CPU metric
 4. Older runs did not all use the current explicit-null instruction policy. Before the 1,500-synthetic run, 38 `sameAs` nulls and two negotiability nulls added 40 target facts across 36 validation documents. This particularly changes historical schema-validity scores when evaluated against today's schema.
 5. The previous rank32 1,500-synthetic run selected epoch7.5 but exported epoch10. The rank48 run exports its selected epoch10 checkpoint correctly. Granular comparisons below use the **available saved epoch10 outputs**, not the earlier run's best epoch7.5 predictions.
 
-## 2. Experiment registry: nine completed runs
+## 2. Experiment registry: ten completed runs
 
 All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout this ledger. Each has 60 validation documents. The configuration links are the launch files; the corresponding run directory contains the authoritative `resolved-config.json` and artifact manifest.
 
@@ -39,6 +39,7 @@ All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout t
 |G|[Same dataset, rank48](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic1500_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|2,100|Rank32→48; warmup5→33; keep all checkpoints; correct best-adapter export|10 / 660|33, or 5%|
 |H|[Corrected description blocks and declared packaging, rank48](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic1500_descblocks_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|2,100|Same G settings; corrected description boundaries, package level and allocation labels/data; no added training records|10 / 660|33, or 5%|
 |I|[Expanded coverage, 2,500 synthetic, rank48](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic2500_descblocks_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|3,100|Add1,000 synthetic records;300 templates; retain description/declared-package policies and input-only positions|10 /970|49, or5%|
+|J|[UAE expansion, 5,000 synthetic, rank48](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic5000_uae_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|5,600|Add2,500 UAE-endpoint synthetic records;360-template registry; repaired party/date/delivery contracts; retain real600|10 /1750|88, or5%|
 
 F and G have identical training/validation file hashes, input/target formatting, seeds, LR, batch/accumulation, model/tokenizer revisions and total updates. Their effective rsLoRA scale nevertheless changes from 32/√32 = 5.657 to 32/√48 = 4.619; EVA also adapts to the new rank. Therefore G is **rank48 plus longer warmup**, not an isolated rank test.
 
@@ -57,8 +58,9 @@ The relation/category values below are at the **field-F1-selected checkpoint**, 
 |G|10 / 660|**0.8858**|**0.8401**|**0.9120**|0.8597|58/60|48/60|
 |H|7.503 / 495|0.8691|0.8057|**0.9287**|**0.8736**|55/60|45/60|
 |I|10 /970|**0.8967**|**0.8562**|**0.9348**|**0.8939**|**59/60**|**52/60**|
+|J|10 /1750|**0.9013**|**0.8643**|**0.9450**|**0.9009**|**59/60**|**51/60**|
 
-These are useful historical results, not nine controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint.
+These are useful historical results, not ten controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 rescoring removes that reference mismatch for the saved-output comparison.
 
 ### Complete scheduled progression
 
@@ -96,6 +98,10 @@ All values in this table are native logged metrics. Epochs are rounded; integer 
 |I|5.010 /486|0.06317|0.8735|0.8162|0.9210|0.8809|56|
 |I|7.516 /729|0.06912|0.8695|0.8070|0.8927|0.7914|57|
 |I|10 /970|0.07949|0.8967|0.8562|0.9348|0.8939|59|
+|J|2.503 /438|0.05362|0.8882|0.8421|0.8878|0.8658|59|
+|J|5.006 /876|0.06344|0.8886|0.8414|0.9044|0.8909|58|
+|J|7.509 /1314|0.06427|0.8650|0.8017|0.8662|0.8588|56|
+|J|10 /1750|0.07333|0.9013|0.8643|0.9450|0.9009|59|
 
 More epochs are not uniformly better. G improves late while F peaks earlier, and both lose ground at some intermediate evaluations. G's eval loss rises while its final extraction scores improve. Select checkpoints on extraction metrics, not minimum teacher-forced loss. Retain predictions as well as weights at each evaluation: aggregate logs alone cannot localize the intermediate regressions.
 
@@ -829,3 +835,291 @@ The next template admission/synthesis design should protect current metadata/rou
 User's intended progression is recorded, not launched here: expand to**5,000synthetic**, put **all new import/end localities inUAE**, compare synthetic-onlytraining against the mixture, then test**rank64**. New generation should be primarily coverage-driven rather than equal descendant counts. It remains useful to separate these experiment changes if their individual effects are to be interpreted. The present task admits60new templates in20-template groups, withtwo audited descendants each; it does not yet make those pilotdescendants part of training or launch the next bulkcampaign.
 
 Evidence: [complete metrics/progression/integrity/guards](analysis/training-latest-20261010/metrics.json), [source-checked description inventory](analysis/training-latest-20261010/SOURCE_REVIEW.md), [field metrics](analysis/training-latest-20261010/fields.csv), [group metrics](analysis/training-latest-20261010/groups.csv), [document scores/traits](analysis/training-latest-20261010/documents.csv), [errors](analysis/training-latest-20261010/errors.csv), [post-training gold changes](analysis/training-latest-20261010/gold-changes.json), [CPU replay](analysis/training-latest-20261010/analyze.py).
+
+## 15. UAE expansion run J: 5,000 synthetic +600 real
+
+### 15.1 Completion, data and comparison authority
+
+The run completed2026-10-11. MLflow is `FINISHED`; the immutable artifact
+manifest is complete. All **60 artifact hashes and byte counts** verify.
+Training used **5,600 records**, validation60. The current train/validation
+files still match their frozen launch pins:
+
+- Train: `08e44d14b371d517b711b5ef2cde0c99cdb8e7d9a44f0839e8492762db693075`.
+- Validation: `2948e9001d2429c63e9e918597d9dd10e7ebec3b26d9f4c1758a1dfe168318be`.
+
+All rows were retained; zero source truncations, zero target exclusions.
+Maximum input/target lengths are8,066/3,160training and5,698/1,348validation,
+against19,200/5,500 configured limits. The3,072 inference-generation cap is a
+different limit from the5,500 training-target allowance.
+
+All checkpoints **438,876,1314,1750** remain available. Best is **1750, epoch10**.
+The exported adapter equals that checkpoint byte-for-byte, SHA-256
+`5b359110500a56b6c31be6fe2482f6281ceecfac56da822b8ed532fbffdd0368`.
+The pre-manifest status sidecar still saying `artifacts_complete_manifest_pending`
+is not a failed or incomplete training run.
+
+Relative to I:5,000 versus2,500 synthetic examples,360 versus300 registered
+templates, approved party/date/delivery repairs and refreshed launch contracts.
+The added UAE campaign used358 source families from the360 registry. Both runs
+retain600 real training documents and60 validation. Rank48, alpha32, EVA,
+rsLoRA, LR1e-4, bf16/SDPA, effective batch1×32,10epochs, input-only positioned
+text, compact JSON and3,072-token generation are unchanged. Updates970→1750,
+warmup49→88 preserve approximately5%; save/eval243→438 preserve2.5-epoch spacing.
+
+This is not a pure isolated sample-count experiment: data composition,
+source coverage, label repairs, optimization exposure and EVA's sampled
+initialization differ. In particular, the new independent registry-form and
+equipment/package-alias integration **postdates J's data generation**. J's
+gains cannot yet be attributed to that integration.
+
+The historical I validation file is still hash-exact, but its training path
+was subsequently edited. All60 G/H/I/J validation OCR and positioned strings
+are identical. Saved prediction `reference_text` gives frozen historical gold;
+CPU replay here scores every model against **the same complete J gold**.
+H/I references differ from J in8 documents/13scalar paths, G in31/59. J's
+reference matches all current targets exactly. No addresses/descriptions,
+nulls or other difficult fields are masked out.
+
+### 15.2 Scheduled progression and final saved outputs
+
+These scheduled rows use each run's own contemporary gold; section15.3
+removes that reference difference for the saved final output comparison.
+
+|Epoch|J step|I field F1 /accuracy|J field F1 /accuracy|I→J relation F1|I→J category F1|I/J valid JSON|
+|---|---:|---:|---:|---:|---:|---:|
+|2.5|438|0.8487 /0.7769|**0.8882 /0.8421**|0.8756→0.8878|0.8096→0.8658|55/59|
+|5|876|0.8735 /0.8162|**0.8886 /0.8414**|0.9210→0.9044|0.8809→0.8909|56/58|
+|7.5|1314|0.8695 /0.8070|0.8650 /0.8017|0.8927→0.8662|0.7914→0.8588|57/56|
+|10|1750|0.8967 /0.8562|**0.9013 /0.8643**|0.9348→**0.9450**|0.8939→**0.9009**|59/59|
+
+J starts substantially ahead, dips at7.5, then reaches its best extraction
+scores at10. At5/7.5 its relation score is below I, despite the stronger final
+result. J eval loss **0.05362→0.06344→0.06427→0.07333** again favors selecting
+on extraction quality rather than minimum teacher-forced loss. Intermediate
+prediction strings are not saved, so these logs cannot identify the exact
+document-level cause of the dip without new inference; none was launched.
+
+Final reevaluation of the selected weights gives field F1/accuracy
+**0.901691/0.864957**, slightly different from scheduled
+**0.901336/0.864305**. Detailed inventories use the saved final prediction pass.
+
+### 15.3 Complete-target comparison on common current gold
+
+Case-insensitive and list-order-invariant. Syntax failures receive no recovered
+credit; parseable schema-invalid outputs can receive partial field credit.
+
+|Saved-output run|Precision|Recall|Field F1|Field accuracy|Relation F1 /accuracy|Category F1 /accuracy|JSON /schema valid|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|G:1,500 synthetic,old policy|0.8962|0.8781|0.8871|0.8428|0.9248 /0.8601|0.8597 /0.7540|58 /47|
+|H:1,500,corrected descriptions/packages|0.9090|0.8339|0.8698|0.8069|0.9287 /0.8670|0.8736 /0.7756|55 /45|
+|I:2,500 synthetic|0.9030|0.8894|0.8961|0.8555|0.9348 /0.8776|0.8939 /0.8081|59 /52|
+|J:5,000 synthetic|**0.9135**|**0.8901**|**0.9017**|**0.8650**|**0.9450 /0.8957**|**0.9009 /0.8197**|59 /51|
+
+Support is2,576 scalar values,220 relation facts and269 category facts on
+all60. I→J changes are **+0.55F1, +0.95accuracy, +1.01relation-F1,
++0.71category-F1 percentage points**. Overall field recall barely moves;
+precision increases1.05points. Correct scalars2,291→2,293, wrong/extra
+predictions246→217. The main aggregate gain is greater restraint/precision,
+not a large net recall increase. Extraction-fact F1 is0.8925→0.8976.
+
+The same58 documents parse in both I/J:
+
+|Matched full-target measure|I|J|
+|---|---:|---:|
+|Field precision /recall|0.9043 /0.9076|**0.9135 /0.9121**|
+|Field F1 /accuracy|0.9060 /0.8731|**0.9128 /0.8856**|
+|Correct /gold scalars|2,250 /2,479|**2,261 /2,479**|
+|Wrong/extra scalar predictions|238|**214**|
+|Relation F1 /accuracy|0.9417 /0.8899|**0.9623 /0.9273**|
+|Relation precision /recall|0.9224 /0.9619|**0.9533 /0.9714**|
+|Category F1 /accuracy|0.9040 /0.8247|**0.9070 /0.8299**|
+
+Thus improvement survives controlling for parse membership and includes full
+addresses/descriptions. It is not the much higher historical30k
+unchanged-components comparison. J's own59 parseable outputs score
+**0.9125F1/0.8850accuracy**, relation0.9626/0.9279. The52-document intersection
+where all G/H/I/J parse gives full-target F1/accuracy:
+**0.9057/0.8752→0.9117/0.8810→0.9147/0.8857→0.9221/0.899827**.
+That last accuracy is near0.90, not above it, and the intersection is a
+conditional diagnostic, not the primary all-document score.
+
+Parsing is59/60 in both I/J but the failed document changes: Epistar becomes
+parseable, recovering32 values; the seven-container refractory document
+becomes malformed, losing41 values. The58 matched documents add11 correct
+values; syntax-membership change subtracts9, leaving+2overall.
+
+Documents with both field F1 and accuracy>0.90 increase **24→32/60**;
+both≥0.95 increase **16→20/60**. Strict canonical whole-document matches2→5.
+Macro document F1/accuracy0.8862/0.8555→0.8931/0.8680. These distinguish local
+and whole-document quality from the micro average.
+
+The paired10,000-resample95% interval for the I→J field-F1 change is
+**−1.73to+2.59points** all60, **−0.29to+1.64** matched58. Accuracy intervals
+are−3.12to+4.60 and−0.17to+2.64points. Reused60-document validation shows
+measured progress and concrete case-level changes, not a statistically
+established generalization guarantee or isolated causal effect of scale.
+
+### 15.4 Strengths and remaining weaknesses, matched58
+
+|Field group|I F1|J F1|Correct values I→J|
+|---|---:|---:|---:|
+|Document/transport/freight|0.9714|**0.9755**|356→359|
+|Locations|0.9518|**0.9693**|296→300|
+|Containers|0.9385|**0.9506**|420→423|
+|Other party values|0.8895|0.8860|471→470|
+|Other goods values|0.8693|0.8638|336→333|
+|Address lines|0.7765|0.7834|132→132|
+|Aligned placement fields|0.9417|**0.9623**|202→204|
+|Goods descriptions|0.6379|**0.6897**|37→40|
+
+Strong supported fields: **negotiability58/58**, vessel names57/57,
+issue dates45/45 (one extra), loading ports55/58, discharge ports57/57
+(one extra), HS codes47/49, identifiers110/112 and seals111/114. Thermal
+setpoint values improve5→6/6exact. That is preservation/recovery on small
+support, not proof of thermal generalization. The only DG hazard is correct,
+while the only packing group remains missed.
+
+Relations genuinely improve in restraint this time. Matched package-quantity
+facts93→94/98correct, predicted107→101; F1 **0.9073→0.9447**,
+precision0.8692→0.9307. Membership109→110/112correct, F1
+0.9732→0.9778. Exact relation graphs47→50/58; all60,47→51 (supported
+documents44→48/54). All-document correct relation facts208→206 despite
+the higher F1, because the syntax failure now affects a container-rich
+document. Matched content is the appropriate evidence of relation learning.
+
+Categories are not uniformly improving:
+
+|Category,matched58|I correct /gold|J correct /gold|I→J F1|
+|---|---:|---:|---:|
+|Equipment size|91 /104|89 /104|0.8750→0.8641|
+|Equipment type|99 /104|101 /104|0.9519→**0.9806**|
+|Declared package type|49 /54|48 /54|0.8750→0.8571|
+
+Category-exact documents44→42 on both matched/all cohorts; better category
+micro F1 must not be described as uniformly better category graphs. The ten
+pipe-container IDs are complete, but all ten45HCsizes become40HC. The
+20HO open-top,40RQ reefer and carrier-defined CMA40RA high-cube sizes also
+default to standard. The new sampling interface directly enables useful
+contrasts, but rare specialized codes still need their dedicated source paths.
+
+Addresses show **no additional correct strings** on matched58; fewer extra
+addresses improve F1. Shipper/consignee exact address counts43→42/54 and
+41→40/52; notify25→26/35; delivery agent19→20/23. Shipper names52→54/57,
+but consignee44→43/53 and notify31→29/36. Identity/postal/contact ownership
+is still a priority alongside punctuation/copy accuracy.
+
+Goods measurements: gross-value correct count36/46 is unchanged, with one
+fewer extra prediction; volume29→27/32, net15→14/15, package quantity
+50→49/57. Recurrent source-checked failures select a row instead of a
+shipment total, misassociate a real row count, or produce incorrect
+aggregation/digit copying. Complete descriptions improve41/60overall,
+with7matched improvements and4regressions, but embedded capacities,
+product identifiers, adjoining declarations and page2 continuation remain
+weak. All18parsed description errors were source-checked in the
+[inventory](analysis/training-latest-20261011/SOURCE_REVIEW.md).
+
+Descriptive low-score traits are not sufficient filters:6zero-container
+documents average0.804accuracy;6with≥5containers average0.714, partly
+because one receives0for syntax;18with2–4containers average0.912.
+Only two descriptions are≥200characters and neither exceeds both0.90
+thresholds. Multi-page documents average0.880accuracy versus0.850for
+one-page documents, so page count alone does not explain the failures.
+
+### 15.5 Structure and formatting diagnostics
+
+There is one invalid JSON output. It repeats three container identities
+**24/24/23times** before reaching3,072tokens. Source has seven containers.
+This is a repetition loop, not evidence that a modestly larger generation
+budget would solve list completion.59/60sequences reach EOS.
+
+Eight other outputs are parseable but fail the schema/task contract:
+three unsupported package enums; three placement IDs taken from VIN/vessel
+text; zero volume; and placements referencing two missing container records.
+Together these explain51/60schema-valid outputs. I had52/60, so schema
+adherence did not improve. Frozen-enum/JSON-constrained inference can address
+structural admissibility when those constraints are supplied; it does not
+establish correct semantic ownership, completeness or arithmetic.
+
+|J scoring diagnostic,all60|Field F1|Field accuracy|Correct scalars|
+|---|---:|---:|---:|
+|Primary,case-insensitive|0.9017|0.8650|2,293|
+|Ignore commas/repeated whitespace|0.9037|0.8668|2,298|
+|Broader human-text punctuation tolerance|0.9072|0.8702|2,307|
+
+One casing-only miss, five further comma/spacing matches and fourteen
+broader punctuation matches do not account for the remaining gap. The
+broader diagnostic does not excuse missing words/digits or wrong roles and
+does not replace the primary metric. No target was normalized to make a
+prediction pass.
+
+### 15.6 Runtime, evidence and validation limits
+
+Train loss0.026262→**0.018074** (−31.2%). Runtime4.526→**7.373hours**
+(+62.9%) for+80.6%trainrecords. Logged throughput1.903→2.110samples/s.
+Scheduled eval time3,409.93→3,181.04s; excluding scheduled evaluations,
+input throughput5,987→5,927tokens/s. This approximately1%reduction occurs
+with changed sample-length/composition, not a kernel-code modification.
+EVA167→192forwards,397.10→418.26s. Final prediction pass887.39s.
+MLflow device-global GPU peak25,414.4→25,403.4MB; host peak8,167.3→7,820.7MB.
+Those system-tracker measurements are not model-only allocated-memory peaks.
+
+The local [replay](analysis/training-latest-20261011/analyze.py) reproduces
+every G/H/I/J native final structured metric within1e-12. Independent
+list-aligned counts conserve through fields/groups. Before/after pins verify
+no input/reference/prediction changes. Real-reference falsification guards
+pass on both current J and frozen I gold: identity, recursive list
+permutations, human-text casing, one wrong scalar and one malformed document.
+Final replay2.35s, peak process RSS987.61MiB including imported dependencies;
+Ruff passes. **API cost:$0. No inference/training/synthesis launched.**
+
+The existing three-file metric/constraint/order pytest run produced26passes
+and15failures. The failed old v7 test references omit the now-required
+`negotiability` field; one also omits required notify `sameAs` values. They are
+rejected before scoring. They are stale fixtures,
+not observed failures of this real-data replay. No production metric/schema
+change or out-of-scope fixture repair was made; this test debt is explicit,
+not reported as a passing suite.
+
+### 15.7 Next2,500: coverage design, not launched
+
+The [new proposed coverage plan](kie-synthesis-next2500-uae-coverage-plan-2026-10-11.md)
+recommends **1,000 new registry-form/alias samples +1,500 broad-domain and
+specialized samples**, preserving previous overlapping topology/thermal/DG
+strata. All new terminal/import nodes remainUAE. New-mode emphasis is20HC,
+45HC, declared paper/multiwall/jumbo/IBC/drum/crate/skid/coil units and31GP
+aliases. Applying its ten-profile catalog to all2,500 would unnecessarily
+narrow commodity coverage.
+
+Actual offline source admission exercised two production plans per eligible
+source: **233sources passed both**,56rejected new-mode admission for explicit
+package, tare, alias-owner or equipment-occurrence limitations. These are
+mode restrictions, not newly proven defects in current accepted data. Separate
+configs preserve valid incomplete/mixed/no-container/specialized paths.
+The exact2,500draws must pass preflight and realized coverage checks before
+paid wording; no implicit donor/size/tare fallback is allowed.
+
+The user subsequently clarified that these improved 2,500 replace the newer
+UAE 2,500 cohort; they are not an addition. Preserve inherited 2,500:
+**5,000 synthetic + 600 real = 5,600 training**, with 60 validation unchanged.
+The earlier additive 7,500/8,100 proposal is superseded. This next experiment
+compares coverage at fixed dataset size, rather than another scale increase.
+Keep rank48/settings for this coverage comparison; synthetic-only/rank64
+remain separate future ablations. Neither generation nor training is
+authorized or launched by this analysis task.
+
+The earlier coverage audit's single real-training refrigerated-type omission
+(`8c6da3`,−18°C) is still present in the current hash-pinned training file;
+it does not affect validation metrics or any current synthetic descendant.
+The new coverage plan explicitly schedules that supported type-only
+correction before preparing/repinning the next combined dataset. No broad
+label rewrite is implied, and no completed-run data was edited here.
+
+Evidence: [metric replay and guards](analysis/training-latest-20261011/metrics.json),
+[run/MLflow/export integrity](analysis/training-latest-20261011/run-integrity-evidence.json),
+[field breakdown](analysis/training-latest-20261011/fields.csv),
+[group breakdown](analysis/training-latest-20261011/groups.csv),
+[document scores](analysis/training-latest-20261011/documents.csv),
+[exact errors](analysis/training-latest-20261011/errors.csv),
+[source review](analysis/training-latest-20261011/SOURCE_REVIEW.md),
+[next-cohort admission evidence](analysis/training-latest-20261011/next-cohort-admission.json).

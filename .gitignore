@@ -16,6 +16,11 @@ htmlcov/
 
 # Runtime artifacts and downloaded documents
 artifacts/*
+# Reviewed sampling definitions are reusable inputs, not experiment outputs.
+!artifacts/sampling-registries/
+artifacts/sampling-registries/*
+!artifacts/sampling-registries/equipment-aliases.json
+!artifacts/sampling-registries/load-profiles.json
 # Keep reusable template declarations/versioned inventory alongside local assets.
 # Source OCR, targets, measured geometry and generated campaign outputs stay local.
 !artifacts/synthesis-templates/

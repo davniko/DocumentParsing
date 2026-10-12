@@ -81,6 +81,130 @@ def _binding(
 
 
 @pytest.mark.parametrize(
+    "source_name,target_name",
+    [
+        ("Al Ghurair Centre LLC", "KOPRU GLOBAL TYRES TRADING L.L.C"),
+        ("HONDA MOTOR CO.LTD.", "THAI HONDA CO., LTD"),
+        ("Maersk Line India Pvt Ltd", "MAERSK EGYPT S.A.E"),
+    ],
+)
+def test_canonical_role_does_not_override_a_conflicting_auxiliary_company(
+    source_name, target_name
+):
+    binding = _binding(
+        "agent:notify_company",
+        source_name,
+        value_kind="organization",
+        group_kind="party",
+        group_key="party:notify:0",
+    )
+    plan = build_auxiliary_semantic_plan(
+        raw=source_name,
+        bindings=(binding,),
+        source_target={"documentPatch": {"parties": {"notifyParties": [{"name": target_name}]}}},
+    )
+    entity = plan.entities[0]
+    assert entity.relationship == "independent" and entity.target_party_path is None
+    assert "name conflicts" in entity.rationale
+
+
+@pytest.mark.parametrize(
+    "source_name,target_name",
+    [
+        ("ACME LTD.", "Acme Ltd"),
+        ("ACME", "ACME EXPORT TRADING LTD"),
+        ("ON BEHALF OF PRINCIPAL", "NEW EXPORT CO ON BEHALF OF PRINCIPAL"),
+        (
+            "TPJ COMERCIO\nATACADISTA DE CAFE IMP. E EXP. LTDA",
+            "TPJ COMERCIO ATACADISTA DE CAFE IMPORTACAO E EXPORTACAO LTDA",
+        ),
+        ("OSAM TRANS INT'L TRANSPOR'", "OSAM TRANS INTERNATIONAL TRANSPORT SERVICES & TRADE"),
+    ],
+)
+def test_name_conflict_guard_preserves_compatible_partial_and_abbreviated_names(
+    source_name, target_name
+):
+    plan = build_auxiliary_semantic_plan(
+        raw=source_name,
+        bindings=(
+            _binding(
+                "agent:shipper_company",
+                source_name,
+                value_kind="organization",
+                group_kind="party",
+                group_key="party:shipper:0",
+            ),
+        ),
+        source_target={"documentPatch": {"parties": {"shipper": {"name": target_name}}}},
+    )
+    assert plan.entities[0].relationship == "same_as_target_party"
+    assert plan.entities[0].target_party_path == "documentPatch.parties.shipper"
+
+
+def test_matching_name_cannot_mask_a_second_explicit_conflicting_identity():
+    bindings = tuple(
+        _binding(
+            "agent:notify_company_" + str(index),
+            value,
+            value_kind="organization",
+            group_kind="party",
+            group_key="party:notify:0",
+        )
+        for index, value in enumerate(("ACME LTD", "OTHER INDUSTRIES INC"))
+    )
+    with pytest.raises(AuxiliarySemanticPlanReviewRequired, match="mixed party facets"):
+        build_auxiliary_semantic_plan(
+            raw="ACME LTD\nOTHER INDUSTRIES INC",
+            bindings=bindings,
+            source_target={
+                "documentPatch": {"parties": {"notifyParties": [{"name": "ACME LTD"}]}}
+            },
+        )
+
+
+def test_conflicting_name_does_not_transfer_a_canonical_contact_to_another_entity():
+    bindings = (
+        _binding(
+            "agent:delivery_agent_company",
+            "OTHER INDUSTRIES INC",
+            value_kind="organization",
+            group_kind="party",
+            group_key="party:deliveryAgent:0",
+        ),
+        _binding(
+            "agent:delivery_agent_fax",
+            "1234567",
+            value_kind="phone",
+            group_kind="party",
+            group_key="party:deliveryAgent:0",
+        ),
+    )
+    with pytest.raises(AuxiliarySemanticPlanReviewRequired, match="mixed party facets"):
+        build_auxiliary_semantic_plan(
+            raw="OTHER INDUSTRIES INC\nFAX:1234567",
+            bindings=bindings,
+            source_target={"documentPatch": {"parties": {"deliveryAgent": {"name": "ACME LTD"}}}},
+        )
+
+
+def test_contact_only_canonical_role_keeps_its_existing_relationship():
+    plan = build_auxiliary_semantic_plan(
+        raw="FAX 1234567",
+        bindings=(
+            _binding(
+                "agent:notify_fax",
+                "1234567",
+                value_kind="phone",
+                group_kind="party",
+                group_key="party:notify:0",
+            ),
+        ),
+        source_target={"documentPatch": {"parties": {"notifyParties": [{"name": "ACME LTD"}]}}},
+    )
+    assert plan.entities[0].relationship == "same_as_target_party"
+
+
+@pytest.mark.parametrize(
     "key,code,country,expected",
     [
         ("agent:foreign_exporter_code", "AE", "UNITED ARAB EMIRATES", "country_code"),

@@ -1,0 +1,523 @@
+dataset: data/curated/mpci-bl-real-v7-reviewed-r16-paddle-positions-660
+output: artifacts/kie-synthesis-production/sampling-registry-integration30-v1
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: docs/analysis/synthesis-uae2500-20261011/campaign-auxiliary.yaml
+environment_file: .env
+task_constraints: configs/training/production/contracts/mpci_bl_real600_synthetic2500_party_date_route_v1/task-constraints.json
+task_constraints_sha256: be8ba7b284e1e16f8664bd8a3383e07dca89e20caadad254d2f26fe0c257338d
+seed: 2026101141
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 202610111
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 202610111
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 1.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 16000
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - fireworks
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-06'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: 0.225
+    cached_input_usd_per_million: 0.045
+    cache_write_multiplier: 1.0
+    output_usd_per_million: 0.75
+source_ids:
+- doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157
+- doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae
+- doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50
+- doc_11c21de2133e425f792ff209249c38808b2701f3b1970d6485cb33189af24b83
+- doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e
+- doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26
+- doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b
+- doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66
+- doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3
+- doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46
+- doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53
+- doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1
+- doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092
+- doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8
+- doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  observed_hs_overrides:
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+      source_target_sha256: 2235e1e8b292454b23624b2bb681cbb1ec8b1ed87fa3c8239880d93056927f88
+      from_hs6:
+      - 080800
+      to_hs6:
+      - 080810
+      source_text_literals:
+      - APPLES
+      - HS CODE:080800
+      - TEMP.2CE
+      - 2C TILL PLUS 2C 20 CBM/HR
+      rationale: 'Synthesis-only observed fresh-apple bundle: chilled APPLES identify
+        authoritative HS080810; preserve source load, 2C and 20CBM/h. Historical printed
+        080800 and extraction labels remain unchanged.'
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  load_profiles:
+    path: artifacts/sampling-registries/load-profiles.json
+    sha256: 7698c9ff117b41343e168199e7e8a62039a10df0199810bf9cc70442d25cbff8
+capabilities:
+  doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfReceipt: placeOfReceipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: independent
+          kind: locality
+        placeOfReceipt:
+          country_from: origin
+          kind: locality
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.notifyParties[0]: destination
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_11c21de2133e425f792ff209249c38808b2701f3b1970d6485cb33189af24b83:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    physical_profile: registry_form
+  doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: placeOfDelivery
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+        placeOfDelivery:
+          country_from: destination
+          kind: port
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26:
+    family: ambient
+    identity_count: 1
+    party_locality_groups:
+    - members:
+        documentPatch.parties.consignee:
+          occurrence: 1
+          text: 1ST IBRAHIM ABDUL MALAK OF, AMRI ST., ABOU ALQASSIM ABDELATEY ABDELRAHMAN,
+            GHARBIA, EGYPT
+        documentPatch.parties.notifyParties[0]:
+          occurrence: 2
+          text: 1ST IBRAHIM ABDUL MALAK OF, AMRI ST., ABOU ALQASSIM ABDELATEY ABDELRAHMAN,
+            GHARBIA, EGYPT
+      rationale: Individually reviewed source blocks repeat this complete street/site
+        component; the compiled postal variable has both address targets. Names or
+        optional postal suffixes differ, but this is a shared source locality, not
+        a company-name inference.
+      shared_postal_key: notify_postal
+      source_sha256: 249aff2d7a3387cb4bd51ced1af856d7f0fa9186951e9c4cc79797065fdfbba0
+    destination_country: AE
+    physical_profile: registry_form
+  doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: payment
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        payment:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66:
+    family: ambient
+    destination_country: AE
+    physical_profile: registry_form
+  doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes:
+        documentPatch.freight.paymentPlace: destination
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
+    family: ambient
+    route_topology:
+      fields:
+        finalDestination: destination
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    destination_country: AE
+    physical_profile: registry_form
+  doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    physical_profile: registry_form
+  doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1:
+    family: ambient
+    identity_count: 1
+    destination_country: AE
+    physical_profile: registry_form
+  doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories:
+    - PACKAGE_BOX_WOODEN_NATURAL_WOOD_ORDINARY
+    destination_country: AE
+    family: chilled
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+  doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8:
+    family: chilled
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        receipt:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+  doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5:
+    family: frozen
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+template_sampling:
+  samples: 30
+  source_counts:
+    doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157: 2
+    doc_9bd26a2be130f82c3ffff083efbf2b202a78a873bd8dc4d952beae32f3cd3aae: 2
+    doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50: 2
+    doc_11c21de2133e425f792ff209249c38808b2701f3b1970d6485cb33189af24b83: 2
+    doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e: 2
+    doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26: 2
+    doc_e75ff2385a29fb2848eb90e2599a26c46002d125b99d775f285e45f57bc2b19b: 2
+    doc_4479af6604e350abd7f6cb62f6989715d0d03f44b226c7c6d2e19839ed475d66: 2
+    doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3: 2
+    doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46: 2
+    doc_920a429798f13808ed5f949da39a38c4b82098d5c6d2bb90a3b3bb3865416e53: 2
+    doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1: 2
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092: 2
+    doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8: 2
+    doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5: 2
+aliases:
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+    records: 405
+  equipment_registry:
+    path: artifacts/sampling-registries/equipment-aliases.json
+    sha256: 7990fdc4ef3baef1cbb449f9434ba42037c82ae9dad5fba1048727e134c5a488
+  package_mode: registry

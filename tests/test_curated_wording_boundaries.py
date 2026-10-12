@@ -1,6 +1,7 @@
 """Regression controls for source-owned field semantics and native wording aliases."""
 
 from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
@@ -17,6 +18,7 @@ from document_ocr.synthesis.curated_wording import (
     has_field_scope_caption,
     native_wording_prompt,
     rendered_review_prompt,
+    repeated_goods_descriptions,
     unpack_wording,
     wording_api_keys,
     wording_output_type,
@@ -117,6 +119,8 @@ def test_explicit_name_caption_holds_generation(text):
         "MILLBROOK TRADING PARK",
         "NEW COMPANY LTD\nJOHN SMITH",
         "AHMED ALSAYED GABR ALNASHAR",
+        "NOTIFY SERVICES LTD",
+        "SHIPPER LOGISTICS CORP",
     ],
 )
 def test_genuine_identity_words_and_uncaptioned_people_are_not_deleted(text):
@@ -132,6 +136,11 @@ def test_product_caption_guard_preserves_product_contact_terms():
     field = WordingField("g", "goods description", "OLD", "New")
     assert has_field_scope_caption(field, "COTTON YARN. DELIVERY AGENT CONTACT: JOHN SMITH")
     assert not has_field_scope_caption(field, "ELECTRICAL CONTACT SWITCH, CONTACT RATING 20 A")
+
+
+@pytest.mark.parametrize("text", ["ABC TRADING — NOTIFY:SAME", "ABC LTD SHIPPER: OTHER LTD"])
+def test_identity_role_captions_are_not_company_names(text):
+    assert has_field_scope_caption(WordingField("n", "notify name", "OLD", "New"), text)
 
 
 @pytest.mark.parametrize("kind", ["individual", "organization", "organization_with_proprietor"])
@@ -228,7 +237,9 @@ def test_host_product_has_context_but_no_absent_output_instruction(postal_campai
     req = wording_request(postal_campaign.blueprint, scenario, "s")
     assert not any(field.role == "goods description" for field in req.fields)
     assert req.description_groups == ()
-    assert "Goods: UNROASTED COFFEE" in req.context
+    # The host already owns this product; a postal-only call needs no commodity prose.
+    assert "UNROASTED COFFEE" not in req.context
+    assert "COMMODITY BRIEF" not in req.context
     assert "DESCRIPTION ASSEMBLY" not in req.context
     assert "SAMPLED COMMODITY BRIEF" not in req.context
     assert "{product}" not in native_wording_prompt([req])
@@ -240,3 +251,92 @@ def test_reviewer_checks_semantic_ownership_not_only_string_equality():
     assert "Check field meaning even when a generated value matches its label exactly" in prompt
     assert "Genuine named sites" in prompt
     assert "uncaptioned proprietors" in prompt
+
+
+def test_repeated_product_wording_is_valid_for_independent_shipments():
+    field = WordingField("g", "goods description", "OLD GOODS", "Product wording")
+    requests = [
+        WordingRequest("bags", "616 bags; one 20-foot container", (field,)),
+        WordingRequest("drums", "120 drums; one 40-foot container", (field,)),
+    ]
+    schema = wording_output_type(requests)
+    values = unpack_wording(
+        schema.model_validate(
+            {"s0": {"g": "REFINED SUNFLOWER OIL"}, "s1": {"g": "refined sunflower oil"}}
+        ),
+        requests,
+    )
+    assert values == {
+        "bags": {"g": "REFINED SUNFLOWER OIL"},
+        "drums": {"g": "refined sunflower oil"},
+    }
+    assert repeated_goods_descriptions(requests, values) == [["bags", "drums"]]
+
+
+def test_description_diversity_groups_complete_fragments_in_request_order():
+    fields = (
+        WordingField("g", "goods description", "OLD GOODS", "Product"),
+        WordingField("spec", "goods description", "OLD SPEC", "Product specification"),
+        WordingField("name", "shipper name", "OLD LTD", "Identity"),
+    )
+    requests = [WordingRequest(str(i), "", fields) for i in range(4)]
+    outputs = [
+        {"g": "REFINED OIL", "spec": "GRADE A", "name": "NEW LTD"},
+        {"name": "OTHER LTD", "spec": " grade  a ", "g": "Refined Oil"},
+        {"g": "REFINED OIL", "spec": "GRADE B", "name": "NEW LTD"},
+        {"g": "COTTON YARN", "spec": "GRADE A", "name": "OTHER LTD"},
+    ]
+    values = unpack_wording(
+        wording_output_type(requests).model_validate(
+            {f"s{i}": output for i, output in enumerate(outputs)}
+        ),
+        requests,
+    )
+    assert repeated_goods_descriptions(requests, values) == [["0", "1"]]
+
+
+def test_wording_without_descriptions_has_no_description_diversity_observation():
+    request = WordingRequest(
+        "s", "", (WordingField("name", "shipper name", "OLD LTD", "New identity"),)
+    )
+    assert repeated_goods_descriptions([request], {"s": {"name": "NEW LTD"}}) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "error"),
+    [
+        ("REFINED OIL\nTOTAL NET WEIGHT: 24800 KG", "shipment accounting"),
+        ("REFINED OIL\nTOTAL PACKAGES: 616", "shipment accounting"),
+        ("REFINED OIL\n50 KG PER BAG", "host-owned package fill"),
+        ("REFINED OIL\nHS CODE: 151219", "host-owned tariff"),
+        ("OLD GOODS", "copied source description"),
+        ("FARM EQUIPMENT, MACHINE WEIGHT: 1000 KG", "item-mass lower bound"),
+    ],
+)
+def test_repeated_products_do_not_bypass_any_shipment_ledger_checks(text, error):
+    fields = (WordingField("g", "goods description", "OLD GOODS", "Product wording"),)
+    requests = [
+        WordingRequest("a", "", fields, gross_weight_kg=Decimal(100)),
+        WordingRequest("b", "", fields, gross_weight_kg=Decimal(100)),
+    ]
+    with pytest.raises(ValueError, match=error):
+        unpack_wording(
+            wording_output_type(requests).model_validate({"s0": {"g": text}, "s1": {"g": text}}),
+            requests,
+        )
+
+
+def test_batch_duplicate_product_cannot_mask_an_invalid_other_shipment():
+    fields = (WordingField("g", "goods description", "OLD GOODS", "Product wording"),)
+    requests = [WordingRequest(identity, "", fields) for identity in ("a", "b", "c")]
+    with pytest.raises(ValueError, match="shipment accounting"):
+        unpack_wording(
+            wording_output_type(requests).model_validate(
+                {
+                    "s0": {"g": "REFINED OIL"},
+                    "s1": {"g": "REFINED OIL"},
+                    "s2": {"g": "COTTON YARN\nTOTAL PACKAGES: 600"},
+                }
+            ),
+            requests,
+        )

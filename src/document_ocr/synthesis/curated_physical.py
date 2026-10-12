@@ -15,12 +15,19 @@ from dataclasses import dataclass
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
 
+from document_ocr.hashing import canonical_json_sha256
 from document_ocr.synthesis.container_semantics import (
     canonical_equipment_surface,
     review_source_equipment_surface,
 )
 from document_ocr.synthesis.curated import digest, flat
+from document_ocr.synthesis.curated_casing import TargetCasing
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
+from document_ocr.synthesis.curated_equipment_inventory import (
+    EquipmentInventoryContract,
+    project_equipment_inventory,
+)
+from document_ocr.synthesis.curated_load_profiles import RegistryLoadProfile
 from document_ocr.synthesis.curated_measurements import (
     format_measure as _format,
 )
@@ -52,6 +59,13 @@ _FACTORS = {
     "pound": Decimal("0.45359237"),
     "cubic_metre": Decimal(1),
 }
+_HANDLING_PATH = re.compile(
+    r"documentPatch\.goodsItemDetails\[(\d+)\]\.handlingInstructions\[(\d+)\]"
+)
+_EQUIPMENT_CATEGORY_PATH = re.compile(
+    r"documentPatch\.containerInformation\[\d+\]\."
+    r"(?:sizeCategory|typeCategory|typeDescription)"
+)
 
 
 @dataclass(frozen=True)
@@ -450,11 +464,35 @@ def _couple_mass_rows(rows, totals, lattices, receipts, weights):
 def _measure_totals(blueprint, scenario, target, owners, support):
     goods = target["documentPatch"]["goodsItemDetails"][0]
     old_goods = blueprint.target["documentPatch"]["goodsItemDetails"][0]
-    donor = support.goods.get(scenario.provenance["donorDocumentId"])
-    if donor is None:
-        raise ValueError("recorded physical donor is absent from train-only support")
+    profile_data = scenario.provenance.get("registryLoadProfile")
+    donor = None
+    explicit = {}
+    if profile_data is not None:
+        profile = RegistryLoadProfile.model_validate(profile_data)
+        quantity = goods["numberAndTypeOfPackages"][0]["packageQuantity"]
+        expected = {
+            measure: {"value": str(unit * quantity), "unit": unit_name}
+            for measure, unit, unit_name in (
+                ("grossWeight", profile.unit_gross_kg, "kilogram"),
+                ("netWeight", profile.unit_net_kg, "kilogram"),
+                ("volume", profile.unit_volume_m3, "cubic_metre"),
+            )
+        }
+        if (
+            scenario.provenance.get("explicitPhysicalFacts") != expected
+            or "donorDocumentId" in scenario.provenance
+            or goods["numberAndTypeOfPackages"][0]["typeCategory"] != profile.package_category
+        ):
+            raise ValueError("explicit physical facts differ from selected registry load profile")
+        explicit = expected
+    else:
+        donor = support.goods.get(scenario.provenance["donorDocumentId"])
+        if donor is None:
+            raise ValueError("recorded physical donor is absent from train-only support")
     quantity = goods["numberAndTypeOfPackages"][0]["packageQuantity"]
-    donor_quantity = sum(p["packageQuantity"] for p in donor["numberAndTypeOfPackages"])
+    donor_quantity = (
+        sum(p["packageQuantity"] for p in donor["numberAndTypeOfPackages"]) if donor else None
+    )
     source_quantity = sum(p["packageQuantity"] for p in old_goods["numberAndTypeOfPackages"])
     totals, lattices, receipts = {}, {}, {}
     for measure in _MEASURES:
@@ -467,7 +505,14 @@ def _measure_totals(blueprint, scenario, target, owners, support):
             for s in o.surfaces
         )
         lattices[measure] = quantum
-        if measure in goods:
+        if measure in explicit and not (
+            measure not in goods and all(o.baseline == 0 for o in relevant)
+        ):
+            amount = Decimal(explicit[measure]["value"])
+            if measure in goods:
+                amount /= _FACTORS[goods[measure]["unit"]]
+            method = "reviewed_registry_form_measure"
+        elif measure in goods:
             amount = Decimal(str(goods[measure]["value"]))
             method = "sampled_public_measure"
         elif all(o.baseline == 0 for o in relevant):
@@ -479,7 +524,7 @@ def _measure_totals(blueprint, scenario, target, owners, support):
                 "quantum": str(quantum),
             }
             continue
-        elif measure in donor:
+        elif donor is not None and measure in donor:
             amount = (
                 Decimal(str(donor[measure]["value"]))
                 * _FACTORS[donor[measure]["unit"]]
@@ -690,12 +735,10 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
     ]
 
 
-def _tare_surfaces(blueprint, target, support, scenario, surfaces):
-    """Resolve typed tare rows and explicit sums before rendering equipment text."""
-    old = blueprint.target["documentPatch"].get("containerInformation", [])
-    new = target["documentPatch"].get("containerInformation", [])
+def _active_tare_bindings(blueprint):
+    """Use the same certified numeric owners for admission and rendering."""
     active = {r.key for r in blueprint.regions if r.curated_key is None}
-    bindings = {
+    return {
         key: b
         for key, b in blueprint.historical_bindings.items()
         if key in active
@@ -703,6 +746,46 @@ def _tare_surfaces(blueprint, target, support, scenario, surfaces):
         and b["value_kind"] in {"integer", "decimal_measurement"}
         and not re.search(r"tare(?:_weight)?[_:]unit\b", key)
     }
+
+
+def printed_tare_equipment_domain(
+    blueprint: SamplingBlueprint, support: PhysicalSupport
+) -> frozenset[str] | None:
+    """Restrict resampling to equipment with demonstrable source-owned tares.
+
+    No printed tare means no tare constraint. A retained source pair needs no
+    new empirical observation; changed pairs require fitted train support. The
+    intersection across actual tare owners prevents assigning a baseline-only
+    pair to another row, including in a mixed inventory.
+    """
+    if not _active_tare_bindings(blueprint):
+        return None
+    _, receipts = _tare_surfaces(blueprint, blueprint.target, support, None, {})
+    indices = {
+        index
+        for receipt in receipts
+        for index in ([receipt["owner"]] if "owner" in receipt else receipt["owners"])
+    }
+    if not indices:
+        raise ValueError("printed tare bindings have no validated inventory ownership")
+    fitted = {pair for _weight, pair in support.tares.source_ids_by_kg_pair}
+    source_rows = blueprint.target["documentPatch"]["containerInformation"]
+    domain = None
+    for index in sorted(indices):
+        row = source_rows[index]
+        if not row.get("sizeCategory") or not row.get("typeCategory"):
+            raise ValueError("tare-constrained inventory requires complete source categories")
+        supported = fitted | {f"{row['sizeCategory']}|{row['typeCategory']}"}
+        domain = supported if domain is None else domain & supported
+    return frozenset(domain)
+
+
+def _tare_surfaces(blueprint, target, support, scenario, surfaces):
+    """Resolve typed tare rows and explicit sums before rendering equipment text."""
+    old = blueprint.target["documentPatch"].get("containerInformation", [])
+    new = target["documentPatch"].get("containerInformation", [])
+    active = {r.key for r in blueprint.regions if r.curated_key is None}
+    bindings = _active_tare_bindings(blueprint)
     declared_owners = blueprint.ownership_data.get("tare_owners", {})
     declared_baselines = blueprint.ownership_data.get("tare_baselines", {})
     if (declared_owners.keys() | declared_baselines.keys()) - bindings.keys():
@@ -941,11 +1024,25 @@ def _complete_equipment_surface(value, source):
     return canonical_equipment_surface(value["sizeCategory"], value["typeCategory"])
 
 
-def _equipment(blueprint, target, support, scenario, surfaces, receipt):
+def _equipment(blueprint, target, support, scenario, surfaces, receipt, inventory=None):
     old = blueprint.target["documentPatch"].get("containerInformation", [])
     new = target["documentPatch"].get("containerInformation", [])
     active = {r.key for r in blueprint.regions if r.curated_key is None}
     tare_keys, tares = _tare_surfaces(blueprint, target, support, scenario, surfaces)
+    if inventory is not None:
+        inventory_surfaces, owner_receipts = project_equipment_inventory(
+            inventory,
+            old,
+            new,
+            format_equipment=_complete_equipment_surface,
+            number_words=_number_to_words,
+        )
+        if set(inventory_surfaces).intersection(tare_keys):
+            raise ValueError("equipment inventory and tare owners overlap")
+        surfaces.update(inventory_surfaces)
+        receipt["equipmentInventoryOwners"] = owner_receipts
+        receipt["tares"] = tares
+        return
     for key, binding in blueprint.historical_bindings.items():
         if key not in active or key in tare_keys:
             continue
@@ -1014,12 +1111,177 @@ def _equipment(blueprint, target, support, scenario, surfaces, receipt):
     receipt["tares"] = tares
 
 
+def project_nested_equipment_handling(
+    blueprint: SamplingBlueprint,
+    rendered_text: str,
+    target: dict[str, Any],
+    edits: Sequence[Mapping[str, Any]],
+    *,
+    casing: TargetCasing = "uppercase",
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Project exact handling parents through final, source-owned equipment edits.
+
+    This runs after alias and lexical rendering. A static handling label can
+    contain a mutable equipment child without having its own executable region.
+    Its exact source surface and the child's certified byte ownership establish
+    the parent boundary. All contained edits are replayed together, including
+    operational siblings; generated text is never searched and globally replaced.
+    """
+    if casing not in {"uppercase", "preserve"}:
+        raise ValueError(f"unknown handling target casing: {casing}")
+    parents = {
+        path: value
+        for path, value in flat(blueprint.target).items()
+        if _HANDLING_PATH.fullmatch(path)
+    }
+    if not parents:
+        return target, None
+    equipment_owners = {
+        (r.start, r.end, r.key, r.occurrence)
+        for r in blueprint.regions
+        if any(_EQUIPMENT_CATEGORY_PATH.fullmatch(p) for p in r.target_paths)
+    }
+    for e in edits:
+        identity = (e["byteStart"], e["byteEnd"], e["key"], e["occurrence"])
+        if (
+            any(
+                left < e["byteEnd"] and e["byteStart"] < right
+                for left, right, _, _ in equipment_owners
+            )
+            and identity not in equipment_owners
+        ):
+            raise ValueError("handling equipment edit lacks its exact certified region owner")
+    equipment_edits = {
+        (e["byteStart"], e["byteEnd"], e["key"], e["occurrence"])
+        for e in edits
+        if e["before"] != e["after"]
+        and (e["byteStart"], e["byteEnd"], e["key"], e["occurrence"]) in equipment_owners
+    }
+    if not equipment_edits:
+        return target, None
+    source, rendered = blueprint.source.encode(), rendered_text.encode()
+    previous_end = 0
+    for e in edits:
+        start, end = e["byteStart"], e["byteEnd"]
+        if not previous_end <= start < end <= len(source):
+            raise ValueError("handling projection edits overlap or are out of order")
+        if source[start:end].decode() != e["before"]:
+            raise ValueError("handling projection edit differs from source")
+        previous_end = end
+    sampled = flat(target)
+    fields = []
+    updates = {}
+    claimed_spans = []
+    for path, original in parents.items():
+        if not isinstance(original, str) or not original.strip():
+            raise ValueError(f"handling projection requires a nonempty source scalar: {path}")
+        pattern = r"(?<!\w)" + r"\s+".join(re.escape(t) for t in original.split()) + r"(?!\w)"
+        matches = tuple(re.finditer(pattern, blueprint.source, re.I))
+        if not matches:
+            if any(
+                " ".join(e["before"].split()).casefold() in " ".join(original.split()).casefold()
+                for e in edits
+                if (e["byteStart"], e["byteEnd"], e["key"], e["occurrence"]) in equipment_edits
+            ):
+                raise ValueError(f"equipment handling parent has no exact source surface: {path}")
+            continue
+        spans = [
+            (len(blueprint.source[: m.start()].encode()), len(blueprint.source[: m.end()].encode()))
+            for m in matches
+        ]
+        affected = any(
+            start < child_end and child_start < end
+            for start, end in spans
+            for child_start, child_end, _, _ in equipment_edits
+        )
+        if not affected:
+            continue
+        if any(
+            start < previous_end and previous_start < end
+            for start, end in spans
+            for previous_start, previous_end in claimed_spans
+        ):
+            raise ValueError(
+                f"equipment handling source surface has ambiguous parent ownership: {path}"
+            )
+        claimed_spans.extend(spans)
+        projected, sibling_values, receipts = [], [], []
+        for start, end in spans:
+            cursor, sibling_cursor, shift = start, start, 0
+            chunks, siblings, children = [], [], []
+            for e in edits:
+                left, right, replacement = e["byteStart"], e["byteEnd"], e["after"].encode()
+                if right <= start:
+                    shift += len(replacement) - (right - left)
+                    continue
+                if left >= end:
+                    break
+                if not start <= left < right <= end:
+                    raise ValueError(f"handling projection edit crosses parent boundary: {path}")
+                chunks.extend((source[cursor:left], replacement))
+                cursor = right
+                identity = (left, right, e["key"], e["occurrence"])
+                if identity in equipment_edits:
+                    children.append({"key": e["key"], "occurrence": e["occurrence"]})
+                else:
+                    siblings.extend((source[sibling_cursor:left], replacement))
+                    sibling_cursor = right
+            chunks.append(source[cursor:end])
+            siblings.append(source[sibling_cursor:end])
+            fragment = b"".join(chunks)
+            rendered_start = start + shift
+            if rendered[rendered_start : rendered_start + len(fragment)] != fragment:
+                raise ValueError(f"handling projection differs from final rendered bytes: {path}")
+            value = " ".join(fragment.decode().split())
+            projected.append(value.upper() if casing == "uppercase" else value)
+            sibling_values.append(" ".join(b"".join(siblings).decode().split()))
+            receipts.append(
+                {
+                    "sourceByteStart": start,
+                    "sourceByteEnd": end,
+                    "renderedByteStart": rendered_start,
+                    "renderedByteEnd": rendered_start + len(fragment),
+                    "text": fragment.decode(),
+                    "equipmentChildren": children,
+                }
+            )
+        if len(set(projected)) != 1:
+            raise ValueError(
+                f"repeated equipment handling parents have conflicting projections: {path}"
+            )
+        value = projected[0]
+        current = sampled.get(path)
+        allowed = {" ".join(original.split()).casefold(), value.casefold()}
+        allowed.update(v.casefold() for v in sibling_values)
+        if not isinstance(current, str) or " ".join(current.split()).casefold() not in allowed:
+            raise ValueError(
+                f"equipment handling target conflicts with source/edit authority: {path}"
+            )
+        updates[path] = value
+        fields.append({"path": path, "before": original, "value": value, "spans": receipts})
+    if not updates:
+        return target, None
+    result = deepcopy(target)
+    for path, value in updates.items():
+        match = _HANDLING_PATH.fullmatch(path)
+        result["documentPatch"]["goodsItemDetails"][int(match[1])]["handlingInstructions"][
+            int(match[2])
+        ] = value
+    return result, {
+        "sourceSha256": digest(source),
+        "renderedSha256": digest(rendered),
+        "casing": casing,
+        "fields": fields,
+    }
+
+
 def prepare_physical_render(
     blueprint: SamplingBlueprint,
     scenario: ShipmentScenario,
     sampled_target: dict[str, Any],
     *,
     support: PhysicalSupport,
+    equipment_inventory: EquipmentInventoryContract | None = None,
 ) -> PhysicalRenderPlan:
     """Create one coherent physical rendering; fail on unowned or ambiguous facts.
 
@@ -1028,6 +1290,12 @@ def prepare_physical_render(
     """
     if scenario.source_id != blueprint.document_id:
         raise ValueError("physical plan/source identity mismatch")
+    if equipment_inventory is not None and (
+        equipment_inventory.source_id != blueprint.document_id
+        or equipment_inventory.source_sha256 != digest(blueprint.source.encode())
+        or equipment_inventory.source_target_sha256 != canonical_json_sha256(blueprint.target)
+    ):
+        raise ValueError("physical equipment inventory differs from its certified source")
     target = deepcopy(sampled_target)
     owners = _owners(blueprint)
     equipment_mix = scenario.provenance.get("equipmentMix")
@@ -1124,7 +1392,7 @@ def prepare_physical_render(
         "rows": {k: [str(v) for v in vv] for k, vv in rows.items()},
         "ownershipBasis": "current_target_bindings_and_declared_historical_numeric_roles",
     }
-    _equipment(blueprint, target, support, scenario, surfaces, receipt)
+    _equipment(blueprint, target, support, scenario, surfaces, receipt, equipment_inventory)
     _operational(blueprint, scenario, target, surfaces, receipt)
     if set(flat(target)) != set(flat(sampled_target)):
         raise ValueError("physical plan changed public field presence")

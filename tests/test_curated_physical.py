@@ -1,5 +1,6 @@
 """Conservation, provenance and dependent text on the executable render path."""
 
+import re
 from copy import deepcopy
 from decimal import Decimal
 from types import SimpleNamespace
@@ -14,6 +15,8 @@ from document_ocr.synthesis.curated_physical import (
     _distribute,
     _temperature_text,
     prepare_physical_render,
+    printed_tare_equipment_domain,
+    project_nested_equipment_handling,
     validate_source_physical_requirements,
 )
 from document_ocr.synthesis.curated_scenarios import CandidateIncompatibility, SourceCapabilities
@@ -47,6 +50,30 @@ def test_source_readiness_requires_private_measures_before_donor_sampling():
                 physical_profile=profile,
                 allowed_hs_headings=("8701",) if profile == "source_whole_units" else (),
             ),
+        )
+
+
+@pytest.mark.parametrize("changed", ["source_id", "source_sha256", "source_target_sha256"])
+def test_physical_inventory_rejects_foreign_or_changed_source_certificates(changed):
+    from dataclasses import replace
+
+    from document_ocr.hashing import canonical_json_sha256
+    from document_ocr.synthesis.curated_equipment_inventory import EquipmentInventoryContract
+
+    _, blueprint, scenario, support = fixture()
+    contract = EquipmentInventoryContract(
+        blueprint.document_id,
+        digest(blueprint.source.encode()),
+        canonical_json_sha256(blueprint.target),
+        2,
+        ((0,), (1,)),
+        (),
+        (),
+    )
+    contract = replace(contract, **{changed: "not-the-certified-source"})
+    with pytest.raises(ValueError, match="inventory differs from its certified source"):
+        prepare_physical_render(
+            blueprint, scenario, blueprint.target, support=support, equipment_inventory=contract
         )
 
 
@@ -739,6 +766,101 @@ def test_changed_equipment_draws_matching_observed_tare_and_keeps_operational_su
     assert plan.receipt["tares"][0]["observationSources"] == ["train-witness"]
 
 
+def test_tare_admission_domain_uses_owned_baselines_and_proven_changed_pairs():
+    from dataclasses import replace
+
+    _, blueprint, _, support = fixture()
+    assert printed_tare_equipment_domain(blueprint, support) is None
+    key = "agent:tare:summary"
+    blueprint = replace(
+        blueprint,
+        historical_bindings={
+            key: {
+                "target_paths": [],
+                "value_kind": "decimal_measurement",
+                "occurrences": [{"source_text": "5000"}],
+            }
+        },
+        regions=(SimpleNamespace(key=key, curated_key=None),),
+        ownership_data={"tare_owners": {key: [0, 1]}},
+    )
+    standard = "TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE"
+    high_cube = "FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE"
+    support = PhysicalSupport(
+        support.goods,
+        TareSupport({}, {(Decimal(3700), high_cube): ("train-source",)}),
+    )
+    # Original baselines remain usable without a fitted same-pair witness.
+    assert printed_tare_equipment_domain(blueprint, support) == {standard, high_cube}
+    rows = deepcopy(blueprint.target)
+    rows["documentPatch"]["containerInformation"][1]["sizeCategory"] = "FORTY_FOOT_HIGH_CUBE"
+    mixed_source = replace(blueprint, target=rows)
+    assert printed_tare_equipment_domain(mixed_source, support) == {high_cube}
+    empty = PhysicalSupport(support.goods, TareSupport({}, {}))
+    assert printed_tare_equipment_domain(mixed_source, empty) == frozenset()
+    unowned = replace(blueprint, ownership_data={})
+    with pytest.raises(ValueError, match="tare binding lacks exact equipment ownership"):
+        printed_tare_equipment_domain(unowned, support)
+
+
+@pytest.mark.parametrize("operation", ["add", "bindings"])
+def test_reviewed_binding_semantics_survive_ownership_compilation(operation):
+    from document_ocr.synthesis.curated_ownership import build_owned_blueprint
+
+    row, old_blueprint, scenario, support = fixture()
+    row["joinedRawText"] += "20GP\n"
+    key = "reviewed:inventory_summary"
+    paths = [
+        f"documentPatch.containerInformation[{index}].{field}"
+        for index in range(2)
+        for field in ("sizeCategory", "typeCategory")
+    ]
+    start = len(row["joinedRawText"].encode()) - len(b"20GP\n")
+    binding = {
+        "logical_key": key,
+        "value_kind": "equipment",
+        "target_paths": paths,
+        "occurrences": [{"byte_start": start, "byte_end": start + 4, "source_text": "20GP"}],
+    }
+    declarations = {
+        operation: (
+            [
+                {
+                    "key": key,
+                    "kind": "equipment",
+                    "paths": paths,
+                    "occurrences": [{"text": "20GP", "occurrence": 1}],
+                    "derivation": "equipment_receipt",
+                    "target_relationship": "composite_target_surface",
+                }
+            ]
+            if operation == "add"
+            else {
+                key: {
+                    "derivation": "equipment_receipt",
+                    "target_relationship": "composite_target_surface",
+                }
+            }
+        )
+    }
+    history = {
+        "document_id": row["documentId"],
+        "bindings": [binding] if operation == "bindings" else [],
+    }
+    bp = build_owned_blueprint(row, history, old_blueprint.contract, declarations)
+    assert bp.historical_bindings[key]["derivation"] == "equipment_receipt"
+    assert bp.historical_bindings[key]["target_relationship"] == "composite_target_surface"
+    target = deepcopy(row["target"])
+    target["documentPatch"]["containerInformation"][1]["sizeCategory"] = "FORTY_FOOT_HIGH_CUBE"
+    plan = prepare_physical_render(bp, scenario, target, support=support)
+    assert "20GP" in plan.surface_values[key][0] and "40HC" in plan.surface_values[key][0]
+    broken = deepcopy(declarations)
+    item = broken[operation][0] if operation == "add" else broken[operation][key]
+    item["derivation"] = "silently_guess_scope"
+    with pytest.raises(ValueError):
+        build_owned_blueprint(row, history, old_blueprint.contract, broken)
+
+
 def test_tare_dependencies_sum_exactly_and_do_not_guess_aggregate_ownership():
     from dataclasses import replace
 
@@ -1080,3 +1202,192 @@ def test_physical_stage_preserves_planned_route_and_origin_handling_changes():
     assert (
         blueprint.target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == original
     )
+
+
+def _nested_handling_fixture(*, parent=None, printed=None, replacements=None, repeated=False):
+    from document_ocr.synthesis.curated_templates import RenderRegion
+
+    parent = parent or "DM FREE DAY 21C DAYS \u2013 2X20DC"
+    printed = printed or parent
+    source = "REFERENCE: 2X20DC\n" + printed + "\n"
+    if repeated:
+        source += printed + "\n"
+    source += "OTHER HANDLING: KEEP COOL\n"
+    raw = source.encode()
+    regions, edits = [], []
+    positions = [m.start() for m in re.finditer(b"2X20DC", raw)][1:]
+    replacements = replacements or ["1 x 40 DRY 9x6 + 1 x 55G1"] * len(positions)
+    for occurrence, (start, replacement) in enumerate(zip(positions, replacements, strict=True)):
+        regions.append(
+            RenderRegion(
+                "equipment",
+                occurrence,
+                start,
+                start + len(b"2X20DC"),
+                "2X20DC",
+                ("documentPatch.containerInformation[0].sizeCategory",),
+                "equipment",
+            )
+        )
+        edits.append(
+            dict(
+                key="equipment",
+                occurrence=occurrence,
+                byteStart=start,
+                byteEnd=start + len(b"2X20DC"),
+                before="2X20DC",
+                after=replacement,
+            )
+        )
+    target = {
+        "documentPatch": {
+            "goodsItemDetails": [{"handlingInstructions": [parent, "KEEP COOL"]}],
+            "parties": {"shipper": {"name": "UNCHANGED COMPANY"}},
+        }
+    }
+    blueprint = SimpleNamespace(source=source, target=deepcopy(target), regions=tuple(regions))
+    rendered = raw
+    for edit in reversed(edits):
+        rendered = (
+            rendered[: edit["byteStart"]] + edit["after"].encode() + rendered[edit["byteEnd"] :]
+        )
+    return blueprint, rendered.decode(), target, edits
+
+
+@pytest.mark.parametrize("casing", ["uppercase", "preserve"])
+@pytest.mark.parametrize("alias", ["2 x 22G1", "1 x 40 DRY 9x6 + 1 x 55G1"])
+def test_final_handling_projection_replays_owned_equipment_and_preserves_other_fields(
+    casing, alias
+):
+    blueprint, rendered, target, edits = _nested_handling_fixture(replacements=[alias])
+    before = deepcopy(target)
+    result, receipt = project_nested_equipment_handling(
+        blueprint, rendered, target, edits, casing=casing
+    )
+    expected = "DM FREE DAY 21C DAYS \u2013 " + alias
+    if casing == "uppercase":
+        expected = expected.upper()
+    assert result["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [
+        expected,
+        "KEEP COOL",
+    ]
+    assert result["documentPatch"]["parties"] == before["documentPatch"]["parties"]
+    assert target == blueprint.target == before
+    assert rendered.startswith("REFERENCE: 2X20DC\n")
+    assert receipt["fields"][0]["spans"][0]["equipmentChildren"] == [
+        {"key": "equipment", "occurrence": 0}
+    ]
+
+
+def test_final_handling_projection_normalizes_line_breaks_not_punctuation():
+    blueprint, rendered, target, edits = _nested_handling_fixture(
+        printed="DM FREE DAY 21C DAYS \u2013\n2X20DC", replacements=["2 x 45GP"]
+    )
+    result, receipt = project_nested_equipment_handling(blueprint, rendered, target, edits)
+    assert result["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] == (
+        "DM FREE DAY 21C DAYS \u2013 2 X 45GP"
+    )
+    assert "\n" in receipt["fields"][0]["spans"][0]["text"]
+
+
+def test_final_handling_projection_replays_operational_siblings_and_prior_byte_shifts():
+    blueprint, _, target, edits = _nested_handling_fixture(
+        parent="KEEP AT 3C IN 2X20DC", replacements=["2 x 40RQ"]
+    )
+    raw = blueprint.source.encode()
+    temperature = raw.index(b"3C")
+    sibling = dict(
+        key="temperature",
+        occurrence=0,
+        byteStart=temperature,
+        byteEnd=temperature + 1,
+        before="3",
+        after="-18",
+    )
+    prefix = dict(
+        key="reference",
+        occurrence=0,
+        byteStart=0,
+        byteEnd=len(b"REFERENCE"),
+        before="REFERENCE",
+        after="UNRELATED REFERENCE",
+    )
+    edits = [prefix, sibling, *edits]
+    target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] = (
+        "KEEP AT -18C IN 2X20DC"
+    )
+    rendered = raw
+    for edit in reversed(edits):
+        rendered = (
+            rendered[: edit["byteStart"]] + edit["after"].encode() + rendered[edit["byteEnd"] :]
+        )
+    result, receipt = project_nested_equipment_handling(blueprint, rendered.decode(), target, edits)
+    assert result["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] == (
+        "KEEP AT -18C IN 2 X 40RQ"
+    )
+    span = receipt["fields"][0]["spans"][0]
+    assert span["renderedByteStart"] > span["sourceByteStart"]
+
+
+def test_final_handling_projection_checks_all_repeated_parent_occurrences():
+    blueprint, rendered, target, edits = _nested_handling_fixture(repeated=True)
+    result, receipt = project_nested_equipment_handling(blueprint, rendered, target, edits)
+    assert len(receipt["fields"][0]["spans"]) == 2
+    assert "55G1" in result["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0]
+    blueprint, rendered, target, edits = _nested_handling_fixture(
+        repeated=True, replacements=["2 x 40HC", "2 x 45HC"]
+    )
+    with pytest.raises(ValueError, match="conflicting projections"):
+        project_nested_equipment_handling(blueprint, rendered, target, edits)
+
+
+@pytest.mark.parametrize(
+    "defect",
+    ["source", "owner", "render", "target", "unproven_parent", "duplicate_parent", "order"],
+)
+def test_final_handling_projection_rejects_unproven_or_conflicting_authority(defect):
+    blueprint, rendered, target, edits = _nested_handling_fixture()
+    if defect == "source":
+        edits[0]["before"] = "20GP"
+    elif defect == "owner":
+        edits[0]["key"] = "unowned_equipment"
+    elif defect == "render":
+        rendered = rendered.replace("55G1", "40GP")
+    elif defect == "target":
+        target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] = "INVENTED"
+    elif defect == "unproven_parent":
+        blueprint.target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0] = (
+            "DM FREE DAY, 21C DAYS \u2013 2X20DC"
+        )
+    elif defect == "duplicate_parent":
+        blueprint.target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"].append(
+            blueprint.target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0]
+        )
+        target = deepcopy(blueprint.target)
+    else:
+        edits.append(deepcopy(edits[0]))
+    unchanged = deepcopy(target)
+    with pytest.raises(ValueError):
+        project_nested_equipment_handling(blueprint, rendered, target, edits)
+    assert target == unchanged
+
+
+def test_final_handling_projection_rejects_a_child_crossing_the_parent_boundary():
+    from dataclasses import replace
+
+    blueprint, rendered, target, edits = _nested_handling_fixture()
+    parent_start = blueprint.source.encode().index(b"DM FREE")
+    region = replace(blueprint.regions[0], start=parent_start - 1)
+    blueprint.regions = (region,)
+    edits[0].update(
+        byteStart=region.start,
+        before=blueprint.source.encode()[region.start : region.end].decode(),
+    )
+    with pytest.raises(ValueError, match="crosses parent boundary"):
+        project_nested_equipment_handling(blueprint, rendered, target, edits)
+
+
+def test_final_handling_projection_does_not_touch_parents_without_equipment_changes():
+    blueprint, rendered, target, edits = _nested_handling_fixture(replacements=["2X20DC"])
+    result, receipt = project_nested_equipment_handling(blueprint, rendered, target, edits)
+    assert result is target and receipt is None

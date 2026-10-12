@@ -73,6 +73,16 @@ def test_homogeneous_replacement_removes_stale_high_cube_words():
     assert result == "2 x 20GP"
 
 
+@pytest.mark.parametrize("surface", ["40'FT", "40' FT", "40\u2019 FEET", "40`FOOT"])
+def test_quoted_length_with_unit_does_not_override_per_identifier_height(surface):
+    old = [equipment("FORTY_FOOT_HIGH_CUBE")] * 2
+    new = [equipment("TWENTY_FOOT_STANDARD_HEIGHT"), equipment("FORTY_FIVE_FOOT_HIGH_CUBE")]
+    result = render(surface, old, new)
+    assert "20" in result and "45" in result and "40" not in result
+    with pytest.raises(ValueError, match="contradicts source count/type"):
+        render(surface, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")] * 2, new)
+
+
 def test_explicit_standard_abbreviation_is_a_complete_receipt_type():
     from document_ocr.synthesis.container_semantics import review_source_equipment_surface
 

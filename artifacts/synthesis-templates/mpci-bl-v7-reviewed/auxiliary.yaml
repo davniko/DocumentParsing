@@ -4278,6 +4278,18 @@ sources:
       agent:exporter_registration_country:
         party_location: documentPatch.parties.shipper
         field: country
+      agent:acid_reference:
+        identifier: import_reference
+      agent:importer_vat_number:
+        identifier: importer
+      agent:exporter_registration_number:
+        identifier: exporter
+      agent:invoice_number:
+        identifier: invoice
+      agent:purchase_order_number:
+        identifier: purchase_order
+      anchor:documentPatch.forwardingAndExportReferences[0]:
+        identifier: service_contract
   doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f:
     spans:
     - quote: ACID REF EGYPT
@@ -4321,6 +4333,15 @@ sources:
       agent:exporter_registration_country:
         party_location: documentPatch.parties.shipper
         field: country_code
+      agent:acid_reference:
+        identifier: import_reference
+      agent:importer_tax_number:
+        identifier: importer
+      agent:exporter_identification_number:
+        identifier: exporter
+      agent:notify_passport_number:
+        identifier: notify_passport
+        prefix: EJ
   doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e:
     bindings:
       agent:destination_agent_fax:

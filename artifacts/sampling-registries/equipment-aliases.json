@@ -1,0 +1,727 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "GENERAL_PURPOSE",
+      "aliases": [
+        "20GP",
+        "20DV",
+        "20DC",
+        "22G1",
+        "22GO",
+        "20' STANDARD",
+        "20'",
+        "20' STANDARD HEIGHT GENERAL PURPOSE CONTAINER",
+        "20 DRY 8'6",
+        "20 DRY 8x6"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "VENTILATED_GENERAL_PURPOSE",
+      "aliases": [
+        "20' STANDARD HEIGHT VENTILATED GENERAL PURPOSE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "DRY_BULK",
+      "aliases": [
+        "20' STANDARD HEIGHT DRY BULK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "NAMED_CARGO",
+      "aliases": [
+        "20' STANDARD HEIGHT NAMED CARGO CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "REFRIGERATED",
+      "aliases": [
+        "20RF",
+        "22R0",
+        "20' STANDARD HEIGHT REFRIGERATED CONTAINER",
+        "20 REEFER 8'6",
+        "20 REEFER 8x6"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "REFRIGERATED_AND_HEATED",
+      "aliases": [
+        "20' STANDARD HEIGHT REFRIGERATED AND HEATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "SELF_POWERED_REFRIGERATED",
+      "aliases": [
+        "20' STANDARD HEIGHT SELF POWERED REFRIGERATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
+      "aliases": [
+        "20' STANDARD HEIGHT REFRIGERATED HEATED REMOVABLE EQUIPMENT CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "INSULATED",
+      "aliases": [
+        "20' STANDARD HEIGHT INSULATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "OPEN_TOP",
+      "aliases": [
+        "20' STANDARD HEIGHT OPEN TOP CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM",
+      "aliases": [
+        "20' STANDARD HEIGHT PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_FIXED",
+      "aliases": [
+        "20' STANDARD HEIGHT FIXED PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_COLLAPSIBLE",
+      "aliases": [
+        "20' STANDARD HEIGHT COLLAPSIBLE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+      "aliases": [
+        "20' STANDARD HEIGHT PLATFORM COMPLETE SUPERSTRUCTURE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_NAMED_CARGO",
+      "aliases": [
+        "20' STANDARD HEIGHT NAMED CARGO PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PRESSURIZED_TANK",
+      "aliases": [
+        "20' STANDARD HEIGHT PRESSURIZED TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "DRY_HOPPER_TANK",
+      "aliases": [
+        "20' STANDARD HEIGHT DRY HOPPER TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "DRY_REAR_DISCHARGE_TANK",
+      "aliases": [
+        "20' STANDARD HEIGHT DRY REAR DISCHARGE TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "AIR_SURFACE",
+      "aliases": [
+        "20' STANDARD HEIGHT AIR SURFACE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "GENERAL_PURPOSE",
+      "aliases": [
+        "20HC",
+        "20HQ",
+        "25G1",
+        "20' HIGH CUBE",
+        "20' HIGH CUBE GENERAL PURPOSE CONTAINER",
+        "20 DRY 9'6",
+        "20 DRY 9x6"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "VENTILATED_GENERAL_PURPOSE",
+      "aliases": [
+        "20' HIGH CUBE VENTILATED GENERAL PURPOSE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_BULK",
+      "aliases": [
+        "20' HIGH CUBE DRY BULK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "NAMED_CARGO",
+      "aliases": [
+        "20' HIGH CUBE NAMED CARGO CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED",
+      "aliases": [
+        "20' HIGH CUBE REFRIGERATED CONTAINER",
+        "20 REEFER 9'6",
+        "20 REEFER 9x6"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED_AND_HEATED",
+      "aliases": [
+        "20' HIGH CUBE REFRIGERATED AND HEATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "SELF_POWERED_REFRIGERATED",
+      "aliases": [
+        "20' HIGH CUBE SELF POWERED REFRIGERATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
+      "aliases": [
+        "20' HIGH CUBE REFRIGERATED HEATED REMOVABLE EQUIPMENT CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "INSULATED",
+      "aliases": [
+        "20' HIGH CUBE INSULATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "OPEN_TOP",
+      "aliases": [
+        "20' HIGH CUBE OPEN TOP CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM",
+      "aliases": [
+        "20' HIGH CUBE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_FIXED",
+      "aliases": [
+        "20' HIGH CUBE FIXED PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_COLLAPSIBLE",
+      "aliases": [
+        "20' HIGH CUBE COLLAPSIBLE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+      "aliases": [
+        "20' HIGH CUBE PLATFORM COMPLETE SUPERSTRUCTURE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_NAMED_CARGO",
+      "aliases": [
+        "20' HIGH CUBE NAMED CARGO PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PRESSURIZED_TANK",
+      "aliases": [
+        "20' HIGH CUBE PRESSURIZED TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_HOPPER_TANK",
+      "aliases": [
+        "20' HIGH CUBE DRY HOPPER TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_REAR_DISCHARGE_TANK",
+      "aliases": [
+        "20' HIGH CUBE DRY REAR DISCHARGE TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "TWENTY_FOOT_HIGH_CUBE",
+      "typeCategory": "AIR_SURFACE",
+      "aliases": [
+        "20' HIGH CUBE AIR SURFACE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "GENERAL_PURPOSE",
+      "aliases": [
+        "40GP",
+        "40DV",
+        "40DC",
+        "42G1",
+        "40' STANDARD",
+        "40'",
+        "40' STANDARD HEIGHT GENERAL PURPOSE CONTAINER",
+        "40 DRY 8'6",
+        "40 DRY 8x6"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "VENTILATED_GENERAL_PURPOSE",
+      "aliases": [
+        "40' STANDARD HEIGHT VENTILATED GENERAL PURPOSE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "DRY_BULK",
+      "aliases": [
+        "40' STANDARD HEIGHT DRY BULK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "NAMED_CARGO",
+      "aliases": [
+        "40' STANDARD HEIGHT NAMED CARGO CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "REFRIGERATED",
+      "aliases": [
+        "40RF",
+        "40RE",
+        "42R0",
+        "40' STANDARD HEIGHT REFRIGERATED CONTAINER",
+        "40 REEFER 8'6",
+        "40 REEFER 8x6"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "REFRIGERATED_AND_HEATED",
+      "aliases": [
+        "40' STANDARD HEIGHT REFRIGERATED AND HEATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "SELF_POWERED_REFRIGERATED",
+      "aliases": [
+        "40' STANDARD HEIGHT SELF POWERED REFRIGERATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
+      "aliases": [
+        "40' STANDARD HEIGHT REFRIGERATED HEATED REMOVABLE EQUIPMENT CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "INSULATED",
+      "aliases": [
+        "40' STANDARD HEIGHT INSULATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "OPEN_TOP",
+      "aliases": [
+        "40' STANDARD HEIGHT OPEN TOP CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM",
+      "aliases": [
+        "40' STANDARD HEIGHT PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_FIXED",
+      "aliases": [
+        "40' STANDARD HEIGHT FIXED PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_COLLAPSIBLE",
+      "aliases": [
+        "40' STANDARD HEIGHT COLLAPSIBLE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+      "aliases": [
+        "40' STANDARD HEIGHT PLATFORM COMPLETE SUPERSTRUCTURE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PLATFORM_NAMED_CARGO",
+      "aliases": [
+        "40' STANDARD HEIGHT NAMED CARGO PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "PRESSURIZED_TANK",
+      "aliases": [
+        "40' STANDARD HEIGHT PRESSURIZED TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "DRY_HOPPER_TANK",
+      "aliases": [
+        "40' STANDARD HEIGHT DRY HOPPER TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "DRY_REAR_DISCHARGE_TANK",
+      "aliases": [
+        "40' STANDARD HEIGHT DRY REAR DISCHARGE TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+      "typeCategory": "AIR_SURFACE",
+      "aliases": [
+        "40' STANDARD HEIGHT AIR SURFACE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "GENERAL_PURPOSE",
+      "aliases": [
+        "40HC",
+        "40HQ",
+        "45G1",
+        "40' HC",
+        "40' HIGH CUBE GENERAL PURPOSE CONTAINER",
+        "40 DRY 9'6",
+        "40 DRY 9x6"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "VENTILATED_GENERAL_PURPOSE",
+      "aliases": [
+        "40' HIGH CUBE VENTILATED GENERAL PURPOSE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_BULK",
+      "aliases": [
+        "40' HIGH CUBE DRY BULK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "NAMED_CARGO",
+      "aliases": [
+        "40' HIGH CUBE NAMED CARGO CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED",
+      "aliases": [
+        "40RQ",
+        "40HR",
+        "40RH",
+        "45R0",
+        "40RF 9'6",
+        "40RF HIGH CUBE",
+        "40' HIGH CUBE REFRIGERATED CONTAINER",
+        "40 REEFER 9'6",
+        "40 REEFER 9x6"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED_AND_HEATED",
+      "aliases": [
+        "40' HIGH CUBE REFRIGERATED AND HEATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "SELF_POWERED_REFRIGERATED",
+      "aliases": [
+        "40' HIGH CUBE SELF POWERED REFRIGERATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
+      "aliases": [
+        "40' HIGH CUBE REFRIGERATED HEATED REMOVABLE EQUIPMENT CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "INSULATED",
+      "aliases": [
+        "40' HIGH CUBE INSULATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "OPEN_TOP",
+      "aliases": [
+        "40' HIGH CUBE OPEN TOP CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM",
+      "aliases": [
+        "40' HIGH CUBE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_FIXED",
+      "aliases": [
+        "40' HIGH CUBE FIXED PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_COLLAPSIBLE",
+      "aliases": [
+        "40' HIGH CUBE COLLAPSIBLE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+      "aliases": [
+        "40' HIGH CUBE PLATFORM COMPLETE SUPERSTRUCTURE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_NAMED_CARGO",
+      "aliases": [
+        "40' HIGH CUBE NAMED CARGO PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "PRESSURIZED_TANK",
+      "aliases": [
+        "40' HIGH CUBE PRESSURIZED TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_HOPPER_TANK",
+      "aliases": [
+        "40' HIGH CUBE DRY HOPPER TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_REAR_DISCHARGE_TANK",
+      "aliases": [
+        "40' HIGH CUBE DRY REAR DISCHARGE TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FOOT_HIGH_CUBE",
+      "typeCategory": "AIR_SURFACE",
+      "aliases": [
+        "40' HIGH CUBE AIR SURFACE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "GENERAL_PURPOSE",
+      "aliases": [
+        "45HC",
+        "45HQ",
+        "55G1",
+        "L5G1",
+        "45 FOOT HIGH CUBE GENERAL PURPOSE CONTAINER",
+        "45' HIGH CUBE GENERAL PURPOSE CONTAINER",
+        "45 DRY 9'6",
+        "45 DRY 9x6"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "VENTILATED_GENERAL_PURPOSE",
+      "aliases": [
+        "45' HIGH CUBE VENTILATED GENERAL PURPOSE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_BULK",
+      "aliases": [
+        "45' HIGH CUBE DRY BULK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "NAMED_CARGO",
+      "aliases": [
+        "45' HIGH CUBE NAMED CARGO CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED",
+      "aliases": [
+        "45' HIGH CUBE REFRIGERATED CONTAINER",
+        "45 REEFER 9'6",
+        "45 REEFER 9x6"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED_AND_HEATED",
+      "aliases": [
+        "45' HIGH CUBE REFRIGERATED AND HEATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "SELF_POWERED_REFRIGERATED",
+      "aliases": [
+        "45' HIGH CUBE SELF POWERED REFRIGERATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
+      "aliases": [
+        "45' HIGH CUBE REFRIGERATED HEATED REMOVABLE EQUIPMENT CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "INSULATED",
+      "aliases": [
+        "45' HIGH CUBE INSULATED CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "OPEN_TOP",
+      "aliases": [
+        "45' HIGH CUBE OPEN TOP CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM",
+      "aliases": [
+        "45' HIGH CUBE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_FIXED",
+      "aliases": [
+        "45' HIGH CUBE FIXED PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_COLLAPSIBLE",
+      "aliases": [
+        "45' HIGH CUBE COLLAPSIBLE PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_COMPLETE_SUPERSTRUCTURE",
+      "aliases": [
+        "45' HIGH CUBE PLATFORM COMPLETE SUPERSTRUCTURE CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "PLATFORM_NAMED_CARGO",
+      "aliases": [
+        "45' HIGH CUBE NAMED CARGO PLATFORM CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "PRESSURIZED_TANK",
+      "aliases": [
+        "45' HIGH CUBE PRESSURIZED TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_HOPPER_TANK",
+      "aliases": [
+        "45' HIGH CUBE DRY HOPPER TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "DRY_REAR_DISCHARGE_TANK",
+      "aliases": [
+        "45' HIGH CUBE DRY REAR DISCHARGE TANK CONTAINER"
+      ]
+    },
+    {
+      "sizeCategory": "FORTY_FIVE_FOOT_HIGH_CUBE",
+      "typeCategory": "AIR_SURFACE",
+      "aliases": [
+        "45' HIGH CUBE AIR SURFACE CONTAINER"
+      ]
+    }
+  ]
+}

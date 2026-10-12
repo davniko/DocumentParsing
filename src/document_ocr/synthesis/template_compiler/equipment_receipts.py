@@ -32,7 +32,7 @@ _COMPACT_REVERSE = re.compile(
     r"(?P<count>[1-9][0-9]*)",
     re.I,
 )
-_LENGTH_ONLY = re.compile(r"(20|40|45)\s*(?:['\u2019`]|FT\.?|FEET|FOOT)?(?:\s+FULL)?", re.I)
+_LENGTH_ONLY = re.compile(r"(20|40|45)\s*['\u2019`]?\s*(?:FT\.?|FEET|FOOT)?(?:\s+FULL)?", re.I)
 _EQUIPMENT_WORDS = frozenset(
     [
         "GP",
@@ -540,11 +540,7 @@ def project_receipt(
         raise ValueError("partial multi-term equipment receipt requires explicit subset ownership")
     if len(parsed) == 1 and len(source_rows) == len(target_rows):
         printed_shape = _semantic(parsed[0][1])
-        if (
-            preserve_length_only
-            and printed_shape.length is not None
-            and printed_shape.kind is None
-        ):
+        if preserve_length_only and printed_shape.length is not None and printed_shape.kind is None:
             # A length-only receipt never asserts type or height. Changing a
             # private type within that length cannot require printing it.
             shapes = [_row_shape(row) for row in selected]

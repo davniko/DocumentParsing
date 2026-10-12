@@ -1,8 +1,14 @@
+import asyncio
+import json
 from copy import deepcopy
+from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
 from document_ocr.synthesis.curated_contacts import (
+    ContactField,
+    ContactParty,
     apply_contacts,
     contact_output_type,
     contact_parties,
@@ -298,3 +304,126 @@ def test_ascii_dot_atom_mailbox_accepts_supported_punctuation():
         {"p0": {"c0": "sales.eu+forwarding@huaxintextile.com", "c1": "www.huaxintextile.com"}}
     )
     assert unpack_contacts(output, requests)["sample"]
+
+
+@pytest.mark.parametrize(
+    "kind,array,originals,generated",
+    [
+        ("email", "emailAddresses", ("old1@oldcompany.com", "old2@oldcompany.com"),
+         "info@newcompany.com"),
+        ("website", "websiteUrls", ("www.old1.com", "www.old2.com"), "www.newcompany.com"),
+    ],
+)
+def test_duplicate_generated_slots_fail_per_target_array(kind, array, originals, generated):
+    prefix = "documentPatch.parties.deliveryAgent.contactDetails." + array
+    party = ContactParty(
+        "sample", "NEW COMPANY", "INDIA",
+        tuple(ContactField(f"c{i}", kind, old, (f"{prefix}[{i}]",))
+              for i, old in enumerate(originals)),
+    )
+    output = contact_output_type([party]).model_validate(
+        {"p0": {"c0": generated, "c1": generated}}
+    )
+    with pytest.raises(ValueError, match="duplicate generated contact"):
+        unpack_contacts(output, [party])
+
+
+def test_one_shared_field_can_repeat_across_roles_but_not_twice_in_one_list():
+    source, target, _ = parties()
+    source["documentPatch"]["parties"]["notifyParties"][0] = {
+        "sameAs": "consignee",
+        "contactDetails": {"emailAddresses": ["INFO@OLDLIFT.COM", "SECOND@OLDLIFT.COM"]},
+    }
+    target["documentPatch"]["parties"]["notifyParties"][0] = deepcopy(
+        source["documentPatch"]["parties"]["notifyParties"][0]
+    )
+    requests = contact_parties(source, target, "sample")
+    assert len(requests[0].fields[0].paths) == 2
+    schema = contact_output_type(requests)
+    output = schema.model_validate({"p0": {
+        "c0": "shared@newcompany.com", "c1": "www.newcompany.com",
+        "c2": "second@newcompany.com",
+    }})
+    values = unpack_contacts(output, requests)["sample"]
+    assert list(values.values()).count("shared@newcompany.com") == 2
+    output.p0.c2 = "shared@newcompany.com"
+    with pytest.raises(ValueError, match=r"notifyParties\[0\].contactDetails.emailAddresses"):
+        unpack_contacts(output, requests)
+
+
+def test_email_local_parts_keep_exact_case_and_samples_are_independent():
+    prefix = "documentPatch.parties.shipper.contactDetails.emailAddresses"
+    party = ContactParty(
+        "first", "NEW COMPANY", "INDIA",
+        (
+            ContactField("c0", "email", "old1@oldcompany.com", (prefix + "[0]",)),
+            ContactField("c1", "email", "old2@oldcompany.com", (prefix + "[1]",)),
+        ),
+    )
+    requests = [party, replace(party, sample_id="second")]
+    output = contact_output_type(requests).model_validate({
+        key: {"c0": "Sales@newcompany.com", "c1": "sales@newcompany.com"}
+        for key in ("p0", "p1")
+    })
+    values = unpack_contacts(output, requests)
+    assert values["first"] == values["second"]
+    assert len(values["first"]) == 2
+
+
+def test_independent_fields_may_share_mailbox_across_different_party_arrays():
+    requests = [
+        ContactParty(
+            "sample", name, "INDIA",
+            (ContactField("c0", "email", original, (
+                f"documentPatch.parties.{role}.contactDetails.emailAddresses[0]",
+            )),),
+        )
+        for role, name, original in (
+            ("shipper", "EXPORTER", "oldexporter@oldcompany.com"),
+            ("deliveryAgent", "FORWARDER", "oldforwarder@oldcompany.com"),
+        )
+    ]
+    output = contact_output_type(requests).model_validate({
+        "p0": {"c0": "shared@newcompany.com"},
+        "p1": {"c0": "shared@newcompany.com"},
+    })
+    values = unpack_contacts(output, requests)["sample"]
+    assert len(values) == 2
+    assert set(values.values()) == {"shared@newcompany.com"}
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_campaign_rejects_duplicate_contacts_before_saving_receipts(tmp_path, cached):
+    from document_ocr.synthesis.curated_campaign import Campaign
+
+    prefix = "documentPatch.parties.deliveryAgent.contactDetails.emailAddresses"
+    party = ContactParty(
+        "sample", "NEW COMPANY", "INDIA",
+        tuple(ContactField(f"c{i}", "email", f"old{i}@oldcompany.com", (f"{prefix}[{i}]",))
+              for i in range(2)),
+    )
+    campaign = Campaign.__new__(Campaign)
+    campaign.output = tmp_path
+    campaign.config = {"variants_per_source": 2}
+    campaign.contact_requests = lambda sid: [party]
+    duplicate = {"p0": {"c0": "same@newcompany.com", "c1": "same@newcompany.com"}}
+    receipt_path = tmp_path / "contacts/source.json"
+    if cached:
+        receipt_path.parent.mkdir()
+        receipt_path.write_text(json.dumps({
+            "requestSha256": request_hash([party]), "output": duplicate,
+        }))
+        previous_receipt = receipt_path.read_bytes()
+
+    async def call(stage, sid, schema, system, prompt):
+        assert not cached
+        return schema.model_validate(duplicate)
+
+    campaign.calls = SimpleNamespace(call=call)
+    with pytest.raises(ValueError, match="duplicate generated contact"):
+        asyncio.run(campaign.generate_contacts("source"))
+    if cached:
+        assert receipt_path.read_bytes() == previous_receipt
+    else:
+        assert not receipt_path.exists()
+    assert not (tmp_path / "contacts/samples/sample.json").exists()

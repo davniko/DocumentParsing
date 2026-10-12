@@ -2,6 +2,30 @@
 
 This is the reusable **360-source catalog**, not a generation-run directory.
 
+## Mixed ambient equipment admission — 2026-10-12
+
+The catalog now records 85 sources certified for **both uniform and mixed GP
+size/height inventories**. All 85 produced two ordinary production descendants
+(170 total), one per mode, passing complete semantic review, exact authority
+replay, independent printed-ID/type/allocation ownership and geometry checks.
+`manifest.json.mixedEquipmentIntegration` pins that publication, audit,
+current sampling registries and exact admitted source list.
+
+One shared-scalar source remains uniform-only; six sources lacking printed
+per-ID type ownership are not admitted to mixed sampling. No per-ID categories
+or geometry are guessed. Source container cardinality is unchanged, and
+thermal/DG/mixed-family equipment is outside this ambient-GP capability.
+
+See the [production integration report](../../../docs/kie-mixed-equipment-production-integration-2026-10-12.md)
+and [paired production configuration](../../../configs/synthesis/mpci_bl_curated_v7_mixed_inventory_validation.yaml).
+Mixed mode is opt-in through `sampling.equipment_inventory`; ordinary default
+uniform behavior remains supported. The 170 inspection descendants were not
+merged into training, and the planned 2,500-document campaign was not launched.
+
+The dated 2026-10-11 integration metadata below is historical evidence, not a
+current alias/profile hash authority. Use the latest mixed-equipment admission
+pins when preparing a new campaign.
+
 ## Current 360-source pool — 2026-10-10
 
 Three additive cohorts of 20 sources are now admitted. Their 120 actual pilot

@@ -1,9 +1,9 @@
 """Registry-backed shipment scenarios for current, single-goods source templates.
 
 Sampling is separate from text generation and rendering.  A scenario carries
-current-V7 facts and provenance, never a legacy label projection.  Quantities,
-mass and volume are sampled together from train-only observed shipments;
-registry identities and template capability domains constrain those draws.
+current-V7 facts and provenance, never a legacy label projection. Quantities,
+mass and volume use either train-only observed shipments or reviewed synthetic
+form/load profiles. Registry identities and template domains constrain both.
 """
 
 from __future__ import annotations
@@ -16,15 +16,21 @@ from copy import deepcopy
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
+from document_ocr.synthesis.curated_equipment_inventory import EquipmentInventoryContract
 from document_ocr.synthesis.curated_goods import RegistryThermalPolicy
+from document_ocr.synthesis.curated_load_profiles import (
+    RegistryLoadProfile,
+    RegistryLoadProfiles,
+    weighted_choice,
+)
 from document_ocr.synthesis.curated_parties import PartyLocalityGroup, share_party_localities
 from document_ocr.synthesis.curated_routes import GoodsOriginIdentifier, RouteTopology
 from document_ocr.synthesis.dangerous_goods_registry import (
@@ -55,6 +61,16 @@ _MASS_FACTORS = {
     "metric_tonne": Decimal(1000),
     "pound": Decimal("0.45359237"),
 }
+_REGISTRY_GP_PAIRS = tuple(
+    size + "|GENERAL_PURPOSE"
+    for size in (
+        "TWENTY_FOOT_STANDARD_HEIGHT",
+        "TWENTY_FOOT_HIGH_CUBE",
+        "FORTY_FOOT_STANDARD_HEIGHT",
+        "FORTY_FOOT_HIGH_CUBE",
+        "FORTY_FIVE_FOOT_HIGH_CUBE",
+    )
+)
 
 
 class CandidateIncompatibility(ValueError):
@@ -98,6 +114,63 @@ class ObservedHSOverride(BaseModel):
     rationale: str = Field(min_length=1)
 
 
+InventoryMode = Literal["uniform", "mixed"]
+
+
+class EquipmentInventorySampling(BaseModel):
+    """Per-draw inventory distribution, requiring certified identifier ownership.
+
+    ``source_ids`` is the explicit certified multi-container eligibility domain,
+    not a promise that unrelated single-container or thermal sources are mixed.
+    ``modes`` is an optional cyclic variant schedule for controlled campaigns;
+    otherwise the mode is a seeded Bernoulli draw. Neither pins a source to a
+    permanent mixed mode. Counts are drawn from the declared feasible intersection,
+    never reduced after a draw; an empty intersection is a configuration error.
+    Canonical category weights use ``ScenarioSamplingConfig.equipment_weights``.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+    source_ids: tuple[str, ...] = Field(min_length=1)
+    mixed_probability: Decimal = Field(ge=0, le=1)
+    category_count_weights: dict[
+        Annotated[int, Field(strict=True, ge=2, le=len(_REGISTRY_GP_PAIRS))],
+        Annotated[int, Field(strict=True, gt=0)],
+    ] = Field(default_factory=lambda: {2: 1}, min_length=1)
+    modes: tuple[InventoryMode, ...] | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+
+    @field_validator("source_ids")
+    @classmethod
+    def exact_source_scope(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(value)) != len(value) or any(not sid or sid.strip() != sid for sid in value):
+            raise ValueError("inventory source scope requires distinct exact document IDs")
+        return value
+
+    @field_validator("category_count_weights", mode="before")
+    @classmethod
+    def canonical_count_keys(cls, value: Any) -> Any:
+        # JSON object keys are strings. Accept only the exact integer spelling,
+        # so persisted configuration replays without relaxing integer semantics.
+        if isinstance(value, dict):
+            normalized = {}
+            for key, weight in value.items():
+                key = int(key) if isinstance(key, str) and key in {"2", "3", "4", "5"} else key
+                if key in normalized:
+                    raise ValueError("duplicate inventory category-count weight")
+                normalized[key] = weight
+            return normalized
+        return value
+
+    def mode(self, variant: int, stream: DeterministicStream) -> InventoryMode:
+        if variant < 1:
+            raise ValueError("inventory sampling requires a positive variant")
+        if self.modes is not None:
+            return self.modes[(variant - 1) % len(self.modes)]
+        numerator, denominator = self.mixed_probability.as_integer_ratio()
+        return "mixed" if stream.randbelow(denominator) < numerator else "uniform"
+
+
 class ScenarioSamplingConfig(BaseModel):
     """Pinned registries and explicit numeric policy for the current pilot."""
 
@@ -119,6 +192,19 @@ class ScenarioSamplingConfig(BaseModel):
     maximum_candidates: int = Field(default=512, ge=1)
     observed_hs_overrides: dict[str, ObservedHSOverride] = Field(default_factory=dict)
     thermal: RegistryThermalPolicy = Field(default_factory=RegistryThermalPolicy)
+    load_profiles: FilePin | None = Field(default=None, exclude_if=lambda v: v is None)
+    profile_weights: dict[str, Annotated[int, Field(strict=True, gt=0)]] = Field(
+        default_factory=dict, exclude_if=lambda v: not v
+    )
+    package_weights: dict[str, Annotated[int, Field(strict=True, gt=0)]] = Field(
+        default_factory=dict, exclude_if=lambda v: not v
+    )
+    equipment_weights: dict[str, Annotated[int, Field(strict=True, gt=0)]] = Field(
+        default_factory=dict, exclude_if=lambda v: not v
+    )
+    equipment_inventory: EquipmentInventorySampling | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     # Earlier pipeline's ambient registry scope. Potentially hazardous chemical,
     # petroleum and perishable-food chapters require their dedicated profiles.
     ambient_hs_chapters: tuple[str, ...] = (
@@ -215,7 +301,7 @@ class SourceCapabilities(BaseModel):
         exclude_if=lambda value: not value,
         description=(
             "Positive source-printed physical measures absent from public labels. "
-            "Sample them jointly from the cargo donor and enforce equipment capacity; "
+            "Sample them jointly from the selected cargo authority and enforce equipment capacity; "
             "keep them private rather than adding target fields."
         ),
     )
@@ -237,12 +323,20 @@ class SourceCapabilities(BaseModel):
     )
     require_contact_support: bool = True
     physical_profile: Literal[
-        "observed_train_bundle", "source_bundle", "source_whole_units", "reviewed_whole_units"
+        "observed_train_bundle",
+        "source_bundle",
+        "source_whole_units",
+        "reviewed_whole_units",
+        "registry_form",
     ] = "observed_train_bundle"
     reviewed_whole_unit_donors: dict[str, ReviewedWholeUnitDonor] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def valid_domains(self) -> SourceCapabilities:
+        if self.physical_profile == "registry_form" and (
+            self.family != "ambient" or self.equipment_mix is not None
+        ):
+            raise ValueError("registry-form sampling requires ambient, identifier-owned equipment")
         grouped_parties = [path for group in self.party_locality_groups for path in group.members]
         if len(set(grouped_parties)) != len(grouped_parties):
             raise ValueError("party locality certificates must use disjoint member groups")
@@ -313,7 +407,7 @@ class HSChildExample(BaseModel):
 
 
 class HSClassificationContext(BaseModel):
-    """Authoritative positive scope and neighboring classifications for wording.
+    """Authoritative taxonomy context, not an additional shipment specification.
 
     National child descriptions supply concrete in-scope options without
     promoting one country's additional distinctions into global HS6 rules.
@@ -331,11 +425,20 @@ class HSClassificationContext(BaseModel):
 
 
 class GoodsIdentity(BaseModel):
-    """One authoritative HS6 and its reviewed commercial meaning."""
+    """An HS6 reference or commercial identity with explicit wording authority."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     hs6: str = Field(pattern=r"^[0-9]{6}$")
     phrase: str
+    phrase_role: Literal["commercial", "classification_context"] = Field(
+        default="commercial",
+        exclude_if=lambda value: value == "commercial",
+        description=(
+            "Commercial phrases may name the shipped goods. Classification context is "
+            "authoritative HS nomenclature, not cargo prose; its exclusions and aggregate "
+            "alternatives must not be copied as conflicting physical-form assertions."
+        ),
+    )
     observed_hs6: str | None = None
     classification: HSClassificationContext
 
@@ -538,6 +641,28 @@ def _hazard_identity_index(registry: LoadedDangerousGoodsRegistry) -> dict[str, 
     }
 
 
+def _inventory_shares(
+    containers: Sequence[Mapping[str, Any]], goods: Mapping[str, Any], quantity: int
+) -> tuple[Decimal, ...]:
+    """Per-ID shares, preserving printed placement order only for apportionment."""
+    numbers = [row["equipmentIdentifier"] for row in containers]
+    if not numbers or len(set(numbers)) != len(numbers):
+        raise ValueError("inventory equipment identifiers must be present and unique")
+    allocations = goods.get("splitGoodsPlacement", [])
+    counts = {row["equipmentIdentifier"]: row.get("packageQuantity") for row in allocations}
+    if len(counts) != len(allocations) or set(counts) - set(numbers):
+        raise ValueError("inventory placement identifiers must be unique known equipment IDs")
+    if any(value is not None for value in counts.values()):
+        if (
+            set(counts) != set(numbers)
+            or any(value is None or value <= 0 for value in counts.values())
+            or sum(counts.values()) != quantity
+        ):
+            raise ValueError("inventory quantity allocations must identify and sum over every row")
+        return tuple(Decimal(counts[number]) / quantity for number in numbers)
+    return (Decimal(1) / len(numbers),) * len(numbers)
+
+
 class ScenarioCatalog:
     """Immutable train-fit and registry support; sampling never makes API calls."""
 
@@ -553,8 +678,37 @@ class ScenarioCatalog:
         dg: LoadedDangerousGoodsRegistry,
         train_rows: Sequence[Mapping[str, Any]],
         validation_ids: frozenset[str],
+        load_profiles: RegistryLoadProfiles | None = None,
     ) -> None:
         self.config, self.countries, self.hs, self.phrases = config, countries, hs, dict(phrases)
+        self.load_profiles = load_profiles
+        self.equipment_inventory: dict[str, EquipmentInventoryContract] = {}
+        self._registry_profile_pool: dict[
+            tuple[Any, ...], tuple[tuple[RegistryLoadProfile, tuple[str, ...]], ...]
+        ] = {}
+        if (load_profiles is None) != (config.load_profiles is None):
+            raise ValueError("load-profile configuration and loaded registry differ")
+        if load_profiles is not None:
+            ids = {p.id for p in load_profiles.profiles}
+            categories = {p.package_category for p in load_profiles.profiles}
+            if set(config.profile_weights) - ids or set(config.package_weights) - categories:
+                raise ValueError("sampling weights reference absent load-profile support")
+            if set(config.equipment_weights) - set(_REGISTRY_GP_PAIRS):
+                raise ValueError("registry-form equipment weights require supported GP pairs")
+            headings = {code[:4] for code in self.phrases}
+            for p in load_profiles.profiles:
+                if missing := set(p.hs_headings) - headings:
+                    raise ValueError(
+                        f"profile {p.id} has absent authoritative HS registry headings: "
+                        + ", ".join(sorted(missing))
+                    )
+        elif (
+            config.profile_weights
+            or config.package_weights
+            or config.equipment_weights
+            or config.equipment_inventory is not None
+        ):
+            raise ValueError("cargo distribution weights require an explicit load-profile registry")
         self.ports, self.localities, self.dg = dict(ports), dict(localities), dg
         self.contact_excluded_countries = {}
         for code in sorted(self.ports.keys() & self.localities.keys()):
@@ -569,6 +723,10 @@ class ScenarioCatalog:
             or self.train.keys() & validation_ids
         ):
             raise ValueError("scenario fitting requires unique, train-only document IDs")
+        if config.equipment_inventory is not None and (
+            set(config.equipment_inventory.source_ids) - self.train.keys()
+        ):
+            raise ValueError("configured inventory source scope must be entirely train-fit")
         self.fit_sha256 = sha256_bytes(
             canonical_json_bytes({sid: row["target"] for sid, row in sorted(self.train.items())})
         )
@@ -605,6 +763,7 @@ class ScenarioCatalog:
         self._hs_description_paths: dict[str, tuple[str, ...]] = {}
         self.limits = capacity_limits(config.transport_capacity)
         self.registry_sha256 = sha256_bytes(canonical_json_bytes(config.model_dump(mode="json")))
+
         chemical_links: dict[str, list[str]] = defaultdict(list)
         for link in self.dg.ecics_links:
             if (
@@ -639,6 +798,72 @@ class ScenarioCatalog:
                     self.thermal_codes[family].append(code)
         self._donor_cache: dict[tuple[str, str], tuple[CargoObservation, ...]] = {}
         self._identity_pool_cache: dict[tuple[str, str], tuple[str, ...]] = {}
+
+    def bind_equipment_inventory(self, contracts: Mapping[str, EquipmentInventoryContract]) -> None:
+        """Bind the exact configured source certificates before any scenario draws."""
+        policy = self.config.equipment_inventory
+        if policy is None or set(contracts) != set(policy.source_ids):
+            raise ValueError(
+                "inventory certificates must match the explicit configured source scope"
+            )
+        checked = {}
+        for sid, contract in contracts.items():
+            if not isinstance(contract, EquipmentInventoryContract) or sid not in self.train:
+                raise ValueError("inventory certificate must belong to an exact train-fit source")
+            row = self.train[sid]
+            if (
+                contract.source_id != sid
+                or contract.source_sha256 != sha256_bytes(row["joinedRawText"].encode())
+                or contract.source_target_sha256
+                != sha256_bytes(canonical_json_bytes(row["target"]))
+            ):
+                raise ValueError("inventory certificate differs from the exact train-fit source")
+            rows = row["target"]["documentPatch"].get("containerInformation", [])
+            if (
+                contract.row_count < 2
+                or len(contract.groups) < 2
+                or any(type(index) is not int for group in contract.groups for index in group)
+                or sorted(index for group in contract.groups for index in group)
+                != list(range(contract.row_count))
+                or any(not group for group in contract.groups)
+                or any(container["typeCategory"] != "GENERAL_PURPOSE" for container in rows)
+            ):
+                raise ValueError("configured inventory source lacks complete independent GP groups")
+            contract.validate_rows(rows)
+            checked[sid] = contract
+        self.equipment_inventory = checked
+
+    def validate_equipment_inventory_support(self, sid: str, cap: SourceCapabilities) -> None:
+        """Validate configured source support without drawing cargo or calling a model."""
+        policy = self.config.equipment_inventory
+        if policy is None or sid not in policy.source_ids or sid not in self.equipment_inventory:
+            raise ValueError("inventory support requires a declared, bound source certificate")
+        if cap.family != "ambient" or cap.physical_profile != "registry_form":
+            raise ValueError(
+                "configured inventory source requires the ambient registry-form domain"
+            )
+        row = self.train[sid]
+        contract = self.equipment_inventory[sid]
+        if contract.source_sha256 != sha256_bytes(
+            row["joinedRawText"].encode()
+        ) or contract.source_target_sha256 != sha256_bytes(canonical_json_bytes(row["target"])):
+            raise ValueError("inventory support differs from the bound exact source certificate")
+        source = _observation(row, cap.family)
+        if source is None or _observed_family(source.goods, source.containers) != "ambient":
+            raise ValueError(
+                "inventory registry forms require complete non-thermal, non-DG ambient goods"
+            )
+        contract.validate_rows(source.containers)
+        profiles = self._eligible_registry_profiles(cap)
+        categories = {profile.package_category for profile, _codes in profiles}
+        if self.config.package_weights and not categories.intersection(self.config.package_weights):
+            raise ValueError("inventory package-category weights have no eligible profile support")
+        pairs = tuple(
+            pair
+            for pair in _REGISTRY_GP_PAIRS
+            if not cap.allowed_equipment_pairs or pair in cap.allowed_equipment_pairs
+        )
+        self._inventory_category_support(contract, pairs)
 
     @classmethod
     def load(
@@ -720,6 +945,11 @@ class ScenarioCatalog:
             dg=dg,
             train_rows=train_rows,
             validation_ids=validation_ids,
+            load_profiles=RegistryLoadProfiles.model_validate_json(
+                _pin(root, config.load_profiles).read_text()
+            )
+            if config.load_profiles is not None
+            else None,
         )
 
     def _geography(
@@ -1278,6 +1508,9 @@ class ScenarioCatalog:
         identities: tuple[GoodsIdentity, ...],
         dg_record: DangerousGoodsHmtRecord | None,
         stream: DeterministicStream,
+        *,
+        quantity_override: int | None = None,
+        inventory_pairs: tuple[str, ...] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         goods = deepcopy(dict(source.goods))
         thermal_context = self._thermal_settings(donor, cap, identities, stream)
@@ -1293,6 +1526,14 @@ class ScenarioCatalog:
                 "printed ventilation requires commodity-supported settings"
             )
         containers = [deepcopy(dict(c)) for c in source.containers]
+        if inventory_pairs is not None and (
+            cap.physical_profile != "registry_form"
+            or cap.family != "ambient"
+            or cap.equipment_mix is not None
+            or len(inventory_pairs) != len(containers)
+            or any(pair not in _REGISTRY_GP_PAIRS for pair in inventory_pairs)
+        ):
+            raise ValueError("per-ID inventory requires complete ambient registry-form GP rows")
         allocations = goods.get("splitGoodsPlacement", [])
         quantities = [int(a["packageQuantity"]) for a in allocations if "packageQuantity" in a]
         if quantities and (
@@ -1309,8 +1550,13 @@ class ScenarioCatalog:
         target_count = len(containers) or 1
         donor_count = len(donor.containers) or 1
         nominal = Decimal(donor.quantity) * target_count / donor_count * scale
-        quantity = cap.fixed_package_quantity or max(
-            multiple, int((nominal / multiple).to_integral_value(rounding=ROUND_HALF_UP)) * multiple
+        quantity = (
+            quantity_override
+            or cap.fixed_package_quantity
+            or max(
+                multiple,
+                int((nominal / multiple).to_integral_value(rounding=ROUND_HALF_UP)) * multiple,
+            )
         )
         if quantities and quantity < len(quantities) and cap.fixed_package_quantity is None:
             quantity = ((len(quantities) + multiple - 1) // multiple) * multiple
@@ -1395,8 +1641,11 @@ class ScenarioCatalog:
                     entry["subsidiaryHazardCategories"] = list(
                         dg_record.subsidiary_hazard_categories
                     )
-        for container in containers:
+        for index, container in enumerate(containers):
             sampled = donor.containers[0]
+            if inventory_pairs is not None:
+                size, kind = inventory_pairs[index].split("|")
+                sampled = {"sizeCategory": size, "typeCategory": kind}
             for field in ("sizeCategory", "typeCategory"):
                 if field in container:
                     container[field] = sampled[field]
@@ -1416,6 +1665,7 @@ class ScenarioCatalog:
                 raise ValueError(
                     "verified gross mass requires an explicit tare/row-weight contract"
                 )
+        inventory_capacities = None
         if containers:
             if classify_equipment(donor.containers[0]) == "unsupported_reefer":
                 raise CandidateIncompatibility(
@@ -1428,13 +1678,36 @@ class ScenarioCatalog:
                 else [Decimal(1) / len(containers)] * len(containers)
             )
             peak = max(shares)
+            if inventory_pairs is not None:
+                shares = _inventory_shares(containers, goods, quantity)
+                inventory_capacities = tuple(
+                    equipment_capacity(container, self.limits) for container in containers
+                )
+                for share, row_capacity in zip(shares, inventory_capacities, strict=True):
+                    if (
+                        "grossWeight" in all_measures
+                        and all_measures["grossWeight"] * share > row_capacity.payload_kg
+                    ):
+                        raise CandidateIncompatibility(
+                            "sampled row exceeds assigned inventory payload capacity"
+                        )
+                    if (
+                        "volume" in all_measures
+                        and row_capacity.volume_m3 is not None
+                        and all_measures["volume"] * share > row_capacity.volume_m3
+                    ):
+                        raise CandidateIncompatibility(
+                            "sampled row exceeds assigned inventory enclosed volume"
+                        )
             if cap.equipment_mix is None and (
-                "grossWeight" in all_measures
+                inventory_pairs is None
+                and "grossWeight" in all_measures
                 and all_measures["grossWeight"] * peak > capacity.payload_kg
             ):
                 raise CandidateIncompatibility("sampled row exceeds equipment payload capacity")
             if cap.equipment_mix is None and (
-                "volume" in all_measures
+                inventory_pairs is None
+                and "volume" in all_measures
                 and capacity.volume_m3 is not None
                 and all_measures["volume"] * peak > capacity.volume_m3
             ):
@@ -1465,6 +1738,9 @@ class ScenarioCatalog:
             allocation = by_number.get(number, {})
             numerator = allocation.get("packageQuantity", 1)
             denominator = quantity if "packageQuantity" in allocation else len(containers)
+            row_capacity = (
+                inventory_capacities[index] if inventory_capacities is not None else capacity
+            )
             physical_rows.append(
                 {
                     "equipmentIdentifier": number,
@@ -1474,9 +1750,9 @@ class ScenarioCatalog:
                     "capacity": mix_capacities[mix_assignment[index]]
                     if mix_capacities is not None
                     else {
-                        "payloadKg": str(capacity.payload_kg),
-                        "volumeM3": str(capacity.volume_m3)
-                        if capacity.volume_m3 is not None
+                        "payloadKg": str(row_capacity.payload_kg),
+                        "volumeM3": str(row_capacity.volume_m3)
+                        if row_capacity.volume_m3 is not None
                         else None,
                     },
                     "measures": {
@@ -1555,6 +1831,302 @@ class ScenarioCatalog:
             "sameHS6AsSource": tuple(i.hs6 for i in identities) == source.hs6,
         }
 
+    def _eligible_registry_profiles(
+        self, cap: SourceCapabilities
+    ) -> tuple[tuple[RegistryLoadProfile, tuple[str, ...]], ...]:
+        if self.load_profiles is None:
+            raise ValueError("registry-form sampling requires a pinned load-profile catalog")
+        key = (
+            cap.identity_count,
+            cap.allowed_package_categories,
+            cap.allowed_hs_headings,
+            cap.allowed_hs_codes,
+        )
+        if key not in self._registry_profile_pool:
+            eligible = []
+            for profile in self.load_profiles.profiles:
+                if (
+                    cap.allowed_package_categories
+                    and profile.package_category not in cap.allowed_package_categories
+                ):
+                    continue
+                codes = tuple(
+                    code
+                    for heading in profile.hs_headings
+                    for code in self.heading_codes[heading]
+                    if (not cap.allowed_hs_headings or code[:4] in cap.allowed_hs_headings)
+                    and (not cap.allowed_hs_codes or code in cap.allowed_hs_codes)
+                    and _normalized_chemical_identity(self.phrases[code])
+                    not in self.hazard_identities
+                )
+                if len(codes) >= cap.identity_count and (
+                    not self.config.profile_weights or profile.id in self.config.profile_weights
+                ):
+                    eligible.append((profile, codes))
+            if not eligible:
+                raise ValueError("source domains have no reviewed registry-form support")
+            self._registry_profile_pool[key] = tuple(eligible)
+        return self._registry_profile_pool[key]
+
+    def _inventory_category_support(
+        self, contract: EquipmentInventoryContract, pairs: tuple[str, ...]
+    ) -> tuple[tuple[str, ...], tuple[int, ...]]:
+        weights = self.config.equipment_weights
+        eligible_pairs = tuple(pair for pair in pairs if not weights or pair in weights)
+        policy = self.config.equipment_inventory
+        if policy is None:
+            raise ValueError("inventory sampling requires its explicit distribution policy")
+        eligible_counts = tuple(
+            count
+            for count in sorted(policy.category_count_weights)
+            if count <= min(len(contract.groups), len(eligible_pairs))
+        )
+        if not eligible_counts:
+            raise ValueError("inventory category-count distribution has no feasible source support")
+        return eligible_pairs, eligible_counts
+
+    def _draw_equipment_inventory(
+        self,
+        contract: EquipmentInventoryContract,
+        mode: InventoryMode,
+        pairs: tuple[str, ...],
+        stream: DeterministicStream,
+    ) -> tuple[tuple[str, ...], dict[str, Any]]:
+        weights = self.config.equipment_weights
+        eligible_pairs, eligible_counts = self._inventory_category_support(contract, pairs)
+        policy = cast(EquipmentInventorySampling, self.config.equipment_inventory)
+        if mode == "uniform":
+            requested = (
+                weighted_choice(pairs, weights, lambda value: value, stream.derive("equipment")),
+            )
+        else:
+            count = weighted_choice(
+                eligible_counts,
+                {str(k): v for k, v in policy.category_count_weights.items()},
+                str,
+                stream.derive("inventory-category-count"),
+            )
+            selected = []
+            for index in range(count):
+                selected.append(
+                    weighted_choice(
+                        tuple(pair for pair in eligible_pairs if pair not in selected),
+                        weights,
+                        lambda value: value,
+                        stream.derive(f"inventory-category-{index}"),
+                    )
+                )
+            requested = tuple(selected)
+        order = list(range(len(contract.groups)))
+        for index in range(len(order) - 1, 0, -1):
+            other = stream.derive(f"inventory-group-order-{index}").randbelow(index + 1)
+            order[index], order[other] = order[other], order[index]
+        assigned: list[str | None] = [None] * contract.row_count
+        for position, group_index in enumerate(order):
+            pair = (
+                requested[position]
+                if position < len(requested)
+                else weighted_choice(
+                    requested,
+                    weights,
+                    lambda value: value,
+                    stream.derive(f"inventory-group-category-{position}"),
+                )
+            )
+            for row in contract.groups[group_index]:
+                assigned[row] = pair
+        if any(pair is None for pair in assigned) or set(assigned) != set(requested):
+            raise ValueError("inventory assignment did not cover its exact requested categories")
+        result = cast(tuple[str, ...], tuple(assigned))
+        return result, {
+            "mode": mode,
+            "ownerGroups": [list(group) for group in contract.groups],
+            "sizes": [pair.split("|")[0] for pair in result],
+            "requestedSizes": [pair.split("|")[0] for pair in requested],
+            "eligiblePairs": list(eligible_pairs),
+            "eligibleCategoryCounts": list(eligible_counts),
+            "sourceSha256": contract.source_sha256,
+            "sourceTargetSha256": contract.source_target_sha256,
+        }
+
+    def _registry_cargo(
+        self,
+        source: CargoObservation,
+        cap: SourceCapabilities,
+        stream: DeterministicStream,
+        *,
+        inventory_contract: EquipmentInventoryContract | None = None,
+        inventory_mode: InventoryMode | None = None,
+    ):
+        """Select form, declared unit and equipment without an observed donor.
+
+        Source counts and row ownership remain fixed. The selected profile is
+        the numeric authority; existing physical compilation enforces print
+        precision, allocation sums, private totals, tares and row capacities.
+        """
+        if self.load_profiles is None:
+            raise ValueError("registry-form sampling requires a pinned load-profile catalog")
+        if _observed_family(source.goods, source.containers) != "ambient":
+            raise ValueError("registry-form source has non-ambient goods or thermal/DG settings")
+        if not source.containers or any(
+            c.get("typeCategory") != "GENERAL_PURPOSE" or not c.get("sizeCategory")
+            for c in source.containers
+        ):
+            raise ValueError("registry-form source requires completely classified GP containers")
+        if (
+            inventory_contract is None
+            and len({(c["sizeCategory"], c["typeCategory"]) for c in source.containers}) != 1
+        ):
+            raise ValueError("mixed-equipment source requires its separate inventory contract")
+        eligible = self._eligible_registry_profiles(cap)
+        category = weighted_choice(
+            sorted({p.package_category for p, _ in eligible}),
+            self.config.package_weights,
+            lambda v: v,
+            stream.derive("package-category"),
+        )
+        selected, codes = weighted_choice(
+            [(p, codes) for p, codes in eligible if p.package_category == category],
+            self.config.profile_weights,
+            lambda v: v[0].id,
+            stream.derive("form"),
+        )
+        pairs = tuple(
+            p
+            for p in _REGISTRY_GP_PAIRS
+            if not cap.allowed_equipment_pairs or p in cap.allowed_equipment_pairs
+        )
+        inventory_pairs = None
+        inventory_receipt = None
+        if inventory_contract is None:
+            pair = weighted_choice(
+                pairs, self.config.equipment_weights, lambda v: v, stream.derive("equipment")
+            )
+        else:
+            if inventory_mode is None:
+                raise ValueError("inventory source has no explicit per-draw mode")
+            inventory_contract.validate_rows(source.containers)
+            inventory_pairs, inventory_receipt = self._draw_equipment_inventory(
+                inventory_contract, inventory_mode, pairs, stream
+            )
+            pair = inventory_pairs[0]
+        size, kind = pair.split("|")
+        selected_codes = []
+        for i in range(cap.identity_count):
+            code = _pick(
+                tuple(c for c in codes if c not in selected_codes), stream.derive(f"identity-{i}")
+            )
+            selected_codes.append(code)
+        identities = tuple(
+            GoodsIdentity(
+                hs6=code,
+                phrase=self.phrases[code].upper(),
+                phrase_role="classification_context",
+                classification=self._classification(code),
+            )
+            for code in selected_codes
+        )
+        quantity = cap.fixed_package_quantity
+        if inventory_pairs is not None:
+            shares = _inventory_shares(source.containers, source.goods, source.quantity)
+            upper = selected.quantity_max
+            for share, assigned_pair in zip(shares, inventory_pairs, strict=True):
+                assigned_size, assigned_kind = assigned_pair.split("|")
+                capacity = equipment_capacity(
+                    {"sizeCategory": assigned_size, "typeCategory": assigned_kind}, self.limits
+                )
+                upper = min(upper, int(capacity.payload_kg / (selected.unit_gross_kg * share)))
+                if capacity.volume_m3 is not None:
+                    upper = min(upper, int(capacity.volume_m3 / (selected.unit_volume_m3 * share)))
+            multiple = cap.quantity_multiple
+            required = len(source.goods.get("splitGoodsPlacement", [])) or 1
+            lo = (max(selected.quantity_min, required) + multiple - 1) // multiple
+            hi = upper // multiple
+            if lo > hi:
+                raise CandidateIncompatibility(
+                    "profile quantity interval cannot fit every assigned row"
+                )
+            if quantity is not None:
+                if quantity % multiple or not lo * multiple <= quantity <= hi * multiple:
+                    raise CandidateIncompatibility(
+                        "fixed quantity cannot fit the profile/inventory interval"
+                    )
+            else:
+                quantity = (
+                    lo + stream.derive("declared-quantity").randbelow(hi - lo + 1)
+                ) * multiple
+            inventory_receipt["quantityUpperBound"] = upper
+        elif quantity is None:
+            multiple = cap.quantity_multiple
+            required = len(source.goods.get("splitGoodsPlacement", [])) or 1
+            lo = (max(selected.quantity_min, required) + multiple - 1) // multiple
+            capacity = equipment_capacity({"sizeCategory": size, "typeCategory": kind}, self.limits)
+            source_counts = [
+                a.get("packageQuantity") for a in source.goods.get("splitGoodsPlacement", [])
+            ]
+            peak = (
+                max(Decimal(q) / source.quantity for q in source_counts)
+                if source_counts and all(q is not None for q in source_counts)
+                else Decimal(1) / len(source.containers)
+            )
+            upper = min(
+                selected.quantity_max, int(capacity.payload_kg / (selected.unit_gross_kg * peak))
+            )
+            if capacity.volume_m3 is not None:
+                upper = min(upper, int(capacity.volume_m3 / (selected.unit_volume_m3 * peak)))
+            hi = upper // multiple
+            if lo > hi:
+                raise CandidateIncompatibility(
+                    "profile quantity interval cannot fit source multiples and equipment capacity"
+                )
+            quantity = (lo + stream.derive("declared-quantity").randbelow(hi - lo + 1)) * multiple
+        donor = CargoObservation(
+            document_id="registry-form:" + selected.id,
+            goods={
+                "numberAndTypeOfPackages": [
+                    {"packageQuantity": 1, "typeCategory": selected.package_category}
+                ],
+                "grossWeight": {"value": float(selected.unit_gross_kg), "unit": "kilogram"},
+                "netWeight": {"value": float(selected.unit_net_kg), "unit": "kilogram"},
+                "volume": {"value": float(selected.unit_volume_m3), "unit": "cubic_metre"},
+            },
+            containers=({"sizeCategory": size, "typeCategory": kind},),
+            family="ambient",
+            hs6=tuple(selected_codes),
+            package_category=selected.package_category,
+            quantity=1,
+        )
+        cargo, receipt = self._cargo(
+            source,
+            donor,
+            cap,
+            identities,
+            None,
+            stream,
+            quantity_override=quantity,
+            inventory_pairs=inventory_pairs,
+        )
+        # This is not an invented train donor: the compiler receives the exact
+        # selected profile and per-declared-unit ledger as its alternative authority.
+        receipt.pop("donorDocumentId")
+        for fact in receipt.get("privatePhysicalMeasures", {}).values():
+            fact["basis"] = "reviewed_registry_form_per_declared_unit_measure"
+        receipt["goodsSamplingBasis"] = "reviewed_registry_form_and_independent_equipment"
+        receipt["registryLoadProfile"] = selected.model_dump(mode="json")
+        receipt["explicitPhysicalFacts"] = {
+            measure: {"value": str(unit * quantity), "unit": unit_name}
+            for measure, unit, unit_name in (
+                ("grossWeight", selected.unit_gross_kg, "kilogram"),
+                ("netWeight", selected.unit_net_kg, "kilogram"),
+                ("volume", selected.unit_volume_m3, "cubic_metre"),
+            )
+        }
+        receipt["loadScale"] = None
+        if inventory_receipt is not None:
+            receipt["equipmentInventory"] = inventory_receipt
+            receipt["goodsSamplingBasis"] = "reviewed_registry_form_and_identifier_owned_inventory"
+        return identities, cargo, receipt
+
     def sample(
         self,
         source_row: Mapping[str, Any],
@@ -1577,30 +2149,73 @@ class ScenarioCatalog:
             != canonical_json_bytes(self.train[sid]["target"])
         ):
             raise ValueError("scenario source is not the exact current train-fit label")
+        inventory_contract = None
+        inventory_mode = None
+        inventory_source_target_sha256 = None
+        policy = self.config.equipment_inventory
+        if policy is not None and sid in policy.source_ids:
+            if capabilities.physical_profile != "registry_form":
+                raise ValueError(
+                    "configured inventory source requires the ambient registry-form domain"
+                )
+            if sid not in self.equipment_inventory:
+                raise ValueError("configured inventory source has no bound ownership certificate")
+            inventory_contract = self.equipment_inventory[sid]
+            inventory_source_target_sha256 = sha256_bytes(
+                canonical_json_bytes(source_row["target"])
+            )
+            if (
+                inventory_contract.source_sha256
+                != sha256_bytes(source_row["joinedRawText"].encode())
+                or inventory_contract.source_target_sha256 != inventory_source_target_sha256
+            ):
+                raise ValueError(
+                    "inventory source OCR or labels differ from its bound ownership certificate"
+                )
         source = _observation(source_row, capabilities.family)
         if source is None:
             raise ValueError(
                 "current pilot requires one goods group and one positive typed package row"
             )
         stream = DeterministicStream(seed, "curated-v7-scenarios-v1", f"{sid}:{variant}")
-        origin, destination, parties, replacements, geography_receipt = self._geography(
+        if inventory_contract is not None:
+            inventory_mode = policy.mode(variant, stream.derive("inventory-mode"))
+        origin, destination, parties, geography_replacements, geography_receipt = self._geography(
             source_row, capabilities, stream.derive("geography")
         )
-        donors = self._donors(source, capabilities)
-        if not donors:
+        registry_form = capabilities.physical_profile == "registry_form"
+        donors = () if registry_form else self._donors(source, capabilities)
+        if not registry_form and not donors:
             raise ValueError(f"no complete train-only cargo donors for {sid}/{capabilities.family}")
         failures: dict[str, int] = defaultdict(int)
         for attempt in range(self.config.maximum_candidates):
             draw = stream.derive(f"cargo-{attempt}")
-            donor = _pick(donors, draw.derive("donor"))
+            donor = None if registry_form else _pick(donors, draw.derive("donor"))
             try:
-                identities, dg_record = self._identities(source, donor, capabilities, draw)
-                cargo, receipt = self._cargo(
-                    source, donor, capabilities, identities, dg_record, draw
-                )
+                if registry_form:
+                    if inventory_contract is None:
+                        identities, cargo, receipt = self._registry_cargo(
+                            source, capabilities, draw
+                        )
+                    else:
+                        identities, cargo, receipt = self._registry_cargo(
+                            source,
+                            capabilities,
+                            draw,
+                            inventory_contract=inventory_contract,
+                            inventory_mode=inventory_mode,
+                        )
+                else:
+                    identities, dg_record = self._identities(source, donor, capabilities, draw)
+                    cargo, receipt = self._cargo(
+                        source, donor, capabilities, identities, dg_record, draw
+                    )
             except CandidateIncompatibility as error:
                 failures[str(error)] += 1
                 continue
+            # Rejected cargo is never an input to the next attempt. In particular,
+            # a retry back to a source value must remove the rejected replacement.
+            replacements = dict(geography_replacements)
             for index, goods in enumerate(cargo["goodsItemDetails"]):
                 for key in goods.get("origin", {}):
                     goods["origin"][key] = replacements[
@@ -1630,7 +2245,8 @@ class ScenarioCatalog:
                     "method": "registry_goods_train_physical_support_geography_v2",
                     "fitSha256": self.fit_sha256,
                     "registryConfigSha256": self.registry_sha256,
-                    "sourceTargetSha256": sha256_bytes(canonical_json_bytes(source_row["target"])),
+                    "sourceTargetSha256": inventory_source_target_sha256
+                    or sha256_bytes(canonical_json_bytes(source_row["target"])),
                     "seed": seed,
                     "variant": variant,
                     "capabilities": capabilities.model_dump(mode="json"),
@@ -1639,7 +2255,8 @@ class ScenarioCatalog:
                     "rejectedCandidates": dict(failures),
                     "observedHSOverride": (
                         self.config.observed_hs_overrides[donor.document_id].model_dump(mode="json")
-                        if donor.document_id in self.config.observed_hs_overrides
+                        if donor is not None
+                        and donor.document_id in self.config.observed_hs_overrides
                         else None
                     ),
                     **receipt,
