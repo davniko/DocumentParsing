@@ -2026,7 +2026,7 @@
       },
       "files": {
         "alignment.json": "5dee56b370c810424b16928d5a73cee3d638cbcaa43b3e2794f230b9ebbad12a",
-        "contract.json": "741f214c7a8aa78bacb1395e9bed87c76aa7c727b5f60b8dc9beb52399e0bea2",
+        "contract.json": "f123ab7e89fda86bcecca46cd01da3b85a553424988f07d6f559d00c6625e314",
         "source-positioned.txt": "2728051a7f0870c5c700f6667fa3a20cef43f673170e573d7b0b78707919fbb4",
         "source.txt": "b63d6982cc5562d3436f9a9d8598e38552faf8f39ec3b8fcb8d5dea4e83cd049",
         "target.json": "7fe065b965a0d494c12e5a5695c5e27008a3e40522e56a8ca3e01fd1842d1fba",
@@ -3903,7 +3903,7 @@
       },
       "files": {
         "alignment.json": "8db504590a94a22fe1c0dacec66f2ef62258f8473631ef576d91cefe3646b47f",
-        "contract.json": "6cc12e5fc72ad0c24d1f956376ddc418a828d094740ddf1ab08dc23ffc7ad5a9",
+        "contract.json": "46d9a588ade7d4f2e4956aaa0adbdd6525c0953348df3929b9606771edd4f472",
         "source-positioned.txt": "a4a80d4ca1c62612f13e9ca302c88d154e050bf8b96bd5ca38790f41c804a78f",
         "source.txt": "ccd7e2afb587a98506465208b76d19f046651acbfa1bddd28dd9e8b193f007b0",
         "target.json": "49831e19110a047928856fa6c8a9070b8a06217ad3674cd06c0f18aa0dc11ce6",
@@ -4412,7 +4412,7 @@
       },
       "files": {
         "alignment.json": "dba2c2fd1039827ff91bcd638d4a622394395a66cefefd6c9c8b444668a4ce3a",
-        "contract.json": "1fb62dca0aca083c9691804e272e2a4b815b9068fdbe668df8decaf6c9981cdd",
+        "contract.json": "778b522069e85873a32c5ec9a14567143f2b029735c144e6859f08c822fd9e2a",
         "source-positioned.txt": "620e4c46346eebf07eaf105fbc44caabce43cd83e36669258a382aa801149caf",
         "source.txt": "4af3a816410f1b0f375b65f460d3d316c79a4e8df2c9e6ef594c170f8b18fcbd",
         "target.json": "25d42383f851273875b84440f2cba22f9e359d66e76eab1d11ac34ea231524d9",
@@ -5946,7 +5946,7 @@
       },
       "files": {
         "alignment.json": "527e2d6cfa63622cf5840639fb695c909cadfa3cdcba8b2641eed020313f78a5",
-        "contract.json": "8c62c9a8a333329e48f3d65cac603e8dc8a778e1469c57bb0f861cdeb608f243",
+        "contract.json": "ea94e2952b184cc5418834af4aeb9568bdf09fc9d933c56541d044096cfd478c",
         "source-positioned.txt": "0f51ef8b3914b0d82a0bedd861cb5f4a034b11150e1000eb3a9f54f519c42cd1",
         "source.txt": "bda8749e69fb6c79bbd2ea0dd8486e36c0532e99aa141dd353ccc9b4bb56cf42",
         "target.json": "0ae4815ceda2de20b11c7ad3a2abc8a0f7f70af7208a0d5a47b1497fa79e8982",
@@ -9541,7 +9541,7 @@
       },
       "files": {
         "alignment.json": "81cba9952b32a55ec9ac44bd2448c21193e1a7d287abbe30e6a053ff79b40039",
-        "contract.json": "27ec0e319c7f40ff7c557d26811fe3db66317f6f1ec9303d8a256c8634d12966",
+        "contract.json": "f85daf79dceb559e5022888d8fe2f1b2e71382cd6479dfdfb9520e6134bf1953",
         "source-positioned.txt": "77fdc4b6fa2a577c2c82094f9462f7df61b7a103dda251a232df9f71c9b30741",
         "source.txt": "6c35a2edcd3230954bcbedb5b0cb6a63c0dcbf5749bb524f6c9dd6f2d323c47e",
         "target.json": "1316aba4dd4a7faf10ebcf542d290ab73423ff84d8d989438e4832a9c7ff0828",
@@ -10161,7 +10161,7 @@
       },
       "files": {
         "alignment.json": "ac545f982c4827d40b0b5cb369455e04ebf2b02c8369872f489136babf58e058",
-        "contract.json": "c5e694e725bc396116487164f75528038f459974b4d8bdc8c744e918b1b598c6",
+        "contract.json": "9116d2e91b1129a00c730f2a2cb94ebe404c8f1910a1bb78547408714e1ce6f4",
         "source-positioned.txt": "fe6502be76d9da405ffaf12ed14183f4b1b936d5a838b1c254421fcde8b6aa96",
         "source.txt": "ffaa3968d13ee24aca7ef44f759e6b559a4c8446671680b0a4273f84e927414a",
         "target.json": "8127c23a63a946a729bd598d6dd713cc0563f1bf0abd8afc72852c615ed11870",
@@ -10383,7 +10383,7 @@
       },
       "files": {
         "alignment.json": "11d33fa1455c7da8fd0dfa0effb4073697480bfbb6774eb66b434cf5513b8f2a",
-        "contract.json": "1fde6db029423a197e7e0120620c29238a52c05910db958324d37e5fd4fdd4a5",
+        "contract.json": "fb9d1b8383358daeb12cbbdf489334813a89df5a666a652da894b9bb26b74029",
         "source-positioned.txt": "4c4d66cec29b3f7a306eacee9da81ab02731bd94391e9b24a11761ebfba3bdf2",
         "source.txt": "e804d2a389306dee3a3a645905fc9c1c275bdc7082e14b15aea04fcf65bcbcf4",
         "target.json": "38c4c281ce3e790c79d57aa869d21f08e9f1bcf1b1ef8e935c8751386a80b30e",
@@ -11003,7 +11003,7 @@
       },
       "files": {
         "alignment.json": "f5fd50f114fc93b5483e4a4c189f457f772c4104ccdb32fea287e8bc5f753788",
-        "contract.json": "7e9f624f0bd490c40f4e57d86e75e2d15e4ac640bc4e2a915ec14614f952eb22",
+        "contract.json": "6a7bc9fc348df24c63ca815943b605b53ce7b1bd1ea5355e2d2019a5deb3ba3c",
         "source-positioned.txt": "d170a42bb423c68db5c32c2f7ffaefed5ff9821c28e0b98b88dad9a5c1a6d10e",
         "source.txt": "dc073748c007dd89cd63248329d2cd5fc936ac2bc591eb6f5ddd9008cc5f52f6",
         "target.json": "1e1b68d9e28aaa0ad4fa375921948515534d58f1d218fb7beb6cf4c59794e164",
@@ -11600,6 +11600,76 @@
       "reviewedSourceSpan": "EGYPT EL SHARKIA MINIA ELKAMH\nSALAH SALEM STREET,EGYPT",
       "report": "docs/analysis/synthesis-uae2500-replacement-20261012/proposals/84b-postal-owner-applied-validation.json",
       "nativePaidCallsUnchanged": true
+    },
+    {
+      "date": "2026-10-13",
+      "report": "docs/kie-synthesis-party-masterbill-repair-2026-10-13.md",
+      "scope": "Private delivery-agent identity certification and one shared master-B/L/booking identifier owner. Source OCR and real targets unchanged.",
+      "changes": [
+        {
+          "sourceDocumentId": "doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98",
+          "file": "contract.json",
+          "before": "6cc12e5fc72ad0c24d1f956376ddc418a828d094740ddf1ab08dc23ffc7ad5a9",
+          "after": "46d9a588ade7d4f2e4956aaa0adbdd6525c0953348df3929b9606771edd4f472"
+        },
+        {
+          "sourceDocumentId": "doc_e827ecdd1cb1a45de52691113a4fc9d9a5e54ca9c4e60f16e35dbfca8a599671",
+          "file": "contract.json",
+          "before": "1fde6db029423a197e7e0120620c29238a52c05910db958324d37e5fd4fdd4a5",
+          "after": "fb9d1b8383358daeb12cbbdf489334813a89df5a666a652da894b9bb26b74029"
+        },
+        {
+          "file": "ownership.yaml",
+          "before": "3e4841ea91b22ae0287c32f0c3192e1c0353a23ba33b9ba79b13f008c93258c4",
+          "after": "c42c54f0c44278a450aaf53f7309407999f1e34b9e520a3accebb8ccaab955ed"
+        }
+      ],
+      "status": "validated",
+      "registryValidation": {
+        "path": "docs/analysis/synthesis-party-masterbill-repair-20261013/registry-validation.json",
+        "sha256": "31383afa03866cba5a06d24d09c76996a1ce84f5c1d3a4883931b8097039d383"
+      },
+      "freshSynthesisValidation": {
+        "path": "docs/analysis/synthesis-party-masterbill-repair-20261013/pilot-certification.json",
+        "sha256": "ace16d443c151a47efadf3ae3e79dd0e0515ac92befc6d97b8f82bb33444168a"
+      }
+    },
+    {
+      "date": "2026-10-13",
+      "report": "docs/kie-synthesis-secondary-organizations-repair-2026-10-13.md",
+      "scope": "Primary shipper backfill, repeated invoice/Marks aliases and source-only independent commercial organizations",
+      "sources": [
+        "doc_e5a6a40300b6e50a58dd6db5e6c1c9da7f58d71b15ab3dc683561b711eb99325",
+        "doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f",
+        "doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2",
+        "doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f",
+        "doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82",
+        "doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc",
+        "doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee",
+        "doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a",
+        "doc_5d7bd82a1ebc162eea4b8c191c88bf1658e489b019a53519fae7843ac57bf9a9",
+        "doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d"
+      ],
+      "sourceOCRAndRealGoldUnchanged": true,
+      "status": "validated",
+      "additionalAliases": [
+        "freight payer WESTON reuses represented B, not primary A",
+        "VARDHMAN Marks reuses generated shipper"
+      ],
+      "validations": {
+        "dataset-validation.json": {
+          "path": "docs/analysis/synthesis-secondary-organizations-repair-20261013/dataset-validation.json",
+          "sha256": "c5990141347b0cb669e4ccd86963693eb254503c0d8d203d5d8d881b0ae71767"
+        },
+        "registry-validation.json": {
+          "path": "docs/analysis/synthesis-secondary-organizations-repair-20261013/registry-validation.json",
+          "sha256": "96ecd47b7c4c100687e1ae21c9d1c4b81650d1f54f8f417247a7ddb53a95c844"
+        },
+        "pilot-certification.json": {
+          "path": "docs/analysis/synthesis-secondary-organizations-repair-20261013/pilot-certification.json",
+          "sha256": "6bd75e71fe9550f452f3e95a6e25b84d46846073964681159c5faeb6f13420fb"
+        }
+      }
     }
   ],
   "packageAccountingRepair": {
@@ -11767,8 +11837,8 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "495832476195bc253cd56bcb79d3557dc9022439b9b256da50049b714193c42c",
-    "ownership.yaml": "3e4841ea91b22ae0287c32f0c3192e1c0353a23ba33b9ba79b13f008c93258c4",
+    "auxiliary.yaml": "29ef4fbeda1a958ce4b3d9fcd4dc97446ccbd7a6f0b70bdd05333efab2d6ece4",
+    "ownership.yaml": "411794de140c3d7c9a76707d3339fcf7b349592ecc14953a0cb950e6df1b1530",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513"
   },

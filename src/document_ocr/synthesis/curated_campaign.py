@@ -93,6 +93,7 @@ from document_ocr.synthesis.curated_scenarios import (
     FilePin,
     GoodsIdentity,
     ScenarioCatalog,
+    ScenarioLocation,
     ScenarioSamplingConfig,
     ShipmentScenario,
     SourceCapabilities,
@@ -171,12 +172,19 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
             key not in variables
             or variables[key].kind not in {"name", "postal"}
             or not isinstance(declaration, dict)
-            or set(declaration) != {"context_party", "relationship"}
+            or not {"context_party", "relationship"} <= declaration.keys()
+            or set(declaration) - {"context_party", "relationship", "location"}
             or declaration["relationship"]
-            not in {"on_behalf", "care_of", "account_of", "agent_for"}
+            not in {"on_behalf", "care_of", "account_of", "agent_for", "invoice_party", "exporter"}
         ):
             raise ValueError("related actor requires a known lexical key and explicit relationship")
         role = declaration["context_party"]
+        if "location" in declaration:
+            location = ScenarioLocation.model_validate(declaration["location"])
+            if not all(value.strip() for value in location.model_dump().values()) or not re.search(
+                r"(?<!\w)" + re.escape(location.country) + r"(?!\w)", blueprint.source, re.I
+            ):
+                raise ValueError("related actor location requires printed source country evidence")
         if (
             not isinstance(role, str)
             or party_path(role + ".name") != role
@@ -322,6 +330,14 @@ def apply_replacements(target: dict, replacements: dict) -> dict:
     return result
 
 
+_DOCUMENT_IDENTIFIER_SUFFIXES = (
+    ".billOfLadingNumber",
+    ".masterBillOfLadingNumber",
+    ".originalBillOfLadingNumber",
+    ".voyageNumber",
+)
+
+
 def public_identity_updates(
     target: dict, scenario: ShipmentScenario, stream: DeterministicStream
 ) -> dict:
@@ -342,7 +358,7 @@ def public_identity_updates(
                     owner_and_category=old[:4], stream=stream.derive(old), excluded={old}
                 )
             value = identities[identity]
-        elif path.endswith((".billOfLadingNumber", ".voyageNumber")) or ".sealNumbers[" in path:
+        elif path.endswith(_DOCUMENT_IDENTIFIER_SUFFIXES) or ".sealNumbers[" in path:
             identity = ("identifier", old)
             if identity not in identities:
                 identities[identity] = generate_from_surface_pattern(
@@ -470,7 +486,11 @@ def wording_request(
         roles = sorted({p for binding in owners if (p := party_path(binding.path)) is not None})
         if variable.key in related_actors:
             actor = related_actors[variable.key]
-            geo = scenario.party_localities[actor["context_party"]]
+            geo = (
+                ScenarioLocation.model_validate(actor["location"])
+                if "location" in actor
+                else scenario.party_localities[actor["context_party"]]
+            )
             role = f"{actor['context_party']} related {actor['relationship']} {variable.kind}"
             requirement = (
                 f"Separate fictional actor in the printed {actor['relationship']} relationship "
@@ -710,7 +730,7 @@ def host_variable_values(
         if path in after
         and old != after[path]
         and (
-            path.endswith((".equipmentIdentifier", ".billOfLadingNumber", ".voyageNumber"))
+            path.endswith((*_DOCUMENT_IDENTIFIER_SUFFIXES, ".equipmentIdentifier"))
             or ".sealNumbers[" in path
         )
     }
@@ -1324,6 +1344,16 @@ class Campaign:
             blueprint = rebase_equipment_inventory_headers(blueprint)
         validate_lexical_owners(blueprint)
         certified_identity_kinds(blueprint)
+        for actor in related_actor_contexts(blueprint).values():
+            if "location" in actor:
+                location = ScenarioLocation.model_validate(actor["location"])
+                registry = (
+                    self.catalog.localities
+                    if location.registry == "geonames"
+                    else self.catalog.ports
+                )
+                if location not in registry.get(location.country_code, ()):
+                    raise ValueError("related actor location differs from its pinned registry")
         validate_description_regions(blueprint.description_blocks, blueprint.regions)
         cap = self.capabilities[sid]
         for group in cap.party_locality_groups:
@@ -1412,7 +1442,13 @@ class Campaign:
                     f"sampled target fields lack source render ownership: {sorted(missing)}"
                 )
             surfaces = combine_surfaces(
-                physical.surface_values, ownership_surfaces(blueprint, physical.target, scenario)
+                physical.surface_values,
+                ownership_surfaces(
+                    blueprint,
+                    physical.target,
+                    scenario,
+                    lexical_values={v.key: v.value for v in blueprint.contract.variables},
+                ),
             )
             auxiliary_surfaces(
                 blueprint,
@@ -1847,7 +1883,8 @@ class Campaign:
                 raise ValueError("company contacts differ from checked model output")
             target = apply_contacts(target, checked, parties)
         surfaces = combine_surfaces(
-            physical.surface_values, ownership_surfaces(blueprint, target, scenario)
+            physical.surface_values,
+            ownership_surfaces(blueprint, target, scenario, lexical_values=wording),
         )
         surfaces, auxiliary_receipt = auxiliary_surfaces(
             blueprint, scenario, target, stream, existing=surfaces, vessels=self.vessels

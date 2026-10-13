@@ -595,7 +595,11 @@ def _contact_name_surfaces(blueprint: SamplingBlueprint, target: dict) -> dict[s
 
 
 def ownership_surfaces(
-    blueprint: SamplingBlueprint, target: dict, scenario: Any
+    blueprint: SamplingBlueprint,
+    target: dict,
+    scenario: Any,
+    *,
+    lexical_values: dict[str, str] | None = None,
 ) -> dict[str, str | list[str]]:
     """Render explicitly declared source-bound dependencies and unit aliases."""
     leaves = flat(target)
@@ -606,7 +610,20 @@ def ownership_surfaces(
         {item["key"]: [""] * item["count"] for item in blueprint.ownership_data.get("omit", [])}
     )
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
-        if "contained_quantity" in recipe:
+        if "lexical_key" in recipe:
+            lexical_key = recipe["lexical_key"]
+            variables = {variable.key: variable for variable in blueprint.contract.variables}
+            if (
+                set(recipe) != {"lexical_key"}
+                or lexical_key not in variables
+                or variables[lexical_key].kind != "name"
+                or lexical_values is None
+                or not isinstance(lexical_values.get(lexical_key), str)
+                or not lexical_values[lexical_key].strip()
+            ):
+                raise ValueError(f"name alias needs its explicit generated lexical owner: {key}")
+            result[key] = lexical_values[lexical_key]
+        elif "contained_quantity" in recipe:
             result[key] = contained_quantity_surfaces(
                 blueprint, target, key, recipe["contained_quantity"]
             )

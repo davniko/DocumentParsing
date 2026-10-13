@@ -2,6 +2,28 @@
 
 This is the reusable **360-source catalog**, not a generation-run directory.
 
+## Secondary organization maintenance — 2026-10-13
+
+Repeated primary-party invoice/Marks names reuse the generated identity.
+Independent represented, exporter and invoice companies have distinct lexical
+owners; source-only actors do not create extraction parties. Abbreviated freight
+payers can explicitly reuse a generated related-company `lexical_key`.
+Exporter geography may be independently pinned and verified against its registry.
+All ten affected source families produced two fresh descendants with rendered,
+target and coordinate validation. All 360 source contracts replay. See the
+[organization repair report](../../../docs/kie-synthesis-secondary-organizations-repair-2026-10-13.md).
+
+## Delivery-agent identity and master-B/L maintenance — 2026-10-13
+
+Party generation now rejects copying a source identity with only a changed
+parenthetical office/location qualifier. One delivery-agent owner is explicitly
+certified as an organization. The master-B/L source binds its booking and
+second-page master references to one host-sampled, format-preserving identifier.
+All 360 source contracts replay; both changed templates produced two fresh
+descendants passing rendered-text review, publication and coordinate validation.
+Source OCR and real gold remain unchanged. See the
+[repair and validation report](../../../docs/kie-synthesis-party-masterbill-repair-2026-10-13.md).
+
 ## Mixed ambient equipment admission — 2026-10-12
 
 The catalog now records 85 sources certified for **both uniform and mixed GP

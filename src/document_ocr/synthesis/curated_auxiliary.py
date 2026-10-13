@@ -3,7 +3,9 @@
 Customs references in the pilot are fictional, generic trade references, not
 claims to have generated legally valid national registration numbers. Audited
 caption spans remove the original national-system claim when geography varies.
-Carrier boilerplate and unrelated third-party commercial actors remain intact.
+Public carrier boilerplate remains intact. Separately named private commercial
+actors require explicit generated identity ownership; they are never inferred
+to be the primary shipper merely because they appear in its continuation.
 """
 
 from __future__ import annotations
@@ -81,7 +83,13 @@ def _validate_recipe(recipe: dict) -> None:
         if not isinstance(value, str) or re.search(r"\\[nrt]|\r", value):
             raise ValueError(f"auxiliary {key} requires plain text with real LF line breaks")
     actions = {
-        "text", "target", "identifier", "date", "phone", "transport_leg", "party_location"
+        "text",
+        "target",
+        "identifier",
+        "date",
+        "phone",
+        "transport_leg",
+        "party_location",
     } & recipe.keys()
     if len(actions) != 1:
         raise ValueError("auxiliary recipe must have exactly one rendering action")
@@ -406,8 +414,13 @@ def auxiliary_surfaces(
         for transform in transformations:
             # Transform once per occurrence, even if compile saw repeats.
             replacement = _render_recipe(
-                {"text": transform["text"]}, scenario, target, stream,
-                transform["source"], shifts, vessels,
+                {"text": transform["text"]},
+                scenario,
+                target,
+                stream,
+                transform["source"],
+                shifts,
+                vessels,
             )
             rendered = [text.replace(transform["source"], replacement) for text in rendered]
         if any(not v.strip() for v in rendered):

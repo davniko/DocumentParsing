@@ -1324,8 +1324,6 @@ sources:
         identifier: registration
       agent:identifier:foreign_exporter_country_code:
         text: '{origin_code}'
-      agent:party:freight_payer:short:
-        target: documentPatch.parties.shipper.name
       agent:identifier:ncm:
         target: documentPatch.goodsItemDetails[0].hsCodes[0]
       agent:identifier:ruc:
@@ -4000,7 +3998,10 @@ sources:
         phone: documentPatch.parties.consignee
       agent:party:notify:0:fax:
         phone: documentPatch.parties.notifyParties[0]
-  doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2: {}
+  doc_0bdef3cad74cc86e92ff7fa81ca5fe4819e1e056d8b45afdf63732af15c85fc2:
+    bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.consignee.name
   doc_e3f9ccd4f59c13aa210fac82f8fc57e0f130a51191b2e861e90f72998524e590: {}
   doc_88deddadf982fd5c5920c4f64487fc06a0db25f6e8a3e7cd76efd0168960a10b:
     bindings:

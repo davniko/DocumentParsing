@@ -12,6 +12,7 @@ import yaml
 from pydantic import ValidationError
 
 from document_ocr.synthesis import curated_campaign as campaign_module
+from document_ocr.synthesis import curated_wording as wording_module
 from document_ocr.synthesis.curated import digest, flat
 from document_ocr.synthesis.curated_auxiliary import load_auxiliary_contract
 from document_ocr.synthesis.curated_campaign import Campaign
@@ -36,6 +37,7 @@ OMISSIONS = {
 }
 CURRENT_SYSTEM = campaign_module.WORDING_PROMPT
 CURRENT_REQUEST = campaign_module.wording_request
+CURRENT_FIELD_REQUIREMENT = wording_module.wording_field_requirement
 
 
 @pytest.fixture(scope="module")
@@ -97,9 +99,18 @@ def campaign():
             ),
         )
 
+    def historical_field_requirement(field):
+        # Match the archived native schema as well as its system/user prompts.
+        # This is read-only historical replay, never approval under new rules.
+        requirement = field.requirement
+        if field.identity_kind is not None:
+            requirement += " " + wording_module.IDENTITY_KIND_REQUIREMENTS[field.identity_kind]
+        return requirement
+
     with (
         patch.object(campaign_module, "WORDING_PROMPT", historical_prompt),
         patch.object(campaign_module, "wording_request", historical_request),
+        patch.object(wording_module, "wording_field_requirement", historical_field_requirement),
     ):
         yield instance
 
@@ -132,6 +143,7 @@ def test_current_instructions_reject_historical_wording_cache(campaign):
     with (
         patch.object(campaign_module, "WORDING_PROMPT", CURRENT_SYSTEM),
         patch.object(campaign_module, "wording_request", CURRENT_REQUEST),
+        patch.object(wording_module, "wording_field_requirement", CURRENT_FIELD_REQUIREMENT),
         pytest.raises(ValueError, match="wording request changed"),
     ):
         campaign.render(sid, 1, persist=False)

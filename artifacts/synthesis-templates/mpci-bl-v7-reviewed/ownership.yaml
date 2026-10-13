@@ -66,6 +66,12 @@ sources:
 
             Spare parts for equipment'
           occurrence: 1
+    related_actors:
+      secondary_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    identity_kinds:
+      secondary_company: organization
   doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -272,6 +278,8 @@ sources:
         date_path: documentPatch.shippedOnBoardDate
         format: '%d-%b-%Y'
         case: upper
+      agent:shipment:freight_payer:
+        lexical_key: ob_related_name_1
     bindings:
       agent:shipment:freight_payable_place:
         paths:
@@ -296,12 +304,10 @@ sources:
           occurrence: 2
     lexical: []
     retire:
-      anchor:documentPatch.parties.shipper.name: Primary and represented identities
-        have separate exact lexical owners; the old compound/multi-actor target binding
-        is retired.
-      agent:shipment:weston_importer_address: The old compound care-of/company/postal
-        span is replaced by separately generated exact name and postal components,
-        preserving static C/O framing.
+      anchor:documentPatch.parties.shipper.name: Primary and represented identities have separate exact
+        lexical owners; the old compound/multi-actor target binding is retired.
+      agent:shipment:weston_importer_address: The old compound care-of/company/postal span is replaced by
+        separately generated exact name and postal components, preserving static C/O framing.
     related_actors:
       ob_related_name_1:
         context_party: documentPatch.parties.shipper
@@ -312,6 +318,9 @@ sources:
       ob_related_postal:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
+    identity_kinds:
+      ob_related_name_1: organization
+      ob_careof_name: organization
   doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4:
     surfaces:
       anchor:documentPatch.issueDate:
@@ -1738,6 +1747,8 @@ sources:
     surfaces:
       anchor:documentPatch.containers[0].sealNumbers[1]:
         expression: '{documentPatch.containerInformation[0].sealNumbers[1]}'
+      agent:party:freight_payer:short:
+        lexical_key: ob_related_name_1
     description_blocks:
       source_sha256: 0d08e624b43a386ebb1c6729958b6d0164ef9a8d6de1e486bd565fb03acd6129
       fields:
@@ -1746,12 +1757,10 @@ sources:
         - text: FROZEN OX OFFALS LIVER (HALAL)
           occurrence: 1
     retire:
-      anchor:documentPatch.parties.shipper.name: Primary and represented identities
-        have separate exact lexical owners; the old compound/multi-actor target binding
-        is retired.
-      agent:party:continuation_shipper:address: The old compound care-of/company/postal
-        span is replaced by separately generated exact name and postal components,
-        preserving static C/O framing.
+      anchor:documentPatch.parties.shipper.name: Primary and represented identities have separate exact
+        lexical owners; the old compound/multi-actor target binding is retired.
+      agent:party:continuation_shipper:address: The old compound care-of/company/postal span is replaced
+        by separately generated exact name and postal components, preserving static C/O framing.
     related_actors:
       ob_related_name_1:
         context_party: documentPatch.parties.shipper
@@ -1762,6 +1771,8 @@ sources:
       ob_related_postal:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
+    identity_kinds:
+      ob_careof_name: organization
   doc_9db60987b7e27af52761eef560ad2f1c8c5f73fd0c0e51c597881794eee12918:
     bindings:
       anchor:documentPatch.forwardingAndExportReferences[0]:
@@ -4092,6 +4103,8 @@ sources:
             SPARE PARTS OF CIRCUIT BREAKER'
           occurrence: 1
   doc_53350e31d8881f3d2986981eea94e602e9e4c52daa615dcb2666170524ab5e98:
+    identity_kinds:
+      v002: organization
     bindings:
       agent:contact:local_agent:email:0:
         paths:
@@ -6500,9 +6513,19 @@ sources:
     add: []
     surfaces: {}
     retire:
-      anchor:documentPatch.parties.shipper.name: Primary and represented identities
-        have separate exact lexical owners; the old compound/multi-actor target binding
-        is retired.
+      anchor:documentPatch.parties.shipper.name: Primary and represented identities have separate exact
+        lexical owners; the old compound/multi-actor target binding is retired.
+    identity_kinds:
+      ob_primary: organization
+      invoice_origin: organization
+      invoice_destination: organization
+    related_actors:
+      invoice_origin:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+      invoice_destination:
+        context_party: documentPatch.parties.consignee
+        relationship: invoice_party
   doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7:
     lexical: []
     description_blocks:
@@ -6972,6 +6995,18 @@ sources:
         paths:
         - documentPatch.goodsItemDetails[0].volume.value
     add: []
+    related_actors:
+      secondary_company:
+        context_party: documentPatch.parties.shipper
+        relationship: exporter
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+    identity_kinds:
+      secondary_company: organization
   doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c:
     lexical: []
     description_blocks:
@@ -7778,10 +7813,9 @@ sources:
     - key: audit_forwardingagent_addressline_0
       kind: postal
       value: E-382, H.B. COLONY, SATLAPUR,
-      meaning: Forwarding-agent address starts immediately after its closing name
-        parenthesis. FW> explicitly links the attachment continuation. Company, FW
-        marker and other parties remain outside. Generate this component jointly with
-        other components of this same party.
+      meaning: Forwarding-agent address starts immediately after its closing name parenthesis. FW> explicitly
+        links the attachment continuation. Company, FW marker and other parties remain outside. Generate
+        this component jointly with other components of this same party.
       required_literals: []
       occurrences:
       - text: 'E-382,
@@ -7792,10 +7826,9 @@ sources:
     - key: audit_forwardingagent_addressline_1
       kind: postal
       value: MANDIDEEP-462046, DIST-RAISEN M.P., INDIA
-      meaning: Forwarding-agent address starts immediately after its closing name
-        parenthesis. FW> explicitly links the attachment continuation. Company, FW
-        marker and other parties remain outside. Generate this component jointly with
-        other components of this same party.
+      meaning: Forwarding-agent address starts immediately after its closing name parenthesis. FW> explicitly
+        links the attachment continuation. Company, FW marker and other parties remain outside. Generate
+        this component jointly with other components of this same party.
       required_literals: []
       occurrences:
       - text: 'MANDIDEEP-462046,
@@ -7807,7 +7840,28 @@ sources:
         presentation: text
     surfaces:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
-        expression: VARDHMAN MADE IN {documentPatch.goodsItemDetails[0].origin.name}
+        expression: '{documentPatch.parties.shipper.name} MADE IN {documentPatch.goodsItemDetails[0].origin.name}'
+    related_actors:
+      secondary_company:
+        context_party: documentPatch.parties.shipper
+        relationship: exporter
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+      secondary_postal:
+        context_party: documentPatch.parties.shipper
+        relationship: exporter
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+    identity_kinds:
+      secondary_company: organization
   doc_5718f96fce89f4f7ec8616548702042eba867fd4bb61f7b90a301e5e398f6a95:
     bindings:
       agent:contact:shipper:email:
@@ -9127,6 +9181,27 @@ sources:
           occurrence: 1
     lexical: []
     add: []
+    related_actors:
+      secondary_company:
+        context_party: documentPatch.parties.shipper
+        relationship: exporter
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+      secondary_postal:
+        context_party: documentPatch.parties.shipper
+        relationship: exporter
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+    identity_kinds:
+      secondary_company: organization
   doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed:
     description_blocks:
       source_sha256: 2074d344535a4f61690d387b69b90c97455f537f853ae25c9a59ed25db7f59c5
@@ -9201,12 +9276,11 @@ sources:
         count: 4
         index: 3
     retire:
-      agent:acid_reference_country: Retire only the country token owner so the explicitly
-        Egyptian customs caption can be replaced as one audited, geography-neutral
-        caption; the private reference value is preserved.
-      anchor:documentPatch.parties.shipper.name: Primary and represented identities
-        have separate exact lexical owners; the old compound/multi-actor target binding
-        is retired.
+      agent:acid_reference_country: Retire only the country token owner so the explicitly Egyptian customs
+        caption can be replaced as one audited, geography-neutral caption; the private reference value is
+        preserved.
+      anchor:documentPatch.parties.shipper.name: Primary and represented identities have separate exact
+        lexical owners; the old compound/multi-actor target binding is retired.
     related_actors:
       ob_related_name_1:
         context_party: documentPatch.parties.shipper
@@ -9214,6 +9288,8 @@ sources:
       ob_related_postal:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
+    identity_kinds:
+      ob_related_name_1: organization
   doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d:
     description_blocks:
       source_sha256: 98081f1d453dd01a50ece484bed919d2bfbd5833679f3c061bc7ff84d7494b2b

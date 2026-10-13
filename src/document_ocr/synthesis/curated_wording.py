@@ -231,6 +231,7 @@ together, appropriate to its supplied locality and country, with roughly the exa
 component hierarchy and line span. Examples show structure, not facts to copy. Punctuation
 may change. A locality/country belongs once in the complete address, in its requested region.
 Keep postal text separate from company names, contacts, tax IDs and headings.
+Changing only an office/location qualifier does not create a new company identity.
 When description fields are requested, write natural commercial product wording.
 Required product facts and physical form describe the actual shipment. Classification
 references suggest the commodity subject and vocabulary; tariff scope and alternatives
@@ -517,9 +518,15 @@ def wording_output_type(requests: list[WordingRequest]) -> type[BaseModel]:
 
 def wording_field_requirement(field: WordingField) -> str:
     """Expose an identity kind only when the source contract explicitly certifies it."""
-    if field.identity_kind is None:
-        return field.requirement
-    return field.requirement + " " + IDENTITY_KIND_REQUIREMENTS[field.identity_kind]
+    requirement = field.requirement
+    if field.role.endswith(" name"):
+        requirement += (
+            " Generate a different identity, not the source company/person with "
+            "a changed office or location qualifier."
+        )
+    if field.identity_kind is not None:
+        requirement += " " + IDENTITY_KIND_REQUIREMENTS[field.identity_kind]
+    return requirement
 
 
 def wording_api_keys(request: WordingRequest) -> dict[str, str]:
@@ -637,6 +644,20 @@ def has_field_scope_caption(field: WordingField, text: str) -> bool:
     return False
 
 
+def identity_key(text: str) -> str:
+    """Compare identity wording independently of parenthetical office qualifiers.
+
+    Qualifier-only changes still disclose the source identity. This does not
+    match common-word substrings or decide ownership of independent actors.
+    """
+    if "(" in text:
+        core = re.sub(r"\([^)]*\)", "", text)
+        key = re.sub(r"\W+", "", core).casefold()
+        if key:
+            return key
+    return re.sub(r"\W+", "", text).casefold()
+
+
 def validate_wording(
     batch: WordingBatch, requests: list[WordingRequest]
 ) -> dict[str, dict[str, str]]:
@@ -678,8 +699,7 @@ def validate_wording(
             if has_field_scope_caption(fields[value.key], text):
                 raise ValueError(f"{value.key}: identity/tax/contact caption outside its field")
             if "name" in fields[value.key].role.casefold() and (
-                re.sub(r"\W+", "", text).casefold()
-                == re.sub(r"\W+", "", fields[value.key].example).casefold()
+                identity_key(text) == identity_key(fields[value.key].example)
             ):
                 raise ValueError(f"{value.key}: copied source identity")
             # A per-package fill or cone capacity is product/packing wording,

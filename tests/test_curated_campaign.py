@@ -2056,3 +2056,115 @@ def test_related_actor_contract_rejects_unknown_or_merged_actor(postal_campaign,
         related_actor_contexts(
             replace(postal_campaign.blueprint, ownership_data={"related_actors": bad})
         )
+
+
+@pytest.mark.parametrize("relationship", ["invoice_party", "exporter"])
+def test_independent_commercial_company_is_source_only(postal_campaign, relationship):
+    from document_ocr.synthesis.curated import Occurrence, Variable
+    from document_ocr.synthesis.curated_campaign import related_actor_contexts
+
+    variable = Variable(
+        key="secondary_company",
+        kind="name",
+        value="OLD EXPORT LTD",
+        meaning="Independent commercial company",
+        required_literals=[],
+        occurrences=[Occurrence(text="OLD EXPORT LTD", occurrence=1, presentation="text")],
+    )
+    declaration = {
+        "context_party": "documentPatch.parties.shipper",
+        "relationship": relationship,
+    }
+    bp = replace(
+        postal_campaign.blueprint,
+        source="OLD EXPORT LTD",
+        contract=postal_campaign.blueprint.contract.model_copy(
+            update={"variables": [*postal_campaign.blueprint.contract.variables, variable]}
+        ),
+        ownership_data={"related_actors": {variable.key: declaration}},
+    )
+    assert related_actor_contexts(bp)[variable.key] == declaration
+    request = wording_request(bp, postal_campaign.scenario, "secondary")
+    field = next(f for f in request.fields if f.key == variable.key)
+    assert relationship in field.role
+    assert "not an additional extraction-party" in field.requirement
+    assert variable.value not in str(bp.target)
+
+
+def test_secondary_exporter_location_stays_independent_of_primary(postal_campaign):
+    from document_ocr.synthesis.curated import Occurrence, Variable
+    from document_ocr.synthesis.curated_campaign import related_actor_contexts
+
+    variable = Variable(
+        key="exporter_address",
+        kind="postal",
+        value="PORT LOUIS MAURITIUS",
+        meaning="Independent exporter address",
+        required_literals=[],
+        occurrences=[Occurrence(text="PORT LOUIS MAURITIUS", occurrence=1, presentation="text")],
+    )
+    location = {
+        "name": "PORT LOUIS",
+        "country_code": "MU",
+        "country": "MAURITIUS",
+        "registry": "geonames",
+        "registry_id": "934154",
+    }
+    declaration = {
+        "context_party": "documentPatch.parties.shipper",
+        "relationship": "exporter",
+        "location": location,
+    }
+    bp = replace(
+        postal_campaign.blueprint,
+        source="PORT LOUIS MAURITIUS",
+        contract=postal_campaign.blueprint.contract.model_copy(
+            update={"variables": [*postal_campaign.blueprint.contract.variables, variable]}
+        ),
+        ownership_data={"related_actors": {variable.key: declaration}},
+    )
+    field = next(
+        f
+        for f in wording_request(bp, postal_campaign.scenario, "secondary").fields
+        if f.key == variable.key
+    )
+    assert "PORT LOUIS, MAURITIUS (MU)" in field.requirement
+    with pytest.raises(ValueError, match="printed source country"):
+        related_actor_contexts(replace(bp, source="UNRELATED COUNTRY"))
+    for bad in ({**location, "registry_id": ""}, {**location, "unsupported": "value"}):
+        with pytest.raises(ValueError):
+            related_actor_contexts(
+                replace(
+                    bp,
+                    ownership_data={
+                        "related_actors": {variable.key: {**declaration, "location": bad}}
+                    },
+                )
+            )
+
+
+def test_source_only_name_alias_requires_explicit_generated_identity(postal_campaign):
+    from document_ocr.synthesis.curated_ownership import ownership_surfaces
+
+    bp = replace(
+        postal_campaign.blueprint,
+        ownership_data={"surfaces": {"freight_alias": {"lexical_key": "shipper_name"}}},
+    )
+    result = ownership_surfaces(
+        bp,
+        bp.target,
+        postal_campaign.scenario,
+        lexical_values={"shipper_name": "NEW REPRESENTED COMPANY BV"},
+    )
+    assert result["freight_alias"] == "NEW REPRESENTED COMPANY BV"
+    for invalid in (None, {}, {"shipper_name": ""}, {"shipper_name": None}):
+        with pytest.raises(ValueError, match="explicit generated lexical owner"):
+            ownership_surfaces(bp, bp.target, postal_campaign.scenario, lexical_values=invalid)
+    for key in ("unknown", "shipper_street"):
+        with pytest.raises(ValueError, match="explicit generated lexical owner"):
+            ownership_surfaces(
+                replace(bp, ownership_data={"surfaces": {"alias": {"lexical_key": key}}}),
+                bp.target,
+                postal_campaign.scenario,
+                lexical_values={key: "UNSUPPORTED OWNER"},
+            )
