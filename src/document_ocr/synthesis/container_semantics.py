@@ -998,6 +998,7 @@ def review_source_equipment_surface(
     elif length == 20:
         high_cube = bool(({"HIGH", "CUBE"} <= tokens) or ({"HI", "CUBE"} <= tokens)) or bool(
             tokens & {"HC", "HQ", "HICU", "HCPW", "SD96"}
+            or "HIGHCUBE" in tokens
             or explicit_nine_six
             or re.search(r"(?<![A-Z0-9])20(?:HC|HQ)(?![A-Z0-9])", semantic)
         )

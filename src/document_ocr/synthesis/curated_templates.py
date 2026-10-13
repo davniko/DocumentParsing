@@ -49,6 +49,9 @@ from document_ocr.synthesis.template_compiler.descendant import (
     _render_date_surface,
 )
 
+_CANONICAL_MEASUREMENT_VALUE = re.compile(r"\.(?:grossWeight|netWeight|volume)\.value$")
+_PHYSICAL_SUM_DERIVATIONS = frozenset({"sum_gross_weight", "sum_net_weight", "sum_volume"})
+
 
 def validate_postal_country_owner(text: str, country: str, code: str | None, path: str) -> None:
     """Require the sampled country inside its certified printed postal owner."""
@@ -306,6 +309,22 @@ def compile_sampling_blueprint(
                 owners = [r for r in overlaps if r.start <= start and end <= r.end]
                 if len(owners) == 1:
                     owner = owners[0]
+                    # A product's generated prose is not a rendering authority
+                    # for a separately typed shipment measurement. Absorbing
+                    # that owner would let wording delete its printed value
+                    # while ownership coverage still certifies the target.
+                    if (
+                        owner.kind == "product"
+                        and binding["value_kind"] in {"decimal_measurement", "integer"}
+                        and (
+                            any(_CANONICAL_MEASUREMENT_VALUE.search(path) for path in paths)
+                            or binding.get("derivation") in _PHYSICAL_SUM_DERIVATIONS
+                        )
+                    ):
+                        raise ValueError(
+                            "product owner consumes a canonical measurement: "
+                            f"{owner.key}/{key}; separate its numeric source owner"
+                        )
                     nested.setdefault(key, []).append(owner.curated_key or owner.key)
                     # Add role provenance without creating a second physical edit.
                     position = (

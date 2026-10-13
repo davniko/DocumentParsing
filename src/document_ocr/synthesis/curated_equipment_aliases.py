@@ -41,10 +41,19 @@ _UNFRAMED_COUNT = re.compile(
     rf"^[1-9][0-9]*(?:\s*[Xx]\s*|\s+)(?=\(?{_COUNTABLE_EQUIPMENT_START})",
     re.I,
 )
-_PARTIAL = re.compile(
-    r"(?:20|40|45)(?:\s*(?:FT|FOOT|FEET))?|"
-    r"HC|HQ|HICU|HI CUBE|HIGH CUBE|HIGHCUBE|8 6|9 6"
-)
+_HEIGHT_ONLY = {
+    **dict.fromkeys(("HC", "HQ", "HICU", "HI CUBE", "HIGH CUBE", "HIGHCUBE", "9 6"), True),
+    **dict.fromkeys(("8 6", "STANDARD HEIGHT"), False),
+}
+_PARTIAL = re.compile(r"(?:20|40|45)(?:\s*(?:FT|FOOT|FEET))?|" + "|".join(_HEIGHT_ONLY))
+_HIGH_CUBE_BY_SIZE = {
+    "TWENTY_FOOT_STANDARD_HEIGHT": False,
+    "TWENTY_FOOT_HIGH_CUBE": True,
+    "FORTY_FOOT_STANDARD_HEIGHT": False,
+    "FORTY_FOOT_HIGH_CUBE": True,
+    "FORTY_FIVE_FOOT_HIGH_CUBE": True,
+}
+_EXPLICIT_HEIGHT_COUNT_PREFIX = re.compile(r"^[1-9][0-9]*\s*[Xx]\s*")
 
 
 def validate_equipment_alias(alias: str, size: str, kind: str) -> None:
@@ -135,6 +144,11 @@ def _frame(original: str) -> _EquipmentFrame:
     count_surface = counted[0] if counted else ""
     if counted:
         core = core[counted.end() :]
+    elif (height_count := _EXPLICIT_HEIGHT_COUNT_PREFIX.match(core)) and _normalize(
+        core[height_count.end() :]
+    ) in _HEIGHT_ONLY:
+        count_surface = height_count[0]
+        core = core[height_count.end() :]
     elif _UNFRAMED_COUNT.match(core):
         raise ValueError("equipment count has unsupported source framing")
     return _EquipmentFrame(
@@ -143,6 +157,34 @@ def _frame(original: str) -> _EquipmentFrame:
         leading + opening + count_surface,
         movement_surface + closing + trailing,
     )
+
+
+@lru_cache(maxsize=8192)
+def project_equipment_height(source: str, size: ContainerSizeCategory) -> str | None:
+    """Project a closed height predicate without claiming a whole equipment pair.
+
+    Complete descriptions and bare lengths belong to the existing whole-pair
+    renderer. The same reviewed source framing used by alias ownership determines
+    whether this occurrence supplies height alone; counts/movement stay owned.
+    """
+    frame = _frame(source)
+    height = _HEIGHT_ONLY.get(_normalize(frame.core))
+    if height is None:
+        return None
+    sampled = _HIGH_CUBE_BY_SIZE[size]
+    if height == sampled:
+        return source
+    # A movement suffix may sit outside a parenthesized predicate. _frame also
+    # supports parentheses around the entire expression; retain both layouts.
+    core = frame.core
+    opening = closing = ""
+    if core.startswith("(") and core.endswith(")") and core.count("(") == core.count(")") == 1:
+        core = core[1:-1]
+        opening, closing = "(", ")"
+    leading = core[: len(core) - len(core.lstrip())]
+    trailing = core[len(core.rstrip()) :]
+    predicate = "HIGH CUBE" if sampled else "STANDARD HEIGHT"
+    return frame.prefix + opening + leading + predicate + trailing + closing + frame.suffix
 
 
 def apply_equipment_aliases(

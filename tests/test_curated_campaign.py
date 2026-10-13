@@ -334,6 +334,8 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
         did = "syn_full_v7_" + digest(["source", 42, variant])[:24]
         candidate = {
             "documentId": did,
+            "sourceDocumentId": "source",
+            "variant": variant,
             "target": {},
             "joinedRawText": f"TEXT {variant}",
             "renderValues": {},
@@ -360,6 +362,31 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
         }
         (tmp_path / "candidates" / f"{did}.json").write_text(json.dumps(candidate))
         candidates.append(candidate)
+    snapshot = deepcopy(candidates)
+    prepared = campaign.review_requests("source", candidates)
+    assert candidates == snapshot and not (tmp_path / "reviews").exists()
+    assert [r.sample_ids for r in prepared] == [
+        tuple(c["documentId"] for c in candidates[:2]),
+        tuple(c["documentId"] for c in candidates[2:4]),
+        (candidates[4]["documentId"],),
+    ]
+    assert [list(r.output_type.model_fields) for r in prepared] == [
+        ["s0", "s1"],
+        ["s0", "s1"],
+        ["s0"],
+    ]
+    with pytest.raises(ValueError, match="candidate count"):
+        campaign.review_requests("source", candidates[:-1])
+    with pytest.raises(ValueError, match="candidate count"):
+        campaign.review_requests("foreign-source", candidates)
+    for invalid in (candidates[::-1], [candidates[0]] * len(candidates)):
+        with pytest.raises(ValueError, match="variant order"):
+            campaign.review_requests("source", invalid)
+    for key, value in (("sourceDocumentId", "foreign"), ("documentId", "wrong-id"), ("variant", 0)):
+        invalid = deepcopy(candidates)
+        invalid[0][key] = value
+        with pytest.raises(ValueError, match="variant order"):
+            campaign.review_requests("source", invalid)
     requests = []
 
     async def call(stage, sid, model, system, prompt):
@@ -372,6 +399,18 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
     campaign.calls = SimpleNamespace(call=call)
     result = asyncio.run(campaign.review("source"))
     assert result["findings"] == 0 and len(requests) == 3
+    assert requests == [request.prompt for request in prepared]
+    richer = deepcopy(candidates)
+    richer[0]["scenario"]["goods_identities"][0]["phrase_role"] = "classification_context"
+    richer[0]["scenario"]["provenance"]["registryLoadProfile"] = {"form": "DRY GRANULES"}
+    richer[1]["scenario"]["provenance"]["thermalCommodityContext"] = {
+        "identity": "FROZEN PEAS",
+        "temperatureCelsius": -18,
+    }
+    context = campaign.review_requests("source", richer)[0].prompt
+    assert "CLASSIFICATION REFERENCES" in context and "Physical form: DRY GRANULES" in context
+    assert "SAMPLED COLD-CHAIN IDENTITY, PRODUCT FORM AND SETTINGS" in context
+    assert "temperatureCelsius: -18" in context
     receipt = json.loads((tmp_path / "reviews/source.json").read_text())
     assert receipt["review"]["reviewed_ids"] == [c["documentId"] for c in candidates]
     assert receipt["candidateHashes"] == {c["documentId"]: digest(c) for c in candidates}
@@ -528,15 +567,17 @@ def test_wording_contract_checks_coverage_identity_and_layout_without_freezing_p
         "WIRE ON10 KG COILS",
         "YARN CONES 1.5 KG",
         "BAGS 25KG",
+        "POLYETHYLENE GRANULES, EACH BAG 25 KG NET",
+        "POLYETHYLENE GRANULES, 25 KG NET EACH BAG",
+        "POLYETHYLENE GRANULES, BAGS OF 25 KG NET EACH",
     ],
 )
-def test_generated_product_cannot_invent_host_owned_package_fill(text):
+def test_per_package_fill_is_not_itself_a_shipment_total(text):
     request = WordingRequest(
         "sample", "Sampled goods", (WordingField("g", "goods description", "OLD", "Product"),)
     )
     output = wording_output_type([request]).model_validate({"s0": {"g": text}})
-    with pytest.raises(ValueError, match="host-owned package fill"):
-        unpack_wording(output, [request])
+    assert unpack_wording(output, [request])["sample"]["g"] == text
 
 
 @pytest.mark.parametrize(
@@ -1139,6 +1180,65 @@ def test_source_snapshot_checks_content_even_when_file_metadata_is_preserved(tmp
     os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
     with pytest.raises(ValueError, match="source files changed after snapshot certification"):
         campaign.validate_source_readiness()
+
+
+@pytest.mark.parametrize("preserve_metadata", [False, True])
+def test_render_stage_rejects_changed_cached_ownership_before_any_render(
+    tmp_path, preserve_metadata
+):
+    import os
+
+    path = tmp_path / "ownership.yaml"
+    path.write_bytes(b"certified")
+    stamp = path.stat()
+    campaign = Campaign.__new__(Campaign)
+    campaign.source_ids = ["source"]
+    campaign.variant_counts = {"source": 2}
+    campaign._blueprints = {"source": object()}
+    campaign._blueprint_file_pins = {path: digest(path.read_bytes())}
+    campaign.equipment_inventories = {}
+    campaign.output = tmp_path / "output"
+    rendered = []
+    campaign.render = lambda *args: rendered.append(args)
+    path.write_bytes(b"incorrect")
+    if preserve_metadata:
+        os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+
+    with pytest.raises(ValueError, match="source files changed after snapshot certification"):
+        campaign.render_all()
+
+    assert rendered == []
+    assert not campaign.output.exists()
+
+
+def test_render_stage_certifies_snapshot_once_not_once_per_document(tmp_path):
+    path = tmp_path / "ownership.yaml"
+    path.write_bytes(b"certified")
+    campaign = Campaign.__new__(Campaign)
+    campaign.source_ids = ["source"]
+    campaign.variant_counts = {"source": 3}
+    campaign._blueprints = {"source": object()}
+    campaign._blueprint_file_pins = {path: digest(path.read_bytes())}
+    campaign.equipment_inventories = {}
+    campaign.output = tmp_path / "output"
+    observed = []
+
+    def certify():
+        observed.append("snapshot")
+        Campaign.validate_source_readiness(campaign)
+
+    def render(sid, variant):
+        observed.append((sid, variant))
+        return {"documentId": f"sample-{variant}"}
+
+    campaign.validate_source_readiness = certify
+    campaign.render = render
+    report = campaign.render_all()
+
+    assert observed == ["snapshot", ("source", 1), ("source", 2), ("source", 3)]
+    assert report["accepted"] == ["sample-1", "sample-2", "sample-3"]
+    assert report["errors"] == []
+    assert json.loads((campaign.output / "render-summary.json").read_text()) == report
 
 
 def test_classification_context_is_not_a_second_product_form(postal_campaign):

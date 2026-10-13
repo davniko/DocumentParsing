@@ -9,6 +9,7 @@ import json
 import random
 import re
 import time
+from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import replace
 from datetime import date, timedelta
@@ -18,6 +19,7 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from document_ocr.hashing import sha256_file
 from document_ocr.labeling_agents.direct_grounding import order_consignment_candidates
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
 from document_ocr.synthesis.curated import (
@@ -106,6 +108,7 @@ from document_ocr.synthesis.curated_wording import (
     IDENTITY_KIND_REQUIREMENTS,
     WORDING_PROMPT,
     RenderedReview,
+    RenderedReviewRequest,
     WordingBatch,
     WordingField,
     WordingRequest,
@@ -553,8 +556,8 @@ def wording_request(
                 "and list structure. Express the required commodity facts and physical form. "
                 "Classification wording supplies context, not extra required attributes. "
                 "Product variants and intrinsic specifications may enrich an example that "
-                "has that detail. Packing, fills, quantities, weights, transport settings and "
-                "codes are separate host-rendered facts."
+                "has that detail. Incidental per-unit capacity/fill can be product detail. "
+                "Shipment counts, weights, transport settings and codes are separate host facts."
             )
             role = "goods description"
         else:
@@ -1353,7 +1356,7 @@ class Campaign:
         # boundaries still hash every dependency, including metadata-preserving
         # edits, so caching cannot silently approve changed source contracts.
         for path, expected in self._blueprint_file_pins.items():
-            if digest(path.read_bytes()) != expected:
+            if sha256_file(path) != expected:
                 raise ValueError("campaign source files changed after snapshot certification")
         for sid in self.equipment_inventories:
             self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
@@ -1904,13 +1907,25 @@ class Campaign:
         if expected != candidate:
             raise ValueError("candidate differs from source/scenario/wording authority replay")
 
-    async def review(self, sid: str) -> dict:
-        candidates = []
-        for variant in range(1, self.variant_counts[sid] + 1):
-            sample_id = "syn_full_v7_" + digest([sid, self.config["seed"], variant])[:24]
-            candidate = json.loads((self.output / "candidates" / f"{sample_id}.json").read_text())
-            self.replay_candidate(candidate)
-            candidates.append(candidate)
+    def review_requests(
+        self, sid: str, candidates: Sequence[dict]
+    ) -> tuple[RenderedReviewRequest, ...]:
+        """Compose exact current requests without calls, replay or artifact writes.
+
+        The caller supplies final candidates in variant order after validating
+        their source/scenario authority. Execution and offline audit use this
+        same assembly, including sampled product form and cold-chain context.
+        """
+        if sid not in self.variant_counts or len(candidates) != self.variant_counts[sid]:
+            raise ValueError("review requests require the exact configured source candidate count")
+        for variant, candidate in enumerate(candidates, 1):
+            expected_id = "syn_full_v7_" + digest([sid, self.config["seed"], variant])[:24]
+            if (
+                candidate.get("sourceDocumentId") != sid
+                or candidate.get("variant") != variant
+                or candidate.get("documentId") != expected_id
+            ):
+                raise ValueError("review requests require exact source identities in variant order")
         blocks = []
         batch_size = self.config["variants_per_source"]
         for index, candidate in enumerate(candidates):
@@ -1955,17 +1970,36 @@ class Campaign:
                 + "\nCOMPLETE RENDERED TEXT\n"
                 + candidate["joinedRawText"]
             )
-        reviews = []
+        requests = []
         for start in range(0, len(candidates), batch_size):
             batch = candidates[start : start + batch_size]
+            requests.append(
+                RenderedReviewRequest(
+                    sample_ids=tuple(c["documentId"] for c in batch),
+                    output_type=review_output_type(len(batch)),
+                    system=rendered_review_prompt(self.casing.target),
+                    prompt="\n\n---\n\n".join(blocks[start : start + batch_size]),
+                )
+            )
+        return tuple(requests)
+
+    async def review(self, sid: str) -> dict:
+        candidates = []
+        for variant in range(1, self.variant_counts[sid] + 1):
+            sample_id = "syn_full_v7_" + digest([sid, self.config["seed"], variant])[:24]
+            candidate = json.loads((self.output / "candidates" / f"{sample_id}.json").read_text())
+            self.replay_candidate(candidate)
+            candidates.append(candidate)
+        reviews = []
+        for request in self.review_requests(sid, candidates):
             answer = await self.calls.call(
                 "rendered-review",
                 sid,
-                review_output_type(len(batch)),
-                rendered_review_prompt(self.casing.target),
-                "\n\n---\n\n".join(blocks[start : start + batch_size]),
+                request.output_type,
+                request.system,
+                request.prompt,
             )
-            reviews.append(unpack_review(answer, [c["documentId"] for c in batch]))
+            reviews.append(unpack_review(answer, list(request.sample_ids)))
         output = RenderedReview(
             reviewed_ids=[sid for r in reviews for sid in r.reviewed_ids],
             findings=[finding for r in reviews for finding in r.findings],
@@ -2002,6 +2036,7 @@ class Campaign:
 
     def render_all(self) -> dict:
         started = time.perf_counter()
+        self.validate_source_readiness()
         report = {"accepted": [], "errors": []}
         for sid in self.source_ids:
             for variant in range(1, self.variant_counts[sid] + 1):

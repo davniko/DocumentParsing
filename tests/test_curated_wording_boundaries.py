@@ -307,7 +307,6 @@ def test_wording_without_descriptions_has_no_description_diversity_observation()
     [
         ("REFINED OIL\nTOTAL NET WEIGHT: 24800 KG", "shipment accounting"),
         ("REFINED OIL\nTOTAL PACKAGES: 616", "shipment accounting"),
-        ("REFINED OIL\n50 KG PER BAG", "host-owned package fill"),
         ("REFINED OIL\nHS CODE: 151219", "host-owned tariff"),
         ("OLD GOODS", "copied source description"),
         ("FARM EQUIPMENT, MACHINE WEIGHT: 1000 KG", "item-mass lower bound"),
@@ -326,6 +325,21 @@ def test_repeated_products_do_not_bypass_any_shipment_ledger_checks(text, error)
         )
 
 
+@pytest.mark.parametrize(
+    "total",
+    ["TOTAL NET WEIGHT: 24800 KG", "TOTAL PACKAGES: 616"],
+)
+def test_per_package_detail_does_not_hide_added_shipment_accounting(total):
+    fields = (WordingField("g", "goods description", "OLD GOODS", "Product wording"),)
+    request = WordingRequest("a", "", fields)
+    text = "POLYETHYLENE GRANULES, EACH BAG 25 KG NET\n" + total
+    with pytest.raises(ValueError, match="shipment accounting"):
+        unpack_wording(
+            wording_output_type([request]).model_validate({"s0": {"g": text}}),
+            [request],
+        )
+
+
 def test_batch_duplicate_product_cannot_mask_an_invalid_other_shipment():
     fields = (WordingField("g", "goods description", "OLD GOODS", "Product wording"),)
     requests = [WordingRequest(identity, "", fields) for identity in ("a", "b", "c")]
@@ -340,3 +354,25 @@ def test_batch_duplicate_product_cannot_mask_an_invalid_other_shipment():
             ),
             requests,
         )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "POLYETHYLENE GRANULES, EACH BAG 50 KG NET",
+        "COTTON YARN ON 1.5 KG PAPER CONES",
+    ],
+)
+def test_incidental_fill_detail_is_allowed_without_a_host_total(text):
+    from document_ocr.synthesis.curated_wording import RENDERED_REVIEW_PROMPT, WORDING_PROMPT
+
+    request = WordingRequest(
+        "a", "", (WordingField("g", "goods description", "OLD GOODS", "Product wording"),)
+    )
+    output = unpack_wording(
+        wording_output_type([request]).model_validate({"s0": {"g": text}}), [request]
+    )
+    assert output["a"]["g"] == text
+    assert "Incidental per-unit" in WORDING_PROMPT
+    assert "Incidental per-unit" in RENDERED_REVIEW_PROMPT
+    assert "whole-shipment" in WORDING_PROMPT and "whole-shipment" in RENDERED_REVIEW_PROMPT

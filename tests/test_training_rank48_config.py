@@ -136,6 +136,40 @@ def test_real600_synthetic5000_config_preserves_previous_training_settings() -> 
     assert actual == expected
 
 
+def test_uae_coverage_replacement_preserves_all_previous_training_hyperparameters() -> None:
+    stem = "t5gemma2_270m_lora.mpci_bl_real600_synthetic5000_uae"
+    suffix = "positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml"
+    baseline = load_training_config(PRODUCTION / f"{stem}_{suffix}")
+    replacement = load_training_config(PRODUCTION / f"{stem}_coverage_r18_{suffix}")
+    expected = baseline.model_dump(mode="python")
+    actual = replacement.model_dump(mode="python")
+
+    assert replacement.run.run_id != baseline.run.run_id
+    assert replacement.peft.adapter_name != baseline.peft.adapter_name
+    assert replacement.dataset.splits.train[0].records == 5600
+    assert replacement.dataset.splits.validation[0].records == 60
+    assert replacement.dataset.splits.validation[0].sha256 == (
+        baseline.dataset.splits.validation[0].sha256
+    )
+    assert Path(replacement.dataset.splits.train[0].path).parent.name == (
+        "mpci-bl-real600-synthetic5000-uae-coverage-r18-positions-v1"
+    )
+    assert replacement.task_constraints is not None
+    assert baseline.task_constraints is not None
+    assert replacement.task_constraints.sha256 == baseline.task_constraints.sha256
+    assert Path(replacement.task_constraints.path).parent == (
+        Path(replacement.dataset.splits.train[0].path).parent
+    )
+
+    expected["run"]["run_id"] = actual["run"]["run_id"]
+    expected["peft"]["adapter_name"] = actual["peft"]["adapter_name"]
+    expected["task_constraints"]["path"] = actual["task_constraints"]["path"]
+    expected["dataset"]["splits"] = actual["dataset"]["splits"]
+    for tag in ("dataset", "labels_source"):
+        expected["logging"]["mlflow"]["tags"][tag] = actual["logging"]["mlflow"]["tags"][tag]
+    assert actual == expected
+
+
 def test_rank48_warmup_covers_five_percent_of_configured_optimizer_updates() -> None:
     config = load_training_config(_config_path(48))
     optimization = config.optimization
@@ -151,6 +185,27 @@ def test_rank48_warmup_covers_five_percent_of_configured_optimizer_updates() -> 
     assert optimization.schedule_free_adamw.warmup_steps == math.ceil(0.05 * total_updates)
     assert optimization.warmup_ratio == 0.0
     assert optimization.lr_scheduler_type == "constant"
+
+
+def test_reaudit_r19_changes_only_dataset_provenance_and_run_identity():
+    folder = Path(__file__).resolve().parents[1] / "configs/training/production"
+    suffix = "_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml"
+    prefix = "t5gemma2_270m_lora.mpci_bl_real600_synthetic5000_uae_coverage_"
+    old = load_training_config(folder / (prefix + "r18" + suffix)).model_dump(mode="python")
+    new = load_training_config(folder / (prefix + "r19" + suffix)).model_dump(mode="python")
+    assert new["dataset"]["splits"]["train"][0]["sha256"] == (
+        "001fa2a63ac426109993547524d0cc5b5ca7e0408b7a8bdbc8a681486fdb5d49"
+    )
+    assert new["dataset"]["splits"]["validation"][0]["sha256"] == (
+        old["dataset"]["splits"]["validation"][0]["sha256"]
+    )
+    old["run"]["run_id"] = new["run"]["run_id"]
+    old["peft"]["adapter_name"] = new["peft"]["adapter_name"]
+    old["dataset"]["splits"] = new["dataset"]["splits"]
+    old["task_constraints"]["path"] = new["task_constraints"]["path"]
+    for tag in ("dataset", "labels_source"):
+        old["logging"]["mlflow"]["tags"][tag] = new["logging"]["mlflow"]["tags"][tag]
+    assert old == new
 
 
 def test_rank48_real_trainer_optimizer_applies_warmup_once(tmp_path: Path) -> None:

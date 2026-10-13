@@ -11,9 +11,26 @@ from document_ocr.synthesis.container_semantics import review_source_equipment_s
 from document_ocr.synthesis.curated_equipment_aliases import (
     EquipmentAliasRegistry,
     apply_equipment_aliases,
+    project_equipment_height,
     validate_equipment_alias,
 )
 from document_ocr.synthesis.generators import DeterministicStream
+
+
+@pytest.mark.parametrize("wording", ["20' HIGHCUBE", "20' HIGH CUBE", "20' HI-CUBE"])
+@pytest.mark.parametrize("suffix,kind", [("", "GENERAL_PURPOSE"), (" REEFER", "REFRIGERATED")])
+def test_twenty_foot_explicit_compact_height_does_not_fall_back_to_standard(wording, suffix, kind):
+    observed = review_source_equipment_surface(wording + suffix, temperature_present=False)
+    assert observed.size_category == "TWENTY_FOOT_HIGH_CUBE"
+    assert observed.type_category == kind
+
+
+@pytest.mark.parametrize("wording", ["20' HIGHCUBE 8x6", "20' HIGHCUBE STANDARD HEIGHT"])
+def test_compact_high_cube_does_not_override_conflicting_standard_height(wording):
+    observed = review_source_equipment_surface(wording, temperature_present=False)
+    assert observed.resolution == "unresolved_source_surface"
+    assert observed.size_category is None
+
 
 S20 = "TWENTY_FOOT_STANDARD_HEIGHT"
 H20 = "TWENTY_FOOT_HIGH_CUBE"
@@ -22,6 +39,30 @@ H40 = "FORTY_FOOT_HIGH_CUBE"
 H45 = "FORTY_FIVE_FOOT_HIGH_CUBE"
 GP = "GENERAL_PURPOSE"
 RF = "REFRIGERATED"
+
+
+@pytest.mark.parametrize(
+    "source,size,expected",
+    [
+        ("HI-CUBE", S20, "STANDARD HEIGHT"),
+        ("HI-CUBE", H20, "HI-CUBE"),
+        ("STANDARD HEIGHT", H45, "HIGH CUBE"),
+        ("8'6", H40, "HIGH CUBE"),
+        ("9'6", S40, "STANDARD HEIGHT"),
+        (" ( HC FCL) ", S20, " ( STANDARD HEIGHT FCL) "),
+        (" ( HC ) FCL ", S20, " ( STANDARD HEIGHT ) FCL "),
+        ("(2 x HC CY/CY)", S20, "(2 x STANDARD HEIGHT CY/CY)"),
+        (" (hc) fcl/fcl cy/cy ", H40, " (hc) fcl/fcl cy/cy "),
+        ("20", S20, None),
+        ("40'", H20, None),
+        ("(2X40HC FCL/FCL)", S20, None),
+        ("20KL", S20, None),
+        ("HIGH CUBE PALLETS", S20, None),
+        ("HC123", S20, None),
+    ],
+)
+def test_height_projection_preserves_scope_and_reviewed_source_framing(source, size, expected):
+    assert project_equipment_height(source, size) == expected
 
 
 @pytest.mark.parametrize(

@@ -91,7 +91,9 @@ def test_unknown_role_fails_even_when_model_validation_was_bypassed():
 
 def test_prompt_has_no_conflicting_accounting_generation_instructions():
     assert "Classification\nreferences" in WORDING_PROMPT
-    assert "Packing capacities and fill amounts remain host facts" in WORDING_PROMPT
+    assert "Incidental per-unit packing capacity/fill" in WORDING_PROMPT
+    assert "new whole-shipment count or weight declaration" in WORDING_PROMPT
+    assert "each product variant's physical state internally consistent" in WORDING_PROMPT
     assert "Any item masses or package contents must agree" not in WORDING_PROMPT
     assert "newly generated quantities" not in WORDING_PROMPT
     assert "retaining\nevery supplied product attribute" not in WORDING_PROMPT

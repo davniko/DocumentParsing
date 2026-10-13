@@ -2,13 +2,16 @@
 
 import json
 from copy import deepcopy
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
+from document_ocr.synthesis import curated_campaign as campaign_module
 from document_ocr.synthesis.curated import digest, flat
 from document_ocr.synthesis.curated_auxiliary import load_auxiliary_contract
 from document_ocr.synthesis.curated_campaign import Campaign
@@ -31,6 +34,8 @@ OMISSIONS = {
     "35136": ("reviewed:omitted_unresolved_notify_owner", "Owner: Al Ghurair Centre LLC"),
     "654e": ("reviewed:omitted_detached_source_brand", "BRAND: ASTUZINC ELECTRO 99.995%"),
 }
+CURRENT_SYSTEM = campaign_module.WORDING_PROMPT
+CURRENT_REQUEST = campaign_module.wording_request
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +55,53 @@ def campaign():
     )
     config.pop("template_sampling", None)
     config["sampling"]["equipment_inventory"]["source_ids"] = sources
-    return Campaign(ROOT, config)
+    # This fixture proves previously committed artifacts, not new generation.
+    # Bind the immutable provider system prompt explicitly; production must
+    # still reject these caches under the current instruction contract.
+    instance = Campaign(ROOT, config)
+    historical_prompt = None
+    for file in sorted((instance.output / "calls").glob("exact-wording-*.json")):
+        call = json.loads(file.read_text())
+        if call.get("error") is not None:
+            continue
+        for message in call["messages"]:
+            for part in message.get("parts", []):
+                content = part.get("content")
+                if isinstance(content, str) and content.startswith(
+                    "Write fictional Bill of Lading"
+                ):
+                    historical_prompt = content
+                    break
+        if historical_prompt:
+            break
+    assert historical_prompt
+    current_request = campaign_module.wording_request
+
+    def historical_request(*args, **kwargs):
+        request = current_request(*args, **kwargs)
+        return replace(
+            request,
+            fields=tuple(
+                replace(
+                    field,
+                    requirement=field.requirement.replace(
+                        "has that detail. Incidental per-unit capacity/fill can be product detail. "
+                        "Shipment counts, weights, transport settings and codes "
+                        "are separate host facts.",
+                        "has that detail. Packing, fills, quantities, weights, "
+                        "transport settings and "
+                        "codes are separate host-rendered facts.",
+                    ),
+                )
+                for field in request.fields
+            ),
+        )
+
+    with (
+        patch.object(campaign_module, "WORDING_PROMPT", historical_prompt),
+        patch.object(campaign_module, "wording_request", historical_request),
+    ):
+        yield instance
 
 
 def test_identifier_recipes_are_registered_without_changing_role_country_rules():
@@ -62,16 +113,28 @@ def test_identifier_recipes_are_registered_without_changing_role_country_rules()
         assert registry["sources"][sid]["bindings"] == spec["bindings"]
         assert campaign["sources"][sid]["bindings"] == spec["bindings"]
         key = "agent:exporter_registration_country"
-        assert registry["sources"][sid]["bindings"][key] == (
-            previous["sources"][sid]["bindings"][key]
+        assert (
+            registry["sources"][sid]["bindings"][key] == (previous["sources"][sid]["bindings"][key])
         )
     metadata = json.loads((AUDIT / "auxiliary-registry-before-metadata.json").read_text())
-    assert sha256((AUDIT / "auxiliary-registry-before.yaml").read_bytes()).hexdigest() == metadata[
-        "registryFileSha256"
-    ]
-    assert sha256((ROOT / metadata["campaignAuxiliaryPath"]).read_bytes()).hexdigest() == metadata[
-        "campaignAuxiliarySha256"
-    ]
+    assert (
+        sha256((AUDIT / "auxiliary-registry-before.yaml").read_bytes()).hexdigest()
+        == metadata["registryFileSha256"]
+    )
+    assert (
+        sha256((ROOT / metadata["campaignAuxiliaryPath"]).read_bytes()).hexdigest()
+        == metadata["campaignAuxiliarySha256"]
+    )
+
+
+def test_current_instructions_reject_historical_wording_cache(campaign):
+    sid = next(s for s in campaign.source_ids if s.startswith("doc_f36409"))
+    with (
+        patch.object(campaign_module, "WORDING_PROMPT", CURRENT_SYSTEM),
+        patch.object(campaign_module, "wording_request", CURRENT_REQUEST),
+        pytest.raises(ValueError, match="wording request changed"),
+    ):
+        campaign.render(sid, 1, persist=False)
 
 
 def test_unresolved_owner_metadata_removes_only_the_unsupported_equality():
@@ -215,9 +278,11 @@ def test_actual_whole_caption_omission_preserves_public_targets(campaign, prefix
         assert projection[0]["before"] == flat(blueprint.target)[path]
         assert projection[0]["value"] == after[path]
         for span in projection[0]["spans"]:
-            printed = result["joinedRawText"].encode()[
-                span["renderedByteStart"] : span["renderedByteEnd"]
-            ].decode()
+            printed = (
+                result["joinedRawText"]
+                .encode()[span["renderedByteStart"] : span["renderedByteEnd"]]
+                .decode()
+            )
             assert printed == span["text"]
         assert " ".join(span["text"] for span in projection[0]["spans"]).upper() == after[path]
     else:

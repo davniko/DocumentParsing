@@ -707,6 +707,58 @@ def test_curated_length_only_receipt_exposes_complete_public_equipment(size, kin
         assert printed == "2 x 40'"
 
 
+@pytest.mark.parametrize(
+    "size",
+    [
+        "TWENTY_FOOT_STANDARD_HEIGHT",
+        "TWENTY_FOOT_HIGH_CUBE",
+        "FORTY_FOOT_STANDARD_HEIGHT",
+        "FORTY_FOOT_HIGH_CUBE",
+        "FORTY_FIVE_FOOT_HIGH_CUBE",
+    ],
+)
+@pytest.mark.parametrize(
+    "kind", ["GENERAL_PURPOSE", "REFRIGERATED", "OPEN_TOP", "PRESSURIZED_TANK"]
+)
+def test_repeated_type_owner_projects_height_without_promoting_it_to_full_pair(size, kind):
+    from dataclasses import replace
+
+    from document_ocr.synthesis.container_semantics import review_source_equipment_surface
+    from document_ocr.synthesis.curated_physical import _complete_equipment_surface, _equipment
+
+    row, blueprint, scenario, support = fixture()
+    source = deepcopy(row["target"])
+    for container in source["documentPatch"]["containerInformation"]:
+        container["sizeCategory"] = "FORTY_FOOT_HIGH_CUBE"
+    key = "anchor:documentPatch.containers[0].typeDescription"
+    originals = ["40HC", "HI-CUBE", "STANDARD HEIGHT", "40'"]
+    blueprint = replace(
+        blueprint,
+        target=source,
+        historical_bindings={
+            key: {
+                "target_paths": ["documentPatch.containers[0].typeDescription"],
+                "occurrences": [{"source_text": text} for text in originals],
+            }
+        },
+        regions=(SimpleNamespace(key=key, curated_key=None),),
+    )
+    target = deepcopy(source)
+    target["documentPatch"]["containerInformation"][0].update(sizeCategory=size, typeCategory=kind)
+    surfaces = {}
+    _equipment(blueprint, target, support, scenario, surfaces, {})
+    printed = surfaces[key]
+    observed = review_source_equipment_surface(printed[0], temperature_present=False)
+    assert (observed.size_category, observed.type_category) == (size, kind)
+    high = size.endswith("_HIGH_CUBE")
+    assert printed[1] == ("HI-CUBE" if high else "STANDARD HEIGHT")
+    assert printed[2] == ("HIGH CUBE" if high else "STANDARD HEIGHT")
+    assert printed[3] == _complete_equipment_surface(
+        target["documentPatch"]["containerInformation"][0], originals[3]
+    )
+    assert target["documentPatch"]["containerInformation"][0]["typeCategory"] == kind
+
+
 def test_length_only_receipt_preserves_private_observation_unless_public_pair_requested():
     from document_ocr.synthesis.curated_physical import _complete_equipment_surface
     from document_ocr.synthesis.template_compiler.equipment_receipts import project_receipt

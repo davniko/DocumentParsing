@@ -194,6 +194,149 @@ def test_rebase_identity_and_full_scalar_sampling_preserve_unrelated_bytes():
     assert row["target"] != new
 
 
+def _product_measure_fixture(measure="grossWeight", *, product="202.236 MT BOLTS"):
+    raw = product + "\n"
+    row = {
+        "documentId": "product-measure",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "non_negotiable",
+                "goodsItemDetails": [
+                    {
+                        "description": product,
+                        measure: {
+                            "value": 202.236,
+                            "unit": "cubic_metre" if measure == "volume" else "metric_tonne",
+                        },
+                    }
+                ],
+            },
+        },
+    }
+    contract = SourceContract(
+        variables=[
+            dict(
+                key="product",
+                kind="product",
+                value=product,
+                meaning="complete main product passage",
+                required_literals=[],
+                occurrences=[dict(text=product, occurrence=1, presentation="text")],
+            )
+        ],
+        targets=[
+            dict(path="documentPatch.goodsItemDetails[0].description", expression="{product}")
+        ],
+        fixed_context="measurement ownership fixture",
+    )
+    blocks = {
+        "source_sha256": digest(raw.encode()),
+        "fields": [
+            {
+                "path": "documentPatch.goodsItemDetails[0].description",
+                "spans": [{"text": product, "occurrence": 1}],
+            }
+        ],
+    }
+    return row, contract, blocks
+
+
+@pytest.mark.parametrize("measure", ["grossWeight", "netWeight", "volume"])
+@pytest.mark.parametrize("group", ["goodsItemDetails", "cargoGroups"])
+@pytest.mark.parametrize("value_kind", ["decimal_measurement", "integer"])
+def test_product_cannot_consume_typed_canonical_measurement(measure, group, value_kind):
+    row, contract, blocks = _product_measure_fixture(measure)
+    historical = {
+        "document_id": row["documentId"],
+        "bindings": [
+            dict(
+                logical_key="printed_measurement",
+                target_paths=[f"documentPatch.{group}[0].{measure}.value"],
+                value_kind=value_kind,
+                occurrences=[dict(byte_start=0, byte_end=10, source_text="202.236 MT")],
+            )
+        ],
+    }
+    with pytest.raises(ValueError, match="product owner consumes a canonical measurement"):
+        _compile_sampling_blueprint(row, historical, contract, description_blocks=blocks)
+
+
+@pytest.mark.parametrize("derivation", ["sum_gross_weight", "sum_net_weight", "sum_volume"])
+def test_product_cannot_consume_typed_sum_without_public_paths(derivation):
+    row, contract, blocks = _product_measure_fixture()
+    historical = {
+        "document_id": row["documentId"],
+        "bindings": [
+            dict(
+                logical_key="printed_sum",
+                target_paths=[],
+                value_kind="decimal_measurement",
+                derivation=derivation,
+                occurrences=[dict(byte_start=0, byte_end=10, source_text="202.236 MT")],
+            )
+        ],
+    }
+    with pytest.raises(ValueError, match="product owner consumes a canonical measurement"):
+        _compile_sampling_blueprint(row, historical, contract, description_blocks=blocks)
+
+
+def test_product_pack_size_without_canonical_measure_owner_remains_prose():
+    row, contract, blocks = _product_measure_fixture(product="BOLTS PACKED IN 50 KG BAGS")
+    historical = {
+        "document_id": row["documentId"],
+        "bindings": [
+            dict(
+                logical_key="product_fill_specification",
+                target_paths=[],
+                value_kind="decimal_measurement",
+                occurrences=[dict(byte_start=16, byte_end=21, source_text="50 KG")],
+            )
+        ],
+    }
+    blueprint = _compile_sampling_blueprint(row, historical, contract, description_blocks=blocks)
+    assert blueprint.nested_bindings["product_fill_specification"] == ("product",)
+    text, target, _ = render_sampling_blueprint(blueprint, row["target"], {})
+    assert text == row["joinedRawText"]
+    assert target == row["target"]
+
+
+def test_disjoint_numeric_owner_preserves_embedded_total_and_product_projection():
+    row, contract, blocks = _product_measure_fixture(product="202.236 MT\nBOLTS")
+    row["target"]["documentPatch"]["goodsItemDetails"][0]["description"] = "202.236 MT BOLTS"
+    contract.variables[0].value = "BOLTS"
+    contract.variables[0].occurrences[0].text = "BOLTS"
+    historical = {
+        "document_id": row["documentId"],
+        "bindings": [
+            dict(
+                logical_key="printed_gross",
+                target_paths=["documentPatch.goodsItemDetails[0].grossWeight.value"],
+                value_kind="decimal_measurement",
+                occurrences=[dict(byte_start=0, byte_end=10, source_text="202.236 MT")],
+            )
+        ],
+    }
+    blueprint = _compile_sampling_blueprint(row, historical, contract, description_blocks=blocks)
+    sampled = deepcopy(row["target"])
+    sampled["documentPatch"]["goodsItemDetails"][0]["grossWeight"]["value"] = 24
+    sampled["documentPatch"]["goodsItemDetails"][0]["description"] = "NAILS"
+    text, target, proof = render_sampling_blueprint(
+        blueprint,
+        sampled,
+        {"product": "NAILS"},
+        surface_values={"printed_gross": "24.000 MT"},
+    )
+    assert text == "24.000 MT\nNAILS\n"
+    assert target["documentPatch"]["goodsItemDetails"][0]["description"] == "24.000 MT NAILS"
+    assert target["documentPatch"]["goodsItemDetails"][0]["grossWeight"] == {
+        "value": 24,
+        "unit": "metric_tonne",
+    }
+    assert [edit["key"] for edit in proof["edits"]] == ["printed_gross", "product"]
+
+
 @pytest.mark.parametrize("named_consignee", [True, False])
 def test_order_instructions_remain_fixed_while_named_party_regions_change(named_consignee):
     from document_ocr.synthesis.curated_sampling import validate_instruction_inheritance

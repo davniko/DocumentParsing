@@ -3577,9 +3577,6 @@ sources:
         identifier: source_reference_367171953
       agent:importer_tax_id:
         identifier: source_reference_IT13471010150
-      agent:notify_country:
-        party_location: documentPatch.parties.consignee
-        field: country
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
         party_location: documentPatch.parties.consignee
         field: country
@@ -4262,8 +4259,27 @@ sources:
         target: documentPatch.parties.shipper.name
   doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc:
     bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        phone: documentPatch.parties.consignee
       agent:auxiliary:declared_destination_port:
         text: '{destination_port} PORT'
+    spans:
+    - quote: at any port of discharge in Egypt
+      count: 1
+      value:
+        text: at the port of discharge
+    - quote: bound to Egypt
+      count: 1
+      value:
+        text: bound to the destination
+    - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
+      count: 1
+      value:
+        text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
   doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691: {}
   doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a:
     bindings:
@@ -5349,9 +5365,6 @@ sources:
         identifier: source_reference
       anchor:documentPatch.parties.shipper.country:
         party_location: documentPatch.parties.shipper
-        field: country
-      anchor:documentPatch.parties.consignee.country:
-        party_location: documentPatch.parties.consignee
         field: country
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
         phone: documentPatch.parties.consignee

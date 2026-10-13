@@ -210,11 +210,50 @@ def _omit_reviewed_source_spans(
     )
 
 
+@lru_cache(maxsize=1)
+def _absence_schema_leaves() -> frozenset[str]:
+    from document_ocr.synthesis.policies import schema_leaf_paths
+    from document_ocr.training.tasks import get_training_task
+
+    return schema_leaf_paths(
+        get_training_task("bill_of_lading_extraction_v7_reduced").target_schema()
+    )
+
+
+def _validate_required_target_absences(leaves: dict, declarations: dict) -> None:
+    """A reviewed exclusion is enforced against every chosen source authority."""
+    absences = declarations.get("required_target_absences", {})
+    if not isinstance(absences, dict):
+        raise ValueError("required target absences must map target paths to reviewed reasons")
+    for path, reason in absences.items():
+        if (
+            not isinstance(path, str)
+            or not re.fullmatch(r"documentPatch(?:\.[A-Za-z]\w*|\[(?:0|[1-9]\d*)\])+", path)
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
+            raise ValueError("required target absence needs a canonical path and reviewed reason")
+        normalized = re.sub(r"\[\d+\]", "[]", path)
+        if not any(
+            key == normalized or key.startswith((normalized + ".", normalized + "["))
+            for key in _absence_schema_leaves()
+        ):
+            raise ValueError(f"required target absence path is outside the target schema: {path}")
+        # A reviewed exclusion constrains every source authority, not only the
+        # repaired dataset used by one campaign. Nulls are not populated facts.
+        if any(
+            value is not None and (key == path or key.startswith((path + ".", path + "[")))
+            for key, value in leaves.items()
+        ):
+            raise ValueError(f"source target contradicts required absence: {path}")
+
+
 def build_owned_blueprint(
     row: dict, historical: dict, contract: SourceContract, declarations: dict
 ) -> SamplingBlueprint:
     """Apply explicit source ownership corrections and verify current bytes."""
     raw, leaves = row["joinedRawText"], flat(row["target"])
+    _validate_required_target_absences(leaves, declarations)
     if declarations.get("variables") or declarations.get("expressions"):
         variables = list(contract.variables)
         keys = {v.key for v in variables}

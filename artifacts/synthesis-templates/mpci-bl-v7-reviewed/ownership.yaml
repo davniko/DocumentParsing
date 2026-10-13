@@ -1005,10 +1005,10 @@ sources:
       source_sha256: bbb7e4a8e5bae617e65ff842ada06c1f4e17a2a95a4bb0be87cb4ba84c99d690
       quote: 'Owner: Al Ghurair Centre LLC'
       count: 1
-      reason: The separately printed owner is not proven to be the notify party;
-        omit its complete source-only caption and identity in synthetic descendants
-        instead of aliasing an unresolved entity to a target party. Preserve the
-        original source and all current public labels.
+      reason: The separately printed owner is not proven to be the notify party; omit
+        its complete source-only caption and identity in synthetic descendants instead
+        of aliasing an unresolved entity to a target party. Preserve the original
+        source and all current public labels.
     lexical:
     - key: lexical_00
       kind: product
@@ -1816,6 +1816,8 @@ sources:
         - text: DTY 70D/48F HIM SD RW AA GRADE
           occurrence: 1
   doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd:
+    identity_kinds:
+      v000: organization
     lexical:
     - key: lexical_00
       kind: postal
@@ -2105,6 +2107,14 @@ sources:
         relationship: on_behalf
   doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
     bindings:
+      agent:equipment:2:tare_value:
+        occurrences:
+        - text: '3700'
+          occurrence: 1
+      agent:equipment:3:tare_value:
+        occurrences:
+        - text: '3800'
+          occurrence: 2
       anchor:documentPatch.containers[2].typeDescription:
         paths:
         - documentPatch.containerInformation[3].sizeCategory
@@ -4674,7 +4684,16 @@ sources:
         - text: RAW MATERIAL
           occurrence: 1
   doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5:
-    lexical: []
+    lexical:
+    - key: v003
+      kind: postal
+      paths:
+      - documentPatch.parties.consignee.addressLine
+      occurrences:
+      - text: 'EGYPT EL SHARKIA MINIA ELKAMH
+
+          SALAH SALEM STREET,EGYPT'
+        occurrence: 1
     description_blocks:
       source_sha256: f93a27fc2d1a8a844b5d2f43cbd4548ee16fe4ad114a0de4679054ad29a27dd1
       fields:
@@ -5919,6 +5938,9 @@ sources:
       agent:notify_phone:
         paths:
         - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      agent:notify_country:
+        paths:
+        - documentPatch.parties.consignee.country
     lexical: []
     description_blocks:
       source_sha256: 8559c3dc4a337964295c45ee6544bddc02575c11387a306071b338de0553f82d
@@ -9048,6 +9070,9 @@ sources:
       anchor:documentPatch.cargoGroups[0].additionalInformation[0]: Reviewed obsolete
         standalone private packing/capacity claim; synthetic-only removal preserves
         every current public target and source document.
+    required_target_absences:
+      documentPatch.parties.consignee.contactDetails.phoneNumbers: The sole phone
+        occurrence belongs to the goods area, not the consignee block.
   doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691:
     description_blocks:
       source_sha256: da20439a5d95ac5e2f53f46a2b0c3e9561325ae14bb284af5bd35e734c3d6028
@@ -12796,8 +12821,8 @@ sources:
       count: 1
       reason: This separately printed inner-content tally belongs to the original
         lumber, not the declared transport-unit total or certified main description.
-        Independently sampled commodity/load profiles do not supply this tally;
-        omit the obsolete auxiliary claim without changing the package target.
+        Independently sampled commodity/load profiles do not supply this tally; omit
+        the obsolete auxiliary claim without changing the package target.
     surfaces: {}
     lexical: []
     description_blocks:
@@ -13573,7 +13598,8 @@ sources:
       anchor:documentPatch.parties.shipper.country:
         paths: []
       anchor:documentPatch.parties.consignee.country:
-        paths: []
+        paths:
+        - documentPatch.parties.consignee.country
       anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
         paths: []
   doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee:
@@ -13706,10 +13732,10 @@ sources:
       source_sha256: a2f226960fc94ce0b84dc6af4b035be9358c450b18bfa17260ffca6e508d16cb
       quote: 'BRAND: ASTUZINC ELECTRO 99.995%'
       count: 1
-      reason: This detached source-only brand and zinc grade are outside the
-        certified goods-description block and would contradict independently
-        sampled commodities; omit the complete caption and value in synthetic
-        descendants. Preserve the original source and all current public labels.
+      reason: This detached source-only brand and zinc grade are outside the certified
+        goods-description block and would contradict independently sampled commodities;
+        omit the complete caption and value in synthetic descendants. Preserve the
+        original source and all current public labels.
     lexical: []
     description_blocks:
       source_sha256: a2f226960fc94ce0b84dc6af4b035be9358c450b18bfa17260ffca6e508d16cb

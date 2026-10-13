@@ -23,6 +23,7 @@ from document_ocr.synthesis.container_semantics import (
 from document_ocr.synthesis.curated import digest, flat
 from document_ocr.synthesis.curated_casing import TargetCasing
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
+from document_ocr.synthesis.curated_equipment_aliases import project_equipment_height
 from document_ocr.synthesis.curated_equipment_inventory import (
     EquipmentInventoryContract,
     project_equipment_inventory,
@@ -1101,6 +1102,10 @@ def _equipment(blueprint, target, support, scenario, surfaces, receipt, inventor
             else:
                 if len({(c["sizeCategory"], c["typeCategory"]) for c in selected_new}) != 1:
                     raise ValueError("one equipment type owner refers to unequal sampled types")
+                height = project_equipment_height(text, selected_new[0]["sizeCategory"])
+                if height is not None:
+                    output.append(height)
+                    continue
                 suffix = re.search(r"\s+(?:FCL|LCL|STC|SAID)\b.*$", text)
                 core = text[: suffix.start()] if suffix else text
                 output.append(

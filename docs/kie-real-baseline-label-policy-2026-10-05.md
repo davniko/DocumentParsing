@@ -21,6 +21,15 @@ relationship outside the extraction target in audit metadata. A relationship is
 not one long company name, and does not by itself establish a forwarding-agent
 or NVOCC role. Separately printed independent roles remain separately extractable.
 
+`A VIA B` follows the same one-entity rule when A and B are visibly separate
+organizations: keep primary A in `name`, and record B as relationship context.
+This differs from a trading alias for the same entity. A sole undifferentiated
+postal/contact block after both names does not establish A's ownership; omit the
+unresolved address, country and contacts from A's target. Do not infer ownership
+from either company's name or apparent country. For synthesis, a certified
+organization component generates one primary organization; its newly generated
+postal/contact values remain attached to that single emitted identity.
+
 Care-of (`C/O`, `CARE OF`) names describe postal routing: put the primary party
 in `name` and the printed care-of recipient with its postal block in
 `addressLine`. Do not erase a genuine named recipient as ordinary name pollution.
@@ -479,3 +488,33 @@ docker compose --profile training run --rm --build kie-trainer train \
   --config configs/training/production/t5gemma2_270m_lora.mpci_bl_real660_reduced_v7_e5_eva_a32_r32_local_schedulefree_v1.yaml \
   --project-root /workspace
 ```
+
+## Source-owner repair clarifications — 2026-10-12
+
+A clearly marked postal continuation belongs in that party's complete address,
+even when OCR reading order places it later. Establish ownership from its actual
+marker/footnote and source layout, not from an equal country occurring under
+another role. Country wording already present in OCR may populate the country
+target and complete the address. This does not transfer an unrelated contact
+or weaken the direct-consignee-block contact policy.
+
+The pre-training re-audit establishes two concrete certificates: source
+`0d495914`'s `CN>` country continuation and `23e145de`'s matched asterisk country
+footnote. The latter's PDF was inspected only to resolve ownership; `EGYPT`
+already occurs in its OCR. Its notify phone remains notify-owned. No PDF-only
+postal text is introduced.
+
+Incidental per-unit fill/capacity remains permissible product/packing detail.
+The extraction objective does not require multiplying it into a shipment total
+or validating universal container payload limits. Whole-shipment package counts,
+net/gross totals, equipment and carrying settings remain separate authoritative
+shipment facts. A generated explicit total cannot silently appear without its
+supported target; incompatible physical-state wording still requires correction.
+
+Reviewed source exclusions are compilation requirements, not merely a preferred
+dataset selection. A source-owned `required_target_absences` declaration rejects
+an old source authority with a populated excluded target before paid generation.
+It does not delete the source OCR occurrence or infer a new owner by proximity.
+
+See [the full repair-lineage inventory](kie-synthesis-repair-lineage-reaudit-2026-10-12.md)
+for exact scope, source promotion and validation evidence.

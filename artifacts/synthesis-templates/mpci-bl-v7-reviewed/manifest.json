@@ -1,4 +1,37 @@
 {
+  "finalCampaignRegistryPinReconciliation": {
+    "date": "2026-10-12",
+    "reason": "Synchronize registry metadata with previously approved source-contract and ownership revisions; no source, template, candidate or publication content changes.",
+    "contractRevision": {
+      "sourceDocumentId": "doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e",
+      "beforeSha256": "6e6d9e22daae95c70fc245e8e56f6f42cd4e6653988b09de403a92716c4f470e",
+      "afterSha256": "e7917d55d16c650d92f1a6b5587df29d04a753130b18732339ab2df79e06728c",
+      "approvedRevision": "docs/analysis/synthesis-uae2500-replacement-20261012/proposals/gross-owner-revision.json"
+    },
+    "ownershipRevision": {
+      "sourceDocumentId": "doc_ca74e1e445dcb5f9282a217ad21e0cf5d2596f9be7bacb074c61960cf9d90cbd",
+      "beforeSha256": "df1bd09a2c700d24268828813a62b63db0944c67b4d6ed94b0a818620e145086",
+      "afterSha256": "91e17043e891f5ff19637ed2779341b9b54a9c133a512db5cd9221ee9f239533",
+      "approvedRevision": "docs/analysis/synthesis-uae2500-replacement-20261012/proposals/via-primary-identity-recovery.json"
+    }
+  },
+  "sourceAuthorityOverrides": {
+    "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc": {
+      "date": "2026-10-12",
+      "reason": "Consignee phone appears only in the goods area, not in the printed consignee block. Omit its target while preserving and anonymizing the non-target source occurrence.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660",
+      "datasetManifestSha256": "d4a54e7e00274a9c970c30f832c70d6dda22ae855e9677cb5362bc77ab49d6a3",
+      "trainSha256": "4f5a565291fd94e22c3d60dda6ee6484dec3b1c456931c02d323ac5558bd6c21",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "sourceContractSha256": "7c8c19d03a05ca49f2086d9dfd76a6a7f28aa7099e042db9df7cdd35b19893ca",
+      "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml",
+      "auxiliarySha256": "495832476195bc253cd56bcb79d3557dc9022439b9b256da50049b714193c42c",
+      "configurationRule": "Use the promoted source authority and active registry contracts/auxiliary; the reviewed absence guard rejects old populated targets.",
+      "revisionReceipt": "docs/analysis/synthesis-uae2500-replacement-20261012/proposals/consignee-phone-authority-revision.json",
+      "revisionReceiptSha256": "2c065ad422cc607733b9c79e28857d585ba874d979c523059c737b733d3bcac1",
+      "originalAuthorityPreserved": true
+    }
+  },
   "admissions": [
     {
       "addedSources": 100,
@@ -858,16 +891,22 @@
       },
       "files": {
         "alignment.json": "e0de0fef1fe51090d638f617de420f1dea502d6ebfeca5540c0143105f9b3043",
-        "contract.json": "6ea29b0445ba4d2b0dee60e8ae5848d50d70a0fd198c81b4ff38f0c44b1b0662",
+        "contract.json": "93b59792e838ae59fbbe5b2508723c4f40f0ff6b3eb4fe415141735b40a82979",
         "source-positioned.txt": "7ada845f0efabe3a52379e24069a0ec715c7be3b2e878d48f391f23d14de3cc3",
         "source.txt": "8b4d8094f0a49c321466bda7efe7845b80f929216993739cb70bcda784616546",
-        "target.json": "50027b0044bfe6c50bdef0ff52e898e1e1b0d489950710f7e99a58365f18d2aa",
+        "target.json": "12fa930e262999e4a5731a3418e2642e0acd321cf6f5118bb4a9fc493ef5594b",
         "template.json": "e99f0f3574b7d931080643519e1db4132fd64fd1f57c5881727141499cb90893"
       },
-      "sourceDataset": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/source-authority",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/wide",
       "sourceInputSha256": "8b4d8094f0a49c321466bda7efe7845b80f929216993739cb70bcda784616546",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "d98a23bec318c92e8bcfb30b0f937629b50b4ba86a70c8762ab2eadfd2e20e64"
+      "targetSha256": "b402a062c58645e8bd84f4f3944d1e75693dd3238a0ef20efa5761ec11ed0184",
+      "reaudit": {
+        "date": "2026-10-12",
+        "status": "certified_two_fresh_descendants_content_and_geometry",
+        "receipt": "/mnt/d/projects/documentparsing/docs/analysis/synthesis-repair-lineage-reaudit-20261012/pilot-certification.json",
+        "receiptSha256": "9b776aafcaed2dee7067c7e467c100b3c93da208953ac2463fd4b35b728782b2"
+      }
     },
     "doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -1734,15 +1773,22 @@
       },
       "files": {
         "alignment.json": "e839b2cf5ba4e578464f3f8781cb42c8758d335b9d0646092bc8bde7e1fface9",
-        "contract.json": "a1d952506811fc95b31878228add9abe497cd0ae1b68eefb23da9904c0ee0de5",
+        "contract.json": "7c8c19d03a05ca49f2086d9dfd76a6a7f28aa7099e042db9df7cdd35b19893ca",
         "source-positioned.txt": "ee765f18e7f13dfd835bec4b3af9c35e0163b7b41474928fbecd694fa9549ad1",
         "source.txt": "928c177e86ac94c529b06317e56fc1dcbe83ffa0140b8e1daf3999d26076f63c",
-        "target.json": "51e9f3539946c5d3465af2f634b3e323bb7148dd7b93d7b5e7226c1265da7b81",
+        "target.json": "6543b22a774fe55daebacae03d6e3bd024330eb9a25686b527b536a9428aceb8",
         "template.json": "56644580e53d8c7d1095a3a8dabcd172043e21361724eafe76c668a1bb27787f"
       },
       "sourceInputSha256": "928c177e86ac94c529b06317e56fc1dcbe83ffa0140b8e1daf3999d26076f63c",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "1c56712d679a4102ca9f5edf6fc2592d96036ff2409e92d32aae1f280220e0a5"
+      "targetSha256": "7cc6af900b67d6f34e0d75f1ef99c1a5f3b897e148b6c76a4de9c5916b118de2",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660",
+      "reaudit": {
+        "date": "2026-10-12",
+        "status": "certified_two_fresh_descendants_content_and_geometry",
+        "receipt": "/mnt/d/projects/documentparsing/docs/analysis/synthesis-repair-lineage-reaudit-20261012/pilot-certification.json",
+        "receiptSha256": "9b776aafcaed2dee7067c7e467c100b3c93da208953ac2463fd4b35b728782b2"
+      }
     },
     "doc_23d021032e9f5f52cdb6948df95a92937deef89f98ffcaaa3a06a77892ada9e4": {
       "capability": {
@@ -1791,15 +1837,22 @@
       },
       "files": {
         "alignment.json": "e11f6427781e70f2373d2da83616ca5ca25b263f87ce9116927091c45e78bb95",
-        "contract.json": "4e3309357eaad35fef159f46ef11f332519bcd3bba4c42494480e61f1d746444",
+        "contract.json": "087152d1d0f76778dff9986fb01173df43251f297e2c3036038305d29e738c97",
         "source-positioned.txt": "2d066bd242936c2c9a3ebbc3cae90fead6a978409ebc582791e7b7247a61a267",
         "source.txt": "8559c3dc4a337964295c45ee6544bddc02575c11387a306071b338de0553f82d",
-        "target.json": "b5e15e3a7cbb4e1e7c1e6e29ced86d05a2556884d953b734bca4ecfcc3b6c4ec",
+        "target.json": "7eb030b95d4fa91dca6e5636cf630983717300e36eb3172eff3590b33485a233",
         "template.json": "21896993a2bb3837db817610c94975d925072e5879ea3885e8b471c4bdd848d2"
       },
       "sourceInputSha256": "8559c3dc4a337964295c45ee6544bddc02575c11387a306071b338de0553f82d",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "334f321ec353536957da5bc98e090219c0e589c7b75cc060db644a9ee004465a"
+      "targetSha256": "c58f0adbe1f69cf05204bf67149eedc8d5a7f107ddbcd473465ed4af0a587632",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660",
+      "reaudit": {
+        "date": "2026-10-12",
+        "status": "certified_two_fresh_descendants_content_and_geometry",
+        "receipt": "/mnt/d/projects/documentparsing/docs/analysis/synthesis-repair-lineage-reaudit-20261012/pilot-certification.json",
+        "receiptSha256": "9b776aafcaed2dee7067c7e467c100b3c93da208953ac2463fd4b35b728782b2"
+      }
     },
     "doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -3338,7 +3391,7 @@
       },
       "files": {
         "alignment.json": "795c705fef038c9c5f1be420c7712c593ea7c459113df80412a18b4a2c2d3ddf",
-        "contract.json": "6e6d9e22daae95c70fc245e8e56f6f42cd4e6653988b09de403a92716c4f470e",
+        "contract.json": "e7917d55d16c650d92f1a6b5587df29d04a753130b18732339ab2df79e06728c",
         "source-positioned.txt": "e0126ed0832bd1bab40907e72322ca0fbdcbe14cb9b00bd8df000cab48cc7795",
         "source.txt": "7355e64bcabec3f333fad2225636170c7691da05c44a4cb8fca3e867b8ccf3e7",
         "target.json": "a06f82fac8068fe7c257651286a5293feba9d49f03ac78ea059c6281d63267bd",
@@ -6234,7 +6287,7 @@
       },
       "files": {
         "alignment.json": "6663cc55bc730b4d2d8e1b084c807293ecbc9f518d939e556b519d3b4d864c73",
-        "contract.json": "d30bf864d66c6bfcc1c9c1351b0d773865fa127d1f1f1677d26635343d7e4f01",
+        "contract.json": "77d3f614bb18b7e28251b5930a5a22c567e8be760c1a142adcd3403f61a87651",
         "source-positioned.txt": "3af9a4a58eb929389c4b6596a548e7866ad3f31338abd112074397fe215d0ffe",
         "source.txt": "66f419d7abd4e0a733817ae655f29d77074c80fa49a991d69b66aa2ced312c19",
         "target.json": "9e728981372b42edd6d7dfcd9151a58b777bfeaeb22011ceb67887dd0024d6f6",
@@ -6242,7 +6295,14 @@
       },
       "sourceInputSha256": "66f419d7abd4e0a733817ae655f29d77074c80fa49a991d69b66aa2ced312c19",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "6315e94b9438b214065b7c2c3aa1d2e8ef6b425966ed791dbbdf35d4572cc45c"
+      "targetSha256": "6315e94b9438b214065b7c2c3aa1d2e8ef6b425966ed791dbbdf35d4572cc45c",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660",
+      "reaudit": {
+        "date": "2026-10-12",
+        "status": "certified_two_fresh_descendants_content_and_geometry",
+        "receipt": "/mnt/d/projects/documentparsing/docs/analysis/synthesis-repair-lineage-reaudit-20261012/pilot-certification.json",
+        "receiptSha256": "9b776aafcaed2dee7067c7e467c100b3c93da208953ac2463fd4b35b728782b2"
+      }
     },
     "doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -11526,6 +11586,20 @@
         "artifacts/kie-synthesis-production/mixed-inventory-validation-v1/manifest.json": "0d9d9c75e44ece39456cf707050ea39657c61d98af2ee5163bdb1f5f59dcfc4a",
         "artifacts/kie-synthesis-production/mixed-inventory-validation-v1/positions-reflow-v1/manifest.json": "fa0b0ddfa3f82b3947147bfeaec5be4b92725e399908471b9d6eb13852467ed8"
       }
+    },
+    {
+      "date": "2026-10-12",
+      "kind": "postal_ownership_country_suffix_rebase",
+      "sourceDocumentId": "doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5",
+      "sourceLabelsAndContractUnchanged": true,
+      "affectedCurrentCampaignSamples": [
+        "syn_full_v7_f074951f5cdbaf5e89b536ba"
+      ],
+      "ownershipFileSha256Before": "3135ce5effd5660ac76a0d71cdc27509dc6835aa9f12159d5592048dbebc8f8e",
+      "ownershipFileSha256After": "df1bd09a2c700d24268828813a62b63db0944c67b4d6ed94b0a818620e145086",
+      "reviewedSourceSpan": "EGYPT EL SHARKIA MINIA ELKAMH\nSALAH SALEM STREET,EGYPT",
+      "report": "docs/analysis/synthesis-uae2500-replacement-20261012/proposals/84b-postal-owner-applied-validation.json",
+      "nativePaidCallsUnchanged": true
     }
   ],
   "packageAccountingRepair": {
@@ -11693,8 +11767,8 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "ec5164c5446040d2cadd72f324d0a95e20fe10c990fb128e1e95be3d53595143",
-    "ownership.yaml": "e085e10765df8c6e403105208dd21ff97986be2b4b9782f490deb696ced3b901",
+    "auxiliary.yaml": "495832476195bc253cd56bcb79d3557dc9022439b9b256da50049b714193c42c",
+    "ownership.yaml": "3e4841ea91b22ae0287c32f0c3192e1c0353a23ba33b9ba79b13f008c93258c4",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513"
   },
@@ -11823,5 +11897,25 @@
     },
     "report": "docs/kie-mixed-equipment-production-integration-2026-10-12.md",
     "trainingOrPlanned2500Launched": false
+  },
+  "reauditSourceRevision": {
+    "date": "2026-10-12",
+    "receipt": "docs/analysis/synthesis-repair-lineage-reaudit-20261012/source-revision.json",
+    "historicalRegistry": "docs/analysis/synthesis-repair-lineage-reaudit-20261012/historical-registry",
+    "sourceAuthorities": {
+      "real660": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660",
+      "wide": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/wide"
+    },
+    "changedSources": [
+      "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc",
+      "doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f",
+      "doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005",
+      "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046"
+    ],
+    "originalDatasetAuthoritiesModified": false,
+    "postalPrivateCountryRecipesRetired": [
+      "doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f",
+      "doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005"
+    ]
   }
 }

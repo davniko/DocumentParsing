@@ -161,6 +161,16 @@ class RenderedReview(BaseModel):
     )
 
 
+@dataclass(frozen=True)
+class RenderedReviewRequest:
+    """One exact native review request, shared by execution and offline audit."""
+
+    sample_ids: tuple[str, ...]
+    output_type: type[BaseModel]
+    system: str
+    prompt: str
+
+
 RENDERED_REVIEW_PROMPT = """Audit final synthetic Bill of Lading training examples.
 The host has sampled registry commodity identities, routes, equipment, packaging and loads;
 the model has written fictional names and postal addresses. Compare the final text and labels
@@ -186,7 +196,9 @@ Description labels copy the main product block and genuine product continuations
 order, including embedded packing/capacity qualifiers. Headings, loading declarations,
 standalone accounting and detached auxiliary/tracking passages remain outside it, as do Marks.
 Compare every packing or transport claim inside the description with the supplied shipment:
-extra drum/bag/tank claims or unit fill weights need explicit supplied support. Also check
+whole-shipment counts/totals, package units and carrying/equipment claims must agree.
+Incidental per-unit fill or capacity may enrich compatible product wording; multiplying it
+into an undeclared shipment total or imposing a universal payload bound is not the task. Check
 that descriptions contain final commercial wording, not drafting or correction commentary.
 Do not reject descriptions for length, line count, or harmless classification differences.
 Thermal wording must match the sampled commodity and cold-chain profile, rather than
@@ -223,19 +235,22 @@ When description fields are requested, write natural commercial product wording.
 Required product facts and physical form describe the actual shipment. Classification
 references suggest the commodity subject and vocabulary; tariff scope and alternatives
 are context rather than extra shipment attributes. Use compatible product specifications.
+Keep each product variant's physical state internally consistent. Distinct variants may
+differ; identify them separately rather than attach competing states to one product.
 Generate fragments jointly at the source's descriptive depth and
 presentation: concise identity, specification passage, or product list. Cover each
 sampled commodity subject. Use natural item boundaries without line or
 character quotas.
 This request owns product identity and intrinsic specifications: material, form, grade,
-model, dimensions and technical properties. Package counts, package contents, fill weights,
+model, dimensions and technical properties. Whole-shipment package counts, declared contents,
 shipment masses, transport settings and references belong to separate host-rendered regions.
 Those facts remain outside the requested descriptions, including when an example mentions them.
 Keep the product physically compatible with the declared packaging and equipment.
 Begin with the product wording; keep loading introductions and standalone accounting
 statements outside these regions. Attached product qualifiers remain part of the passage.
 Intrinsic product specifications may include dimensions, grades and operating ratings.
-Packing capacities and fill amounts remain host facts. Complete any product phrase or specification.
+Incidental per-unit packing capacity/fill may enrich compatible product specifications; do not
+turn it into a new whole-shipment count or weight declaration. Complete each product phrase.
 Each shipment is an independent variant: vary its product wording and fictional identifiers.
 Use uppercase human-readable text. Separate physical lines with newlines when useful."""
 
@@ -667,17 +682,10 @@ def validate_wording(
                 == re.sub(r"\W+", "", fields[value.key].example).casefold()
             ):
                 raise ValueError(f"{value.key}: copied source identity")
-            if fields[value.key].role == "goods description" and re.search(
-                r"\b\d+(?:[.,]\d+)?\s*(?:KG|KGS|KILOGRAMS?|G|GRAMS?|LB|LBS|LITRES?|LITERS?|PCS|PIECES?)"
-                r"\s*(?:PER|/)\s*(?:MASTER\s+)?(?:CARTONS?|BOX(?:ES)?|BAGS?|DRUMS?|PACKAGES?|CONES?|SPOOLS?|COILS?)\b"
-                r"|\b(?:CONES?|SPOOLS?|COILS?|BAGS?|DRUMS?|CARTONS?)\s+\d+(?:[.,]\d+)?\s*(?:KG|KGS|LB|LBS)\b"
-                r"|\bON\s*\d+(?:[.,]\d+)?\s*(?:KG|KGS|LB|LBS)\s*(?:CONES?|SPOOLS?|COILS?)\b",
-                text,
-                re.I,
-            ):
-                raise ValueError(
-                    f"{value.key}: host-owned package fill inside generated description"
-                )
+            # A per-package fill or cone capacity is product/packing wording,
+            # not a shipment total. Keep it for semantic compatibility review;
+            # do not reject equivalent descriptions based on phrase order.
+            # Explicit shipment accounting remains separately guarded below.
             if fields[value.key].role == "goods description" and (
                 _GENERATOR_CONTEXT_CAPTION.search(text)
             ):
