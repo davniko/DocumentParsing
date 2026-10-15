@@ -29,6 +29,7 @@ from document_ocr.synthesis.generators import (
     generate_from_surface_pattern,
     surface_pattern,
 )
+from document_ocr.synthesis.phone_presentations import format_phone_presentation
 from document_ocr.synthesis.template_compiler import contact_values
 
 # These are captions, not a whole-document country substitution. Exact matched
@@ -280,6 +281,9 @@ def _render_recipe(
     original: str,
     shifts: set[int],
     vessels: tuple[str, ...] = (),
+    *,
+    source_country_code: str | None = None,
+    literal_phone_prefix: str = "",
 ) -> str:
     if "party_location" in recipe:
         locality = scenario.party_localities[recipe["party_location"]]
@@ -379,7 +383,21 @@ def _render_recipe(
             ),
             country_code=country_code,
         )
-        return recipe.get("prefix", "") + value + recipe.get("suffix", "")
+        prefix, suffix = recipe.get("prefix", ""), recipe.get("suffix", "")
+        core = original
+        if prefix and core.startswith(prefix):
+            core = core[len(prefix) :]
+        if suffix and core.endswith(suffix):
+            core = core[: -len(suffix)]
+        presentation = format_phone_presentation(
+            source_value=literal_phone_prefix + core,
+            source_surfaces=(core,),
+            replacement_identity=value,
+            target_country_code=country_code,
+            source_country_code=(country_code if scope == "source" else source_country_code),
+            literal_prefixes=(literal_phone_prefix,),
+        )
+        return prefix + presentation.surfaces[0] + suffix
     raise ValueError(f"unknown auxiliary recipe: {recipe}")
 
 
@@ -445,6 +463,7 @@ def auxiliary_surfaces(
     *,
     existing: dict[str, str | list[str]] | None = None,
     vessels: tuple[str, ...] = (),
+    source_country_codes: dict[str, str] | None = None,
 ) -> tuple[dict[str, str | list[str]], list[dict]]:
     """Produce all declared dependent surfaces and auditable semantic receipts.
 
@@ -497,10 +516,26 @@ def auxiliary_surfaces(
                 raise ValueError(
                     f"source-only auxiliary generator owns public target values: {key}"
                 )
-            rendered = [
-                _render_recipe(recipe, scenario, target, stream, original, shifts, vessels)
-                for original in originals
-            ]
+            rendered = []
+            for index, original in enumerate(originals):
+                literal_prefix = ""
+                if "phone" in recipe:
+                    owners = [
+                        region for region in blueprint.regions
+                        if region.key == key and region.occurrence == index
+                    ]
+                    if len(owners) != 1:
+                        raise ValueError("source-only phone requires one exact occurrence owner")
+                    raw, start = blueprint.source.encode(), owners[0].start
+                    if start and raw[start - 1 : start] == b"+":
+                        literal_prefix = "+"
+                rendered.append(
+                    _render_recipe(
+                        recipe, scenario, target, stream, original, shifts, vessels,
+                        source_country_code=(source_country_codes or {}).get(recipe.get("phone")),
+                        literal_phone_prefix=literal_prefix,
+                    )
+                )
         else:
             supplied = output.get(key, originals)
             rendered = list(supplied) if isinstance(supplied, list) else [supplied] * len(originals)

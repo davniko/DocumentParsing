@@ -12,6 +12,48 @@ only within their stated scope. Independently printed telephone numbers remain
 extractable; standalone abbreviated suffixes/extensions are not separate numbers
 and must not be expanded by guessing missing prefixes.
 
+## Telephone presentation and synthesis (2026-10-15)
+
+Telephone targets preserve the document's printed dialing prefix and meaningful
+punctuation; they are not normalized to E.164. Physical line wraps may be joined
+without changing the number. Do not add `+` or a country calling code, remove a
+printed `00`/national zero, or repair digits from country/company knowledge.
+Attached extension text belongs to its complete number when retained by the
+reviewed source; an abbreviated extension/range suffix is not an independently
+complete phone target.
+
+Synthesis separates a sampled numeric identity from its presentation. Source
+styles and explicitly configured presentation families may vary. Repeated
+occurrences share the identity and preserve their own owned presentation. The
+generated phone label follows the reviewed source target's presentation, with
+an owned printed occurrence supporting it. A `+` in the unchanged source frame
+must not be emitted a second time inside its replacement. Input presentation
+changes and dependent labels are published together; real OCR is never rewritten
+to accommodate an incorrect model prediction.
+
+Party ownership is independent of literal presence elsewhere: a goods-area
+phone is not a consignee contact merely because that number occurs in the
+document. An explicitly delivery-only party is not duplicated into notify.
+This clarification does not authorize unrelated punctuation cleanup or a new
+telephone-normalization target contract.
+
+## Container identifier presentation and synthesis (2026-10-15)
+
+Container identifier targets and their placement references retain canonical
+uppercase ISO 6346 identities, including the check digit. Remove presentation
+spaces/separators from these targets only; do not change identifier characters
+or infer an identity from adjacent seals or equipment codes.
+
+Synthetic OCR preserves each verified source occurrence's identifier format:
+spaces, dots, slashes, hyphens and physical line boundaries. Repeated occurrences
+of one identity share its sampled canonical value but retain their independently
+owned formats. This is an automatic rendering step, not an additional identity
+sample. It must not modify neighboring text or any target value. A reviewed
+character-level OCR alias is a separate explicit binding, not a separator mask.
+Unsupported or ambiguous ownership must fail validation rather than trigger a
+global replacement or reconstruction of the surrounding source block. See the
+[implementation and dataset repair report](kie-container-id-presentation-repair-2026-10-15.md).
+
 ## Related party identities and postal ownership (2026-10-10)
 
 The user explicitly selected **the primary printed company A** for an `A ON

@@ -78,6 +78,10 @@ from document_ocr.synthesis.curated_packaging import (
     project_package_aliases_with_context,
     validate_contained_quantity_sampling,
 )
+from document_ocr.synthesis.curated_phones import (
+    PhoneRenderingPolicy,
+    prepare_phone_rendering,
+)
 from document_ocr.synthesis.curated_physical import (
     PhysicalRenderPlan,
     PhysicalSupport,
@@ -1107,6 +1111,8 @@ def validate_sample(
     task,
     *,
     casing_policy: CasingPolicy | None = None,
+    phone_policy: PhoneRenderingPolicy | None = None,
+    source_phone_country_codes: dict[str, str] | None = None,
 ) -> dict:
     """Replay supplied render inputs and check schema/accounting invariants.
 
@@ -1121,14 +1127,38 @@ def validate_sample(
     }
     if candidate["countryCodes"] != country_codes:
         raise ValueError("country-code authority differs from the sampled registry geography")
+    render_target = _handling_replay_target(blueprint, candidate, casing=casing_policy.target)
+    phone_receipt = candidate["proof"].get("phonePresentations")
+    if phone_receipt is not None:
+        render_target = deepcopy(render_target)
+        leaves = flat(render_target)
+        for path, value in phone_receipt["targetValues"].items():
+            if leaves.get(path) != value or path not in phone_receipt["inputValues"]:
+                raise ValueError("phone projection target differs from its replay receipt")
+            assign(render_target, path, phone_receipt["inputValues"][path])
+    phone_rendering = prepare_phone_rendering(
+        blueprint,
+        render_target,
+        source_country_codes=source_phone_country_codes or {},
+        target_country_codes={
+            role: geo.country_code for role, geo in scenario.party_localities.items()
+        },
+        policy=phone_policy,
+        stream=DeterministicStream(
+            candidate["seed"], "phone-presentations-v1", candidate["documentId"]
+        ),
+    )
+    if phone_receipt != (phone_rendering.receipt() if phone_rendering.target_values else None):
+        raise ValueError("phone projection differs from independently prepared source ownership")
     text, target, proof = render_sampling_blueprint(
         blueprint,
-        _handling_replay_target(blueprint, candidate, casing=casing_policy.target),
+        render_target,
         candidate["renderValues"],
         surface_values=candidate["surfaceValues"],
         certified_country_codes=country_codes,
         render_casing=casing_policy.select(candidate["seed"], candidate["documentId"]),
         target_casing=casing_policy.target,
+        phone_rendering=phone_rendering,
     )
     target, proof = _project_handling_labels(
         blueprint, text, target, proof, casing=casing_policy.target
@@ -1241,6 +1271,7 @@ class Campaign:
     def __init__(self, root: Path, config: dict):
         self.root, self.config = root, config
         self.casing = CasingPolicy.model_validate(config.get("casing", {}))
+        self.phone_policy = PhoneRenderingPolicy.model_validate(config.get("phones", {}))
         base = {key: config[key] for key in CuratedSynthesisConfig.model_fields}
         self.calls = Runner(root, base)
         self.output = self.calls.output
@@ -1320,6 +1351,7 @@ class Campaign:
             ):
                 raise ValueError("load-profile package category has no reviewed task alias")
         self._blueprints: dict[str, SamplingBlueprint] = {}
+        self._source_phone_country_codes: dict[str, dict[str, str]] = {}
         self._blueprint_file_pins: dict[Path, str] = {
             path: digest(path.read_bytes())
             for path in (
@@ -1549,6 +1581,18 @@ class Campaign:
             # late failure after selecting a shipment (or after a paid call).
             # Contract errors propagate; only typed draw incompatibilities retry.
             self.physical_render(blueprint, candidate, target)
+            prepare_phone_rendering(
+                blueprint,
+                target,
+                source_country_codes=self.source_phone_country_codes(blueprint),
+                target_country_codes={
+                    role: geo.country_code for role, geo in candidate.party_localities.items()
+                },
+                policy=self.phone_policy,
+                stream=DeterministicStream(
+                    self.config["seed"], "phone-presentations-v1", sample_id
+                ),
+            )
 
         scenario = self.catalog.sample(
             self.rows[sid],
@@ -1566,6 +1610,31 @@ class Campaign:
                 stream.derive("vessel-name").randbelow(len(candidates))
             ]
         return blueprint, scenario, sample_id, target
+
+    def source_phone_country_codes(self, blueprint: SamplingBlueprint) -> dict[str, str]:
+        """Provide recognized source-country metadata, never source city guesses.
+
+        Printed country strings need not be registry aliases (e.g. CHINA(CN)).
+        The source-shape formatter explicitly supports unknown source geography;
+        do not manufacture a code or mistake this optional metadata for new
+        sampled-phone country authority, which is always required.
+        """
+        if blueprint.document_id not in self._source_phone_country_codes:
+            leaves = flat(blueprint.target)
+            result = {}
+            for path, country in leaves.items():
+                if (
+                    path.startswith("documentPatch.parties.")
+                    and path.endswith(".country")
+                    and (code := self.catalog.countries.resolve(country))
+                ):
+                    result[path.removesuffix(".country")] = code
+            for side, location in (("origin", "portOfLoading"), ("destination", "portOfDischarge")):
+                path = f"documentPatch.route.{location}.country"
+                if code := self.catalog.countries.resolve(leaves.get(path)):
+                    result[side] = code
+            self._source_phone_country_codes[blueprint.document_id] = result
+        return self._source_phone_country_codes[blueprint.document_id]
 
     def plans(self, sid: str) -> list[tuple]:
         return [self.plan(sid, variant) for variant in range(1, self.variant_counts[sid] + 1)]
@@ -1599,6 +1668,7 @@ class Campaign:
                 DeterministicStream(self.config["seed"], "full-current-v7", sample_id),
                 existing=surfaces,
                 vessels=self.vessels,
+                source_country_codes=self.source_phone_country_codes(blueprint),
             )
 
     def wording_request(
@@ -2071,7 +2141,13 @@ class Campaign:
             contact_values_by_binding,
         )
         surfaces, auxiliary_receipt = auxiliary_surfaces(
-            blueprint, scenario, target, stream, existing=surfaces, vessels=self.vessels
+            blueprint,
+            scenario,
+            target,
+            stream,
+            existing=surfaces,
+            vessels=self.vessels,
+            source_country_codes=self.source_phone_country_codes(blueprint),
         )
         surfaces = combine_surfaces(surfaces, remaining_text_surfaces(blueprint, target, surfaces))
         keys = {v.key for v in blueprint.contract.variables}
@@ -2083,6 +2159,18 @@ class Campaign:
             for role, geo in scenario.party_localities.items()
             if role + ".country" in flat(target)
         }
+        phone_rendering = prepare_phone_rendering(
+            blueprint,
+            target,
+            source_country_codes=self.source_phone_country_codes(blueprint),
+            target_country_codes={
+                role: geo.country_code for role, geo in scenario.party_localities.items()
+            },
+            policy=self.phone_policy,
+            stream=DeterministicStream(
+                self.config["seed"], "phone-presentations-v1", sample_id
+            ),
+        )
         text, target, proof = render_sampling_blueprint(
             blueprint,
             target,
@@ -2091,6 +2179,7 @@ class Campaign:
             certified_country_codes=country_codes,
             render_casing=self.casing.select(self.config["seed"], sample_id),
             target_casing=self.casing.target,
+            phone_rendering=phone_rendering,
         )
         target, proof = _project_handling_labels(
             blueprint, text, target, proof, casing=self.casing.target
@@ -2115,7 +2204,13 @@ class Campaign:
             "blueprint": blueprint.inventory(),
         }
         candidate["validation"] = validate_sample(
-            blueprint, scenario, candidate, self.calls.task, casing_policy=self.casing
+            blueprint,
+            scenario,
+            candidate,
+            self.calls.task,
+            casing_policy=self.casing,
+            phone_policy=self.phone_policy,
+            source_phone_country_codes=self.source_phone_country_codes(blueprint),
         )
         if contact_receipt is not None:
             candidate["contactReceiptSha256"] = digest(contact_receipt)

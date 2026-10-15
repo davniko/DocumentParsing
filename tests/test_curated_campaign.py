@@ -112,7 +112,7 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
 
     def run():
         return validate_sample(
-            SimpleNamespace(target=source, source="OLD GOODS"),
+            SimpleNamespace(target=source, source="OLD GOODS", regions=()),
             scenario,
             candidate,
             SimpleNamespace(canonicalize=lambda x: x),
@@ -123,6 +123,109 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
             run()
     else:
         assert run()["sampledIdentity"]
+
+
+def _phone_projection_fixture():
+    from document_ocr.synthesis.curated_phones import prepare_phone_rendering
+    from document_ocr.synthesis.curated_templates import (
+        compile_sampling_blueprint,
+        render_sampling_blueprint,
+    )
+
+    role = "documentPatch.parties.shipper"
+    phone = role + ".contactDetails.phoneNumbers[0]"
+    raw = "TEL: 0020225752002\nGOODS: STEEL BOLTS\n"
+    source = {
+        "documentId": "phone-replay",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "non_negotiable",
+                "parties": {"shipper": {"contactDetails": {"phoneNumbers": ["0020225752002"]}}},
+                "goodsItemDetails": [{"description": "STEEL BOLTS"}],
+            },
+        },
+    }
+    contract = SourceContract.model_validate({
+        "variables": [{
+            "key": "product", "kind": "product", "value": "STEEL BOLTS",
+            "meaning": "product", "required_literals": [],
+            "occurrences": [{"text": "STEEL BOLTS", "occurrence": 1, "presentation": "text"}],
+        }],
+        "targets": [{
+            "path": "documentPatch.goodsItemDetails[0].description", "expression": "{product}"
+        }],
+        "fixed_context": "Phone-only presentation replay regression.",
+    })
+    start = raw.index("0020225752002")
+    historical = {"document_id": source["documentId"], "bindings": [{
+        "logical_key": "phone", "target_paths": [phone], "value_kind": "phone",
+        "occurrences": [{
+            "byte_start": start, "byte_end": start + len("0020225752002"),
+            "source_text": "0020225752002",
+        }],
+    }]}
+    blueprint = compile_sampling_blueprint(source, historical, contract, description_blocks={
+        "source_sha256": digest(raw.encode()),
+        "fields": [{"path": "documentPatch.goodsItemDetails[0].description", "spans": [
+            {"text": "STEEL BOLTS", "occurrence": 1}
+        ]}],
+    })
+    sampled = deepcopy(source["target"])
+    sampled["documentPatch"]["parties"]["shipper"]["contactDetails"]["phoneNumbers"] = [
+        "+20 10 1234 5678"
+    ]
+    sampled["documentPatch"]["goodsItemDetails"][0]["description"] = "STEEL RODS"
+    stream = DeterministicStream(1, "phone-presentations-v1", "phone-replay")
+    plan = prepare_phone_rendering(
+        blueprint, sampled, source_country_codes={role: "EG"},
+        target_country_codes={role: "EG"}, stream=stream,
+    )
+    text, target, proof = render_sampling_blueprint(
+        blueprint, sampled, {"product": "STEEL RODS"}, phone_rendering=plan
+    )
+    candidate = {
+        "target": target, "countryCodes": {}, "renderValues": {"product": "STEEL RODS"},
+        "surfaceValues": {}, "seed": 1, "documentId": "phone-replay",
+        "joinedRawText": text, "joinedRawTextSha256": digest(text.encode()), "proof": proof,
+    }
+    scenario = SimpleNamespace(
+        party_localities={role: SimpleNamespace(country_code="EG", country="EGYPT")},
+        replacements={}, goods_identities=[], provenance={},
+    )
+    return blueprint, scenario, candidate, role
+
+
+def test_phone_projection_replays_original_identity_and_preserves_other_targets():
+    blueprint, scenario, candidate, role = _phone_projection_fixture()
+    before = deepcopy(candidate)
+    assert "00201012345678" in candidate["joinedRawText"]
+    assert validate_sample(
+        blueprint, scenario, candidate, SimpleNamespace(canonicalize=lambda value: value),
+        source_phone_country_codes={role: "EG"},
+    )["exactReplay"]
+    assert candidate == before
+
+
+@pytest.mark.parametrize("defect", ["input", "projected", "source", "unrelated"])
+def test_phone_projection_rejects_tampered_receipts_without_masking_other_fields(defect):
+    blueprint, scenario, candidate, role = _phone_projection_fixture()
+    receipt = candidate["proof"]["phonePresentations"]
+    path = role + ".contactDetails.phoneNumbers[0]"
+    if defect == "input":
+        receipt["inputValues"][path] = "+20 10 1234 5679"
+    elif defect == "projected":
+        receipt["targetValues"][path] = "00209999999999"
+    elif defect == "source":
+        receipt["sourceSha256"] = "0" * 64
+    else:
+        candidate["target"]["documentPatch"]["goodsItemDetails"][0]["description"] = "OTHER GOODS"
+    with pytest.raises(ValueError):
+        validate_sample(
+            blueprint, scenario, candidate, SimpleNamespace(canonicalize=lambda value: value),
+            source_phone_country_codes={role: "EG"},
+        )
 
 
 def _handling_replay_fixture():

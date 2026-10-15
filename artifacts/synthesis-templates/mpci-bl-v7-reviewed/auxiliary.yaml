@@ -3105,7 +3105,7 @@ sources:
       agent:consignee_fax:
         phone: documentPatch.parties.consignee
       agent:notify_fax:
-        phone: documentPatch.parties.notifyParties[0]
+        target: documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
       agent:importer_id:
         identifier: private commercial/registration reference
         format: source

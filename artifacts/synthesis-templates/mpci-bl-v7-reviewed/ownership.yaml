@@ -4245,6 +4245,11 @@ sources:
       agent:customs:importer_tax_id:cn: private
       agent:customs:importer_tax_id:egypt: private
   doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348:
+    phone_target_presentations:
+      documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]:
+        key: anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+        occurrence: 1
+        value: '{+}20 2 24801010'
     bindings:
       agent:source:delivery_agent:fax:
         paths: []
@@ -8259,8 +8264,10 @@ sources:
     bindings:
       anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
         paths:
-        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
         - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]
+      agent:notify_fax:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
       agent:acid_number:
         kind: identifier
         paths: []
@@ -9712,6 +9719,14 @@ sources:
         all: true
   doc_5c5e51a90b1e941b75e5619d9b4a56ef05149842da9709984fa9bee730c19715:
     bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[1]:
+        occurrences:
+        - text: '+202-38243141 EXT:117'
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]:
+        occurrences:
+        - text: '+202-38243141 EXT:117'
+          occurrence: 2
       agent:shipping_agent_email:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
@@ -9773,6 +9788,8 @@ sources:
       anchor:documentPatch.route.placeOfDelivery.name: Current reviewed target omits
         the contradictory source delivery field; remove the whole private field in
         synthetic descendants.
+      agent:consignee_phone_extension: Extension is owned with its complete target-bearing phone.
+      agent:notify_phone_extension: Extension is owned with its complete target-bearing phone.
     add:
     - key: review:delivery_agent_caption
       kind: other_text
@@ -16496,9 +16513,21 @@ sources:
       agent:office_code: public
   doc_9ea52ed1c8cb06c6e0f1101616f98b6b1c0a75209c37821e56f374adbc66a538:
     bindings:
-      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[4]:
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[1]:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[2]:
+        paths:
+        - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[3]
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[3]:
         paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[4]
+      anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[4]:
+        paths:
         - documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[5]
       agent:acid_number:
         kind: identifier
@@ -19364,6 +19393,14 @@ sources:
     lexical: []
     add: []
     bindings:
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
+        occurrences:
+        - text: "002\n02 2575 2002"
+          occurrence: 1
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
+        occurrences:
+        - text: "002\n02 2575 2002"
+          occurrence: 2
       agent:customs:advance_cargo_declaration:
         kind: identifier
         paths: []
@@ -20370,6 +20407,18 @@ sources:
     lexical: []
     add: []
     bindings:
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[3]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[1]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[2]
+      anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[2]:
+        paths:
+        - documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[3]
       agent:notify_contact_name:mahmoud_sherif:
         paths:
         - documentPatch.parties.notifyParties[0].contactDetails.contactName

@@ -1,6 +1,7 @@
 from copy import deepcopy
 from types import SimpleNamespace
 
+import phonenumbers
 import pytest
 
 from document_ocr.synthesis.curated import Occurrence, SourceContract, TargetBinding, Variable
@@ -210,7 +211,14 @@ def test_auxiliary_fax_aliases_share_one_subscriber_and_country():
     stream = DeterministicStream(22, "privacy", "document")
     a = _render_recipe(recipe, None, {}, stream, "22694915", set())
     b = _render_recipe(recipe, None, {}, stream, "+2 (02) 22694915", set())
-    assert a == b and a.startswith("+20 ")
+    assert a != b and not a.startswith("+") and b.startswith("+")
+    identities = [
+        phonenumbers.format_number(
+            phonenumbers.parse(value, "EG"), phonenumbers.PhoneNumberFormat.E164
+        )
+        for value in (a, b)
+    ]
+    assert identities[0] == identities[1]
     with pytest.raises(ValueError, match="explicit country"):
         _validate_recipe({"phone": "source"})
     with pytest.raises(ValueError, match="contact channel"):

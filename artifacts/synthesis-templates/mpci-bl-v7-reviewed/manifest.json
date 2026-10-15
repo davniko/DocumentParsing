@@ -15602,6 +15602,30 @@
       "doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f"
     ]
   },
+  "containerIdentifierPresentationRepair": {
+    "date": "2026-10-15",
+    "policy": "Preserve each owned source identifier mask while keeping canonical targets and placement references unchanged",
+    "report": "docs/kie-container-id-presentation-repair-2026-10-15.md",
+    "sourceTextAndTargetAssetsUnchanged": true,
+    "ownershipBindingsUnchanged": true,
+    "reviewedCharacterAliasesRemainSeparate": true
+  },
+  "phonePresentationRepair": {
+    "date": "2026-10-15",
+    "policy": "Source-conditioned phone presentation with unchanged sampled subscriber identities",
+    "report": "docs/kie-phone-presentation-repair-2026-10-15.md",
+    "ownershipSources": [
+      "doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f",
+      "doc_28f4afa50eb8cd33687677180bdefc33e3174b3b52eab25fe625357d05a1ca50",
+      "doc_531130c43011b1411f42d23557aff766d695cdf91d7c09c65407f04088090088",
+      "doc_5c5e51a90b1e941b75e5619d9b4a56ef05149842da9709984fa9bee730c19715",
+      "doc_9ea52ed1c8cb06c6e0f1101616f98b6b1c0a75209c37821e56f374adbc66a538"
+    ],
+    "reviewedTargetPresentationSources": [
+      "doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348"
+    ],
+    "sourceTextAndTargetAssetsUnchanged": true
+  },
   "privacyMetadataRevision": {
     "date": "2026-10-14",
     "extractionTargetsPreserved": true,
@@ -15665,8 +15689,8 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "b1ba3c2b6ea60f84d7d09af9ee9bbee394251e63fbc7733866d293afb84a4325",
-    "ownership.yaml": "3dc62390937dc83dc7e821eb8a1c830edebaa3987f3bf2591fe0c7616d5e689a",
+    "auxiliary.yaml": "3f5e983185ba33239d63ebd3a204365715bb40e80a4cc6cc053072504e6a722b",
+    "ownership.yaml": "7d03e83f672125ad824463c919486b1630d27af3c7dc4ec0de8754277a7e33d2",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513",
     "task-constraints.json": "c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a"
@@ -15674,7 +15698,7 @@
   "sourceAuthorityOverrides": {
     "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc": {
       "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml",
-      "auxiliarySha256": "b1ba3c2b6ea60f84d7d09af9ee9bbee394251e63fbc7733866d293afb84a4325",
+      "auxiliarySha256": "3f5e983185ba33239d63ebd3a204365715bb40e80a4cc6cc053072504e6a722b",
       "configurationRule": "Use the promoted source authority and active registry contracts/auxiliary; the reviewed absence guard rejects old populated targets.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/refresh900-seals-20261014/real704",
       "datasetManifestSha256": "057c094d33663b6d68bd4f1b5dd517f59dd85048bd99e4aaf96a8ab403a1400e",

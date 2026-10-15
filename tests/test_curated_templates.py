@@ -16,6 +16,7 @@ from document_ocr.synthesis.curated_ownership import (
 from document_ocr.synthesis.curated_ownership import (
     build_owned_blueprint as _build_owned_blueprint,
 )
+from document_ocr.synthesis.curated_phones import prepare_phone_rendering
 from document_ocr.synthesis.curated_templates import (
     LexicalOwnership,
     _aligned_sample_leaves,
@@ -27,6 +28,8 @@ from document_ocr.synthesis.curated_templates import (
 from document_ocr.synthesis.curated_templates import (
     compile_sampling_blueprint as _compile_sampling_blueprint,
 )
+from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.template_compiler.contact_values import phone as sampled_phone
 
 
 def fixture_description_blocks(row):
@@ -787,12 +790,26 @@ def test_declared_contact_expansion_prints_owned_contact_in_party_and_syncs_repe
     blueprint = build_owned_blueprint(row, historical, contract, declaration)
     target = deepcopy(row["target"])
     target["documentPatch"]["parties"]["shipper"]["contactDetails"] = {
-        "phoneNumbers": ["7777777"],
+        "phoneNumbers": [
+            sampled_phone(DeterministicStream(24, "contact-test", "shipper"), country_code="GB")
+        ],
         "contactName": "BOB",
     }
     surfaces = ownership_surfaces(blueprint, target, SimpleNamespace(party_localities={}))
-    text, _, proof = render_sampling_blueprint(blueprint, target, {}, surface_values=surfaces)
-    assert text == "SHIPPER\nACME\nCONTACT: BOB\nTEL: 7777777\nGOODS\nCONTACT BOB\n"
+    plan = prepare_phone_rendering(
+        blueprint,
+        target,
+        source_country_codes={role: "EG"},
+        target_country_codes={role: "GB"},
+        stream=DeterministicStream(24, "contact-test", "plan"),
+    )
+    text, actual, proof = render_sampling_blueprint(
+        blueprint, target, {}, surface_values=surfaces, phone_rendering=plan
+    )
+    rendered_phone = actual["documentPatch"]["parties"]["shipper"]["contactDetails"][
+        "phoneNumbers"
+    ][0]
+    assert text == f"SHIPPER\nACME\nCONTACT: BOB\nTEL: {rendered_phone}\nGOODS\nCONTACT BOB\n"
     assert len(proof["edits"]) == 2
 
 
@@ -1031,12 +1048,31 @@ def test_reviewed_postal_owner_consumes_repeated_suffix_and_phone_prefix_without
     target["documentPatch"]["parties"]["consignee"].update(
         addressLine="47 NEW ROAD LAMPANG 52000 THAILAND",
         country="THAILAND",
-        contactDetails={"phoneNumbers": ["+66 123 4567"]},
+        contactDetails={
+            "phoneNumbers": [
+                sampled_phone(
+                    DeterministicStream(24, "postal-test", "consignee"), country_code="TH"
+                )
+            ]
+        },
     )
-    text, actual, proof = render_sampling_blueprint(blueprint, target, {})
-    assert actual == target
+    plan = prepare_phone_rendering(
+        blueprint,
+        target,
+        source_country_codes={path: "EG"},
+        target_country_codes={path: "TH"},
+        stream=DeterministicStream(24, "postal-test", "plan"),
+    )
+    text, actual, proof = render_sampling_blueprint(blueprint, target, {}, phone_rendering=plan)
+    assert (
+        actual["documentPatch"]["parties"]["consignee"]["addressLine"]
+        == target["documentPatch"]["parties"]["consignee"]["addressLine"]
+    )
     assert "12573" not in text and "Egypt" not in text and "++" not in text
-    assert text.count("THAILAND") == " ".join(text.split()).count("TEL : +66 123 4567") == 2
+    rendered_phone = actual["documentPatch"]["parties"]["consignee"]["contactDetails"][
+        "phoneNumbers"
+    ][0]
+    assert text.count("THAILAND") == " ".join(text.split()).count("TEL : " + rendered_phone) == 2
     assert proof["changedTargetPaths"] == proof["coveredTargetPaths"]
 
 

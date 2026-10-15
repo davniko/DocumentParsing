@@ -8,6 +8,7 @@ from test_curated_scenarios import catalog, source_row
 
 from document_ocr.synthesis.curated import SourceContract, digest
 from document_ocr.synthesis.curated_campaign import Campaign
+from document_ocr.synthesis.curated_phones import PhoneRenderingPolicy
 from document_ocr.synthesis.curated_physical import PhysicalSupport, prepare_physical_render
 from document_ocr.synthesis.curated_scenarios import SourceCapabilities
 from document_ocr.synthesis.curated_templates import compile_sampling_blueprint
@@ -95,6 +96,8 @@ def six_row_campaign():
     campaign.physical_support = PhysicalSupport.fit(rows)
     campaign.equipment_inventories = {}
     campaign.equipment_compatibility = {}
+    campaign.phone_policy = PhoneRenderingPolicy()
+    campaign._source_phone_country_codes = {}
     campaign.blueprint = lambda sid: blueprint
     campaign.vessels = ()
     return campaign, source, blueprint

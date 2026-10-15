@@ -34,6 +34,7 @@ from document_ocr.synthesis.curated import (
     locate,
 )
 from document_ocr.synthesis.curated_casing import RenderCasing, TargetCasing, case_owned_text
+from document_ocr.synthesis.curated_container_ids import prepare_container_identifier_rendering
 from document_ocr.synthesis.curated_descriptions import (
     CompiledDescriptionBlocks,
     DescriptionBlocks,
@@ -43,6 +44,7 @@ from document_ocr.synthesis.curated_descriptions import (
     validate_description_regions,
 )
 from document_ocr.synthesis.curated_hs import hs_digits, render_source_hs
+from document_ocr.synthesis.curated_phones import PhoneRenderPlan, phone_values
 from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.template_compiler.descendant import (
     _number_to_words,
@@ -549,7 +551,10 @@ def validate_party_field_separators(
     result, seen = [], set()
     for boundary in declaration["boundaries"]:
         if not isinstance(boundary, dict) or set(boundary) != {
-            "party_path", "left", "right", "separator"
+            "party_path",
+            "left",
+            "right",
+            "separator",
         }:
             raise ValueError(
                 "party-field boundary requires exact role, two selectors and separator"
@@ -557,9 +562,8 @@ def validate_party_field_separators(
         party = boundary["party_path"]
         if (
             not isinstance(party, str)
-            or re.fullmatch(
-                r"documentPatch\.parties\.[A-Za-z]\w*(?:\[(?:0|[1-9]\d*)\])?", party
-            ) is None
+            or re.fullmatch(r"documentPatch\.parties\.[A-Za-z]\w*(?:\[(?:0|[1-9]\d*)\])?", party)
+            is None
             or not isinstance(boundary["separator"], str)
             or boundary["separator"] not in {" ", "\n"}
         ):
@@ -632,6 +636,7 @@ def render_sampling_blueprint(
     certified_country_codes: Mapping[str, str] | None = None,
     render_casing: RenderCasing = "preserve",
     target_casing: TargetCasing = "uppercase",
+    phone_rendering: PhoneRenderPlan | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Render a sampled current target with explicit coverage and byte receipts.
 
@@ -648,12 +653,22 @@ def render_sampling_blueprint(
     if unknown or unknown_surfaces:
         raise ValueError(f"unknown render keys: {sorted(unknown | unknown_surfaces)}")
     before = flat(blueprint.target)
+    changed_phones = {
+        path for path, value in phone_values(sampled_target).items() if before.get(path) != value
+    }
+    if changed_phones and phone_rendering is None:
+        raise ValueError("changed phones require an explicit source-conditioned presentation plan")
+    if phone_rendering is not None:
+        phone_rendering.validate_for(blueprint, sampled_target)
+        if set(phone_rendering.target_values) != changed_phones:
+            raise ValueError("phone presentation plan does not cover exactly the changed phones")
     expected_descriptions = {p for p in before if p.endswith(".description")}
     projected_paths = blueprint.description_blocks.paths if blueprint.description_blocks else set()
     if expected_descriptions != projected_paths:
         raise ValueError("description targets require complete reviewed description_blocks")
     validate_description_regions(blueprint.description_blocks, blueprint.regions)
     after = _aligned_sample_leaves(before, flat(sampled_target))
+    container_rendering = prepare_container_identifier_rendering(blueprint, sampled_target)
     for path, code in certified_country_codes.items():
         if (
             path not in after
@@ -701,7 +716,17 @@ def render_sampling_blueprint(
         changed_paths = set(region.target_paths) & (
             requested_changes if region.kind == "owned_text" else changed
         )
-        if region.curated_key is not None:
+        phone_base = phone_rendering.canonical_region(region) if phone_rendering else None
+        container_base = container_rendering.direct_region(region)
+        if phone_base is not None:
+            text = phone_base
+            covered.update(changed_paths)
+        elif container_base is not None and region.key not in surface_values:
+            # The source-owned mask is the presentation contract, not ordinary
+            # lexical wrapping. Explicit supplied composites are projected below.
+            text = container_base
+            covered.update(changed_paths)
+        elif region.curated_key is not None:
             value = variable_values[region.curated_key]
             if value == region.baseline:
                 text = region.source
@@ -769,6 +794,9 @@ def render_sampling_blueprint(
         if hs_paths and any(hs_digits(text) != hs_digits(after[path]) for path in hs_paths):
             raise ValueError(f"printed HS digits differ from their complete target: {region.key}")
         rendered_regions.append((region, case_owned_text(text, region.target_paths, render_casing)))
+    # Current contract paths, rather than stale historical array indices, own
+    # identity and placement changes certified by the typed presentation plan.
+    covered.update(container_rendering.covered_paths)
     if missing := changed - covered:
         raise ValueError(f"changed target fields have no rendered owner: {sorted(missing)}")
     for path in changed:
@@ -789,6 +817,15 @@ def render_sampling_blueprint(
             raise ValueError(f"changed package category lacks an owned printed noun: {path}")
     rendered_regions = _apply_party_field_separators(blueprint, rendered_regions)
     _validate_curated_expressions(blueprint, variable_values, after, rendered_regions)
+    if phone_rendering is not None:
+        rendered_regions = [
+            (region, phone_rendering.apply_region(region, text))
+            for region, text in rendered_regions
+        ]
+    rendered_regions = [
+        (region, container_rendering.project_region(region, text))
+        for region, text in rendered_regions
+    ]
     raw, parts, cursor, edits = blueprint.source.encode(), [], 0, []
     for region, text in rendered_regions:
         parts.extend((raw[cursor : region.start], text.encode()))
@@ -840,6 +877,15 @@ def render_sampling_blueprint(
         else:
             changed.discard(path)
             covered.discard(path)
+    if phone_rendering is not None:
+        for path, value in phone_rendering.target_values.items():
+            assign(target, path, value)
+            if before[path] != value:
+                changed.add(path)
+                covered.add(path)
+            else:
+                changed.discard(path)
+                covered.discard(path)
     return (
         result.decode(),
         target,
@@ -853,6 +899,16 @@ def render_sampling_blueprint(
             "unchangedBytesPreserved": True,
             **({"hsPresentations": hs_presentations} if hs_presentations else {}),
             **({"descriptionProjection": description_proof} if description_proof else {}),
+            **(
+                {"phonePresentations": phone_rendering.receipt()}
+                if phone_rendering is not None and changed_phones
+                else {}
+            ),
+            **(
+                {"containerIdentifierPresentations": container_rendering.receipt()}
+                if container_rendering.records
+                else {}
+            ),
             **({"renderCasing": render_casing} if render_casing != "preserve" else {}),
         },
     )

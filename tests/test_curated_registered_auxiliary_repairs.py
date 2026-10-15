@@ -186,10 +186,24 @@ def historical_contact_output(campaign, historical_output, tmp_path_factory):
     return output
 
 
-def assert_except_hs_equal(before, after):
-    old, new = flat(before), flat(after)
+def assert_preserved_phone_identities(before, result):
+    old, new = flat(before), flat(result["target"])
+    receipt = result["proof"].get("phonePresentations", {})
+    changed = {
+        p for p in set(old) | set(new)
+        if ".phoneNumbers[" in p and old.get(p) != new.get(p)
+    }
+    for path in changed:
+        assert receipt["inputValues"][path] == old[path]
+        assert receipt["targetValues"][path] == new[path]
+    return changed
+
+
+def assert_except_documented_presentations_equal(before, result):
+    old, new = flat(before), flat(result["target"])
+    phones = assert_preserved_phone_identities(before, result)
     assert {p: v for p, v in old.items() if ".hsCodes[" not in p} == {
-        p: v for p, v in new.items() if ".hsCodes[" not in p
+        p: old[p] if p in phones else v for p, v in new.items() if ".hsCodes[" not in p
     }
 
 
@@ -378,7 +392,7 @@ def test_carrier_signer_metadata_change_preserves_current_render_and_labels(camp
     sample = "syn_full_v7_" + digest([sid, campaign.config["seed"], variant])[:24]
     cached = json.loads((campaign.output / "candidates" / f"{sample}.json").read_text())
     result = campaign.render(sid, variant, persist=False)
-    assert_except_hs_equal(cached["target"], result["target"])
+    assert_except_documented_presentations_equal(cached["target"], result)
     assert_non_hs_edits_equal(cached, result, campaign.blueprint(sid))
     assert result["renderValues"] == cached["renderValues"]
     assert result["validation"]["exactReplay"] and result["validation"]["currentSchema"]
@@ -392,7 +406,7 @@ def test_actual_identifier_rerender_preserves_every_public_target(campaign, pref
     sample = "syn_full_v7_" + digest([sid, campaign.config["seed"], variant])[:24]
     cached = json.loads((campaign.output / "candidates" / f"{sample}.json").read_text())
     result = campaign.render(sid, variant, persist=False)
-    assert_except_hs_equal(cached["target"], result["target"])
+    assert_except_documented_presentations_equal(cached["target"], result)
     assert result["renderValues"] == cached["renderValues"]
     assert result["countryCodes"] == cached["countryCodes"]
     assert result["validation"]["exactReplay"] and result["validation"]["currentSchema"]
@@ -424,11 +438,12 @@ def test_actual_whole_caption_omission_preserves_public_targets(campaign, prefix
     if prefix == "654e":
         path = "documentPatch.goodsItemDetails[0].handlingInstructions[0]"
         before, after = flat(cached["target"]), flat(result["target"])
+        phone_changes = assert_preserved_phone_identities(cached["target"], result)
         assert {
             p
             for p in set(before) | set(after)
             if before.get(p) != after.get(p) and ".hsCodes[" not in p
-        } <= {path}
+        } <= {path} | phone_changes
         projection = result["proof"]["handlingProjection"]["fields"]
         assert len(projection) == 1 and projection[0]["path"] == path
         assert projection[0]["before"] == flat(blueprint.target)[path]
@@ -442,7 +457,7 @@ def test_actual_whole_caption_omission_preserves_public_targets(campaign, prefix
             assert printed == span["text"]
         assert " ".join(span["text"] for span in projection[0]["spans"]).upper() == after[path]
     else:
-        assert_except_hs_equal(cached["target"], result["target"])
+        assert_except_documented_presentations_equal(cached["target"], result)
     assert quote not in result["joinedRawText"]
     edits = [e for e in result["proof"]["edits"] if e["key"] == key]
     assert len(edits) == 1 and edits[0]["before"] == quote and edits[0]["after"] == ""
