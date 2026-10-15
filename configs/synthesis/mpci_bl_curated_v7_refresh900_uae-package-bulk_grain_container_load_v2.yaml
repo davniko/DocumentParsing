@@ -1,0 +1,463 @@
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/thermal-expansion30-20261014/real704
+output: artifacts/kie-synthesis-production/curated-v7-refresh900-20261014/uae-package-bulk_grain_container_load
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
+environment_file: .env
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+seed: 40373255320405
+variants_per_source: 2
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 40373255320405
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 40373255320405
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 3
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - together
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-13'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: '0.15000000'
+    cached_input_usd_per_million: '0.03000000'
+    cache_write_multiplier: 1.0
+    output_usd_per_million: '0.5000000'
+source_ids:
+- doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f
+- doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e
+- doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c
+- doc_ccfee841a37ac088b6380a62b500d2e4c74b1da3fb2360d48e21e526654f728c
+- doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e
+- doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf
+- doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46
+- doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31
+- doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f
+- doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  flash_points:
+    path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+    sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+    records: 64
+  load_profiles:
+    path: artifacts/sampling-registries/load-profiles-rare-packages-v1.json
+    sha256: 3c351b3b87a1ae30d4d5d123e16760a078548b616b7bea3b1fd0ccc4478adf64
+  profile_weights:
+    bulk_grain_container_load: 1
+  package_weights:
+    PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS: 1
+  equipment_weights:
+    TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE: 1
+capabilities:
+  doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f:
+    family: ambient
+    identity_count: 1
+    party_locality_groups:
+    - members:
+        documentPatch.parties.consignee:
+          occurrence: 1
+          text: 'BUILDING NO.15 W/4, HASSAN NASSAR
+
+            ST, EL LASALKY AREA (BEHIND CALTEX
+
+            OIL STATION), NEW MAADI, CAIRO'
+        documentPatch.parties.notifyParties[0]:
+          occurrence: 2
+          text: 'BUILDING NO.15 W/4, HASSAN NASSAR
+
+            ST, EL LASALKY AREA (BEHIND CALTEX
+
+            OIL STATION), NEW MAADI, CAIRO'
+      rationale: Individually reviewed source blocks repeat this complete street/site
+        component; the compiled postal variable has both address targets. Names or
+        optional postal suffixes differ, but this is a shared source locality, not
+        a company-name inference.
+      shared_postal_key: v004
+      source_sha256: 8b4d8094f0a49c321466bda7efe7845b80f929216993739cb70bcda784616546
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: placeOfDelivery
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue_place
+      location_nodes: {}
+      nodes:
+        issue_place:
+          country_from: origin
+          kind: locality
+        placeOfDelivery:
+          country_from: destination
+          kind: port
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.notifyParties[0]: destination
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_ccfee841a37ac088b6380a62b500d2e4c74b1da3fb2360d48e21e526654f728c:
+    family: ambient
+    identity_count: 1
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e:
+    family: ambient
+    identity_count: 1
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf:
+    family: ambient
+    identity_count: 1
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31:
+    family: ambient
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f:
+    family: ambient
+    identity_count: 1
+    required_private_measures:
+    - grossWeight
+    - volume
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: placeOfDelivery
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes:
+        placeOfDelivery:
+          country_from: destination
+          kind: port
+        shipper_0_country:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.shipper: shipper_0_country
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+  doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46:
+    family: ambient
+    route_topology:
+      fields:
+        finalDestination: destination
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes: {}
+      nodes: {}
+      party_nodes:
+        documentPatch.parties.consignee: destination
+        documentPatch.parties.shipper: origin
+      rationale: Reviewed current source route, issue/payment and explicit party-country
+        roles. Equal printed locations share one node; distinct localities retain
+        separate nodes in the same source-relative country, and explicitly third-country
+        parties or issuance retain an independent country. Registry sampling is synthetic
+        topology, not a carrier sailing schedule.
+    physical_profile: registry_form
+    destination_country: AE
+    allowed_package_categories:
+    - PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS
+    allowed_hs_headings:
+    - '1001'
+    allowed_hs_codes: []
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    fixed_package_quantity: 1
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+template_sampling:
+  samples: 20
+  source_counts:
+    doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f: 2
+    doc_751f068c24300fb1df8acb43c9a1bfd7607f52a1d6554a292b79ce2f1cb3dd5e: 2
+    doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c: 2
+    doc_ccfee841a37ac088b6380a62b500d2e4c74b1da3fb2360d48e21e526654f728c: 2
+    doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e: 2
+    doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf: 2
+    doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31: 2
+    doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f: 2
+    doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a: 2
+    doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46: 2

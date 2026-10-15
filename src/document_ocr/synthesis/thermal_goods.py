@@ -72,7 +72,14 @@ def classify_thermal_hs(row: HsGlobalSubheading) -> ThermalProfile | None:
     misclassify entries such as fresh lamb as frozen.
     """
 
-    for value in (row.description, row.heading_description, row.chapter_description):
+    return classify_thermal_descriptions(
+        (row.description, row.heading_description, row.chapter_description)
+    )
+
+
+def classify_thermal_descriptions(nearest_first: Sequence[str]) -> ThermalProfile | None:
+    """Apply the same exclusions and nearest-ancestor rules to an exact HS path."""
+    for value in nearest_first:
         text = value.casefold()
         # Negative tariff qualifications are not positive carrying requirements.
         # Stop here rather than letting a broader parent reverse an exclusion.
@@ -181,8 +188,8 @@ def render_synthetic_hs_code(
     output_digits: int,
     stream: DeterministicStream,
 ) -> str:
-    if re.fullmatch(r"[0-9]{6}", hs6) is None or not 6 <= output_digits <= 18:
-        raise ValueError("synthetic HS output requires a six-digit parent and 6-18 digits")
+    if re.fullmatch(r"[0-9]{6}", hs6) is None or not 6 <= output_digits <= 20:
+        raise ValueError("synthetic HS output requires a six-digit parent and 6-20 digits")
     if output_digits == 6:
         return hs6
     suffix = "".join(

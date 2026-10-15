@@ -1,0 +1,479 @@
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/thermal-expansion30-20261014/real704
+output: artifacts/kie-synthesis-production/curated-v7-refresh900-20261014/egypt-mixed40
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
+environment_file: .env
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+seed: 217998981347107
+variants_per_source: 3
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 217998981347107
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 217998981347107
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: '3.00'
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - together
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-13'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: '0.15000000'
+    cached_input_usd_per_million: '0.03000000'
+    cache_write_multiplier: 1.0
+    output_usd_per_million: '0.5000000'
+source_ids:
+- doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed
+- doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397
+- doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f
+- doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25
+- doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f
+- doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301
+- doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f
+- doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+- doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e
+- doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd
+- doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff
+- doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08
+- doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850
+- doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9
+- doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9
+- doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0
+- doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770
+- doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c
+- doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013
+- doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  flash_points:
+    path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+    sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+    records: 64
+  load_profiles:
+    path: artifacts/sampling-registries/load-profiles.json
+    sha256: 920598be09985ad6cfd9dfc5821085e1debb2ae1d50d9d3d5005e9cc94df4020
+  equipment_weights:
+    TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE: 30
+    TWENTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE: 20
+    FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE: 10
+    FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE: 10
+    FORTY_FIVE_FOOT_HIGH_CUBE|GENERAL_PURPOSE: 30
+  equipment_inventory:
+    source_ids:
+    - doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed
+    - doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397
+    - doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f
+    - doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25
+    - doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f
+    - doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301
+    - doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f
+    - doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017
+    - doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e
+    - doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd
+    - doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff
+    - doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08
+    - doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850
+    - doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9
+    - doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9
+    - doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0
+    - doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770
+    - doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c
+    - doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013
+    - doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee
+    mixed_probability: '1'
+    category_count_weights:
+      2: 1
+    modes:
+    - mixed
+capabilities:
+  doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770:
+    family: ambient
+    identity_count: 3
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+        transshipmentPort: hub
+      issue_node: origin
+      location_nodes: {}
+      nodes:
+        hub:
+          country_from: independent
+          kind: port
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: EG
+    physical_profile: registry_form
+  doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: EG
+    family: ambient
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+    physical_profile: registry_form
+  doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff:
+    allowed_equipment_pairs: []
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25:
+    family: ambient
+    goods_origin_identifiers:
+      documentPatch.goodsItemDetails[0].origin.identifier:
+        kind: unlocode
+        node: origin
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed:
+    family: ambient
+    identity_count: 4
+    destination_country: EG
+    physical_profile: registry_form
+  doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        third_party:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.notifyParties[0]: third_party
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: EG
+    physical_profile: registry_form
+  doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f:
+    family: ambient
+    required_private_measures:
+    - volume
+    route_topology:
+      fields:
+        placeOfDelivery: delivery
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes:
+        delivery:
+          country_from: destination
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: EG
+    physical_profile: registry_form
+  doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013:
+    family: ambient
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: EG
+    physical_profile: registry_form
+  doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0:
+    family: ambient
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: EG
+    physical_profile: registry_form
+  doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08:
+    family: ambient
+    identity_count: 2
+    destination_country: EG
+    physical_profile: registry_form
+  doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397:
+    family: ambient
+    destination_country: EG
+    physical_profile: registry_form
+  doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+  doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f:
+    family: ambient
+    identity_count: 1
+    destination_country: EG
+    physical_profile: registry_form
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+template_sampling:
+  samples: 40
+  source_counts:
+    doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770: 2
+    doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9: 2
+    doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff: 2
+    doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25: 2
+    doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed: 2
+    doc_8591760c3de395abe4c38febb0de6f007e83d35aa14258db50f207c6cdcc03f9: 2
+    doc_276b6f1057aa442edc3e126fc13f829e51959f89014e494f8376c7492edcff6f: 2
+    doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c: 2
+    doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013: 2
+    doc_ba8080da37b66f7f6998c07ef3afa16c9fa32d41b877dd312b27debe51903ea0: 2
+    doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd: 2
+    doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301: 2
+    doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee: 2
+    doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850: 2
+    doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08: 2
+    doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e: 2
+    doc_428aa4805d1feaa2bac0f0507db90fd5893deee3632a0454733784116b036017: 2
+    doc_03d21532df95ee547909060aa191ef3f3ebe019438d1e4da04dc51693a4a7397: 2
+    doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f: 2
+    doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f: 2
+aliases:
+  package_registry:
+    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
+    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
+    records: 405
+  equipment_registry:
+    path: artifacts/sampling-registries/equipment-aliases.json
+    sha256: 449160a10885d871b3ce1e9110819a586337c00945fdf6993affb6cf5d2487ad
+  package_mode: registry

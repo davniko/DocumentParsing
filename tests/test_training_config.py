@@ -30,6 +30,7 @@ CONFIG_PATH = PROJECT_ROOT / "configs" / "training" / "t5gemma2_270m_lora.pilot1
         "bill_of_lading_relation_explicit_v3",
         "bill_of_lading_relation_explicit_v4",
         "bill_of_lading_relation_explicit_v5",
+        "bill_of_lading_extraction_v7_reduced_direct",
     ],
 )
 def test_relation_explicit_training_requires_frozen_task_constraints(task: str) -> None:

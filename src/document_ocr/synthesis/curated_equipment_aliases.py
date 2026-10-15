@@ -66,6 +66,29 @@ def validate_equipment_alias(alias: str, size: str, kind: str) -> None:
         )
 
 
+def preserve_non_operating_reefer(
+    source: str, surface: str, container: Mapping[str, Any]
+) -> str:
+    """Retain an explicit source NOR instruction when equipment remains reefer.
+
+    A generic ambient source may legitimately cast to non-reefer equipment.
+    NOR cohorts instead restrict their sampled pair through capabilities; this
+    function preserves their source operation status without inventing a label.
+    """
+    if "NOR" not in source.upper():
+        return surface
+    source_review = review_source_equipment_surface(source, temperature_present=False)
+    if (
+        source_review.thermal_operation != "non_operating"
+        or container.get("typeCategory") != "REFRIGERATED"
+    ):
+        return surface
+    if "temperatureSetpoint" in container:
+        raise ValueError("non-operating source reefer conflicts with a carrying setpoint")
+    printed = review_source_equipment_surface(surface, temperature_present=False)
+    return surface if printed.thermal_operation == "non_operating" else surface + " NOR"
+
+
 class EquipmentAliasSet(BaseModel):
     """Unweighted reviewed wordings for one full canonical equipment pair."""
 
@@ -269,9 +292,15 @@ def apply_equipment_aliases(
             raise ValueError(f"one equipment type owner refers to unequal sampled types: {key}")
         size, kind = next(iter(pairs))
         validate_equipment_alias(alias, size, kind)
+        if review_source_equipment_surface(
+            alias,
+            temperature_present=any("temperatureSetpoint" in new[index] for index in indices),
+        ).review_rule == "non_operating_reefer_conflicts_with_setpoint":
+            raise ValueError("sampled equipment alias contradicts its carrying setpoint")
         variants = list(rendered)
         for i in complete:
-            variants[i] = frames[i].prefix + alias + frames[i].suffix
+            core = preserve_non_operating_reefer(frames[i].core, alias, new[indices[0]])
+            variants[i] = frames[i].prefix + core + frames[i].suffix
         result[key] = variants
         receipts.append(
             {

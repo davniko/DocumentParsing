@@ -157,6 +157,7 @@ def test_complete_pipeline_preparation_freezes_route_presentation_receipt() -> N
         source=source,
         source_target=source_target,
         target=source_target,
+        cargo_policy=None,
         template=SimpleNamespace(
             byte_template=template,
             source_sha256=sha256_bytes(source),

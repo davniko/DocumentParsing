@@ -433,3 +433,59 @@ source owner, then enforce complete private-occurrence coverage upstream and
 run the exact same full-population audit after repair. Keep public carrier
 organizations, corporate websites/contacts and legal constants; anonymize their
 individual signatories and personal mailboxes separately.
+
+## 8. Applied private-contact slice: completion update
+
+The original audit counts above remain a historical snapshot. The subsequently
+approved private-contact recommendations are now **implemented and published**
+in the R20 working copy; they are not still pending because the broader reference
+inventory remains open. See the
+[complete implementation report](kie-synthesis-private-contacts-repair-2026-10-13.md)
+and its hash-bound completion certificate.
+
+| Approved contact category | Final disposition |
+| --- | --- |
+| Source-only individual names, including CPF-adjacent signatories | Completed; generated lexical owners cover repeated source occurrences without inventing target parties |
+| Individual CPF declarations | Completed; exact-format deterministic replacements, separately owned from human names |
+| Reviewed private phone/fax values and local/international aliases | Completed; deterministic country/channel-aware generation and explicit alias reuse |
+| Personal/private-account email recipients | Completed; original recipient context redacted and retained identities rejected |
+| Private company email domains | Completed; independently classified from public mail-provider/carrier domains |
+| Missing private-person metadata or unresolved email classification | Upstream preflight rejects the source before paid synthesis |
+
+All **7,500** retained/current/previous synthetic records were checked;
+**639** were repaired (**439 active**, **200 previous-UAE sidecar**). Only 131
+records needed target changes, confined to email fields; the other 508 are
+input-only changes. All 660 real records, unrelated targets and coordinate
+suffixes remain unchanged. Fresh synthesis validated two descendants for each
+of the 139 updated source contracts, or **278 inspection samples**. None of
+those inspection samples were added to training. Regression tests passed
+4,661 with nine environment-dependent skips. Total recorded paid cost was
+$0.47910953, including probes, synthesis/reviews and billed corrections.
+
+**Still separate:** non-contact tax/registration/customs, booking/order/invoice,
+batch/reference and relevant Marks privacy owners. These were not declared
+anonymized by a contact certificate. The fresh full-text review's non-contact
+observations and dispositions are linked from the implementation report, so
+the next pass can start from a concrete inventory rather than repeat this slice.
+
+## 9. Applied fiscal/commercial slice: completion update
+
+The private tax/registration/customs and invoice/order/booking/customer/commercial
+reference pass is now documented in the
+[implementation and validation report](kie-synthesis-private-identifiers-and-direct-targets-2026-10-13.md).
+It checks all 7,500 synthetic records and repairs 4,850 documents: 3,260 active
+training records and 1,590 superseded UAE sidecar records, with 17,614 exact
+input edits. No extraction facts change. All coordinate suffixes are preserved.
+
+The shared registry now has 360 explicit identifier-privacy inventories and
+1,644 repaired numeric/alphanumeric owners across 359 sources. All repeated
+owned aliases are checked; 41,508 rendered occurrences pass the independent
+source-proof sweep. There are 718 production sampling/preflight checks and
+718 full numeric-render controls. Legal/form/SCAC/public-carrier constants
+remain outside the private-ID scope. Paid cost is zero.
+
+The five dataset JSONL files also now use direct extraction targets, without
+schemaVersion or documentPatch. Historical wrapped annotations remain evidence.
+The earlier audit tables above are historical counts, not current pending-work
+counts. Product-SKU/unknown Marks interpretation remains a separate taxonomy,
+not a private-ID exemption or a new unimplemented target field.

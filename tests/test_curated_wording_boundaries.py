@@ -64,6 +64,31 @@ def test_missing_native_field_cannot_pass():
         wording_output_type([request]).model_validate({"s0": {}})
 
 
+@pytest.mark.parametrize("token", ["v002", "V001_RELATED", "shipper_postal_component_1"])
+def test_known_template_variables_cannot_leak_into_generated_text(token):
+    request = WordingRequest(
+        "s",
+        "POSTAL ASSEMBLY: C/O {v001_related} {v002}",
+        (WordingField("v002", "shipper postal", "OLD ROAD", "New region"),),
+    )
+    with pytest.raises(ValueError, match="unresolved generation template variable"):
+        unpack_wording(
+            wording_output_type([request]).model_validate(
+                {"s0": {"v002": "WAREHOUSE 4 {" + token + "}"}}
+            ),
+            [request],
+        )
+
+
+def test_unrelated_product_notation_in_braces_is_preserved():
+    request = WordingRequest("s", "", (WordingField("goods", "goods description", "OLD", "New"),))
+    result = unpack_wording(
+        wording_output_type([request]).model_validate({"s0": {"goods": "POLYMER (CH2){n}"}}),
+        [request],
+    )
+    assert result["s"]["goods"] == "POLYMER (CH2){n}"
+
+
 def test_semantic_key_leak_is_rejected_but_model_identifier_is_allowed():
     request = WordingRequest("s", "", (WordingField("v1", "goods description", "OLD", "New"),))
     schema = wording_output_type([request])

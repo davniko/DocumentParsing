@@ -19,6 +19,8 @@ def binding(mode="token_projected_surface"):
         intervals = intervals[:3]
     return NS(
         logical_key="cargo",
+        group_kind="cargo",
+        value_kind="cargo_text",
         target_paths=(PATH,),
         realization=NS(
             mode=mode,

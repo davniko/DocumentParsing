@@ -42,6 +42,7 @@ from document_ocr.synthesis.curated_descriptions import (
     project_rendered_descriptions,
     validate_description_regions,
 )
+from document_ocr.synthesis.curated_hs import hs_digits, render_source_hs
 from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.template_compiler.descendant import (
     _number_to_words,
@@ -431,12 +432,8 @@ def _simple_surface(region: RenderRegion, old: Any, new: Any) -> str:
         raise ValueError(f"explicit surface required for {region.key}: {type(new).__name__}")
     if region.kind == "owned_text":
         return wrap_owned_text(region.source, new)
-    # HS national suffixes are not retained when a newly sampled HS6 replaces
-    # them: doing so would invent a national tariff classification.
     if any(".hsCodes[" in path for path in region.target_paths):
-        if not re.fullmatch(r"\d{6,12}", new):
-            raise ValueError(f"invalid sampled HS identifier: {new}")
-        return new
+        return render_source_hs(region.source, hs_digits(new))
     if region.kind in {"phone", "identifier"}:
         stripped = re.sub(r"[\s/\-]", "", region.source)
         if stripped == str(old) and len(new) == len(stripped):
@@ -449,51 +446,11 @@ def _simple_surface(region: RenderRegion, old: Any, new: Any) -> str:
     return wrap_owned_text(region.source, new)
 
 
-def _aligned_sample_leaves(before: dict, after: dict) -> tuple[dict, dict[str, str]]:
-    """Allow only duplicate national HS extensions to collapse to their HS6 group.
-
-    Each historical printed code remains an owned surface, but several
-    occurrences may now express the same sampled HS6 in one canonical label.
-    Distinct source HS6 groups cannot disappear through this operation.
-    """
-    if set(before) == set(after):
-        return after, {}
-    pattern = re.compile(r"^(.*\.hsCodes)\[(\d+)\]$")
-    changed_keys = set(before) ^ set(after)
-    if any(not pattern.fullmatch(path) for path in changed_keys):
+def _aligned_sample_leaves(before: dict, after: dict) -> dict:
+    """Require every source fact slot, including distinct national extensions."""
+    if set(before) != set(after):
         raise ValueError("sampling may not add/remove target fields or change array topology")
-    prefixes = {pattern.fullmatch(path)[1] for path in changed_keys}
-    aligned, aliases = dict(after), {}
-    for prefix in prefixes:
-        old_paths = sorted(
-            (p for p in before if p.startswith(prefix + "[")),
-            key=lambda p: int(pattern.fullmatch(p)[2]),
-        )
-        new_paths = sorted(
-            (p for p in after if p.startswith(prefix + "[")),
-            key=lambda p: int(pattern.fullmatch(p)[2]),
-        )
-        if any(
-            not isinstance(before[p], str) or not re.fullmatch(r"\d{6,12}", before[p])
-            for p in old_paths
-        ):
-            raise ValueError("HS collapse requires complete numeric source identifiers")
-        groups = list(dict.fromkeys(before[p][:6] for p in old_paths))
-        if len(new_paths) != len(groups) or len(new_paths) >= len(old_paths):
-            raise ValueError("HS topology change is not a duplicate-HS6 collapse")
-        if any(
-            not isinstance(after[p], str) or not re.fullmatch(r"\d{6}", after[p]) for p in new_paths
-        ):
-            raise ValueError("collapsed HS targets must be six-digit classifications")
-        if len({after[p] for p in new_paths}) != len(new_paths):
-            raise ValueError("collapsed HS target contains duplicate classifications")
-        for path in old_paths:
-            target_path = new_paths[groups.index(before[path][:6])]
-            aligned[path] = after[target_path]
-            aliases[path] = target_path
-    if set(aligned) != set(before):
-        raise ValueError("HS collapse did not account for every source target path")
-    return aligned, aliases
+    return after
 
 
 def _validate_curated_expressions(
@@ -566,6 +523,106 @@ def substitute_expression_literals(expression: str, substitutions: Mapping[str, 
     )
 
 
+def validate_party_field_separators(
+    blueprint: SamplingBlueprint,
+) -> tuple[tuple[RenderRegion, RenderRegion, str], ...]:
+    """Resolve reviewed fused name/postal seams without changing source bytes.
+
+    Occurrences are one-based within a region key's owned occurrences. Only
+    explicitly selected, adjacent lexical fields of the same party qualify;
+    ordinary zero-length source gaps never imply a separator automatically.
+    """
+    if "party_field_separators" not in blueprint.ownership_data:
+        return ()
+    declaration = blueprint.ownership_data["party_field_separators"]
+    if (
+        not isinstance(declaration, dict)
+        or set(declaration) != {"source_sha256", "boundaries"}
+        or declaration["source_sha256"] != digest(blueprint.source.encode())
+        or not isinstance(declaration["boundaries"], list)
+        or not declaration["boundaries"]
+    ):
+        raise ValueError("party-field separators require exact source pin and nonempty boundaries")
+    by_selector = {(region.key, region.occurrence + 1): region for region in blueprint.regions}
+    if len(by_selector) != len(blueprint.regions):
+        raise ValueError("party-field separator source has duplicate region selectors")
+    result, seen = [], set()
+    for boundary in declaration["boundaries"]:
+        if not isinstance(boundary, dict) or set(boundary) != {
+            "party_path", "left", "right", "separator"
+        }:
+            raise ValueError(
+                "party-field boundary requires exact role, two selectors and separator"
+            )
+        party = boundary["party_path"]
+        if (
+            not isinstance(party, str)
+            or re.fullmatch(
+                r"documentPatch\.parties\.[A-Za-z]\w*(?:\[(?:0|[1-9]\d*)\])?", party
+            ) is None
+            or not isinstance(boundary["separator"], str)
+            or boundary["separator"] not in {" ", "\n"}
+        ):
+            raise ValueError("party-field boundary has invalid role or whitespace separator")
+        selectors = []
+        for side in ("left", "right"):
+            selector = boundary[side]
+            if (
+                not isinstance(selector, dict)
+                or set(selector) != {"key", "occurrence"}
+                or not isinstance(selector["key"], str)
+                or not selector["key"]
+                or not isinstance(selector["occurrence"], int)
+                or isinstance(selector["occurrence"], bool)
+                or selector["occurrence"] < 1
+            ):
+                raise ValueError(
+                    "party-field boundary selector must be a key and one-based occurrence"
+                )
+            key = selector["key"], selector["occurrence"]
+            if key not in by_selector:
+                raise ValueError("party-field boundary selector is absent from source owners")
+            selectors.append(key)
+        left, right = (by_selector[key] for key in selectors)
+        if (
+            left.curated_key is None
+            or right.curated_key is None
+            or left.kind != "name"
+            or right.kind != "postal"
+            or party + ".name" not in left.target_paths
+            or party + ".addressLine" not in right.target_paths
+            or left.end != right.start
+        ):
+            raise ValueError(
+                "party-field boundary needs adjacent lexical name/postal owners of one party"
+            )
+        pair = tuple(selectors)
+        if pair in seen:
+            raise ValueError("duplicate party-field boundary")
+        seen.add(pair)
+        result.append((left, right, boundary["separator"]))
+    return tuple(result)
+
+
+def _apply_party_field_separators(
+    blueprint: SamplingBlueprint, rendered_regions: list[tuple[RenderRegion, str]]
+) -> list[tuple[RenderRegion, str]]:
+    boundaries = validate_party_field_separators(blueprint)
+    if not boundaries:
+        return rendered_regions
+    indices = {(region.key, region.occurrence): i for i, (region, _) in enumerate(rendered_regions)}
+    result = list(rendered_regions)
+    for left, right, separator in boundaries:
+        left_text = result[indices[left.key, left.occurrence]][1]
+        right_index = indices[right.key, right.occurrence]
+        right_text = result[right_index][1]
+        if left_text != left.source or right_text != right.source:
+            # Prefix the existing right owner, not an unowned insertion: its
+            # ordinary byte-edit receipt remains the replay/geometry authority.
+            result[right_index] = right, separator + right_text
+    return result
+
+
 def render_sampling_blueprint(
     blueprint: SamplingBlueprint,
     sampled_target: dict[str, Any],
@@ -596,7 +653,7 @@ def render_sampling_blueprint(
     if expected_descriptions != projected_paths:
         raise ValueError("description targets require complete reviewed description_blocks")
     validate_description_regions(blueprint.description_blocks, blueprint.regions)
-    after, hs_aliases = _aligned_sample_leaves(before, flat(sampled_target))
+    after = _aligned_sample_leaves(before, flat(sampled_target))
     for path, code in certified_country_codes.items():
         if (
             path not in after
@@ -708,6 +765,9 @@ def render_sampling_blueprint(
             covered.update(changed_paths)
         else:
             text = region.source
+        hs_paths = [path for path in region.target_paths if ".hsCodes[" in path]
+        if hs_paths and any(hs_digits(text) != hs_digits(after[path]) for path in hs_paths):
+            raise ValueError(f"printed HS digits differ from their complete target: {region.key}")
         rendered_regions.append((region, case_owned_text(text, region.target_paths, render_casing)))
     if missing := changed - covered:
         raise ValueError(f"changed target fields have no rendered owner: {sorted(missing)}")
@@ -727,6 +787,7 @@ def render_sampling_blueprint(
                 break
         if not supported:
             raise ValueError(f"changed package category lacks an owned printed noun: {path}")
+    rendered_regions = _apply_party_field_separators(blueprint, rendered_regions)
     _validate_curated_expressions(blueprint, variable_values, after, rendered_regions)
     raw, parts, cursor, edits = blueprint.source.encode(), [], 0, []
     for region, text in rendered_regions:
@@ -763,6 +824,22 @@ def render_sampling_blueprint(
         if before[path] != value:
             changed.add(path)
             covered.add(path)
+    hs_presentations = {}
+    for region, text in rendered_regions:
+        for path in region.target_paths:
+            if ".hsCodes[" in path:
+                hs_presentations.setdefault(path, " ".join(text.split()))
+    # HS values are projected from the printed presentation, just as descriptions
+    # are projected from their owned passages. Intermediate digit-only values
+    # must not leave formatting-only changes in an otherwise idempotent proof.
+    for path, value in hs_presentations.items():
+        assign(target, path, value)
+        if before[path] != value:
+            changed.add(path)
+            covered.add(path)
+        else:
+            changed.discard(path)
+            covered.discard(path)
     return (
         result.decode(),
         target,
@@ -771,10 +848,10 @@ def render_sampling_blueprint(
             "renderedSha256": digest(result),
             "changedTargetPaths": sorted(changed),
             "coveredTargetPaths": sorted(covered),
-            "collapsedHsTargetPaths": hs_aliases,
             "certifiedCountryCodes": dict(certified_country_codes),
             "edits": edits,
             "unchangedBytesPreserved": True,
+            **({"hsPresentations": hs_presentations} if hs_presentations else {}),
             **({"descriptionProjection": description_proof} if description_proof else {}),
             **({"renderCasing": render_casing} if render_casing != "preserve" else {}),
         },

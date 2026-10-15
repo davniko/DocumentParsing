@@ -60,7 +60,7 @@ def fixture():
             ),
         ]
     )
-    return NS(template=NS(bindings=bindings), target=target)
+    return NS(template=NS(bindings=bindings), target=target, cargo_policy=None)
 
 
 def test_party_and_destination_dependencies_follow_generated_owners_without_new_fields():

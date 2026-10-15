@@ -232,6 +232,12 @@ def test_source_readiness_precedes_any_concurrent_paid_generation():
         checked.append(sid)
         if sid == "missing":
             raise ValueError("missing reviewed description_blocks")
+        return SimpleNamespace(
+            ownership_data={"identifier_privacy": {}},
+            target={"documentPatch": {}},
+            regions=[],
+            historical_bindings={},
+        )
 
     async def generate(sid):
         called.append(sid)

@@ -1522,7 +1522,7 @@ def test_unsupported_reefer_is_not_a_sampleable_equipment_domain():
         },
         template=SimpleNamespace(bindings=[]),
     )
-    unsupported = "FORTY_FOOT_STANDARD_HEIGHT|REFRIGERATED"
+    unsupported = "FORTY_FIVE_FOOT_HIGH_CUBE|REFRIGERATED"
     supported = "FORTY_FOOT_HIGH_CUBE|REFRIGERATED"
     result = cargo.equipment_constraints(
         source,
@@ -1534,6 +1534,13 @@ def test_unsupported_reefer_is_not_a_sampleable_equipment_domain():
             source,
             SimpleNamespace(equipment_joint_weights={unsupported: 5}),
         )
+
+    standard = "FORTY_FOOT_STANDARD_HEIGHT|REFRIGERATED"
+    result = cargo.equipment_constraints(
+        source,
+        SimpleNamespace(equipment_joint_weights={standard: 5, supported: 5}),
+    )
+    assert result.weights == ({standard: 5, supported: 5},)
 
 
 def test_only_explicit_shared_hs_owners_merge_identity_components():

@@ -1,17 +1,17 @@
 """Type-aware transport-capacity gates for structured B/L synthesis.
 
-The task labels preserve carrier-written equipment descriptions rather than a
-normalized equipment code.  Free-text shorthands are therefore never mapped to
-equipment families here.  Classification is restricted to an exact four-byte
-ISO 6346 size/type code present in ``typeCode`` or, when that field is absent,
-an exact code-only ``typeDescription``.  An unrecognized container remains
-explicit and receives the configured absolute equipment ceiling; it is never
-silently treated as a standard dry box.
+Classification uses reviewed semantic size/type pairs or exact four-byte
+ISO 6346 size/type codes present in ``typeCode`` or, when that field is absent,
+an exact code-only ``typeDescription``. Free-text aliases are resolved by the
+separate equipment-semantic layer, not guessed here. An unrecognized container
+remains explicit; known refrigerated types without a supported size contract
+fail closed rather than silently receiving a dry-box envelope.
 
-The default values are configured by the run.  The reference configuration is
-based on Maersk's published dry-equipment cargo limits (20 standard, 40
-standard, 40 high cube, and 45 high cube) and its published 47,300 kg flat-rack
-maximum.  They are upper-bound safety gates, not loading recommendations.
+The dry-equipment values are configured by the run. Published reefer reference
+pairs use the same configurable reference margin: Maersk for 20 standard and
+40 high cube, and SEA BOX SB561.6 for 40 standard. These are bounded synthesis
+envelopes, not universal carrier capacities or operational loading advice. The
+historical policy identifier retains the original Maersk dry-equipment basis.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ EquipmentFamily = Literal[
     "forty_open_top",
     "unclassified_open_top",
     "twenty_reefer",
+    "forty_standard_reefer",
     "forty_high_cube_reefer",
     "unsupported_reefer",
     "out_of_gauge",
@@ -57,12 +58,16 @@ _OPEN_TOP_PUBLISHED_PAYLOAD_KG: dict[EquipmentFamily, Decimal] = {
     "forty_open_top": Decimal("28400"),
     "unclassified_open_top": Decimal("28310"),
 }
-# The same Maersk equipment table publishes these two reefer pairs. Other
-# semantic size/reefer pairs have no corresponding limit in that table and
-# must be reviewed, rather than being assigned a dry-box volume or payload.
+# Maersk publishes the 20' standard and 40' high-cube pairs. The 40' standard
+# pair is SEA BOX SB561.6: explicitly 8'6" exterior height, 26,130 kg payload,
+# and 58.8 m3 nominal capacity. Do not use the dry-box or high-cube envelope
+# for standard reefers (including non-operating reefers).
+# https://www.seabox.com/cutsheets/SB561.6.pdf
+# Other size/reefer pairs still fail closed until a reference is established.
 _REEFER_PUBLISHED_LIMITS: dict[EquipmentFamily, tuple[Decimal, Decimal]] = {
     "twenty_reefer": (Decimal("27770"), Decimal("28.3")),
     "forty_high_cube_reefer": (Decimal("29670"), Decimal("67.5")),
+    "forty_standard_reefer": (Decimal("26130"), Decimal("58.8")),
 }
 
 
@@ -266,6 +271,8 @@ def _semantic_equipment_family(container: Mapping[str, Any]) -> EquipmentFamily 
             return "twenty_reefer"
         if size == "FORTY_FOOT_HIGH_CUBE":
             return "forty_high_cube_reefer"
+        if size == "FORTY_FOOT_STANDARD_HEIGHT":
+            return "forty_standard_reefer"
         return "unsupported_reefer"
     if type_category in _OUT_OF_GAUGE_SEMANTIC_TYPES:
         return "out_of_gauge"
@@ -310,6 +317,8 @@ def classify_equipment(container: Mapping[str, Any]) -> EquipmentFamily:
             return "twenty_reefer"
         if length_code == "4" and height_code == "5":
             return "forty_high_cube_reefer"
+        if length_code == "4" and height_code in {"0", "2"}:
+            return "forty_standard_reefer"
         return "unsupported_reefer"
     if length_code == "L" and height_code == "5":
         return "forty_five_high_cube"
@@ -356,6 +365,14 @@ def equipment_capacity(
     family = classify_equipment(container)
     if family == "unsupported_reefer":
         raise ValueError("reefer size/type pair has no source-supported capacity contract")
+    reefer_pair = _REEFER_PUBLISHED_LIMITS.get(family)
+    if reefer_pair is not None:
+        multiplier = Decimal(1) + limits.published_reference_margin_fraction
+        return EquipmentCapacity(
+            family=family,
+            payload_kg=reefer_pair[0] * multiplier,
+            volume_m3=reefer_pair[1] * multiplier,
+        )
     values: dict[EquipmentFamily, tuple[Decimal, Decimal | None]] = {
         "twenty_standard": (
             limits.twenty_standard_payload_kg,
@@ -379,8 +396,6 @@ def equipment_capacity(
             _OPEN_TOP_PUBLISHED_PAYLOAD_KG["unclassified_open_top"],
             None,
         ),
-        "twenty_reefer": _REEFER_PUBLISHED_LIMITS["twenty_reefer"],
-        "forty_high_cube_reefer": _REEFER_PUBLISHED_LIMITS["forty_high_cube_reefer"],
         # Out-of-gauge equipment has no meaningful enclosed-volume ceiling.
         "out_of_gauge": (limits.out_of_gauge_payload_kg, None),
         "unclassified": (
@@ -397,8 +412,6 @@ def equipment_capacity(
         "twenty_open_top",
         "forty_open_top",
         "unclassified_open_top",
-        "twenty_reefer",
-        "forty_high_cube_reefer",
     }:
         multiplier = Decimal(1) + limits.published_reference_margin_fraction
         payload *= multiplier

@@ -21,6 +21,7 @@ from typing import Any
 import yaml
 
 from document_ocr.synthesis.curated import digest, flat
+from document_ocr.synthesis.curated_hs import hs_digits, render_source_hs
 from document_ocr.synthesis.curated_scenarios import ShipmentScenario
 from document_ocr.synthesis.curated_templates import RenderRegion, SamplingBlueprint
 from document_ocr.synthesis.generators import (
@@ -97,14 +98,31 @@ def _validate_recipe(recipe: dict) -> None:
     options = {
         "text": {"prefix", "suffix"},
         "target": {"prefix", "suffix"},
-        "identifier": {"prefix", "canonical_identity"},
+        "identifier": {"prefix", "canonical_identity", "format", "source_value"},
         "date": {"format", "publish_target"},
-        "phone": set(),
+        "phone": {"channel", "canonical_identity", "prefix", "suffix", "country_code"},
         "transport_leg": {"source_voyage"},
         "party_location": {"field"},
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
+    if recipe.get("format") is not None and action == "identifier" and recipe["format"] != "source":
+        raise ValueError("identifier formatting must preserve the source envelope")
+    if "source_value" in recipe and (
+        action != "identifier"
+        or recipe.get("format") != "source"
+        or not isinstance(recipe["source_value"], str)
+        or not recipe["source_value"]
+        or not recipe["source_value"].isascii()
+        or not any(c.isalnum() for c in recipe["source_value"])
+    ):
+        raise ValueError("source_value requires a nonempty ASCII source-format identifier")
+    if action == "phone" and recipe.get("channel", "phone") not in {"phone", "fax"}:
+        raise ValueError("auxiliary contact channel must be phone or fax")
+    if action == "phone" and ((recipe["phone"] == "source") != ("country_code" in recipe)):
+        raise ValueError("source contact requires an explicit country code; sampled roles do not")
+    if "country_code" in recipe and not re.fullmatch(r"[A-Z]{2}", recipe["country_code"]):
+        raise ValueError("source contact country code requires ISO alpha-2")
     if "canonical_identity" in recipe and (
         not isinstance(recipe["canonical_identity"], str)
         or not re.fullmatch(r"[A-Z0-9]+", recipe["canonical_identity"])
@@ -220,6 +238,15 @@ def augment_auxiliary_blueprint(blueprint: SamplingBlueprint, contract: dict) ->
         recipe = spec["bindings"][key]
         _validate_recipe(recipe)
         bindings[key]["auxiliary_recipe"] = recipe
+        if (path := recipe.get("target")) and ".hsCodes[" in path:
+            if path not in flat(target):
+                raise ValueError(f"HS alias has no source target: {key}")
+            regions = [
+                replace(region, target_paths=tuple(sorted(set(region.target_paths) | {path})))
+                if region.key == key
+                else region
+                for region in regions
+            ]
         if path := recipe.get("publish_target"):
             if path in flat(target):
                 raise ValueError(f"audited auxiliary publication target already exists: {path}")
@@ -310,6 +337,8 @@ def _render_recipe(
         value = flat(target).get(recipe["target"])
         if not isinstance(value, str) or not value:
             raise ValueError(f"auxiliary alias lacks sampled target: {recipe['target']}")
+        if ".hsCodes[" in recipe["target"]:
+            value = render_source_hs(original, hs_digits(value))
         return recipe.get("prefix", "") + value + recipe.get("suffix", "")
     if "identifier" in recipe:
         # Source punctuation variants share an identity by default. Only an
@@ -317,6 +346,8 @@ def _render_recipe(
         identity = recipe.get("canonical_identity")
         if identity is None:
             identity = re.sub(r"[^A-Z0-9]", "", original.upper())
+        if recipe.get("format") == "source":
+            return recipe.get("prefix", "") + _source_format_identifier(recipe, original, stream)
         length = max(6, len(re.sub(r"\D", "", identity)))
         digits = str(
             10 ** (length - 1)
@@ -331,17 +362,79 @@ def _render_recipe(
         return value.strftime(recipe.get("format", "%Y-%m-%d"))
     if "phone" in recipe:
         scope = recipe["phone"]
-        if scope == "origin":
+        if scope == "source":
+            country_code = recipe["country_code"]
+        elif scope == "origin":
             locality = scenario.origin
         elif scope == "destination":
             locality = scenario.destination
         else:
             locality = scenario.party_localities[scope]
-        return contact_values.phone(
-            stream.derive("aux-phone:" + re.sub(r"\D", "", original)),
-            country_code=locality.country_code,
+        if scope != "source":
+            country_code = locality.country_code
+        generator = contact_values.fax if recipe.get("channel") == "fax" else contact_values.phone
+        value = generator(
+            stream.derive(
+                "aux-phone:" + recipe.get("canonical_identity", re.sub(r"\D", "", original))
+            ),
+            country_code=country_code,
         )
+        return recipe.get("prefix", "") + value + recipe.get("suffix", "")
     raise ValueError(f"unknown auxiliary recipe: {recipe}")
+
+
+def _source_format_identifier(recipe: dict, original: str, stream: DeterministicStream) -> str:
+    """Replace an explicit code, retaining its case classes and literal envelope.
+
+    A reviewed source_value can isolate a code inside an old mixed owner, such
+    as an invoice reference followed by a date. Punctuation variants of one
+    code share their canonical replacement without copying national prefixes.
+    """
+    source = recipe.get("source_value", original)
+    if not source.isascii() or not any(c.isalnum() for c in source):
+        raise ValueError("source-format identifier requires ASCII letters or digits")
+    if source not in original:
+        raise ValueError("source-format identifier source_value is absent from its owner")
+    canonical = re.sub(r"[^A-Z0-9]", "", source.upper())
+    identity = recipe.get("canonical_identity", canonical)
+    # Different presentation separators/case cannot allocate another identity.
+    if len(identity) != len(canonical) or any(
+        a.isdigit() != b.isdigit() for a, b in zip(identity, canonical, strict=True)
+    ):
+        raise ValueError("canonical source identifier has incompatible character classes")
+    derived = stream.derive("aux-source-id:" + identity)
+    if canonical.isdigit():
+        floor = 10 ** (len(canonical) - 1)
+        value = str(floor + derived.randbelow(9 * floor))
+        if value == canonical:
+            value = str(floor + (int(value) - floor + 1) % (9 * floor))
+    elif len(identity) == 32 and re.fullmatch(r"[A-F0-9]{32}", identity):
+        # UUID/128-bit hexadecimal references remain hexadecimal, including
+        # punctuation-free aliases. Casing and separators are applied below.
+        for attempt in range(10000):
+            value = "".join(
+                alphabet[
+                    derived.derive(f"character-{index}").randbelow(len(alphabet), counter=attempt)
+                ]
+                for index, c in enumerate(identity)
+                for alphabet in ("0123456789" if c.isdigit() else "ABCDEF",)
+            )
+            if value != canonical:
+                break
+        else:
+            raise ValueError("hexadecimal source identifier space is exhausted")
+    else:
+        value = generate_from_surface_pattern(
+            pattern=surface_pattern(identity), stream=derived, additional_excluded=canonical
+        )
+    characters = iter(value)
+    rendered = "".join(
+        next(characters).lower() if c.islower() else next(characters) if c.isalnum() else c
+        for c in source
+    )
+    if rendered == source:
+        raise ValueError("source-format identifier retained the original identity")
+    return original.replace(source, rendered)
 
 
 def auxiliary_surfaces(
@@ -438,6 +531,9 @@ def auxiliary_surfaces(
                 if "date" in recipe
                 else {" ".join(v.upper().split()) for v in rendered}
             )
+            if all(".hsCodes[" in path for path in public_paths[key]):
+                expected = {hs_digits(value) for value in expected}
+                actual = {hs_digits(value) for value in actual}
             if expected != actual:
                 raise ValueError(
                     f"auxiliary surface disagrees with current public target: {key}; "
@@ -461,3 +557,50 @@ def auxiliary_contract_receipt(contract: dict) -> dict:
         "contractSha256": digest(contract),
         "policy": "generic_fictional_trade_references_not_national_registration_validation",
     }
+
+
+def validate_identifier_privacy(blueprint: SamplingBlueprint) -> None:
+    """Require an explicit private/public/dependent disposition before generation.
+
+    A carrier SCAC, form code or registration constant is not a private invoice.
+    Those distinctions belong to reviewed metadata, not runtime key heuristics.
+    Target-bearing IDs retain the existing host/alias ownership contract.
+    """
+    policy = blueprint.ownership_data.get("identifier_privacy")
+    if not isinstance(policy, dict):
+        raise ValueError("source-only identifiers require an explicit privacy inventory")
+    if any(
+        not isinstance(k, str)
+        or not isinstance(v, str)
+        or v not in {"private", "public", "dependent"}
+        for k, v in policy.items()
+    ):
+        raise ValueError("identifier privacy requires named private/public/dependent owners")
+    bindings = blueprint.historical_bindings
+    if unknown := set(policy) - set(bindings):
+        raise ValueError(f"identifier privacy names an unknown source owner: {sorted(unknown)}")
+    leaves = flat(blueprint.target)
+    eligible = {
+        region.key
+        for region in blueprint.regions
+        if region.kind == "identifier"
+        and region.curated_key is None
+        and not any(path in leaves for path in region.target_paths)
+    }
+    if missing := eligible - set(policy):
+        raise ValueError(f"source-only identifier privacy is unresolved: {sorted(missing)}")
+    for key in eligible:
+        recipe = bindings[key].get("auxiliary_recipe", {})
+        if policy[key] == "private" and (
+            "identifier" not in recipe or recipe.get("format") != "source"
+        ):
+            raise ValueError(f"private identifier requires a source-format generator: {key}")
+        if policy[key] == "dependent" and not set(recipe) & {
+            "target",
+            "date",
+            "phone",
+            "party_location",
+            "transport_leg",
+            "text",
+        }:
+            raise ValueError(f"dependent identifier lacks its explicit sampled owner: {key}")

@@ -451,13 +451,19 @@ def positioned_campaign(tmp_path):
         documentId=sample,
         sourceDocumentId=sid,
         joinedRawText=rendered,
-        target={"goods": "UNCHANGED"},
+        target={"negotiability": None, "billOfLadingNumber": "UNCHANGED"},
     )
     (output / "dataset.jsonl").write_text(json.dumps(row) + "\n")
     (output / "manifest.json").write_text(
         json.dumps({"files": {"dataset.jsonl": digest((output / "dataset.jsonl").read_bytes())}})
     )
-    (output / "candidates" / f"{sample}.json").write_text(json.dumps(dict(row, proof=proof)))
+    (output / "candidates" / f"{sample}.json").write_text(
+        json.dumps(
+            dict(
+                row, target={"schemaVersion": "7.0.0", "documentPatch": row["target"]}, proof=proof
+            )
+        )
+    )
     calls = []
     campaign = SimpleNamespace(
         root=tmp_path,

@@ -10,11 +10,12 @@ import pytest
 from document_ocr.synthesis.curated import Runner, SourceContract, digest
 from document_ocr.synthesis.curated_campaign import (
     Campaign,
+    _fixed_postal_country_components,
     _handling_replay_target,
     assemble_lexical_target,
     combine_surfaces,
     host_product_wording,
-    postal_correction_context,
+    postal_assembly_context,
     postal_wording_errors,
     public_identity_updates,
     validate_sample,
@@ -85,7 +86,9 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
         for field, location in (candidate_route or {}).items()
         for key, value in location.items()
     }
-    scenario = SimpleNamespace(party_localities={}, replacements=replacements, goods_identities=[])
+    scenario = SimpleNamespace(
+        party_localities={}, replacements=replacements, goods_identities=[], provenance={}
+    )
     proof = {
         "changedTargetPaths": ["documentPatch.goodsItemDetails[0].description"],
         "coveredTargetPaths": ["documentPatch.goodsItemDetails[0].description"],
@@ -1172,7 +1175,14 @@ def test_source_snapshot_checks_content_even_when_file_metadata_is_preserved(tmp
     stamp = path.stat()
     campaign = Campaign.__new__(Campaign)
     campaign.source_ids = ["source"]
-    campaign._blueprints = {"source": object()}
+    campaign._blueprints = {
+        "source": SimpleNamespace(
+            ownership_data={"identifier_privacy": {}},
+            target={"documentPatch": {}},
+            regions=[],
+            historical_bindings={},
+        )
+    }
     campaign._blueprint_file_pins = {path: digest(path.read_bytes())}
     campaign.equipment_inventories = {}
     campaign.validate_source_readiness()
@@ -1194,7 +1204,14 @@ def test_render_stage_rejects_changed_cached_ownership_before_any_render(
     campaign = Campaign.__new__(Campaign)
     campaign.source_ids = ["source"]
     campaign.variant_counts = {"source": 2}
-    campaign._blueprints = {"source": object()}
+    campaign._blueprints = {
+        "source": SimpleNamespace(
+            ownership_data={"identifier_privacy": {}},
+            target={"documentPatch": {}},
+            regions=[],
+            historical_bindings={},
+        )
+    }
     campaign._blueprint_file_pins = {path: digest(path.read_bytes())}
     campaign.equipment_inventories = {}
     campaign.output = tmp_path / "output"
@@ -1217,7 +1234,14 @@ def test_render_stage_certifies_snapshot_once_not_once_per_document(tmp_path):
     campaign = Campaign.__new__(Campaign)
     campaign.source_ids = ["source"]
     campaign.variant_counts = {"source": 3}
-    campaign._blueprints = {"source": object()}
+    campaign._blueprints = {
+        "source": SimpleNamespace(
+            ownership_data={"identifier_privacy": {}},
+            target={"documentPatch": {}},
+            regions=[],
+            historical_bindings={},
+        )
+    }
     campaign._blueprint_file_pins = {path: digest(path.read_bytes())}
     campaign.equipment_inventories = {}
     campaign.output = tmp_path / "output"
@@ -1261,7 +1285,7 @@ def test_classification_context_is_not_a_second_product_form(postal_campaign):
     assert request.context.count("STEEL, NOT IN COILS") == 1
     assert "contextual commodity scope, not shipment requirements" in request.context
     assert "Physical form: cold-rolled steel coils" in request.context
-    assert "090111" not in request.context
+    assert "Sampled commodity HS6 references: 090111" in request.context
     assert "Include every sampled identity and its attributes" not in request.fields[-1].requirement
 
 
@@ -1497,7 +1521,17 @@ def postal_campaign(tmp_path):
             "fixed_context": "Test the existing party and product ownership contract.",
         }
     )
-    blueprint = SamplingBlueprint(source_id, "SOURCE", target, contract, (), {}, {}, ())
+    blueprint = SamplingBlueprint(
+        source_id,
+        "SOURCE",
+        target,
+        contract,
+        (),
+        {},
+        {},
+        (),
+        ownership_data={"identifier_privacy": {}},
+    )
     origin = ScenarioLocation(
         name="ROTTERDAM",
         country="NETHERLANDS",
@@ -1635,6 +1669,14 @@ def test_postal_correction_changes_only_failed_owned_regions_and_preserves_cache
         assert "Previous complete address" in prompt
         assert "3011AA" in prompt
         assert "Choose new street/site wording" in prompt
+        original_fields = {
+            field.key: field
+            for field in fixture.campaign.wording_request(
+                fixture.blueprint, fixture.scenario, "sample", fixture.target
+            ).fields
+        }
+        for key, field in shipment_schema.model_fields.items():
+            assert original_fields[key].requirement in field.description
         return output_type.model_validate({"s0": correction})
 
     fixture.campaign.calls.call = call
@@ -1669,6 +1711,168 @@ def test_postal_correction_changes_only_failed_owned_regions_and_preserves_cache
     assert resumed["values"] == repaired["values"]
     assert resumed["corrections"] == repaired["corrections"]
     assert resumed["provenance"] == repaired["provenance"]
+
+
+@pytest.mark.parametrize(
+    "value,expression,countries,fixed",
+    [
+        ("NETHERLANDS", "{country}", ["NETHERLANDS"], True),
+        ("NETHERLANDS", "{country}", ["NETHERLANDS", "NETHERLANDS"], True),
+        ("NETHERLANDS", "{country}", ["NETHERLANDS", "BELGIUM"], False),
+        ("14 CANAL ROAD NETHERLANDS", "{country}", ["NETHERLANDS"], False),
+        ("GERMANY", "{country}", ["NETHERLANDS"], False),
+        ("Netherlands", "{country}", ["NETHERLANDS"], False),
+        ("NL", "{country}", ["NETHERLANDS"], False),
+        ("NETHERLANDS", "{country} NL", ["NETHERLANDS"], False),
+        ("NETHERLANDS", "{country}", [], False),
+    ],
+)
+def test_postal_country_is_fixed_only_by_exact_owners_and_all_canonical_values(
+    value, expression, countries, fixed
+):
+    roles = [f"documentPatch.parties.notifyParties[{i}]" for i in range(len(countries))]
+    blueprint = SimpleNamespace(
+        contract=SimpleNamespace(
+            targets=[
+                SimpleNamespace(path=role + ".country", expression=expression) for role in roles
+            ]
+        )
+    )
+    scenario = SimpleNamespace(
+        party_localities={
+            role: SimpleNamespace(country=country)
+            for role, country in zip(roles, countries, strict=True)
+        }
+    )
+    assert _fixed_postal_country_components(
+        blueprint, scenario, {"country": value}, {"country"}
+    ) == ({"country"} if fixed else set())
+
+
+def test_postal_country_fix_never_infers_country_from_a_route_or_unowned_literal():
+    blueprint = SimpleNamespace(
+        contract=SimpleNamespace(
+            targets=[
+                SimpleNamespace(path="documentPatch.route.portOfLoading.country", expression="{x}"),
+                SimpleNamespace(path="documentPatch.parties.shipper.addressLine", expression="{x}"),
+            ]
+        )
+    )
+    assert _fixed_postal_country_components(
+        blueprint, SimpleNamespace(party_localities={}), {"x": "NETHERLANDS"}, {"x"}
+    ) == set()
+
+
+def _country_component_postal_fixture(fixture, country_value):
+    role = "documentPatch.parties.shipper"
+    payload = fixture.blueprint.contract.model_dump(mode="json")
+    payload["variables"].append(
+        {
+            "key": "shipper_country",
+            "kind": "postal",
+            "value": "NETHERLANDS",
+            "meaning": "Exact, independently source-owned country component.",
+            "required_literals": [],
+            "occurrences": [{"text": "NETHERLANDS", "occurrence": 1, "presentation": "text"}],
+        }
+    )
+    for binding in payload["targets"]:
+        if binding["path"] == role + ".addressLine":
+            binding["expression"] = "{shipper_street} {shipper_locality} {shipper_country}"
+    payload["targets"].append({"path": role + ".country", "expression": "{shipper_country}"})
+    blueprint = replace(
+        fixture.blueprint,
+        contract=SourceContract.model_validate(payload),
+        regions=(
+            SimpleNamespace(
+                kind="postal", curated_key="shipper_country", target_paths=(role + ".country",)
+            ),
+        ),
+    )
+    receipt = deepcopy(fixture.receipt)
+    receipt["values"].update(shipper_locality="ROTTERDAM", shipper_country=country_value)
+    receipt["requestSha256"] = wording_request_hash(
+        wording_request(blueprint, fixture.scenario, "sample")
+    )
+    fixture.path.write_text(json.dumps(receipt))
+    fixture.campaign.plans = lambda sid: [
+        (blueprint, fixture.scenario, "sample", deepcopy(fixture.target))
+    ]
+    return blueprint, receipt
+
+
+@pytest.mark.parametrize("country_value", ["NETHERLANDS", "GERMANY", "14 CANAL ROAD NETHERLANDS"])
+def test_postal_correction_freezes_good_country_and_still_repairs_wrong_country(
+    postal_campaign, country_value
+):
+    fixture = postal_campaign
+    blueprint, receipt = _country_component_postal_fixture(fixture, country_value)
+    correction = {"shipper_street": "14 CANAL ROAD, 3011AA", "shipper_locality": "ROTTERDAM"}
+    if country_value != "NETHERLANDS":
+        correction["shipper_country"] = "NETHERLANDS"
+
+    async def call(stage, sid, output_type, system, prompt):
+        shipment = output_type.model_fields["s0"].annotation
+        assert set(shipment.model_fields) == set(correction)
+        assert "Fresh synthetic postal component" in prompt
+        if country_value == "NETHERLANDS":
+            assert "shipper_country" not in shipment.model_fields
+            assert "country is already supplied by a host-owned literal" in prompt
+        else:
+            assert "Certified country owner: NETHERLANDS" in (
+                shipment.model_fields["shipper_country"].description
+            )
+        return output_type.model_validate({"s0": correction})
+
+    fixture.campaign.calls.call = call
+    assert asyncio.run(fixture.campaign.correct_postal("source"))["corrected"] == 1
+    repaired = json.loads(fixture.path.read_text())
+    assert repaired["values"] == {**receipt["values"], **correction}
+    assert repaired["requestSha256"] == receipt["requestSha256"]
+    assert set(repaired["corrections"][-1]["after"]) == set(correction)
+    assert (
+        postal_wording_errors(blueprint, fixture.scenario, fixture.target, repaired["values"])
+        == {}
+    )
+
+
+def test_failed_address_with_only_fixed_country_surfaces_unrepairable_ownership(postal_campaign):
+    fixture = postal_campaign
+    blueprint, receipt = _country_component_postal_fixture(fixture, "NETHERLANDS")
+    contract = blueprint.contract.model_copy(
+        update={
+            "variables": [
+                variable
+                for variable in blueprint.contract.variables
+                if variable.key not in {"shipper_street", "shipper_locality"}
+            ],
+            "targets": [
+                binding.model_copy(update={"expression": "{shipper_country}"})
+                if binding.path == "documentPatch.parties.shipper.addressLine"
+                else binding
+                for binding in blueprint.contract.targets
+            ]
+        }
+    )
+    blueprint = replace(blueprint, contract=contract)
+    for key in ("shipper_street", "shipper_locality"):
+        del receipt["values"][key]
+    receipt["requestSha256"] = wording_request_hash(
+        wording_request(blueprint, fixture.scenario, "sample")
+    )
+    fixture.path.write_text(json.dumps(receipt))
+    before = fixture.path.read_bytes()
+    fixture.campaign.plans = lambda sid: [
+        (blueprint, fixture.scenario, "sample", deepcopy(fixture.target))
+    ]
+
+    async def call(*args):
+        pytest.fail("country-only source ownership cannot authorize invented address fields")
+
+    fixture.campaign.calls.call = call
+    with pytest.raises(ValueError, match="no owned mutable regions"):
+        asyncio.run(fixture.campaign.correct_postal("source"))
+    assert fixture.path.read_bytes() == before
 
 
 def test_clean_postal_roles_make_no_correction_request_or_receipt_edit(postal_campaign):
@@ -1783,8 +1987,8 @@ def test_postal_country_spelling_and_name_code_duplicates_are_correction_candida
     assert role in postal_wording_errors(blueprint, scenario, fixture.target, values)
     values["shipper_locality"] = "ROTTERDAM " + good
     assert postal_wording_errors(blueprint, scenario, fixture.target, values) == {}
-    context = postal_correction_context(blueprint, scenario, fixture.target, {"shipper_locality"})
-    assert "COUNTRY OWNER REGIONS: shipper_locality" in context
+    context = postal_assembly_context(blueprint, scenario, fixture.target, {"shipper_locality"})
+    assert "COUNTRY OWNER REGIONS: {shipper_locality}" in context
     assert "spelling and accents" in context
     assert "without an added ISO code" in context
 
@@ -1810,7 +2014,7 @@ def test_country_in_wrong_postal_region_is_detected_even_when_full_address_passe
     assert postal_wording_errors(blueprint, fixture.scenario, fixture.target, values) == {}
 
 
-def test_postal_correction_context_preserves_literal_country_and_country_code(postal_campaign):
+def test_postal_assembly_context_preserves_literal_country_and_country_code(postal_campaign):
     fixture = postal_campaign
     path = "documentPatch.parties.shipper.addressLine"
     for literal in ("NETHERLANDS", "NL"):
@@ -1827,7 +2031,7 @@ def test_postal_correction_context_preserves_literal_country_and_country_code(po
             }
         )
         blueprint = replace(fixture.blueprint, contract=contract)
-        context = postal_correction_context(
+        context = postal_assembly_context(
             blueprint, fixture.scenario, fixture.target, {"shipper_street"}
         )
         assert "{shipper_street} {shipper_locality} " + literal in context
@@ -1840,6 +2044,7 @@ def test_postal_correction_context_preserves_literal_country_and_country_code(po
     [
         "POSTAL ASSEMBLY",
         "country owner regions",
+        "locality owner regions",
         "INVALID OLD VALUE",
         "previous complete address",
         "POSTAL CORRECTION",
@@ -1861,6 +2066,9 @@ def test_postal_correction_context_preserves_literal_country_and_country_code(po
         "NOTIFY_PARTY_POSTAL_COMPONENT_3",
         "REGION LEXICAL_00",
         "lexical_12_3",
+        "REGION delivery_postal (documentPatch.parties.deliveryAgent postal)",
+        "REGION notify_postal (documentPatch.parties.notifyParties[0] postal)",
+        "region consignee_postal (documentPatch.parties.consignee postal)",
     ],
 )
 def test_postal_generator_captions_cannot_pass_correct_geography(caption):
@@ -1890,6 +2098,7 @@ def test_postal_generator_captions_cannot_pass_correct_geography(caption):
         "MAIL SORTING CENTRE POSTAL_COMPONENT_2 ROAD",
         "12 DOCUMENT PATCH ROAD, PARTIES BUSINESS CENTRE",
         "12 LEXICAL ROAD, REGION 3",
+        "12 REGION POSTAL PARK, UNIT 3",
     ],
 )
 def test_postal_serialization_guard_preserves_actual_street_punctuation(street):
@@ -1900,6 +2109,124 @@ def test_postal_serialization_guard_preserves_actual_street_punctuation(street):
         country_code="NL",
         country_labelled=True,
     )
+
+
+def test_initial_postal_fragments_use_one_joint_geography_contract(postal_campaign):
+    fixture = postal_campaign
+    request = wording_request(fixture.blueprint, fixture.scenario, "sample")
+    fields = {field.key: field for field in request.fields}
+    for key in ("shipper_street", "shipper_locality"):
+        assert "not once per component" in fields[key].requirement
+        assert "Use the supplied locality spelling once" not in fields[key].requirement
+    assert "A component is not a separate complete address" in request.context
+    assert (
+        "POSTAL ASSEMBLY documentPatch.parties.shipper: "
+        "{shipper_street} {shipper_locality}"
+    ) in request.context
+    assert "Locality placement is joint" in request.context
+    # The old absence of an explicit country owner was not proof of a literal.
+    assert "country is already supplied by a host-owned literal" not in request.context
+
+
+def test_country_only_component_does_not_invent_a_locality_owner(postal_campaign):
+    fixture = postal_campaign
+    role = "documentPatch.parties.shipper"
+    blueprint = replace(
+        fixture.blueprint,
+        regions=(
+            SimpleNamespace(
+                kind="postal",
+                curated_key="shipper_locality",
+                target_paths=(role + ".country",),
+            ),
+        ),
+    )
+    context = postal_assembly_context(
+        blueprint, fixture.scenario, fixture.target, {"shipper_street", "shipper_locality"}
+    )
+    assert "COUNTRY OWNER REGIONS: {shipper_locality}" in context
+    assert "Locality placement is joint" in context
+    assert "LOCALITY OWNER" not in context
+    assert "not required in every fragment" in context
+
+
+def test_partial_postal_correction_exposes_unchanged_component_literal(postal_campaign):
+    fixture = postal_campaign
+    context = postal_assembly_context(
+        fixture.blueprint,
+        fixture.scenario,
+        fixture.target,
+        {"shipper_street"},
+        fixed_values=fixture.receipt["values"],
+    )
+    assert "{shipper_street} ROTTERDAM NETHERLANDS" in context
+    assert "{shipper_locality}" not in context
+    assert "country is already supplied by a host-owned literal" in context
+
+
+def test_single_mutable_tail_has_proven_locality_owner_and_native_alias(postal_campaign):
+    fixture = postal_campaign
+    role = "documentPatch.parties.shipper"
+    blueprint = replace(
+        fixture.blueprint,
+        regions=(
+            SimpleNamespace(
+                kind="postal",
+                curated_key="shipper_locality",
+                target_paths=(role + ".country",),
+            ),
+        ),
+    )
+    fixed = {**fixture.receipt["values"], "shipper_street": "14 CANAL ROAD"}
+    context = postal_assembly_context(
+        blueprint,
+        fixture.scenario,
+        fixture.target,
+        {"shipper_locality"},
+        fixed_values=fixed,
+    )
+    assert "LOCALITY OWNER REGIONS: {shipper_locality}" in context
+    request = WordingRequest(
+        "sample",
+        context,
+        (WordingField("shipper_locality", role + " postal", "OLD CITY", "Postal tail."),),
+    )
+    from document_ocr.synthesis.curated_wording import native_wording_prompt
+
+    native = native_wording_prompt([request])
+    assert "LOCALITY OWNER REGIONS: {shipper_postal_component_1}" in native
+    assert "COUNTRY OWNER REGIONS: {shipper_postal_component_1}" in native
+    assert "shipper_locality" not in native
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ZARQA this line is a name field only: PETRA HOLLOW FIBER FILTRATION CO. LTD.",
+        "THIS VALUE IS THE COMPANY NAME FIELD ONLY: NEW EXPORT BV",
+        "THIS TEXT IS AN IDENTITY FIELD ONLY: NEW EXPORT BV",
+    ],
+)
+def test_company_name_rejects_explicit_generation_scope_caption(text):
+    request = WordingRequest(
+        "sample",
+        "One fictional legal company identity.",
+        (WordingField("name", "shipper name", "OLD EXPORT BV", "New identity only."),),
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"name": text}})
+    with pytest.raises(ValueError, match="caption outside its field"):
+        unpack_wording(output, [request])
+
+
+@pytest.mark.parametrize("text", ["NAME FIELD TECHNOLOGIES LTD.", "IDENTITY SYSTEMS BV"])
+def test_company_name_scope_guard_keeps_ordinary_identity_vocabulary(text):
+    request = WordingRequest(
+        "sample",
+        "One fictional legal company identity.",
+        (WordingField("name", "shipper name", "OLD EXPORT BV", "New identity only."),),
+    )
+    output = wording_output_type([request]).model_validate({"s0": {"name": text}})
+    assert unpack_wording(output, [request])["sample"]["name"] == text
 
 
 def test_preflight_lexical_coverage_rejects_static_addresses_and_descriptions():
@@ -1936,7 +2263,10 @@ def test_preflight_lexical_coverage_rejects_static_addresses_and_descriptions():
         validate_lexical_owners(blueprint)
 
 
-def test_source_only_related_company_is_generated_without_a_public_party(postal_campaign):
+@pytest.mark.parametrize("relationship", ["on_behalf", "via", "shipping_mark"])
+def test_source_only_related_company_is_generated_without_a_public_party(
+    postal_campaign, relationship
+):
     from document_ocr.synthesis.curated import Occurrence, Variable
     from document_ocr.synthesis.curated_campaign import related_actor_contexts
 
@@ -1952,7 +2282,7 @@ def test_source_only_related_company_is_generated_without_a_public_party(postal_
     contract = fixture.blueprint.contract.model_copy(
         update={"variables": [*fixture.blueprint.contract.variables, variable]}
     )
-    declaration = {"context_party": "documentPatch.parties.shipper", "relationship": "on_behalf"}
+    declaration = {"context_party": "documentPatch.parties.shipper", "relationship": relationship}
     blueprint = replace(
         fixture.blueprint,
         source="SOURCE\nOLD ACCOUNT BV",
@@ -1968,6 +2298,8 @@ def test_source_only_related_company_is_generated_without_a_public_party(postal_
     assert "Separate fictional actor" in field.requirement
     assert "not an additional extraction-party" in field.requirement
     assert "must not be merged" in field.requirement
+    assert field.role.endswith(f"related {relationship} name")
+    assert field.identity_kind == "organization"
     assert "represented_company" not in str(blueprint.target)
     from document_ocr.synthesis.curated_campaign import identity_review_context
 
@@ -2058,7 +2390,7 @@ def test_related_actor_contract_rejects_unknown_or_merged_actor(postal_campaign,
         )
 
 
-@pytest.mark.parametrize("relationship", ["invoice_party", "exporter"])
+@pytest.mark.parametrize("relationship", ["invoice_party", "exporter", "manufacturer"])
 def test_independent_commercial_company_is_source_only(postal_campaign, relationship):
     from document_ocr.synthesis.curated import Occurrence, Variable
     from document_ocr.synthesis.curated_campaign import related_actor_contexts
@@ -2168,3 +2500,33 @@ def test_source_only_name_alias_requires_explicit_generated_identity(postal_camp
                 postal_campaign.scenario,
                 lexical_values={key: "UNSUPPORTED OWNER"},
             )
+
+
+def test_regulatory_product_alias_uses_product_identity_not_complete_description(postal_campaign):
+    from document_ocr.synthesis.curated_ownership import ownership_surfaces
+
+    bp = replace(
+        postal_campaign.blueprint,
+        ownership_data={"surfaces": {"proper_shipping_name": {"lexical_key": "product"}}},
+    )
+    target = deepcopy(bp.target)
+    target["documentPatch"]["goodsItemDetails"][0]["description"] = (
+        "NEW CHEMICAL, 1016 KG, TOTE BIN"
+    )
+    result = ownership_surfaces(
+        bp, target, postal_campaign.scenario, lexical_values={"product": "NEW CHEMICAL"}
+    )
+    assert result["proper_shipping_name"] == "NEW CHEMICAL"
+    for invalid in (None, {}, {"product": ""}, {"product": None}):
+        with pytest.raises(ValueError, match="explicit generated lexical owner"):
+            ownership_surfaces(bp, target, postal_campaign.scenario, lexical_values=invalid)
+    malformed = replace(
+        bp,
+        ownership_data={
+            "surfaces": {"proper_shipping_name": {"lexical_key": "product", "unreviewed": True}}
+        },
+    )
+    with pytest.raises(ValueError, match="explicit generated lexical owner"):
+        ownership_surfaces(
+            malformed, target, postal_campaign.scenario, lexical_values={"product": "NEW CHEMICAL"}
+        )

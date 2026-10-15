@@ -19,12 +19,17 @@ from document_ocr.label_schemas.bill_of_lading_v3 import (
 from document_ocr.label_schemas.bill_of_lading_v4 import BillOfLadingRelationExplicitV4Label
 from document_ocr.label_schemas.bill_of_lading_v5 import BillOfLadingRelationExplicitV5Label
 from document_ocr.label_schemas.bill_of_lading_v6 import BillOfLadingMPCIAlignedV6Label
-from document_ocr.label_schemas.bill_of_lading_v7 import BillOfLadingExtractionV7Label
+from document_ocr.label_schemas.bill_of_lading_v7 import (
+    BillOfLadingExtractionV7DirectTarget,
+    BillOfLadingExtractionV7Label,
+)
 from document_ocr.training.config import TrainingConfig, resolve_config_path
 
 Canonicalizer = Callable[[dict[str, Any]], dict[str, Any]]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
-_V7_TASKS = {"bill_of_lading_extraction_v7", "bill_of_lading_extraction_v7_reduced"}
+_V7_DIRECT_TASK = "bill_of_lading_extraction_v7_reduced_direct"
+_V7_REDUCED_TASKS = {"bill_of_lading_extraction_v7_reduced", _V7_DIRECT_TASK}
+_V7_TASKS = {"bill_of_lading_extraction_v7", *_V7_REDUCED_TASKS}
 _MPCI_ALIGNED_TASKS = {"bill_of_lading_mpci_aligned_v6", *_V7_TASKS}
 _V7_REDUCED_FIELDS = {
     "BillOfLadingDocumentPatchV7": "forwardingAndExportReferences",
@@ -47,6 +52,7 @@ class RelationExplicitTaskConstraints(BaseModel):
         "bill_of_lading_mpci_aligned_v6",
         "bill_of_lading_extraction_v7",
         "bill_of_lading_extraction_v7_reduced",
+        "bill_of_lading_extraction_v7_reduced_direct",
     ]
     basePromptSchemaSha256: Sha256
     targetSchemaSha256: Sha256
@@ -72,14 +78,39 @@ class TrainingTask:
     canonicalizer: Canonicalizer
     target_model: type[BaseModel]
     constraints: RelationExplicitTaskConstraints | None = None
+    document_field: str | None = "documentPatch"
+
+    def document_model(self) -> type[BaseModel]:
+        """Return the model that owns facts in this explicit decoder contract."""
+
+        if self.document_field is None:
+            return self.target_model
+        model = self.target_model.model_fields[self.document_field].annotation
+        if not isinstance(model, type) or not issubclass(model, BaseModel):
+            raise TypeError("training document-facts annotation must be a model class")
+        return model
+
+    def document_facts(self, value: dict[str, Any]) -> dict[str, Any]:
+        """Read facts in the declared shape; never infer or unwrap another contract."""
+
+        if self.document_field is None:
+            return value
+        facts = value.get(self.document_field)
+        if not isinstance(facts, dict):
+            raise ValueError(f"decoder target must contain a {self.document_field} object")
+        return facts
 
     def target_schema(self) -> dict[str, Any]:
         """Return the task's target contract, distinct from full annotation scope."""
 
         schema = self.target_model.model_json_schema(mode="serialization")
-        if self.name == "bill_of_lading_extraction_v7_reduced":
+        if self.name in _V7_REDUCED_TASKS:
             for definition, field in _V7_REDUCED_FIELDS.items():
-                node = schema["$defs"][definition]
+                node = (
+                    schema
+                    if self.document_field is None and definition == "BillOfLadingDocumentPatchV7"
+                    else schema["$defs"][definition]
+                )
                 del node["properties"][field]
                 if field in node.get("required", []):
                     node["required"].remove(field)
@@ -165,7 +196,7 @@ class TrainingTask:
         canonical = self.canonicalizer(value)
         if self.constraints is None:
             return canonical
-        patch = canonical["documentPatch"]
+        patch = self.document_facts(canonical)
         package_tokens = set(self.constraints.packageCategoryTokens)
         container_tokens = set(self.constraints.containerCategoryTokens)
         container_field = (
@@ -200,7 +231,9 @@ class TrainingTask:
         target_schema_sha256 = sha256_bytes(canonical_json_bytes(self.target_schema()))
         if target_schema_sha256 != constraints.targetSchemaSha256:
             raise ValueError("task-constraints target schema SHA-256 differs from code")
-        return TrainingTask(self.name, self.canonicalizer, self.target_model, constraints)
+        return TrainingTask(
+            self.name, self.canonicalizer, self.target_model, constraints, self.document_field
+        )
 
 
 _PROMPT_SCHEMA_NOISE = frozenset({"default", "description", "title"})
@@ -297,6 +330,10 @@ def canonical_json(value: dict[str, Any], *, pretty: bool = False) -> str:
             for goods in patch.get("goodsItemDetails", []):
                 if isinstance(goods, dict) and "splitGoodsPlacement" in goods:
                     goods["splitGoodsPlacement"] = goods.pop("splitGoodsPlacement")
+    if isinstance(ordered.get("goodsItemDetails"), list) and "documentPatch" not in ordered:
+        for goods in ordered["goodsItemDetails"]:
+            if isinstance(goods, dict) and "splitGoodsPlacement" in goods:
+                goods["splitGoodsPlacement"] = goods.pop("splitGoodsPlacement")
     return json.dumps(
         ordered,
         allow_nan=False,
@@ -370,7 +407,11 @@ def _canonicalize_bill_of_lading_extraction_v7(value: dict[str, Any]) -> dict[st
 
 def _canonicalize_bill_of_lading_extraction_v7_reduced(value: dict[str, Any]) -> dict[str, Any]:
     canonical = _canonicalize_bill_of_lading_extraction_v7(value)
-    patch = canonical["documentPatch"]
+    _validate_reduced_v7_fields(canonical["documentPatch"])
+    return canonical
+
+
+def _validate_reduced_v7_fields(patch: dict[str, Any]) -> None:
     scopes = [
         ("BillOfLadingDocumentPatchV7", patch),
         ("ExtractionPartiesV7", patch.get("parties", {})),
@@ -381,6 +422,18 @@ def _canonicalize_bill_of_lading_extraction_v7_reduced(value: dict[str, Any]) ->
         field = _V7_REDUCED_FIELDS[definition]
         if field in owner:
             raise ValueError(f"field is outside reduced V7 training scope: {definition}.{field}")
+
+
+def _canonicalize_bill_of_lading_extraction_v7_reduced_direct(
+    value: dict[str, Any],
+) -> dict[str, Any]:
+    label = BillOfLadingExtractionV7DirectTarget.model_validate_json(
+        canonical_json(value), strict=True
+    )
+    canonical = label.canonical_target()
+    if canonical != value:
+        raise ValueError("target differs from the task schema's canonical sparse representation")
+    _validate_reduced_v7_fields(canonical)
     return canonical
 
 
@@ -419,6 +472,12 @@ _TASKS = {
         name="bill_of_lading_extraction_v7_reduced",
         canonicalizer=_canonicalize_bill_of_lading_extraction_v7_reduced,
         target_model=BillOfLadingExtractionV7Label,
+    ),
+    _V7_DIRECT_TASK: TrainingTask(
+        name=_V7_DIRECT_TASK,
+        canonicalizer=_canonicalize_bill_of_lading_extraction_v7_reduced_direct,
+        target_model=BillOfLadingExtractionV7DirectTarget,
+        document_field=None,
     ),
 }
 

@@ -807,7 +807,7 @@ def test_reject_stale_offsets_unknown_values_missing_owners_and_topology_changes
         render_sampling_blueprint(blueprint, row["target"], {"imagined": "X"})
     target = deepcopy(row["target"])
     target["documentPatch"]["goodsItemDetails"][0]["hsCodes"].append("690721")
-    with pytest.raises(ValueError, match="duplicate-HS6 collapse"):
+    with pytest.raises(ValueError, match="array topology"):
         render_sampling_blueprint(blueprint, target, {})
     target = deepcopy(row["target"])
     target["schemaVersion"] = "999"
@@ -869,9 +869,11 @@ def test_non_product_override_has_complete_binding_metadata_on_physical_path(kin
     binding = blueprint.historical_bindings[override.key]
     assert binding["value_kind"] == kind
     occurrence = binding["occurrences"][0]
-    assert row["joinedRawText"].encode()[
-        occurrence["byte_start"] : occurrence["byte_end"]
-    ].decode() == occurrence["source_text"] == "MUMBAI"
+    assert (
+        row["joinedRawText"].encode()[occurrence["byte_start"] : occurrence["byte_end"]].decode()
+        == occurrence["source_text"]
+        == "MUMBAI"
+    )
     target = deepcopy(row["target"])
     target["documentPatch"]["route"]["portOfLoading"]["name"] = "SANTOS"
     scenario = SimpleNamespace(
@@ -885,7 +887,7 @@ def test_non_product_override_has_complete_binding_metadata_on_physical_path(kin
     assert "PORT: SANTOS" in text and labels == target
 
 
-def test_hs_collapse_retains_all_printed_surfaces_but_not_duplicate_targets():
+def test_hs_national_extensions_cannot_collapse_out_of_targets():
     before = {
         "g.hsCodes[0]": "020622",
         "g.hsCodes[1]": "02062200",
@@ -893,11 +895,10 @@ def test_hs_collapse_retains_all_printed_surfaces_but_not_duplicate_targets():
         "other": 1,
     }
     after = {"g.hsCodes[0]": "020714", "other": 1}
-    aligned, aliases = _aligned_sample_leaves(before, after)
-    assert [aligned[f"g.hsCodes[{i}]"] for i in range(3)] == ["020714"] * 3
-    assert set(aliases.values()) == {"g.hsCodes[0]"}
-    with pytest.raises(ValueError, match="not a duplicate-HS6 collapse"):
-        _aligned_sample_leaves({**before, "g.hsCodes[2]": "123456"}, after)
+    with pytest.raises(ValueError, match="array topology"):
+        _aligned_sample_leaves(before, after)
+    after = {**before, "g.hsCodes[0]": "020714", "g.hsCodes[1]": "02071429"}
+    assert _aligned_sample_leaves(before, after) == after
 
 
 @pytest.mark.parametrize(
@@ -1402,3 +1403,88 @@ def test_combined_contact_explicit_split_covers_reviewed_broken_name():
         blueprint, target, {}, surface_values=ownership_surfaces(blueprint, target, None)
     )
     assert text == "CONTACT\nCAROL: 111\nDAVE: 222\n"
+
+
+def _hs_projection_fixture():
+    """Two source-shaped codes share HS6; the shorter one can remain unchanged."""
+    raw = "ACME LTD\nP.A.: 0810.90.90.00\nHS CODE: 0810.90\n"
+    row = {
+        "documentId": "formatted_hs",
+        "joinedRawText": raw,
+        "target": {
+            "schemaVersion": "7.0.0",
+            "documentPatch": {
+                "negotiability": "non_negotiable",
+                "parties": {"shipper": {"name": "ACME LTD"}},
+                "goodsItemDetails": [{"hsCodes": ["0810.90.90.00", "0810.90"]}],
+            },
+        },
+    }
+    contract = SourceContract(
+        variables=[
+            dict(
+                key="name",
+                kind="name",
+                value="ACME LTD",
+                meaning="shipper",
+                required_literals=[],
+                occurrences=[dict(text="ACME LTD", occurrence=1, presentation="text")],
+            )
+        ],
+        targets=[dict(path="documentPatch.parties.shipper.name", expression="{name}")],
+        fixed_context="Keep both explicit source HS presentations.",
+    )
+    bindings = []
+    for index, value in enumerate(("0810.90.90.00", "0810.90")):
+        context = "P.A.: " + value if index == 0 else "HS CODE: " + value
+        start = len(raw[: raw.index(context) + len(context) - len(value)].encode())
+        bindings.append(
+            dict(
+                logical_key=f"hs_{index}",
+                target_paths=[f"documentPatch.goodsItemDetails[0].hsCodes[{index}]"],
+                value_kind="identifier",
+                occurrences=[
+                    dict(
+                        byte_start=start,
+                        byte_end=start + len(value.encode()),
+                        source_text=value,
+                    )
+                ],
+            )
+        )
+    return compile_sampling_blueprint(
+        row, {"document_id": row["documentId"], "bindings": bindings}, contract
+    )
+
+
+@pytest.mark.parametrize(
+    ("codes", "changed_indices"),
+    [
+        (["0810909000", "081090"], []),
+        (["0810901234", "081090"], [0]),
+        (["0207141234", "020714"], [0, 1]),
+    ],
+)
+def test_hs_projection_proof_compares_final_printed_values_and_replays(codes, changed_indices):
+    blueprint = _hs_projection_fixture()
+    target = deepcopy(blueprint.target)
+    target["documentPatch"]["goodsItemDetails"][0]["hsCodes"] = codes
+    first = render_sampling_blueprint(blueprint, target, {})
+    text, projected, proof = first
+    assert render_sampling_blueprint(blueprint, projected, {}) == first
+    expected = {f"documentPatch.goodsItemDetails[0].hsCodes[{index}]" for index in changed_indices}
+    assert set(proof["changedTargetPaths"]) == expected
+    assert set(proof["coveredTargetPaths"]) == expected
+    assert proof["hsPresentations"] == {
+        f"documentPatch.goodsItemDetails[0].hsCodes[{index}]": value
+        for index, value in enumerate(projected["documentPatch"]["goodsItemDetails"][0]["hsCodes"])
+    }
+    assert "HS CODE: " + projected["documentPatch"]["goodsItemDetails"][0]["hsCodes"][1] in text
+
+
+def test_hs_projection_still_rejects_printed_digits_conflicting_with_target():
+    blueprint = _hs_projection_fixture()
+    with pytest.raises(ValueError, match="printed HS digits differ"):
+        render_sampling_blueprint(
+            blueprint, blueprint.target, {}, surface_values={"hs_1": "0810.99"}
+        )

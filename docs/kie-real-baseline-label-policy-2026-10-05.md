@@ -518,3 +518,93 @@ It does not delete the source OCR occurrence or infer a new owner by proximity.
 
 See [the full repair-lineage inventory](kie-synthesis-repair-lineage-reaudit-2026-10-12.md)
 for exact scope, source promotion and validation evidence.
+
+## Synthetic private contacts — 2026-10-13
+
+Public carrier/issuer companies can remain fixed context; their named employees,
+signatories and personal mailboxes are separate private identities. Generate
+source-only individuals without inventing extraction-party roles. Own every
+printed repeat of that individual and keep separate CPF/phone facts outside
+the name region.
+
+For generated party mailboxes, supply the current company and current contact
+names. Private source recipients are not style examples: replace the complete
+recipient/account identity, including separator-normalized variants. Generic
+department wording can remain. Private original business domains must change;
+public shared mail-provider domains can remain. Source-only public carrier
+domains can remain while their personal recipient changes. Email/website
+domains are independent and are not required to match.
+
+Every source target mailbox requires explicit recipient and domain classification
+before paid synthesis. No metadata omission grants a private-recipient or
+private-domain exemption. Source-only phones/faxes use their declared owner and
+country. Distinct fax draws must be fixed-line-capable; explicitly identical
+TEL/FAX and local/international source variants share one generated subscriber.
+Opaque individual identifiers preserve source format, without a requirement to
+implement national checksum rules.
+
+These are synthetic anonymization rules, not instructions to relabel real OCR
+with fictional values. See [the private-contact repair report](kie-synthesis-private-contacts-repair-2026-10-13.md).
+
+## Synthetic fiscal/commercial references and decoder contract — 2026-10-13
+
+Generate private tax/registration/customs and invoice/order/booking/customer
+references deterministically through exact source owners. Preserve formatting
+classes and separators, not original identities. Repeated-page and differently
+punctuated aliases share one generated identity. No national-checksum validity
+is required. Preserve public carrier registrations, SCACs, form/legal constants,
+and independently owned dates, quantities, weights and postal text.
+
+Every source-only identifier requires an explicit private/public/dependent
+classification before paid synthesis. Private source owners require their
+generator; future target-owned identifiers can use the existing target alias
+recipe. An unclassified new source is rejected, never silently exempted.
+
+Decoder/training targets are direct extraction objects: the contents formerly
+inside documentPatch, with no schemaVersion or outer documentPatch. Keep the
+same facts, explicit instruction nulls, category vocabulary, dropped-field
+policy and relation semantics. Versioned source/review artifacts remain
+provenance, not decoder targets.
+
+See [the repair and direct-target report](kie-synthesis-private-identifiers-and-direct-targets-2026-10-13.md).
+
+## Full printed HS identifiers and DG properties — 2026-10-14
+
+The commodity identity sampled from the HS registry remains its genuine six-digit
+HS6 code. Pass that identity, not invented national suffixes, to the wording model.
+The source owns the printed customs identifier's digit width and separators.
+For synthesis, retain all source-shaped code slots, extend sampled HS6 to each
+source width with deterministic fictional digits, and preserve source dots,
+spaces, commas, ASCII hyphens or colons. Identifiers contain 6–20 ASCII digits; the
+extraction target retains every digit, leading zero and printed separator.
+Different national extensions are different identifiers even if their first six
+digits coincide. Repeated presentations of the same complete digit sequence use
+the first owned presentation in the label. Never collapse a complete identifier
+to HS6 or discard another extension because its parent classification matches.
+These suffixes teach extraction, not valid national tariff classification.
+
+This replaces the historical digits-only/6–18-digit AI-adapter restriction in the
+extraction contract. The saved canonical MPCI form supports printable ASCII.
+Any downstream adapter retaining the older normalization needs separate alignment;
+it is not evidence that the form itself forbids source punctuation.
+
+The 2026-10-15 real-data audit also confirms an owned `HS CODE: 5205:22`
+presentation. ASCII colons are retained, not removed. The form accepts printable
+ASCII, while the extraction contract deliberately restricts separators to the
+observed set above. A slash between separate codes is not an internal separator;
+Unicode lookalike punctuation is not accepted as ASCII. Historical datasets and
+run references remain frozen; corrected real labels are published in the new
+7,600-record training configuration's dataset revision.
+
+DG packing groups and subsidiary hazards are sampled with their exact eligible
+HMT identity. Preserve the source's independently owned field presentations;
+do not add a structured value when no corresponding declaration is rendered.
+A flash-bearing template requires a pinned property registry. The initial
+registry joins CDC/NIOSH scalar closed-cup flash points to exact CAS and the same
+DOT/UN identity through the existing ECICS/HMT links. Qualified identities,
+mixtures/NOS entries, ranges, open-cup properties and conflicting identity links
+are not inferred. Convert Fahrenheit/Celsius explicitly and reconcile the target
+to the value actually printed at the source's precision. The property remains
+host-controlled; the wording model cannot invent or change it.
+
+See [the full repair, coverage and validation report](kie-hs-dg-format-repair-2026-10-14.md).

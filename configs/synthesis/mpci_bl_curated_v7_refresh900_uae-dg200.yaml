@@ -1,0 +1,498 @@
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/thermal-expansion30-20261014/real704
+output: artifacts/kie-synthesis-production/curated-v7-refresh900-20261014/uae-dg200
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
+environment_file: .env
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+seed: 148711886554312
+variants_per_source: 3
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 148711886554312
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 148711886554312
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: '3.00'
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - together
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-13'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: '0.15000000'
+    cached_input_usd_per_million: '0.03000000'
+    cache_write_multiplier: 1.0
+    output_usd_per_million: '0.5000000'
+source_ids:
+- doc_0b7f37311b7396b27f4cfa9b14d40f25e719559df4a647690e35e8971f4b0589
+- doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146
+- doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559
+- doc_32ebac37f60803fca4d6e46c05278045a5a0e8855cb30bd4ba75ae02fc5dbf18
+- doc_35288b685eca5052ab5c7b898556f7d6a09f35c8c2ae235ba67f5cfeb86b1faa
+- doc_45386289dacb9afa9ee6dd7e7a7fbee9e2e985ce9b6de6f77450fe23feac7d16
+- doc_48325f63ba3ebeea284baa1b9c48eabee4df716417bb04dd2f7884c4fc88cf98
+- doc_4d47f5e76baaeed1b39c58cb3515a441cac6fe0e1d1f182963d6857817eb6aef
+- doc_6018901a87e7c3c74caf266b74df69f23b3081bfb66c96f52b965de7662ee0ea
+- doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4
+- doc_6f5a69ebc88d423da855307d7170689fdfbf95501fe736a6ae30fd13345e87e4
+- doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d
+- doc_884975ffae24b9eb4e17ab66eb00dcf43ed87dc2f92ce46c06cbbef47ff44494
+- doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83
+- doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4
+- doc_a915a41136b79f9ef3793793d86ef9283685a6c21f5d37d31717199102b8b34a
+- doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094
+- doc_ab905fd40d2afadc45840dc00b569e510bfd6a1017218d16c2ce125ea38288a7
+- doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1
+- doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f
+- doc_c21801080ce6fe253ac1db66be33fea6ab00b5ebc3a51192434f304b482ea635
+- doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852
+- doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170
+- doc_ecdbc2db8e169a4d713b6bb1fe252f9aa2fc9c8c17813a707ea42be00c530451
+- doc_fb241e5dc87e28957c2ca8b3e72703dadcec45a9f7ebef6e605cb1023bc1ab3a
+- doc_fdbc7d941b71f98dcc86796e2999a8ba48e8833aea2bd6fab484fc4a3ebc1584
+- doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  flash_points:
+    path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+    sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+    records: 64
+capabilities:
+  doc_45386289dacb9afa9ee6dd7e7a7fbee9e2e985ce9b6de6f77450fe23feac7d16:
+    allowed_package_categories:
+    - PACKAGE_BIN
+    family: dg_chemical
+    fixed_package_quantity: 5
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_0b7f37311b7396b27f4cfa9b14d40f25e719559df4a647690e35e8971f4b0589:
+    allowed_package_categories:
+    - PACKAGE_BIN
+    family: dg_chemical
+    fixed_package_quantity: 1
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_ab905fd40d2afadc45840dc00b569e510bfd6a1017218d16c2ce125ea38288a7:
+    allowed_package_categories:
+    - PACKAGE_DRUM
+    family: dg_chemical
+    fixed_package_quantity: 28
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559:
+    allowed_package_categories:
+    - PACKAGE_SKID
+    family: dg_chemical
+    identity_count: 1
+    party_sides:
+      documentPatch.parties.deliveryAgent: destination
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_ecdbc2db8e169a4d713b6bb1fe252f9aa2fc9c8c17813a707ea42be00c530451:
+    allowed_package_categories:
+    - PACKAGE_DRUM
+    family: dg_chemical
+    fixed_package_quantity: 1440
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_884975ffae24b9eb4e17ab66eb00dcf43ed87dc2f92ce46c06cbbef47ff44494:
+    allowed_package_categories:
+    - PACKAGE_DRUM
+    family: dg_chemical
+    fixed_package_quantity: 152
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_35288b685eca5052ab5c7b898556f7d6a09f35c8c2ae235ba67f5cfeb86b1faa:
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1:
+    allowed_package_categories:
+    - PACKAGE_DRUM
+    family: dg_chemical
+    fixed_package_quantity: 400
+    identity_count: 1
+    physical_profile: source_bundle
+    source_load_accounting:
+      container_package_quantities:
+        CZZU3773984: 80
+        MEDU5328021: 80
+        MEDU6491619: 80
+        MSDU1680941: 80
+        MSMU1686606: 80
+      equipment_pair: TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+      rationale: PDF pages1-3 show each of5 listed20DV containers carrying80 drums.
+        This complete vector is private physical authority only; OCR public labels
+        retain just one printed80 count and four membership-only placements.
+      reviewed_pages:
+      - 1
+      - 2
+      - 3
+      source_ocr_sha256: 956cc9ec52af8455cdbd69cc59a80ced94bfe77512b5f178b79d24de250fef5c
+      source_pdf:
+        path: data/corpora/paddle-bl-swb-filtered-max5/files/0bc845a3a97eb44ab84cac88cf778881401a2fbb2515d380b1122642e8d84e0c.pdf
+        sha256: 0bc845a3a97eb44ab84cac88cf778881401a2fbb2515d380b1122642e8d84e0c
+      source_target_sha256: 81812d92ca08e9ac8917e649bc0b2b7b35ebbdc8551eb78f91b78a850bbfb6d7
+    destination_country: AE
+  doc_a915a41136b79f9ef3793793d86ef9283685a6c21f5d37d31717199102b8b34a:
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_6f5a69ebc88d423da855307d7170689fdfbf95501fe736a6ae30fd13345e87e4:
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852:
+    allowed_package_categories:
+    - PACKAGE_PALLET
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_fb241e5dc87e28957c2ca8b3e72703dadcec45a9f7ebef6e605cb1023bc1ab3a:
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4:
+    allowed_package_categories:
+    - PACKAGE_DRUM
+    family: dg_chemical
+    fixed_package_quantity: 72
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_4d47f5e76baaeed1b39c58cb3515a441cac6fe0e1d1f182963d6857817eb6aef:
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_48325f63ba3ebeea284baa1b9c48eabee4df716417bb04dd2f7884c4fc88cf98:
+    allowed_package_categories:
+    - PACKAGE_DRUM_STEEL
+    family: dg_chemical
+    fixed_package_quantity: 80
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_6018901a87e7c3c74caf266b74df69f23b3081bfb66c96f52b965de7662ee0ea:
+    family: dg_chemical
+    fixed_package_quantity: 18
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094:
+    allowed_package_categories:
+    - PACKAGE_SKID
+    family: dg_chemical
+    fixed_package_quantity: 1
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_c21801080ce6fe253ac1db66be33fea6ab00b5ebc3a51192434f304b482ea635:
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    family: dg_chemical
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170:
+    family: dg_chemical
+    fixed_package_quantity: 2
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_32ebac37f60803fca4d6e46c05278045a5a0e8855cb30bd4ba75ae02fc5dbf18:
+    family: dg_chemical
+    identity_count: 1
+    destination_country: AE
+  doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4:
+    allowed_package_categories:
+    - PACKAGE_DRUM_FIBRE
+    - PACKAGE_DRUM
+    family: dg_chemical
+    fixed_package_quantity: 160
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83:
+    family: dg_chemical
+    identity_count: 1
+    destination_country: AE
+  doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: dg_chemical
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+  doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5:
+    family: dg_chemical
+    identity_count: 1
+    destination_country: AE
+  doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146:
+    family: dg_chemical
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes: {}
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_fdbc7d941b71f98dcc86796e2999a8ba48e8833aea2bd6fab484fc4a3ebc1584:
+    allowed_hs_codes:
+    - '870380'
+    allowed_hs_headings:
+    - '8703'
+    family: dg_vehicle
+    fixed_package_quantity: 3
+    identity_count: 1
+    physical_profile: source_whole_units
+    destination_country: AE
+  doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
+    allowed_equipment_pairs: []
+    allowed_hs_codes:
+    - '870323'
+    allowed_hs_headings:
+    - '8703'
+    allowed_package_categories: []
+    destination_country: AE
+    family: dg_vehicle
+    fixed_package_quantity: 1
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: reviewed_whole_units
+    quantity_multiple: 1
+    reviewed_whole_unit_donors:
+      doc_740670f6d22375c717b760d099b2caad7d57958bbdaeb07758498afc946bc984:
+        rationale: Current-training whole petrol passenger vehicle with explicit authoritative
+          HS6, unit count, gross mass, cube and equipment. Transfer this joint physical
+          bundle without extrapolating the original unclassified Range Rover's 2708kg
+          load to unrelated engine classes. Retain the receiving source's explicit
+          unpackaged handling and liquid-fuel UN3166 declaration; no electric or hybrid
+          identity.
+        source_text_literals:
+        - 1 Package(s) of 01 UNIT NEW LAND ROVER RANGE ROVER VELAR 250 PS
+        - 'HS CODE: 8703231900'
+        - 'Gross Cargo Weight: 1,996.000 kgs. 15.582 cu. m.'
+        target_sha256: ea1dc27854aa97f6670ed904238343a836dcb047afe1082c5dd32fc4560cbdaf
+        whole_unit_count: 1
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+template_sampling:
+  samples: 200
+  source_counts:
+    doc_45386289dacb9afa9ee6dd7e7a7fbee9e2e985ce9b6de6f77450fe23feac7d16: 7
+    doc_0b7f37311b7396b27f4cfa9b14d40f25e719559df4a647690e35e8971f4b0589: 7
+    doc_ab905fd40d2afadc45840dc00b569e510bfd6a1017218d16c2ce125ea38288a7: 7
+    doc_2e8c2a1f893def8a2660ec987c6d99d52923bf989ac2abdcd75c66eaa512b559: 7
+    doc_ecdbc2db8e169a4d713b6bb1fe252f9aa2fc9c8c17813a707ea42be00c530451: 7
+    doc_884975ffae24b9eb4e17ab66eb00dcf43ed87dc2f92ce46c06cbbef47ff44494: 7
+    doc_35288b685eca5052ab5c7b898556f7d6a09f35c8c2ae235ba67f5cfeb86b1faa: 7
+    doc_b8544221e71596708407ab4c14a9ca04281b401f4bbafb37db51ebd83034d4b1: 7
+    doc_a915a41136b79f9ef3793793d86ef9283685a6c21f5d37d31717199102b8b34a: 7
+    doc_6f5a69ebc88d423da855307d7170689fdfbf95501fe736a6ae30fd13345e87e4: 7
+    doc_c573b27eee2ad46ae293f424fa6145e9af252fb82ec63305490095561b6e7852: 7
+    doc_fb241e5dc87e28957c2ca8b3e72703dadcec45a9f7ebef6e605cb1023bc1ab3a: 7
+    doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4: 7
+    doc_4d47f5e76baaeed1b39c58cb3515a441cac6fe0e1d1f182963d6857817eb6aef: 7
+    doc_48325f63ba3ebeea284baa1b9c48eabee4df716417bb04dd2f7884c4fc88cf98: 7
+    doc_6018901a87e7c3c74caf266b74df69f23b3081bfb66c96f52b965de7662ee0ea: 7
+    doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094: 7
+    doc_c21801080ce6fe253ac1db66be33fea6ab00b5ebc3a51192434f304b482ea635: 6
+    doc_c7060e220634333eba11aecef9d3a01cbad4a0d51a2a9ec6c7fc27db2b2bf170: 6
+    doc_32ebac37f60803fca4d6e46c05278045a5a0e8855cb30bd4ba75ae02fc5dbf18: 6
+    doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4: 6
+    doc_97ded6896981958cbbc5ba9f56eccb7c3162bb512136889f774a6c3a87434a83: 6
+    doc_7d44dcc4a4c621a115e1c3d4f8402e4d1b8edfd43d3fd15018a8cfe74d4f118d: 6
+    doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5: 6
+    doc_21d3ced7071499f6b149a936216a614b1f5454c9aa8ab5b939baeaaeea97c146: 6
+    doc_fdbc7d941b71f98dcc86796e2999a8ba48e8833aea2bd6fab484fc4a3ebc1584: 17
+    doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f: 16

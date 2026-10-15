@@ -15,6 +15,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
 from document_ocr.synthesis.curated_sampling import source_variant_counts
@@ -23,6 +24,36 @@ from document_ocr.synthesis.curated_wording import (
     rendered_review_prompt,
     review_output_type,
 )
+from document_ocr.training.tasks import RelationExplicitTaskConstraints, get_training_task
+
+DECODER_TASK = "bill_of_lading_extraction_v7_reduced_direct"
+
+
+def decoder_target(annotation: dict) -> dict:
+    """Export only canonical facts; internal ownership receipts remain versioned."""
+    historical = get_training_task("bill_of_lading_extraction_v7_reduced")
+    canonical = historical.canonicalize(annotation)
+    if canonical != annotation:
+        raise ValueError("publication annotation is not canonical reduced V7")
+    return get_training_task(DECODER_TASK).canonicalize(canonical["documentPatch"])
+
+
+def decoder_constraints(annotation_constraints: dict) -> RelationExplicitTaskConstraints:
+    """Reuse the frozen vocabulary, not the annotation envelope's schema pins."""
+    original = RelationExplicitTaskConstraints.model_validate_json(
+        json.dumps(annotation_constraints)
+    )
+    get_training_task("bill_of_lading_extraction_v7_reduced").bind_constraints(original)
+    task = get_training_task(DECODER_TASK)
+    value = original.model_dump(mode="json")
+    value.update(
+        task=DECODER_TASK,
+        basePromptSchemaSha256=task.base_prompt_schema_sha256(),
+        targetSchemaSha256=sha256_bytes(canonical_json_bytes(task.target_schema())),
+    )
+    constraints = RelationExplicitTaskConstraints.model_validate_json(json.dumps(value))
+    task.bind_constraints(constraints)
+    return constraints
 
 
 def review_contract_hash(count: int, target_casing: TargetCasing = "uppercase") -> str:
@@ -182,7 +213,16 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
     constraints_bytes = constraints_path.read_bytes()
     if digest(constraints_bytes) != config["task_constraints_sha256"]:
         raise ValueError("publication task constraints changed")
-    constraints = json.loads(constraints_bytes)
+    constraints = decoder_constraints(json.loads(constraints_bytes))
+    decoder = get_training_task(DECODER_TASK).bind_constraints(constraints)
+    decoder_artifacts = {
+        "schema.json": (decoder.target_schema()),
+        "prompt-schema.json": json.loads(decoder.prompt_schema_json()),
+        "task-constraints.json": constraints.model_dump(mode="json"),
+    }
+    decoder_payloads = {
+        name: (_json(value) + "\n").encode() for name, value in decoder_artifacts.items()
+    }
     records, entries, source_entries, seen_text = [], [], [], set()
     gallery = [
         "# Full curated synthesis pilot: source and rendered variants\n",
@@ -254,16 +294,19 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
             ]
         )
         for sample_id, candidate in candidates.items():
+            target = decoder.canonicalize(decoder_target(candidate["target"]))
             records.append(
                 {
-                    key: candidate[key]
-                    for key in (
-                        "documentId",
-                        "sourceDocumentId",
-                        "joinedRawText",
-                        "joinedRawTextSha256",
-                        "target",
-                    )
+                    **{
+                        key: candidate[key]
+                        for key in (
+                            "documentId",
+                            "sourceDocumentId",
+                            "joinedRawText",
+                            "joinedRawTextSha256",
+                        )
+                    },
+                    "target": target,
                 }
             )
             entries.append(
@@ -275,7 +318,8 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
                     "sourceSha256": source_hash,
                     "sourceTargetSha256": source_target_hash,
                     "renderedSha256": candidate["joinedRawTextSha256"],
-                    "targetSha256": digest(candidate["target"]),
+                    "targetSha256": digest(target),
+                    "candidateTargetSha256": digest(candidate["target"]),
                     "candidateSha256": hashes[sample_id],
                     "reviewSha256": digest(receipt),
                     "adjudicationSha256": adjudication_hash,
@@ -297,9 +341,10 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
     gallery_bytes = "\n".join(gallery).encode()
     manifest = {
         "schemaVersion": 1,
-        "task": constraints["task"],
-        "targetSchemaSha256": constraints["targetSchemaSha256"],
-        "taskConstraintsSha256": config["task_constraints_sha256"],
+        "task": DECODER_TASK,
+        "targetSchemaSha256": constraints.targetSchemaSha256,
+        "taskConstraintsSha256": digest(decoder_payloads["task-constraints.json"]),
+        "annotationTaskConstraintsSha256": config["task_constraints_sha256"],
         "reviewContractSha256": contract_hash,
         "configSha256": digest(config),
         "inputRepresentation": "plain_ocr",
@@ -315,6 +360,7 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
         "sources": source_entries,
         "samples": entries,
         "files": {
+            **{name: digest(value) for name, value in decoder_payloads.items()},
             "dataset.jsonl": digest(dataset_bytes),
             "samples.md": digest(gallery_bytes),
         },
@@ -325,6 +371,7 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
         manifest["variantsPerSource"] = counts
         manifest["templateSampling"] = config["template_sampling"]
     payloads = {
+        **decoder_payloads,
         "dataset.jsonl": dataset_bytes,
         "samples.md": gallery_bytes,
         "manifest.json": (_json(manifest) + "\n").encode(),

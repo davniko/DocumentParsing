@@ -37,6 +37,7 @@ from document_ocr.synthesis.curated_auxiliary import (
     augment_auxiliary_blueprint,
     auxiliary_surfaces,
     load_auxiliary_contract,
+    validate_identifier_privacy,
 )
 from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
 from document_ocr.synthesis.curated_commodity_brief import commodity_brief
@@ -46,6 +47,7 @@ from document_ocr.synthesis.curated_contacts import (
     contact_output_type,
     contact_parties,
     contact_prompt,
+    contact_surfaces,
     unpack_contacts,
 )
 from document_ocr.synthesis.curated_contacts import (
@@ -62,6 +64,7 @@ from document_ocr.synthesis.curated_equipment_inventory import (
     project_equipment_inventory,
     rebase_equipment_inventory_headers,
 )
+from document_ocr.synthesis.curated_hs import hs_digits
 from document_ocr.synthesis.curated_identifiers import declared_identifier_values
 from document_ocr.synthesis.curated_ownership import (
     apply_dependent_text,
@@ -83,6 +86,11 @@ from document_ocr.synthesis.curated_physical import (
     project_nested_equipment_handling,
     validate_source_physical_requirements,
 )
+from document_ocr.synthesis.curated_private_contacts import (
+    private_contact_contract,
+    source_contact_parties,
+    validate_private_person_coverage,
+)
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
 from document_ocr.synthesis.curated_routes import validate_route_values
 from document_ocr.synthesis.curated_sampling import (
@@ -97,6 +105,7 @@ from document_ocr.synthesis.curated_scenarios import (
     ScenarioSamplingConfig,
     ShipmentScenario,
     SourceCapabilities,
+    SourceLoadAccounting,
     _pin,
 )
 from document_ocr.synthesis.curated_templates import (
@@ -107,6 +116,7 @@ from document_ocr.synthesis.curated_templates import (
 )
 from document_ocr.synthesis.curated_wording import (
     IDENTITY_KIND_REQUIREMENTS,
+    POSTAL_CORRECTION_PROMPT,
     WORDING_PROMPT,
     RenderedReview,
     RenderedReviewRequest,
@@ -115,6 +125,7 @@ from document_ocr.synthesis.curated_wording import (
     WordingRequest,
     mass_in_kilograms,
     native_wording_prompt,
+    postal_geography_counts,
     rendered_review_prompt,
     repeated_goods_descriptions,
     review_output_type,
@@ -123,7 +134,10 @@ from document_ocr.synthesis.curated_wording import (
     validate_postal_geography,
     validate_wording,
     wording_output_type,
-    wording_prompt,
+)
+from document_ocr.synthesis.curated_wording_receipts import (
+    validate_wording_receipt,
+    wording_request_hash,
 )
 from document_ocr.synthesis.generators import (
     DeterministicStream,
@@ -175,7 +189,17 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
             or not {"context_party", "relationship"} <= declaration.keys()
             or set(declaration) - {"context_party", "relationship", "location"}
             or declaration["relationship"]
-            not in {"on_behalf", "care_of", "account_of", "agent_for", "invoice_party", "exporter"}
+            not in {
+                "on_behalf",
+                "care_of",
+                "account_of",
+                "agent_for",
+                "invoice_party",
+                "exporter",
+                "manufacturer",
+                "via",
+                "shipping_mark",
+            }
         ):
             raise ValueError("related actor requires a known lexical key and explicit relationship")
         role = declaration["context_party"]
@@ -239,6 +263,7 @@ def validate_lexical_owners(blueprint: SamplingBlueprint) -> None:
     if missing:
         raise ValueError(f"lexical targets lack mutable source wording owners: {sorted(missing)}")
     related_actor_contexts(blueprint)
+    private_contact_contract(blueprint)
 
 
 def certified_identity_kinds(blueprint: SamplingBlueprint) -> dict[str, str]:
@@ -260,7 +285,8 @@ def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]
     """Expose certified component meaning and actual generated text to review."""
     declarations = certified_identity_kinds(blueprint)
     related = related_actor_contexts(blueprint)
-    if not declarations and not related:
+    people = private_contact_contract(blueprint).get("names", {})
+    if not declarations and not related and not people:
         return ""
     components = []
     for key, kind in declarations.items():
@@ -272,6 +298,8 @@ def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]
         if not paths and key in related:
             actor = related[key]
             paths = [f"related {actor['relationship']} actor for {actor['context_party']}"]
+        if not paths and key in people:
+            paths = [f"source-only {people[key]['role']}"]
         if not paths or key not in values:
             raise ValueError("certified identity review requires owned generated components")
         components.append(
@@ -307,20 +335,6 @@ def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]
             + "\n\n".join(relationships)
         )
     return context
-
-
-def wording_request_hash(request: WordingRequest) -> str:
-    """A changed instruction or structured contract invalidates saved wording."""
-    return digest(
-        {
-            "system": WORDING_PROMPT,
-            "request": native_wording_prompt([request]),
-            "schema": wording_output_type([request]).model_json_schema(),
-            "gross_weight_kg": (
-                str(request.gross_weight_kg) if request.gross_weight_kg is not None else None
-            ),
-        }
-    )
 
 
 def apply_replacements(target: dict, replacements: dict) -> dict:
@@ -376,9 +390,10 @@ def public_identity_updates(
             if identity not in identities:
                 channel = stream.derive(repr(identity))
                 if ".phoneNumbers[" in path or path.endswith(".faxNumber"):
-                    identities[identity] = contact_values.phone(
-                        channel, country_code=geo.country_code
+                    generator = (
+                        contact_values.fax if path.endswith(".faxNumber") else contact_values.phone
                     )
+                    identities[identity] = generator(channel, country_code=geo.country_code)
                 elif ".emailAddresses[" in path or ".websiteUrls[" in path:
                     # Company-conditioned wording runs after company names exist.
                     continue
@@ -457,6 +472,14 @@ def wording_request(
     bindings = blueprint.contract.targets
     identity_kinds = certified_identity_kinds(blueprint)
     related_actors = related_actor_contexts(blueprint)
+    people = private_contact_contract(blueprint).get("names", {})
+    postal_country_owners: dict[str, set[str]] = {}
+    for region in (() if goods_only else blueprint.regions):
+        if region.kind != "postal" or region.curated_key is None:
+            continue
+        for path in region.target_paths:
+            if path.endswith(".country") and (owner := party_path(path)) is not None:
+                postal_country_owners.setdefault(region.curated_key, set()).add(owner)
     identities = list(scenario.goods_identities)
     product_keys = {v.key for v in blueprint.contract.variables if v.kind == "product"}
     product_groups = [
@@ -484,7 +507,14 @@ def wording_request(
             continue
         owners = [b for b in bindings if "{" + variable.key + "}" in b.expression]
         roles = sorted({p for binding in owners if (p := party_path(binding.path)) is not None})
-        if variable.key in related_actors:
+        if variable.key in people:
+            role = people[variable.key]["role"] + " name"
+            requirement = (
+                "New fictional personal name only, matching the example's name structure. "
+                "This person is source-only context, not an extraction party. Preserve the "
+                "surrounding public company and signing/declaration wording."
+            )
+        elif variable.key in related_actors:
             actor = related_actors[variable.key]
             geo = (
                 ScenarioLocation.model_validate(actor["location"])
@@ -545,15 +575,23 @@ def wording_request(
                     "with offices in " + "; ".join(offices) + "."
                 )
             if variable.kind == "postal":
-                requirement += (
-                    " Postal components only: exclude party identities, tax/registration "
-                    "data, contacts and captions. Genuine named sites remain postal components. "
-                    "Generate this role's components jointly, retaining the example's hierarchy "
-                    "and approximate line span. POSTAL ASSEMBLY defines required geography. "
-                    "Use the supplied locality spelling once. A literal locality/country "
-                    "in the assembly is supplied by the host. Choose street/site names "
-                    "without reusing that locality/country inside them."
+                requirement = (
+                    f"One postal component for a party in {geo.name}, "
+                    f"{geo.country} ({geo.country_code}). "
+                    "Match the source component hierarchy and approximate line span. "
+                    "Postal text only: exclude identity, tax/registration, contacts and captions. "
+                    "POSTAL ASSEMBLY owns geography once for the complete address, "
+                    "not once per component. Choose street/site names without locality/country "
+                    "duplication."
                 )
+                if country_roles := postal_country_owners.get(variable.key):
+                    countries = {scenario.party_localities[p].country for p in country_roles}
+                    if len(countries) != 1:
+                        raise ValueError("shared postal country owner has conflicting geography")
+                    requirement += (
+                        f" Certified country owner: {countries.pop()} once, "
+                        "with the supplied spelling."
+                    )
             else:
                 requirement += (
                     " New identity only. Exclude postal, tax/registration and "
@@ -606,6 +644,9 @@ def wording_request(
         context += "\n" + commodity_brief(
             identities, physical_form=profile["form"] if profile else None
         )
+        context += "\nSampled commodity HS6 references: " + ", ".join(
+            identity.hs6 for identity in identities
+        )
         context += (
             "\nGenerate requested regions as one coherent commercial description: a "
             "concise commodity identity, a specification passage, or a product list, matching "
@@ -623,8 +664,24 @@ def wording_request(
         "goods": [
             {
                 "packageCategories": [
-                    package["typeCategory"] for package in item.get("numberAndTypeOfPackages", [])
+                    package["typeCategory"]
+                    for package in item.get("numberAndTypeOfPackages", [])
+                    if "typeCategory" in package
                 ],
+                **(
+                    {
+                        "packageTypeDescriptions": [
+                            package["typeOfPackages"]
+                            for package in item.get("numberAndTypeOfPackages", [])
+                            if "typeOfPackages" in package
+                        ]
+                    }
+                    if any(
+                        "typeOfPackages" in package
+                        for package in item.get("numberAndTypeOfPackages", [])
+                    )
+                    else {}
+                ),
             }
             for item in cargo.get("goodsItemDetails", [])
         ],
@@ -670,25 +727,10 @@ def wording_request(
                 "Where an observed produce extension supplies a description, retain that "
                 "commodity's form. Temperature and ventilation are rendered separately."
             )
-    for binding in bindings:
-        if goods_only:
-            break
-        if not binding.path.endswith(".addressLine"):
-            continue
-        role = party_path(binding.path)
-        if role is None or role not in scenario.party_localities:
-            continue
-        geo = scenario.party_localities[role]
-        country_rule = (
-            f"Country {geo.country} appears once in the complete postal address."
-            if role + ".country" in flat(blueprint.target)
-            else "This source omits the country from this party's postal address; "
-            "keep that omission."
-        )
-        context += (
-            f"\nPOSTAL ASSEMBLY {role}: {lexical_expression(blueprint, binding, scenario)}. "
-            f"Locality {geo.name} appears once across these regions. {country_rule} "
-            "Braced keys are generated regions; literal text is supplied by the host."
+    postal_keys = {field.key for field in fields if " postal" in field.role}
+    if not goods_only and postal_keys:
+        context += "\n" + postal_assembly_context(
+            blueprint, scenario, blueprint.target, postal_keys
         )
     groups = tuple(
         group
@@ -843,8 +885,33 @@ def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list
     return errors
 
 
-def postal_correction_context(blueprint, scenario, target, keys) -> str:
-    """Expose exact per-party assemblies and country owners, without unrelated goods context."""
+def _fixed_postal_country_components(blueprint, scenario, values, keys) -> set[str]:
+    """Keep correct country-only owners fixed during an address correction."""
+    expressions = {"{" + key + "}": key for key in keys}
+    countries: dict[str, set[str]] = {}
+    for binding in blueprint.contract.targets:
+        if (
+            not binding.path.endswith(".country")
+            or binding.expression not in expressions
+            or (role := party_path(binding.path)) is None
+        ):
+            continue
+        key = expressions[binding.expression]
+        countries.setdefault(key, set()).add(scenario.party_localities[role].country)
+    return {
+        key
+        for key, expected in countries.items()
+        if all(values[key] == country for country in expected)
+    }
+
+
+def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=None) -> str:
+    """Describe joint postal geography from existing ownership, not guessed city slots.
+
+    The current labels omit a separate city field. A country owner therefore
+    does not establish ownership of the locality: a source may print country
+    alone. Leave locality placement joint across the certified assembly.
+    """
     leaves, lines = flat(target), []
     for binding in blueprint.contract.targets:
         if not binding.path.endswith(".addressLine"):
@@ -854,43 +921,85 @@ def postal_correction_context(blueprint, scenario, target, keys) -> str:
         role = party_path(binding.path)
         location = scenario.party_localities[role]
         country_path = role + ".country"
+        expression = lexical_expression(blueprint, binding, scenario)
+        if fixed_values is not None:
+            expression = re.sub(
+                r"\{([a-z][a-z0-9_]*)\}",
+                lambda match: (
+                    match[0]
+                    if match[1] in keys
+                    else " ".join(fixed_values[match[1]].split())
+                ),
+                expression,
+            )
+        literal = re.sub(r"\{[a-z][a-z0-9_]*\}", "", expression)
         owners = sorted(
             {
                 region.curated_key
                 for region in blueprint.regions
                 if region.kind == "postal"
                 and region.curated_key
+                and region.curated_key in keys
                 and country_path in region.target_paths
             }
         )
         lines.extend(
             [
-                f"POSTAL ASSEMBLY {role}: {lexical_expression(blueprint, binding, scenario)}",
+                f"POSTAL ASSEMBLY {role}: {expression}",
                 f"LOCALITY: {location.name!r}, exactly once in the complete address.",
             ]
         )
+        mutable = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", expression)) & keys
+        fixed_locality_count = postal_geography_counts(
+            literal,
+            locality=location.name,
+            country=location.country,
+            country_code=location.country_code,
+        ).locality
+        if fixed_locality_count > 1:
+            raise ValueError("unchanged postal components already duplicate the sampled locality")
+        if fixed_values is not None and fixed_locality_count == 1:
+            lines.append(
+                "LOCALITY already supplied by unchanged literals; omit from generated components."
+            )
+        elif fixed_values is not None and len(mutable) == 1:
+            owner = next(iter(mutable))
+            lines.append(
+                "LOCALITY OWNER REGIONS: {" + owner + "}. "
+                "Sole mutable component; unchanged text has no locality. "
+                "Include it here once for every shared use."
+            )
         if country_path not in leaves:
-            lines.append("COUNTRY: omitted from this party's printed address; keep that omission.")
+            lines.append("COUNTRY: omitted from this party's source; keep that omission.")
         elif owners:
             lines.append(
-                f"COUNTRY: {location.country!r}, exactly once in the complete address. "
-                "Copy the supplied spelling and accents. "
+                f"COUNTRY: {location.country!r}, once. Preserve supplied spelling and accents. "
                 "Use the name alone, without an added ISO code."
             )
             lines.append(
-                "COUNTRY OWNER REGIONS: " + ", ".join(owners) + ". "
-                "Keep the country inside its certified owner region, not in another component."
+                "COUNTRY OWNER REGIONS: " + ", ".join("{" + owner + "}" for owner in owners) + "."
+            )
+        elif re.search(
+            rf"(?<!\w){re.escape(location.country)}(?!\w)", literal, re.I
+        ) or re.search(rf"(?<!\w){re.escape(location.country_code)}[\s,;.)]*$", literal, re.I):
+            lines.append(
+                f"COUNTRY: {location.country!r}; country is already supplied by a host-owned "
+                "literal. Retain it and keep generated regions free of that country name/code."
             )
         else:
             lines.append(
-                f"COUNTRY: {location.country!r}. The country is already supplied by a "
-                "host-owned literal in the assembly; retain that literal spelling/name/code "
-                "and keep generated regions free of that country name and code."
+                f"COUNTRY: {location.country!r}, once, with supplied spelling and accents. "
+                "No certified owner/literal; place it jointly in this assembly."
             )
-        lines.append(
-            "Braced keys are generated; literal text is supplied by the host and already counts."
-        )
-    return "\n".join(lines)
+    return (
+        "Generate these components jointly as one address per assembly. A component is not "
+        "a separate complete address. Locality placement is joint, not required in every "
+        "fragment. Braced keys are generated; host/unchanged literals already count. "
+        "Owners below specify component keys. Output final component text only.\n"
+        + "\n".join(lines)
+        if lines
+        else ""
+    )
 
 
 def remaining_text_surfaces(blueprint: SamplingBlueprint, target: dict, supplied: dict) -> dict:
@@ -1049,8 +1158,10 @@ def validate_sample(
     goods = patch["goodsItemDetails"]
     if len(goods) != 1:
         raise ValueError("pilot source policy requires one accounting goods group")
-    expected_hs = [identity.hs6 for identity in scenario.goods_identities]
-    if "hsCodes" in goods[0] and goods[0]["hsCodes"] != expected_hs:
+    if "hsCodes" in goods[0] and (
+        [hs_digits(code) for code in goods[0]["hsCodes"]]
+        != [hs_digits(code) for code in scenario.cargo["goodsItemDetails"][0]["hsCodes"]]
+    ):
         raise ValueError("rendered goods classifications differ from sampled identities")
     commodity_wording_changed = (
         goods[0]["description"] != source["goodsItemDetails"][0]["description"]
@@ -1071,7 +1182,14 @@ def validate_sample(
         "packageQuantity" in row for row in old_allocations
     ]:
         raise ValueError("sampled placement quantity presence differs from printed source topology")
-    if allocations and all("packageQuantity" in row for row in allocations):
+    source_load_receipt = scenario.provenance.get("sourceLoadAccounting")
+    if source_load_receipt is not None:
+        source_load = SourceLoadAccounting.model_validate(source_load_receipt["certificate"])
+        source_load.validate_values(blueprint.source, blueprint.target)
+        source_load.validate_physical_rows(
+            blueprint.target, target, scenario.provenance["physicalRows"], source_load_receipt
+        )
+    elif allocations and all("packageQuantity" in row for row in allocations):
         total = sum(p["packageQuantity"] for p in goods[0]["numberAndTypeOfPackages"])
         if sum(row["packageQuantity"] for row in allocations) != total:
             raise ValueError("sampled allocation quantities do not sum to their package total")
@@ -1260,7 +1378,24 @@ class Campaign:
         surfaces, receipt = plan.surface_values, deepcopy(plan.receipt)
         if scenario.source_id in self.equipment_compatibility:
             receipt["equipmentCompatibility"] = self.equipment_compatibility[scenario.source_id]
-        if self.equipment_alias_registry is not None:
+        private_source_equipment = scenario.provenance.get(
+            "sourceLoadAccounting"
+        ) is not None and any(
+            not {"sizeCategory", "typeCategory"} <= c.keys()
+            for c in plan.target["documentPatch"].get("containerInformation", [])
+        )
+        if private_source_equipment:
+            # Unknown per-ID equipment ownership is not an alias sampling route.
+            # Its reviewed private uniform pair fixes capacity only; preserve the
+            # source-only equipment surfaces rather than generating new labels.
+            receipt["equipmentAlias"] = {
+                "mode": "reviewed_private_source_pair_preserved",
+                "pair": scenario.provenance["sourceLoadAccounting"]["certificate"][
+                    "equipment_pair"
+                ],
+                "publicEquipmentFieldsAdded": False,
+            }
+        if self.equipment_alias_registry is not None and not private_source_equipment:
             containers = plan.target["documentPatch"].get("containerInformation", [])
             pairs = {(c.get("sizeCategory"), c.get("typeCategory")) for c in containers}
             if any(None in pair for pair in pairs) or (inventory is None and len(pairs) != 1):
@@ -1356,6 +1491,10 @@ class Campaign:
                     raise ValueError("related actor location differs from its pinned registry")
         validate_description_regions(blueprint.description_blocks, blueprint.regions)
         cap = self.capabilities[sid]
+        if cap.source_load_accounting is not None:
+            cap.source_load_accounting.validate_source(row)
+            pdf_path = _pin(self.root, cap.source_load_accounting.source_pdf)
+            self._blueprint_file_pins[pdf_path] = cap.source_load_accounting.source_pdf.sha256
         for group in cap.party_locality_groups:
             group.validate_source(row, self.catalog.countries)
             group.validate_blueprint(blueprint)
@@ -1381,7 +1520,9 @@ class Campaign:
     def validate_source_readiness(self) -> None:
         """Check every selected source before any concurrent paid work starts."""
         for sid in self.source_ids:
-            self.blueprint(sid)
+            blueprint = self.blueprint(sid)
+            validate_private_person_coverage(blueprint)
+            validate_identifier_privacy(blueprint)
         # Immutable snapshots eliminate repeated YAML compilation. Stage
         # boundaries still hash every dependency, including metadata-preserving
         # edits, so caching cannot silently approve changed source contracts.
@@ -1433,6 +1574,7 @@ class Campaign:
         """Reject broken deterministic source/physical contracts before paid wording."""
         for blueprint, scenario, sample_id, target in plans:
             validate_lexical_owners(blueprint)
+            validate_identifier_privacy(blueprint)
             physical = self.physical_render(blueprint, scenario, target)
             before, after = flat(blueprint.target), flat(physical.target)
             changed = {path for path in after if before.get(path) != after[path]}
@@ -1466,6 +1608,22 @@ class Campaign:
         physical = self.physical_render(blueprint, scenario, target)
         return wording_request(blueprint, scenario, sample_id, physical_plan=physical)
 
+    def _validated_wording(self, receipt: dict, request: WordingRequest) -> dict[str, str]:
+        # Ordinary wording has no scoped call to verify. Keep that existing
+        # path independent of the provider; extensions require its exact pin.
+        provider = self.calls.config["provider"] if "scopedExtension" in receipt else None
+        return validate_wording_receipt(
+            receipt, request, output=self.output, provider=provider
+        )
+
+    def _current_wording(self, receipt: dict, request: WordingRequest) -> dict[str, str]:
+        """Keep ordinary contact/postal checks cheap; certify scoped lineage."""
+        if "scopedExtension" in receipt:
+            return self._validated_wording(receipt, request)
+        if receipt["requestSha256"] != wording_request_hash(request):
+            raise ValueError("wording requires current generation inputs")
+        return receipt["values"]
+
     async def generate(self, sid: str) -> dict:
         plans = self.plans(sid)
         self.preflight(plans)
@@ -1479,6 +1637,12 @@ class Campaign:
             path = self.output / "wording" / f"{request.sample_id}.json"
             if path.exists():
                 cached = json.loads(path.read_text())
+                if "scopedExtension" in cached:
+                    # Scoped provenance is a certification boundary. A
+                    # corrupt/stale chain must fail, not trigger paid full
+                    # regeneration that erases accepted manual wording.
+                    wording[request.sample_id] = self._validated_wording(cached, request)
+                    continue
                 if cached["requestSha256"] == wording_request_hash(request):
                     batch = WordingBatch.model_validate(
                         {
@@ -1560,6 +1724,15 @@ class Campaign:
                 next(r for r in requests if r.sample_id == sample_id)
             )
             prior = json.loads(path.read_text()) if path.exists() else {}
+            if (
+                prior.get("requestSha256") == request_hash
+                and prior["values"] == wording[sample_id]
+            ):
+                # The accepted call/repair already supplies this exact lexical
+                # request. A new authority's fit hash is current plan context,
+                # not new generation history. Preserve all prior bytes and
+                # manual/scoped provenance instead of rewriting bookkeeping.
+                continue
             retained = prior if prior.get("requestSha256") == request_hash else {}
             save(
                 path,
@@ -1588,13 +1761,22 @@ class Campaign:
         parties = []
         for bp, scenario, sample_id, target in self.plans(sid):
             receipt = json.loads((self.output / "wording" / f"{sample_id}.json").read_text())
-            if receipt["requestSha256"] != wording_request_hash(
-                self.wording_request(bp, scenario, sample_id, target)
-            ):
-                raise ValueError("contact generation requires current company wording")
-            wording = combine_surfaces(receipt["values"], host_product_wording(bp, scenario))
+            values = self._current_wording(
+                receipt, self.wording_request(bp, scenario, sample_id, target),
+            )
+            wording = combine_surfaces(values, host_product_wording(bp, scenario))
             target = assemble_lexical_target(bp, target, wording, scenario)
-            parties.extend(contact_parties(bp.target, target, sample_id))
+            spec = private_contact_contract(bp)
+            parties.extend(
+                contact_parties(
+                    bp.target,
+                    target,
+                    sample_id,
+                    personal_paths=frozenset(spec.get("email_paths", [])),
+                    replace_domain_paths=frozenset(spec.get("replace_domain_paths", [])),
+                )
+            )
+            parties.extend(source_contact_parties(bp, sample_id, wording))
         return parties
 
     async def generate_contacts(self, sid: str) -> dict:
@@ -1620,7 +1802,23 @@ class Campaign:
                     CONTACT_PROMPT,
                     contact_prompt(batch),
                 )
-                unpack_contacts(answer, batch)
+                try:
+                    unpack_contacts(answer, batch)
+                except ValueError as error:
+                    answer = await self.calls.call(
+                        "contacts-validation-repair",
+                        sid,
+                        contact_output_type(batch),
+                        CONTACT_PROMPT,
+                        contact_prompt(batch)
+                        + "\nVALIDATION FAILURE\n"
+                        + str(error)
+                        + "\nPREVIOUS PROPOSAL\n"
+                        + yaml.safe_dump(answer.model_dump(), allow_unicode=True)
+                        + "\nCorrect the failing contact values; "
+                        "return the complete requested fields.",
+                    )
+                    unpack_contacts(answer, batch)
                 values = answer.model_dump(mode="json")
                 native.update({f"p{i}": values[f"p{j}"] for j, i in enumerate(indices)})
             output = contact_output_type(parties).model_validate(native)
@@ -1697,9 +1895,8 @@ class Campaign:
             path = self.output / "wording" / f"{sample_id}.json"
             receipt = json.loads(path.read_text())
             original = self.wording_request(blueprint, scenario, sample_id, target)
-            if receipt["requestSha256"] != wording_request_hash(original):
-                raise ValueError("postal correction requires current generation inputs")
-            values = combine_surfaces(receipt["values"], host_product_wording(blueprint, scenario))
+            validated = self._current_wording(receipt, original)
+            values = combine_surfaces(validated, host_product_wording(blueprint, scenario))
             assembled = flat(assemble_lexical_target(blueprint, target, values, scenario))
             failed, keys = [], set()
             for role, errors in postal_wording_errors(blueprint, scenario, target, values).items():
@@ -1717,6 +1914,9 @@ class Campaign:
                         )
             if not failed:
                 continue
+            keys.difference_update(
+                _fixed_postal_country_components(blueprint, scenario, values, keys)
+            )
             if not keys:
                 raise ValueError("postal correction has no owned mutable regions")
             fields = tuple(
@@ -1724,19 +1924,22 @@ class Campaign:
                     f.key,
                     f.role,
                     values[f.key],
-                    "Fresh synthetic postal rewrite under the supplied POSTAL ASSEMBLY rules. "
+                    f.requirement
+                    + " Fresh synthetic postal component under the supplied POSTAL ASSEMBLY rules. "
+                    "Generate components jointly, not as separate complete addresses. "
                     "Choose new street/site wording without the sampled locality or "
                     "country inside street, building, district or region names. "
                     "Preserve approximate hierarchy and line span. Place required geography "
                     "in its specified region; one mention suffices when locality and country "
                     "coincide.",
+                    f.identity_kind,
                 )
                 for f in original.fields
                 if f.key in keys
             )
             request = WordingRequest(
                 sample_id,
-                postal_correction_context(blueprint, scenario, target, keys)
+                postal_assembly_context(blueprint, scenario, target, keys, fixed_values=values)
                 + "\nPOSTAL CORRECTION\n"
                 + "\n".join(failed)
                 + "\nRewrite these fictional postal regions jointly. The old values show "
@@ -1757,25 +1960,8 @@ class Campaign:
                 "postal-correction",
                 sid,
                 wording_output_type(batch),
-                "Correct fictional postal text. The supplied old values FAILED validation; "
-                "they are not formatting examples. Return corrected regions only. Follow each "
-                "party's explicit LOCALITY, COUNTRY and COUNTRY OWNER rules. Some parties omit "
-                "country; preserve that omission. Host-owned literal components already count. "
-                "If a "
-                "fictional street/site name repeats the locality, choose a different street/site "
-                "name. Preserve approximate address hierarchy and use uppercase text. "
-                "Return final postal text only, without editing or validation commentary.",
-                "\n\n---\n\n".join(
-                    f"SHIPMENT s{index}\n"
-                    + request.context
-                    + "\n\n"
-                    + "\n\n".join(
-                        f"REGION {field.key} ({field.role})\n{field.requirement}\n"
-                        f"INVALID OLD VALUE:\n{field.example}"
-                        for field in request.fields
-                    )
-                    for index, request in enumerate(batch)
-                ),
+                POSTAL_CORRECTION_PROMPT,
+                native_wording_prompt(batch),
             )
             proposed.update(unpack_wording(output, batch))
         remaining = []
@@ -1796,7 +1982,13 @@ class Campaign:
             remaining.extend(f"{request.sample_id}: {error}" for error in post_errors)
             receipt.setdefault("corrections", []).append(
                 {
-                    "requestSha256": digest(wording_prompt([request])),
+                    "requestSha256": digest(
+                        {
+                            "system": POSTAL_CORRECTION_PROMPT,
+                            "request": native_wording_prompt([request]),
+                            "schema": wording_output_type([request]).model_json_schema(),
+                        }
+                    ),
                     "issues": failed,
                     "before": {key: before[key] for key in proposed[request.sample_id]},
                     "after": proposed[request.sample_id],
@@ -1828,26 +2020,7 @@ class Campaign:
         receipt = json.loads((self.output / "wording" / f"{sample_id}.json").read_text())
         physical = self.physical_render(blueprint, scenario, target)
         request = wording_request(blueprint, scenario, sample_id, physical_plan=physical)
-        if receipt["requestSha256"] != wording_request_hash(request):
-            raise ValueError(
-                "wording request changed; regenerate this source through the request cache"
-            )
-        wording = validate_wording(
-            WordingBatch.model_validate(
-                {
-                    "shipments": [
-                        {
-                            "sample_id": sample_id,
-                            "values": [
-                                {"key": key, "text": value}
-                                for key, value in receipt["values"].items()
-                            ],
-                        }
-                    ]
-                }
-            ),
-            [request],
-        )[sample_id]
+        wording = self._validated_wording(receipt, request)
         wording = combine_surfaces(wording, host_product_wording(blueprint, scenario))
         stream = DeterministicStream(self.config["seed"], "full-current-v7", sample_id)
         host_values = combine_surfaces(
@@ -1862,7 +2035,16 @@ class Campaign:
             host_values,
             target_casing=self.casing.target,
         )
-        parties = contact_parties(blueprint.target, target, sample_id)
+        spec = private_contact_contract(blueprint)
+        parties = contact_parties(
+            blueprint.target,
+            target,
+            sample_id,
+            personal_paths=frozenset(spec.get("email_paths", [])),
+            replace_domain_paths=frozenset(spec.get("replace_domain_paths", [])),
+        )
+        parties.extend(source_contact_parties(blueprint, sample_id, wording))
+        contact_values_by_binding = {}
         contact_receipt = None
         if parties:
             contact_receipt = json.loads(
@@ -1882,9 +2064,11 @@ class Campaign:
             if checked != contact_receipt["values"]:
                 raise ValueError("company contacts differ from checked model output")
             target = apply_contacts(target, checked, parties)
+            contact_values_by_binding = contact_surfaces(checked)
         surfaces = combine_surfaces(
             physical.surface_values,
             ownership_surfaces(blueprint, target, scenario, lexical_values=wording),
+            contact_values_by_binding,
         )
         surfaces, auxiliary_receipt = auxiliary_surfaces(
             blueprint, scenario, target, stream, existing=surfaces, vessels=self.vessels

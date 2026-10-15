@@ -1,0 +1,684 @@
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/thermal-expansion30-20261014/real704
+output: artifacts/kie-synthesis-production/curated-v7-refresh900-20261014/uae-thermal200
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
+environment_file: .env
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+seed: 218642851528179
+variants_per_source: 3
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 218642851528179
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 218642851528179
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: '3.00'
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - together
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-13'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: '0.15000000'
+    cached_input_usd_per_million: '0.03000000'
+    cache_write_multiplier: 1.0
+    output_usd_per_million: '0.5000000'
+source_ids:
+- doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373
+- doc_0f03e4688e411acae197b6f0f554f6d11eacaa7dc906072842a12918aa47383d
+- doc_1444835f8734b4e48560a7a0e2d7a245996dbbe0a2f843e2708ec3a57f5a3359
+- doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092
+- doc_1532973690928b0f04afebf3be1524b38b7b571a59f1ea64915227c4f7624f1c
+- doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82
+- doc_2c30f72b9aa4c33534a5c5468336a7d9780ed65d89e17dca055cfba5a7fabe76
+- doc_35afce363c86dd7fed43700576d6f82611a96a59eabe70a146951ee091505e3e
+- doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5
+- doc_48f03224ce7567e2184172ea9b4650161a6c4a66840de5d45f505a75d8c4bfc4
+- doc_56e9e1cfa7d7dcbb4025bf0b31ba2883c0b924f23b9fc10761be09eab3ed3d5c
+- doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33
+- doc_639f54cd52ea520cb71514f58b338d708c5a1e965ef8c113c3bc11f55ab8b7bf
+- doc_6ea0c7670f4cd90c03f9c45754f52bf5755e54fa4c284432d42eabe120edba85
+- doc_7102f18f70bcc943a7544de908aa8c9cc9b4a31f0dc175ee9fe93ae19bb5766c
+- doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046
+- doc_8923530ad5c3a2b3756b3f53b1c904c5adda911de9b31e431dc93a67b2105548
+- doc_8fc5897f28c23a473018f3c9c8e091c36a4df5a4578b410f94b41ef527d9d976
+- doc_9184af53353a119908f54974f522dd2ec5695c426c16c6ab48cb21d178ceca51
+- doc_91c343f7c28a9b35165995c476ad114eb7c3059d118d64f885ea7f5044f80fc8
+- doc_940e11dba3a9c5abdd89ae0db5b086a4547083c7d082486dcf20d24c4b87db49
+- doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7
+- doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c
+- doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946
+- doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c
+- doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8
+- doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc
+- doc_c483b54260175090305e0d60aec3ee4651025dc466dc088e0dc100d8c75ef924
+- doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811
+- doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe
+- doc_de71b67a9d281183df6f9b3b94464da24637416483cf863581c62e690bc571ce
+- doc_e0129eda0024164393e13533d08bfa052d891c465d7bb65aadfe6063b9557360
+- doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1
+- doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d
+- doc_ea06d095a5b08df5104a9abc3b9cded3a2e04d5c19bf14a079b91dd3440c4f5f
+- doc_ec7035fcb835654a6222cea831de549166ebd972f4570c7078812f8ef1ef593d
+- doc_fd541ea72fb6868ea165ddfbad4b938d0e77ec29e1efc92a215a965c1d465267
+- doc_fe1eea9232910412e9a98cacd85f7dbdfaba4e97ccd566ed52fbefb3907f9959
+sampling:
+  ambient_hs_chapters:
+  - '10'
+  - '11'
+  - '25'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  flash_points:
+    path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+    sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+    records: 64
+capabilities:
+  doc_8923530ad5c3a2b3756b3f53b1c904c5adda911de9b31e431dc93a67b2105548:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 2
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    physical_profile: source_bundle
+    quantity_multiple: 14
+    destination_country: AE
+  doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe:
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: frozen
+    identity_count: 2
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_e0129eda0024164393e13533d08bfa052d891c465d7bb65aadfe6063b9557360:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_ea06d095a5b08df5104a9abc3b9cded3a2e04d5c19bf14a079b91dd3440c4f5f:
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_940e11dba3a9c5abdd89ae0db5b086a4547083c7d082486dcf20d24c4b87db49:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_7102f18f70bcc943a7544de908aa8c9cc9b4a31f0dc175ee9fe93ae19bb5766c:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_9184af53353a119908f54974f522dd2ec5695c426c16c6ab48cb21d178ceca51:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    quantity_multiple: 3
+    destination_country: AE
+  doc_1532973690928b0f04afebf3be1524b38b7b571a59f1ea64915227c4f7624f1c:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_35afce363c86dd7fed43700576d6f82611a96a59eabe70a146951ee091505e3e:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - '020622'
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_56e9e1cfa7d7dcbb4025bf0b31ba2883c0b924f23b9fc10761be09eab3ed3d5c:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_1444835f8734b4e48560a7a0e2d7a245996dbbe0a2f843e2708ec3a57f5a3359:
+    allowed_hs_codes:
+    - '020622'
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_de71b67a9d281183df6f9b3b94464da24637416483cf863581c62e690bc571ce:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: frozen
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        payment:
+          country_from: independent
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: frozen
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+  doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5:
+    family: frozen
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946:
+    family: frozen
+    identity_count: 1
+    destination_country: AE
+  doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      nodes: {}
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc:
+    family: frozen
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        payment:
+          country_from: independent
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+  doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d:
+    family: frozen
+    identity_count: 1
+    destination_country: AE
+  doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c:
+    family: frozen
+    identity_count: 1
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      nodes: {}
+      rationale: Manually reviewed printed source route/party roles. Repeated source
+        places share a node; distinct receipt, issue, onward destination, transshipment
+        and third-country roles remain distinct. No carrier-schedule inference.
+    destination_country: AE
+  doc_8fc5897f28c23a473018f3c9c8e091c36a4df5a4578b410f94b41ef527d9d976:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080810
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+    physical_profile: source_bundle
+    quantity_multiple: 498
+    destination_country: AE
+  doc_fe1eea9232910412e9a98cacd85f7dbdfaba4e97ccd566ed52fbefb3907f9959:
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    quantity_multiple: 3
+    destination_country: AE
+  doc_c483b54260175090305e0d60aec3ee4651025dc466dc088e0dc100d8c75ef924:
+    allowed_hs_codes:
+    - '070320'
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    quantity_multiple: 3
+    destination_country: AE
+  doc_0f03e4688e411acae197b6f0f554f6d11eacaa7dc906072842a12918aa47383d:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_639f54cd52ea520cb71514f58b338d708c5a1e965ef8c113c3bc11f55ab8b7bf:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080810
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_91c343f7c28a9b35165995c476ad114eb7c3059d118d64f885ea7f5044f80fc8:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080810
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 081090
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_48f03224ce7567e2184172ea9b4650161a6c4a66840de5d45f505a75d8c4bfc4:
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080390
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    fixed_package_quantity: 1200
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_2c30f72b9aa4c33534a5c5468336a7d9780ed65d89e17dca055cfba5a7fabe76:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080940
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_ec7035fcb835654a6222cea831de549166ebd972f4570c7078812f8ef1ef593d:
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_6ea0c7670f4cd90c03f9c45754f52bf5755e54fa4c284432d42eabe120edba85:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080810
+    allowed_package_categories:
+    - PACKAGE_PALLET
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_fd541ea72fb6868ea165ddfbad4b938d0e77ec29e1efc92a215a965c1d465267:
+    allowed_equipment_pairs:
+    - FORTY_FOOT_HIGH_CUBE|REFRIGERATED
+    allowed_hs_codes:
+    - 080910
+    - 080929
+    - 080930
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: chilled
+    identity_count: 1
+    physical_profile: source_bundle
+    destination_country: AE
+  doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: chilled
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+  doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: chilled
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+  doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811:
+    allowed_equipment_pairs: []
+    allowed_hs_headings: []
+    allowed_package_categories: []
+    destination_country: AE
+    family: chilled
+    fixed_package_quantity: null
+    identity_count: 1
+    origin_country: null
+    party_sides:
+      documentPatch.parties.forwardingAgent: origin
+    quantity_multiple: 1
+  doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8:
+    family: chilled
+    route_topology:
+      fields:
+        placeOfReceipt: receipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes: {}
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        receipt:
+          country_from: origin
+          kind: locality
+      party_nodes: {}
+      rationale: Source-reviewed named-place topology. Preserve repeated place sharing,
+        distinct receipt/delivery, payment offices, third-country actors and issuer
+        country; synthetic routes are not claimed carrier services.
+    destination_country: AE
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+template_sampling:
+  samples: 200
+  source_counts:
+    doc_8923530ad5c3a2b3756b3f53b1c904c5adda911de9b31e431dc93a67b2105548: 7
+    doc_dd69725e3ff1925963cdce9920bdc95a067f69d09e9f8590182905bb31e6fbfe: 7
+    doc_e0129eda0024164393e13533d08bfa052d891c465d7bb65aadfe6063b9557360: 7
+    doc_ea06d095a5b08df5104a9abc3b9cded3a2e04d5c19bf14a079b91dd3440c4f5f: 7
+    doc_940e11dba3a9c5abdd89ae0db5b086a4547083c7d082486dcf20d24c4b87db49: 7
+    doc_7102f18f70bcc943a7544de908aa8c9cc9b4a31f0dc175ee9fe93ae19bb5766c: 7
+    doc_9184af53353a119908f54974f522dd2ec5695c426c16c6ab48cb21d178ceca51: 7
+    doc_1532973690928b0f04afebf3be1524b38b7b571a59f1ea64915227c4f7624f1c: 6
+    doc_35afce363c86dd7fed43700576d6f82611a96a59eabe70a146951ee091505e3e: 6
+    doc_56e9e1cfa7d7dcbb4025bf0b31ba2883c0b924f23b9fc10761be09eab3ed3d5c: 6
+    doc_1444835f8734b4e48560a7a0e2d7a245996dbbe0a2f843e2708ec3a57f5a3359: 6
+    doc_de71b67a9d281183df6f9b3b94464da24637416483cf863581c62e690bc571ce: 6
+    doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7: 6
+    doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82: 6
+    doc_395a31d93d784764355f344a40a13460ed1c9a92ae5e3635af379fc2612ac1f5: 6
+    doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946: 6
+    doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046: 6
+    doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc: 6
+    doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33: 6
+    doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d: 6
+    doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c: 6
+    doc_8fc5897f28c23a473018f3c9c8e091c36a4df5a4578b410f94b41ef527d9d976: 4
+    doc_fe1eea9232910412e9a98cacd85f7dbdfaba4e97ccd566ed52fbefb3907f9959: 4
+    doc_c483b54260175090305e0d60aec3ee4651025dc466dc088e0dc100d8c75ef924: 4
+    doc_0f03e4688e411acae197b6f0f554f6d11eacaa7dc906072842a12918aa47383d: 4
+    doc_639f54cd52ea520cb71514f58b338d708c5a1e965ef8c113c3bc11f55ab8b7bf: 4
+    doc_91c343f7c28a9b35165995c476ad114eb7c3059d118d64f885ea7f5044f80fc8: 4
+    doc_9a9aeef87f0a2c0711d1070ab8fe980863c456e88eb0e36682ca8495681db40c: 4
+    doc_48f03224ce7567e2184172ea9b4650161a6c4a66840de5d45f505a75d8c4bfc4: 4
+    doc_e6b6c931d0995f69b8b286eae8e5c7e58dc4fee1968c7348945de5f2952a8db1: 4
+    doc_2c30f72b9aa4c33534a5c5468336a7d9780ed65d89e17dca055cfba5a7fabe76: 4
+    doc_ec7035fcb835654a6222cea831de549166ebd972f4570c7078812f8ef1ef593d: 4
+    doc_6ea0c7670f4cd90c03f9c45754f52bf5755e54fa4c284432d42eabe120edba85: 4
+    doc_fd541ea72fb6868ea165ddfbad4b938d0e77ec29e1efc92a215a965c1d465267: 4
+    doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373: 4
+    doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092: 4
+    doc_c68c55e06e89726858c2eb9138be7a1edbd12963320e8a8f02c7fea86c034811: 4
+    doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8: 3

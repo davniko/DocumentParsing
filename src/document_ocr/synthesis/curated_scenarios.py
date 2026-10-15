@@ -15,6 +15,7 @@ from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+from math import gcd, lcm
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
@@ -23,9 +24,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
+from document_ocr.synthesis.curated_dg_flash import DgFlashPointRegistry, load_flash_points
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
 from document_ocr.synthesis.curated_equipment_inventory import EquipmentInventoryContract
 from document_ocr.synthesis.curated_goods import RegistryThermalPolicy
+from document_ocr.synthesis.curated_hs import sample_source_hs_codes
 from document_ocr.synthesis.curated_load_profiles import (
     RegistryLoadProfile,
     RegistryLoadProfiles,
@@ -33,6 +36,10 @@ from document_ocr.synthesis.curated_load_profiles import (
 )
 from document_ocr.synthesis.curated_parties import PartyLocalityGroup, share_party_localities
 from document_ocr.synthesis.curated_routes import GoodsOriginIdentifier, RouteTopology
+from document_ocr.synthesis.curated_thermal import (
+    is_ventilation_instruction,
+    ventilation_meaning,
+)
 from document_ocr.synthesis.dangerous_goods_registry import (
     DangerousGoodsHmtRecord,
     LoadedDangerousGoodsRegistry,
@@ -47,7 +54,10 @@ from document_ocr.synthesis.hs_registry import (
 )
 from document_ocr.synthesis.template_compiler.contact_values import _phone_prefix
 from document_ocr.synthesis.template_compiler.dangerous_goods_packaging import profile
-from document_ocr.synthesis.thermal_goods import classify_thermal_hs
+from document_ocr.synthesis.thermal_goods import (
+    classify_thermal_descriptions,
+    classify_thermal_hs,
+)
 from document_ocr.synthesis.transport_capacity import (
     capacity_limits,
     classify_equipment,
@@ -185,6 +195,7 @@ class ScenarioSamplingConfig(BaseModel):
     commodity_phrases: FilePin
     hmt: FilePin
     ecics: FilePin
+    flash_points: FilePin | None = Field(default=None, exclude_if=lambda value: value is None)
     transport_capacity: TransportCapacityConfig
     quantity_scale_min: Decimal = Field(default=Decimal("0.6"), gt=0, le=1)
     quantity_scale_max: Decimal = Field(default=Decimal("1.2"), ge=1, le=2)
@@ -277,6 +288,176 @@ class ReviewedWholeUnitDonor(BaseModel):
     rationale: str = Field(min_length=1)
 
 
+class SourceLoadAccounting(BaseModel):
+    """Reviewed private source loads when OCR omits some per-container counts.
+
+    The complete vector may use the pinned PDF for physical feasibility only.
+    It never authorizes adding an omitted quantity or equipment field to OCR or
+    extraction labels. Public source quantity presence is independently checked.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    source_ocr_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_target_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_pdf: FilePin
+    container_package_quantities: dict[str, Annotated[int, Field(strict=True, gt=0)]] = Field(
+        min_length=2
+    )
+    equipment_pair: str = Field(min_length=1)
+    reviewed_pages: tuple[Annotated[int, Field(strict=True, gt=0)], ...] = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def reviewed_uniform_domain(self) -> SourceLoadAccounting:
+        if (
+            len(set(self.reviewed_pages)) != len(self.reviewed_pages)
+            or self.source_pdf.records is not None
+            or self.equipment_pair not in _REGISTRY_GP_PAIRS
+        ):
+            raise ValueError(
+                "private source loads require distinct PDF pages and a supported GP pair"
+            )
+        return self
+
+    @property
+    def total(self) -> int:
+        return sum(self.container_package_quantities.values())
+
+    @property
+    def quantity_multiple(self) -> int:
+        return self.total // gcd(self.total, *self.container_package_quantities.values())
+
+    def validate_values(self, source: str, target: Mapping[str, Any]) -> None:
+        if (
+            sha256_bytes(source.encode()) != self.source_ocr_sha256
+            or sha256_bytes(canonical_json_bytes(target)) != self.source_target_sha256
+        ):
+            raise ValueError("private source-load certificate differs from source OCR or target")
+        patch = target["documentPatch"]
+        goods = patch.get("goodsItemDetails", [])
+        if len(goods) != 1 or len(goods[0].get("numberAndTypeOfPackages", [])) != 1:
+            raise ValueError("private source loads require one declared package accounting unit")
+        quantity = goods[0]["numberAndTypeOfPackages"][0]["packageQuantity"]
+        if type(quantity) is not int or quantity != self.total:
+            raise ValueError("private source-load vector does not sum to the declared source total")
+        containers = patch.get("containerInformation", [])
+        numbers = [row["equipmentIdentifier"] for row in containers]
+        if (
+            len(set(numbers)) != len(numbers)
+            or set(numbers) != self.container_package_quantities.keys()
+        ):
+            raise ValueError(
+                "private source-load certificate differs from the exact source inventory"
+            )
+        size, kind = self.equipment_pair.split("|")
+        if any(
+            ("sizeCategory" in row and row["sizeCategory"] != size)
+            or ("typeCategory" in row and row["typeCategory"] != kind)
+            or "typeDescription" in row
+            for row in containers
+        ):
+            raise ValueError("private uniform equipment conflicts with a printed source category")
+        allocations = goods[0].get("splitGoodsPlacement", [])
+        identifiers = [row["equipmentIdentifier"] for row in allocations]
+        if len(set(identifiers)) != len(identifiers) or set(identifiers) - set(numbers):
+            raise ValueError("private source-load placements must identify unique known containers")
+        known = [row for row in allocations if "packageQuantity" in row]
+        if not known:
+            raise ValueError(
+                "private source loads require an independently owned printed allocation"
+            )
+        if len(known) == len(numbers):
+            raise ValueError(
+                "complete public allocations do not need a private source-load certificate"
+            )
+        if any(
+            type(row["packageQuantity"]) is not int
+            or row["packageQuantity"]
+            != self.container_package_quantities[row["equipmentIdentifier"]]
+            for row in known
+        ):
+            raise ValueError("private source load differs from a printed allocation quantity")
+
+    def validate_source(self, row: Mapping[str, Any]) -> None:
+        self.validate_values(row["joinedRawText"], row["target"])
+        if row.get("sourcePdfSha256") != self.source_pdf.sha256:
+            raise ValueError("private source-load PDF pin differs from source provenance")
+
+    def validate_projection(self, source: Mapping[str, Any], sampled: Mapping[str, Any]) -> None:
+        """No new fields; printed partial counts scale exactly on the source lattice."""
+        old, new = source["documentPatch"], sampled["documentPatch"]
+        old_containers, new_containers = old["containerInformation"], new["containerInformation"]
+        if len(old_containers) != len(new_containers):
+            raise ValueError("private source load changed inventory cardinality")
+        if len({row["equipmentIdentifier"] for row in new_containers}) != len(new_containers):
+            raise ValueError("private source load has duplicate sampled equipment identifiers")
+        for before, after in zip(old_containers, new_containers, strict=True):
+            if before.keys() != after.keys():
+                raise ValueError("private source load invented an equipment label")
+            if any(
+                before.get(field) != after.get(field) for field in ("sizeCategory", "typeCategory")
+            ):
+                raise ValueError("private source load changed its reviewed equipment pair")
+        old_goods, new_goods = old["goodsItemDetails"][0], new["goodsItemDetails"][0]
+        quantity = new_goods["numberAndTypeOfPackages"][0]["packageQuantity"]
+        if type(quantity) is not int or quantity <= 0 or quantity % self.quantity_multiple:
+            raise ValueError("partial allocation quantity is outside its exact source lattice")
+        previous = old_goods.get("splitGoodsPlacement", [])
+        current = new_goods.get("splitGoodsPlacement", [])
+        if len(previous) != len(current):
+            raise ValueError("private source load changed printed allocation topology")
+        positions = {row["equipmentIdentifier"]: i for i, row in enumerate(old_containers)}
+        for before, after in zip(previous, current, strict=True):
+            if before.keys() != after.keys():
+                raise ValueError("private source load invented an unprinted allocation quantity")
+            index = positions[before["equipmentIdentifier"]]
+            if after["equipmentIdentifier"] != new_containers[index]["equipmentIdentifier"]:
+                raise ValueError("private source load changed allocation ownership")
+            if "packageQuantity" in before and (
+                type(after["packageQuantity"]) is not int
+                or after["packageQuantity"] * self.total != before["packageQuantity"] * quantity
+            ):
+                raise ValueError("partial printed allocation changed its exact source proportion")
+
+    def validate_physical_rows(
+        self,
+        source: Mapping[str, Any],
+        sampled: Mapping[str, Any],
+        rows: Sequence[Mapping[str, Any]],
+        receipt: Mapping[str, Any],
+    ) -> None:
+        self.validate_projection(source, sampled)
+        old = source["documentPatch"]["containerInformation"]
+        new = sampled["documentPatch"]["containerInformation"]
+        goods = sampled["documentPatch"]["goodsItemDetails"][0]
+        quantity = goods["numberAndTypeOfPackages"][0]["packageQuantity"]
+        placements = {
+            row["equipmentIdentifier"]: row.get("packageQuantity")
+            for row in goods.get("splitGoodsPlacement", [])
+        }
+        unknown = [
+            i for i, row in enumerate(new) if placements.get(row["equipmentIdentifier"]) is None
+        ]
+        if (
+            len(rows) != len(old)
+            or receipt.get("sourceQuantity") != self.total
+            or receipt.get("sampledQuantity") != quantity
+            or receipt.get("unlabelledQuantity")
+            != quantity - sum(count for count in placements.values() if count is not None)
+            or receipt.get("unlabelledEquipmentIndices") != unknown
+        ):
+            raise ValueError("private source-load receipt does not conserve its labelled remainder")
+        for before, after, physical in zip(old, new, rows, strict=True):
+            number = before["equipmentIdentifier"]
+            if (
+                physical.get("equipmentIdentifier") != number
+                or physical.get("quantity") != placements.get(after["equipmentIdentifier"])
+                or physical.get("shareNumerator") != self.container_package_quantities[number]
+                or physical.get("shareDenominator") != self.total
+            ):
+                raise ValueError("private source-load row differs from its reviewed source share")
+
+
 class SourceCapabilities(BaseModel):
     """Adjudicated semantic and layout freedoms of one source template.
 
@@ -289,7 +470,14 @@ class SourceCapabilities(BaseModel):
     family: Family
     identity_count: int = Field(default=1, ge=1)
     allowed_hs_headings: tuple[str, ...] = ()
-    allowed_hs_codes: tuple[str, ...] = ()
+    allowed_hs_codes: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Reviewed registered HS6 sampling domain. For an exact thermal source_bundle "
+            "whose OCR and target print no HS, this may supply private classification context "
+            "for the reviewed source product; it never adds printed or labeled HS codes."
+        ),
+    )
     allowed_package_categories: tuple[str, ...] = ()
     allowed_equipment_pairs: tuple[str, ...] = ()
     origin_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
@@ -330,9 +518,24 @@ class SourceCapabilities(BaseModel):
         "registry_form",
     ] = "observed_train_bundle"
     reviewed_whole_unit_donors: dict[str, ReviewedWholeUnitDonor] = Field(default_factory=dict)
+    source_load_accounting: SourceLoadAccounting | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Hash-pinned private source/PDF load vector for omitted per-container OCR counts. "
+            "Retain exact public quantity and equipment presence; use only for source-bundle "
+            "physical proportions and capacity."
+        ),
+    )
 
     @model_validator(mode="after")
     def valid_domains(self) -> SourceCapabilities:
+        if self.source_load_accounting is not None and (
+            self.physical_profile != "source_bundle" or self.equipment_mix is not None
+        ):
+            raise ValueError(
+                "private source-load accounting requires the uniform source-bundle profile"
+            )
         if self.physical_profile == "registry_form" and (
             self.family != "ambient" or self.equipment_mix is not None
         ):
@@ -474,7 +677,8 @@ class CargoObservation:
     containers: tuple[Mapping[str, Any], ...]
     hs6: tuple[str, ...]
     family: Family
-    package_category: str
+    # A printed typeOfPackages is retained in goods; None is not a target value.
+    package_category: str | None
     quantity: int
 
 
@@ -515,20 +719,14 @@ def _temperature(containers: Sequence[Mapping[str, Any]]) -> Decimal | None:
 
 def _ventilation_rate(goods: Mapping[str, Any]) -> str | None:
     """Read an explicitly quantified ventilation instruction, never infer a rate."""
-    rates = set()
-    for text in goods.get("handlingInstructions", ()):
-        if re.search(r"\bVENT(?:IL|ILL)", text, re.I):
-            rates.update(
-                str(Decimal(m[1]))
-                for m in re.finditer(
-                    r"([0-9]+(?:\.[0-9]+)?)\s*(?:CBM|M3|M³)\s*(?:/\s*H(?:R)?|PER\s+HOUR)",
-                    text,
-                    re.I,
-                )
-            )
+    rates = {
+        meaning.rate_cbm_per_hour
+        for text in goods.get("handlingInstructions", ())
+        if (meaning := ventilation_meaning(text)) is not None
+    }
     if len(rates) > 1:
         raise ValueError("observed shipment has conflicting ventilation rates")
-    return next(iter(rates), None)
+    return str(rates.pop()) if rates else None
 
 
 def _observed_family(goods: Mapping[str, Any], containers: Sequence[Mapping[str, Any]]) -> Family:
@@ -556,7 +754,14 @@ def _observation(row: Mapping[str, Any], family: Family | None = None) -> CargoO
         return None
     goods = groups[0]
     packages = goods.get("numberAndTypeOfPackages", ())
-    if len(packages) != 1 or not {"packageQuantity", "typeCategory"} <= packages[0].keys():
+    if len(packages) != 1 or "packageQuantity" not in packages[0]:
+        return None
+    package = packages[0]
+    category, printed = "typeCategory" in package, "typeOfPackages" in package
+    if category == printed:
+        return None
+    package_type = package["typeCategory" if category else "typeOfPackages"]
+    if not isinstance(package_type, str) or not package_type.strip():
         return None
     quantity = packages[0]["packageQuantity"]
     if isinstance(quantity, bool) or int(quantity) != quantity or quantity <= 0:
@@ -568,7 +773,7 @@ def _observation(row: Mapping[str, Any], family: Family | None = None) -> CargoO
         containers,
         _hs6(goods),
         family or _observed_family(goods, containers),
-        packages[0]["typeCategory"],
+        package["typeCategory"] if category else None,
         int(quantity),
     )
 
@@ -679,9 +884,13 @@ class ScenarioCatalog:
         train_rows: Sequence[Mapping[str, Any]],
         validation_ids: frozenset[str],
         load_profiles: RegistryLoadProfiles | None = None,
+        flash_points: DgFlashPointRegistry | None = None,
     ) -> None:
         self.config, self.countries, self.hs, self.phrases = config, countries, hs, dict(phrases)
         self.load_profiles = load_profiles
+        if (flash_points is None) != (config.flash_points is None):
+            raise ValueError("flash-point configuration and loaded registry differ")
+        self.flash_points = flash_points.identity_index(dg) if flash_points is not None else {}
         self.equipment_inventory: dict[str, EquipmentInventoryContract] = {}
         self._registry_profile_pool: dict[
             tuple[Any, ...], tuple[tuple[RegistryLoadProfile, tuple[str, ...]], ...]
@@ -761,6 +970,7 @@ class ScenarioCatalog:
         }
         self._classification_contexts: dict[str, HSClassificationContext] = {}
         self._hs_description_paths: dict[str, tuple[str, ...]] = {}
+        self._reviewed_thermal_profiles: dict[str, str | None] = {}
         self.limits = capacity_limits(config.transport_capacity)
         self.registry_sha256 = sha256_bytes(canonical_json_bytes(config.model_dump(mode="json")))
 
@@ -949,6 +1159,13 @@ class ScenarioCatalog:
                 _pin(root, config.load_profiles).read_text()
             )
             if config.load_profiles is not None
+            else None,
+            flash_points=load_flash_points(
+                _pin(root, config.flash_points),
+                config.flash_points.sha256,
+                config.flash_points.records,
+            )
+            if config.flash_points is not None
             else None,
         )
 
@@ -1253,6 +1470,11 @@ class ScenarioCatalog:
             )
         required = {f for f in _MEASURES if f in source.goods} | set(cap.required_private_measures)
         for donor in observations:
+            if donor.package_category is None and not (
+                cap.physical_profile in {"source_bundle", "source_whole_units"}
+                and donor.document_id == source.document_id
+            ):
+                continue
             thermal = cap.family in {"frozen", "chilled"}
             family_matches = (
                 donor.family in {"frozen", "chilled"} if thermal else donor.family == cap.family
@@ -1270,8 +1492,9 @@ class ScenarioCatalog:
                 and donor.package_category not in cap.allowed_package_categories
             ):
                 continue
+            identity_codes = self._thermal_identity_hs6(donor, cap) if thermal else donor.hs6
             if (
-                not donor.hs6
+                not identity_codes
                 and cap.family not in {"vehicle", "dg_vehicle", "dg_chemical"}
                 and not (
                     cap.family == "ambient"
@@ -1280,20 +1503,21 @@ class ScenarioCatalog:
                 )
             ):
                 continue
-            if donor.hs6 and any(code not in self.phrases for code in donor.hs6):
+            if identity_codes and any(code not in self.phrases for code in identity_codes):
                 continue
             if (
                 cap.allowed_hs_headings
-                and donor.hs6
-                and not all(code[:4] in cap.allowed_hs_headings for code in donor.hs6)
+                and identity_codes
+                and not all(code[:4] in cap.allowed_hs_headings for code in identity_codes)
             ):
                 continue
             if thermal:
                 if (
                     _temperature(donor.containers) is None
-                    or not donor.hs6
+                    or not identity_codes
                     or any(
-                        code[:2] not in {"02", "03", "07", "08", "16", "20"} for code in donor.hs6
+                        code[:2] not in {"02", "03", "07", "08", "16", "20"}
+                        for code in identity_codes
                     )
                     or any(c.get("typeCategory") != "REFRIGERATED" for c in donor.containers)
                 ):
@@ -1301,15 +1525,32 @@ class ScenarioCatalog:
                 # Registry meat/fish/frozen foods can share an observed food
                 # carton/box load, but not a pharmaceutical or unreviewed crate.
                 # Produce extensions keep their own exact physical bundle.
-                if donor.package_category not in self.config.thermal.package_categories and (
-                    donor.family != cap.family or not _ventilation_rate(donor.goods)
+                if (
+                    donor.package_category not in self.config.thermal.package_categories
+                    and not (
+                        cap.physical_profile == "source_bundle"
+                        and donor.document_id == source.document_id
+                    )
+                    and (donor.family != cap.family or not _ventilation_rate(donor.goods))
                 ):
                     continue
-            if donor.containers and any(
-                not {"sizeCategory", "typeCategory"} <= c.keys() for c in donor.containers
+            # Exact source bundles keep unprinted categories absent. They use
+            # explicit unclassified limits or a reviewed private equipment pin,
+            # rather than transferring unknown equipment to a different source.
+            if (
+                donor.containers
+                and any(not {"sizeCategory", "typeCategory"} <= c.keys() for c in donor.containers)
+                and not (
+                    (cap.family == "dg_chemical" and cap.physical_profile == "source_bundle")
+                    or cap.source_load_accounting is not None
+                )
             ):
                 continue
-            pairs = {(c.get("sizeCategory"), c.get("typeCategory")) for c in donor.containers}
+            pairs = (
+                {tuple(cap.source_load_accounting.equipment_pair.split("|"))}
+                if cap.source_load_accounting is not None
+                else {(c.get("sizeCategory"), c.get("typeCategory")) for c in donor.containers}
+            )
             if len(pairs) > 1:
                 continue  # One shared printed equipment declaration is one pair.
             if cap.allowed_equipment_pairs and any(
@@ -1370,13 +1611,40 @@ class ScenarioCatalog:
         stream: DeterministicStream,
     ) -> tuple[tuple[GoodsIdentity, ...], DangerousGoodsHmtRecord | None]:
         dg_record = None
+        declarations = source.goods.get("dangerousGoods", ())
+        flash_required = any("flashPoint" in entry for entry in declarations)
+        if flash_required and (cap.family != "dg_chemical" or not self.flash_points):
+            raise ValueError(
+                "source-owned DG flashpoint requires a configured exact-identity "
+                "formulation-property contract"
+            )
         if cap.family == "dg_chemical":
+            packing_required = any("packingGroupCategory" in entry for entry in declarations)
+            subsidiary_counts = {
+                len(entry["subsidiaryHazardCategories"])
+                for entry in declarations
+                if "subsidiaryHazardCategories" in entry
+            }
+            if len(subsidiary_counts) > 1:
+                raise ValueError("one DG identity cannot fit unlike subsidiary-hazard slot counts")
+            subsidiary_count = next(iter(subsidiary_counts), None)
             eligible = [
                 (record, code)
                 for record, code in self.chemical_candidates
                 if (not cap.allowed_hs_headings or code[:4] in cap.allowed_hs_headings)
                 and (not cap.allowed_hs_codes or code in cap.allowed_hs_codes)
+                and (not packing_required or record.packing_group_category is not None)
+                and (not flash_required or record.record_id in self.flash_points)
+                and (
+                    subsidiary_count is None
+                    or len(record.subsidiary_hazard_categories) == subsidiary_count
+                )
             ]
+            if not eligible:
+                raise ValueError(
+                    "DG registry has no eligible identity matching source-owned "
+                    "packing-group/subsidiary-hazard presentations and HS scope"
+                )
             dg_record, code = _pick(eligible, stream.derive("chemical"))
             return (
                 GoodsIdentity(
@@ -1387,26 +1655,69 @@ class ScenarioCatalog:
             ), dg_record
         if cap.family == "dg_vehicle":
             un_numbers = {value["unNumber"] for value in source.goods["dangerousGoods"]}
+            if len(un_numbers) != 1 or not un_numbers <= {"3166", "3171"}:
+                raise ValueError(
+                    "DG vehicle source requires one supported liquid-fuel or battery UN"
+                )
+            battery_vehicle = un_numbers == {"3171"}
+            source_classes = {
+                entry["hazardCategory"]
+                for entry in source.goods["dangerousGoods"]
+                if "hazardCategory" in entry
+            }
+            if re.search(
+                r"\b(?:flammable\s+gas|LPG|CNG|gas[- ]powered|hybrid)\b",
+                source.goods["description"],
+                re.I,
+            ):
+                raise ValueError("DG vehicle source propulsion is outside the supported domains")
             eligible = [
                 r
                 for r in self.dg.hmt_records
                 if r.un_number in un_numbers
                 and r.maritime_eligible
                 and not r.technical_name_required
-                and "flammable liquid" in r.proper_shipping_name.casefold()
+                and (not source_classes or source_classes == {r.hazard_category})
+                and (
+                    re.match(r"Battery-powered vehicle(?:\s+or\b|$)", r.proper_shipping_name, re.I)
+                    if battery_vehicle
+                    else "flammable liquid" in r.proper_shipping_name.casefold()
+                )
             ]
+            if not eligible:
+                raise ValueError(
+                    "DG vehicle source has no exact supported HMT UN/class/propulsion tuple"
+                )
             dg_record = _pick(eligible, stream.derive("vehicle-dg"))
         available = self._registry_pool(donor, cap)
         if cap.family == "dg_vehicle":
-            # The pilot's vehicle declaration is liquid-fuel UN3166. An HS
-            # heading also contains electric/gas cars; that broad heading alone
-            # cannot authorize pairing them with this selected regulatory tuple.
-            available = [
-                code
-                for code in available
-                if re.search(r"\b(?:diesel|petrol|spark[ -]ignition)\b", self.phrases[code], re.I)
-                and not re.search(r"\b(?:electric|hybrid)\b", self.phrases[code], re.I)
-            ]
+            # The source UN selects the propulsion family. The combined UN3171
+            # HMT name also covers equipment, but this branch selects only its
+            # vehicle alternative through the electric passenger-vehicle HS.
+            # Existing UN3166 liquid-fuel draws keep their original pool/order.
+            if battery_vehicle:
+                available = [
+                    code
+                    for code in available
+                    if code == "870380"
+                    and re.search(r"\belectric\b", self.phrases[code], re.I)
+                    and not re.search(
+                        r"\b(?:hybrid|diesel|petrol|gas[- ]powered)\b",
+                        self.phrases[code],
+                        re.I,
+                    )
+                ]
+            else:
+                available = [
+                    code
+                    for code in available
+                    if re.search(
+                        r"\b(?:diesel|petrol|spark[ -]ignition)\b",
+                        self.phrases[code],
+                        re.I,
+                    )
+                    and not re.search(r"\b(?:electric|hybrid)\b", self.phrases[code], re.I)
+                ]
         selected = []
         for i in range(cap.identity_count):
             pool = [code for code in available if code not in selected]
@@ -1434,12 +1745,43 @@ class ScenarioCatalog:
             for code in selected
         ), dg_record
 
+    def _thermal_identity_hs6(
+        self, donor: CargoObservation, cap: SourceCapabilities
+    ) -> tuple[str, ...]:
+        """Keep reviewed no-HS source context private and local to its exact bundle."""
+        if donor.hs6:
+            return donor.hs6
+        if cap.physical_profile != "source_bundle" or not cap.allowed_hs_codes:
+            return ()
+        if cap.family not in {"frozen", "chilled"} or cap.identity_count != 1:
+            raise ValueError("private thermal identity requires one exact source-bundle commodity")
+        for code in cap.allowed_hs_codes:
+            if code not in self.phrases:
+                raise ValueError("private thermal context contains an unregistered identity")
+            if (
+                code not in self.thermal_codes[cap.family]
+                and self._reviewed_thermal_profile(code) != cap.family
+                and not (cap.family == "chilled" and code[:2] in {"07", "08"})
+            ):
+                raise ValueError("private thermal context is not a supported food/produce identity")
+        return cap.allowed_hs_codes
+
+    def _reviewed_thermal_profile(self, code: str) -> str | None:
+        """Resolve explicit private source context without expanding broad draw pools."""
+        if code[:2] not in {"02", "03", "07", "08", "16", "20"}:
+            return None
+        if code not in self._reviewed_thermal_profiles:
+            profile = classify_thermal_descriptions(tuple(reversed(self._description_path(code))))
+            self._reviewed_thermal_profiles[code] = profile.lower() if profile else None
+        return self._reviewed_thermal_profiles[code]
+
     def _registry_pool(self, donor: CargoObservation, cap: SourceCapabilities) -> tuple[str, ...]:
         key = (donor.document_id, cap.model_dump_json())
         if key in self._identity_pool_cache:
             return self._identity_pool_cache[key]
         headings = cap.allowed_hs_headings or tuple(dict.fromkeys(c[:4] for c in donor.hs6))
         if cap.family in {"frozen", "chilled"}:
+            identity_codes = self._thermal_identity_hs6(donor, cap)
             pool = (
                 list(self.thermal_codes[cap.family])
                 if donor.package_category in self.config.thermal.package_categories
@@ -1447,8 +1789,14 @@ class ScenarioCatalog:
             )
             # Extra fresh produce is supported by exact observed carriage data;
             # it does not narrow the separately available registry food domain.
-            if donor.family == cap.family and all(c[:2] in {"07", "08"} for c in donor.hs6):
-                pool.extend(c for c in donor.hs6 if c not in pool)
+            if donor.family == cap.family and all(c[:2] in {"07", "08"} for c in identity_codes):
+                pool.extend(c for c in identity_codes if c not in pool)
+            if not donor.hs6 and cap.physical_profile == "source_bundle":
+                pool.extend(
+                    c
+                    for c in identity_codes
+                    if c not in pool and self._reviewed_thermal_profile(c) == cap.family
+                )
         else:
             pool = [c for h in headings for c in self.heading_codes.get(h, ())]
             if cap.family == "ambient":
@@ -1468,9 +1816,15 @@ class ScenarioCatalog:
         if cap.family not in {"frozen", "chilled"}:
             return None
         codes = [i.hs6 for i in identities]
-        empirical = [c for c in codes if c not in self.thermal_codes[cap.family]]
+        identity_codes = self._thermal_identity_hs6(donor, cap)
+        empirical = [
+            c
+            for c in codes
+            if c not in self.thermal_codes[cap.family]
+            and (donor.hs6 or self._reviewed_thermal_profile(c) != cap.family)
+        ]
         if empirical:
-            if len(codes) != 1 or codes[0] not in donor.hs6 or donor.family != cap.family:
+            if len(codes) != 1 or codes[0] not in identity_codes or donor.family != cap.family:
                 raise CandidateIncompatibility(
                     "empirical thermal extension requires its exact commodity bundle"
                 )
@@ -1483,6 +1837,18 @@ class ScenarioCatalog:
             temperature = getattr(self.config.thermal, cap.family).sample(stream.derive("setpoint"))
             ventilation = "0"
             basis = "hs_registry_food_profile"
+        private_context = {}
+        if not donor.hs6:
+            row = self.train[donor.document_id]
+            private_context = {
+                "privateClassificationContext": {
+                    "basis": "reviewed_allowed_hs_codes_without_public_hs",
+                    "sourceDocumentId": donor.document_id,
+                    "sourceSha256": sha256_bytes(row["joinedRawText"].encode()),
+                    "reviewedHS6Domain": list(identity_codes),
+                    "publicHSCodesAdded": False,
+                }
+            }
         return {
             "basis": basis,
             "profile": cap.family,
@@ -1498,6 +1864,7 @@ class ScenarioCatalog:
             "temperatureCelsius": float(temperature),
             "ventilationCbmPerHour": ventilation,
             **({"observedDescription": donor.goods["description"]} if empirical else {}),
+            **private_context,
         }
 
     def _cargo(
@@ -1518,8 +1885,7 @@ class ScenarioCatalog:
             thermal_context
             and thermal_context["ventilationCbmPerHour"] is None
             and any(
-                re.search(r"\bVENT(?:IL|ILL)", t, re.I)
-                for t in source.goods.get("handlingInstructions", ())
+                is_ventilation_instruction(t) for t in source.goods.get("handlingInstructions", ())
             )
         ):
             raise CandidateIncompatibility(
@@ -1536,11 +1902,18 @@ class ScenarioCatalog:
             raise ValueError("per-ID inventory requires complete ambient registry-form GP rows")
         allocations = goods.get("splitGoodsPlacement", [])
         quantities = [int(a["packageQuantity"]) for a in allocations if "packageQuantity" in a]
-        if quantities and (
-            len(quantities) != len(allocations) or sum(quantities) != source.quantity
+        source_load = cap.source_load_accounting
+        if (
+            source_load is None
+            and quantities
+            and (len(quantities) != len(allocations) or sum(quantities) != source.quantity)
         ):
             raise ValueError("source printed package allocations are not a complete exact sum")
-        multiple = cap.quantity_multiple
+        multiple = (
+            lcm(cap.quantity_multiple, source_load.quantity_multiple)
+            if source_load is not None
+            else cap.quantity_multiple
+        )
         scale = (
             self.config.quantity_scale_min
             + (self.config.quantity_scale_max - self.config.quantity_scale_min)
@@ -1567,15 +1940,22 @@ class ScenarioCatalog:
             if cap.physical_profile == "reviewed_whole_units"
             else donor.package_category
         )
-        if cap.family == "dg_chemical":
+        if cap.family == "dg_chemical" and cap.physical_profile != "source_bundle":
             package_type = _pick(
                 cap.allowed_package_categories or ("PACKAGE_DRUM", "PACKAGE_CARTON", "PACKAGE_BOX"),
                 stream.derive("chemical-packaging"),
             )
-        goods["numberAndTypeOfPackages"][0].update(
-            packageQuantity=quantity, typeCategory=package_type
-        )
-        if quantities:
+        package = goods["numberAndTypeOfPackages"][0]
+        package["packageQuantity"] = quantity
+        if "typeCategory" in package:
+            package["typeCategory"] = package_type
+        if source_load is not None:
+            for allocation in allocations:
+                if "packageQuantity" in allocation:
+                    allocation["packageQuantity"] = (
+                        allocation["packageQuantity"] * quantity // source.quantity
+                    )
+        elif quantities:
             for allocation, count in zip(
                 allocations, _apportion(quantity, quantities), strict=True
             ):
@@ -1619,7 +1999,9 @@ class ScenarioCatalog:
         if "description" in goods:
             goods["description"] = "; ".join(i.phrase for i in identities)
         if "hsCodes" in goods:
-            goods["hsCodes"] = [i.hs6 for i in identities]
+            goods["hsCodes"] = sample_source_hs_codes(
+                source.goods["hsCodes"], [i.hs6 for i in identities], stream.derive("printed-hs")
+            )
         if dg_record is not None:
             for entry in goods["dangerousGoods"]:
                 for key, value in (
@@ -1641,8 +2023,24 @@ class ScenarioCatalog:
                     entry["subsidiaryHazardCategories"] = list(
                         dg_record.subsidiary_hazard_categories
                     )
+                if "flashPoint" in entry:
+                    fact = self.flash_points.get(dg_record.record_id)
+                    if fact is None:
+                        raise ValueError("sampled DG tuple has no exact flash-point authority")
+                    temperature = entry["flashPoint"]["temperature"]
+                    temperature["value"] = float(fact.value(temperature["unit"]))
         for index, container in enumerate(containers):
-            sampled = donor.containers[0]
+            sampled = (
+                dict(
+                    zip(
+                        ("sizeCategory", "typeCategory"),
+                        source_load.equipment_pair.split("|"),
+                        strict=True,
+                    )
+                )
+                if source_load is not None
+                else donor.containers[0]
+            )
             if inventory_pairs is not None:
                 size, kind = inventory_pairs[index].split("|")
                 sampled = {"sizeCategory": size, "typeCategory": kind}
@@ -1667,13 +2065,30 @@ class ScenarioCatalog:
                 )
         inventory_capacities = None
         if containers:
-            if classify_equipment(donor.containers[0]) == "unsupported_reefer":
+            capacity_equipment = (
+                dict(
+                    zip(
+                        ("sizeCategory", "typeCategory"),
+                        source_load.equipment_pair.split("|"),
+                        strict=True,
+                    )
+                )
+                if source_load is not None
+                else donor.containers[0]
+            )
+            if classify_equipment(capacity_equipment) == "unsupported_reefer":
                 raise CandidateIncompatibility(
                     "reefer size/type pair has no source-supported capacity contract"
                 )
-            capacity = equipment_capacity(donor.containers[0], self.limits)
+            capacity = equipment_capacity(capacity_equipment, self.limits)
             shares = (
-                [Decimal(a["packageQuantity"]) / quantity for a in allocations]
+                [
+                    Decimal(source_load.container_package_quantities[c["equipmentIdentifier"]])
+                    / source.quantity
+                    for c in containers
+                ]
+                if source_load is not None
+                else [Decimal(a["packageQuantity"]) / quantity for a in allocations]
                 if quantities
                 else [Decimal(1) / len(containers)] * len(containers)
             )
@@ -1712,7 +2127,11 @@ class ScenarioCatalog:
                 and all_measures["volume"] * peak > capacity.volume_m3
             ):
                 raise CandidateIncompatibility("sampled row exceeds equipment enclosed volume")
-        if cap.family == "dg_chemical":
+        # A source bundle retains its own declared package unit and measured
+        # per-unit load (for example a tonne-scale tote). The generic non-bulk
+        # envelope governs freely substituted drums/cartons/boxes, not that
+        # reviewed source physics; equipment capacities still apply above.
+        if cap.family == "dg_chemical" and cap.physical_profile != "source_bundle":
             if "grossWeight" in all_measures and all_measures["grossWeight"] / quantity > 400:
                 raise CandidateIncompatibility(
                     "chemical package mass exceeds non-bulk synthesis envelope"
@@ -1736,8 +2155,18 @@ class ScenarioCatalog:
         for index, container in enumerate(containers):
             number = container["equipmentIdentifier"]
             allocation = by_number.get(number, {})
-            numerator = allocation.get("packageQuantity", 1)
-            denominator = quantity if "packageQuantity" in allocation else len(containers)
+            numerator = (
+                source_load.container_package_quantities[number]
+                if source_load is not None
+                else allocation.get("packageQuantity", 1)
+            )
+            denominator = (
+                source.quantity
+                if source_load is not None
+                else quantity
+                if "packageQuantity" in allocation
+                else len(containers)
+            )
             row_capacity = (
                 inventory_capacities[index] if inventory_capacities is not None else capacity
             )
@@ -1773,6 +2202,16 @@ class ScenarioCatalog:
             "physicalProfile": cap.physical_profile,
             **(
                 {
+                    "printedPackageFallback": {
+                        "typeOfPackages": goods["numberAndTypeOfPackages"][0]["typeOfPackages"],
+                        "basis": "exact_source_package_unit",
+                    }
+                }
+                if source.package_category is None
+                else {}
+            ),
+            **(
+                {
                     "reviewedWholeUnitDonor": cap.reviewed_whole_unit_donors[
                         donor.document_id
                     ].model_dump(mode="json"),
@@ -1792,6 +2231,25 @@ class ScenarioCatalog:
             **({"thermalCommodityContext": thermal_context} if thermal_context is not None else {}),
             "quantityMultiple": multiple,
             "physicalRows": physical_rows,
+            **(
+                {
+                    "sourceLoadAccounting": {
+                        "certificate": source_load.model_dump(mode="json"),
+                        "sourceQuantity": source.quantity,
+                        "sampledQuantity": quantity,
+                        "unlabelledQuantity": quantity
+                        - sum(row.get("packageQuantity", 0) for row in allocations),
+                        "unlabelledEquipmentIndices": [
+                            index
+                            for index, container in enumerate(containers)
+                            if "packageQuantity"
+                            not in by_number.get(container["equipmentIdentifier"], {})
+                        ],
+                    }
+                }
+                if source_load is not None
+                else {}
+            ),
             **(
                 {
                     "equipmentMix": {
@@ -1824,6 +2282,18 @@ class ScenarioCatalog:
                     "class": dg_record.exact_hazard_class,
                     "packingGroup": dg_record.packing_group_code,
                     "subsidiaryHazards": list(dg_record.exact_subsidiary_hazards),
+                    **(
+                        {
+                            "flashPointAuthority": self.flash_points[
+                                dg_record.record_id
+                            ].model_dump(mode="json")
+                        }
+                        if any(
+                            "flashPoint" in entry
+                            for entry in source.goods.get("dangerousGoods", ())
+                        )
+                        else {}
+                    ),
                 }
                 if dg_record
                 else None
@@ -2175,8 +2645,18 @@ class ScenarioCatalog:
         source = _observation(source_row, capabilities.family)
         if source is None:
             raise ValueError(
-                "current pilot requires one goods group and one positive typed package row"
+                "current pilot requires one goods group and one positive categorized "
+                "or printed package row"
             )
+        if source.package_category is None and capabilities.physical_profile not in {
+            "source_bundle",
+            "source_whole_units",
+        }:
+            raise ValueError(
+                "printed free-text package unit requires a source-backed physical profile"
+            )
+        if capabilities.source_load_accounting is not None:
+            capabilities.source_load_accounting.validate_source(source_row)
         stream = DeterministicStream(seed, "curated-v7-scenarios-v1", f"{sid}:{variant}")
         if inventory_contract is not None:
             inventory_mode = policy.mode(variant, stream.derive("inventory-mode"))

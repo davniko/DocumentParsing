@@ -5,8 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
+from document_ocr.training.tasks import get_training_task
 
 
 def write(path, value):
@@ -27,7 +29,20 @@ def campaign(tmp_path):
         json.dumps({"documentId": "heldout", "joinedRawText": "HELD OUT", "target": {}}) + "\n"
     )
     constraints = tmp_path / "task.json"
-    write(constraints, {"task": "current_target", "targetSchemaSha256": "a" * 64})
+    task = get_training_task("bill_of_lading_extraction_v7_reduced")
+    write(
+        constraints,
+        {
+            "schemaVersion": 1,
+            "task": task.name,
+            "targetSchemaSha256": sha256_bytes(canonical_json_bytes(task.target_schema())),
+            "basePromptSchemaSha256": task.base_prompt_schema_sha256(),
+            "packageRegistrySha256": "a" * 64,
+            "containerRegistrySha256": "b" * 64,
+            "packageCategoryTokens": [],
+            "containerCategoryTokens": [],
+        },
+    )
     output = tmp_path / "pilot"
     config = {
         "dataset": "source",
@@ -50,7 +65,14 @@ def campaign(tmp_path):
                 "seed": 42,
                 "joinedRawText": text,
                 "joinedRawTextSha256": digest(text.encode()),
-                "target": {"addressLine": "COUNTRY NETHERLANDS", "quantity": variant},
+                "target": {
+                    "schemaVersion": "7.0.0",
+                    "documentPatch": {
+                        "negotiability": None,
+                        "billOfLadingNumber": f"NEW-{sid}-{variant}",
+                        "parties": {"shipper": {"addressLine": "COUNTRY NETHERLANDS"}},
+                    },
+                },
                 "proof": {"text": digest(text.encode())},
             }
             write(output / "candidates" / f"{sample_id}.json", candidate)
@@ -133,7 +155,13 @@ def test_complete_publication_replays_every_candidate_and_preserves_sources(camp
     records = list(map(json.loads, (campaign.output / "dataset.jsonl").read_text().splitlines()))
     assert len(records) == 4
     assert all(
-        record["target"] == campaign.expected[record["documentId"]]["target"] for record in records
+        record["target"] == campaign.expected[record["documentId"]]["target"]["documentPatch"]
+        for record in records
+    )
+    assert manifest["task"] == "bill_of_lading_extraction_v7_reduced_direct"
+    assert all(
+        "schemaVersion" not in record["target"] and "documentPatch" not in record["target"]
+        for record in records
     )
     assert all("inputText" not in record for record in records)
     gallery = (campaign.output / "samples.md").read_text()

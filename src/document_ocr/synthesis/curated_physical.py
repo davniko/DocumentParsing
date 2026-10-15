@@ -20,10 +20,13 @@ from document_ocr.synthesis.container_semantics import (
     canonical_equipment_surface,
     review_source_equipment_surface,
 )
-from document_ocr.synthesis.curated import digest, flat
+from document_ocr.synthesis.curated import assign, digest, flat
 from document_ocr.synthesis.curated_casing import TargetCasing
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
-from document_ocr.synthesis.curated_equipment_aliases import project_equipment_height
+from document_ocr.synthesis.curated_equipment_aliases import (
+    preserve_non_operating_reefer,
+    project_equipment_height,
+)
 from document_ocr.synthesis.curated_equipment_inventory import (
     EquipmentInventoryContract,
     project_equipment_inventory,
@@ -42,8 +45,16 @@ from document_ocr.synthesis.curated_scenarios import (
     CandidateIncompatibility,
     ShipmentScenario,
     SourceCapabilities,
+    SourceLoadAccounting,
 )
 from document_ocr.synthesis.curated_templates import SamplingBlueprint, current_path
+from document_ocr.synthesis.curated_thermal import (
+    UnrepresentableVentilationRate,
+    is_ventilation_instruction,
+    render_ventilation,
+    temperature_in_unit,
+)
+from document_ocr.synthesis.dangerous_goods_registry import _broad_hazard
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.rendering import _numeric_interpretations
 from document_ocr.synthesis.template_compiler.descendant import (
@@ -66,6 +77,12 @@ _HANDLING_PATH = re.compile(
 _EQUIPMENT_CATEGORY_PATH = re.compile(
     r"documentPatch\.containerInformation\[\d+\]\."
     r"(?:sizeCategory|typeCategory|typeDescription)"
+)
+_PACKING_GROUP_NUMERALS = {"I": "1", "II": "2", "III": "3"}
+_PACKING_GROUP_SURFACE = re.compile(
+    r"(?P<prefix>\s*(?:(?:P\.?\s*G\.?|PACKING\s*GROUP)\s*[:=.-]?\s*)?)"
+    r"(?P<value>I{1,3}|[123])(?P<suffix>\s*[,;.]?\s*)",
+    re.I,
 )
 
 
@@ -571,36 +588,75 @@ def _measure_totals(blueprint, scenario, target, owners, support):
     return totals, lattices, receipts
 
 
-def _temperature_text(text: str, old: Decimal, new: Decimal) -> str:
-    pattern = re.compile(
-        r"(?P<word>PLUS\s+|MINUS\s+)?(?P<number>[+-]?\d+(?:\.\d+)?)(?=\s*(?:°\s*)?(?:C(?:\b|E\b)|F\b|DEG(?:REE)?|CELSIUS|FAHRENHEIT))",
-        re.I,
-    )
+_TEMPERATURE_NUMBER = re.compile(
+    r"(?P<word>PLUS\s*|MINUS\s*|\(\s*[+-]\s*\)\s*)?"
+    r"(?P<number>[+-]?\d+(?:\.\d+)?)"
+    r"(?=\s*(?:[°'\u2019\"]\s*)?(?P<unit>CEL(?:SIUS)?\b|FAHRENHEIT|C(?:\b|E\b)|F\b|"
+    r"DEG(?:REES?)?(?:\s+(?:CEL(?:SIUS)?\b|FAHRENHEIT)|['\u2019\s]*[CF]\b)?))",
+    re.I,
+)
+_TEMPERATURE_CLAUSE = re.compile(r"(?:TEMP|SHIPPED\s+AT|DEGREES)", re.I)
+
+
+def _temperature_text(text: str, old: Decimal, new: Decimal, *, unit: str = "celsius") -> str:
     changed = False
 
     def replace(match):
         nonlocal changed
         value = Decimal(match["number"])
-        if match["word"] and match["word"].strip().upper() == "MINUS":
+        if match["word"] and (match["word"].strip().upper() == "MINUS" or "-" in match["word"]):
             value = -abs(value)
-        if value != old:
+        spelling = match["unit"].upper()
+        printed_unit = (
+            "fahrenheit"
+            if "FAHRENHEIT" in spelling or re.search(r"F\b", spelling)
+            else "celsius"
+            if "CEL" in spelling or re.search(r"C(?:\b|E\b)", spelling)
+            else unit
+        )
+        expected = temperature_in_unit(old, unit, printed_unit)
+        replacement = temperature_in_unit(new, unit, printed_unit)
+        if value != expected:
             raise ValueError(
                 "owned carrying-temperature wording disagrees with its source setpoint"
             )
         changed = True
-        return format(new, "f").rstrip("0").rstrip(".") if "." in format(new, "f") else str(new)
+        rendered = format(replacement, "f")
+        rendered = rendered.rstrip("0").rstrip(".") if "." in rendered else rendered
+        if match["word"] and "(" in match["word"]:
+            return ("(-)" if replacement < 0 else "(+)") + rendered.lstrip("-+")
+        return rendered
 
-    result = pattern.sub(replace, text)
+    result = _TEMPERATURE_NUMBER.sub(replace, text)
     if not changed:
         raise ValueError(f"temperature owner lacks an explicit signed temperature: {text!r}")
     return result
 
 
 def _vent_text(text: str, rate: Decimal) -> str:
-    pattern = re.compile(r"\d+(?:\.\d+)?(?=\s*(?:CBM|M3|M³)\s*(?:/\s*H(?:R)?|PER\s+HOUR))", re.I)
-    if not pattern.search(text):
-        raise ValueError("ventilation owner lacks an explicit cubic-metre/hour quantity")
-    return pattern.sub(str(rate), text)
+    try:
+        return render_ventilation(text, rate)
+    except UnrepresentableVentilationRate as error:
+        raise CandidateIncompatibility(str(error)) from error
+
+
+def _packing_group_text(text: str, source_code: str, sampled_code: str) -> str:
+    """Preserve each owned PG occurrence's Roman or numeric presentation.
+
+    Matching is restricted to a whole scalar or a recognized PG caption. A
+    quantity, UN number or class in a larger accidentally owned region cannot
+    silently become a packing group merely because its digits are equal.
+    """
+    if source_code not in _PACKING_GROUP_NUMERALS or sampled_code not in _PACKING_GROUP_NUMERALS:
+        raise ValueError("DG packing-group renderer requires canonical I/II/III codes")
+    match = _PACKING_GROUP_SURFACE.fullmatch(text)
+    if match is None or match["value"].upper() not in {
+        source_code,
+        _PACKING_GROUP_NUMERALS[source_code],
+    }:
+        raise ValueError("DG packing-group owner lacks exactly its source group")
+    value = _PACKING_GROUP_NUMERALS[sampled_code] if match["value"].isdigit() else sampled_code
+    return match["prefix"] + value + match["suffix"]
 
 
 def _operational(blueprint, scenario, target, surfaces, receipt):
@@ -611,15 +667,28 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
         (
             Decimal(str(a["temperatureSetpoint"]["value"])),
             Decimal(str(b["temperatureSetpoint"]["value"])),
+            a["temperatureSetpoint"]["unit"],
         )
         for a, b in zip(old_containers, new_containers, strict=True)
         if "temperatureSetpoint" in a
     ]
-    if len(set(settings)) > 1:
+    if (
+        len(
+            {
+                (
+                    temperature_in_unit(old, unit, "celsius"),
+                    temperature_in_unit(new, unit, "celsius"),
+                )
+                for old, new, unit in settings
+            }
+        )
+        > 1
+    ):
         raise ValueError(
             "one-goods physical operational plan has conflicting carrying temperatures"
         )
-    thermal = settings[0] if settings else None
+    thermal = settings[0][:2] if settings else None
+    thermal_unit = settings[0][2] if settings else None
     rate = scenario.provenance.get("ventilationCbmPerHour")
     old_handling = blueprint.target["documentPatch"]["goodsItemDetails"][0].get(
         "handlingInstructions", []
@@ -631,7 +700,7 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
         # Route/origin dependencies are already applied by the shipment plan.
         # Thermal editing owns only its measured tokens, not the full field.
         new = new_handling[i]
-        if re.search(r"\bVENT(?:IL|ILL)", text, re.I):
+        if is_ventilation_instruction(text):
             if rate is None:
                 raise ValueError("printed ventilation requires a sampled observed ventilation rate")
             new = _vent_text(new, Decimal(rate))
@@ -644,9 +713,9 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
         if (
             thermal
             and not reference
-            and re.search(r"(?:TEMP|SHIPPED\s+AT|DEGREES|\d\s*°?C\b)", new, re.I)
+            and (_TEMPERATURE_CLAUSE.search(new) or _TEMPERATURE_NUMBER.search(new))
         ):
-            new = _temperature_text(new, *thermal)
+            new = _temperature_text(new, *thermal, unit=thermal_unit)
         new_handling[i] = new
     # Handle only historical executable regions, never overlapping whole lexical owners.
     active = {r.key for r in blueprint.regions if r.curated_key is None}
@@ -663,26 +732,27 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
                 p.endswith(".temperatureSetpoint.value") or ".handlingInstructions[" in p
                 for p in paths
             ):
+                temperature_paths = [p for p in paths if p.endswith(".temperatureSetpoint.value")]
+                owner_values = {Decimal(str(flat(target)[path])) for path in temperature_paths}
+                if len(owner_values) > 1:
+                    raise ValueError("one bare temperature owner refers to unequal unit values")
                 output = [
-                    str(thermal[1])
+                    (str(next(iter(owner_values))) if owner_values else str(thermal[1]))
                     if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", text)
-                    else _temperature_text(text, *thermal)
+                    else _temperature_text(text, *thermal, unit=thermal_unit)
                     for text in texts
                 ]
             else:
-                output = [_temperature_text(text, *thermal) for text in texts]
+                output = [_temperature_text(text, *thermal, unit=thermal_unit) for text in texts]
         elif rate is not None and (
             "ventilation_rate" in key
-            or any(
-                re.search(r"\bVENT(?:IL|ILL)", text, re.I) and re.search(r"\d", text)
-                for text in texts
-            )
+            or any(is_ventilation_instruction(text) and re.search(r"\d", text) for text in texts)
         ):
             output = [_vent_text(text, Decimal(rate)) for text in texts]
         elif (
             rate is not None
             and any(".handlingInstructions[" in p for p in paths)
-            and all(re.fullmatch(r"VENT(?:IL|ILL)ATION", text, re.I) for text in texts)
+            and all(is_ventilation_instruction(text) for text in texts)
         ):
             # Caption and measured rate have separate owned regions in some
             # layouts. The rate region is independently rendered above.
@@ -690,10 +760,18 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
         elif (
             thermal
             and any(".handlingInstructions[" in p for p in paths)
-            and any(re.search(r"\d\s*(?:C\b|DEG)", text, re.I) for text in texts)
+            and any(_TEMPERATURE_NUMBER.search(text) for text in texts)
         ):
-            output = [_temperature_text(text, *thermal) for text in texts]
+            output = [_temperature_text(text, *thermal, unit=thermal_unit) for text in texts]
         dg = scenario.provenance.get("dgPrintedFacts")
+        if dg and any(".dangerousGoods[" in path for path in paths):
+            if not all(".dangerousGoods[" in path for path in paths):
+                raise ValueError("DG numeric regions cannot own unrelated fields")
+            fields = {path.split(".dangerousGoods[", 1)[1].split("].", 1)[1] for path in paths}
+            if len(fields) != 1:
+                raise ValueError(
+                    "DG numeric regions must have one separately owned regulatory field"
+                )
         if dg and any(p.endswith(".hazardCategory") for p in paths):
             output = []
             for text in texts:
@@ -719,12 +797,53 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
             if len(source_codes) != 1 or dg.get("packingGroup") not in codes.values():
                 raise ValueError("DG packing-group owner requires one source and sampled group")
             code = source_codes.pop()
+            output = [_packing_group_text(text, code, dg["packingGroup"]) for text in texts]
+        elif dg and any(".subsidiaryHazardCategories[" in p for p in paths):
+            index_matches = [
+                re.search(r"\.subsidiaryHazardCategories\[(\d+)\]$", path) for path in paths
+            ]
+            if any(match is None for match in index_matches):
+                raise ValueError("DG subsidiary owner mixes unlike regulatory fields")
+            indices = {int(match[1]) for match in index_matches if match is not None}
+            if len(indices) != 1:
+                raise ValueError("DG subsidiary owner must select one exact subsidiary index")
+            index = indices.pop()
+            classes = dg.get("subsidiaryHazards", ())
+            if index >= len(classes):
+                raise ValueError("sampled DG tuple lacks the source subsidiary-hazard slot")
             output = []
             for text in texts:
-                pattern = r"(?<!\w)" + re.escape(code) + r"(?!\w)"
-                if len(re.findall(pattern, text)) != 1:
-                    raise ValueError("DG packing-group owner lacks exactly its source group")
-                output.append(re.sub(pattern, dg["packingGroup"], text))
+                matches = list(re.finditer(r"(?<![\w.])\d+(?:\.\d+)?[A-Z]?(?![\w.])", text))
+                if len(matches) != 1 or not re.fullmatch(r"[1-9](?:\.[1-9])?[A-Z]?", matches[0][0]):
+                    raise ValueError("DG subsidiary owner lacks exactly one printed class")
+                match = matches[0]
+                if any(before[path] != _broad_hazard(match[0]) for path in paths):
+                    raise ValueError("DG subsidiary class differs from its source label")
+                output.append(text[: match.start()] + classes[index] + text[match.end() :])
+        elif dg and paths and all(path.endswith(".flashPoint.temperature.value") for path in paths):
+            if not dg.get("flashPointAuthority"):
+                raise ValueError("DG flash-point owner lacks its exact property authority")
+            values = {Decimal(str(flat(target)[path])) for path in paths}
+            if len(values) != 1:
+                raise ValueError("one DG flash-point owner has conflicting target values")
+            value = values.pop()
+            baselines = {Decimal(str(before[path])) for path in paths}
+            if len(baselines) != 1:
+                raise ValueError("one DG flash-point owner has conflicting source values")
+            baseline = baselines.pop()
+            quanta = [_quantum(text, baseline) for text in texts]
+            rounded = value.quantize(max(quanta), rounding=ROUND_HALF_UP)
+            output = [_format(text, baseline, rounded) for text in texts]
+            for path in paths:
+                assign(target, path, float(rounded))
+            receipt.setdefault("flashPointRounding", []).append(
+                {
+                    "paths": paths,
+                    "authoritativeConvertedValue": str(value),
+                    "printedValue": str(rounded),
+                    "sourceQuantum": str(max(quanta)),
+                }
+            )
         if output is not None:
             surfaces[key] = output
     receipt["temperature"] = [str(v) for v in thermal] if thermal else None
@@ -1021,8 +1140,12 @@ def _complete_equipment_surface(value, source):
         value["sizeCategory"],
         value["typeCategory"],
     ):
-        return surface
-    return canonical_equipment_surface(value["sizeCategory"], value["typeCategory"])
+        return preserve_non_operating_reefer(source, surface, value)
+    return preserve_non_operating_reefer(
+        source,
+        canonical_equipment_surface(value["sizeCategory"], value["typeCategory"]),
+        value,
+    )
 
 
 def _equipment(blueprint, target, support, scenario, surfaces, receipt, inventory=None):
@@ -1315,6 +1438,19 @@ def prepare_physical_render(
         blueprint, scenario, target, owners, support
     )
     physical_rows = scenario.provenance.get("physicalRows", [])
+    source_load_receipt = scenario.provenance.get("sourceLoadAccounting")
+    source_load = None
+    configured_load = scenario.provenance.get("capabilities", {}).get("source_load_accounting")
+    if (configured_load is None) != (source_load_receipt is None):
+        raise ValueError("private source-load receipt differs from the configured capability")
+    if source_load_receipt is not None:
+        source_load = SourceLoadAccounting.model_validate(source_load_receipt["certificate"])
+        if source_load.model_dump(mode="json") != configured_load:
+            raise ValueError("private source-load receipt differs from the configured certificate")
+        source_load.validate_values(blueprint.source, blueprint.target)
+        source_load.validate_physical_rows(
+            blueprint.target, target, physical_rows, source_load_receipt
+        )
     weights = [
         Decimal(row["shareNumerator"]) / Decimal(row["shareDenominator"]) for row in physical_rows
     ]

@@ -1,10 +1,10 @@
-dataset: data/curated/mpci-bl-real-v7-reviewed-r17-paddle-positions-660
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660
 output: artifacts/kie-synthesis-production/mixed-inventory-validation-v1
 ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
-auxiliary: docs/analysis/mixed-equipment-production-20261012/campaign-auxiliary.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
 environment_file: .env
-task_constraints: configs/training/production/contracts/mpci_bl_real600_synthetic2500_party_date_route_v1/task-constraints.json
-task_constraints_sha256: be8ba7b284e1e16f8664bd8a3383e07dca89e20caadad254d2f26fe0c257338d
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
 seed: 2026101247
 variants_per_source: 2
 casing:

@@ -360,6 +360,7 @@ def _v7_target() -> dict[str, Any]:
         "schemaVersion": "7.0.0",
         "documentPatch": {
             "billOfLadingNumber": "ABC",
+            "negotiability": "non_negotiable",
             "containerInformation": [
                 {"equipmentIdentifier": "MSKU1200040", "sealNumbers": ["SEAL-A", "SEAL-B"]},
                 {"equipmentIdentifier": "FCIU3651201", "sealNumbers": ["SEAL-C"]},
@@ -568,8 +569,8 @@ def test_notify_party_list_matching_keeps_addresses_with_the_named_party() -> No
     reference = _v7_target()
     reference["documentPatch"]["parties"] = {
         "notifyParties": [
-            {"name": "COMPANY A", "addressLine": "1 ROAD", "country": "CHINA"},
-            {"name": "COMPANY B", "addressLine": "2 STREET", "country": "EGYPT"},
+            {"name": "COMPANY A", "addressLine": "1 ROAD", "country": "CHINA", "sameAs": None},
+            {"name": "COMPANY B", "addressLine": "2 STREET", "country": "EGYPT", "sameAs": None},
         ]
     }
     prediction = copy.deepcopy(reference)

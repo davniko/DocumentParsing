@@ -119,7 +119,7 @@ def test_contact_only_roles_preserve_absent_identity_and_do_not_merge_unrelated_
         "documentPatch.parties.notifyParties[2]",
     ]
     assert "unnamed documentPatch.parties.notifyParties[1]" in contact_prompt(requests)
-    assert "company identity is not supplied" in contact_prompt(requests)
+    assert "Company identity is not supplied" in contact_prompt(requests)
     values = unpack_contacts(
         contact_output_type(requests).model_validate(
             {"p0": {"c0": "newnotify@gmail.com"}, "p1": {"c0": "othernotify@gmail.com"}}

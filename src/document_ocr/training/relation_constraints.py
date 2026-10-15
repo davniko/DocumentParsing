@@ -102,7 +102,7 @@ def _source_tokens(
             canonical = task.canonicalize(cast(dict[str, Any], target))
         except ValueError as error:
             raise ValueError(f"{context}: target is not canonical {task_name}: {error}") from error
-        patch = canonical["documentPatch"]
+        patch = task.document_facts(canonical)
         packages = (
             (
                 package
@@ -114,6 +114,7 @@ def _source_tokens(
                 "bill_of_lading_mpci_aligned_v6",
                 "bill_of_lading_extraction_v7",
                 "bill_of_lading_extraction_v7_reduced",
+                "bill_of_lading_extraction_v7_reduced_direct",
             }
             else patch.get("cargoPackages", [])
         )
@@ -128,6 +129,7 @@ def _source_tokens(
                 "bill_of_lading_mpci_aligned_v6",
                 "bill_of_lading_extraction_v7",
                 "bill_of_lading_extraction_v7_reduced",
+                "bill_of_lading_extraction_v7_reduced_direct",
             }
             else "containers"
         )

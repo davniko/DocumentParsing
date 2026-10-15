@@ -48,7 +48,7 @@ Code2 = Annotated[str, StringConstraints(pattern=r"^[0-9]{2}$")]
 Code4 = Annotated[str, StringConstraints(pattern=r"^[0-9]{4}$")]
 Code6 = Annotated[str, StringConstraints(pattern=r"^[0-9]{6}$")]
 Code10 = Annotated[str, StringConstraints(pattern=r"^[0-9]{10}$")]
-CanonicalHsCode = Annotated[str, StringConstraints(pattern=r"^[0-9]{6,18}$")]
+CanonicalHsCode = Annotated[str, StringConstraints(pattern=r"^[0-9]{6,20}$")]
 NonEmptyText = Annotated[str, StringConstraints(min_length=1)]
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
@@ -451,8 +451,8 @@ def render_hs_code_surface(
     supply a grouping whose sum equals the code length.
     """
 
-    if re.fullmatch(r"[0-9]{6,18}", semantic_code) is None:
-        raise ValueError("semantic HS code must contain 6-18 digits")
+    if re.fullmatch(r"[0-9]{6,20}", semantic_code) is None:
+        raise ValueError("semantic HS code must contain 6-20 digits")
     if not groups or any(
         isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in groups
     ):

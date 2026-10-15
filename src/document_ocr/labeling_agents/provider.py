@@ -299,8 +299,9 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
         "Unique cargo marks only; exclude represented containers, metadata, counts, and headings."
     ),
     "hsCodes": (
-        "Every unique 6-18 digit code under explicit HS, HSN, HTS, or tariff context, preserving "
-        "all digits. Omit values outside 6-18 digits; never truncate, pad, or repair them."
+        "Every unique code containing 6-20 digits under explicit HS, HSN, HTS, or tariff "
+        "context, preserving its printed dots, spaces, commas, ASCII hyphens and all digits. "
+        "Never truncate, pad, or repair a printed code."
     ),
     "handlingInstructions": (
         "Explicit operational cargo handling instructions, separate from product description and "

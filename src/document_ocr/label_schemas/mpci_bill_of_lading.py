@@ -44,7 +44,10 @@ CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 Locode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}[A-Z0-9]{3}$")]
 ContainerCode = Annotated[str, StringConstraints(pattern=r"^[0-9A-Z]{4}$")]
 PackageTypeCode = Annotated[str, StringConstraints(pattern=r"^[0-9A-Z]{2}$")]
-HsCode = Annotated[str, StringConstraints(pattern=r"^[0-9]{6,18}$")]
+HsCode = Annotated[
+    str,
+    StringConstraints(pattern=r"^[0-9](?:[ .,:\-]*[0-9]){5,19}$"),
+]
 UndgIdentifier = Annotated[str, StringConstraints(pattern=r"^[0-9]{4}$")]
 PositiveMeasure = Annotated[float, Field(allow_inf_nan=False), AfterValidator(_finite_positive)]
 NonNegativeQuantity = Annotated[int, Field(ge=0)]

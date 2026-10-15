@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from document_ocr.synthesis.transport_capacity import (
     capacity_limits,
     classify_equipment,
     document_capacity_receipt,
+    equipment_capacity,
     group_capacity_budgets,
     numeric_fit_envelope_violations,
     reproject_measures_for_semantic_equipment,
@@ -51,7 +53,10 @@ def test_only_exact_iso_size_type_codes_resolve_to_capacity_families() -> None:
     assert classify_equipment({"typeCode": "45U1"}) == "forty_open_top"
     assert classify_equipment({"typeCode": "22R1"}) == "twenty_reefer"
     assert classify_equipment({"typeCode": "45R1"}) == "forty_high_cube_reefer"
-    assert classify_equipment({"typeCode": "42R1"}) == "unsupported_reefer"
+    assert classify_equipment({"typeCode": "42R1"}) == "forty_standard_reefer"
+    assert classify_equipment({"typeCode": "40R1"}) == "forty_standard_reefer"
+    assert classify_equipment({"typeDescription": "42R1"}) == "forty_standard_reefer"
+    assert classify_equipment({"typeCode": "L5R1"}) == "unsupported_reefer"
     assert classify_equipment({"typeDescription": "45G1"}) == "forty_high_cube"
     assert classify_equipment({"typeDescription": "40HQ"}) == "unclassified"
     assert classify_equipment({"typeDescription": "MERCHANT HC LTD"}) == "unclassified"
@@ -127,8 +132,82 @@ def test_reefers_use_published_cold_box_capacity_and_unsupported_pairs_fail_clos
     assert receipt.violations == ("document_volume_exceeds_container_capacity",)
 
     target["documentPatch"]["containers"][0]["sizeCategory"] = "FORTY_FOOT_STANDARD_HEIGHT"
+    standard = document_capacity_receipt(target, _limits())
+    assert standard.payload_capacity_kg == Decimal("26130") * Decimal("1.05")
+    assert standard.volume_capacity_m3 == Decimal("58.8") * Decimal("1.05")
+    assert standard.violations == ("document_volume_exceeds_container_capacity",)
+
+    target["documentPatch"]["containers"][0]["sizeCategory"] = "FORTY_FIVE_FOOT_HIGH_CUBE"
     with pytest.raises(ValueError, match="no source-supported capacity contract"):
         document_capacity_receipt(target, _limits())
+
+
+@pytest.mark.parametrize(
+    "type_category",
+    [
+        "REFRIGERATED",
+        "REFRIGERATED_AND_HEATED",
+        "SELF_POWERED_REFRIGERATED",
+        "REFRIGERATED_HEATED_REMOVABLE_EQUIPMENT",
+    ],
+)
+def test_standard_reefer_reference_is_independent_of_operating_setpoint(type_category) -> None:
+    limits = replace(_limits(), published_reference_margin_fraction=Decimal(0))
+    container = {
+        "sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT",
+        "typeCategory": type_category,
+    }
+    capacity = equipment_capacity(container, limits)
+    assert capacity.family == "forty_standard_reefer"
+    assert capacity.payload_kg == Decimal("26130")
+    assert capacity.volume_m3 == Decimal("58.8")
+    assert "temperatureSetpoint" not in container
+
+
+def test_standard_reefer_capacity_boundary_rejects_payload_and_volume_excess() -> None:
+    limits = replace(_limits(), published_reference_margin_fraction=Decimal(0))
+    target = _target(
+        containers=[{"containerNumber": "MSCU0000000", "typeCode": "42R1"}],
+        groups=[
+            {
+                "groupId": "g1",
+                "grossWeight": {"value": 26130, "unit": "kilogram"},
+                "volume": {"value": 58.8, "unit": "cubic_metre"},
+            }
+        ],
+    )
+    original = deepcopy(target)
+    assert document_capacity_receipt(target, limits).valid
+    assert target == original
+    target["documentPatch"]["cargoGroups"][0]["grossWeight"]["value"] = 26130.001
+    target["documentPatch"]["cargoGroups"][0]["volume"]["value"] = 58.801
+    assert document_capacity_receipt(target, limits).violations == (
+        "document_gross_weight_exceeds_container_payload",
+        "document_volume_exceeds_container_capacity",
+    )
+
+
+def test_standard_reefer_combines_with_other_cold_box_families_without_dry_fallback() -> None:
+    limits = replace(_limits(), published_reference_margin_fraction=Decimal(0))
+    receipt = document_capacity_receipt(
+        _target(
+            containers=[
+                {"containerNumber": "MSCU0000000", "typeCode": "22R1"},
+                {"containerNumber": "MSCU0000010", "typeCode": "42R1"},
+                {"containerNumber": "MSCU0000020", "typeCode": "45R1"},
+            ],
+            groups=[{"groupId": "g1", "grossWeight": {"value": 80000, "unit": "kilogram"}}],
+        ),
+        limits,
+    )
+    assert receipt.equipment_families == (
+        "twenty_reefer",
+        "forty_standard_reefer",
+        "forty_high_cube_reefer",
+    )
+    assert receipt.payload_capacity_kg == Decimal("83570")
+    assert receipt.volume_capacity_m3 == Decimal("154.6")
+    assert receipt.valid
 
 
 def test_semantic_capacity_reprojection_preserves_sampled_utilization() -> None:

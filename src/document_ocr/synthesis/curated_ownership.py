@@ -36,6 +36,7 @@ from document_ocr.synthesis.curated_templates import (
     compile_sampling_blueprint,
     current_path,
     substitute_expression_literals,
+    validate_party_field_separators,
 )
 from document_ocr.synthesis.template_compiler.descendant import _package_candidate
 from document_ocr.synthesis.template_compiler.models import Derivation, TargetRelationship
@@ -434,6 +435,7 @@ def build_owned_blueprint(
         allow_empty = region.allow_empty or region.key in declarations.get("delete", {})
         regions.append(replace(region, target_paths=tuple(sorted(paths)), allow_empty=allow_empty))
     blueprint = replace(blueprint, regions=tuple(regions), ownership_data=declarations)
+    validate_party_field_separators(blueprint)
     _contact_name_surfaces(blueprint, row["target"])
     for key, recipe in declarations.get("surfaces", {}).items():
         if "contained_quantity" in recipe:
@@ -616,12 +618,14 @@ def ownership_surfaces(
             if (
                 set(recipe) != {"lexical_key"}
                 or lexical_key not in variables
-                or variables[lexical_key].kind != "name"
+                or variables[lexical_key].kind not in {"name", "product"}
                 or lexical_values is None
                 or not isinstance(lexical_values.get(lexical_key), str)
                 or not lexical_values[lexical_key].strip()
             ):
-                raise ValueError(f"name alias needs its explicit generated lexical owner: {key}")
+                raise ValueError(
+                    f"identity alias needs its explicit generated lexical owner: {key}"
+                )
             result[key] = lexical_values[lexical_key]
         elif "contained_quantity" in recipe:
             result[key] = contained_quantity_surfaces(

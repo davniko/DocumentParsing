@@ -59,9 +59,7 @@ class _RelationMetricProfile:
 def _relation_metric_profile(task: TrainingTask) -> _RelationMetricProfile:
     """Derive metric coverage from the registered target schema, not its task name."""
 
-    patch_model = task.target_model.model_fields["documentPatch"].annotation
-    if not isinstance(patch_model, type):
-        raise TypeError("training target documentPatch annotation must be a model class")
+    patch_model = task.document_model()
     v5_schema = issubclass(patch_model, RelationExplicitDocumentPatchV5)
     v6_schema = issubclass(patch_model, (BillOfLadingDocumentPatchV6, BillOfLadingDocumentPatchV7))
     return _RelationMetricProfile(
@@ -76,6 +74,8 @@ def _relation_metric_profile(task: TrainingTask) -> _RelationMetricProfile:
 
 
 def _field_value_items(value: Any, path: str = "$.documentPatch") -> set[tuple[str, str]]:
+    # Keep one historical fact-path namespace for paired metric comparisons; this
+    # does not add an envelope to the direct decoder target or its exported schema.
     if value is UNMATCHED:
         return set()
     if isinstance(value, dict):
@@ -96,17 +96,14 @@ def _field_value_items(value: Any, path: str = "$.documentPatch") -> set[tuple[s
     }
 
 
-def _document_patch(value: dict[str, Any]) -> dict[str, Any]:
-    patch = value.get("documentPatch")
-    if not isinstance(patch, dict):
-        raise ValueError("canonical decoder target must contain a documentPatch object")
-    return patch
-
-
-def _optional_document_patch(value: dict[str, Any] | None) -> dict[str, Any] | None:
+def _optional_document_patch(
+    value: dict[str, Any] | None, task: TrainingTask
+) -> dict[str, Any] | None:
     if value is None:
         return None
-    patch = value.get("documentPatch")
+    if task.document_field is None:
+        return value
+    patch = value.get(task.document_field)
     return patch if isinstance(patch, dict) else None
 
 
@@ -400,9 +397,9 @@ def _assess_prediction(
     # Exact field-value scoring remains informative when one unrelated field makes an
     # otherwise parseable prediction schema-invalid. Schema validity is reported separately.
     predicted_patch = _optional_document_patch(
-        predicted if predicted is not None else parsed_object
+        predicted if predicted is not None else parsed_object, task
     )
-    reference_patch = _document_patch(reference)
+    reference_patch = task.document_facts(reference)
     if not case_sensitive:
         # Normalize before entity/list alignment so case cannot change row ownership.
         # Raw schema validity and canonical exact match intentionally remain unchanged.

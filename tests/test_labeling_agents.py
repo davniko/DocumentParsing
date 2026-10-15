@@ -4889,17 +4889,17 @@ def test_review_policy_excludes_standalone_fax_but_accepts_joint_phone_fax() -> 
 
 def test_review_policy_enforces_hs_digit_range_without_business_caps() -> None:
     out_of_range = _review_finding(
-        raw_value="5848932722024070020",
-        excerpt="HS CODE / NCM CODE:\n5848932722024070020",
+        raw_value="584893272202407002011",
+        excerpt="HS CODE / NCM CODE:\n584893272202407002011",
         target_path="documentPatch.cargoGroups[0].hsCodes",
     )
     maximum_supported = _review_finding(
-        raw_value="584893272202407002",
-        excerpt="HS CODE / NCM CODE:\n584893272202407002",
+        raw_value="58489327220240700201",
+        excerpt="HS CODE / NCM CODE:\n58489327220240700201",
         target_path="documentPatch.cargoGroups[0].hsCodes",
     )
 
-    with pytest.raises(ReviewPolicyError, match="supports 6-18 printed digits"):
+    with pytest.raises(ReviewPolicyError, match="supports 6-20 printed digits"):
         validate_review_policy((out_of_range,))
     validate_review_policy((maximum_supported,))
 

@@ -299,7 +299,7 @@ def test_hs_surface_formatting_preserves_every_digit_without_inference() -> None
 
     with pytest.raises(ValueError, match="consume every semantic digit"):
         render_hs_code_surface("0101299000", groups=(2, 2, 2), separator=".")
-    with pytest.raises(ValueError, match="6-18 digits"):
+    with pytest.raises(ValueError, match="6-20 digits"):
         render_hs_code_surface("10129", groups=(2, 3), separator=".")
     with pytest.raises(ValueError, match="empty HS surface separator"):
         render_hs_code_surface("010129", groups=(2, 4), separator="")

@@ -844,7 +844,7 @@ def _out_of_range_hs_values(finding: SemanticReviewFinding) -> tuple[str, ...]:
     values: list[str] = []
     for row in finding.rawOcrEvidence:
         digits = re.sub(r"\D", "", row.rawValue)
-        if digits and not 6 <= len(digits) <= 18:
+        if digits and not 6 <= len(digits) <= 20:
             values.append(digits)
     return tuple(values)
 
@@ -1147,7 +1147,7 @@ def review_policy_violations(
                 unsupported_hs := _out_of_range_hs_values(finding)
             ):
                 violations.append(
-                    f"finding {index}: HS output supports 6-18 printed digits; "
+                    f"finding {index}: HS output supports 6-20 printed digits; "
                     f"out-of-range value(s) cannot be demanded: {', '.join(unsupported_hs)}"
                 )
             if any(_HS_TARGET.fullmatch(path) for path in targets) and (

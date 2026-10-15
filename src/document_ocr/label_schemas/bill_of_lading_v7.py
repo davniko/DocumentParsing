@@ -796,9 +796,10 @@ class GoodsItemDetailsV7(LabelSchemaModel):
         min_length=1,
         description=(
             "All distinct printed HS/customs commodity codes for this goods item, "
-            "including multiple codes. Remove presentation dots, spaces and hyphens; retain all"
-            " 6-18 digits and leading zeros. Do not pad, truncate or infer a code from "
-            "product identity."
+            "including multiple codes. Preserve the printed dots, spaces, commas, colons and ASCII "
+            "hyphens, all 6-20 digits and leading zeros. For repeated presentations of one "
+            "digit sequence, retain its first printed presentation. Do not pad, truncate "
+            "or infer a code from product identity."
         ),
     )
     handlingInstructions: tuple[CargoText, ...] | None = Field(
@@ -1033,11 +1034,31 @@ class BillOfLadingExtractionV7Label(LabelSchemaModel):
     )
 
     def canonical_target(self) -> dict[str, Any]:
-        target = self.model_dump(mode="json", exclude_none=True)
-        target["documentPatch"]["negotiability"] = self.documentPatch.negotiability
-        for party in target["documentPatch"].get("parties", {}).get("notifyParties", []):
-            party.setdefault("sameAs", None)
-        for goods in target["documentPatch"].get("goodsItemDetails", []):
-            if "splitGoodsPlacement" in goods:
-                goods["splitGoodsPlacement"] = goods.pop("splitGoodsPlacement")
-        return target
+        return {
+            "schemaVersion": self.schemaVersion,
+            "documentPatch": _canonical_document_facts_v7(self.documentPatch),
+        }
+
+
+def _canonical_document_facts_v7(patch: BillOfLadingDocumentPatchV7) -> dict[str, Any]:
+    """Share sparse/null and decoder ordering rules across both explicit contracts."""
+
+    target = patch.model_dump(mode="json", exclude_none=True)
+    target["negotiability"] = patch.negotiability
+    for party in target.get("parties", {}).get("notifyParties", []):
+        party.setdefault("sameAs", None)
+    for goods in target.get("goodsItemDetails", []):
+        if "splitGoodsPlacement" in goods:
+            goods["splitGoodsPlacement"] = goods.pop("splitGoodsPlacement")
+    return target
+
+
+class BillOfLadingExtractionV7DirectTarget(BillOfLadingDocumentPatchV7):
+    """Document facts emitted directly, without annotation-version metadata or an envelope.
+
+    Internal annotation and synthesis ownership may retain their versioned envelope;
+    this model is the distinct decoder wire contract, not a dual-shape adapter.
+    """
+
+    def canonical_target(self) -> dict[str, Any]:
+        return _canonical_document_facts_v7(self)

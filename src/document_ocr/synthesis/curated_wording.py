@@ -11,7 +11,7 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, create_model
 
@@ -255,6 +255,16 @@ turn it into a new whole-shipment count or weight declaration. Complete each pro
 Each shipment is an independent variant: vary its product wording and fictional identifiers.
 Use uppercase human-readable text. Separate physical lines with newlines when useful."""
 
+POSTAL_CORRECTION_PROMPT = """Correct fictional postal components under joint address assemblies.
+The supplied old values failed validation; they are not formatting examples.
+Return exactly the requested corrected components. Components jointly form one address;
+they are not independent complete addresses. Follow the assembly's locality, country,
+certified country-owner and host-literal rules. Some parties omit country; preserve that omission.
+Choose plausible new street/site wording without repeating locality or country inside it.
+Preserve approximate address hierarchy and use uppercase text.
+Each output contains final component text only, without field headers,
+instructions or commentary."""
+
 
 def rendered_review_prompt(target_casing: TargetCasing) -> str:
     if target_casing == "uppercase":
@@ -268,30 +278,20 @@ def rendered_review_prompt(target_casing: TargetCasing) -> str:
     )
 
 
-def validate_postal_geography(
-    address: str, *, locality: str, country: str, country_code: str, country_labelled: bool
-) -> None:
-    """Check the explicit generation contract, not real-address deliverability.
+class PostalGeographyCounts(NamedTuple):
+    """Generation-contract mentions, excluding geographic name-containment overlaps."""
 
-    The generator is asked to use the supplied locality spelling once. Reject
-    departures for correction; do not delete apparently duplicate text or guess
-    aliases. Country-only text cannot satisfy a distinct locality requirement.
-    """
-    # These are literal orchestration captions, not ordinary postal vocabulary.
-    # Detect a copied instruction even when its geography happens to be correct.
-    if re.search(
-        r"\b(?:POSTAL\s+ASSEMBLY|COUNTRY\s+OWNER\s+REGIONS|INVALID\s+OLD\s+VALUE|"
-        r"PREVIOUS\s+COMPLETE\s+ADDRESS|POSTAL\s+CORRECTION)\b"
-        r"|(?:\b|_)POSTAL_COMPONENT_[0-9]+\b\s*[\"']?\s*:"
-        r"|\b[A-Z_][A-Z0-9_]*_POSTAL_COMPONENT_[0-9]+\b"
-        r"|\bLEXICAL_[0-9]+(?:_[0-9]+)*\b"
-        r"|\bDOCUMENTPATCH\.PARTIES\.[A-Z_][A-Z0-9_]*(?:\[[0-9]+\])?"
-        r"(?:\.ADDRESS(?:LINE|_LINE(?:_[0-9]+)?))?\s*[\"']?\s*:",
-        address,
-        re.I,
-    ):
-        raise ValueError("generated postal text contains a generation instruction caption")
+    country: int
+    locality: int
+    short_country: int
+    terminal_code: bool
+    same_name: bool
 
+
+def postal_geography_counts(
+    address: str, *, locality: str, country: str, country_code: str
+) -> PostalGeographyCounts:
+    """Share exact matching between validation and fixed-component accounting."""
     def normalized(value: str) -> str:
         text = unicodedata.normalize("NFKD", value.casefold())
         text = "".join(char for char in text if not unicodedata.combining(char))
@@ -326,16 +326,48 @@ def validate_postal_geography(
         all_locality_hits,
     )
     code_at_end = re.search(rf"(?<!\w){re.escape(country_code.casefold())}$", text)
+    hits = separate(all_locality_hits, all_country_hits)
+    return PostalGeographyCounts(
+        len(country_hits), len(hits), len(short_country_hits), bool(code_at_end), place == nation
+    )
+
+
+def validate_postal_geography(
+    address: str, *, locality: str, country: str, country_code: str, country_labelled: bool
+) -> None:
+    """Check the explicit generation contract, not real-address deliverability.
+
+    The generator is asked to use the supplied locality spelling once. Reject
+    departures for correction; do not delete apparently duplicate text or guess
+    aliases. Country-only text cannot satisfy a distinct locality requirement.
+    """
+    # These are literal orchestration captions, not ordinary postal vocabulary.
+    # Detect a copied instruction even when its geography happens to be correct.
+    if re.search(
+        r"\b(?:POSTAL\s+ASSEMBLY|(?:COUNTRY|LOCALITY)\s+OWNER\s+REGIONS|INVALID\s+OLD\s+VALUE|"
+        r"PREVIOUS\s+COMPLETE\s+ADDRESS|POSTAL\s+CORRECTION)\b"
+        r"|(?:\b|_)POSTAL_COMPONENT_[0-9]+\b\s*[\"']?\s*:"
+        r"|\b[A-Z_][A-Z0-9_]*_POSTAL_COMPONENT_[0-9]+\b"
+        r"|\bLEXICAL_[0-9]+(?:_[0-9]+)*\b"
+        r"|\bREGION\s+[A-Z_][A-Z0-9_]*\s*\(\s*DOCUMENTPATCH\.PARTIES\."
+        r"[A-Z_][A-Z0-9_]*(?:\[[0-9]+\])?\s+POSTAL\s*\)"
+        r"|\bDOCUMENTPATCH\.PARTIES\.[A-Z_][A-Z0-9_]*(?:\[[0-9]+\])?"
+        r"(?:\.ADDRESS(?:LINE|_LINE(?:_[0-9]+)?))?\s*[\"']?\s*:",
+        address,
+        re.I,
+    ):
+        raise ValueError("generated postal text contains a generation instruction caption")
+
+    counts = postal_geography_counts(
+        address, locality=locality, country=country, country_code=country_code
+    )
     if not country_labelled and (
-        (country_hits and place != nation) or short_country_hits or code_at_end
+        (counts.country and not counts.same_name) or counts.short_country or counts.terminal_code
     ):
         raise ValueError("generated country was not requested for this party")
-    if country_labelled and len(country_hits) + bool(code_at_end) != 1:
+    if country_labelled and counts.country + counts.terminal_code != 1:
         raise ValueError("generated postal country must occur once as its supplied name or code")
-    # E.g. SAINT-PIERRE / SAINT PIERRE AND MIQUELON: the country's
-    # overlapping words are not a duplicate of the separately printed city.
-    hits = separate(all_locality_hits, all_country_hits)
-    if len(hits) != 1:
+    if counts.locality != 1:
         raise ValueError("generated postal locality must occur once with its supplied spelling")
 
 
@@ -612,7 +644,9 @@ _IDENTITY_CAPTION = re.compile(
     r"|\b(?:MANAGING\s+DIRECTOR|GERENTE(?:\s+GENERAL)?)\b"
     r"|\b(?:SHIPPER|CONSIGNEE|NOTIFY(?:\s+PARTY)?|DELIVERY\s+AGENT|FORWARDING\s+AGENT|CARRIER)\s*:"
     r"|\b(?:RIF|RFC|CIF|VAT|TIN|TAX\s*(?:ID|NUMBER)|REGISTRATION\s*(?:NO\.?|NUMBER))"
-    r"\s*[:#]?\s*[A-Z]?[- ]?\d",
+    r"\s*[:#]?\s*[A-Z]?[- ]?\d"
+    r"|\bTHIS\s+(?:LINE|VALUE|TEXT|FIELD)\s+IS\s+(?:(?:AN?|THE)\s+)?"
+    r"(?:NAME|IDENTITY|COMPANY\s+NAME)\s+FIELD\s+ONLY\s*:",
     re.I,
 )
 _ACTOR_RELATIONSHIP = re.compile(
@@ -674,6 +708,13 @@ def validate_wording(
             key.casefold()
             for key in (*fields, *wording_api_keys(expected[shipment.sample_id]).values())
         }
+        template_keys = reserved_field_lines | {
+            k.casefold()
+            for k in (
+                *fields,
+                *re.findall(r"\{([a-z][a-z0-9_]*)\}", expected[shipment.sample_id].context, re.I),
+            )
+        }
         if len(shipment.values) != len(fields) or {v.key for v in shipment.values} != set(fields):
             raise ValueError("wording output field coverage differs")
         values = {}
@@ -686,6 +727,11 @@ def validate_wording(
                 raise ValueError(f"{value.key}: empty generated region")
             if text.casefold() == "tbd":
                 raise ValueError(f"{value.key}: unfinished generated region")
+            if any(
+                key.casefold() in template_keys
+                for key in re.findall(r"\{([a-z][a-z0-9_]*)\}", text, re.I)
+            ):
+                raise ValueError(f"{value.key}: unresolved generation template variable")
             for line in text.splitlines():
                 _APPLICATION_TEXT.validate_python(line)
             if re.search(r"\\[nr]", text):

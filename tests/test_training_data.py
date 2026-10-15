@@ -82,7 +82,11 @@ def test_published_training_dataset_passes_full_cpu_inspection() -> None:
 
 
 @pytest.mark.parametrize("extra_null", [False, True])
-def test_reader_allows_only_task_authorized_explicit_nulls(tmp_path, extra_null):
+@pytest.mark.parametrize(
+    "task_name",
+    ["bill_of_lading_extraction_v7_reduced", "bill_of_lading_extraction_v7_reduced_direct"],
+)
+def test_reader_allows_only_task_authorized_explicit_nulls(tmp_path, extra_null, task_name):
     from types import SimpleNamespace
 
     from document_ocr.training.config import DatasetFileConfig
@@ -97,6 +101,8 @@ def test_reader_allows_only_task_authorized_explicit_nulls(tmp_path, extra_null)
     }
     if extra_null:
         target["documentPatch"]["billOfLadingNumber"] = None
+    if task_name == "bill_of_lading_extraction_v7_reduced_direct":
+        target = target["documentPatch"]
     path = tmp_path / "data.jsonl"
     payload = (
         json.dumps({"documentId": "test", "joinedRawText": "NOTIFY LTD", "target": target}) + "\n"
@@ -124,7 +130,7 @@ def test_reader_allows_only_task_authorized_explicit_nulls(tmp_path, extra_null)
             split="train",
             config=config,
             prompt=SimpleNamespace(render=lambda text: text),
-            task=get_training_task("bill_of_lading_extraction_v7_reduced"),
+            task=get_training_task(task_name),
             seen_document_ids=set(),
             collect_partition_metadata=False,
         )

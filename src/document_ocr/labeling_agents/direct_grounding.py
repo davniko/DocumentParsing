@@ -42,10 +42,18 @@ def source_fidelity_findings(
     if section == "cargo":
         for index, goods in enumerate(patch.get("goodsItemDetails") or []):
             for code in goods.get("hsCodes") or []:
-                if not isinstance(code, str) or not code.isascii() or not code.isdigit():
+                if not isinstance(code, str) or not code.isascii():
                     continue  # The application schema reports malformed value types.
+                digits = re.sub(r"[ .,:\-]", "", code)
+                if not re.fullmatch(r"[0-9]{6,20}", digits):
+                    continue
                 # Match presentation separators, never a prefix/suffix of a longer code.
-                pattern = r"(?<![\w.-])" + r"[.\s-]*".join(code) + r"(?!\w|[.-]\d)"
+                # Unlike a digit-group separator, an adjacent caption colon is valid.
+                pattern = (
+                    r"(?<![\w.,-])(?<![0-9]:)"
+                    + r"[.,:\s-]*".join(digits)
+                    + r"(?!\w|[.,:-]\d)"
+                )
                 values.append((f"goodsItemDetails[{index}].hsCodes", code, pattern))
     elif section == "route_transport":
         transport = patch.get("transport") or {}

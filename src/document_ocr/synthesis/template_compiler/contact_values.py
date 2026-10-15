@@ -309,6 +309,61 @@ def phone(stream: DeterministicStream, *, country_code: str) -> str:
     raise ValueError(f"no valid synthetic subscriber in the certified prefix for {country_code}")
 
 
+@lru_cache(maxsize=256)
+def _fax_prefix(country_code: str) -> str:
+    example = phonenumbers.example_number_for_type(
+        country_code, phonenumbers.PhoneNumberType.FIXED_LINE
+    )
+    if example is None:
+        raise ValueError(f"no fixed-line numbering metadata for {country_code}")
+    if not phonenumbers.is_valid_number_for_region(
+        example, country_code
+    ) or phonenumbers.number_type(example) not in (
+        phonenumbers.PhoneNumberType.FIXED_LINE,
+        phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
+    ):
+        raise ValueError(f"fixed-line numbering metadata is invalid for {country_code}")
+    return phonenumbers.format_number(example, phonenumbers.PhoneNumberFormat.E164)
+
+
+def fax(
+    stream: DeterministicStream, *, country_code: str, excluded: tuple[str, ...] = ()
+) -> str:
+    """Generate a country-valid fixed-line number, not a certified fax subscriber.
+
+    The entity country is explicit: a fax must not silently reuse the mobile
+    generator. Exclusions accept international or country-contextual national
+    numbers; malformed exclusions surface instead of being ignored. Like phone
+    synthesis, valid syntax does not establish that a real number is unassigned.
+    """
+    base = _fax_prefix(country_code)
+    blocked: set[str] = set()
+    for value in excluded:
+        try:
+            number = phonenumbers.parse(value, country_code)
+        except phonenumbers.NumberParseException as error:
+            raise ValueError("excluded fax is not a parseable phone number") from error
+        blocked.add(phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164))
+    start = stream.randbelow(10000)
+    # Vary the subscriber suffix only; pinned metadata owns the country/area
+    # prefix and the validity/type checks own every returned candidate.
+    for offset in range(10000):
+        candidate = base[:-4] + f"{(start + offset) % 10000:04d}"
+        if candidate in blocked:
+            continue
+        number = phonenumbers.parse(candidate, None)
+        if phonenumbers.is_valid_number_for_region(
+            number, country_code
+        ) and phonenumbers.number_type(number) in (
+            phonenumbers.PhoneNumberType.FIXED_LINE,
+            phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
+        ):
+            return phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+    raise ValueError(
+        f"no valid synthetic fax subscriber in the certified prefix for {country_code}"
+    )
+
+
 def validate_mailbox(value: str) -> None:
     """Accept a single ASCII dot-atom mailbox, not display names or OCR noise."""
     if len(value) > 254 or value.count("@") != 1:

@@ -48,6 +48,7 @@ _EQUIPMENT_WORDS = frozenset(
         "RK",
         "RO",
         "RQ",
+        "NOR",  # Reviewed non-operating reefer equipment, not unrelated prose.
         "DR",
         "DV",
         "DC",
@@ -71,6 +72,7 @@ _EQUIPMENT_WORDS = frozenset(
         "CUBE",
         "HI",
         "FULL",
+        "FCL",  # Loading framing can occur between height and reefer wording.
         # These are already reviewed carrier tokens in container_semantics.
         "EC",
         "EQ",

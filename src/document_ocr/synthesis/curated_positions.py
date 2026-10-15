@@ -27,7 +27,7 @@ from document_ocr.spatial_inputs.alignment import (
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.curated_layout import GRID, METHOD, PositionPolicy, augment_page
 from document_ocr.synthesis.curated_position_regions import place_region
-from document_ocr.synthesis.curated_publication import _write_new_or_identical
+from document_ocr.synthesis.curated_publication import _write_new_or_identical, decoder_target
 from document_ocr.synthesis.curated_reflow import ReflowEngine
 
 
@@ -426,7 +426,9 @@ def position_campaign(campaign) -> dict:
         sid, sample_id = row["sourceDocumentId"], row["documentId"]
         candidate = json.loads((root / "candidates" / f"{sample_id}.json").read_text())
         campaign.replay_candidate(candidate)
-        if any(row[k] != candidate[k] for k in row):
+        expected = {key: candidate[key] for key in row if key != "target"}
+        expected["target"] = decoder_target(candidate["target"])
+        if row != expected:
             raise ValueError("published row differs from replayed candidate")
         alignment = alignments[sid]
         if alignment["document_id"] != sid:

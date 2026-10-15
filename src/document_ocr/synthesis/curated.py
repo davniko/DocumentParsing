@@ -131,6 +131,12 @@ class Variable(StrictModel):
             "classification and protected specifications. Product regions cover the main "
             "product passage or genuine continuation, separate from loading introductions "
             "and detached accounting/tracking text. Uncertain boundaries require review."
+            " Public carrier companies remain fixed; named employees and private contacts "
+            "are separate mutable identities, including all repeated occurrences."
+            " Tax/registration/customs identifiers and shipment/customer/commercial "
+            "references have distinct mutable owners, including continuation-page aliases. "
+            "Public carrier corporate registrations, SCACs and form constants stay fixed; "
+            "a customer/booking reference is private even when assigned by a carrier."
         ),
     )
     required_literals: list[str] = Field(
@@ -178,7 +184,8 @@ class SourceContract(StrictModel):
             "Disjoint mutable regions. Repeated parties use one coherent "
             "variable, not independent addresses. Separate tax/contact data "
             "remain outside postal "
-            "regions."
+            "regions. Source-only individuals and personal mailboxes also need owners, "
+            "without inventing extraction-party roles."
         ),
     )
     targets: list[TargetBinding] = Field(
