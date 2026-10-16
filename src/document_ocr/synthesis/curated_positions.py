@@ -8,6 +8,7 @@ no text matching, target labels or invented missing source boxes are used.
 from __future__ import annotations
 
 import json
+import re
 import time
 from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
@@ -253,6 +254,60 @@ def _geometry_rows(path, pdfs: list[str], columns=None):
             batch_size=1024, row_groups=groups, columns=columns, use_threads=False
         ):
             yield from (r for r in batch.to_pylist() if r["document_id"] in wanted)
+
+
+def transfer_existing_positions(
+    source: str, positioned: str, rendered: str, proof: dict
+) -> tuple[str, dict]:
+    """Apply owned text edits in the *current* synthetic coordinate frame.
+
+    No global rematching, page augmentation or original-template rerendering is
+    allowed here: those would erase previously reflowed private-party anchors.
+    Contractions can use their existing owned anchor span. Expansion without
+    current-frame measured clearance remains explicitly unpositioned.
+    """
+    physical = positioned.splitlines()
+    if len(physical) != len(source.splitlines()):
+        raise ValueError("current positioned input has a different physical line count")
+    pages = sum(bool(PAGE_MARKER.fullmatch(s.strip())) for s in source.splitlines())
+    if not pages:
+        raise ValueError("current positioned input has no page boundaries")
+    lines = []
+    for line in parse_lines(source, pages):
+        text = physical[line.number - 1]
+        if not text.startswith(line.text):
+            raise ValueError("current positioned text differs from raw input")
+        match = re.fullmatch(r" \|\|(?: (\d+),(\d+))?", text[len(line.text) :])
+        if match is None:
+            raise ValueError("current coordinate suffix is malformed")
+        xy = [int(match[1]), int(match[2])] if match[1] is not None else None
+        lines.append(
+            dict(line_number=line.number, page_index=line.page, original_text=line.text, xy=xy)
+        )
+    if enrich(source, {r["line_number"]: r["xy"] for r in lines}) != positioned:
+        raise ValueError("current positioned input is not the exact raw-text projection")
+    alignment = dict(
+        original_input_sha256=digest(source.encode()),
+        positioned_input_sha256=digest(positioned.encode()),
+        lines=lines,
+    )
+    text, receipt = transfer_positions(source, rendered, proof, alignment)
+    old = {r["line_number"]: r for r in lines}
+    unchanged = 0
+    for line in receipt["lines"]:
+        if not line["edits"]:
+            if len(line["source_lines"]) != 1:
+                raise ValueError("unchanged line has ambiguous current ownership")
+            original = old[line["source_lines"][0]]
+            if line["xy"] != (tuple(original["xy"]) if original["xy"] is not None else None):
+                raise ValueError("unchanged current line lost its anchor")
+            unchanged += 1
+    return text, {
+        **receipt,
+        "method": "current_owned_anchor_transfer_v1",
+        "unchangedAnchorsVerified": unchanged,
+        "sourcePositionedSha256": digest(positioned.encode()),
+    }
 
 
 def load_page_geometry(project_root, dataset, alignments: dict) -> tuple[dict, dict]:

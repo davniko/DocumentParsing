@@ -6,6 +6,50 @@ Status: **proposals and measured baseline, not authorization to change the datas
 
 ## 1. Objective and current decision
 
+### Planned controlled experiment added 2026-10-16: direct ISO2 country targets
+
+Test emitting **ISO 3166-1 alpha-2 codes for every supported country field**
+(parties, route locations, place of issue and freight payment place), rather
+than printed party wording or normalized location names. Preserve role ownership
+and missing-country semantics: this is country normalization, not geocoding from
+a city, telephone or company name. Do not change locality-name targets.
+
+The [country audit and base-model probe](kie-country-presentations-audit-2026-10-15.md)
+provide encouraging evidence of existing country associations. The saved
+held-out few-shot test obtains accepted first-answer country names for 190/245
+observed presentations, although 179 inputs are already ISO country names.
+Alternative forms also show useful signal, including 11/15 ISO2 inputs and
+18/23 language/legacy aliases. These are isolated mapping diagnostics, **not**
+measured direct alias-to-ISO2 document extraction or proof that the experiment
+will succeed.
+The [country-presentation probe](kie-country-rendering-probe-2026-10-16.md)
+separates the current target-policy inconsistencies from rendering variability.
+
+Keep this a separately named target-contract experiment with frozen validation
+identities, paired country/alias-family metrics, and explicit ambiguity cases
+(`A.R.E` versus ISO3 `ARE`). No ISO2 target migration or training launch is
+authorized by documenting the experiment.
+
+### Priority correction added 2026-10-15: LLM-generated DG descriptions
+
+**P0 — dangerous-goods commercial wording must use the same LLM generation
+path as ordinary goods.** The current `host_product_wording` shortcut replaces
+DG chemical and whole-unit vehicle descriptions with a sampled registry phrase,
+omitting the product fields from the wording request. This is a synthesis defect,
+not the intended policy: it suppresses descriptive variation and can collapse a
+long source product block into a chemical name.
+
+Keep sampled DG identities and regulatory declarations as authoritative facts;
+do not confuse those facts with ownership of the commercial description. Generate
+compatible description wording with the LLM, preserve separately printed DG
+declarations and their existing field-presence rules, and derive the description
+label from the final rendered block. Validate fresh synthesis and migrate current
+synthetic DG descriptions without changing unrelated targets or input formatting.
+**Resolved:** generation, source bindings and all455 affected unique synthetic
+documents have been repaired and validated. See the
+[DG wording correction report](kie-dg-llm-wording-repair-2026-10-15.md) for scope,
+live tests, preservation checks, review decisions and the R26 publication.
+
 The objective remains field F1 and field accuracy both above 0.90, ideally at least 0.95, on the complete intended extraction task. Strong performance on selected stable fields does not establish full-target performance.
 
 The next development directions are:

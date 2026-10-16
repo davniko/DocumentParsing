@@ -13,7 +13,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from decimal import Decimal
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from document_ocr.synthesis.container_semantics import (
     canonical_equipment_surface,
@@ -51,6 +51,9 @@ from document_ocr.synthesis.template_compiler.descendant import (
     _package_candidate,
     _render_date_surface,
 )
+
+if TYPE_CHECKING:
+    from document_ocr.synthesis.curated_countries import CountryRenderPlan
 
 _CANONICAL_MEASUREMENT_VALUE = re.compile(r"\.(?:grossWeight|netWeight|volume)\.value$")
 _PHYSICAL_SUM_DERIVATIONS = frozenset({"sum_gross_weight", "sum_net_weight", "sum_volume"})
@@ -637,6 +640,7 @@ def render_sampling_blueprint(
     render_casing: RenderCasing = "preserve",
     target_casing: TargetCasing = "uppercase",
     phone_rendering: PhoneRenderPlan | None = None,
+    country_rendering: CountryRenderPlan | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Render a sampled current target with explicit coverage and byte receipts.
 
@@ -662,6 +666,8 @@ def render_sampling_blueprint(
         phone_rendering.validate_for(blueprint, sampled_target)
         if set(phone_rendering.target_values) != changed_phones:
             raise ValueError("phone presentation plan does not cover exactly the changed phones")
+    if country_rendering is not None:
+        country_rendering.validate_for(blueprint, sampled_target)
     expected_descriptions = {p for p in before if p.endswith(".description")}
     projected_paths = blueprint.description_blocks.paths if blueprint.description_blocks else set()
     if expected_descriptions != projected_paths:
@@ -826,6 +832,18 @@ def render_sampling_blueprint(
         (region, container_rendering.project_region(region, text))
         for region, text in rendered_regions
     ]
+    country_projection = (
+        country_rendering.apply_regions(
+            rendered_regions,
+            variable_values=variable_values,
+            render_casing=render_casing,
+            target_casing=target_casing,
+        )
+        if country_rendering is not None
+        else None
+    )
+    if country_projection is not None:
+        rendered_regions = country_projection.regions
     raw, parts, cursor, edits = blueprint.source.encode(), [], 0, []
     for region, text in rendered_regions:
         parts.extend((raw[cursor : region.start], text.encode()))
@@ -886,6 +904,15 @@ def render_sampling_blueprint(
             else:
                 changed.discard(path)
                 covered.discard(path)
+    if country_projection is not None:
+        for path, value in country_projection.target_values.items():
+            assign(target, path, value)
+            if before[path] != value:
+                changed.add(path)
+                covered.add(path)
+            else:
+                changed.discard(path)
+                covered.discard(path)
     return (
         result.decode(),
         target,
@@ -907,6 +934,11 @@ def render_sampling_blueprint(
             **(
                 {"containerIdentifierPresentations": container_rendering.receipt()}
                 if container_rendering.records
+                else {}
+            ),
+            **(
+                {"countryPresentations": country_projection.receipt}
+                if country_projection is not None
                 else {}
             ),
             **({"renderCasing": render_casing} if render_casing != "preserve" else {}),

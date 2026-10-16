@@ -1,8 +1,10 @@
 # Goods-description prompt scope: manual comparison
 
-Date: 2026-10-15. **Completed, probe-only.** No production prompt, schema,
-template, training configuration or dataset was changed. Country diagnosis and
-GPU/model experiments remain outside this pass.
+Date: 2026-10-15. **Probing and approved production integration completed.** The
+earlier sections record probe-only experiments; the final section records the
+subsequent thermal/DG validation and integration of the second polish. No schema,
+template, training config or published dataset was changed. Country diagnosis
+and GPU/model experiments remain outside this work.
 
 **Follow-up completed:** qualifier-rich sources were tested next, including a
 real-training occurrence of `99.7% AS PER ISRI` and an admitted `3930X50 KG`
@@ -20,6 +22,12 @@ single contextual-boundary clarification:100 proposals, all directly reviewed.
 No added tariff caption was found; some catalogue/detail contraction persists.
 No classifier or source profile was used. See
 [the latest findings](#classifier-free-contextual-boundary-retry-2026-10-15).
+
+**Approved integration completed after thermal/DG checks:** the second polish is
+now the production default. Original and first-polish prompts are archived as
+reference files. Eight thermal cases, one NOR case and six host-owned DG controls
+were checked through rendering and coordinates;1,688 synthesis tests pass. See
+[the integration results](#thermaldg-validation-and-production-integration).
 
 ## Explicit source counts improve description scope
 
@@ -905,3 +913,169 @@ suites and the production metric/relation/order tests. The separate training
 audit replays every saved native field/category/relation metric without changing
 historical gold. This is validation of the probe's controls and measurements,
 not a claim that every generated proposal preserves every desirable detail.
+
+## Thermal/DG validation and production integration
+
+**DG correction, 2026-10-15:** the historical host-only DG controls below document
+the implementation at that time, not the intended policy. The user has explicitly
+rejected the host-owned commercial-description shortcut. DG prose must be generated
+by the LLM; sampled regulatory facts remain separate. The subsequent
+[DG wording repair](kie-dg-llm-wording-repair-2026-10-15.md) supersedes that shortcut
+and records live generation, registry-binding corrections and dataset migration.
+
+The user selected the **second classifier-free polish**, including its contextual
+boundary, as the preferred production treatment. This section documents the
+requested thermal/DG checks **before** that production change, then the exact
+integration and regression checks. It does not claim to eliminate the previously
+observed meter-to-fabric contraction; that known variation remains in the evidence.
+
+### What was tested on the actual paths
+
+Eight distinct thermal templates and one ambient NOR template each receive two
+proposals under A and two under B:36 final wording proposals. The templates cover:
+
+|Case / sampled product|Relevant host facts preserved|
+|---|---|
+|Chilled garlic|0°C; three containers; ventilation0CBM/H|
+|Fresh/chilled apples|+1°C; positive ventilation20CBM/H|
+|Fresh Cavendish bananas|13°C; separately host-owned box type and per-box net/gross wording|
+|Frozen shark fins, from a blueberry source|−24°C; host-owned carton count and13.61kg packing framing|
+|Frozen halibut, from a split casings source|−21.5°C; two lexical fragments; three containers|
+|Frozen jack/horse mackerel, from a buffalo source|−20°C; adapt the source's animal/product qualifiers rather than copy its commodity|
+|Frozen cod-family fish|−22°C and explicit carrying instruction|
+|Frozen fish livers/roe/milt|−19°C; retain the new product rather than source shrimp anatomy|
+|Ambient machine-tool parts in NOR equipment|Refrigerated equipment with printed NOR and **no temperature setting**|
+
+The count reference covers **only model-owned lexical source regions**, once
+each—not parties, repeated printouts or host-owned packing. Thus the banana
+example has9 model-owned words despite23 words in the complete source description.
+Soft counts do not delete the existing host-owned qualifiers from the final target.
+
+Six additional DG controls cover UN-only; UN/class; UN/class/PG; PG plus flash;
+PG plus subsidiary hazard and flash; and battery-electric vehicles. Crucially,
+**these are not chemical product-generation calls**: the existing production path
+uses exact registry identities for `dg_chemical` and exact identities for whole-unit
+vehicle loads. Their `goods_only` wording requests correctly have **zero fields**.
+No guard was bypassed to manufacture a DG prompt test. Their controls establish
+host ownership and render/label invariance, including:
+
+- Cyclopentanol UN2244/class3, without inventing an unprinted PG.
+- Allyl acetate UN2333 only, without adding the registry's unprinted class/PG/subsidiary.
+- 2-Ethylhexylamine UN2276/class3/PGIII, without adding an unprinted subsidiary.
+- Ethylbenzene UN1175/class3/PGII/flash12.8°C.
+- Isobutyronitrile UN2284/class3/PGII/subsidiary6.1/flash8.3°C.
+- Battery-electric vehicles UN3171/class9 without invented PG/flash fields.
+
+This is the correct scope of the DG result: the prompt change leaves the existing
+safe path intact. It is **not** evidence for a new ability to freely rewrite
+regulated chemical identities while retaining their old UN tuple.
+
+### Findings and explicit holds
+
+All18 B variations pass the existing wording gate after its normal bounded
+correction flow. Eight B cases pass immediately. In the two-word apple case,
+both A and B initially returned `FRESH APPLES`, triggering the existing copied-source
+guard. Each arm receives the **same one recorded repair allowed by production**:
+
+- B returns `CHILLED FRESH APPLES` and `FRESH APPLES, CHILLED`; both pass.
+- A still contains one unchanged `FRESH APPLES`; that control batch remains
+  explicitly **held**, not silently accepted or rerolled indefinitely.
+
+Raw initial and repair outputs are preserved. The held A batch is rendered for
+diagnostic inspection only and marked `held_control`; it is not an approved
+training sample. The existing novelty rule was not weakened to make the trial pass.
+
+No B proposal added an HS declaration, container inventory, numerical carrying
+setting, ventilation declaration or new shipment total to the product region.
+The frozen forms remain expressed and host settings are unchanged. Source buffalo
+and shrimp descriptions become the sampled fish products instead of retaining the
+old commodity. The NOR control remains ambient despite its reefer equipment.
+New intrinsic/per-unit specifications are assessed against the extraction-training
+objective, not exact HS/product classification or inferred shipment arithmetic.
+For transparency, one shark-fin variation adds `DRIED` while still printing
+`FROZEN`; this is retained as synthetic processing wording, not asserted to be an
+authoritative product specification. It changes neither the supplied freezer
+setting nor a structured accounting/thermal fact. No real-document label is
+rewritten on the basis of that invented qualifier.
+
+### Rendering, labels and geometry
+
+The36 final wording proposals plus six DG controls produce **42 inspection
+renders**, using the existing lexical assembly, source-owned renderer, independent
+description projection, source-position transfer, calibrated reflow and page
+augmentation. These are isolated inspection artifacts, not published descendants.
+
+All non-description targets remain **identical to matched current-renderer
+controls**: parties, HS values, dates, package counts, allocations, weights,
+equipment, temperatures, ventilation and DG facts. Independent checks re-project
+description labels from the exact rendered source-owned spans; coordinate suffix
+removal preserves every text character, line and page. Grid coordinates remain
+integer0–1000. Reflow records21 accepted page layouts and68 pages with no eligible
+reflow; **zero rejected/failed page proposals**. Coverage is3,947/4,714 content
+lines, **83.73%** on this selected thermal/DG inspection set, not an all-dataset
+coverage estimate.
+
+The archived candidate capsules predate the phone/ID presentation improvements.
+Controls therefore use the **current** production renderer and phone presentation
+plan, not a bypass of its guards. Any phone-target presentation difference from
+the archived capsule is explicitly recorded in `currentRendererControl` in the
+frozen design; no other target difference is allowed at that control step. Both
+prompt arms share that same control. These presentation migrations must not be
+misattributed to the goods-prompt change.
+
+### Production changes and archives
+
+- `curated_wording.py`: live system uses the tested approximate-count wording;
+  `goods_wording_requirement(count)` owns the tested count, source-like detail and
+  contextual-boundary instructions. Counts are positive integers, not hard quotas.
+- `curated_campaign.py`: counts first source examples across model-owned product
+  variables once and supplies the same total to each requested product fragment.
+  Party fields remain unchanged; host-owned chemical/whole-unit products never
+  enter this helper.
+- [Prompt archives](prompt-archives/goods-wording-20261015/README.md): exact original
+  and first-polish system/field instructions, with pre-change source-file hashes.
+  These are reference files, **not** runtime alternatives, dead commented-out code
+  or silent compatibility paths.
+- `test_curated_goods_wording_policy.py`: count/group/duplicate-occurrence guards,
+  unchanged native schema shape, archived-system equality and host-product isolation.
+
+After integration, all15 source/scenario requests exactly match the frozen B
+treatment tested before integration, including system text, field descriptions,
+source examples, context, description groups and mass bounds. Existing request
+hashing includes the changed prompt/requirements, so old receipts cannot silently
+masquerade as generations from the new prompt. Reprocessing should use a fresh
+campaign output; no historical receipt is rewritten or retagged here.
+
+### Measurements and closure
+
+- **1,688 curated-synthesis tests pass in62.95s**; the initial focused429 also pass.
+  Ruff and `git diff --check` pass. Three injected negative controls also fail
+  correctly: a changed description target, an out-of-grid coordinate, and a
+  missing render. The independent audit does not approve incomplete coverage.
+- Request construction:609.03→632.26µs median over seven450-request repetitions,
+  a23.23µs increase (**0.023ms**, negligible relative to model requests). Process
+  peak RSS222.02→223.31MiB, not a measured persistent memory leak.
+- Native structured generation:18 successful paired calls plus two bounded repair
+  calls; four preserved zero-cost upstream429 rejections. **No classifier calls.**
+  Total cost **$0.00441120**, including both arms and repairs.
+- Tokens:31,060 input;1,194 output, of which96 reasoning and1,098 visible;
+  7,040 cache-read input tokens. A/B median base-call times9.64/8.77s. B's base
+  input volume is20.4% larger; observed base cost is10.6% higher, with different
+  cache usage. No universal latency or bulk-price claim is made from this probe.
+- The42-render/reflow pass takes7.86s before report-status annotation. Published
+  R25 dataset files all match their ten manifest hashes. Of the frozen production
+  source pins, **only the two intended synthesis modules changed**; selected
+  source assets, templates, scenarios and historical candidates remain unchanged.
+- **No dataset reprocessing, training, GPU inference, schema change or template
+  rebase was performed.** The approved prompt integration is complete and ready
+  for future synthesis/reprocessing under the existing review/publication gates.
+
+Evidence: [source descriptions and coordinate-enriched inspection renders](analysis/goods-description-thermal-dg-probe-20261015/SOURCE_VARIATIONS.md),
+[frozen design and exact cases](analysis/goods-description-thermal-dg-probe-20261015/design.json),
+[all native receipts](analysis/goods-description-thermal-dg-probe-20261015/calls),
+[render/host invariance](analysis/goods-description-thermal-dg-probe-20261015/render-validation.json),
+[independent projection/coordinate checks](analysis/goods-description-thermal-dg-probe-20261015/independent-validation.json),
+[injected negative controls](analysis/goods-description-thermal-dg-probe-20261015/negative-controls.json),
+[call accounting](analysis/goods-description-thermal-dg-probe-20261015/call-accounting.json),
+[before](analysis/goods-description-thermal-dg-probe-20261015/benchmark-before.json) /
+[after](analysis/goods-description-thermal-dg-probe-20261015/benchmark-after.json) request timings.

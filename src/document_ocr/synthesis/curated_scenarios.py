@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes, sha256_file
 from document_ocr.synthesis.config import TransportCapacityConfig
+from document_ocr.synthesis.country_presentations import Registry as CountryPresentations
 from document_ocr.synthesis.country_registry import CountryRegistry, load_iso_country_registry
 from document_ocr.synthesis.curated_dg_flash import DgFlashPointRegistry, load_flash_points
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix, capacity_assignment
@@ -875,7 +876,7 @@ class ScenarioCatalog:
         self,
         *,
         config: ScenarioSamplingConfig,
-        countries: CountryRegistry,
+        countries: CountryRegistry | CountryPresentations,
         hs: UkGlobalTariffRegistry,
         phrases: Mapping[str, str],
         ports: Mapping[str, tuple[ScenarioLocation, ...]],
@@ -1082,6 +1083,8 @@ class ScenarioCatalog:
         config: ScenarioSamplingConfig,
         train_rows: Sequence[Mapping[str, Any]],
         validation_ids: frozenset[str],
+        *,
+        country_presentations: CountryPresentations | None = None,
     ) -> ScenarioCatalog:
         countries = load_iso_country_registry(
             iso_path=_pin(root, config.countries), iso_sha256=config.countries.sha256
@@ -1147,7 +1150,7 @@ class ScenarioCatalog:
         )
         return cls(
             config=config,
-            countries=countries,
+            countries=country_presentations or CountryPresentations.load(root),
             hs=hs,
             phrases=phrases,
             ports={k: tuple(v) for k, v in ports.items()},

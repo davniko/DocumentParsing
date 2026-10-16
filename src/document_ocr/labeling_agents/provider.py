@@ -171,11 +171,15 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
         "captions, titles, copy stamps, release terms and surrender boilerplate do not "
         "determine this target."
     ),
-    "placeOfIssue": "Printed place of issue, keeping locality and country text as written.",
+    "placeOfIssue": (
+        "Explicit place of issue: preserve the printed locality wording and normalize its "
+        "supported country identity to the pinned preferred English name."
+    ),
     "route": (
         "Only locations under their exact receipt/loading/transshipment/discharge/delivery/final-"
-        "destination route roles; keep printed locality/country text rather than ISO or UN/LOCODE "
-        "codes and never infer a route role from sequence."
+        "destination route roles; preserve printed locality wording, normalize supported "
+        "country identities to pinned preferred English names, and never infer a route role "
+        "from sequence or add an inferred UN/LOCODE."
     ),
     "placeOfReceipt": "Location explicitly headed as place of receipt, not port of loading.",
     "portOfLoading": "Sea port explicitly headed as port of loading, not place of receipt.",
@@ -323,7 +327,12 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
         "contacts, or IDs."
     ),
     "city": "Printed city/locality as written, without inferred standardization.",
-    "country": "Printed country text as written; never infer an ISO code.",
+    "country": (
+        "Country identity explicitly supported by this role's own OCR country wording or code, "
+        "normalized to the pinned preferred English name in uppercase. Preserve literal "
+        "address/locality wording in its own field. Omit and flag unresolved country identity; "
+        "never infer it from a city, telephone or another party."
+    ),
     "contactDetails": (
         "Explicit contact details belonging to this role-headed party. For a notify party with "
         "sameAs, these may be the only accompanying fields and override the referenced party's "

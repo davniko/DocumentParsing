@@ -1,10 +1,10 @@
-dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/thermal-expansion30-20261014/real704
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset
 output: artifacts/kie-synthesis-production/curated-v7-refresh900-20261014/uae-package-bulk_powder_container_load
 ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
 auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
 environment_file: .env
 task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
-task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+task_constraints_sha256: a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77
 seed: 159355634696205
 variants_per_source: 2
 casing:
@@ -461,3 +461,20 @@ template_sampling:
     doc_5c2fdc31e60e1b85600907b20b5303554de0aa6293feb162ff71c2c9f4eea90f: 2
     doc_b27f5fad9cd14a7a2a431f0118a63254f77712a59c00a3b9ae4c5394cb2cdf0a: 2
     doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46: 2
+country_registry_manifest: artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/production-manifest.json
+country_registry_sha256: aa8f579b7a5855a47b11dca35b27c38198f07d090d801b6c1fe86917c4b854b4
+country_presentations:
+  alias_probability: 0.3
+  family_weights:
+    name: 1.0
+    iso2: 1.0
+    iso3: 1.0
+    abbreviation: 1.0
+    dotted_code: 1.0
+    localized_name: 1.0
+  language_allowlist:
+  - en
+  - it
+  - fr
+  - es
+  unavailable_family_policy: renormalize_eligible

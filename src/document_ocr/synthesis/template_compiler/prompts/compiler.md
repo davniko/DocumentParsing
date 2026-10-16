@@ -19,6 +19,13 @@ paths; do not classify the second role as an unprinted semantic-only fact. If
 the complete shared footnote repeats on several pages, represent it as one
 bounded `agent_residual` composite with identical target paths on every
 occurrence. This is distinct from independent, coincidentally equal contacts.
+For consignee contacts, a goods-area-only footnote is excluded even when marked
+for that role; do not add or bind it to a consignee contact target. Report an
+incompatible supplied target for source-label review rather than certifying it.
+Preserve valid notify/other-role ownership and source-only private generation.
+This restriction does not exclude a directly printed consignee contact merely
+because it repeats in the goods area. Explicitly linked, OCR-supported consignee
+postal/country continuations remain eligible there.
 
 Continue role ownership across page breaks and explicit footnote markers. An address
 continuation beneath cargo-table headers on the next page is not thereby a cargo item.
@@ -212,8 +219,17 @@ Use `sum_package_quantity` for an explicit sum over named package rows, `equipme
 combined count/size wording, and `number_to_words` with quantity/type paths for `ONE (1) WOODEN
 CASE`. A generic `PK` unit in `TOTAL PKGS` is not a conflicting carton or pallet category.
 
-Read every source line. Find every exact source substring that is any of the following and is not
-already inside an anchor binding:
+Read every source line and re-audit every historical accepted anchor when rebasing. An anchor is
+not a privacy disposition when its target field has been dropped or its role changed. Review those
+exact owned occurrences as well as unanchored text. A known private shipment/commercial reference
+needs an identifier-typed source-only owner, its explicit private disposition and the existing
+source-format auxiliary generator before certification; preserve all independently printed repeats.
+For a new or corrected compiler binding use deterministic_auxiliary with value_kind=identifier,
+not a removed target path or an unreviewed other_text owner. Do not blindly retype dates, captions,
+public carrier identities or fixed legal constants as private identifiers: retain their actual
+semantic kind and record the supported disposition. Do not add overlapping duplicate owners.
+Find every exact source substring that is any of the following, including a historical anchor
+whose old target ownership no longer applies:
 
 1. A task-target fact or repeated copy of one.
 2. A source-only private or shipment-specific fact: booking, invoice, customs/tax/VAT, contract,

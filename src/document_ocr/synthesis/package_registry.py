@@ -1,9 +1,9 @@
 """Pinned package vocabulary and train-only printed-surface support.
 
-The MPCI package registry is an application vocabulary, while the printed text
-on a bill of lading is evidence.  These contracts keep those two layers
-separate: category tokens are validated against the pinned registry and exact
-printed variants remain an empirical, train-only inventory.
+The application registry and reviewed extraction-only extensions are separate
+authorities. Category tokens are validated against their pinned vocabulary;
+an extraction-only category never acquires an invented application code.
+Exact printed variants remain an empirical, train-only inventory.
 """
 
 from __future__ import annotations
@@ -14,10 +14,17 @@ import unicodedata
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from document_ocr.category_registry import (
+    ApplicationRegistrySource,
+    SemanticCategoryExtension,
+    application_code,
+    validate_semantic_extensions,
+    verify_application_registry_source,
+)
 from document_ocr.hashing import sha256_bytes
 
 CategoryToken = Annotated[
@@ -37,9 +44,7 @@ def package_category_surface_present(value: str, category: str) -> bool:
     """Match noun-plus-material category tokens in natural printed word order."""
     if not category.startswith("PACKAGE_"):
         raise ValueError(f"unsupported package category token: {category!r}")
-    if category == "PACKAGE_INTERMEDIATE_BULK_CONTAINER" and re.search(
-        r"\bIBCS?\b", value, re.I
-    ):
+    if category == "PACKAGE_INTERMEDIATE_BULK_CONTAINER" and re.search(r"\bIBCS?\b", value, re.I):
         return True
     for word in category.removeprefix("PACKAGE_").split("_"):
         variants = {word, word + "S"}
@@ -53,12 +58,12 @@ def package_category_surface_present(value: str, category: str) -> bool:
 
 
 class PackageRegistryEntry(BaseModel):
-    """One exact application category and its deployed code."""
+    """One extraction category and its exact application code, where one exists."""
 
     model_config = _STRICT
 
     categoryToken: CategoryToken
-    applicationCode: ApplicationCode
+    applicationCode: ApplicationCode | None
     displayName: NonEmptyText
 
     @model_validator(mode="after")
@@ -75,18 +80,22 @@ class PackageRegistryPayload(BaseModel):
 
     model_config = _STRICT
 
-    schemaVersion: Annotated[int, Field(ge=1)]
+    schemaVersion: Literal[1, 2]
     registryKind: Annotated[str, StringConstraints(pattern=r"^package$")]
     sourceAuthority: NonEmptyText
     sourceRevision: NonEmptyText
     sourcePath: NonEmptyText
     sourceSha256: Sha256
     entries: tuple[PackageRegistryEntry, ...] = Field(min_length=1)
+    semanticExtensions: dict[CategoryToken, SemanticCategoryExtension] = Field(default_factory=dict)
+    applicationRegistry: ApplicationRegistrySource | None = None
 
     @model_validator(mode="after")
     def entries_are_canonical(self) -> PackageRegistryPayload:
         tokens = tuple(row.categoryToken for row in self.entries)
-        codes = tuple(row.applicationCode for row in self.entries)
+        codes = tuple(
+            row.applicationCode for row in self.entries if row.applicationCode is not None
+        )
         names = tuple(row.displayName for row in self.entries)
         if len(tokens) != len(set(tokens)):
             raise ValueError("package registry categoryToken values must be unique")
@@ -94,6 +103,15 @@ class PackageRegistryPayload(BaseModel):
             raise ValueError("package registry applicationCode values must be unique")
         if len(names) != len(set(names)):
             raise ValueError("package registry displayName values must be unique")
+        validate_semantic_extensions(
+            self.schemaVersion,
+            self.registryKind,
+            {row.categoryToken for row in self.entries if row.applicationCode is None}
+            if len(codes) != len(self.entries)
+            else set(),
+            self.semanticExtensions,
+            self.applicationRegistry,
+        )
         return self
 
 
@@ -113,6 +131,9 @@ class LoadedPackageRegistry(BaseModel):
             if row.categoryToken == category_token:
                 return row
         raise ValueError(f"package category is absent from pinned registry: {category_token!r}")
+
+    def application_code(self, category_token: str) -> str:
+        return application_code(category_token, self.entry(category_token).applicationCode)
 
     @property
     def category_tokens(self) -> frozenset[str]:
@@ -255,6 +276,12 @@ def load_package_registry(
             f"package registry SHA-256 mismatch: expected {expected_sha256}, found {actual_sha256}"
         )
     payload = PackageRegistryPayload.model_validate_json(b"".join(payload_parts), strict=True)
+    if payload.applicationRegistry is not None:
+        verify_application_registry_source(
+            resolved,
+            payload.applicationRegistry,
+            [entry.model_dump(mode="json") for entry in payload.entries],
+        )
     if len(payload.entries) != expected_entries:
         raise ValueError(
             "package registry entry count mismatch: "

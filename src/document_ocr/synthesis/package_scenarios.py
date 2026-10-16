@@ -95,7 +95,7 @@ class PackageFitObservation:
 @dataclass(frozen=True, slots=True)
 class PackageCategorySupport:
     category_token: str
-    application_code: str
+    application_code: str | None
     semantic_family: str
     occurrences: int
     document_count: int
@@ -104,7 +104,7 @@ class PackageCategorySupport:
 @dataclass(frozen=True, slots=True)
 class PackageRegistryCategory:
     category_token: str
-    application_code: str
+    application_code: str | None
     semantic_family: str
 
 

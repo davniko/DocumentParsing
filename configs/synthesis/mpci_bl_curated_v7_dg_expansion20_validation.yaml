@@ -1,10 +1,10 @@
-dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/dg-expansion20-20261014/real677
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset
 output: artifacts/kie-synthesis-production/curated-v7-dg-expansion20-registry-validation-v1
 ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
 auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
 environment_file: .env
 task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
-task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+task_constraints_sha256: a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77
 seed: 202610145
 variants_per_source: 3
 casing:
@@ -305,7 +305,7 @@ capabilities:
     - PACKAGE_DRUM
     source_load_accounting:
       source_ocr_sha256: 956cc9ec52af8455cdbd69cc59a80ced94bfe77512b5f178b79d24de250fef5c
-      source_target_sha256: 81812d92ca08e9ac8917e649bc0b2b7b35ebbdc8551eb78f91b78a850bbfb6d7
+      source_target_sha256: 9c0077952bfb69f1924f1ae1e79a40e4e1d9f3a5522821b45008dca09a6210f0
       source_pdf:
         path: data/corpora/paddle-bl-swb-filtered-max5/files/0bc845a3a97eb44ab84cac88cf778881401a2fbb2515d380b1122642e8d84e0c.pdf
         sha256: 0bc845a3a97eb44ab84cac88cf778881401a2fbb2515d380b1122642e8d84e0c
@@ -362,3 +362,20 @@ capabilities:
     - '870380'
 source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
 historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+country_registry_manifest: artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/production-manifest.json
+country_registry_sha256: aa8f579b7a5855a47b11dca35b27c38198f07d090d801b6c1fe86917c4b854b4
+country_presentations:
+  alias_probability: 0.3
+  family_weights:
+    name: 1.0
+    iso2: 1.0
+    iso3: 1.0
+    abbreviation: 1.0
+    dotted_code: 1.0
+    localized_name: 1.0
+  language_allowlist:
+  - en
+  - it
+  - fr
+  - es
+  unavailable_family_policy: renormalize_eligible

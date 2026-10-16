@@ -27,6 +27,7 @@ from document_ocr.synthesis.curated import (
     flat,
     locate,
 )
+from document_ocr.synthesis.curated_dg_wording import proper_shipping_name
 from document_ocr.synthesis.curated_measurements import converted_measure_surfaces
 from document_ocr.synthesis.curated_packaging import contained_quantity_surfaces
 from document_ocr.synthesis.curated_templates import (
@@ -612,7 +613,11 @@ def ownership_surfaces(
         {item["key"]: [""] * item["count"] for item in blueprint.ownership_data.get("omit", [])}
     )
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
-        if "lexical_key" in recipe:
+        if "dg_fact" in recipe:
+            if recipe != {"dg_fact": "properShippingName"}:
+                raise ValueError("unsupported DG identity surface recipe")
+            result[key] = proper_shipping_name(scenario)
+        elif "lexical_key" in recipe:
             lexical_key = recipe["lexical_key"]
             variables = {variable.key: variable for variable in blueprint.contract.variables}
             if (

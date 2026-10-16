@@ -20,6 +20,7 @@ from document_ocr.synthesis.curated_positions import (
     augment_positions,
     load_page_geometry,
     position_campaign,
+    transfer_existing_positions,
     transfer_positions,
 )
 from document_ocr.synthesis.curated_reflow import ReflowEngine, wrapped_widths
@@ -275,6 +276,63 @@ def test_expanded_regions_use_measured_clearance_or_explicitly_abstain():
     assert receipt["method"] == "local_space_reflow"
 
 
+@pytest.mark.parametrize("count", [2, 3, 4])
+def test_existing_anchor_contraction_stays_in_owned_span(count):
+    original = [[200, 100 + n * 10] for n in range(5)]
+    points, receipt = place_region([dict(xy=p) for p in original], count)
+    assert receipt["method"] == "contracted_existing_anchor_span"
+    assert len(set(points)) == count
+    assert points[0] == (200, 100) and points[-1] == (200, 140)
+    assert all(a[1] < b[1] for a, b in pairwise(points))
+
+
+@pytest.mark.parametrize("after", ["NEW GOODS", "NEW\nGOODS", "NEW\nDETAILED\nGOODS\nLIST"])
+def test_incremental_positions_preserve_repeated_unedited_occurrences(after):
+    source = "--- PAGE 1 ---\nSAME PARTY\nOLD\nPRODUCT\nWORDS\nSAME PARTY\n"
+    coords = {2: [100, 100], 3: [200, 300], 4: [200, 310], 5: [200, 320], 6: [100, 600]}
+    positioned = enrich(source, coords)
+    before = "OLD\nPRODUCT\nWORDS"
+    start = source.encode().index(before.encode())
+    rendered = source.replace(before, after)
+    proof = dict(
+        sourceSha256=digest(source.encode()),
+        renderedSha256=digest(rendered.encode()),
+        edits=[
+            dict(
+                key="goods",
+                occurrence=0,
+                byteStart=start,
+                byteEnd=start + len(before.encode()),
+                before=before,
+                after=after,
+            )
+        ],
+    )
+    text, receipt = transfer_existing_positions(source, positioned, rendered, proof)
+    parties = [line for line in receipt["lines"] if line["text"] == "SAME PARTY"]
+    assert [line["xy"] for line in parties] == [(100, 100), (100, 600)]
+    assert receipt["unchangedAnchorsVerified"] == 2
+    assert len(text.splitlines()) == len(rendered.splitlines())
+    if after.count("\n") > before.count("\n"):
+        assert all(line["xy"] is None for line in receipt["lines"] if line["edits"])
+
+
+@pytest.mark.parametrize("suffix", [" || BAD", " || 1001,100", " || 10,10junk"])
+def test_incremental_positions_reject_invalid_current_coordinates(suffix):
+    source = "--- PAGE 1 ---\nTEXT\n"
+    with pytest.raises(ValueError):
+        transfer_existing_positions(
+            source,
+            "--- PAGE 1 ---\nTEXT" + suffix + "\n",
+            source,
+            dict(
+                sourceSha256=digest(source.encode()),
+                renderedSha256=digest(source.encode()),
+                edits=[],
+            ),
+        )
+
+
 def policy(**changes):
     return PositionPolicy(
         **dict(
@@ -287,6 +345,30 @@ def policy(**changes):
         )
         | changes
     )
+
+
+@pytest.mark.parametrize(
+    "points", [[[100, 100], [100, 100], [100, 110]], [[100, 110], [100, 100], [100, 120]]]
+)
+def test_current_span_cannot_hide_nonvertical_anchor_ownership(points):
+    output, receipt = place_region([dict(xy=p) for p in points], 2)
+    assert output == [None, None]
+    assert receipt["reason"] == "source_not_a_vertical_text_sequence"
+
+
+def test_current_position_transfer_preserves_unknowns_and_unicode_without_edits():
+    source = "--- PAGE 1 ---\nÉTÉ\nUNKNOWN\n\n--- PAGE 2 ---\nÉTÉ\n"
+    positioned = enrich(source, {2: [10, 20], 3: None, 6: [30, 40]})
+    text, receipt = transfer_existing_positions(
+        source,
+        positioned,
+        source,
+        dict(
+            sourceSha256=digest(source.encode()), renderedSha256=digest(source.encode()), edits=[]
+        ),
+    )
+    assert text == positioned
+    assert receipt["unchangedAnchorsVerified"] == 3
 
 
 def nearest(points):

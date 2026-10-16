@@ -12,6 +12,7 @@ from document_ocr.synthesis.curated_campaign import (
     Campaign,
     _fixed_postal_country_components,
     _handling_replay_target,
+    _prepare_scenario_countries,
     assemble_lexical_target,
     combine_surfaces,
     host_product_wording,
@@ -147,31 +148,58 @@ def _phone_projection_fixture():
             },
         },
     }
-    contract = SourceContract.model_validate({
-        "variables": [{
-            "key": "product", "kind": "product", "value": "STEEL BOLTS",
-            "meaning": "product", "required_literals": [],
-            "occurrences": [{"text": "STEEL BOLTS", "occurrence": 1, "presentation": "text"}],
-        }],
-        "targets": [{
-            "path": "documentPatch.goodsItemDetails[0].description", "expression": "{product}"
-        }],
-        "fixed_context": "Phone-only presentation replay regression.",
-    })
+    contract = SourceContract.model_validate(
+        {
+            "variables": [
+                {
+                    "key": "product",
+                    "kind": "product",
+                    "value": "STEEL BOLTS",
+                    "meaning": "product",
+                    "required_literals": [],
+                    "occurrences": [
+                        {"text": "STEEL BOLTS", "occurrence": 1, "presentation": "text"}
+                    ],
+                }
+            ],
+            "targets": [
+                {"path": "documentPatch.goodsItemDetails[0].description", "expression": "{product}"}
+            ],
+            "fixed_context": "Phone-only presentation replay regression.",
+        }
+    )
     start = raw.index("0020225752002")
-    historical = {"document_id": source["documentId"], "bindings": [{
-        "logical_key": "phone", "target_paths": [phone], "value_kind": "phone",
-        "occurrences": [{
-            "byte_start": start, "byte_end": start + len("0020225752002"),
-            "source_text": "0020225752002",
-        }],
-    }]}
-    blueprint = compile_sampling_blueprint(source, historical, contract, description_blocks={
-        "source_sha256": digest(raw.encode()),
-        "fields": [{"path": "documentPatch.goodsItemDetails[0].description", "spans": [
-            {"text": "STEEL BOLTS", "occurrence": 1}
-        ]}],
-    })
+    historical = {
+        "document_id": source["documentId"],
+        "bindings": [
+            {
+                "logical_key": "phone",
+                "target_paths": [phone],
+                "value_kind": "phone",
+                "occurrences": [
+                    {
+                        "byte_start": start,
+                        "byte_end": start + len("0020225752002"),
+                        "source_text": "0020225752002",
+                    }
+                ],
+            }
+        ],
+    }
+    blueprint = compile_sampling_blueprint(
+        source,
+        historical,
+        contract,
+        description_blocks={
+            "source_sha256": digest(raw.encode()),
+            "fields": [
+                {
+                    "path": "documentPatch.goodsItemDetails[0].description",
+                    "spans": [{"text": "STEEL BOLTS", "occurrence": 1}],
+                }
+            ],
+        },
+    )
     sampled = deepcopy(source["target"])
     sampled["documentPatch"]["parties"]["shipper"]["contactDetails"]["phoneNumbers"] = [
         "+20 10 1234 5678"
@@ -179,20 +207,31 @@ def _phone_projection_fixture():
     sampled["documentPatch"]["goodsItemDetails"][0]["description"] = "STEEL RODS"
     stream = DeterministicStream(1, "phone-presentations-v1", "phone-replay")
     plan = prepare_phone_rendering(
-        blueprint, sampled, source_country_codes={role: "EG"},
-        target_country_codes={role: "EG"}, stream=stream,
+        blueprint,
+        sampled,
+        source_country_codes={role: "EG"},
+        target_country_codes={role: "EG"},
+        stream=stream,
     )
     text, target, proof = render_sampling_blueprint(
         blueprint, sampled, {"product": "STEEL RODS"}, phone_rendering=plan
     )
     candidate = {
-        "target": target, "countryCodes": {}, "renderValues": {"product": "STEEL RODS"},
-        "surfaceValues": {}, "seed": 1, "documentId": "phone-replay",
-        "joinedRawText": text, "joinedRawTextSha256": digest(text.encode()), "proof": proof,
+        "target": target,
+        "countryCodes": {},
+        "renderValues": {"product": "STEEL RODS"},
+        "surfaceValues": {},
+        "seed": 1,
+        "documentId": "phone-replay",
+        "joinedRawText": text,
+        "joinedRawTextSha256": digest(text.encode()),
+        "proof": proof,
     }
     scenario = SimpleNamespace(
         party_localities={role: SimpleNamespace(country_code="EG", country="EGYPT")},
-        replacements={}, goods_identities=[], provenance={},
+        replacements={},
+        goods_identities=[],
+        provenance={},
     )
     return blueprint, scenario, candidate, role
 
@@ -202,7 +241,10 @@ def test_phone_projection_replays_original_identity_and_preserves_other_targets(
     before = deepcopy(candidate)
     assert "00201012345678" in candidate["joinedRawText"]
     assert validate_sample(
-        blueprint, scenario, candidate, SimpleNamespace(canonicalize=lambda value: value),
+        blueprint,
+        scenario,
+        candidate,
+        SimpleNamespace(canonicalize=lambda value: value),
         source_phone_country_codes={role: "EG"},
     )["exactReplay"]
     assert candidate == before
@@ -223,7 +265,10 @@ def test_phone_projection_rejects_tampered_receipts_without_masking_other_fields
         candidate["target"]["documentPatch"]["goodsItemDetails"][0]["description"] = "OTHER GOODS"
     with pytest.raises(ValueError):
         validate_sample(
-            blueprint, scenario, candidate, SimpleNamespace(canonicalize=lambda value: value),
+            blueprint,
+            scenario,
+            candidate,
+            SimpleNamespace(canonicalize=lambda value: value),
             source_phone_country_codes={role: "EG"},
         )
 
@@ -1708,13 +1753,12 @@ def postal_campaign(tmp_path):
     )
 
 
-def test_regulated_and_whole_unit_products_have_host_owned_identities(postal_campaign):
+def test_only_non_dg_whole_unit_products_have_host_owned_identities(postal_campaign):
     fixture = postal_campaign
     assert host_product_wording(fixture.blueprint, fixture.scenario) == {}
     for provenance in (
         {"physicalProfile": "source_whole_units"},
         {"physicalProfile": "reviewed_whole_units"},
-        {"capabilities": {"family": "dg_chemical"}},
     ):
         scenario = fixture.scenario.model_copy(update={"provenance": provenance})
         products = host_product_wording(fixture.blueprint, scenario)
@@ -1861,9 +1905,12 @@ def test_postal_country_fix_never_infers_country_from_a_route_or_unowned_literal
             ]
         )
     )
-    assert _fixed_postal_country_components(
-        blueprint, SimpleNamespace(party_localities={}), {"x": "NETHERLANDS"}, {"x"}
-    ) == set()
+    assert (
+        _fixed_postal_country_components(
+            blueprint, SimpleNamespace(party_localities={}), {"x": "NETHERLANDS"}, {"x"}
+        )
+        == set()
+    )
 
 
 def _country_component_postal_fixture(fixture, country_value):
@@ -1934,8 +1981,7 @@ def test_postal_correction_freezes_good_country_and_still_repairs_wrong_country(
     assert repaired["requestSha256"] == receipt["requestSha256"]
     assert set(repaired["corrections"][-1]["after"]) == set(correction)
     assert (
-        postal_wording_errors(blueprint, fixture.scenario, fixture.target, repaired["values"])
-        == {}
+        postal_wording_errors(blueprint, fixture.scenario, fixture.target, repaired["values"]) == {}
     )
 
 
@@ -1954,7 +2000,7 @@ def test_failed_address_with_only_fixed_country_surfaces_unrepairable_ownership(
                 if binding.path == "documentPatch.parties.shipper.addressLine"
                 else binding
                 for binding in blueprint.contract.targets
-            ]
+            ],
         }
     )
     blueprint = replace(blueprint, contract=contract)
@@ -2049,7 +2095,7 @@ def test_postal_correction_omitted_country_is_not_overridden_by_global_prompt(po
     [
         ("CURAÇAO", "CW", "CURACAO", "CURAÇAO"),
         ("SENEGAL", "SN", "SÉNÉGAL", "SENEGAL"),
-        ("MACAO", "MO", "MACAO (MO)", "MACAO"),
+        ("MACAO", "MO", "MACAO MO", "MACAO"),
     ],
 )
 def test_postal_country_spelling_and_name_code_duplicates_are_correction_candidates(
@@ -2223,8 +2269,7 @@ def test_initial_postal_fragments_use_one_joint_geography_contract(postal_campai
         assert "Use the supplied locality spelling once" not in fields[key].requirement
     assert "A component is not a separate complete address" in request.context
     assert (
-        "POSTAL ASSEMBLY documentPatch.parties.shipper: "
-        "{shipper_street} {shipper_locality}"
+        "POSTAL ASSEMBLY documentPatch.parties.shipper: {shipper_street} {shipper_locality}"
     ) in request.context
     assert "Locality placement is joint" in request.context
     # The old absence of an explicit country owner was not proof of a literal.
@@ -2632,4 +2677,138 @@ def test_regulatory_product_alias_uses_product_identity_not_complete_description
     with pytest.raises(ValueError, match="explicit generated lexical owner"):
         ownership_surfaces(
             malformed, target, postal_campaign.scenario, lexical_values={"product": "NEW CHEMICAL"}
+        )
+
+
+def test_country_context_uses_sampled_geography_and_protects_locality(postal_campaign):
+    from pathlib import Path
+
+    from document_ocr.synthesis.country_presentations import CountryPresentationConfig, Registry
+
+    fixture = postal_campaign
+    registry = Registry.load(Path(__file__).resolve().parents[1])
+    plan = _prepare_scenario_countries(
+        fixture.blueprint,
+        fixture.target,
+        fixture.scenario,
+        registry,
+        CountryPresentationConfig(),
+        42,
+        "sample",
+    )
+    assert plan.context_country_codes == ("NL",)
+    assert dict(plan.protected_localities) == {
+        "documentPatch.parties.shipper": "ROTTERDAM",
+        "documentPatch.parties.consignee": "UTRECHT",
+    }
+    bad = deepcopy(fixture.target)
+    bad["documentPatch"]["parties"]["shipper"]["country"] = "SPAIN"
+    with pytest.raises(ValueError, match="country target differs from sampled identity"):
+        _prepare_scenario_countries(
+            fixture.blueprint,
+            bad,
+            fixture.scenario,
+            registry,
+            CountryPresentationConfig(),
+            42,
+            "sample",
+        )
+
+
+def test_country_registry_override_requires_explicit_pin(tmp_path):
+    with pytest.raises(ValueError, match="nondefault country registry requires"):
+        Campaign(tmp_path, {"country_registry_manifest": "custom-manifest.json"})
+
+
+def test_source_phone_metadata_accepts_every_preferred_country_name(postal_campaign):
+    from pathlib import Path
+
+    from document_ocr.synthesis.country_presentations import Registry
+
+    campaign = postal_campaign.campaign
+    root = Path(__file__).resolve().parents[1]
+    campaign.country_registry = Registry.load(root)
+    campaign._source_phone_country_codes = {}
+    iso = json.loads(
+        (
+            root / "artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json"
+        ).read_text()
+    )
+    for entry in iso["3166-1"]:
+        code = entry["alpha_2"]
+        target = deepcopy(postal_campaign.blueprint.target)
+        target["documentPatch"]["parties"]["shipper"]["country"] = (
+            campaign.country_registry.preferred_name(code)
+        )
+        bp = replace(postal_campaign.blueprint, document_id=f"source-{code}", target=target)
+        result = campaign.source_phone_country_codes(bp)
+        assert result["documentPatch.parties.shipper"] == code
+
+
+def test_source_phone_metadata_rejects_unknown_explicit_country(postal_campaign):
+    from pathlib import Path
+
+    from document_ocr.synthesis.country_presentations import Registry
+
+    campaign = postal_campaign.campaign
+    campaign.country_registry = Registry.load(Path(__file__).resolve().parents[1])
+    campaign._source_phone_country_codes = {}
+    postal_campaign.blueprint.target["documentPatch"]["parties"]["shipper"]["country"] = "UNKNOWN"
+    with pytest.raises(ValueError, match=r"documentPatch.parties.shipper.country"):
+        campaign.source_phone_country_codes(postal_campaign.blueprint)
+
+
+def test_rendered_review_distinguishes_country_targets_and_literal_postal_text():
+    from document_ocr.synthesis.curated_wording import rendered_review_prompt
+
+    for casing in ("uppercase", "preserve"):
+        prompt = rendered_review_prompt(casing)
+        assert "Country fields use the pinned preferred English names" in prompt
+        assert "addresses retain their printed country presentations" in prompt
+        assert "Locality names retain their printed spelling" in prompt
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "ROAD 12 PORT-VILA VANUATU(VU)",
+        "ROAD 12 PORT-VILA VANUATU (VU)",
+        "ROAD 12 PORT-VILA VANUATU -( VU )",
+        "ROAD 12\nPORT-VILA\nVANUATU\n(VU)",
+    ],
+)
+def test_postal_host_owned_name_code_frame_is_one_country(address):
+    validate_postal_geography(
+        address,
+        locality="PORT-VILA",
+        country="VANUATU",
+        country_code="VU",
+        country_labelled=True,
+    )
+    with pytest.raises(ValueError, match="country was not requested"):
+        validate_postal_geography(
+            address,
+            locality="PORT-VILA",
+            country="VANUATU",
+            country_code="VU",
+            country_labelled=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "ROAD 12 PORT-VILA VANUATU VU",
+        "ROAD 12 PORT-VILA VANUATU(VU) VANUATU",
+        "ROAD 12 PORT-VILA VANUATU VANUATU(VU)",
+    ],
+)
+def test_country_frame_does_not_allow_independent_country_duplicates(address):
+    with pytest.raises(ValueError, match="country must occur once"):
+        validate_postal_geography(
+            address,
+            locality="PORT-VILA",
+            country="VANUATU",
+            country_code="VU",
+            country_labelled=True,
         )

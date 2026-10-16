@@ -38,6 +38,24 @@ def place_region(
             **receipt,
             "method": "contracted_region_centre",
         }
+    if count < len(original) and boxes is None and dimensions is None:
+        # Existing synthetic inputs already have their final page transform.
+        # Contraction stays inside the proven owned polyline and cannot require
+        # extra space. Expansion still needs measured clearance below.
+        if np.any(np.diff(points[:, 1]) <= 0):
+            return unknown("source_not_a_vertical_text_sequence")
+        positions = np.linspace(0, len(points) - 1, count)
+        output = np.rint(
+            np.column_stack(
+                [np.interp(positions, np.arange(len(points)), points[:, axis]) for axis in (0, 1)]
+            )
+        ).astype(int)
+        if np.any(np.diff(output[:, 1]) <= 0):
+            return unknown("contraction_quantization_collision")
+        return [tuple(map(int, p)) for p in output], {
+            **receipt,
+            "method": "contracted_existing_anchor_span",
+        }
     if boxes is None or dimensions is None:
         return unknown("missing_measured_geometry")
     if len(points) > 1 and np.any(np.diff(points[:, 1]) <= 0):

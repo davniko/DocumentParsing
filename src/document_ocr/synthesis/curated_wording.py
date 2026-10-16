@@ -173,7 +173,9 @@ class RenderedReviewRequest:
 
 RENDERED_REVIEW_PROMPT = """Audit final synthetic Bill of Lading training examples.
 The host has sampled registry commodity identities, routes, equipment, packaging and loads;
-the model has written fictional names and postal addresses. Compare the final text and labels
+the model has written fictional names, postal addresses and commercial product descriptions.
+Source wording illustrates presentation; replacing its commodity with the sampled commodity
+is intentional, not a source/identity inconsistency. Compare the final text and labels
 with those supplied facts. Check coherent product meaning, DG/thermal compatibility, repeated facts,
 postal ownership and geography, stale source names/localities, and accounting quantities.
 Check field meaning even when a generated value matches its label exactly: party names contain
@@ -190,6 +192,9 @@ classification is not this synthesis task. Classification references supply comm
 their tariff alternatives and exclusions are not extra cargo requirements. Required product
 facts and the sampled physical form define the actual shipment. Plausible related products,
 fictional models, serials, dimensions and capacities may enrich a description.
+DG commercial prose may differ from the proper shipping name while describing the same
+sampled substance/formulation or vehicle propulsion. Separately owned regulatory names and
+declarations retain the sampled facts; do not require them inside every product description.
 Description continuations belong to one accounting goods group;
 repeated printouts must remain consistent.
 Description labels copy the main product block and genuine product continuations in source
@@ -204,8 +209,18 @@ Do not reject descriptions for length, line count, or harmless classification di
 Thermal wording must match the sampled commodity and cold-chain profile, rather than
 the source example's product. Every labeled package category needs its own printed type support.
 Labels normalize human-readable text to uppercase; rendered text may retain source casing.
-Physical newlines become spaces. Countries and equipment aliases may be normalized.
+Physical newlines become spaces. Country fields use the pinned preferred English names;
+addresses retain their printed country presentations, including eligible aliases and ISO codes.
+Locality names retain their printed spelling. Name/code frames may print both presentations
+of the same country; this is not a duplicated postal component. Equipment aliases may normalize.
 Fictional street addresses need plausible hierarchy, not postal deliverability.
+Judge consignee contacts from their actual final rendered occurrence and its role:
+keep a contact printed directly in the consignee block even if it repeats in the
+goods area. Contacts printed only in the goods area are excluded from consignee
+targets even when marked as a consignee continuation. Explicitly linked, OCR-supported
+postal/country continuations may complete its address/country there. This
+consignee-specific contact restriction does not exclude valid notify or other-role
+shared-footnote contacts.
 Email and website domains are independent; free-mail addresses are valid business contacts.
 National customs captions may be neutral import/export references; do not require a particular
 country's filing system. Carrier and separate third-party commercial actors may remain fixed.
@@ -224,7 +239,8 @@ are not defects. Leave findings empty for a passing shipment; report no passing 
 Review the rendered text, not just the proposed labels."""
 
 
-WORDING_PROMPT = """Write fictional Bill of Lading training text from the supplied shipment facts.
+WORDING_PROMPT = (
+    """Write fictional Bill of Lading training text from the supplied shipment facts.
 Return exactly the requested fields; other supplied facts are compatibility context.
 Generate genuinely new company/person identities. Generate each party's postal fragments
 together, appropriate to its supplied locality and country, with roughly the example's
@@ -242,6 +258,12 @@ Generate fragments jointly at the source's descriptive depth and
 presentation: concise identity, specification passage, or product list. Cover each
 sampled commodity subject. Use natural item boundaries without line or
 character quotas.
+"""
+    "Use approximately the same total word count as the supplied source description "
+    "fragments. Contract or distill the supplied goods wording, or expand it as needed, "
+    "to reach a comparable overall length while retaining the sampled commodity subjects "
+    "and required physical form."
+    """
 This request owns product identity and intrinsic specifications: material, form, grade,
 model, dimensions and technical properties. Whole-shipment package counts, declared contents,
 shipment masses, transport settings and references belong to separate host-rendered regions.
@@ -254,6 +276,38 @@ Incidental per-unit packing capacity/fill may enrich compatible product specific
 turn it into a new whole-shipment count or weight declaration. Complete each product phrase.
 Each shipment is an independent variant: vary its product wording and fictional identifiers.
 Use uppercase human-readable text. Separate physical lines with newlines when useful."""
+)
+
+
+def goods_wording_requirement(source_word_count: int) -> str:
+    """Apply the tested soft-length/detail policy to model-owned product regions."""
+    if type(source_word_count) is not int or source_word_count <= 0:
+        raise ValueError("source description word count must be a positive integer")
+    return (
+        "Complete commercial product wording, matching the source's level of detail "
+        "and list structure. Express the required commodity facts and physical form. "
+        "Classification wording supplies context, not extra required attributes. "
+        "Product variants and intrinsic specifications may enrich an example that "
+        "has that detail. Incidental per-unit capacity/fill can be product detail. "
+        "Shipment counts, weights, transport settings and codes are separate host facts."
+        f" The supplied source description contains {source_word_count} words in total. "
+        f"Aim for approximately {source_word_count} words across the requested description fields, "
+        "distilling or expanding the sampled goods wording as needed."
+        " Follow the example's information pattern as well as its approximate word count: "
+        "replace its product identity and carry through analogous attached specification "
+        "or detail roles, with newly synthesized values suited to the sampled goods. "
+        "Per-unit capacity or fill is part of that pattern. "
+        "A source packing expression may also contain a whole-shipment package count: "
+        "retain the per-unit detail, but omit that count from model-owned wording; "
+        "the host prints declared shipment counts separately. For an example "
+        "consisting only of a commodity name, output only a commodity name. Distill "
+        "classification wording to leave room for source-like qualifiers."
+        " Use surrounding shipment facts to check compatibility, not to expand the "
+        "description: do not add HS/tariff declarations, container/equipment or routing "
+        "details, or shipment totals. Follow the source's product information instead, "
+        "retaining analogous attached specifications and per-unit packing where shown."
+    )
+
 
 POSTAL_CORRECTION_PROMPT = """Correct fictional postal components under joint address assemblies.
 The supplied old values failed validation; they are not formatting examples.
@@ -292,6 +346,7 @@ def postal_geography_counts(
     address: str, *, locality: str, country: str, country_code: str
 ) -> PostalGeographyCounts:
     """Share exact matching between validation and fixed-component accounting."""
+
     def normalized(value: str) -> str:
         text = unicodedata.normalize("NFKD", value.casefold())
         text = "".join(char for char in text if not unicodedata.combining(char))
@@ -326,9 +381,26 @@ def postal_geography_counts(
         all_locality_hits,
     )
     code_at_end = re.search(rf"(?<!\w){re.escape(country_code.casefold())}$", text)
+    # A host-owned NAME(CODE) frame is one country declaration, not a
+    # duplicated name plus an independent code. Inspect its punctuation before
+    # normalization removes the brackets; plain "NAME CODE" still counts twice.
+    original = unicodedata.normalize("NFKD", address.casefold())
+    original = "".join(char for char in original if not unicodedata.combining(char))
+    country_literal = unicodedata.normalize("NFKD", country.casefold())
+    country_literal = "".join(char for char in country_literal if not unicodedata.combining(char))
+    frame = re.search(
+        r"(?<!\w)"
+        + r"\s+".join(re.escape(token) for token in country_literal.split())
+        + rf"\s*(?:-\s*)?\(\s*{re.escape(country_code.casefold())}\s*\)\s*[.,;]?\s*$",
+        original,
+    )
     hits = separate(all_locality_hits, all_country_hits)
     return PostalGeographyCounts(
-        len(country_hits), len(hits), len(short_country_hits), bool(code_at_end), place == nation
+        len(country_hits),
+        len(hits),
+        len(short_country_hits),
+        bool(code_at_end) and frame is None,
+        place == nation,
     )
 
 
@@ -622,6 +694,8 @@ _SHIPMENT_ACCOUNTING = re.compile(
     r"\b(?:TOTAL\s+(?:PACKAGES?|CARTONS?|PALLETS?)|(?:TOTAL\s+)?(?:GROSS|NET)\s+WEIGHT)"
     r"\s*[:=\-]?\s*\d"
     r"|(?:^|[.!?]\s+)\s*TOTAL\s*[:=]\s*\d"
+    r"|\bTOTAL(?:\s+|\s*[:=]\s*)\d[\d,.]*\s*"
+    r"(?:MT|MTS|KG|KGS|KILOGRAMS?|LBS?|POUNDS?|TONNES?|METRIC\s+TON(?:NE)?S?)\b(?!\s*/)"
     r"|^\s*\d[\d,.]*\s+(?:CARTONS?|CTNS?|BOX(?:ES)?|BAGS?|DRUMS?|PALLETS?|PACKAGES?|PKGS?)\s*[.]?\s*$"
     r"|^\s*\d[\d,.]*\s+(?:CARTONS?|CTNS?|BOXES|PACKAGES?|PALLETS?)\s+(?:OF\s+)?(?=\w)",
     re.I | re.M,
@@ -636,6 +710,15 @@ def has_shipment_accounting(text: str) -> bool:
     ambiguities still belong to the rendered reviewer and publication hold.
     """
     return _SHIPMENT_ACCOUNTING.search(text) is not None
+
+
+_DG_DECLARATION = re.compile(
+    r"\bPACKING\s+GROUP\s*[:=\-]?\s*(?:I{1,3}|[123])\b"
+    r"|\b(?:IMO|IMDG|DG)\s+CLASS\s*[:=\-]?\s*\d"
+    r"|\bUN\s+(?:NUMBER|NO\.?)\s*[:=\-]?\s*\d{4}\b"
+    r"|\bFLASH\s*POINT\s*[:=\-]?\s*[+\-]?\d",
+    re.I,
+)
 
 
 _IDENTITY_CAPTION = re.compile(
@@ -764,6 +847,10 @@ def validate_wording(
                 raise ValueError(f"{value.key}: requested field key inside generated description")
             if fields[value.key].role == "goods description" and has_shipment_accounting(text):
                 raise ValueError(f"{value.key}: shipment accounting inside generated description")
+            if fields[value.key].role == "goods description" and _DG_DECLARATION.search(text):
+                raise ValueError(
+                    f"{value.key}: host-owned DG declaration inside generated description"
+                )
             if fields[value.key].role == "goods description" and re.search(
                 r"\bPACKAGE_[A-Z_]+\b", text
             ):

@@ -75,7 +75,7 @@ def label() -> dict:
                 "shipper": {
                     "name": "EXPORTER LTD",
                     "addressLine": "UNIT 4 NEWBERG OR 97132 USA",
-                    "country": "USA",
+                    "country": "UNITED STATES",
                 }
             },
             "containerInformation": [{"equipmentIdentifier": "TTNU8111930"}],

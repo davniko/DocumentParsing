@@ -1,7 +1,8 @@
 """Reviewed package wording, independent of observed shipment donors.
 
-The category vocabulary is an MPCI contract. These surface forms express that
-contract; they do not decide which commodity can use a particular package.
+The pinned vocabulary distinguishes application categories from reviewed
+extraction-only extensions. These surface forms preserve those semantics;
+they do not decide which commodity can use a particular package.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ PackageAliasMode = Literal["source", "registry"]
 class PackageAlias:
     """Explicit singular/plural forms retaining every material and subtype."""
 
-    application_code: str
+    application_code: str | None
     singular: str
     plural: str
     alternate_singular: str | None = None
@@ -57,6 +58,8 @@ PACKAGE_ALIASES = MappingProxyType(
         "PACKAGE_BALE_NON_COMPRESSED": PackageAlias(
             "BN", "NON-COMPRESSED BALE", "NON-COMPRESSED BALES"
         ),
+        "PACKAGE_BALE": PackageAlias(None, "BALE", "BALES"),
+        "PACKAGE_SET": PackageAlias(None, "SET", "SETS"),
         "PACKAGE_BIN": PackageAlias("BI", "BIN", "BINS"),
         "PACKAGE_BLOCK": PackageAlias("OK", "BLOCK", "BLOCKS"),
         "PACKAGE_BOX": PackageAlias("BX", "BOX", "BOXES"),
@@ -96,9 +99,11 @@ PACKAGE_ALIASES = MappingProxyType(
         "PACKAGE_LOT": PackageAlias("LT", "LOT", "LOTS"),
         "PACKAGE_OCTABIN": PackageAlias("OT", "OCTABIN", "OCTABINS"),
         "PACKAGE_PACKAGE": PackageAlias("PK", "PACKAGE", "PACKAGES"),
+        "PACKAGE_PARCEL": PackageAlias("PC", "PARCEL", "PARCELS"),
         "PACKAGE_PALLET": PackageAlias("PX", "PALLET", "PALLETS"),
         "PACKAGE_PALLET_WOODEN": PackageAlias("8A", "WOODEN PALLET", "WOODEN PALLETS"),
         "PACKAGE_PIECE": PackageAlias("PP", "PIECE", "PIECES"),
+        "PACKAGE_RACK": PackageAlias("RK", "RACK", "RACKS"),
         "PACKAGE_REEL": PackageAlias("RL", "REEL", "REELS"),
         "PACKAGE_ROLL": PackageAlias("RO", "ROLL", "ROLLS"),
         "PACKAGE_SACK": PackageAlias("SA", "SACK", "SACKS"),
@@ -193,17 +198,19 @@ def select_package_alias(
     return forms[0]
 
 
-def validate_package_alias_registry(categories: set[str], codes: dict[str, str]) -> None:
+def validate_package_alias_registry(categories: set[str], codes: dict[str, str | None]) -> None:
     """Fail before sampling if the deployed vocabulary has drifted."""
-    # The deployed application vocabulary is broader than this extraction
-    # task's admitted 44 categories. Extra application rows are not task drift.
-    if set(PACKAGE_ALIASES) != categories or not categories <= codes.keys():
+    # A task may admit a subset of the reviewed aliases. Both are bounded by
+    # its pinned extraction registry; extending aliases must not redefine a
+    # frozen task's categorical vocabulary.
+    if not categories or not categories <= PACKAGE_ALIASES.keys() or not categories <= codes.keys():
         raise ValueError("reviewed package alias categories differ from the task registry")
     if any(
-        entry.application_code != codes[category] for category, entry in PACKAGE_ALIASES.items()
+        PACKAGE_ALIASES[category].application_code != codes[category] for category in categories
     ):
         raise ValueError("reviewed package alias application codes differ from the task registry")
-    for category, entry in PACKAGE_ALIASES.items():
+    for category in categories:
+        entry = PACKAGE_ALIASES[category]
         for quantity in (1, 2):
             if any(
                 not package_category_surface_present(surface, category)

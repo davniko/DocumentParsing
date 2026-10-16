@@ -116,6 +116,10 @@ def test_external_literal_prefix_is_present_once_in_target_and_physical_projecti
         "+1514-223-3044 X 251",
         "4853388 EXT:404",
         "+202 35394032/4/4",
+        "+202 37764200 (EXT.:2637)",
+        "+202 37764200 (EXT. : 2637)",
+        "002 03 3991050 EXTENSION.: 1060/1261",
+        "(852)2763 5048 extn.:112",
     ],
 )
 def test_finite_source_compounds_are_supported_and_deterministic(source):
@@ -129,6 +133,22 @@ def test_repeated_abbreviations_remain_equal_and_are_not_independent_phones():
     result = present("+202 35394032/4/4")
     assert len(result.surfaces) == 1
     assert result.target_value.split("/")[-1] == result.target_value.split("/")[-2]
+
+
+def test_dotted_extension_caption_preserves_punctuation_and_all_subscriber_digits():
+    result = present("+202 37764200 (EXT.:2637)")
+    core, extension = result.target_value.split(" (EXT.:")
+    assert re.sub(r"\D", "", core) == "12025550123"
+    assert extension.endswith(")")
+    assert len(extension[:-1]) == 4 and extension[:-1].isdigit()
+    assert extension[:-1] != "2637"
+    assert result.surfaces == (result.target_value,)
+
+
+@pytest.mark.parametrize("caption", ["EXT...:2637", "EXT.:ABC", "EXT.:"])
+def test_invalid_extension_captions_still_fail_without_fallback(caption):
+    with pytest.raises(PhonePresentationError):
+        present(f"+202 37764200 ({caption})")
 
 
 def test_ascending_range_widens_minimally_without_changing_primary_identity():

@@ -57,8 +57,18 @@ from document_ocr.labeling_agents.direct_models import (
     SectionReview,
 )
 from document_ocr.labeling_agents.equipment_normalization import reconcile_equipment_categories
-from document_ocr.labeling_agents.target_normalization import normalize_target_casing
+from document_ocr.labeling_agents.target_normalization import (
+    normalize_target_casing,
+    normalize_target_countries,
+)
 from document_ocr.semantic_v3.transform import CategoryRegistry
+from document_ocr.synthesis.country_presentations import (
+    DEFAULT_MANIFEST_SHA256,
+    DEFAULT_REGISTRY_MANIFEST,
+)
+from document_ocr.synthesis.country_presentations import (
+    Registry as CountryPresentations,
+)
 
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
 Draft = BillOfLadingExtractionV7Label | dict[str, Any]
@@ -528,9 +538,20 @@ class DirectLabelingFlow:
         if sha256_bytes(registry_bytes) != config.package_registry_sha256:
             raise ValueError("package registry hash mismatch")
         self.registry = CategoryRegistry.model_validate_json(registry_bytes)
+        self.registry.verify_application_source(project_root / config.package_registry)
         if self.registry.registryKind != "package":
             raise ValueError("expected package registry")
         self.package_tokens = {entry.categoryToken for entry in self.registry.entries}
+        if (
+            config.country_registry_sha256 is None
+            and config.country_registry_manifest != DEFAULT_REGISTRY_MANIFEST
+        ):
+            raise ValueError("a nondefault country registry requires its explicit manifest hash")
+        self.country_registry = CountryPresentations.load(
+            project_root,
+            manifest_path=config.country_registry_manifest,
+            expected_sha256=config.country_registry_sha256 or DEFAULT_MANIFEST_SHA256,
+        )
         self.config, self.model = config, model
         self.ocr, self.pdf_path = ocr, pdf_path
         self.output_dir = output_dir
@@ -557,6 +578,14 @@ class DirectLabelingFlow:
         output_dir.mkdir(parents=True, exist_ok=False)
         atomic_publish_bytes(output_dir / "ocr.txt", ocr.encode())
         atomic_publish_json(output_dir / "config.json", config.model_dump(mode="json"))
+        atomic_publish_json(
+            output_dir / "country-registry.json",
+            {
+                "manifest": config.country_registry_manifest,
+                "sha256": self.country_registry.manifest_sha256,
+                "policy": "preferred_english_country_names_v1",
+            },
+        )
         atomic_publish_json(
             output_dir / "schema.json", self.output_schema(BillOfLadingExtractionV7Label)
         )
@@ -717,9 +746,13 @@ class DirectLabelingFlow:
         normalized, equipment = reconcile_equipment_categories(
             target.canonical_target(), source_text=self.ocr
         )
+        normalized, country_changes = normalize_target_countries(normalized, self.country_registry)
         normalized, changes = normalize_target_casing(normalized)
         target = BillOfLadingExtractionV7Label.model_validate_json(encoded(normalized))
         atomic_publish_json(self.output_dir / "extraction-casing-edits.json", changes)
+        atomic_publish_json(
+            self.output_dir / "extraction-country-normalizations.json", country_changes
+        )
         atomic_publish_json(self.output_dir / "extraction-equipment-decisions.json", equipment)
         atomic_publish_bytes(
             self.output_dir / "target.json", (encoded(target.canonical_target()) + "\n").encode()
@@ -1242,10 +1275,14 @@ class DirectLabelingFlow:
         atomic_publish_json(self.output_dir / "correction-decisions.json", correction_records)
         validation_error = None
         casing_changes: list[dict[str, Any]] = []
+        country_changes: list[dict[str, Any]] = []
         equipment_decisions: tuple[dict[str, Any], ...] = ()
         try:
             candidate, equipment_decisions = reconcile_equipment_categories(
                 candidate, source_text=self.ocr
+            )
+            candidate, country_changes = normalize_target_countries(
+                candidate, self.country_registry
             )
             candidate, casing_changes = normalize_target_casing(candidate)
             validated = BillOfLadingExtractionV7Label.model_validate_json(encoded(candidate))
@@ -1263,6 +1300,7 @@ class DirectLabelingFlow:
             "reviews": {s: r.model_dump(mode="json") for s, r in reviews.items()},
             "correctionDecisions": correction_records,
             "casingNormalizations": casing_changes,
+            "countryNormalizations": country_changes,
             "equipmentNormalizations": equipment_decisions,
             "layoutAssistedSections": sorted(self.layout_sections),
             "calls": len(self.receipts),

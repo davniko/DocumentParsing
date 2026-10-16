@@ -22,6 +22,14 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from document_ocr.hashing import sha256_file
 from document_ocr.labeling_agents.direct_grounding import order_consignment_candidates
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
+from document_ocr.synthesis.country_presentations import (
+    DEFAULT_MANIFEST_SHA256,
+    DEFAULT_REGISTRY_MANIFEST,
+    CountryPresentationConfig,
+)
+from document_ocr.synthesis.country_presentations import (
+    Registry as CountryPresentations,
+)
 from document_ocr.synthesis.curated import (
     CuratedSynthesisConfig,
     Runner,
@@ -53,7 +61,12 @@ from document_ocr.synthesis.curated_contacts import (
 from document_ocr.synthesis.curated_contacts import (
     request_hash as contact_request_hash,
 )
+from document_ocr.synthesis.curated_countries import (
+    bind_postal_country_alias_owners,
+    prepare_country_rendering,
+)
 from document_ocr.synthesis.curated_descriptions import validate_description_regions
+from document_ocr.synthesis.curated_dg_wording import dg_wording_context
 from document_ocr.synthesis.curated_equipment import PrintedEquipmentMix
 from document_ocr.synthesis.curated_equipment_aliases import (
     EquipmentAliasRegistry,
@@ -127,6 +140,7 @@ from document_ocr.synthesis.curated_wording import (
     WordingBatch,
     WordingField,
     WordingRequest,
+    goods_wording_requirement,
     mass_in_kilograms,
     native_wording_prompt,
     postal_geography_counts,
@@ -447,14 +461,13 @@ def contact_wording_fields(
 def host_product_wording(
     blueprint: SamplingBlueprint, scenario: ShipmentScenario
 ) -> dict[str, str]:
-    """Regulated chemicals and whole-unit loads require exact product identities.
-
-    Chemical variants can change the required UN tuple (e.g. solid vs solution).
-    Use the selected registry phrase for these tightly coupled profiles.
-    The remaining names and addresses still use the lexical generation path.
-    """
-    chemical = scenario.provenance.get("capabilities", {}).get("family") == "dg_chemical"
-    if not chemical and scenario.provenance.get("physicalProfile") not in {
+    """Retain the existing non-DG whole-unit policy; all DG prose is model-owned."""
+    if scenario.provenance.get("capabilities", {}).get("family") in {
+        "dg_chemical",
+        "dg_vehicle",
+    } or any(goods.get("dangerousGoods") for goods in scenario.cargo.get("goodsItemDetails", [])):
+        return {}
+    if scenario.provenance.get("physicalProfile") not in {
         "source_whole_units",
         "reviewed_whole_units",
     }:
@@ -478,7 +491,7 @@ def wording_request(
     related_actors = related_actor_contexts(blueprint)
     people = private_contact_contract(blueprint).get("names", {})
     postal_country_owners: dict[str, set[str]] = {}
-    for region in (() if goods_only else blueprint.regions):
+    for region in () if goods_only else blueprint.regions:
         if region.kind != "postal" or region.curated_key is None:
             continue
         for path in region.target_paths:
@@ -500,7 +513,23 @@ def wording_request(
     }
     if covered != product_keys:
         raise ValueError("product regions require explicit description target ownership")
+    dangerous_goods = any(
+        goods.get("dangerousGoods") for goods in scenario.cargo.get("goodsItemDetails", [])
+    )
+    if dangerous_goods:
+        source_values = {variable.key: variable.value for variable in blueprint.contract.variables}
+        source_targets = flat(blueprint.target)
+        for binding in product_groups:
+            if " ".join(interpolate(binding.expression, source_values).split()).upper() != (
+                " ".join(source_targets[binding.path].split()).upper()
+            ):
+                raise ValueError("DG description assembly differs from its approved source block")
     host_products = host_product_wording(blueprint, scenario)
+    source_word_count = sum(
+        len(variable.occurrences[0].text.split())
+        for variable in blueprint.contract.variables
+        if variable.kind == "product" and variable.key not in host_products
+    )
     fields = []
     for variable in blueprint.contract.variables:
         if variable.kind not in {"name", "postal", "product"}:
@@ -613,14 +642,13 @@ def wording_request(
                     )
             role = ", ".join(roles) + " " + variable.kind
         elif variable.kind == "product":
-            requirement = (
-                "Complete commercial product wording, matching the source's level of detail "
-                "and list structure. Express the required commodity facts and physical form. "
-                "Classification wording supplies context, not extra required attributes. "
-                "Product variants and intrinsic specifications may enrich an example that "
-                "has that detail. Incidental per-unit capacity/fill can be product detail. "
-                "Shipment counts, weights, transport settings and codes are separate host facts."
-            )
+            requirement = goods_wording_requirement(source_word_count)
+            if dangerous_goods:
+                requirement += (
+                    " Use the declared package counts from context when the example states "
+                    "quantities at that same package level. Regulatory declarations and "
+                    "shipment-total mass captions belong to their separate owned regions."
+                )
             role = "goods description"
         else:
             raise ValueError(f"lexical region has no current owner: {variable.key}")
@@ -662,7 +690,11 @@ def wording_request(
             "Schema instructions are context, never product text."
         )
         for binding in product_groups:
-            context += f"\nDESCRIPTION ASSEMBLY {binding.path}: {binding.expression}"
+            context += (
+                "\nSOURCE DESCRIPTION ASSEMBLY "
+                "(presentation example; fixed text is replaced by host, not requested wording) "
+                f"{binding.path}: {binding.expression}"
+            )
     cargo = physical_plan.target["documentPatch"] if physical_plan else scenario.cargo
     physical = {
         "goods": [
@@ -731,6 +763,10 @@ def wording_request(
                 "Where an observed produce extension supplies a description, retain that "
                 "commodity's form. Temperature and ventilation are rendered separately."
             )
+    if generated_products and any(
+        goods.get("dangerousGoods") for goods in scenario.cargo.get("goodsItemDetails", [])
+    ):
+        context += dg_wording_context(scenario, cargo=cargo)
     postal_keys = {field.key for field in fields if " postal" in field.role}
     if not goods_only and postal_keys:
         context += "\n" + postal_assembly_context(
@@ -930,9 +966,7 @@ def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=N
             expression = re.sub(
                 r"\{([a-z][a-z0-9_]*)\}",
                 lambda match: (
-                    match[0]
-                    if match[1] in keys
-                    else " ".join(fixed_values[match[1]].split())
+                    match[0] if match[1] in keys else " ".join(fixed_values[match[1]].split())
                 ),
                 expression,
             )
@@ -983,9 +1017,9 @@ def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=N
             lines.append(
                 "COUNTRY OWNER REGIONS: " + ", ".join("{" + owner + "}" for owner in owners) + "."
             )
-        elif re.search(
-            rf"(?<!\w){re.escape(location.country)}(?!\w)", literal, re.I
-        ) or re.search(rf"(?<!\w){re.escape(location.country_code)}[\s,;.)]*$", literal, re.I):
+        elif re.search(rf"(?<!\w){re.escape(location.country)}(?!\w)", literal, re.I) or re.search(
+            rf"(?<!\w){re.escape(location.country_code)}[\s,;.)]*$", literal, re.I
+        ):
             lines.append(
                 f"COUNTRY: {location.country!r}; country is already supplied by a host-owned "
                 "literal. Retain it and keep generated regions free of that country name/code."
@@ -1104,6 +1138,39 @@ def _handling_replay_target(blueprint, candidate, *, casing):
     )
 
 
+def _prepare_scenario_countries(blueprint, target, scenario, registry, policy, seed, sample_id):
+    leaves = flat(target)
+    context_codes = {
+        registry.require(value, field=path)
+        for path, value in leaves.items()
+        if path.endswith(".country")
+    }
+    locations = [scenario.origin, scenario.destination, *scenario.party_localities.values()]
+    locations.extend(scenario.route_locations.values())
+    context_codes.update(location.country_code for location in locations)
+    protected = {role: location.name for role, location in scenario.party_localities.items()}
+    for path, value in leaves.items():
+        if not path.endswith(".country"):
+            continue
+        role = path.removesuffix(".country")
+        if role + ".name" in leaves and not role.startswith("documentPatch.parties."):
+            protected[role] = leaves[role + ".name"]
+        expected = scenario.replacements.get(path, value)
+        if role in scenario.party_localities:
+            expected = scenario.party_localities[role].country_code
+        if registry.require(value, field=path) != registry.require(expected, field=path):
+            raise ValueError(f"country target differs from sampled identity: {path}")
+    return prepare_country_rendering(
+        blueprint,
+        target,
+        registry=registry,
+        policy=policy,
+        context_country_codes=tuple(sorted(context_codes)),
+        protected_localities=protected,
+        stream=DeterministicStream(seed, "country-presentations-v1", sample_id),
+    )
+
+
 def validate_sample(
     blueprint: SamplingBlueprint,
     scenario: ShipmentScenario,
@@ -1113,6 +1180,8 @@ def validate_sample(
     casing_policy: CasingPolicy | None = None,
     phone_policy: PhoneRenderingPolicy | None = None,
     source_phone_country_codes: dict[str, str] | None = None,
+    country_registry: CountryPresentations | None = None,
+    country_policy: CountryPresentationConfig | None = None,
 ) -> dict:
     """Replay supplied render inputs and check schema/accounting invariants.
 
@@ -1128,6 +1197,18 @@ def validate_sample(
     if candidate["countryCodes"] != country_codes:
         raise ValueError("country-code authority differs from the sampled registry geography")
     render_target = _handling_replay_target(blueprint, candidate, casing=casing_policy.target)
+    country_receipt = candidate["proof"].get("countryPresentations")
+    if country_receipt is not None:
+        if country_registry is None or country_policy is None:
+            raise ValueError("country presentation replay requires its pinned registry and policy")
+        render_target = deepcopy(render_target)
+        leaves = flat(render_target)
+        for path, value in country_receipt["targetValues"].items():
+            if leaves.get(path) != value or path not in country_receipt["inputValues"]:
+                raise ValueError("country projection target differs from its replay receipt")
+            assign(render_target, path, country_receipt["inputValues"][path])
+    elif country_registry is not None or country_policy is not None:
+        raise ValueError("country-aware campaign candidate lacks its presentation receipt")
     phone_receipt = candidate["proof"].get("phonePresentations")
     if phone_receipt is not None:
         render_target = deepcopy(render_target)
@@ -1150,6 +1231,19 @@ def validate_sample(
     )
     if phone_receipt != (phone_rendering.receipt() if phone_rendering.target_values else None):
         raise ValueError("phone projection differs from independently prepared source ownership")
+    country_rendering = (
+        _prepare_scenario_countries(
+            blueprint,
+            render_target,
+            scenario,
+            country_registry,
+            country_policy,
+            candidate["seed"],
+            candidate["documentId"],
+        )
+        if country_registry is not None and country_policy is not None
+        else None
+    )
     text, target, proof = render_sampling_blueprint(
         blueprint,
         render_target,
@@ -1159,6 +1253,7 @@ def validate_sample(
         render_casing=casing_policy.select(candidate["seed"], candidate["documentId"]),
         target_casing=casing_policy.target,
         phone_rendering=phone_rendering,
+        country_rendering=country_rendering,
     )
     target, proof = _project_handling_labels(
         blueprint, text, target, proof, casing=casing_policy.target
@@ -1182,7 +1277,13 @@ def validate_sample(
         order_consignment_candidates(text)
     ):
         raise ValueError("rendering changed the source order-consignment instruction")
-    validate_route_values(source, patch, scenario.replacements)
+    route_replacements = {
+        path: country_registry.normalized(value)
+        if country_registry is not None and path.endswith(".country")
+        else value
+        for path, value in scenario.replacements.items()
+    }
+    validate_route_values(source, patch, route_replacements)
     if source.get("route") and patch.get("route") == source["route"]:
         raise ValueError("source-copy route is not a sampled scenario")
     goods = patch["goodsItemDetails"]
@@ -1241,14 +1342,19 @@ def validate_sample(
             if signature in repeated and repeated[signature] != current:
                 raise ValueError(f"repeated source party diverged: {role}")
             repeated[signature] = current
-        if "country" in new and new["country"].upper() != location.country.upper():
+        expected_country = (
+            country_registry.preferred_name(location.country_code)
+            if country_registry is not None
+            else location.country.upper()
+        )
+        if "country" in new and new["country"].upper() != expected_country:
             raise ValueError(f"party country differs from sampled geography: {role}")
         if "addressLine" in new and re.search(r"(?<!\d)0{5,6}(?!\d)", new["addressLine"]):
             raise ValueError(f"generated placeholder postcode: {role}")
         if "addressLine" in new:
             try:
                 validate_postal_geography(
-                    new["addressLine"],
+                    flat(render_target)[role + ".addressLine"],
                     locality=location.name,
                     country=location.country,
                     country_code=location.country_code,
@@ -1272,6 +1378,18 @@ class Campaign:
         self.root, self.config = root, config
         self.casing = CasingPolicy.model_validate(config.get("casing", {}))
         self.phone_policy = PhoneRenderingPolicy.model_validate(config.get("phones", {}))
+        self.country_policy = CountryPresentationConfig.model_validate_json(
+            json.dumps(config.get("country_presentations", {}))
+        )
+        country_manifest = config.get("country_registry_manifest", DEFAULT_REGISTRY_MANIFEST)
+        country_pin = config.get("country_registry_sha256")
+        if country_pin is None and country_manifest != DEFAULT_REGISTRY_MANIFEST:
+            raise ValueError("a nondefault country registry requires its explicit manifest hash")
+        self.country_registry = CountryPresentations.load(
+            root,
+            manifest_path=country_manifest,
+            expected_sha256=country_pin or DEFAULT_MANIFEST_SHA256,
+        )
         base = {key: config[key] for key in CuratedSynthesisConfig.model_fields}
         self.calls = Runner(root, base)
         self.output = self.calls.output
@@ -1288,6 +1406,7 @@ class Campaign:
             ScenarioSamplingConfig.model_validate_json(json.dumps(config["sampling"])),
             list(self.rows.values()),
             frozenset(r["documentId"] for r in validation),
+            country_presentations=self.country_registry,
         )
         self.capabilities = {
             sid: SourceCapabilities.model_validate(v) for sid, v in config["capabilities"].items()
@@ -1505,6 +1624,7 @@ class Campaign:
             SourceContract.model_validate(envelope["contract"]),
             ownership_path,
         )
+        blueprint = bind_postal_country_alias_owners(blueprint, self.country_registry)
         blueprint = augment_auxiliary_blueprint(blueprint, self.auxiliary)
         policy = self.catalog.config.equipment_inventory
         if policy is not None and sid in policy.source_ids:
@@ -1614,10 +1734,9 @@ class Campaign:
     def source_phone_country_codes(self, blueprint: SamplingBlueprint) -> dict[str, str]:
         """Provide recognized source-country metadata, never source city guesses.
 
-        Printed country strings need not be registry aliases (e.g. CHINA(CN)).
-        The source-shape formatter explicitly supports unknown source geography;
-        do not manufacture a code or mistake this optional metadata for new
-        sampled-phone country authority, which is always required.
+        Country fields use the same pinned identity vocabulary as extraction
+        and rendering. Missing source country stays absent; an unsupported
+        explicit country is an error, not silently missing phone metadata.
         """
         if blueprint.document_id not in self._source_phone_country_codes:
             leaves = flat(blueprint.target)
@@ -1626,13 +1745,14 @@ class Campaign:
                 if (
                     path.startswith("documentPatch.parties.")
                     and path.endswith(".country")
-                    and (code := self.catalog.countries.resolve(country))
                 ):
-                    result[path.removesuffix(".country")] = code
+                    result[path.removesuffix(".country")] = self.country_registry.require(
+                        country, field=path
+                    )
             for side, location in (("origin", "portOfLoading"), ("destination", "portOfDischarge")):
                 path = f"documentPatch.route.{location}.country"
-                if code := self.catalog.countries.resolve(leaves.get(path)):
-                    result[side] = code
+                if path in leaves:
+                    result[side] = self.country_registry.require(leaves[path], field=path)
             self._source_phone_country_codes[blueprint.document_id] = result
         return self._source_phone_country_codes[blueprint.document_id]
 
@@ -1682,9 +1802,7 @@ class Campaign:
         # Ordinary wording has no scoped call to verify. Keep that existing
         # path independent of the provider; extensions require its exact pin.
         provider = self.calls.config["provider"] if "scopedExtension" in receipt else None
-        return validate_wording_receipt(
-            receipt, request, output=self.output, provider=provider
-        )
+        return validate_wording_receipt(receipt, request, output=self.output, provider=provider)
 
     def _current_wording(self, receipt: dict, request: WordingRequest) -> dict[str, str]:
         """Keep ordinary contact/postal checks cheap; certify scoped lineage."""
@@ -1794,10 +1912,7 @@ class Campaign:
                 next(r for r in requests if r.sample_id == sample_id)
             )
             prior = json.loads(path.read_text()) if path.exists() else {}
-            if (
-                prior.get("requestSha256") == request_hash
-                and prior["values"] == wording[sample_id]
-            ):
+            if prior.get("requestSha256") == request_hash and prior["values"] == wording[sample_id]:
                 # The accepted call/repair already supplies this exact lexical
                 # request. A new authority's fit hash is current plan context,
                 # not new generation history. Preserve all prior bytes and
@@ -1832,7 +1947,8 @@ class Campaign:
         for bp, scenario, sample_id, target in self.plans(sid):
             receipt = json.loads((self.output / "wording" / f"{sample_id}.json").read_text())
             values = self._current_wording(
-                receipt, self.wording_request(bp, scenario, sample_id, target),
+                receipt,
+                self.wording_request(bp, scenario, sample_id, target),
             )
             wording = combine_surfaces(values, host_product_wording(bp, scenario))
             target = assemble_lexical_target(bp, target, wording, scenario)
@@ -2167,9 +2283,16 @@ class Campaign:
                 role: geo.country_code for role, geo in scenario.party_localities.items()
             },
             policy=self.phone_policy,
-            stream=DeterministicStream(
-                self.config["seed"], "phone-presentations-v1", sample_id
-            ),
+            stream=DeterministicStream(self.config["seed"], "phone-presentations-v1", sample_id),
+        )
+        country_rendering = _prepare_scenario_countries(
+            blueprint,
+            target,
+            scenario,
+            self.country_registry,
+            self.country_policy,
+            self.config["seed"],
+            sample_id,
         )
         text, target, proof = render_sampling_blueprint(
             blueprint,
@@ -2180,6 +2303,7 @@ class Campaign:
             render_casing=self.casing.select(self.config["seed"], sample_id),
             target_casing=self.casing.target,
             phone_rendering=phone_rendering,
+            country_rendering=country_rendering,
         )
         target, proof = _project_handling_labels(
             blueprint, text, target, proof, casing=self.casing.target
@@ -2211,6 +2335,8 @@ class Campaign:
             casing_policy=self.casing,
             phone_policy=self.phone_policy,
             source_phone_country_codes=self.source_phone_country_codes(blueprint),
+            country_registry=self.country_registry,
+            country_policy=self.country_policy,
         )
         if contact_receipt is not None:
             candidate["contactReceiptSha256"] = digest(contact_receipt)

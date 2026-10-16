@@ -22,7 +22,9 @@ _FAMILIES = frozenset(
     ("source", "plus", "double_zero", "international_bare", "national", "national_bare")
 )
 _DIGITS = re.compile(r"[0-9]+")
-_EXTENSION = re.compile(r"(?i)(?:\s*[/,]?\s*)(?:EXTENSION|EXTN|EXT|EX|X)\s*[:.]?\s*(?=[0-9])")
+_EXTENSION = re.compile(
+    r"(?i)(?:\s*[/,]?\s*)(?:EXTENSION|EXTN|EXT|EX|X)\s*(?:\.\s*:|[:.])?\s*(?=[0-9])"
+)
 _ALTERNATES = re.compile(r"(?P<suffix>(?:\s*[/,]\s*[0-9]{1,4})+)(?P<tail>\s*\)?)$")
 _RANGE = re.compile(r"(?i)(?P<separator>\s+TO\s+)(?P<end>[0-9]{1,4})(?P<tail>\s*\)?)$")
 _ANNOTATION = re.compile(r"(?i)(?P<annotation>\s*\(?\s*[0-9]+\s*LINES?\s*\)?)$")

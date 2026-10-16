@@ -180,6 +180,7 @@ def build_relation_constraints(
         package_registry = CategoryRegistry.model_validate_json(
             read_regular_file_bytes(package_registry_path), strict=True
         )
+        package_registry.verify_application_source(package_registry_path)
     except ValueError as error:
         raise ValueError("package registry failed schema validation") from error
     if package_registry.registryKind != "package":

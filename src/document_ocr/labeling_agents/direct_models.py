@@ -45,8 +45,12 @@ class SectionProjectionV7(BillOfLadingDocumentPatchV7):
 SECTION_PRIORITIES: dict[Section, str] = {
     "parties": (
         "Check each role's identity, complete postal block and all owned contacts, including "
-        "continuations where the role definition permits them. Consignee details are "
-        "restricted to its own printed block, not the goods area. Separate postal zones "
+        "continuations where the role definition permits them. Consignee contacts require a "
+        "directly printed consignee-block occurrence; do not import contacts printed only in "
+        "the goods area, even when a continuation marker identifies the consignee. Explicitly "
+        "linked, OCR-supported postal/country continuations may complete its address/country "
+        "across the goods area; establish their link from matching markers/footnotes and "
+        "layout, not another role's equal text. Separate postal zones "
         "from company names and "
         "tax data from addresses. Look for competing addresses rather than concatenating "
         "them. Each name/address/country/contact group must describe one role-owned entity; "
@@ -59,11 +63,16 @@ SECTION_PRIORITIES: dict[Section, str] = {
         " When role captions conflict, inspect the printed caption and its connected block; "
         "OCR can misread headings. Follow continuation markers before assigning ownership."
         " Use layout when needed to resolve detached headings and party ownership."
+        " Country targets use the pinned preferred English name, while address text "
+        "retains its printed country wording. Establish country identity from that "
+        "party's own evidence; flag unresolved identity instead of guessing from a city "
+        "or another party."
     ),
     "route_transport": (
         "Check the role of every location, vessel and voyage against its heading/context, "
         "not OCR reading order or a plausible itinerary. Extract locality names and "
-        "normalize explicitly supported countries as their field definitions require. "
+        "normalize explicitly supported country identities to the pinned preferred English "
+        "names, while retaining locality wording as its field defines. "
         "Check country evidence for that location, not a nearby party. Distinguish "
         "receipt/loading, discharge/delivery and freight-payment places. Request layout "
         "to establish roles when headings and values are detached, including when "
@@ -88,6 +97,8 @@ SECTION_PRIORITIES: dict[Section, str] = {
         "and their owner/type; identifiers with dedicated fields are not export "
         "references. Formatting variants are not different facts. When correcting "
         "ownership, retain a supported fact in its proper field as part of the same correction."
+        " Issue and payment countries follow the same preferred-English normalization "
+        "and role-owned evidence rules as route countries; a city alone is insufficient."
     ),
     "equipment": (
         "Inventory distinct containers and every owned seal, including joined or repeated "
@@ -342,4 +353,20 @@ class DirectLabelingConfig(LabelSchemaModel):
     package_registry_sha256: str = Field(
         pattern=r"^[a-f0-9]{64}$",
         description="Expected registry file hash, checked before any model request.",
+    )
+    country_registry_manifest: str = Field(
+        default=(
+            "artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/"
+            "production-manifest.json"
+        ),
+        min_length=1,
+        description="Project-relative pinned country vocabulary and preferred-name manifest.",
+    )
+    country_registry_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[a-f0-9]{64}$",
+        description=(
+            "Manifest SHA-256 for an explicitly configured country vocabulary. "
+            "Omit only when using the built-in default pinned vocabulary."
+        ),
     )

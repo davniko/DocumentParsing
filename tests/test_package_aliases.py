@@ -180,11 +180,18 @@ def test_invalid_category_mode_and_source_fail():
 def test_registry_drift_and_missing_material_fail():
     categories = set(PACKAGE_ALIASES)
     codes = {category: entry.application_code for category, entry in PACKAGE_ALIASES.items()}
-    assert len(categories) == 44
+    assert len(categories) == 48
     validate_package_alias_registry(categories, codes)
     validate_package_alias_registry(categories, dict(codes, PACKAGE_OUTSIDE_TASK="ZZ"))
+    validate_package_alias_registry(categories - {"PACKAGE_PARCEL", "PACKAGE_RACK"}, codes)
     with pytest.raises(ValueError, match="categories differ"):
-        validate_package_alias_registry(categories - {"PACKAGE_BOX"}, codes)
+        validate_package_alias_registry(categories | {"PACKAGE_UNKNOWN"}, codes)
+    with pytest.raises(ValueError, match="categories differ"):
+        validate_package_alias_registry(set(), codes)
+    with pytest.raises(ValueError, match="categories differ"):
+        validate_package_alias_registry(
+            categories, {k: v for k, v in codes.items() if k != "PACKAGE_BOX"}
+        )
     with pytest.raises(ValueError, match="codes differ"):
         validate_package_alias_registry(categories, dict(codes, PACKAGE_BOX="ZZ"))
     for category, wrong in [
@@ -193,6 +200,27 @@ def test_registry_drift_and_missing_material_fail():
         ("PACKAGE_BAG_PAPER_MULTI_WALL", "PAPER BAGS"),
     ]:
         assert not package_category_surface_present(wrong, category)
+
+
+def test_reviewed_alias_codes_match_the_pinned_mpci_form_registry():
+    import json
+    from pathlib import Path
+
+    registry_path = (
+        Path(__file__).parents[1]
+        / "artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json"
+    )
+    registry = json.loads(registry_path.read_text())
+    codes = {row["categoryToken"]: row["applicationCode"] for row in registry["entries"]}
+    application_aliases = {
+        category
+        for category, alias in PACKAGE_ALIASES.items()
+        if alias.application_code is not None
+    }
+    validate_package_alias_registry(application_aliases, codes)
+    assert set(PACKAGE_ALIASES) - application_aliases == {"PACKAGE_SET", "PACKAGE_BALE"}
+    assert codes["PACKAGE_PARCEL"] == "PC"
+    assert codes["PACKAGE_RACK"] == "RK"
 
 
 def test_rng_replay_and_input_surface_immutability():

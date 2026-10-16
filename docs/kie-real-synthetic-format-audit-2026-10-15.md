@@ -4,6 +4,12 @@ Follow-up: the phone-format implementation and dataset repair are documented in
 [Phone presentation repair](kie-phone-presentation-repair-2026-10-15.md).
 The remaining format investigations below are not thereby marked implemented.
 
+Further independent follow-ups:
+[failed-run deep audit](kie-failing-run-deep-audit-2026-10-15.md),
+[country presentation and base-model probe](kie-country-presentations-audit-2026-10-15.md).
+Sections1–12 retain the original frozen diagnostic scope; later execution does
+not retroactively change its model results or historical input hashes.
+
 Date: 2026-10-15. This consolidates the successive real-data-addback and
 presentation audits and the subsequent questions about phones, equipment,
 countries and goods descriptions. It is an **investigation and decision record**,
@@ -1342,3 +1348,126 @@ Follow-up readback verified all 45 local evidence links, the two current-real
 ownership examples, all 23 shared-cohort description inventory entries, and the
 unchanged hashes of the three protected input shards. Only this Markdown report
 was added/extended; no production behavior or training data was changed.
+
+## 13. Separate follow-up units: wording refresh, failed-run audit and countries
+
+### 13.1 Wording refresh
+
+The [1,000-sample description refresh](kie-goods-description-refresh1000-2026-10-15.md)
+has its own frozen selection, ten100-row review blocks, native call receipts,
+adjudications and publication gate. It starts from R26, preserving DG wording,
+phone and container-ID repairs. **Published and independently verified:**
+1,000 regenerated,996 changed,324 templates;231 affected mirrored old-UAE rows
+updated consistently. Real600/validation60 and every non-description target
+remain unchanged. The exact prior R26 dataset is backed up in the refresh audit.
+Median description length is32→7 words in the draw; short-description coverage
+in the whole synthetic corpus is now1,344/7,000 (19.20%). This is an observed
+coverage change, not a trained-model gain.
+Final geometry checks caught and rejected an original-template rebuild that
+lost existing party anchors. The corrected current-frame edit utility preserves
+all97,857 unedited anchors exactly;87 expanded occurrences without proven local
+clearance remain explicitly unpositioned. The refresh report documents this
+boundary, full inventory,1,723 passing tests, tokenizer and readback results.
+These descriptions were not used in either historical model discussed below.
+
+### 13.2 What the failing model actually missed
+
+The completed [deep audit](kie-failing-run-deep-audit-2026-10-15.md) reproduces
+the own-reference saved metrics and inventories944 aligned leaf discrepancies,
+228 relation/category fact differences,245 role-scoped phone comparisons and16
+source-grounded adjudications. No new inference was needed. All historical
+targets stay frozen; changed HS expectations are excluded from matched comparisons.
+
+|Same56 parseable documents, unchanged non-HS reference|Synthetic-only L/R22|Real-added M/R23|
+|---|---:|---:|
+|Correct scalar values /2,354|2,011|2,156|
+|Field F1 /accuracy|.8603/.8255|.9155/.8905|
+|Relation F1|.8523|.9489|
+|Category F1|.8718|.9368|
+
+This includes addresses and goods descriptions, not just easy unchanged fields.
+Thus the recovery remains after holding parsing membership and target content
+constant. It does not identify one isolated cause: restoring real data also
+changes exposure and optimizer updates.
+The selected M export is step1,785/epoch7.5 versus L step2,190/epoch10, so
+additional optimizer steps alone are not a sufficient explanation. EVA's
+actual calibration also changes: M forwards22 real documents among256 distinct
+calibration documents; L forwards141 synthetic documents. This is a measured
+confound, not an established causal explanation; the deep audit pins its evidence.
+
+Telephone recovery supplies57/145 of the additional correct matched values.
+An unseen-number control still improves19→55 correct, so exact phone memorization
+is not a sufficient explanation. Fragmented equipment IDs improve0/11→9/11.
+R24 increases validation-mask representation from13/116 to110/116 phone values;
+R25 restores fragmented ID presentations to8.96% of synthetic IDs. These are
+confirmed relevant coverage repairs, **not yet measured trained-model gains**.
+
+Outstanding distinctions include two-notify-party ownership, tax-versus-phone
+classification, reference-versus-description boundaries, omitted product/page
+continuations, broad-versus-specific package types, VIN-versus-container identity,
+and total/inventory counts versus true cargo allocations. Existing category
+examples do not guarantee these role contrasts have been learned. Ordinary
+short descriptions are also scarce:under10words in10.73% of synthetic training,
+versus78.17% of real training and71.67% of validation.
+
+A bounded validation-completeness hold is newly documented:delivery-agent
+`a44bb232` prints four phone numbers but labels only its first, while six
+comparable real sources label all four. No gold was silently changed, and
+gold-absent predictions in this case are not automatically hallucinations.
+
+### 13.3 Country representation versus geographic knowledge
+
+The [country audit and base probe](kie-country-presentations-audit-2026-10-15.md)
+keep party fields, location fields and final MPCI ISO2 requirements separate.
+Synthetic targets use full registry names only; real/validation include ISO2,
+ISO3, punctuated abbreviations, language variants and name/code combinations.
+Exact owned-region checks confirm48 party-wording violations across36documents;
+nine further same-party export/registration-country declarations need policy
+adjudication. A source-only pair of route-code targets is also inconsistent.
+No country dataset/template/policy repair was included in this audit.
+
+The ISO lookup has a real ambiguity hazard:`A.R.E` normalizes to `ARE` and hence
+UAE, while its validation occurrence denotes Arab Republic of Egypt. Do not
+blindly remove punctuation before resolving country acronyms. Existing ISO
+identity data plus pinned Unicode CLDR/custom corpus aliases can support a
+future collision-audited presentation vocabulary.
+
+The unmodified pinned T5Gemma2 base was tested offline on2,506 controlled queries.
+It is not instruction-tuned:strict whole-answer correctness is0 because it
+continues text. Held-out few-shot first-answer rates are41.8% name→ISO2,
+18.5% name→ISO3,27.7% ISO2→canonical name and30.1% ISO3→canonical name.
+Observed-alias conversion is77.6%, but179/245 inputs are already country names;
+the report separates genuine alternate forms and copy controls.
+
+A separate four-choice content-likelihood diagnostic gives69/71 name→ISO2 and
+59/71 ISO2→name, versus25% chance. This establishes useful latent mapping signal,
+not production-ready unconstrained conversion or249-way lookup accuracy.
+The follow-up actually ranks all249 candidates on those same71 questions:
+summed content-token likelihood yields40/71 name→ISO2 and31/71 ISO2→name.
+Thus the easy four-choice success does not demonstrate general lookup reliability.
+It supports a controlled supervised-normalization experiment after the target
+contract is settled; it does **not** establish that a resolver can be dropped now.
+
+## Country production repair completed — 2026-10-16
+
+[Implementation and R27 migration](kie-country-policy-production-repair-2026-10-16.md)
+now cover preferred English country targets and configurable rendered aliases
+for parties and localities. All 8,660 unique current/retained records passed the
+country-only migration checks; earlier formatting and description corrections
+remain intact. This does not implement the separate ISO-only target experiment
+or change/rescore historical model results.
+
+## R27 cleanup completion — 2026-10-16
+
+The [additional500 description refresh](kie-goods-description-refresh500-r27-2026-10-16.md)
+is committed to the same R27 working dataset. Synthetic training descriptions
+under10words increase1,344→1,686/7,000 (19.20%→24.09%); this improves coverage,
+but does not close the real/synthetic short-description distribution gap.
+
+The [manual real600 anonymization](kie-r27-real-training-anonymization-2026-10-16.md)
+preserves source presentation and shipment/cargo facts while replacing private
+identities/contacts/references in inputs and existing labels. All600 documents,
+all supplied OCR pages and non-target repeats were manually reviewed. Current
+validation and historical sources remain unchanged. This is preparation for the
+next experiment, not evidence of trained-model improvement or an ISO-only target
+conversion. No R28 is introduced.

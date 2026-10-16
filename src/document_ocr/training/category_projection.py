@@ -147,9 +147,7 @@ class ReviewPolicy(_ConfigModel):
     extension_resolution_groups: tuple[ExtensionResolutionGroup, ...]
     unresolved_descriptions: tuple[UnresolvedDescription, ...]
 
-    @field_validator(
-        "extension_resolution_groups", "unresolved_descriptions", mode="before"
-    )
+    @field_validator("extension_resolution_groups", "unresolved_descriptions", mode="before")
     @classmethod
     def review_rows_are_frozen(cls, value: Any) -> Any:
         if isinstance(value, tuple):
@@ -213,9 +211,7 @@ class CategoryProjectionConfig(_ConfigModel):
 
 def load_category_projection_config(path: Path) -> CategoryProjectionConfig:
     try:
-        return CategoryProjectionConfig.model_validate(
-            load_strict_yaml_mapping(path), strict=True
-        )
+        return CategoryProjectionConfig.model_validate(load_strict_yaml_mapping(path), strict=True)
     except ValueError as error:
         raise CategoryProjectionError(
             f"invalid category projection config: {path}: {error}"
@@ -276,6 +272,8 @@ def _load_pinned_model[ModelT: LabelSchemaModel](
         raise CategoryProjectionError(f"{context} SHA-256 differs: {path}")
     try:
         value = model.model_validate_json(payload, strict=True)
+        if isinstance(value, CategoryRegistry):
+            value.verify_application_source(path)
     except ValueError as error:
         raise CategoryProjectionError(f"{context} failed schema validation: {path}") from error
     return value, payload
@@ -386,9 +384,7 @@ def _publish(path: Path, payload: bytes) -> None:
     atomic_publish_bytes(path, payload)
 
 
-def _file_entry(
-    path: Path, root: Path, payload: bytes, rows: int, kind: str
-) -> dict[str, Any]:
+def _file_entry(path: Path, root: Path, payload: bytes, rows: int, kind: str) -> dict[str, Any]:
     return {
         "bytes": len(payload),
         "kind": kind,
@@ -422,14 +418,12 @@ def _category_task_constraints(
 
 def _report(summary: dict[str, Any], dataset_id: str) -> bytes:
     tokens = ", ".join(f"`{value}`" for value in summary["packageCategoryTokens"])
-    typed = f'{summary["typedPackageOccurrences"]:,} / {summary["typedPackageVariants"]:,}'
-    categorized = f'{summary["categoryOccurrences"]:,} / {summary["categoryVariants"]:,}'
-    fallback = f'{summary["fallbackOccurrences"]:,} / {summary["fallbackVariants"]:,}'
-    reused = f'{summary["reusedPriorOccurrences"]:,} / {summary["reusedPriorVariants"]:,}'
-    extended = f'{summary["extensionOccurrences"]:,} / {summary["extensionVariants"]:,}'
-    containers = (
-        f'{summary["containerTypeOccurrences"]:,} / {summary["containerTypeVariants"]:,}'
-    )
+    typed = f"{summary['typedPackageOccurrences']:,} / {summary['typedPackageVariants']:,}"
+    categorized = f"{summary['categoryOccurrences']:,} / {summary['categoryVariants']:,}"
+    fallback = f"{summary['fallbackOccurrences']:,} / {summary['fallbackVariants']:,}"
+    reused = f"{summary['reusedPriorOccurrences']:,} / {summary['reusedPriorVariants']:,}"
+    extended = f"{summary['extensionOccurrences']:,} / {summary['extensionVariants']:,}"
+    containers = f"{summary['containerTypeOccurrences']:,} / {summary['containerTypeVariants']:,}"
     text = f"""# MPCI B/L task-facing package categories
 
 Dataset: `{dataset_id}`
@@ -511,9 +505,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
     projection_prior_map: dict[str, tuple[str | None, str, str]] = {}
     prior_projection = config.registries.prior_projection_inventory
     if prior_projection is not None:
-        prior_rows, _ = _load_pinned_jsonl(
-            prior_projection, context="prior projection inventory"
-        )
+        prior_rows, _ = _load_pinned_jsonl(prior_projection, context="prior projection inventory")
         for row_number, inventory_row in enumerate(prior_rows, start=1):
             description = inventory_row.get("sourceTypeDescription")
             token = inventory_row.get("categoryToken")
@@ -558,8 +550,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
                 )
             extension_map[description] = (group.category_token, group.rationale)
     unresolved_map = {
-        row.source_type_description: row.rationale
-        for row in config.review.unresolved_descriptions
+        row.source_type_description: row.rationale for row in config.review.unresolved_descriptions
     }
     if set(extension_map) & set(unresolved_map):
         raise CategoryProjectionError("extension review contains conflicting decisions")
@@ -597,9 +588,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
             description = container.get("typeDescription")
             if description is not None:
                 if not isinstance(description, str):
-                    raise CategoryProjectionError(
-                        f"non-text container description: {document_id}"
-                    )
+                    raise CategoryProjectionError(f"non-text container description: {document_id}")
                 container_counts[description] += 1
                 container_documents[description].add(document_id)
 
@@ -612,10 +601,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
     ):
         raise CategoryProjectionError("observed category inventory differs from config")
     decided_keys = (
-        set(prior_map)
-        | set(projection_prior_map)
-        | set(extension_map)
-        | set(unresolved_map)
+        set(prior_map) | set(projection_prior_map) | set(extension_map) | set(unresolved_map)
     )
     observed_keys = set(package_counts)
     missing = sorted(observed_keys - decided_keys)
@@ -743,9 +729,7 @@ def project_package_categories(config: CategoryProjectionConfig) -> Path:
                     "groupId": package["groupId"],
                     "packageId": package["packageId"],
                     "sourceTypeDescription": description,
-                    "sourceTypeDescriptionSha256": sha256_bytes(
-                        description.encode("utf-8")
-                    ),
+                    "sourceTypeDescriptionSha256": sha256_bytes(description.encode("utf-8")),
                 }
             )
         try:

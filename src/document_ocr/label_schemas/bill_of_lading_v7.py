@@ -68,9 +68,12 @@ class LocationV7(SemanticLocation):
     country: CountryText | None = Field(
         default=None,
         description=(
-            "Country explicitly supported by this location's OCR wording or country "
-            "code, including an unambiguous national adjective. Normalize to the "
-            "conventional English short country name in uppercase. A city alone or "
+            "Country or territory explicitly supported by this location's OCR wording or "
+            "country code, including an unambiguous national adjective. Normalize its "
+            "identity to the pinned registry's preferred English name in uppercase, not "
+            "the printed alias or ISO code. Preserve the locality name's own wording. "
+            "If country identity remains ambiguous, omit this optional field and flag it "
+            "for review. A city alone or "
             "another party's country does not establish this location's country. "
             "Generic contractual coverage of a country is not shipment-route evidence."
         ),
@@ -596,11 +599,14 @@ class ExtractionPartyV7(LabelSchemaModel):
     country: CountryText | None = Field(
         default=None,
         description=(
-            "Recognizable postal country name or code printed for this party, "
-            "preserving source wording in uppercase. Include country in addressLine too. Clear "
-            "aliases/demonyms may support the country; no geocoding from city, "
-            "telephone or company name, and no guessed repair of malformed country "
-            "text."
+            "Country or territory explicitly supported by this party's owned OCR wording "
+            "or country code. Normalize its identity to the pinned registry's preferred "
+            "English name in uppercase, not the printed alias or ISO code. Keep the "
+            "printed country wording in addressLine unchanged under its casing and "
+            "line-break rules. An unambiguous country alias or demonym may establish "
+            "identity; city, telephone, company name or another party's country may not. "
+            "If identity remains ambiguous or unsupported, omit this optional field and "
+            "flag it for review rather than guess or repair malformed text."
         ),
     )
     contactDetails: ContactsV7 | None = Field(
@@ -650,13 +656,17 @@ class ExtractionPartiesV7(LabelSchemaModel):
     consignee: ExtractionPartyV7 | None = Field(
         default=None,
         description=(
-            "Named consignee or named bank/entity in a TO ORDER OF clause; omit the "
-            "order preamble from its identity. Bare TO ORDER supplies no named "
-            "consignee. Preserve the order instruction as negotiability=negotiable "
-            "even though it is removed from the name; never invent a consignee to meet "
-            "form submission rules. Use information printed directly in the consignee "
-            "block; do not import contacts or other details from the goods area. "
-            "This role-specific boundary takes precedence over general continuation rules."
+            "Named consignee or named bank/entity in a TO ORDER OF clause; omit the order "
+            "preamble from its identity. Bare TO ORDER supplies no named consignee. Preserve "
+            "the order instruction as negotiability=negotiable even though it is removed from "
+            "the name; never invent a consignee to meet form submission rules. Use information "
+            "printed directly in the consignee block. Explicitly linked, OCR-supported "
+            "postal/country continuations may complete its address and country even when "
+            "printed later in the goods area; establish the link from matching continuation "
+            "markers/footnotes and layout, not another role's equal text. Do not import "
+            "contacts printed only in the goods area, even from a marked consignee "
+            "continuation. This role-specific contact boundary takes precedence over general "
+            "contact-continuation rules."
         ),
     )
     notifyParties: tuple[NotifyPartyV7, ...] | None = Field(

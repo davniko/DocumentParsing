@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from document_ocr.hashing import sha256_bytes
+from document_ocr.synthesis.country_presentations import Registry as CountryPresentations
 from document_ocr.synthesis.country_registry import CountryRegistry
 
 
@@ -67,7 +68,9 @@ class PartyLocalityGroup(BaseModel):
             raise ValueError("locality group witnesses must express the same postal component")
         return self
 
-    def validate_source(self, row: Mapping[str, Any], countries: CountryRegistry) -> None:
+    def validate_source(
+        self, row: Mapping[str, Any], countries: CountryRegistry | CountryPresentations
+    ) -> None:
         source = row["joinedRawText"]
         if sha256_bytes(source.encode()) != self.source_sha256:
             raise ValueError("shared postal source hash differs from certificate")

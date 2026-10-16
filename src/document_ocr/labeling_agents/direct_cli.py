@@ -67,6 +67,7 @@ def execute(arguments: argparse.Namespace) -> dict[str, Any]:
     if sha256_bytes(registry_payload) != config.package_registry_sha256:
         raise ValueError("package registry hash mismatch")
     registry = CategoryRegistry.model_validate_json(registry_payload)
+    registry.verify_application_source(root / config.package_registry)
     if registry.registryKind != "package":
         raise ValueError("expected package registry")
     if arguments.command == "schema":

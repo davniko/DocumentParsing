@@ -1,10 +1,10 @@
-dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/reaudit-20261012/real660
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset
 output: artifacts/kie-synthesis-production/mixed-inventory-validation-v1
 ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
 auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
 environment_file: .env
 task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
-task_constraints_sha256: c576604270d7532ea5106903695bcbc15ff9a11a72f1f393aa826d7b9d5c9c7a
+task_constraints_sha256: a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77
 seed: 2026101247
 variants_per_source: 2
 casing:
@@ -1470,10 +1470,27 @@ source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
 historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
 aliases:
   package_registry:
-    path: artifacts/mpci-ai-schema/categorical-registry-followup/package-category-registry.json
-    sha256: 2476deb46c3cabf2efe9a00bbb9ad1bf6b527e4adae0e4872d8a63807bbd374f
-    records: 405
+    path: artifacts/sampling-registries/package-extraction-vocabulary-v2.json
+    sha256: 4392e46f19ef4cbc6138c6039c3cafaf4c36edacc5bacd468baec635820058c0
+    records: 407
   equipment_registry:
     path: artifacts/sampling-registries/equipment-aliases.json
     sha256: 449160a10885d871b3ce1e9110819a586337c00945fdf6993affb6cf5d2487ad
   package_mode: registry
+country_registry_manifest: artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/production-manifest.json
+country_registry_sha256: aa8f579b7a5855a47b11dca35b27c38198f07d090d801b6c1fe86917c4b854b4
+country_presentations:
+  alias_probability: 0.3
+  family_weights:
+    name: 1.0
+    iso2: 1.0
+    iso3: 1.0
+    abbreviation: 1.0
+    dotted_code: 1.0
+    localized_name: 1.0
+  language_allowlist:
+  - en
+  - it
+  - fr
+  - es
+  unavailable_family_policy: renormalize_eligible

@@ -1,0 +1,494 @@
+environment_file: .env
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77
+seed: 2026101602
+variants_per_source: 3
+casing:
+  target: uppercase
+  render_styles:
+  - uppercase
+  - title
+positions:
+  output_subdirectory: positions-reflow-v1
+  seed: 202610111
+  scale_min: 0.95
+  scale_max: 1.05
+  max_translation: 20
+  scale_attempts: 32
+  reflow:
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    seed: 202610111
+    row_lock_height_fraction: 0.3333333333333333
+    column_guard_height_fraction: 0.5
+    bottom_guard_height_fraction: 1.0
+concurrency: 8
+budget_usd: 3.0
+provider:
+  kind: openrouter
+  model: z-ai/glm-5.3-flash
+  api_key_env: OPENROUTER_API_KEY
+  reasoning_effort: low
+  request_timeout_seconds: 300.0
+  transport_max_retries: 0
+  max_output_tokens: 8192
+  require_parameters: true
+  data_collection: deny
+  allow_fallbacks: false
+  provider_only:
+  - together
+  output_mode: native
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  max_prompt_price_usd_per_million: 0.25
+  max_completion_price_usd_per_million: 0.75
+  pricing:
+    currency: USD
+    effective_date: '2026-10-13'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+    input_usd_per_million: '0.15000000'
+    cached_input_usd_per_million: '0.03000000'
+    cache_write_multiplier: 1.0
+    output_usd_per_million: '0.5000000'
+sampling:
+  ambient_hs_chapters:
+  - 08
+  - 09
+  - '10'
+  - '11'
+  - '12'
+  - '15'
+  - '25'
+  - '27'
+  - '29'
+  - '34'
+  - '38'
+  - '39'
+  - '40'
+  - '42'
+  - '44'
+  - '48'
+  - '49'
+  - '50'
+  - '51'
+  - '52'
+  - '53'
+  - '54'
+  - '55'
+  - '56'
+  - '57'
+  - '58'
+  - '59'
+  - '60'
+  - '61'
+  - '62'
+  - '63'
+  - '64'
+  - '65'
+  - '66'
+  - '67'
+  - '68'
+  - '69'
+  - '70'
+  - '72'
+  - '73'
+  - '74'
+  - '75'
+  - '76'
+  - '78'
+  - '79'
+  - '80'
+  - '81'
+  - '82'
+  - '83'
+  - '84'
+  - '85'
+  - '86'
+  - '87'
+  - '88'
+  - '89'
+  - '90'
+  - '91'
+  - '92'
+  - '94'
+  - '95'
+  - '96'
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+    records: null
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+    records: 111561
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+    records: 3032
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+    records: 34106
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    records: null
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    records: null
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    records: null
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+    records: 5612
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    records: 2934
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    records: 3480
+  transport_capacity:
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0.0
+    twenty_standard_payload_kg: 28300.0
+    twenty_standard_volume_m3: 33.2
+    forty_standard_payload_kg: 28870.0
+    forty_standard_volume_m3: 67.7
+    forty_high_cube_payload_kg: 28690.0
+    forty_high_cube_volume_m3: 76.4
+    forty_five_high_cube_payload_kg: 27650.0
+    forty_five_high_cube_volume_m3: 86.0
+    out_of_gauge_payload_kg: 47300.0
+    unclassified_payload_kg: 47300.0
+    unclassified_volume_m3: 86.0
+  quantity_scale_min: '0.6'
+  quantity_scale_max: '1.2'
+  scale_steps: 60
+  maximum_candidates: 512
+  thermal:
+    frozen:
+      minimum: -24
+      maximum: -18
+      step: 0.5
+    chilled:
+      minimum: 0
+      maximum: 0
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    chilled_chapters:
+    - '02'
+    - '03'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  flash_points:
+    path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+    sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+    records: 64
+  load_profiles:
+    path: artifacts/sampling-registries/load-profiles.json
+    sha256: 920598be09985ad6cfd9dfc5821085e1debb2ae1d50d9d3d5005e9cc94df4020
+country_registry_manifest: artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/production-manifest.json
+country_registry_sha256: aa8f579b7a5855a47b11dca35b27c38198f07d090d801b6c1fe86917c4b854b4
+country_presentations:
+  alias_probability: 0.3
+  family_weights:
+    name: 1.0
+    iso2: 1.0
+    iso3: 1.0
+    abbreviation: 1.0
+    dotted_code: 1.0
+    localized_name: 1.0
+  language_allowlist:
+  - en
+  - it
+  - fr
+  - es
+  unavailable_family_policy: renormalize_eligible
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset
+output: artifacts/kie-synthesis-production/template-expansion60-r27-batch02-20261016-registry-validation
+source_ids:
+- doc_0bfda48a5067e2b6209ca211d408e3138fb09eac654f589025c79c61c2031cf1
+- doc_1e903c9913ed557aa5df7494e5a990e9a165b049dd6da2fd67b7acb15e89f2d5
+- doc_275a9b4d91bcc5b60a7e1dd28e1e01fc62498465f68d57da07986c74bdc364d0
+- doc_2b88d69f06717c214c31562ab8a6bf6fce245d11525aa7f492539172e2513498
+- doc_2c6f04523f19ddbaa727dbd1cfdeed0b7977a33f6b57346000542a2dce73b510
+- doc_2d5864aa59eeb3eb9e96c9c7c1d9dcfe6d1e6031121b67651c676cc3ad918e06
+- doc_3929e40be38aa591b16be3c45a74c6f9de8ff7a352dadbd56465c377333daceb
+- doc_3d709016271231300f4a1163c525063611517d810e99c5dfb5c6a8260d54f0a3
+- doc_458d2fa0033b403d447e50b8a42148161bbd6a320671c5b94a9708e03e891be3
+- doc_4ae247ca4d6d9c336d524e2b117801bc0600878087a2bad79e0182d32cd4b7d4
+- doc_5030c6d8e0506fc445b582c212a303dcdee189e41eb9100cd5f3078d41c6ba14
+- doc_5df38b71e397c55219552b7da5cf0072a0cf2cf0731f71e75e0dc924f7e71dad
+- doc_6cc8c295822b3bcf3c8f7ccb66986ebb9692b5a9a50a14b73e8d845b25bbb736
+- doc_78866b48bacf2efc41aa4a743bd2d5ff25a27126c7656b4c51e86588f0e7de86
+- doc_8cafc8c13fc735f4399f07ce0f13389a987cb569a2fb4bab621e84eedffd18c4
+- doc_92517a14dfe7edfd2f9c5496bdd555a11fe10dbbdd58dd329f51622c950d0583
+- doc_9a91aa0a9db283397f72b8618a68c1922879f05385384ccfb16b2ae7a288c59b
+- doc_9dead588632de8f9d0f5c873fae7776f967dccc266c286e2144cc965f5507c6f
+- doc_d274be39fa08a3bd1a2500dc764acd91abcec16d7ed3daf301b0ffcbad2857fc
+- doc_fce1bfea0e34cffcc17cda26782825cdc2c8dc0d041c3acca03df0f1cac9fbc6
+capabilities:
+  doc_0bfda48a5067e2b6209ca211d408e3138fb09eac654f589025c79c61c2031cf1:
+    allowed_package_categories:
+    - PACKAGE_PALLET
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+  doc_1e903c9913ed557aa5df7494e5a990e9a165b049dd6da2fd67b7acb15e89f2d5:
+    allowed_hs_headings:
+    - '8412'
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    family: ambient
+    fixed_package_quantity: 1
+    location_sides:
+      documentPatch.freight.paymentPlace: destination
+    physical_profile: source_bundle
+  doc_275a9b4d91bcc5b60a7e1dd28e1e01fc62498465f68d57da07986c74bdc364d0:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+    route_topology:
+      fields:
+        finalDestination: final
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      location_nodes:
+        documentPatch.freight.paymentPlace: origin
+      nodes:
+        final:
+          country_from: destination
+          kind: locality
+        shipper:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.shipper: shipper
+      rationale: Explicit Hong Kong shipper is distinct from China loading/receipt
+        and Egypt discharge/delivery; final free-zone destination is a separate destination-country
+        locality. Payment and issue repeat Nansha with explicit role contexts.
+  doc_2b88d69f06717c214c31562ab8a6bf6fce245d11525aa7f492539172e2513498:
+    allowed_hs_headings:
+    - '2905'
+    allowed_package_categories:
+    - PACKAGE_DRUM
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+    quantity_multiple: 3
+    route_topology:
+      fields:
+        placeOfDelivery: delivery
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      nodes:
+        delivery:
+          country_from: destination
+          kind: port
+      party_nodes:
+        documentPatch.parties.consignee: delivery
+        documentPatch.parties.deliveryAgent: delivery
+        documentPatch.parties.notifyParties[0]: delivery
+      rationale: Port Klang receipt/loading/issue repeat; Damietta discharge and Alexandria
+        delivery are distinct destination-country ports. Consignee/notify and the
+        delivery agent are linked to the actual delivery locality, not collapsed into
+        the discharge port.
+  doc_2c6f04523f19ddbaa727dbd1cfdeed0b7977a33f6b57346000542a2dce73b510:
+    allowed_hs_headings:
+    - '8451'
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+  doc_2d5864aa59eeb3eb9e96c9c7c1d9dcfe6d1e6031121b67651c676cc3ad918e06:
+    allowed_package_categories:
+    - PACKAGE_BOX
+    family: ambient
+    identity_count: 2
+    physical_profile: observed_train_bundle
+  doc_3929e40be38aa591b16be3c45a74c6f9de8ff7a352dadbd56465c377333daceb:
+    family: ambient
+    identity_count: 3
+    physical_profile: registry_form
+  doc_3d709016271231300f4a1163c525063611517d810e99c5dfb5c6a8260d54f0a3:
+    allowed_package_categories:
+    - PACKAGE_PALLET
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+  doc_458d2fa0033b403d447e50b8a42148161bbd6a320671c5b94a9708e03e891be3:
+    allowed_package_categories:
+    - PACKAGE_FLEXITANK
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+  doc_4ae247ca4d6d9c336d524e2b117801bc0600878087a2bad79e0182d32cd4b7d4:
+    allowed_hs_headings:
+    - '8409'
+    family: ambient
+    fixed_package_quantity: 36
+    identity_count: 1
+    physical_profile: source_bundle
+    route_topology:
+      fields:
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: origin
+      nodes:
+        notify:
+          country_from: independent
+          kind: locality
+      party_nodes:
+        documentPatch.parties.forwardingAgent: destination
+        documentPatch.parties.notifyParties[0]: notify
+      rationale: Notify UAE is a distinct third-country actor, not the Belgian shipper
+        or Egyptian consignee/forwarder. Preserve only source-populated loading/discharge
+        route fields and independently owned parties.
+  doc_5030c6d8e0506fc445b582c212a303dcdee189e41eb9100cd5f3078d41c6ba14:
+    allowed_hs_headings:
+    - '4011'
+    - '4013'
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    family: ambient
+    identity_count: 2
+    physical_profile: source_bundle
+  doc_5df38b71e397c55219552b7da5cf0072a0cf2cf0731f71e75e0dc924f7e71dad:
+    allowed_package_categories:
+    - PACKAGE_PALLET
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+  doc_6cc8c295822b3bcf3c8f7ccb66986ebb9692b5a9a50a14b73e8d845b25bbb736:
+    allowed_hs_headings:
+    - '8716'
+    allowed_package_categories:
+    - PACKAGE_UNPACKED_OR_UNPACKAGED_SINGLE_UNIT
+    family: vehicle
+    fixed_package_quantity: 1
+    identity_count: 1
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+    physical_profile: source_whole_units
+  doc_78866b48bacf2efc41aa4a743bd2d5ff25a27126c7656b4c51e86588f0e7de86:
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: origin
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      location_nodes:
+        documentPatch.freight.paymentPlace: payment
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        payment:
+          country_from: independent
+          kind: port
+      rationale: Hong Kong payment is independent of Zhuhai loading/receipt and Sokhna
+        discharge/delivery; Shenzhen issuance is a distinct origin-country locality.
+        Exact original role fields and absent countries remain unchanged.
+  doc_8cafc8c13fc735f4399f07ce0f13389a987cb569a2fb4bab621e84eedffd18c4:
+    family: ambient
+    physical_profile: registry_form
+  doc_92517a14dfe7edfd2f9c5496bdd555a11fe10dbbdd58dd329f51622c950d0583:
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    family: ambient
+    physical_profile: observed_train_bundle
+  doc_9a91aa0a9db283397f72b8618a68c1922879f05385384ccfb16b2ae7a288c59b:
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    - FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    - FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE
+    - FORTY_FIVE_FOOT_HIGH_CUBE|GENERAL_PURPOSE
+    family: ambient
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+    physical_profile: registry_form
+  doc_9dead588632de8f9d0f5c873fae7776f967dccc266c286e2144cc965f5507c6f:
+    allowed_equipment_pairs:
+    - TWENTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    - TWENTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE
+    - FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE
+    - FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE
+    - FORTY_FIVE_FOOT_HIGH_CUBE|GENERAL_PURPOSE
+    allowed_package_categories:
+    - PACKAGE_PACKAGE
+    family: ambient
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+    physical_profile: observed_train_bundle
+  doc_d274be39fa08a3bd1a2500dc764acd91abcec16d7ed3daf301b0ffcbad2857fc:
+    allowed_hs_headings:
+    - '8429'
+    allowed_package_categories:
+    - PACKAGE_UNPACKED_OR_UNPACKAGED_SINGLE_UNIT
+    family: vehicle
+    fixed_package_quantity: 1
+    identity_count: 1
+    physical_profile: source_whole_units
+  doc_fce1bfea0e34cffcc17cda26782825cdc2c8dc0d041c3acca03df0f1cac9fbc6:
+    allowed_hs_headings:
+    - '4013'
+    allowed_package_categories:
+    - PACKAGE_CARTON
+    family: ambient
+    identity_count: 1
+    physical_profile: source_bundle
+    route_topology:
+      fields:
+        placeOfDelivery: destination
+        placeOfReceipt: receipt
+        portOfDischarge: destination
+        portOfLoading: origin
+      issue_node: issue
+      nodes:
+        issue:
+          country_from: origin
+          kind: locality
+        receipt:
+          country_from: origin
+          kind: locality
+      party_nodes:
+        documentPatch.parties.deliveryAgent: destination
+        documentPatch.parties.shipper: receipt
+      rationale: Hyderabad receipt/shipper locality, Nhava Sheva loading and Noida
+        issue are distinct origin-country locations; Sokhna discharge/delivery repeat
+        the same destination port. Do not collapse the receipt or issue names into
+        the loading port.
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml

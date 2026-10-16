@@ -1,9 +1,9 @@
-"""Pinned ISO-3166 country identities and conservative corpus aliases.
+"""Pinned ISO-3166 identities for geographic sampling and registry audits.
 
-Synthetic scenarios use ISO alpha-2 internally, while task labels retain a
-printable country name.  This module is the only boundary between those two
-representations.  It never guesses from substrings or place names: an input is
-resolved only when its normalized alias has exactly one configured country.
+OCR country identity and presentation use ``country_presentations`` instead:
+its punctuation-sensitive lookup distinguishes Egyptian A.R.E. from UAE ARE.
+The normalization here is for the separately pinned ISO/audit vocabulary, not
+for recognizing rendered document-country strings.
 """
 
 from __future__ import annotations

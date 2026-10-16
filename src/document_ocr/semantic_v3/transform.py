@@ -15,6 +15,13 @@ import yaml
 from pydantic import Field, StringConstraints, model_validator
 
 from document_ocr.atomic import atomic_publish_bytes, atomic_publish_json, read_regular_file_bytes
+from document_ocr.category_registry import (
+    ApplicationRegistrySource,
+    SemanticCategoryExtension,
+    application_code,
+    validate_semantic_extensions,
+    verify_application_registry_source,
+)
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
 from document_ocr.label_schemas.bill_of_lading import BillOfLadingLabel
 from document_ocr.label_schemas.bill_of_lading_v3 import BillOfLadingRelationExplicitLabel
@@ -87,25 +94,29 @@ def _transform_contract_sha256(config: SemanticV3TransformConfig) -> str:
 
 class CategoryRegistryEntry(LabelSchemaModel):
     categoryToken: CategoryToken
-    applicationCode: Annotated[str, StringConstraints(pattern=r"^[0-9A-Z]{2,4}$")]
+    applicationCode: Annotated[str, StringConstraints(pattern=r"^[0-9A-Z]{2,4}$")] | None
     displayName: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class CategoryRegistry(LabelSchemaModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[1, 2]
     registryKind: Literal["package", "container"]
     sourceAuthority: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     sourceRevision: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
     sourcePath: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     sourceSha256: Sha256
     entries: tuple[CategoryRegistryEntry, ...]
+    semanticExtensions: dict[CategoryToken, SemanticCategoryExtension] = Field(default_factory=dict)
+    applicationRegistry: ApplicationRegistrySource | None = None
 
     @model_validator(mode="after")
     def entries_are_unique_and_codes_match_kind(self) -> CategoryRegistry:
         if self.registryKind == "package" and not self.entries:
             raise ValueError("package category registry must contain at least one entry")
         tokens = tuple(row.categoryToken for row in self.entries)
-        codes = tuple(row.applicationCode for row in self.entries)
+        codes = tuple(
+            row.applicationCode for row in self.entries if row.applicationCode is not None
+        )
         if len(tokens) != len(set(tokens)) or len(codes) != len(set(codes)):
             raise ValueError("category registry tokens and application codes must be unique")
         expected_length = 2 if self.registryKind == "package" else 4
@@ -113,7 +124,30 @@ class CategoryRegistry(LabelSchemaModel):
             raise ValueError(
                 f"{self.registryKind} application codes must be {expected_length} chars"
             )
+        validate_semantic_extensions(
+            self.schemaVersion,
+            self.registryKind,
+            {row.categoryToken for row in self.entries if row.applicationCode is None}
+            if len(codes) != len(self.entries)
+            else set(),
+            self.semanticExtensions,
+            self.applicationRegistry,
+        )
         return self
+
+    def verify_application_source(self, path: Path) -> None:
+        if self.applicationRegistry is not None:
+            verify_application_registry_source(
+                path,
+                self.applicationRegistry,
+                [entry.model_dump(mode="json") for entry in self.entries],
+            )
+
+    def application_code(self, category_token: str) -> str:
+        for entry in self.entries:
+            if entry.categoryToken == category_token:
+                return application_code(category_token, entry.applicationCode)
+        raise ValueError(f"category is absent from pinned registry: {category_token}")
 
 
 class PackageCategoryAssignment(LabelSchemaModel):
@@ -509,9 +543,7 @@ def _inventories(
         parties = patch.get("parties")
         if isinstance(parties, dict):
             for notify_party in parties.get("notifyParties", []):
-                if isinstance(notify_party, dict) and isinstance(
-                    notify_party.get("sameAs"), str
-                ):
+                if isinstance(notify_party, dict) and isinstance(notify_party.get("sameAs"), str):
                     categoricals["parties.notifyParties.sameAs"][notify_party["sameAs"]] += 1
         for container in patch.get("containers", []):
             description = container.get("typeDescription")
@@ -808,6 +840,8 @@ def _load_frozen_model[ModelT: LabelSchemaModel](
         raise SemanticV3TransformError(f"frozen artifact SHA-256 mismatch: {path}")
     try:
         value = model.model_validate_json(payload, strict=True)
+        if isinstance(value, CategoryRegistry):
+            value.verify_application_source(path)
     except ValueError as error:
         raise SemanticV3TransformError(f"frozen artifact failed validation: {path}") from error
     return value, digest
@@ -820,7 +854,7 @@ def _category_inputs(
 ) -> tuple[
     dict[tuple[str | None, str | None], str | None],
     dict[tuple[str | None, str | None], str | None],
-    dict[str, str],
+    dict[str, str | None],
     dict[str, str],
 ]:
     registry_config = config.registries
@@ -1114,11 +1148,7 @@ def _publish_training_config(
         project_root = configured_root.resolve(strict=True)
     except OSError as error:
         raise SemanticV3TransformError("training project root does not exist") from error
-    if (
-        project_root != absolute_root
-        or not project_root.is_dir()
-        or project_root.is_symlink()
-    ):
+    if project_root != absolute_root or not project_root.is_dir() or project_root.is_symlink():
         raise SemanticV3TransformError("training project root must be a canonical directory")
     baseline_path = _canonical_file(
         Path(publication.source.baseline_path), context="training baseline config"
@@ -1210,12 +1240,8 @@ def _publish_training_config(
         )
     value["dataset"]["preprocessing"]["max_source_length"] = capacity.max_source_length
     value["dataset"]["preprocessing"]["max_target_length"] = capacity.max_target_length
-    value["optimization"]["per_device_train_batch_size"] = (
-        capacity.per_device_train_batch_size
-    )
-    value["optimization"]["gradient_accumulation_steps"] = (
-        capacity.gradient_accumulation_steps
-    )
+    value["optimization"]["per_device_train_batch_size"] = capacity.per_device_train_batch_size
+    value["optimization"]["gradient_accumulation_steps"] = capacity.gradient_accumulation_steps
     value["evaluation"]["per_device_batch_size"] = capacity.per_device_eval_batch_size
     value["evaluation"]["generation_max_length"] = capacity.max_target_length
     optimizer_steps_per_epoch = ceil(
@@ -1272,13 +1298,10 @@ def _transform_dangerous_goods(rows: list[dict[str, Any]]) -> list[dict[str, Any
         subsidiary_hazard = source.get("subsidiaryHazard")
         if subsidiary_hazard is not None:
             try:
-                value["subsidiaryHazardCategory"] = _HAZARD_CLASS_TO_CATEGORY[
-                    subsidiary_hazard
-                ]
+                value["subsidiaryHazardCategory"] = _HAZARD_CLASS_TO_CATEGORY[subsidiary_hazard]
             except KeyError as error:
                 raise SemanticV3TransformError(
-                    "subsidiary hazard is not an exact supported IMDG class: "
-                    f"{subsidiary_hazard!r}"
+                    f"subsidiary hazard is not an exact supported IMDG class: {subsidiary_hazard!r}"
                 ) from error
         source_flash_point = source.get("flashPoint")
         if source_flash_point is not None:
@@ -1286,9 +1309,7 @@ def _transform_dangerous_goods(rows: list[dict[str, Any]]) -> list[dict[str, Any
             packing_group = source_flash_point.get("packingGroup")
             if packing_group is not None:
                 try:
-                    flash_point["packingGroupCategory"] = _PACKING_GROUP_TO_CATEGORY[
-                        packing_group
-                    ]
+                    flash_point["packingGroupCategory"] = _PACKING_GROUP_TO_CATEGORY[packing_group]
                 except KeyError as error:
                     raise SemanticV3TransformError(
                         f"unsupported dangerous-goods packing group: {packing_group!r}"
@@ -1623,9 +1644,7 @@ def publish_semantic_v3_dataset(config: SemanticV3TransformConfig) -> Path:
                 "path": token_length_path.name,
                 "sha256": token_length_sha256,
                 "source_max": token_length_audit["source_tokens"]["max"],
-                "target_max": token_length_audit[
-                    "target_tokens_including_terminal_eos"
-                ]["max"],
+                "target_max": token_length_audit["target_tokens_including_terminal_eos"]["max"],
             }
         publication = config.training_config
         training_config_manifest = {
@@ -1657,9 +1676,7 @@ def publish_semantic_v3_dataset(config: SemanticV3TransformConfig) -> Path:
         "category_projection": {
             "package_token_to_application_code": dict(sorted(package_codes.items())),
             "container_token_to_application_code": dict(sorted(container_codes.items())),
-            "unresolved_package_source_keys": sum(
-                value is None for value in package_map.values()
-            ),
+            "unresolved_package_source_keys": sum(value is None for value in package_map.values()),
             "unresolved_container_source_keys": sum(
                 value is None for value in container_map.values()
             ),

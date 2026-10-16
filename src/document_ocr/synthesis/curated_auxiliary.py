@@ -21,6 +21,7 @@ from typing import Any
 import yaml
 
 from document_ocr.synthesis.curated import digest, flat
+from document_ocr.synthesis.curated_dg_wording import proper_shipping_name
 from document_ocr.synthesis.curated_hs import hs_digits, render_source_hs
 from document_ocr.synthesis.curated_scenarios import ShipmentScenario
 from document_ocr.synthesis.curated_templates import RenderRegion, SamplingBlueprint
@@ -92,6 +93,7 @@ def _validate_recipe(recipe: dict) -> None:
         "phone",
         "transport_leg",
         "party_location",
+        "dg_fact",
     } & recipe.keys()
     if len(actions) != 1:
         raise ValueError("auxiliary recipe must have exactly one rendering action")
@@ -104,9 +106,12 @@ def _validate_recipe(recipe: dict) -> None:
         "phone": {"channel", "canonical_identity", "prefix", "suffix", "country_code"},
         "transport_leg": {"source_voyage"},
         "party_location": {"field"},
+        "dg_fact": {"prefix", "suffix"},
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
+    if action == "dg_fact" and recipe[action] != "properShippingName":
+        raise ValueError("unsupported DG identity fact")
     if recipe.get("format") is not None and action == "identifier" and recipe["format"] != "source":
         raise ValueError("identifier formatting must preserve the source envelope")
     if "source_value" in recipe and (
@@ -337,6 +342,8 @@ def _render_recipe(
         if re.search(r"\{[^}]+\}", value):
             raise ValueError("unknown auxiliary interpolation key")
         return recipe.get("prefix", "") + value + recipe.get("suffix", "")
+    if "dg_fact" in recipe:
+        return recipe.get("prefix", "") + proper_shipping_name(scenario) + recipe.get("suffix", "")
     if "target" in recipe:
         value = flat(target).get(recipe["target"])
         if not isinstance(value, str) or not value:
@@ -615,12 +622,29 @@ def validate_identifier_privacy(blueprint: SamplingBlueprint) -> None:
     if unknown := set(policy) - set(bindings):
         raise ValueError(f"identifier privacy names an unknown source owner: {sorted(unknown)}")
     leaves = flat(blueprint.target)
+    # Dropped reference fields retain their original binding-role provenance.
+    # Require disposition even when an old compiler called that owner other_text.
     eligible = {
         region.key
         for region in blueprint.regions
-        if region.kind == "identifier"
-        and region.curated_key is None
+        if region.curated_key is None
         and not any(path in leaves for path in region.target_paths)
+        and (
+            region.kind == "identifier"
+            or any(
+                path == "documentPatch.forwardingAndExportReferences"
+                or path.startswith("documentPatch.forwardingAndExportReferences[")
+                for path in (
+                    *bindings[region.key].get("target_paths", []),
+                    *(
+                        value["target_path"]
+                        for value in bindings[region.key]
+                        .get("realization", {})
+                        .get("target_values", [])
+                    ),
+                )
+            )
+        )
     }
     if missing := eligible - set(policy):
         raise ValueError(f"source-only identifier privacy is unresolved: {sorted(missing)}")

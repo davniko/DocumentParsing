@@ -95,6 +95,28 @@ table10 and appendixC.
 
 ## Goods identity: accounting, not number of product names
 
+### Declared SET and unspecified BALE categories (2026-10-16)
+
+When `SET(S)` is the declared shipment/counting unit, use `PACKAGE_SET` and
+retain that declared count and same-level allocations. A set does not establish
+the number of constituent pieces, a particular inner/outer level, a vehicle
+count or the narrower meaning of a kit.
+
+When `BALE(S)` is the declared unit and compression is not stated, use generic
+`PACKAGE_BALE`. Do not infer compressed or non-compressed from the commodity,
+usual practice or absence of a compression modifier. Explicitly stated
+non-compressed bales retain `PACKAGE_BALE_NON_COMPRESSED`; a supplied more
+specific category requires its supported printed distinction. This category
+change does not resolve a separately inconsistent or absent count.
+
+These are semantic extraction categories in the supplied vocabulary, not claims
+that the saved MPCI application accepts a new submission code. Its authentic
+405-code export remains unchanged. The reviewed extraction vocabulary records
+the absence of an exact application mapping explicitly; downstream projection
+must surface that boundary rather than substitute Unit/Package or invent a
+compression state. In particular, `UN` plus `SETS` is not the adopted policy.
+See the [packaging investigation and scheduled R28 redesign](kie-r27-package-vocabulary-audit-2026-10-16.md#r28-scheduled-redesign-and-bounded-r27-coverage-run--2026-10-16).
+
 The baseline currently retains documents with one labeled goods entry. A long
 description, several product names, several models or several HS codes does not
 by itself establish multiple goods entries. Multiple HS codes are allowed.
@@ -165,6 +187,32 @@ they are not rounded. Physical/load scaling uses the same declared-unit baseline
 
 Evidence: [audit](package-accounting-policy-audit-2026-10-09.md) and
 [repair and validation](package-accounting-repair-2026-10-09.md).
+
+### Category vocabulary versus genuine fallback (2026-10-16)
+
+Resolve the declared package unit against the pinned MPCI package vocabulary
+before using `typeOfPackages`. A category need not repeat every printed modifier:
+`39 PALLETS` with `PACKING TYPE: PLASTIC PALLET` supports generic
+`PACKAGE_PALLET` when the vocabulary's plastic-pallet categories require SRS
+dimensions that are not printed. Do not invent those dimensions or another
+unsupported subtype. Preserve the source wording in OCR.
+
+An exact MPCI category missing only from the task's admitted subset is a
+vocabulary-coverage gap, not a genuinely unknown package type. `PARCEL`/`PARCELS`
+and `RACK`/`RACKS` resolve to `PACKAGE_PARCEL` (PC) and `PACKAGE_RACK` (RK).
+Admit such proven categories explicitly with their source and rendering
+contracts; never manufacture category tokens from arbitrary text.
+
+Avoiding fallback does not authorize guessing or erasing the declared unit.
+Bare `BALES` does not establish compressed BL versus non-compressed BN. `SETS`
+does not establish how many pieces constitute one set, and generic `BULKS` or
+`Total Items` does not establish a supported bulk subtype or physical packaging.
+Retain those exact free-text types for review unless the complete owned OCR
+provides the missing distinction. These extraction holds are not claims that a
+free-text-only package row is a complete valid MPCI submission: the saved form's
+submission contract additionally requires a package code.
+
+See [the vocabulary audit and exact reviewed inventory](kie-r27-package-vocabulary-audit-2026-10-16.md).
 
 ## Product wording and additional information
 
@@ -650,3 +698,116 @@ to the value actually printed at the source's precision. The property remains
 host-controlled; the wording model cannot invent or change it.
 
 See [the full repair, coverage and validation report](kie-hs-dg-format-repair-2026-10-14.md).
+
+## DG commercial wording in synthesis (2026-10-15)
+
+Dangerous-goods descriptions are LLM-generated, like ordinary product wording:
+sample the registry identity and shipment facts first, then generate compatible
+commercial wording at the source's descriptive depth and information pattern.
+This applies to chemicals and DG vehicles. A registry name is context, not a
+mandatory verbatim description. Short identity-only examples may naturally
+remain short; grades, intrinsic specifications and source-like detail can vary.
+
+The sampled substance/formulation or vehicle propulsion and its DG declarations
+remain consistent. Independently printed proper shipping names and technical-name
+aliases use the sampled identity, never the complete generated commercial prose.
+Preserve which optional regulatory fields the template actually prints. The LLM
+does not add or resample UN/class/packing-group/subsidiary/flash-point declarations.
+Project the description label from the reviewed rendered product block, retaining
+the established casing, boundaries and line-break normalization. Commercial repeats
+outside the block may repeat generated wording without expanding the target boundary.
+
+The earlier host-owned DG-description shortcut was an implementation defect, not
+an approved policy. See [the correction and validation report](kie-dg-llm-wording-repair-2026-10-15.md).
+
+## Country identity and printed country presentation — 2026-10-16
+
+Party and locality country targets now share one contract: establish the country
+or territory from an explicitly owned OCR country name, code or unambiguous
+country adjective, then emit the pinned registry's **preferred English name in
+uppercase**. This replaces the former party rule that copied the printed
+country alias. It applies to party countries, route countries, issue country and
+freight-payment country. These are extraction identity targets, not downstream
+MPCI ISO-code fields.
+
+The separately pinned preferred-name table, keyed by ISO alpha-2 identity, is the
+normalization authority. Country names and codes printed in OCR may vary; their
+identity target does not. Keep ISO identity, accepted input aliases and sampled
+printed presentation as separate data. Do not assume an ISO registry's formal
+name is necessarily the preferred English label. The country-presentation
+registry and its preferred-name table are versioned together under
+`artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/`.
+
+This normalization does **not** rewrite addresses, localities, company names,
+goods-origin text or raw/positioned OCR. Their existing literal spelling,
+punctuation, casing and line-break policies remain in force. For example, a
+party's address may retain `USA` while its country target is `UNITED STATES`.
+Changing only a synthetic country's printed alias does not change its identity.
+
+Identity must be supported by that party's or location's own country evidence or
+an explicitly reviewed continuation/shared-role ownership link. City names,
+telephone prefixes, company knowledge, carrier nationality and unrelated party
+or route countries do not supply it. An exporter declaration can support a
+shipper only when the source explicitly establishes that they are the same
+entity; the label alone is not a universal identity equivalence. Equal city
+text in different role boxes is not an automatic shared-country declaration.
+When both role/place occurrences remain in OCR, a reviewed document-local
+co-reference may establish their common country from an explicit qualified
+occurrence of that same place. For example, retained loading `MUNDRA` and
+`PLACE ISSUED: MUNDRA, India` identify the same document-local place; this does
+not reconstruct a missing loading occurrence or geocode an unfamiliar city.
+Likewise, an issue place and the same place's country-qualified issuing stamp
+within one issuance block can share country evidence. Record the linked
+occurrences and exclude competing same-name places; do not generalize this to
+unrelated party addresses, different localities or carrier headquarters.
+
+Ambiguous identities and unsupported optional country fields are omitted and
+flagged for review in new extraction. Existing source/data holds require an
+explicit adjudication before removal or migration; no bulk cleanup silently
+drops them. The explicitly approved business alias **`KOREA` maps to
+`SOUTH KOREA`** without requiring another KR/South/Republic occurrence in the
+same role. This is a pinned alias decision, not city/telephone inference; an
+explicit conflicting North Korea/KP declaration still requires adjudication.
+The documented dotted initialisms **`A.R.E` and `A.R.E.` map to `EGYPT`**:
+Egypt's [official EGPC model agreement](https://eug.petroleum.gov.eg/dp/jsp/assets/docs/2023%20EGPC%20Model%20Agreement%20%28English%29.pdf)
+explicitly defines A.R.E. as Arab Republic of Egypt, and the
+[government postal example](https://www.fineart.gov.eg/Eng/About/connect.htm)
+uses the dotted spelling. These are input aliases, not newly sampled country
+presentations. Preserve punctuation in lookup: undotted **`ARE` remains ISO3
+for UAE**, not an automatic Egyptian alias. A source pairing undotted ARE with
+an Egyptian target requires a document-specific adjudication. Source `c7060e22`
+was explicitly approved on 2026-10-16: retain its notify `EGYPT` target and its
+printed `ARE` unchanged; this does not expand the global alias registry. See the
+[edge-case inventory](kie-dataset-edge-case-inventory.md). Typos can
+receive a document-local reviewed decision with its own evidence; that decision
+does not create a global fuzzy alias or modify source OCR. Hong Kong and China
+remain distinct country/territory identities, not interchangeable spellings.
+
+Historical training references and metrics remain frozen. The country migration
+is a separately validated dataset/source-authority revision; it is not a
+retroactive rescore of earlier models. Source-authority proposals and unresolved
+identity/ownership cases are recorded before the coordinated registry contract
+and index refresh.
+
+## Surgical real-training anonymization — 2026-10-16
+
+For the user-authorized manual R27 real600 pass, replace private identities,
+contacts, specific premises and identifiers in OCR and their dependent existing
+targets. Preserve raw punctuation, whitespace, line/page boundaries, casing
+style, phone dialing conventions and ID presentation masks. Preserve every
+date, vessel/voyage, route/locality/country, cargo specification, quantity,
+category and allocation; only private identifying substrings embedded in cargo
+wording (VIN/serial/lot etc.) may change with their existing target copy.
+
+**Unresolved nonzero address numbers are anonymized**, retaining width and
+format; do not infer that they are geographic postcodes from country alone.
+Clearly identified geographic postcodes and obvious all-zero nonidentifying
+placeholders remain. Public carrier/issuer identity and its general corporate
+directory may remain with recorded document-role evidence; personal employees,
+signatories and mailboxes do not inherit that exemption. Being a publicly
+searchable trader or a transport-sector consignee alone is not sufficient.
+
+Original PDFs and historical sources remain protected. This manual training-copy
+operation is not a synthesis campaign, not new ownership labeling, and not a
+claim that retained shipment facts prevent re-identification. See
+[the scoped report](kie-r27-real-training-anonymization-2026-10-16.md).
