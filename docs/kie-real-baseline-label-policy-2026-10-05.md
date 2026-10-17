@@ -190,8 +190,9 @@ Evidence: [audit](package-accounting-policy-audit-2026-10-09.md) and
 
 ### Category vocabulary versus genuine fallback (2026-10-16)
 
-Resolve the declared package unit against the pinned MPCI package vocabulary
-before using `typeOfPackages`. A category need not repeat every printed modifier:
+Resolve the declared package unit against the pinned extraction vocabulary
+before using `typeOfPackages`. Keep its semantic categories distinct from exact
+MPCI submission-code projection. A category need not repeat every printed modifier:
 `39 PALLETS` with `PACKING TYPE: PLASTIC PALLET` supports generic
 `PACKAGE_PALLET` when the vocabulary's plastic-pallet categories require SRS
 dimensions that are not printed. Do not invent those dimensions or another
@@ -204,13 +205,15 @@ Admit such proven categories explicitly with their source and rendering
 contracts; never manufacture category tokens from arbitrary text.
 
 Avoiding fallback does not authorize guessing or erasing the declared unit.
-Bare `BALES` does not establish compressed BL versus non-compressed BN. `SETS`
-does not establish how many pieces constitute one set, and generic `BULKS` or
-`Total Items` does not establish a supported bulk subtype or physical packaging.
-Retain those exact free-text types for review unless the complete owned OCR
-provides the missing distinction. These extraction holds are not claims that a
-free-text-only package row is a complete valid MPCI submission: the saved form's
-submission contract additionally requires a package code.
+Bare `BALES` resolves to semantic `PACKAGE_BALE`, without asserting compressed
+BL or non-compressed BN. `SETS` resolves to `PACKAGE_SET`, without inferring a
+component-piece count or substituting UNIT. Their exact application-code
+projection remains unresolved as specified above. Generic `BULKS` or `Total
+Items` still does not establish a supported bulk subtype or physical packaging.
+Retain those two free-text types for review unless the complete owned OCR
+provides the missing distinction. Neither those holds nor the unmapped semantic
+extensions are claims of a complete valid MPCI submission: the saved form's
+submission contract additionally requires an accepted package code.
 
 See [the vocabulary audit and exact reviewed inventory](kie-r27-package-vocabulary-audit-2026-10-16.md).
 

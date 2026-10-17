@@ -1,5 +1,28 @@
 # R27 package vocabulary and free-text fallback audit
 
+## Fresh R28 audit while R27 trains — 2026-10-16
+
+The [consolidated donor/packaging recheck](analysis/r28-packaging-decoupling-20261016/REPORT.md)
+updates the earlier investigation without changing training artifacts. Defaults
+remain 447 donor-bound out of 453, but independent profile data now cover 29
+profiles / 27 package categories / 95 HS6 identities across three files. The
+current ordinary pre-physical candidate union is 1,505, not the earlier snapshot's
+1,518. The current extraction vocabulary is 48 categories, not the historical 46.
+
+**Important primary-source clarification:** the official NAIC D23A implementation
+guide explicitly supports multi-level packaging through up to five GID package
+quantity/type entries. PAC is excluded from this profile, but that does not mean
+hierarchy is absent. [Exact official pages, verified PDF hash and remaining
+SGP/projection questions](analysis/r28-packaging-decoupling-20261016/naic-profile-and-hierarchy.md).
+The current declared-accounting extraction policy remains unchanged; richer
+filing support and the chosen simplified training target are distinct decisions.
+
+The new pass also documents [real material/level evidence](analysis/r28-packaging-decoupling-20261016/package-evidence.md),
+[external compatibility resources and their limits](analysis/r28-packaging-decoupling-20261016/compatibility-resources.md),
+and a bounded plan for a complete independent catalogue plus factored targets.
+It does not claim a universal HS-to-package registry was found, all 405 codes
+were decomposed, or the R28 refactor was implemented.
+
 ## R28 scheduled redesign and bounded R27 coverage run — 2026-10-16
 
 The user has explicitly scheduled the larger packaging/sampling redesign for
@@ -81,7 +104,7 @@ printed separators remain governed by the already implemented source-format
 policy, not by six-digit-only rendering.
 
 An HS6 identity is a classification bucket, not an individual commercial SKU
-or a complete physical-form specification. The current 7,000 synthetic records
+or a complete physical-form specification. The audited 7,000-synthetic baseline records
 actually print 5,923 HS values across 4,291 documents, representing 1,036 unique
 HS6 prefixes, 197 HS4 headings and 42 chapters. All prefixes are in the pinned
 registry. Counting those observed products does not replace auditing the
@@ -110,6 +133,35 @@ removing observed donor rows, cross-layout portability, no silent fallback and
 correct labels/repeats/allocations/geometry. Do not label twenty profiles as
 complete donor-free coverage of the whole pipeline.
 
+**Additional user requirement for R28:** make the full available commodity-code
+registry reachable, rather than perpetuating the current source/donor-conditioned
+subset. Report eligible, reachable, attempted and accepted unique HS6 coverage
+against all 5,612 available identities, by chapter and physical form. Unsupported
+forms or contradictory registry entries need an explicit disposition, not an
+invisible filter or a claim that all codes were exercised because the file was
+loaded. Full registry reachability is separate from uniform frequency or a
+requirement to put every code into the immediate 200-sample R27 campaign.
+
+Apply the same expansion audit to DG: the current assets have 2,934 HMT rows
+(2,323 distinct UN identifiers), 3,480 ECICS links, and 64 reviewed flash-point
+identities. The measured linked sampling support is much narrower: 386 coherent
+chemical-record/HS6 pairs, 384 HMT records and 138 HS6 identities. Compare the
+reachable UN/chemical/packing-group/subsidiary-hazard/flash-point combinations
+with the complete usable DG registry, expose the narrowing joins and filters,
+and expand compatible sampling/rendering coverage. Do not invent missing
+identity links, DG facts or packing permissions to claim complete reachability;
+record actual data gaps and supported reasons instead. This is an explicit R28
+work item, not a request to derail the bounded R27 publication.
+
+One concrete DG expansion path to investigate is to stop making an HS join a
+prerequisite for a template that prints **no HS field**: a coherent DG registry
+record can supply its own identity/class/packing-group facts and LLM wording
+context without printing or inventing an HS code. Templates that do print HS
+still need a reviewed compatible link. Both routes require supported physical
+form/packing and the correct field-presence policy; not every HMT row is thereby
+proved suitable for every maritime template. Measure how much coverage this
+separation actually unlocks before adopting it.
+
 ### Bounded R27 action, not the R28 refactor
 
 Add `PACKAGE_SET` and generic `PACKAGE_BALE` to the extraction vocabulary while
@@ -118,6 +170,15 @@ known; exact submission-code mapping is not established by that saved export.
 Use explicitly reviewed semantic extension metadata with no invented code, not
 an implicit Unit/Package mapping or an invented bale compression state. Details
 and the existing strict-registry coupling are in the [semantics investigation](analysis/r27-package-vocabulary-20261016/r28-package-semantics-investigation.md).
+
+The user has explicitly confirmed this semantic-category/submission-mapping
+separation. The follow-up generic-bale search found exactly two bale entries in
+the saved 405 enum: compressed `BL` and non-compressed `BN`. UNECE's older
+[Recommendation 21 numeric crosswalk](https://unece.org/sites/default/files/2023-10/rec21rev2_ecetrd211E.pdf)
+groups both under numeric class `65`; that is evidence of a common bale family,
+not an additional accepted code in our application's detailed enum. `65`, `BAL`,
+`BLE` and `BALE` are absent from that saved enum. The generic extraction category
+therefore remains explicitly unmapped; no compression assumption is introduced.
 
 The requested synthesis allocation is 60 SET, 60 generic BALE, 20 RACK, and 15
 each PARCEL, REEL, SLAB and SACK: 200 UAE descendants. SET is a real/synthetic
@@ -133,6 +194,235 @@ Status: investigation documented; implementation, synthesis, archive publication
 and final training-readiness evidence are tracked in the continuation below.
 Historical certificates in the earlier sections remain evidence of their own
 published bytes and must not be rewritten to claim they certify this new run.
+
+### Execution inventory
+
+- [x] Research, donor-path inventory, registry counts and R28 design scheduled;
+  no factored-target migration or complete donor-free refactor implemented.
+- [x] Settled policy records named SET and unspecified BALE extraction meanings;
+  user confirms submission mapping is deferred.
+- [x] [Reviewed semantic vocabulary and production support](analysis/r27-package-vocabulary-20261016/coverage200/SEMANTIC-VOCABULARY.md):
+  407 entries with 405 exact original entry objects, explicit unmapped extension
+  metadata, 48 reviewed renderer categories and 323 passing relevant tests.
+- [x] [Independent existing-data and publisher review](analysis/r27-package-vocabulary-20261016/coverage200/independent-publisher-review.md):
+  all 11,660 baseline physical rows scanned; 27 transaction/negative-control
+  tests pass. Exact intended retained repairs are 17 synthetic, seven real and
+  two validation targets; inputs, coordinates, quantities and other facts stay
+  unchanged. The two older UAE sidecars need no corresponding target edit.
+- [x] Publish and replay source/template authority changes: ten source-target
+  repairs (four SET and six BALE), the aggregate SET noun versus fixed one-set
+  detail ownership, 48-token template contracts and current configuration pins.
+  All 41 guarded files read back exactly; 3,420 protected case/alignment files
+  remain unchanged. Live replay passes all 453 sources, 1,359 configured plans
+  and six additional SET alias controls (39.99 seconds; 958,624 KiB peak RSS).
+  Initial post-publication catalog was `dda15099…`; the subsequent historical
+  dependency closure below is complete, with final catalog `bf1573f8…`.
+- [x] Generate, review, publish and geometrically validate all 200 UAE samples
+  under the [exact campaign plan](analysis/r27-package-vocabulary-20261016/coverage200/PLAN.md).
+- [x] Apply the guarded in-place R27 membership/label transaction, archive the
+  earlier 300 Egypt rows recoverably and verify all sidecar identities/hashes.
+- [x] Publish and validate the 7,500-record training YAML in the rebuilt installed
+  image, using CPU/tokenizer-only readiness checks; do not launch training.
+
+### Published R27 package refresh
+
+R27 is now published **in place**, not as another dataset version. Current
+manifest SHA-256 is
+`43b2d7c486f22ee6095f35fac863c3d727fef5ee0081a50efd4b32686fe28b09`.
+The [guarded publication receipt](analysis/r27-package-vocabulary-20261016/coverage200/r27-publication.json)
+and independent [final root readback](analysis/r27-package-vocabulary-20261016/coverage200/root-final-readback.json)
+bind the exact data. Active membership is **6,900 synthetic + 600 anonymized real
+= 7,500 training records**, plus 60 validation records. The two retained UAE
+sidecars are unchanged. Physical storage is 11,560 rows / 8,560 unique records,
+including 7,900 unique synthetic identities and 3,000 checked mirror copies.
+The directory's historical `synthetic7000` name is deliberately retained under
+the user's in-place R27 rule.
+
+All 200 new descendants import to UAE and use ten already admitted layouts and
+nine reviewed independent physical-form profiles. The following counts are
+**documents containing the category**, not assumed component-piece counts:
+
+| Category | New UAE | Final synthetic training | Real training | Validation |
+| --- | ---: | ---: | ---: | ---: |
+| SET | 60 | 77 | 3 | 0 |
+| BALE, compression unspecified | 60 | 60 | 4 | 2 |
+| RACK | 20 | 20 | 0 | 1 |
+| PARCEL | 15 | 21 | 0 | 0 |
+| REEL | 15 | 22 | 4 | 0 |
+| SLAB | 15 | 22 | 1 | 0 |
+| SACK | 15 | 24 | 1 | 0 |
+
+Explicit non-compressed BALE remains separate: 26 synthetic and one real
+training document. Synthetic training now covers 47 named categories; the real
+bulk-liquid example brings combined training coverage to all **48 admitted
+semantic categories**. Exactly two real free-text holds remain: `BULKS`
+(`6ab76190`) and `ITEMS` (`4072d876`). No unsupported subtype, missing count or
+invented application code was used to eliminate them. Generic SET and BALE's
+submission projection is still explicitly unresolved; the authentic 405-entry
+application artifact is unchanged.
+
+Seventeen retained synthetic, seven real and two validation targets received
+only the agreed SET/BALE representation change. Their raw OCR, positioned text,
+package quantities, allocation facts and all unrelated labels are unchanged.
+Ten original-source labels and the affected admitted SET template's current
+ownership/contract were aligned too; no original private source text was copied
+into anonymized R27. Historical metrics retain their original gold versions:
+the two validation package-category repairs must not be silently used to rescore
+older models as if their original targets had been identical.
+
+The [historical dependency closure](analysis/r27-package-vocabulary-20261016/coverage200/source-stage/historical-dependency-closure/REPORT.md)
+updates only two active metadata files. Seven changed R27 dependency paths and
+the original policy path now reference authenticated immutable before-archives
+with their **original hashes retained**. The old policy's exact bytes were
+recovered and verified, not replaced by today's policy under an old provenance
+claim. All 3,764 dependencies verify and all 200 native plan, scenario, target,
+blueprint and sample-ID signatures remain unchanged. Final catalog is
+`bf1573f83c958bc2443468aeff07f68a6dfa3d1eb309fc5cd60585b037eb22f6`;
+current source-authority manifest is
+`5c94b6bf19acbb9cf3543a9db64573813454b28eb6f4ca7136a7f02938a9d838`.
+All 233 protected R27/generation/geometry artifacts are unchanged by this
+metadata-only closure. Three focused controls and lint pass; the complete
+closure and native-signature comparison took 58.66 seconds / 711,848 KiB peak
+RSS. No historical generation or geometry certificate was falsely repinned.
+
+The archived [300 Egypt additions](analysis/r27-package-vocabulary-20261016/coverage200/archived-egypt300.jsonl)
+are their **current corrected R27 row bytes**, SHA-256
+`b57afcacbf07b4f79337d9d86dd1383b0d2008c17bd96c06c2a0a3fb53feca8e`.
+They are recoverable, not destroyed. This exact requested cohort includes 100
+single-container, 100 uniform-multi-container, 40 mixed-container, 40 thermal
+and 20 DG descendants; the new 200 are deliberately package-focused ambient
+single-container examples. Retirement reduces active synthetic source families
+from 413 to 408; three of the five retired-only synthetic families remain in
+real training. All 453 admitted templates remain available for future sampling.
+This is a disclosed membership/distribution effect, not a template deletion.
+
+### Complete new-sample audit and upstream closure
+
+The [aggregate certification](analysis/r27-package-vocabulary-20261016/coverage200/certification.json),
+[detailed sample audit](analysis/r27-package-vocabulary-20261016/coverage200/AUDIT.md)
+and [independent root inventory](analysis/r27-package-vocabulary-20261016/coverage200/ROOT-REVIEW.md)
+separate the actual review layers: native model review opened every one of the
+200 complete rendered-text/target pairs; root additionally opened 35 complete
+pairs across all ten layouts. Ten finite wording corrections were reviewed and
+rechecked. Eleven policy/cosmetic false positives were rejected explicitly,
+including deliberate goods-area consignee-contact omissions and mass/volume
+values with no printed unit. Review is not permission to reverse settled policy.
+
+Two confirmed upstream issues were resolved cleanly. Repeated party identities
+are checked against full **pre-country-presentation** wording, preserving strict
+name/address equality while allowing independently verified printed country
+aliases. The guard benchmark improved from about 9,071 to 1,767 microseconds per
+call on its fixed workload. Separately, exact country-only postal owners now
+receive a country-name-only field instruction instead of the generic
+address-hierarchy instruction. Whole/composite postal owners and geographic
+validators are unchanged. All five original failure contexts pass the isolated
+native generation probe; 366 relevant tests and lint pass. Its full-request
+benchmark shows no measurable regression (642.26 / 570.58 microseconds, overlapping
+maintenance noise; tracked peak 30,677 / 30,673 bytes).
+
+The [country-only clarification report](analysis/r27-package-vocabulary-20261016/coverage200/COUNTRY-ONLY-FIELD-CLARIFICATION.md)
+and [explicit validation-contract rebase](analysis/r27-package-vocabulary-20261016/coverage200/country-only-validation-rebase/closure.json)
+preserve original generation history. Exactly **19** accepted wording receipts
+were explicitly revalidated against the clarified contract; none was described
+as a new model call. All 200 old requests and 730 exact history/proof files were
+archived first. Seventy identical model-review prompts reused their existing
+calls with model construction forbidden. All 200 text, target and coordinate
+payloads remain byte-identical across that provenance-only transition. The old
+publication manifests remain archived rather than being rewritten as history.
+
+Independent [geometry certification](analysis/r27-package-vocabulary-20261016/coverage200/geometry/final200/REPORT.md)
+replays all 200 source-transfer/reflow/page-augmentation receipts and edit
+ancestry: **11,463 / 12,873 lines positioned (89.05%)**, 282 gained and zero
+lost. Goods lines are 216/237 and address lines 1,136/1,242. All 553 negative
+controls reject; all 18 selected detailed plotted pages were opened with no
+geometry findings. There are 237 pages: 147 accepted reflows, 90 with no eligible
+reflow, zero rejected. Unknown positions remain explicit, never fabricated or
+used to discard text. Replay/plot generation took 12.59 seconds and 516.98 MiB
+peak RSS. See the [visual gallery](analysis/r27-package-vocabulary-20261016/coverage200/geometry/final200/GALLERY.md).
+
+The publisher additionally verifies native hash-bound shipment geography, not
+the presence of a country label that the OCR never printed. Its initial
+mandatory-country assumption would have rejected 48/60 valid SET descendants;
+this was caught before writing R27. The [corrected proof boundary](analysis/r27-package-vocabulary-20261016/coverage200/uae-native-candidate-proof-validation.md)
+checks actual candidate/source/review membership, object and byte hashes,
+decoded target/text, and UAE destination/role geography. Forty-nine publisher
+tests pass, including rollback and wrong/stale/missing-proof controls. Extra
+proof-validation overhead is 28 ms per 200 fixture rows, a negligible bounded
+publication cost. Real R27 publication took 7.38 seconds / 686,468 KiB peak RSS;
+the broader independent retained-row/mirror/archive readback took 13.25 seconds
+/ 790,440 KiB.
+
+Native generation/contact/review ledger: **204 calls, $0.15862808**, including
+the retained output-limit failure and repaired-source re-reviews; 792,994 input
+and 79,573 output tokens, including 26,157 reasoning tokens. The isolated
+country-only probe adds one call and $0.00072705. **Total: $0.15935513.** No local
+GPU, model-weight loading or training was used for these checks.
+
+### Training handoff and installed-image readiness
+
+The new [training config](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)
+is ready, SHA-256
+`21b2ad8cc92e3a323631bde2bff229888f4b0678d17be08399e0ac6e239a9585`.
+It retains the previous R23 run's model/revision, input-only prompt, positioned
+inputs, direct compact targets, rank48/alpha32 RSLoRA, EVA512, dropout0.05,
+learning rate1e-4, schedule-free AdamW, batch1/accumulation32, seeds, ten epochs,
+generation cap3072, best-model loading/export and unlimited checkpoint retention.
+A structural comparison found no changes outside data/task pins, names/provenance
+and data-dependent schedule counts. All earlier R27 identifier/phone/country/
+description/DG/privacy repairs are preserved in the selected data.
+
+With 7,500 rows, `ceil(7500/32) * 10 = 2350` optimizer updates. Five-percent
+warmup is rounded up to **118** updates. Evaluation/save interval **587** gives
+four scheduled checkpoints near epochs 2.5, 5, 7.5 and 10 (steps 587, 1174, 1761,
+2348); the existing separate final evaluation remains enabled. These are the
+same proportional warmup/evaluation settings, not a new optimization experiment.
+
+The actual rebuilt trainer image is
+`sha256:66ede61992da7d1c70ce35e05009eee789e04d1d85107c4368add9a3280b5157`.
+The [installed CPU readiness receipt](analysis/r27-package-vocabulary-20261016/coverage200/installed-cpu-readiness.json),
+SHA-256 `f5f3fd6bb0d4cd032965d269dd58596add80ebfd54d6e661b4b5cd9af72285d4`,
+passes the actual installed config/task/prompt/data/tokenizer and native target
+limit functions. All **348 host/installed source pins match**; all 7,500 training
+and 60 validation rows pass with **zero source/target truncations or exclusions**.
+The container uses `runc`, no network, no GPU devices, read-only workspace/cache
+and the exact cached tokenizer revision. It loads no model weights and starts
+no training.
+
+| Cohort | Records | Maximum input tokens | Maximum complete target tokens |
+| --- | ---: | ---: | ---: |
+| Synthetic train | 6,900 | 8,077 | 1,649 |
+| Anonymized real train | 600 | 7,838 | 3,145 |
+| Validation | 60 | 5,698 | 1,334 |
+
+All fit the unchanged teacher-forced limits **19,200 / 5,500**. Three real
+training targets (3,084 / 3,132 / 3,145 tokens) exceed the independent generation
+cap3072 but are retained in full for training. No validation target exceeds that
+cap. This length check does not claim a model can never generate a repetition
+loop or reach its output limit.
+
+The full CPU check took **37.26 seconds / 1,278,992 KiB peak RSS**. Twelve targeted
+helper controls and lint pass. Two earlier audit-only launch failures remain
+archived: an unnecessary synthesis/provider-module import was removed from the
+training-module-origin list while retaining its installed source-byte check;
+and the offline tokenizer copy explicitly disables `token_env` alongside its
+local-cache path and `local_files_only=True`. The real YAML's `HF_TOKEN` policy,
+production loader and dependency groups are unchanged. This credential-free
+offline probe deliberately does not validate Hub authentication. See the
+[execution plan and attempt boundaries](analysis/r27-package-vocabulary-20261016/coverage200/CPU-READINESS-PLAN.md).
+
+Launch from the repository root (the explicit Docker-config environment avoids
+the previously observed credential-helper failure):
+
+```bash
+mpci_docker_config="$(mktemp -d /tmp/mpci-docker-config.XXXXXX)"
+DOCKER_CONFIG="$mpci_docker_config" docker --config "$mpci_docker_config" compose --profile training run --rm --build kie-trainer train \
+  --config configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml \
+  --project-root /workspace
+```
+
+**Training has not been launched.** The larger donor-independent, full-HS/DG
+reachability and factored-package R28 redesign remains scheduled work, not a
+property claimed for this bounded R27 run.
 
 ## Current support and synthesis-coverage audit — 2026-10-16
 

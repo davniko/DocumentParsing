@@ -5,6 +5,56 @@ versus completed repairs; (2) all 60 validation documents versus all 600 real
 training documents. No training, inference, paid calls, split changes or dataset
 edits during the original two audits. **R27 remains the only working dataset until the next training run.**
 
+## Packaging follow-up and scheduled R28 work
+
+The [current package investigation and execution inventory](kie-r27-package-vocabulary-audit-2026-10-16.md#r28-scheduled-redesign-and-bounded-r27-coverage-run--2026-10-16)
+supersede the older thirty-hold discussion below. The user confirmed named SET
+and generic BALE extraction categories while deferring unverified submission-code
+mapping. The bounded R27 publication is now applied: 200 reviewed UAE
+package-coverage samples added, the exact earlier 300 synthetic Egypt additions
+recoverably archived, and all 600 anonymized real records retained. Active
+training is **6,900 synthetic + 600 real = 7,500**; validation membership remains
+60. Current R27 manifest is
+`43b2d7c486f22ee6095f35fac863c3d727fef5ee0081a50efd4b32686fe28b09`.
+The [sample certification](analysis/r27-package-vocabulary-20261016/coverage200/certification.json)
+covers all 200 native text/target reviews and independent geometry; the separate
+[retained-data readback](analysis/r27-package-vocabulary-20261016/coverage200/root-final-readback.json)
+checks 11,560 physical rows / 8,560 unique records. Seventeen retained synthetic,
+seven real and two validation targets receive only the semantic SET/BALE change;
+their OCR, coordinates and other fields are preserved. Both UAE sidecars remain
+unchanged. Readiness gates are recorded in the package inventory; old phase
+hashes below are historical evidence, not retroactive certificates of this new
+membership. The larger R28 redesign remains pending, not implied by this bounded
+category-coverage experiment.
+
+The [7,500-record training config](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)
+and rebuilt installed-image CPU/tokenizer readiness now pass. All 348 installed
+source pins match; there are zero input/target truncations or exclusions. Rank48
+and the prior optimization settings remain unchanged; schedule counts are
+recomputed for 2,350 updates, 118 warmup updates and interval587. See the
+[training handoff, length profile and command](kie-r27-package-vocabulary-audit-2026-10-16.md#training-handoff-and-installed-image-readiness).
+No local model weights were loaded and no training was launched.
+
+**Scheduled for R28, not silently implemented in R27:** eliminate observed-donor
+dependence throughout goods/packaging/physical sampling; design evidence-based
+package-family/material/construction/level targets and exact application mapping;
+broaden the independently reviewed many-to-many goods-form/package catalog.
+The full HS registry has 5,612 HS6 identities; effective sampling restrictions,
+not a tiny base commodity list, are the demonstrated bottleneck. See the
+[donor and goods-registry investigation](analysis/r27-package-vocabulary-20261016/r28-donor-sampling-investigation.md)
+and [package-semantics investigation](analysis/r27-package-vocabulary-20261016/r28-package-semantics-investigation.md).
+Sources provide formatting and ownership constraints, not default commodity
+donors. Any genuinely source-specific sampling exception needs strong recorded
+evidence. No new R28 dataset directory or factored-target refactor is authorized
+by this scheduling note.
+
+The user's follow-up explicitly requires expansion to **the full available HS
+code registry**, not just donor-independent draws from another narrow subset.
+Measure reachable/attempted/accepted coverage and account explicitly for any
+unsupported identity/form. Do the same for DG registry combinations where current
+HS/chemical/physical-form joins or source constraints narrow coverage. The
+package report records the measured full-versus-effective HS and DG counts.
+
 ## Final applied follow-up closure — 2026-10-16
 
 ### Latest legacy-reference and all-level policy closure

@@ -1,10 +1,10 @@
 # MPCI extraction: run results and next experiments
 
-Updated: 2026-10-15. This is the consolidated results ledger for **thirteen completed runs**, now including synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
+Updated: 2026-10-17. This is the consolidated results ledger for **fourteen completed runs**, now including corrected/anonymized **N/R27** alongside synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
 
-**Current conclusion:** M/R23 recovers strongly from synthetic-only L/R22: final saved-output field F1/accuracy **0.8980/0.8572**, versus **0.8376/0.7881**. M's selected and verified export is **checkpoint1785, epoch7.5**, not epoch10. Its category F1 is **0.9276**, with size and type each correct for **102/106** expected values. J retains the higher native all-document field scores (**0.9017/0.8650**), but their contracts differ in HS presentation. On the same58 parseable documents and **only unchanged non-HS facts**, J and M are effectively tied: F1 **0.9107/0.9118**, accuracy **0.8828/0.8837**. This comparison includes addresses and descriptions, not just easy unchanged subfields. Description exact matches remain **39/60** in M versus J41/60; phone and inventory weaknesses also remain. See [section18](#18-synthetic-only-lr22-and-restored-real-mr23).
+**Current conclusion:** N/R27 completes with **6,900 synthetic + 600 anonymized real**. Its selected/exported model is **checkpoint 1174, epoch 4.9984**, not epoch 10: scheduled field F1/accuracy **0.9038/0.8640**, separate saved final pass **0.9030/0.8629**. This is the highest native final field F1 in the ledger, but not a new across-the-board best or a controlled identical-target comparison. On unchanged facts in the same 57 parseable M/N documents, overall F1 is effectively tied (**0.9162→0.9158**) and accuracy slightly lower (**0.8899→0.8857**). Phones improve **94→100/111** and unchanged countries **212→221/228**; descriptions, shipment totals and equipment-category precision remain weak. Relations tie on that shared cohort; category regression survives target/parse controls. Export/resume integrity verifies. See [section 19](#19-correctedanonymized-nr27-6900-synthetic-plus-600-real) and its [source-reviewed errors](analysis/r27-training-results-20261017/SOURCE_REVIEW.md).
 
-The latest **training-results audit** used local artifact inspection, CPU metric replay and source-text review only; no dataset, production code, config or checkpoint was changed and no inference/training was launched. The separately requested wording probes are documented in their own report. **Sections3–17 preserve historical analyses and plans**; their “current” wording describes those snapshots, not today's labels. J/K trained on wrapped targets; L/M use direct targets. M restores printed separators in14 validation HS strings across13 documents. Historical models are **not** scored against that new HS gold: section18 uses each run's own frozen reference and excludes the entire HS family from cross-contract comparisons. M predates the later R24 phone and R25 container-ID presentation repairs and the new wording probes.
+The latest **training-results audit** used local artifact inspection, CPU metric replay and source-text review only; no dataset, production code, config or checkpoint was changed and no inference/training was launched. The separately requested wording probes are documented in their own report. **Sections3–18 preserve historical analyses and plans**; their “current” wording describes those snapshots, not today's labels. J/K trained on wrapped targets; L/M/N use direct targets. M restores printed separators in14 validation HS strings across13 documents. Historical models are **not** scored against replacement gold. Section18 excludes the entire HS family for its historical comparison; section19 conservatively excludes only changed document/field families against each run's own frozen reference, including subsequent country/package/phone changes. N includes the later phone/container-ID presentation repairs, new goods/DG wording, country policy/presentations, surgical real anonymization and bounded package coverage changes together; it does not isolate any one repair.
 
 ## 1. Reading the metrics correctly
 
@@ -24,7 +24,7 @@ The latest **training-results audit** used local artifact inspection, CPU metric
 4. Older runs did not all use the current explicit-null instruction policy. Before the 1,500-synthetic run, 38 `sameAs` nulls and two negotiability nulls added 40 target facts across 36 validation documents. This particularly changes historical schema-validity scores when evaluated against today's schema.
 5. The previous rank32 1,500-synthetic run selected epoch7.5 but exported epoch10. The rank48 run exports its selected epoch10 checkpoint correctly. Granular comparisons below use the **available saved epoch10 outputs**, not the earlier run's best epoch7.5 predictions.
 
-## 2. Experiment registry: thirteen completed runs
+## 2. Experiment registry: fourteen completed runs
 
 All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout this ledger. Each has 60 validation documents. The configuration links are the launch files; the corresponding run directory contains the authoritative `resolved-config.json` and artifact manifest.
 
@@ -43,6 +43,7 @@ All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout t
 |K|[UAE coverage replacement R19, rank48](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic5000_uae_coverage_r19_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|5,600|Replace2,500 UAE descendants with registry-form/alias/mixed-equipment coverage; same360 templates and sample count; finite shared-label repairs|10 /1750|88, or5%|
 |L|[Synthetic-only7,000, R22](../configs/training/production/t5gemma2_270m_lora.mpci_bl_synthetic7000_old_uae_reinforcement_r22_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,000 synthetic|Remove real600; repaired/expanded synthetic pool plus old-UAE reinforcement; direct target|10 /2190|110, or5%|
 |M|[Real600 + synthetic7,000, R23](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic7000_hs_preserved_r23_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,600|Retain L's exact synthetic shard; restore real600 and printed real/validation HS formatting; same rank48 and direct target|10 /2380|119, or5%|
+|N|[Anonymized real600 + synthetic6,900, R27](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,500|Phone/ID formats, country/wording/privacy repairs,200 package examples added/300 Egypt synthetic archived; keep rank48/settings; resumed after reboot|10 /2350|118, or5%|
 
 F and G have identical training/validation file hashes, input/target formatting, seeds, LR, batch/accumulation, model/tokenizer revisions and total updates. Their effective rsLoRA scale nevertheless changes from 32/√32 = 5.657 to 32/√48 = 4.619; EVA also adapts to the new rank. Therefore G is **rank48 plus longer warmup**, not an isolated rank test.
 
@@ -65,8 +66,9 @@ The relation/category values below are at the **field-F1-selected checkpoint**, 
 |K|10 /1750|0.8941|0.8520|0.9336|0.8996|59/60|51/60|
 |L|10 /2190|0.8375|0.7877|0.8303|0.8377|58/60|38/60|
 |M|7.501 /1785|**0.8990**|**0.8581**|0.9291|**0.9276**|58/60|49/60|
+|N|4.998 /1174|**0.9038**|**0.8640**|0.9364|0.9005|59/60|49/60|
 
-These are useful historical results, not thirteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M add further data/target changes; section18 separates own-contract scores from unchanged non-HS comparisons. M's separate final prediction pass differs slightly from its scheduled best evaluation despite verified identical selected weights.
+These are useful historical results, not fourteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. M and N's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports.
 
 ### Complete scheduled progression
 
@@ -120,6 +122,11 @@ All values in this table are native logged metrics. Epochs are rounded; integer 
 |M|5 /1190|0.06547|0.8880|0.8410|0.9425|0.9074|57|
 |M|7.501 /1785|0.07045|0.8990|0.8581|0.9291|0.9276|58|
 |M|10 /2380|0.07852|0.8758|0.8164|0.8986|0.8820|56|
+|N|2.499 /587|0.05616|0.8951|0.8522|0.9303|0.8833|59|
+|N|4.998 /1174|0.06556|0.9038|0.8640|0.9364|0.9005|59|
+|N|7.495 /1761|0.07118|0.8803|0.8219|0.8873|0.8517|57|
+|N|9.994 /2348|0.07542|0.8925|0.8420|0.9569|0.8983|57|
+|N|10 /2350|0.07687|0.8734|0.8098|0.9052|0.8538|56|
 
 More epochs are not uniformly better. G improves late while F peaks earlier, and both lose ground at some intermediate evaluations. G's eval loss rises while its final extraction scores improve. Select checkpoints on extraction metrics, not minimum teacher-forced loss. Retain predictions as well as weights at each evaluation: aggregate logs alone cannot localize the intermediate regressions.
 
@@ -1660,3 +1667,260 @@ Evidence: [own-reference replay and cohorts](analysis/training-latest-20261015/p
 [document scores](analysis/training-latest-20261015/per-field-documents.csv),
 [exact errors and OCR/PDF paths](analysis/training-latest-20261015/per-field-errors.csv),
 [original frozen references](analysis/training-latest-20261015/per-field-frozen-references.json).
+
+## 19. Corrected/anonymized N/R27: 6,900 synthetic plus 600 real
+
+### 19.1 Completion, changes and verified selected export
+
+N completed on 2026-10-17 with **7,500 training records: 6,900 synthetic and
+600 surgically anonymized real records**, and the same 60 validation documents.
+Relative to M/R23, the combined treatment includes phone presentation,
+container-ID rendering, country presentations/canonical country labels,
+goods/DG description regeneration, privacy and consistency repairs,
+200 new UAE package examples, and archival of the earlier 300 Egypt synthetic
+additions. This is **not** a pure scale-up or isolated anonymization experiment.
+
+Model/tokenizer revisions, rank 48/alpha 32, rsLoRA/EVA settings, LR 1e-4,
+microbatch 1/accumulation 32, seeds, ScheduleFree AdamW, bf16/SDPA, input-only
+positions, sequence limits and decoding settings agree with M. Apart from
+data/contracts and run metadata, the only resolved-setting changes are
+warmup 119→118 and evaluation/save interval 595→587, tracking 2,380→2,350 total
+updates. All 19 captured source/lock hashes and recorded package versions match M.
+
+**Selected/exported model: checkpoint 1174, epoch 4.9984.** All 504 export tensors
+match that checkpoint byte-for-byte; the epoch-10 adapter is different. Adapter
+SHA-256:
+
+```text
+5eab5620fdd9122508dd0018db7520089e7f37c0bc8e61f458de7f114264dfe5
+```
+
+The completed immutable manifest verifies all 72 artifacts and 1,661,845,609 bytes.
+The status sidecar's pending-manifest marker is written just before that final
+manifest by design; it does not overturn the completed state. Full verification:
+[progression report](analysis/r27-training-results-20261017/progression.md) and
+[exact metrics/checkpoint receipt](analysis/r27-training-results-20261017/progression-receipt.json).
+
+### 19.2 Progression: peak at epoch 5, not 10
+
+| Observation | Epoch / step | Eval loss | Field F1 | Field accuracy | Relation F1 | Category F1 | JSON / schema valid |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Scheduled | 2.4992 / 587 | 0.056158 | 0.895086 | 0.852209 | 0.930337 | 0.883303 | 59 / 51 |
+| **Scheduled selected** | **4.9984 / 1174** | **0.065564** | **0.903790** | **0.863991** | 0.936364 | 0.900542 | 59 / 49 |
+| Scheduled | 7.4949 / 1761 | 0.071176 | 0.880258 | 0.821871 | 0.887290 | 0.851711 | 57 / 49 |
+| Scheduled interval | 9.9941 / 2348 | 0.075418 | 0.892539 | 0.842046 | **0.956916** | 0.898336 | 57 / 46 |
+| Terminal evaluation | 10 / 2350 | 0.076867 | 0.873438 | 0.809791 | 0.905213 | 0.853846 | 56 / 45 |
+| Separate final pass on selected weights | Weights at 4.9984 | 0.062170 | 0.903013 | 0.862927 | 0.936364 | 0.900542 | 59 / 49 |
+
+There are **five training-time evaluations**, not four: interval 587 gives step
+2348 near epoch 10, and terminal-step evaluation also runs at 2350. The separate
+final selected-model pass is not a sixth training checkpoint. Epoch 5 is the
+correct complete-field selection; choosing 2348 for its relation peak would be
+a different objective.
+
+Later decline includes recall loss: 0.901512 at epoch 5→0.848003 at 7.5, despite
+higher precision. JSON coverage falls 59→57→56. Intermediate raw predictions
+are not retained, so this audit cannot localize those declines to individual
+samples.
+
+The 2348→2350 swing is unusually large for two updates and warrants controlled
+checkpoint generation replay. It exists in both event logs and Trainer history;
+CPU adapter comparison confirms distinct but close weights, relative L2 change
+9.45957e-5. There is **no established cause** from these artifacts: do not call
+it corruption, overfitting, kernel nondeterminism or a particular malformed
+document without the intermediate generations. Best export remains correct.
+
+### 19.3 Native final outputs: context, not replacement historical gold
+
+All rows below use their **own original full references**, not old generations
+scored against R27's revised targets. Addresses/descriptions remain included.
+
+| Saved selected outputs | Field F1 | Field accuracy | Relation F1 / accuracy | Category F1 / accuracy | JSON / schema | Exact docs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| J, old UAE | 0.901691 | 0.864957 | 0.944954 / 0.895652 | 0.900935 / 0.819728 | 59 / 51 | 5 |
+| K, replacement UAE | 0.893676 | 0.851601 | 0.933649 / 0.875556 | 0.899628 / 0.817568 | 59 / 51 | 5 |
+| L/R22, synthetic-only | 0.837552 | 0.788072 | 0.830275 / 0.709804 | 0.837736 / 0.720779 | 58 / 38 | 1 |
+| M/R23, real restored | 0.897967 | 0.857197 | 0.933333 / 0.875000 | 0.927644 / 0.865052 | 58 / 49 | 7 |
+| **N/R27, corrected/anonymized** | **0.903013** | **0.862927** | 0.936364 / 0.880342 | 0.900542 / 0.819079 | 59 / 49 | 5 |
+
+N has the highest native saved field F1, but J retains higher native accuracy
+and relations; M retains higher categories. N's native M-relative changes are
++0.50 pp field F1, +0.57 pp field accuracy, +0.30 pp relation F1 and −2.71 pp
+category F1. These contextual numbers alone do not establish a clean capability
+improvement.
+
+Complete-target counts: **2,323 correct / 2,579 gold**, with 2,566 predicted scalar
+values. On N's own 59 parseable documents, F1 is **0.909554**, accuracy
+**0.874953**. This includes the difficult fields, not just an easy-label subset,
+and remains below the joint 0.90/0.90 goal. Both thresholds are exceeded by
+29/60 documents; 19/60 reach both 0.95; strict complete-target exactness is 5/60.
+
+### 19.4 Fair comparison with M/J: changed gold and parsing controlled
+
+Every compared run shares exactly the same 60 raw OCR and positioned inputs.
+M→N changes 26 scalar paths across 16 documents: 15 canonical party-country
+strings, four free-text package→category conversions (eight paths), and three
+added delivery-agent phone continuations. J/K/L also differ in 14 HS strings
+across 13 documents. **All 175 addresses and all 60 descriptions remain unchanged.**
+
+The [comparison audit](analysis/r27-training-results-20261017/comparison-contract.md)
+replays each generation against its own frozen reference, then removes an
+entire document/field family from both prediction and gold when that family
+changed. This includes predictions in that changed family, not just gold paths;
+unchanged absent-on-both-sides families still count extras. No old model is
+penalized for newer HS separators, canonical country labels or new package enums.
+
+| Unchanged-fact scope | Gold | Earlier F1 / accuracy | N F1 / accuracy |
+| --- | ---: | ---: | ---: |
+| M/N, all 60 | 2,555 | 0.900119 / 0.860403 | 0.902922 / 0.862819 |
+| M/N, same 57 parseable | 2,435 | 0.916222 / 0.889908 | 0.915781 / 0.885726 |
+| J/N, all 60 | 2,541 | 0.904525 / 0.869682 | 0.902819 / 0.862849 |
+| J/N, same 58 parseable | 2,445 | 0.915490 / 0.890171 | 0.915565 / 0.885478 |
+| L/N, same 58 parseable | 2,452 | 0.862197 / 0.826173 | 0.913370 / 0.880329 |
+
+On the shared 57, M/N correct facts rise 2,231→2,240, but predictions rise
+2,435→2,457: slightly higher recovery with less restraint. The all-60 M/N
+correct-value gain is 40, of which nine come from the shared 57 and 31 from
+changed parsing coverage. An overall native high therefore does **not** establish
+a broad new content high. Content F1 is effectively tied with M and J; recovery
+over synthetic-only L remains clear.
+
+Paired 10,000-draw 95% document-bootstrap intervals for M→N field F1 are
+−1.70 to +2.33 pp on all 60 and −1.06 to +0.95 pp on the same 57.
+J/N's same-58 interval is −0.98 to +1.02 pp. These small, repeatedly used
+validation sets do not establish superiority over M/J. They are descriptive
+intervals, not an independent test.
+
+### 19.5 Granular content: specific gains, persistent regressions
+
+The table below is on **the same 57 parseable M/N documents**, with only changed
+families excluded. Gold support is identical in both columns. These are aligned
+scalar-field scores, not identifier-anchored category-set metrics.
+
+| Unchanged field family | Gold | M correct→N correct | M F1→N F1 |
+| --- | ---: | ---: | ---: |
+| Phones | 111 | 94→**100** | 0.870370→**0.917431** |
+| Countries | 228 | 212→**221** | 0.929825→**0.960870** |
+| Full addresses | 166 | 137→135 | 0.813056→0.810811 |
+| Full descriptions | 57 | 39→37 | 0.684211→0.649123 |
+| Container identifiers | 112 | 107→106 | 0.955357→0.959276 |
+| Seals | 114 | 109→108 | 0.931624→0.927039 |
+| Container size | 104 | 101→99 | 0.971154→0.947368 |
+| Container type | 104 | 101→99 | 0.971154→0.947368 |
+| Declared package quantity | 56 | 53→50 | 0.938053→0.877193 |
+| Unchanged package category | 53 | 46→47 | 0.859813→0.870370 |
+| Placement quantity | 98 | 94→94 | 0.954315→0.944724 |
+
+Phone precision and recall both improve. This aligns with the intended format
+coverage repair, but the combined treatment cannot isolate that renderer's
+causal contribution. One concrete success is the tubing document's four
+spaced/hyphenated ISO container IDs: all now normalize correctly, while M left
+hyphens in two. That sample nevertheless invents a one-SET package from the
+product wording, so format correctness is not complete semantic correctness.
+
+All-60 country recovery is 244/256, but comparing it with M's 228/256 must account
+for the 15 changed country strings. The controlled 228-value cohort above
+confirms an improvement independently of those replacements. This is not an
+ISO-code output experiment or an all-country generalization test.
+
+**Relation aggregates tie exactly on the shared 57:** both have 201 correct /
+213 predicted / 210 gold, F1 **0.950355**, accuracy **0.905405**. Native all-60
+F1 gains partly reflect parsing membership, while exact graphs decline 50→48/60.
+
+**Category regression survives the controls.** Excluding changed package-category
+facts, shared-57 category F1 falls 0.941176→0.920455. Current all-60 size/type
+are 100/106 correct in aligned scalar slots but 98/106 when anchored to container
+identity. Overprediction on unassigned rows and wrong/omitted identities matter,
+alongside explicit classification errors. A token can be right on an aligned
+row yet not be a correct category fact for the intended container.
+
+### 19.6 Source-reviewed failures and next targets
+
+The [source review](analysis/r27-training-results-20261017/SOURCE_REVIEW.md)
+records all 21 parseable description mismatches, the malformed output and
+representative package/contact/inventory failures. Main findings:
+
+- **Descriptions:** 38/60 exact; 21 parsed mismatches and one JSON failure. Product,
+  model/grade, embedded packing and continuation omissions persist, including
+  `AS PER ISRI`, `CARTRIDGES`, `MCC 102` and two-page dye wording. Other outputs
+  append Marks/supplier/batch/PO/equipment material. Removing commas/whitespace
+  fixes none; neither does the broader punctuation diagnostic. More verbose
+  generation alone is not the demonstrated solution.
+- **Shipment totals:** local allocations can be correct while totals are wrong:
+  two 990-bag rows correctly assigned but total 490 rather than 1,980;
+  990/891/539 correctly assigned but total 1,990 rather than 2,420; 25/27 cases
+  but total 55. Another output returns local 3,065/4,015 package rows instead of
+  declared 7,080.
+- **Package ownership/level:** 100 declared pallets becomes 100 PAPER BAGS despite
+  correct 20-per-container splits and 4,000 inner bags in the description.
+  A product called `TUBING SET` becomes an invented declared one SET.
+  Two BALE and one RACK categories are now correct under the new vocabulary,
+  but classification coverage alone does not teach these boundary distinctions.
+- **Contact ownership/restraint:** a forwarding-agent phone appears under
+  delivery; a seal becomes a phone; a date becomes a shipper phone; the delivery
+  agent's Italian contact/country leaks into consignee/notify. Phone-format
+  gains do not solve role assignment.
+- **Inventory:** repeated/omitted IDs and duplicate-container entries persist.
+  Six documents with at least five containers have micro F1/accuracy
+  0.858732/0.797521; six without ISO containers score 0.822300/0.751592.
+  These are descriptive small cohorts, not filtering recommendations. Page count
+  alone is uninformative: one-/multi-page accuracy is 0.862808/0.862990.
+
+There is one bounded target-boundary review candidate: `4 PLT RESIN` has current
+description `PLT RESIN`, while the model returns `RESIN`. The same target is in
+earlier runs. It may retain the package-unit prefix inconsistently with the
+declared-description policy; it is documented unchanged, not silently relabeled
+to improve this score. Its one scalar cannot explain the overall pattern.
+
+Suggested next coverage should preserve broad/phone/country strength while
+targeting **role and boundary contrasts**: declared versus contained packaging,
+local versus shipment totals, product SET versus shipment SET, absent fields
+versus nearby distractors, complete product continuations and high-cardinality
+inventories. The R28 donor-free/factored-package work should incorporate those
+contrasts rather than adding only rare enum frequencies.
+
+### 19.7 JSON, schema, resume and validation limits
+
+The selected pass has 59/60 JSON-valid and 49/60 schema-valid outputs. Its one
+malformed output has a stray `]` after a scalar contact name holding a phone,
+not truncation; all 60 sequences reach EOS and maximum generation is 1,210 tokens.
+It loses 37 gold facts. The other ten schema failures are five invalid equipment
+identities, one duplicate container, one duplicate HS list, zero volume, a malformed
+ISO date, and one ISO-container check-digit failure. No unsupported package enum
+occurs. [Exact errors](analysis/r27-training-results-20261017/schema-errors.json).
+
+Constrained decoding can enforce supplied grammar/enum/regex rules; correct
+ownership, complete inventory, cross-references/checksums and totals must not be
+credited as solved by hypothetical constraints in this unconstrained run.
+
+The reboot/resume is verified: original/resumed environments are byte-identical,
+all retained optimizer/scheduler counters match checkpoints, and saved RNG
+archives are present. Progress after step 587 was replayed; at least 378 logged
+update positions were discarded. Append-only logs contain 76 duplicated loss-log
+steps, so use the retained Trainer history rather than summing both branches.
+
+Saved `train_runtime: 26514.2806` and `train_loss: 0.00405857` describe the resumed
+Trainer invocation, **not whole-run speed or an unbiased ten-epoch loss**.
+First recorded train-begin→train-end spans 11.395 hours, including the reboot gap;
+the retained-history logged-step-weighted cumulative loss is 0.01530077.
+There is no justified training-speed comparison from the resumed summary.
+
+CPU replay reproduces every current native field/relation/category/schema metric
+within 1e-12 and all per-document validity flags. Eight checks cover identity,
+list permutation, wrong scalar, malformed JSON, human-text case, native replay,
+count conservation and protected pins. The historical replay keeps original native
+schema flags where current schemas differ; all 29 comparison pins verify.
+Ruff passes for both analysis utilities. Root replay core takes 0.189 seconds
+after imports, peak process RSS 356.1 MiB; comparison/bootstraps take 1.529 seconds,
+356.1 MiB. These are CPU-audit measurements, not model-memory or training-speed
+benchmarks. **No GPU/model inference, training, paid calls or active-data writes.**
+
+Evidence: [own-reference metrics/guards](analysis/r27-training-results-20261017/metrics.json),
+[replay utility](analysis/r27-training-results-20261017/analyze.py),
+[all fields](analysis/r27-training-results-20261017/fields.csv),
+[groups](analysis/r27-training-results-20261017/groups.csv),
+[document scores](analysis/r27-training-results-20261017/documents.csv),
+[errors](analysis/r27-training-results-20261017/errors.csv),
+[source review](analysis/r27-training-results-20261017/SOURCE_REVIEW.md),
+[fair comparison](analysis/r27-training-results-20261017/comparison-contract.md)
+and [comparison receipt](analysis/r27-training-results-20261017/comparison-contract.json).

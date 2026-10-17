@@ -9,7 +9,7 @@ import json
 import random
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import replace
 from datetime import date, timedelta
@@ -621,9 +621,25 @@ def wording_request(
                     countries = {scenario.party_localities[p].country for p in country_roles}
                     if len(countries) != 1:
                         raise ValueError("shared postal country owner has conflicting geography")
+                    country = countries.pop()
+                    country_bindings = [
+                        binding
+                        for binding in owners
+                        if binding.path.endswith(".country")
+                        and party_path(binding.path) is not None
+                    ]
+                    if country_bindings and all(
+                        binding.expression.strip() == "{" + variable.key + "}"
+                        for binding in country_bindings
+                    ):
+                        requirement = (
+                            "Country name only, not a complete postal address. "
+                            f"Output only {country}. Do not include a city/locality, street, "
+                            "district, building, postcode, company, contacts or captions. "
+                            "Address details belong in other requested postal components."
+                        )
                     requirement += (
-                        f" Certified country owner: {countries.pop()} once, "
-                        "with the supplied spelling."
+                        f" Certified country owner: {country} once, with the supplied spelling."
                     )
             else:
                 requirement += (
@@ -1171,6 +1187,28 @@ def _prepare_scenario_countries(blueprint, target, scenario, registry, policy, s
     )
 
 
+def _validate_repeated_party_wording(
+    source_values: Mapping[str, object],
+    generated_values: Mapping[str, object],
+    roles: Sequence[str],
+) -> None:
+    """Compare repeated identities before independently replayed presentations.
+
+    Inputs are cached flat target maps. Country-tail aliases can legitimately
+    differ between printed occurrences; generated names and full addresses may
+    not. No punctuation or geographic normalization belongs in this guard.
+    """
+    repeated = {}
+    for role in roles:
+        fields = (role + ".name", role + ".addressLine")
+        signature = tuple(source_values.get(path) for path in fields)
+        if all(signature):
+            current = tuple(generated_values.get(path) for path in fields)
+            if signature in repeated and repeated[signature] != current:
+                raise ValueError(f"repeated source party diverged: {role}")
+            repeated[signature] = current
+
+
 def validate_sample(
     blueprint: SamplingBlueprint,
     scenario: ShipmentScenario,
@@ -1324,24 +1362,20 @@ def validate_sample(
         total = sum(p["packageQuantity"] for p in goods[0]["numberAndTypeOfPackages"])
         if sum(row["packageQuantity"] for row in allocations) != total:
             raise ValueError("sampled allocation quantities do not sum to their package total")
-    repeated = {}
+    source_values, generated_values, target_values = (
+        flat(blueprint.target),
+        flat(render_target),
+        flat(target),
+    )
+    _validate_repeated_party_wording(
+        source_values, generated_values, tuple(scenario.party_localities)
+    )
     for role, location in scenario.party_localities.items():
-        old = {
-            p.removeprefix(role + "."): v
-            for p, v in flat(blueprint.target).items()
-            if p.startswith(role + ".")
-        }
         new = {
             p.removeprefix(role + "."): v
-            for p, v in flat(target).items()
+            for p, v in target_values.items()
             if p.startswith(role + ".")
         }
-        signature = (old.get("name"), old.get("addressLine"))
-        if all(signature):
-            current = (new.get("name"), new.get("addressLine"))
-            if signature in repeated and repeated[signature] != current:
-                raise ValueError(f"repeated source party diverged: {role}")
-            repeated[signature] = current
         expected_country = (
             country_registry.preferred_name(location.country_code)
             if country_registry is not None
@@ -1354,7 +1388,7 @@ def validate_sample(
         if "addressLine" in new:
             try:
                 validate_postal_geography(
-                    flat(render_target)[role + ".addressLine"],
+                    generated_values[role + ".addressLine"],
                     locality=location.name,
                     country=location.country,
                     country_code=location.country_code,
@@ -1742,10 +1776,7 @@ class Campaign:
             leaves = flat(blueprint.target)
             result = {}
             for path, country in leaves.items():
-                if (
-                    path.startswith("documentPatch.parties.")
-                    and path.endswith(".country")
-                ):
+                if path.startswith("documentPatch.parties.") and path.endswith(".country"):
                     result[path.removesuffix(".country")] = self.country_registry.require(
                         country, field=path
                     )

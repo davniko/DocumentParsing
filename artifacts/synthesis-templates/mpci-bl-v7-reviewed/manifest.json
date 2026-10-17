@@ -16121,7 +16121,7 @@
     },
     "sourceDataset": {
       "files": {
-        "manifest.json": "a3bf1b4a5c2f5c6d1804257dabd32b1abb3f1382eb7d69bf8007e090f2a10c25",
+        "manifest.json": "5c94b6bf19acbb9cf3543a9db64573813454b28eb6f4ca7136a7f02938a9d838",
         "train.jsonl": "b2d5b2046c062fba14c250c29b32443f0b8b59730dd54ba626431e6a3559c929",
         "validation.jsonl": "75918520914fadd581d2e6bb853af4b0f1d9b42c39e0acfa164e06eaee5786c9"
       },
@@ -16849,6 +16849,56 @@
       "receipt": "docs/analysis/r27-package-vocabulary-20261016/coverage200/source-stage/publication-reviewed/readback.json",
       "scope": "Two extraction-semantic package categories; ten source target repairs",
       "sourceTargetRepairs": 10
+    },
+    {
+      "currentR27PublicationManifestSha256": "43b2d7c486f22ee6095f35fac863c3d727fef5ee0081a50efd4b32686fe28b09",
+      "date": "2026-10-16",
+      "kind": "historical_dependency_path_closure",
+      "preservedDependencyHashes": true,
+      "receipt": "docs/analysis/r27-package-vocabulary-20261016/coverage200/source-stage/historical-dependency-closure/readback.json",
+      "redirects": [
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/README.md",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/README.md",
+          "sha256": "d9b508a7d435f3f6d2f59ab8877f8041678a9162f453e508ed7a320e7e758628"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/manifest.json",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/manifest.json",
+          "sha256": "39e13a0df3891ff149f20c64be00ac12843b29acf428fb9d1102039e49767865"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/prompt-schema.json",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/prompt-schema.json",
+          "sha256": "b45e3e04692ccae8af4c26c8458c9a186dd41f8bea2adb5c280450d0712e1451"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/real-train.jsonl",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/real-train.jsonl",
+          "sha256": "2a537cbb95fb6ccea0e0aa8cd7041fe727ddab7184987da12cd81eb55dd51aed"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/synthetic-train.jsonl",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/synthetic-train.jsonl",
+          "sha256": "17580ef04af73a0b02042f73ca84a0cef221362430975132c4f6294210610785"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/task-constraints.json",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/task-constraints.json",
+          "sha256": "e7ff183158ec799e8024d163ac2abbb063e6ede1dec7d50f18e43e042a817bba"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/validation.jsonl",
+          "originalPath": "/mnt/d/projects/documentparsing/data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1/validation.jsonl",
+          "sha256": "6cc69e52c956064e6ca295819302e8bbfef12fb010f9999df1fc86c7d41811af"
+        },
+        {
+          "archivePath": "/mnt/d/projects/documentparsing/docs/analysis/r27-package-vocabulary-20261016/coverage200/before/policy-source-authority.md",
+          "originalPath": "/mnt/d/projects/documentparsing/docs/kie-real-baseline-label-policy-2026-10-05.md",
+          "sha256": "5316441df1039e0688b8304f09d8d155110c5aacbc78608a7fd833fede805e17"
+        }
+      ],
+      "samplingFactsChanged": false
     }
   ],
   "mixedEquipmentIntegration": {
@@ -17233,7 +17283,7 @@
       "auxiliarySha256": "2e68b075c212705822e8c31bf1a281420eae7a362d3f466fb344c49b0deab4cc",
       "configurationRule": "Use the promoted source authority and active registry contracts/auxiliary; the reviewed absence guard rejects old populated targets.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset",
-      "datasetManifestSha256": "a3bf1b4a5c2f5c6d1804257dabd32b1abb3f1382eb7d69bf8007e090f2a10c25",
+      "datasetManifestSha256": "5c94b6bf19acbb9cf3543a9db64573813454b28eb6f4ca7136a7f02938a9d838",
       "date": "2026-10-12",
       "originalAuthorityPreserved": true,
       "reason": "Consignee phone appears only in the goods area, not in the printed consignee block. Omit its target while preserving and anonymizing the non-target source occurrence.",
