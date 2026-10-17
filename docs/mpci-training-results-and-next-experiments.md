@@ -1924,3 +1924,105 @@ Evidence: [own-reference metrics/guards](analysis/r27-training-results-20261017/
 [source review](analysis/r27-training-results-20261017/SOURCE_REVIEW.md),
 [fair comparison](analysis/r27-training-results-20261017/comparison-contract.md)
 and [comparison receipt](analysis/r27-training-results-20261017/comparison-contract.json).
+
+## 20. Prepared R27 rank-64 comparison and R28 implementation gates
+
+Prepared 2026-10-17; **not launched and not counted as a completed run**.
+The [rank-64 YAML](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)
+uses the exact N/R27 data, prompt, task constraints, model/tokenizer revisions,
+seeds and settings. Rank changes 48→64; alpha stays 32, dropout 0.05, EVA512,
+LR 1e-4, batch 1/accumulation 32, ten epochs, 118 internal warmup updates,
+587-step evaluation/save intervals, unlimited checkpoint retention and
+field-F1 best-model loading/export all remain unchanged. With rsLoRA,
+alpha/sqrt(rank) changes 4.6188→4.0000; this is the requested fixed-alpha rank
+comparison, not a constant-scale experiment. Adapter parameter count grows by
+one third at the unchanged target-module boundary; this is not a measured GPU
+memory or throughput estimate.
+
+Run ID, adapter name and rank tag are unique. The older launch YAML's explicit
+reboot checkpoint and MLflow resume ID are cleared: this is a new base-model/EVA
+run, not a rank-48 checkpoint continuation. No data version was created.
+
+Validation: three focused tests prove the full resolved-config difference,
+schedule/data/export invariants and identical bound prompt/schema. Ruff passes.
+The installed Compose `kie-tools` image passes `validate-config`, full
+`inspect-dataset` (7,560 records, 6.199 seconds) and tokenizer-only
+`prepare-dataset` (16.744 seconds). There are no exclusions or source truncations;
+maximum training source/target lengths are 8,077/3,145 and validation lengths
+5,698/1,334, within the unchanged training limits. No model or GPU training was
+loaded. Config SHA-256:
+`c2a53c6c81231745ed4a80d65f03246f64e29202e8f30654f0f89fa9d59096ae`.
+GPU time and memory must be measured during the user-launched experiment;
+neither speed parity nor a capacity-driven quality gain is established yet.
+
+Launch, including the documented Compose/Buildx credential-helper workaround:
+
+```bash
+mpci_docker_config="$(mktemp -d /tmp/mpci-docker-public.XXXXXX)"
+
+DOCKER_CONFIG="$mpci_docker_config" \
+docker --config "$mpci_docker_config" compose --profile training run --rm --build kie-trainer train \
+  --config configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml \
+  --project-root /workspace
+```
+
+### R28: order of work and current-data disposition
+
+The [consolidated R28 investigation](analysis/r28-packaging-decoupling-20261016/REPORT.md)
+and [scheduled requirements](kie-r27-package-vocabulary-audit-2026-10-16.md#policy-and-architectural-requirements-for-r28)
+remain the design authority. The section-19 results add semantic contrast
+priorities; they do not certify a cause for every regression or prove that
+donor-bound samples are intrinsically incorrect.
+
+1. **Settle package semantics before changing targets.** Review the saved 405-code
+   application crosswalk into package family and evidenced optional material,
+   construction, compression, closure, liner/composite and dimensional features.
+   Family/material alone cannot recover every code. Unknown attributes stay
+   absent; generic BALE does not imply compression. SET/BALE semantic extraction
+   is already supported in R27; their saved-application projection is unresolved.
+   Do not emit contradictory code/type pairs. The exact R28 field set still
+   needs approval, rather than treating the earlier schema sketch as final.
+2. **Decouple facts from presentation.** Replace the audited 447/453 donor-bound
+   defaults with an independent goods/form/package shipment ledger. Templates
+   retain owned spans, repetitions, formatting, printed field presence, topology
+   and anchors. Counts, masses/cube, nested ratios and equipment/tare are sampled
+   coherently, not borrowed from an observed shipment. A missing binding is a
+   rebase task, not evidence of commodity incompatibility or permission to fall
+   back to donors.
+3. **Broaden registry reachability deliberately.** Account for all 5,612 HS6
+   identities and full usable DG assets. Build the reviewed offline many-to-many
+   goods→form→package catalogue; no complete open HS-to-maritime-package matrix
+   was verified. Record supported/held outcomes, and eligible/reachable/attempted/
+   accepted coverage rather than hiding filtered codes. DG needs coherent
+   identities and supported field combinations, without requiring an HS link for
+   a layout that prints no HS. Preserve thermal/equipment compatibility and
+   printed-only DG/thermal labels.
+4. **Retain declared accounting and resolve hierarchy scope separately.** Primary
+   quantities/allocations stay at the same declared unit. Distinguish contained
+   levels from additive package kinds. NAIC permits up to five GID package
+   composites, but level ordering, SGP unit binding and additive mixed-package
+   projection still need accepted fixtures/application-builder evidence. Do not
+   assume an arbitrary tree or expand the decoder target without settling this.
+5. **Migrate by evidence, not wholesale regeneration.** Inventory existing samples
+   into target-only migrations, targeted re-rendering and full replacement/new
+   synthesis. Preserve valid text/labels and the real/validation membership;
+   migrate newly chosen attributes only where printed evidence supports them.
+   Keep R27 intact as the rank comparison baseline. Carry phone/container/country/
+   HS formatting, anonymization and geometric owners through every changed span.
+   Adjudicate `PLT RESIN` and the two BULKS/ITEMS holds before claiming those
+   boundaries are settled. Do not reintroduce original private values.
+6. **Use crossed pilots and semantic contrasts before scale.** Test the same facts
+   in different layouts and unrelated goods/packages in the same layout; remove
+   source shipment observations and prove fixed facts do not change. Cover
+   generic/material-rich, nested/additive, absent-count/no-container,
+   single/uniform/mixed equipment and partial DG/thermal controls. Include local
+   versus shipment totals, product SET versus declared SET, description
+   continuation versus Marks/PO/batch, repeated-party contacts and large
+   inventories. Audit labels, raw text, repeats, allocations and geometry, then
+   benchmark planning/rejection rates and memory before a larger publication.
+
+R28 implementation and migration are **not** performed by this config handoff.
+Final replacement/addition quotas should follow the current-data inventory and
+pilot results, not an unsupported fixed regeneration count. A country-ISO-target
+experiment remains a separate ablation; this rank-64 run retains current country
+names and every existing target policy.
