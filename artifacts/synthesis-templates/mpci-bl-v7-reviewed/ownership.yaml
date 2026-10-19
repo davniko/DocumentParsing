@@ -13475,7 +13475,7 @@ sources:
       agent:customs:borouge_order_number: private
       agent:customs:egyptian_importer_tax_id: private
       agent:customs:foreign_exporter_id: private
-      agent:notify:commercial_registration: public
+      agent:notify:commercial_registration: private
       agent:notify:tax_number: private
       agent:shipper:tax_id: private
       anchor:documentPatch.forwardingAndExportReferences[0]: private
@@ -23222,6 +23222,23 @@ sources:
       agent:customs:exporter_registration_number_repeat: private
       agent:inclusive_range:documentPatch.cargoPackages[0].quantity: private
   doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069:
+    variables:
+    - key: privacy_signatory
+      kind: name
+      value: Sny Cheng
+      meaning: Source-only private carrier signing employee; not the public carrier
+        company or an extraction party.
+      required_literals: []
+      occurrences:
+      - text: Sny Cheng
+        occurrence: 1
+        presentation: text
+    identity_kinds:
+      privacy_signatory: individual
+    private_contacts:
+      names:
+        privacy_signatory:
+          role: carrier signatory
     add:
     - key: wrapper_noun:agent:cargo:pallet_quantity
       kind: package

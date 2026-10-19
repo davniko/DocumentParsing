@@ -86,3 +86,29 @@ def test_recorded_adapter_matches_training_contract() -> None:
 
     assert provenance["adapter_weights_bytes"] == 60_825_184
     assert len(provenance["adapter_weights_sha256"]) == 64
+
+
+@pytest.mark.parametrize("ordered", [["b", "a"], ["a", "b"]])
+def test_recorded_evaluation_preserves_exact_order(ordered) -> None:
+    assert _TOOL._evaluation_indices({"document_ids": ordered}, ["a", "b"]) == tuple(
+        ["a", "b"].index(value) for value in ordered
+    )
+
+
+@pytest.mark.parametrize("ordered", [["a", "a"], ["a"], ["a", "c"], ["a", {}], ["a", True]])
+def test_recorded_evaluation_rejects_incomplete_or_invalid_order(ordered) -> None:
+    with pytest.raises(ValueError, match="complete source"):
+        _TOOL._evaluation_indices({"document_ids": ordered}, ["a", "b"])
+
+
+def test_replay_requires_exact_metrics() -> None:
+    recorded = {"metrics": {"eval_loss": 0.125, "eval_field_value_f1": 0.9}}
+    _TOOL._verify_recorded_metrics({**recorded["metrics"], "eval_runtime": 1.0}, recorded)
+    with pytest.raises(RuntimeError, match="did not reproduce"):
+        _TOOL._verify_recorded_metrics(
+            {"eval_loss": 0.125, "eval_field_value_f1": 0.899999}, recorded
+        )
+    with pytest.raises(RuntimeError, match="did not reproduce"):
+        _TOOL._verify_recorded_metrics({"eval_loss": 0.125}, recorded)
+    with pytest.raises(ValueError, match="nonempty"):
+        _TOOL._verify_recorded_metrics({"eval_loss": 0.125}, {"metrics": {}})

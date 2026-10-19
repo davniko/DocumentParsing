@@ -154,7 +154,7 @@ checkpoint:
   load_best_model_at_end: true
   metric_for_best_model: field_value_f1
   greater_is_better: true
-  resume_from_checkpoint: null
+  resume_from_checkpoint: artifacts/kie-training/t5gemma2-270m-mpci-bl-real600-synthetic6900-packages-r27-positions-inputonly-v7-e10-compact-eva-a32-r64-local-sfadamw-v1/checkpoints/checkpoint-1174
   enable_jit_checkpoint: false
   save_only_model: false
   save_on_each_node: false
@@ -168,7 +168,7 @@ logging:
   mlflow:
     tracking_uri: http://mlflow-server:5000
     experiment_name: document-ocr-kie
-    resume_run_id: null
+    resume_run_id: b0a8e58839964787a6c6616e3d38a3bb
     log_artifacts: false
     flatten_params: true
     max_log_params: null

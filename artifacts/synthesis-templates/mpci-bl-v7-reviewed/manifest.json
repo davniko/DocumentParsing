@@ -17208,6 +17208,41 @@
     ],
     "sourceTextAndTargetAssetsUnchanged": true
   },
+  "privacyClosure20261019": {
+    "date": "2026-10-19",
+    "report": "docs/analysis/r28-flat-privacy-closure-20261019/upstream/REPORT.md",
+    "sourceDocumentIds": [
+      "doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069",
+      "doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb"
+    ],
+    "beforeManifestSha256": "5121a3c9aa6ebbce7aa2042e13be431428915d0587f0e7307448e3931964d274",
+    "beforeSharedFiles": {
+      "ownership.yaml": "ba736b67e3641f312ca7d7959f28f8da293f35416aeccab69cd0cb00be00902a",
+      "auxiliary.yaml": "6027b8e244f19941c44083822488d9460103f2ac5fd90dfc75cc74978d26b3f1"
+    },
+    "afterSharedFiles": {
+      "ownership.yaml": "b116c11b404384b2d3832ae1b0b3338084338fa5a8b611ff9085ffca23be2293",
+      "auxiliary.yaml": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df"
+    },
+    "caseFilesAndOriginalSourcesUnchanged": true,
+    "changes": [
+      "Private notify registration uses existing source-format identifier sampler",
+      "Order-reference company caption depends on generated shipper",
+      "All three secondary consignee identity aliases depend on generated consignee",
+      "Source-only carrier signatory uses existing generated private-person mechanism"
+    ],
+    "status": "implemented_and_validated",
+    "validation": {
+      "targetedTests": 95,
+      "freshProductionSources": 2,
+      "freshProductionDescendants": 4,
+      "nativeFullTextFindings": 0,
+      "coordinateLines": 508,
+      "unpositionedLines": 72,
+      "paidCostUsd": "0.004206800000",
+      "receipt": "docs/analysis/r28-flat-privacy-closure-20261019/upstream/final-readback.json"
+    }
+  },
   "privacyMetadataRevision": {
     "date": "2026-10-14",
     "extractionTargetsPreserved": true,
@@ -17271,8 +17306,8 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "2e68b075c212705822e8c31bf1a281420eae7a362d3f466fb344c49b0deab4cc",
-    "ownership.yaml": "ba736b67e3641f312ca7d7959f28f8da293f35416aeccab69cd0cb00be00902a",
+    "auxiliary.yaml": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
+    "ownership.yaml": "b116c11b404384b2d3832ae1b0b3338084338fa5a8b611ff9085ffca23be2293",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513",
     "task-constraints.json": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
@@ -17280,7 +17315,7 @@
   "sourceAuthorityOverrides": {
     "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc": {
       "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml",
-      "auxiliarySha256": "2e68b075c212705822e8c31bf1a281420eae7a362d3f466fb344c49b0deab4cc",
+      "auxiliarySha256": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
       "configurationRule": "Use the promoted source authority and active registry contracts/auxiliary; the reviewed absence guard rejects old populated targets.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset",
       "datasetManifestSha256": "5c94b6bf19acbb9cf3543a9db64573813454b28eb6f4ca7136a7f02938a9d838",

@@ -5088,6 +5088,9 @@ sources:
     spans: []
   doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb:
     bindings:
+      agent:notify:commercial_registration:
+        format: source
+        identifier: private commercial/registration reference
       agent:commercial:free_time_reference:
         format: source
         identifier: private commercial/registration reference
@@ -5119,6 +5122,11 @@ sources:
         format: source
         identifier: private commercial/reference identifier
     spans:
+    - count: 1
+      quote: BOROUGE ORDER NO.
+      value:
+        target: documentPatch.parties.shipper.name
+        suffix: ' ORDER NO.'
     - count: 1
       quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
@@ -7687,6 +7695,8 @@ sources:
         prefix: ''
   doc_0262ae4032906f502a5ad8dc46c742bd2065109d728eb1449c8675211be22a22:
     bindings:
+      agent:commercial:freight:incoterm:
+        text: FOB {origin_port}, {origin_country}
       agent:inclusive_range:documentPatch.cargoPackages[0].quantity:
         identifier: commercial
         format: source
@@ -7734,6 +7744,8 @@ sources:
         channel: fax
   doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069:
     bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.consignee.name
       agent:commercial:reference:appi:page1:
         format: source
         identifier: commercial
@@ -7772,6 +7784,8 @@ sources:
         identifier: private commercial/export/customs reference
   doc_16386c0aa2b17689bc1c50255197ae82cc63fc3e749ae7b8581a691312390b57:
     bindings:
+      agent:commercial:freight:trade_term:
+        text: FOB {origin_port}, {origin_country}
       agent:notify:0:vat_reference:
         identifier: private commercial/registration reference
         format: source
@@ -7816,6 +7830,8 @@ sources:
         channel: fax
   doc_917b1eda0bed13c4a90c965821b7400f3d6aa1a3f1f2ee1d4f78d73594566c41:
     bindings:
+      agent:commercial:freight:incoterm:
+        text: FOB {origin_port}, {origin_country}
       agent:party:notify:0:vat:
         identifier: private commercial/registration reference
         format: source

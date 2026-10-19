@@ -1,5 +1,20 @@
 # R27 package vocabulary and free-text fallback audit
 
+Latest: [loose packaging/counted-unit experiment](analysis/r28-donor-independent-followup-20261018/relaxed-packaging/REPORT.md)
+separates commercial plausibility from actual extraction contradictions. It also
+corrects the previous overbroad 17-layout hold and validates independent inner,
+supporting, additive and container-scoped counts without changing R27.
+
+## R28 resumed with per-shipment LLM package choice — 2026-10-18
+
+The [follow-up experiment](analysis/r28-donor-independent-followup-20261018/REPORT.md)
+replaces a narrow reviewed goods/package eligibility catalogue with per-goods,
+native structured package recommendations in an isolated23-family pilot. It
+also records the actual active6,900-record donor census:5,500 donor-backed
+physical bundles and1,400 independent registry-form samples, across408 layouts.
+Do not substitute the447/453 **template-default** count for actual sample use.
+R27 and completed-run inputs remain unchanged; this is R28 investigation.
+
 ## Fresh R28 audit while R27 trains — 2026-10-16
 
 The [consolidated donor/packaging recheck](analysis/r28-packaging-decoupling-20261016/REPORT.md)
@@ -837,3 +852,163 @@ repins, tightly scoped target edits, preservation of unrelated shared-YAML bytes
 and rejection of metadata/source-inventory expansion. No GPU or training run was
 started, no held fallback label was guessed, and no existing historical campaign
 output was rewritten.
+
+## R28 fifty-template donor-independent experiment — 2026-10-18
+
+The [fifty-template report](analysis/r28-fifty-template-probe-20261018/REPORT.md)
+extends the contained experiments to **50 templates / 150 positioned descendants**:
+27 ambient, 12 thermal and 11 chemical-DG layouts, including all 17 formerly held
+configurations. All 23 proposed package families render without commodity donors;
+150 exact donor-poisoned replays, factor projections, allocation-ledger checks and
+coordinate receipts pass. Coverage is 84.11% of nonempty lines.
+
+This is not unattended production certification: **128 samples are accepted for
+the isolated probe and 22 remain held**. Holds distinguish actual field-purity/
+ownership gaps from unproven packing plausibility and non-target cosmetic context.
+The broad random-family treatment shows that a single wording-model write/hold
+flag is insufficient. Complete private-unit/capacity/relation ownership and a
+whole-shipment packing/form decision still need validation before integration.
+
+Two material targets are completed from exact final printed evidence. A real
+experimental cold-chain mismatch was traced to omitted intermediate HS ancestry;
+the full-path mechanism now resolves 79 additional explicit thermal classifications
+and rejects the old ambient/frozen request before sampling. A fresh redraw is
+retained on hold for a different packing issue rather than being auto-certified.
+
+All source and protected-authority pins remain unchanged. R27, admitted templates
+and completed-run scores are not rewritten. The
+[per-descendant inventory](analysis/r28-fifty-template-probe-20261018/INVENTORY.md)
+and [final proof/holds](analysis/r28-fifty-template-probe-20261018/final-validation.json)
+are the current evidence; the isolated experiment is not an R28 dataset publication.
+
+## R28 baseline fork, old-quality closure and variability census — 2026-10-19
+
+The [consolidated repair and audit report](analysis/r28-quality-and-variability-20261019/REPORT.md)
+starts the single R28 working copy at `data/curated/mpci-bl-r28-positions-v1`:
+6,900 synthetic plus 600 anonymized real training records, with unchanged
+validation and the existing flat package target. R27 remains frozen.
+
+Five confirmed old synthetic postal defects (six address targets), including all
+overlapping retained-sidecar copies, are explicitly repaired. Three historical
+FOB auxiliary dependency recipes are promoted to the shared registry; existing
+R27 FOB descendants already had the repaired commercial context. The source
+name/address boundaries did not require rebasing. The detailed report links
+generation/repair probes, source/configuration evidence, preservation receipts,
+coordinates, tests, costs and measured overhead.
+
+The [actual donor census](analysis/r28-quality-and-variability-20261019/donor/REPORT.md)
+reopens every current generation receipt: 5,500 records use real physical donors;
+1,400 are registry-form but still reach only 92 HS6 codes via 29 small profiles.
+All 100 paper-bag examples are flour, while IBC examples are soya oil and generic
+crates are motors/generators. This supports removing both donor dependence and
+tiny commodity-specific profile restrictions, not merely removing donor IDs.
+Current descriptions are nevertheless varied (6,650 distinct strings), and exact
+port-context repetition is absent under the audit's explicit structural key.
+
+The [source material census](analysis/r28-quality-and-variability-20261019/materials/REPORT.md)
+finds counted-package material explicitly in 13/453 template documents and
+13/600 real-training documents. Most material words instead describe cargo,
+inner packs, supports or boilerplate. The all-family inventory keeps two uncertain
+wood/pallet owner links separate. Material-null supervision is therefore a core
+requirement, not a rare fallback.
+
+Recommended staging: close old-quality issues, then donor-free sampling/rendering
+while retaining flat targets, then a separately measured package-factorization
+migration. No full R28 sampler refactor, factor migration, dataset regeneration
+or training is launched by this audit.
+
+The earlier 128/22 isolated review tally is historical, not a current blanket
+certificate: the follow-up found company text in all three `e9275395` probe
+descendants, including two accepted ones, and inconsistent FOB-only holds.
+Those inspection samples remain outside training; native review receipts are
+preserved rather than retroactively rewritten.
+
+## R28 flat-target donor-free variability probe — 2026-10-19
+
+The [new contained probe](analysis/r28-flat-donorfree-probe-20261019/REPORT.md)
+separates broader goods/package sampling from target factorization: current
+flat extraction targets remain unchanged. It tests coverage-proposed rare
+categories, goods-first native recommendations, full wording/render/replay and
+source-conditioned coordinates on twenty source layouts, plus small explicit
+boundary controls. Observed-cargo and donor access raise during fresh planning
+and rendering. The report distinguishes that live execution evidence from old
+catalogue initialization and the numeric adapter's current 32/48-category scope.
+
+UNPACKED is genuinely declared in real sources (`2 UNPACKED`, and separately
+`1 UNPACKED, 2 PALLETS`). No malformed unpacked plurals occur in current R28
+training inputs. One old isolated inspection sample still has an optional-plural
+suffix on an invariant adjective; complete rendered-surface ownership and the
+production alias path are therefore tested, not just primary package cells.
+
+The native chooser broadens BALE, SET, paper-bag, IBC and crate subjects without
+needing a permanent goods-to-package registry. It is not an exhaustive
+compatibility list or a reliable numerical-fit oracle. The complete campaign
+exposes the important remaining boundary: changing an outer package noun does
+not automatically preserve every private inner-count/capacity relationship.
+The linked report retains original attempts, corrected outputs, explicit holds,
+source/variation galleries, geometry receipts and measured costs.
+
+A separate read-only scope check finds confirmed private remnants already in
+R28: thirty commercial-registration records and seven records retaining both
+a private organization and an issuer personal name (37 current synthetic
+documents; 42 unique with retained sidecars). These are separately inventoried
+baseline auxiliary-binding/privacy work, not wrong package labels or evidence
+that cargo donors are needed. Ambiguous coded Marks are not automatically
+classified as private identifiers. No R28 dataset, admitted authority, production
+sampler or target schema is changed by this contained experiment.
+
+Final measured outcome: **47 accepted inspection descendants across sixteen
+layouts; nine rendered holds; four pre-render holds**, from twenty planned
+sources/sixty variants. All 56 rendered records have current-hash native and
+independent text/target reviews, exact replay and geometry validation. Coordinates
+cover 87.13% of all rendered nonempty lines; approved description-block coverage
+is 88/94 lines (93.62%), with all six missing goods lines in one source family.
+The accepted subset has 86.69% overall coordinate coverage and 79/85 approved
+goods lines positioned. Thirty-four combined tests and Ruff pass.
+
+The [complete source/variation gallery](analysis/r28-flat-donorfree-probe-20261019/campaign/SOURCE-AND-VARIATIONS.md)
+and [per-record decisions](analysis/r28-flat-donorfree-probe-20261019/manual-review/INVENTORY.md)
+retain positives, corrections and holds. Recorded native work costs $0.10532879;
+an explicitly documented initial-cancellation accounting uncertainty is separate.
+These experiments demonstrate broader reachable examples, not an already
+measured trained-model improvement or universal production readiness.
+
+## R28 confirmed privacy holds closed; next decoupling gate — 2026-10-19
+
+The [privacy-closure and next-probe report](analysis/r28-flat-privacy-closure-20261019/REPORT.md)
+closes the two confirmed private-reference/name families in R28 and the admitted
+shared ownership/auxiliary bindings. Exactly 37 active synthetic records and
+their retained copies are repaired: 42 unique documents, 72 physical rows.
+All extraction targets, coordinate suffixes, real/validation records and frozen
+R27 remain unchanged. Inverse readback reconstructs the three original shard
+hashes and verifies all 7,900 retained synthetic identities/overlapping copies.
+
+- [x] `e745f5ba`: registration privacy classification corrected; five-digit
+  deterministic source-format replacement; order-company caption aliases the
+  already generated shipper.
+- [x] `b76bdefe`: all three historical Marks/order company aliases reuse the
+  generated consignee; source-only carrier signer uses existing individual-name
+  wording, with no new extraction role.
+- [x] Four fresh production descendants, native full-text review, publication
+  and geometry pass; 508/580 content lines have coordinates. The old isolated
+  probe's held samples remain historical, not retroactively recertified.
+- [ ] Private-packing relationship generation: first eight plan-only cases,
+  then six layouts/twelve full descendants, with complete noun/range ownership.
+- [ ] `b8544221` repeated row/unit/batch/range ownership and an equal-load
+  control, separate from the nesting prompt. Preserve the partial OCR allocation
+  mask; do not invent the other four public quantities.
+- [ ] Extend independent numerical support from 32/48 categories using shared
+  physical forms rather than a new finite HS/donor catalogue, including explicit
+  unpackaged-unit handling.
+- [ ] Wider fixed-target gate before production sampler integration; package
+  factorization remains a later independently measured experiment.
+
+The detailed report explains why `13IBCS/715CTNS` is a private-role contradiction
+rather than an absent extraction label, and why more description prompting alone
+cannot rewrite an unowned host-rendered CTNS noun. Confirmed privacy work is
+closed; ambiguous coded Marks remain separately inventoried, not silently guessed.
+
+The final combined closure suite passes **101 tests in 16.98 seconds**; Ruff is
+clean. Fresh-production native validation plus the seven-name repair costs
+$0.00448765. Blueprint compilation adds a measured 0.199 ms per two-source pair;
+no new blocking synthesis stage or production Python change is introduced.

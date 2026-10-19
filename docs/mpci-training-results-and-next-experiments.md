@@ -1,10 +1,17 @@
 # MPCI extraction: run results and next experiments
 
-Updated: 2026-10-17. This is the consolidated results ledger for **fourteen completed runs**, now including corrected/anonymized **N/R27** alongside synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
+Updated: 2026-10-18. This is the consolidated results ledger for **fifteen completed runs**, now including the same-data **O/R27 rank-64** comparison with **N/R27 rank-48**, alongside synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
 
-**Current conclusion:** N/R27 completes with **6,900 synthetic + 600 anonymized real**. Its selected/exported model is **checkpoint 1174, epoch 4.9984**, not epoch 10: scheduled field F1/accuracy **0.9038/0.8640**, separate saved final pass **0.9030/0.8629**. This is the highest native final field F1 in the ledger, but not a new across-the-board best or a controlled identical-target comparison. On unchanged facts in the same 57 parseable M/N documents, overall F1 is effectively tied (**0.9162→0.9158**) and accuracy slightly lower (**0.8899→0.8857**). Phones improve **94→100/111** and unchanged countries **212→221/228**; descriptions, shipment totals and equipment-category precision remain weak. Relations tie on that shared cohort; category regression survives target/parse controls. Export/resume integrity verifies. See [section 19](#19-correctedanonymized-nr27-6900-synthetic-plus-600-real) and its [source-reviewed errors](analysis/r27-training-results-20261017/SOURCE_REVIEW.md).
+**Default for subsequent experiments: LoRA rank64**, explicitly accepted by the
+user after the native terminal checkpoint comparison. Historical rank48 configs
+and completed-run exports are not rewritten. The contained R28 sampling follow-up
+is documented in [its report](analysis/r28-donor-independent-followup-20261018/REPORT.md).
 
-The latest **training-results audit** used local artifact inspection, CPU metric replay and source-text review only; no dataset, production code, config or checkpoint was changed and no inference/training was launched. The separately requested wording probes are documented in their own report. **Sections3–18 preserve historical analyses and plans**; their “current” wording describes those snapshots, not today's labels. J/K trained on wrapped targets; L/M/N use direct targets. M restores printed separators in14 validation HS strings across13 documents. Historical models are **not** scored against replacement gold. Section18 excludes the entire HS family for its historical comparison; section19 conservatively excludes only changed document/field families against each run's own frozen reference, including subsequent country/package/phone changes. N includes the later phone/container-ID presentation repairs, new goods/DG wording, country policy/presentations, surgical real anonymization and bounded package coverage changes together; it does not isolate any one repair.
+**Current decision:** **O/R27 rank64 terminal checkpoint2350, epoch10, is the best overall checkpoint of the latest run**, with field F1/accuracy **0.8991/0.8518**, relation F1/accuracy **0.9707/0.9430**,215/220 correct relations, eight extra and five missed, and53/60 exact relation graphs. Its original evaluation is now reproduced exactly, twice; the first mismatched-batch replay is superseded, not its replacement score. Against N/rank48's terminal checkpoint on identical native terminal batches, logged field F1 improves **0.8734→0.8991**, accuracy **0.8098→0.8518**, relations **0.9052→0.9707** and categories **0.8538→0.8948**. This supports a beneficial fixed-alpha rank48→64 experiment, with the source-level and shared-parseable comparisons documented below. Both train on the same6,900 synthetic +600 anonymized real samples. The automatic field-F1 export remains **checkpoint587**, not the user-designated task-weighted best2350; no checkpoint/export has been overwritten. [Section21](#21-or27-rank64-completed-same-data-comparison) preserves the selected-export-only comparison; [section23](#23-evaluation-non-reproduction-root-cause-fixed-and-native-terminal-result-recovered) diagnoses and fixes evaluation reproducibility. The preferred-checkpoint and terminal-rank comparison is in [section24](#24-preferred-rank64-terminal-checkpoint-and-terminal-rank48-comparison).
+
+On the **same52 documents parseable in both terminal models**, field F1 improves **0.9178→0.9203** and relations **0.9740→0.9767**, while category F1 regresses **0.9110→0.8966**. Most of the larger all60 gain comes from recovering heavier documents, particularly a ten-container case where rank48 repeats one container64 times until truncation. That is a meaningful output improvement, but not uniform semantic dominance or a measured constrained-decoding result.
+
+The latest **training-results audit** includes artifact inspection, CPU metric replay, source-text review and explicit recovered-order GPU checkpoint evaluations. The reproducibility repair changes evaluation infrastructure; the training datasets, historical checkpoints, launch configurations and selected exports remain unchanged. No new training was launched. The separately requested wording probes are documented in their own report. **Sections3–22 preserve dated historical analyses and plans**, with superseding notes where needed; their “current” wording describes those snapshots, not today's conclusion. J/K trained on wrapped targets; L/M/N/O use direct targets. M restores printed separators in14 validation HS strings across13 documents. Historical models are **not** scored against replacement gold. Section18 excludes the entire HS family for its historical comparison; section19 conservatively excludes only changed document/field families against each run's own frozen reference, including subsequent country/package/phone changes. N includes the later phone/container-ID presentation repairs, new goods/DG wording, country policy/presentations, surgical real anonymization and bounded package coverage changes together; it does not isolate any one repair. N/O have identical inputs, targets and scoring contracts, allowing complete-target comparisons without historical-gold exclusions.
 
 ## 1. Reading the metrics correctly
 
@@ -14,7 +21,7 @@ The latest **training-results audit** used local artifact inspection, CPU metric
 - Invalid JSON gets no recovered-field credit. Parseable schema-invalid JSON can receive partial field credit. Explicit nulls in the target count under the current contract.
 - Whole descriptions/addresses are individual string fields. A missing word and a completely wrong description both lose that field's exact-match credit. The error taxonomy below distinguishes their practical severity without silently changing the primary metric.
 - **Native scheduled evaluation** means the values logged during that run, using its contemporary labels/settings. Earlier **common-gold replays** below refer to their explicitly dated frozen snapshots, not a license to score historical models against subsequent policy changes. Section18 replays each run against its **own original reference** and compares only unchanged families across contracts. None of these CPU replays is new model inference.
-- Best scheduled evaluation and the separate final prediction pass are different observations. Their scores can differ slightly even when the exported weights are correct. Do not mix a best-epoch aggregate with an epoch10 error inventory.
+- Best scheduled evaluation and the separate final prediction pass are different observations. Historically randomized evaluation batches caused score differences despite identical weights; section23 fixes this and establishes exact replay contracts. Do not mix a best-epoch aggregate with an epoch10 error inventory, and do not accept an unexplained mismatch as normal evaluation noise.
 
 ### Important historical corrections
 
@@ -24,7 +31,7 @@ The latest **training-results audit** used local artifact inspection, CPU metric
 4. Older runs did not all use the current explicit-null instruction policy. Before the 1,500-synthetic run, 38 `sameAs` nulls and two negotiability nulls added 40 target facts across 36 validation documents. This particularly changes historical schema-validity scores when evaluated against today's schema.
 5. The previous rank32 1,500-synthetic run selected epoch7.5 but exported epoch10. The rank48 run exports its selected epoch10 checkpoint correctly. Granular comparisons below use the **available saved epoch10 outputs**, not the earlier run's best epoch7.5 predictions.
 
-## 2. Experiment registry: fourteen completed runs
+## 2. Experiment registry: fifteen completed runs
 
 All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout this ledger. Each has 60 validation documents. The configuration links are the launch files; the corresponding run directory contains the authoritative `resolved-config.json` and artifact manifest.
 
@@ -44,6 +51,7 @@ All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout t
 |L|[Synthetic-only7,000, R22](../configs/training/production/t5gemma2_270m_lora.mpci_bl_synthetic7000_old_uae_reinforcement_r22_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,000 synthetic|Remove real600; repaired/expanded synthetic pool plus old-UAE reinforcement; direct target|10 /2190|110, or5%|
 |M|[Real600 + synthetic7,000, R23](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic7000_hs_preserved_r23_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,600|Retain L's exact synthetic shard; restore real600 and printed real/validation HS formatting; same rank48 and direct target|10 /2380|119, or5%|
 |N|[Anonymized real600 + synthetic6,900, R27](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,500|Phone/ID formats, country/wording/privacy repairs,200 package examples added/300 Egypt synthetic archived; keep rank48/settings; resumed after reboot|10 /2350|118, or5%|
+|O|[Same R27 dataset, rank64](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)|7,500|Rank48→64 only scientific config change; alpha32/EVA/settings retained; resumed after power outage; verified best-checkpoint export|10 /2350|118, or5%|
 
 F and G have identical training/validation file hashes, input/target formatting, seeds, LR, batch/accumulation, model/tokenizer revisions and total updates. Their effective rsLoRA scale nevertheless changes from 32/√32 = 5.657 to 32/√48 = 4.619; EVA also adapts to the new rank. Therefore G is **rank48 plus longer warmup**, not an isolated rank test.
 
@@ -67,8 +75,15 @@ The relation/category values below are at the **field-F1-selected checkpoint**, 
 |L|10 /2190|0.8375|0.7877|0.8303|0.8377|58/60|38/60|
 |M|7.501 /1785|**0.8990**|**0.8581**|0.9291|**0.9276**|58/60|49/60|
 |N|4.998 /1174|**0.9038**|**0.8640**|0.9364|0.9005|59/60|49/60|
+|O|2.499 /587|0.9001|0.8549|0.9291|0.8897|58/60|52/60|
 
-These are useful historical results, not fourteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. M and N's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports.
+**Task-weighted preferred checkpoint, distinct from automatic field-F1 selection:**
+O/rank64 **epoch10 /2350**: field F1/accuracy0.899093/0.851755,
+relation F1/accuracy0.970655/0.942982, category F10.894831, JSON56/60,
+schema48/60. This is the best overall latest-run checkpoint by the user's stated
+priority; its complete native evaluation has been reproduced exactly.
+
+These are useful historical results, not fifteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. N/O are an identical-data/target fixed-alpha rank comparison. M, N and O's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports.
 
 ### Complete scheduled progression
 
@@ -127,6 +142,11 @@ All values in this table are native logged metrics. Epochs are rounded; integer 
 |N|7.495 /1761|0.07118|0.8803|0.8219|0.8873|0.8517|57|
 |N|9.994 /2348|0.07542|0.8925|0.8420|0.9569|0.8983|57|
 |N|10 /2350|0.07687|0.8734|0.8098|0.9052|0.8538|56|
+|O|2.499 /587|0.05377|0.9001|0.8549|0.9291|0.8897|58|
+|O|4.998 /1174|0.06293|0.8919|0.8423|0.9336|0.8873|57|
+|O|7.495 /1761|0.06648|0.8827|0.8257|0.9171|0.8550|56|
+|O|9.994 /2348|0.07036|0.8859|0.8298|0.9420|0.8828|55|
+|O|10 /2350|0.07197|0.8991|0.8518|0.9707|0.8948|56|
 
 More epochs are not uniformly better. G improves late while F peaks earlier, and both lose ground at some intermediate evaluations. G's eval loss rises while its final extraction scores improve. Select checkpoints on extraction metrics, not minimum teacher-forced loss. Retain predictions as well as weights at each evaluation: aggregate logs alone cannot localize the intermediate regressions.
 
@@ -1927,7 +1947,7 @@ and [comparison receipt](analysis/r27-training-results-20261017/comparison-contr
 
 ## 20. Prepared R27 rank-64 comparison and R28 implementation gates
 
-Prepared 2026-10-17; **not launched and not counted as a completed run**.
+Historical preparation snapshot, 2026-10-17: at that time **not launched and not counted as a completed run**. The subsequently user-launched run is now complete and analyzed as **O in section21**. The settings, preflight and launch block below describe preparation, not a current instruction to restart or resume the completed run; the launch YAML was later updated for its power-outage continuation. Immutable run artifacts are the authority for the completed experiment.
 The [rank-64 YAML](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)
 uses the exact N/R27 data, prompt, task constraints, model/tokenizer revisions,
 seeds and settings. Rank changes 48→64; alpha stays 32, dropout 0.05, EVA512,
@@ -2026,3 +2046,973 @@ Final replacement/addition quotas should follow the current-data inventory and
 pilot results, not an unsupported fixed regeneration count. A country-ISO-target
 experiment remains a separate ablation; this rank-64 run retains current country
 names and every existing target policy.
+
+## 21. O/R27 rank64: completed same-data comparison
+
+This preserves the original **automatically selected-export** audit. The current
+task-weighted preferred checkpoint is terminal2350; section24 supplies its
+certified terminal-versus-terminal and shared-parseable comparisons. Selected-
+export rankings below are not the current overall checkpoint decision.
+
+Audited **2026-10-18**, after completion at **00:24:59 Europe/Ljubljana**
+(2026-10-17 22:24:59 UTC). Run O is the user-launched
+[rank64 configuration](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml).
+It finished2350/2350 updates and ten epochs, including a verified restart from
+checkpoint1174 after the power outage. All five checkpoints remain available:
+587,1174,1761,2348,2350. **The field-F1-selected and exported adapter is587**, not
+the last checkpoint.
+
+The run directory is
+`artifacts/kie-training/t5gemma2-270m-mpci-bl-real600-synthetic6900-packages-r27-positions-inputonly-v7-e10-compact-eva-a32-r64-local-sfadamw-v1`.
+[Integrity/progression receipt](analysis/r27-rank64-results-20261018/progression-integrity.json).
+
+### 21.1 What was actually controlled
+
+This is a substantially cleaner comparison than N versus historical M/J/K:
+N and O have identical training/validation shard hashes, all60 validation inputs
+and reference strings, task constraints, prompt, token limits, evaluation config,
+base-model/tokenizer revisions, captured source-module hashes and dependency
+versions. Dataset cache identity is identical. Both train on **6,900 synthetic +
+600 anonymized real** and evaluate the same60 held-out documents. No current gold
+has been substituted into a historical model comparison.
+
+Resolved-config differences are exactly rank48→64 and its associated adapter
+name/run ID/rank tag. Alpha32, rsLoRA, EVA512, dropout0.05, LR1e-4, batch1 with
+accumulation32, seeds424, internal warmup118 updates and587-step eval/save
+interval remain fixed. Trainable parameters increase **22,781,952→30,375,936
+(+33.33%)**, with252 target modules/504 adapter tensors unchanged. Fixed-alpha
+rsLoRA changes scale32/√rank **4.6188→4.0000**. EVA's rank-dependent calibration
+also changes, so this is a fixed-alpha rank experiment, not a separately isolated
+constant-scale capacity test. Each run starts from the base model/EVA, not the
+previous trained adapter.
+
+### 21.2 Training progression and which result to use
+
+|O stage|Epoch / step|Eval loss|Field F1|Field accuracy|Relation F1|Category F1|JSON / schema valid|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|Scheduled, selected best|2.4992 /587|0.053769|0.900118|0.854893|0.929062|0.889693|58 /52|
+|Scheduled|4.9984 /1174|0.062930|0.891871|0.842341|0.933638|0.887273|57 /48|
+|Scheduled|7.4949 /1761|0.066482|0.882682|0.825681|0.917051|0.855046|56 /49|
+|Scheduled interval|9.9941 /2348|0.070358|0.885858|0.829763|0.941995|0.882784|55 /48|
+|Automatic terminal-step evaluation|10 /2350|0.071969|0.899093|0.851755|**0.970655**|0.894831|56 /48|
+|Separate final pass, reloaded selected587|Weights from2.4992|**0.053186**|**0.900691**|**0.855589**|**0.929062**|**0.889693**|**58 /51**|
+
+At the common first587-step evaluation, rank64 improves field F1 over rank48
+**0.895086→0.900118**, but rank48 subsequently reaches0.903790 at1174 while
+rank64 declines to0.891871. Rank64's validation loss rises throughout the
+training-time evaluations after2.5 epochs; lower late training loss does not
+translate into better validation field extraction. This is consistent with
+poorer later generalization, but does not prove a particular overfitting,
+capacity or dataset-causation explanation.
+
+The final2350 relation score is genuinely strong: precision0.964126,
+recall0.977273, **215/220 correct relations, eight extra, five missed**, with
+53/60 exact relation graphs. However, it belongs to the terminal model, not the
+selected/exported model. Its field F1 is0.899093 and JSON validity56/60. It is an
+interesting retained relation-specialized candidate, not evidence that the
+exported rank64 model improves relations. Intermediate/terminal raw prediction
+texts were not retained; aggregate logs cannot support a source-level inventory
+of how those215 relations were recovered. Such a checkpoint comparison would
+require separately authorized inference.
+
+Step2348→2350 changes some generation metrics sharply in both ranks despite
+only two updates. The logs prove the aggregate change, not its mechanism; it is
+not evidence of data corruption, wrong export or a diagnosed numerical problem.
+The scheduled587 and separate selected-model pass also differ slightly—field
+F1 .900118→.900691, schema52→51—so keep those stages distinct. Independently
+verified adapter hashes establish correct checkpoint selection despite that
+reevaluation variation.
+
+### 21.3 Selected exports: exact same-contract comparison
+
+These are each run's separate `checkpoints/eval_results.json`, reproduced from
+its saved final `predictions/validation.jsonl`; not a mixture of scheduled peaks
+and terminal predictions. Deltas below are percentage points except counts.
+
+|Metric|N rank48, selected1174|O rank64, selected587|O−N|
+|---|---:|---:|---:|
+|Eval loss|0.062170|0.053186|−0.008985 absolute|
+|Field precision|0.905300|0.917538|+1.224 pp|
+|Field recall|0.900737|0.884451|−1.629 pp|
+|Field F1|**0.903013**|0.900691|−0.232 pp|
+|Field accuracy|**0.862927**|0.855589|−0.734 pp|
+|Extraction-fact F1|0.899660|0.897580|−0.208 pp|
+|Relation F1|0.936364|0.929062|−0.730 pp|
+|Relation accuracy|0.880342|0.867521|−1.282 pp|
+|Exact relation graphs|48/60|48/60|No change|
+|Category F1|0.900542|0.889693|−1.085 pp|
+|Category accuracy|0.819079|0.801303|−1.778 pp|
+|Exact category graphs|45/60|44/60|−1 document|
+|JSON valid|59/60|58/60|−1 document|
+|Schema valid|49/60|51/60|+2 documents|
+|Canonical exact documents|5/60|7/60|+2 documents|
+|Both document field F1 and accuracy>0.90|29/60|28/60|−1 document|
+|Both document field F1 and accuracy≥0.95|19/60|23/60|+4 documents|
+
+Rank64 produces fewer scalar predictions **2566→2486**, fewer correct scalars
+**2323→2281/2579 gold**, and fewer incorrect/extra predicted scalars243→205.
+Higher precision and more excellent/exact documents coexist with lower aggregate
+recall and a somewhat weaker tail. Across all60,25 documents improve in field
+F1,26 regress and9 tie. This is a trade-off, not broad improvement or collapse.
+
+### 21.4 Removing the parseability confound
+
+|Same57 documents parseable in both exports|Rank48|Rank64|
+|---|---:|---:|
+|Field F1|0.914585|0.913264|
+|Field accuracy|0.882582|0.878468|
+|Correct scalar fields /2472 gold|2270|2248|
+|Relation F1|0.944444|0.932715|
+|Correct relations /216 gold|204|201|
+|Category F1|0.904059|0.895028|
+|Correct category facts /266 gold|245|243|
+
+Rank64 recovers formerly malformed `45ed05eb`, but newly breaks `684f442c` and
+`da651f2f`. Those three documents account for20 of the42 lost correct scalar
+fields; the other22 are inside the shared parseable cohort. Relation loss is
+also inside that cohort, not explained away by the extra malformed document.
+
+The10,000 paired-document bootstrap interval for the field-F1 delta is
+**[−0.021954,+0.018059]** over all60 and **[−0.009592,+0.007120]** over the same57.
+Both include zero. These are descriptive sensitivity checks on a reused small
+validation set, not independent statistical confirmation or a causal rank study.
+The measured overall difference is small; calling rank64 decisively worse would
+be stronger than this evidence supports, just as calling it a new winner would.
+
+### 21.5 What improves and what remains weak
+
+All counts in this table use the **same57 parseable** documents and unchanged
+gold. These are scalar aligned fields; anchored relation/category facts are
+separately reported above.
+
+|Field group / gold values|Rank48 correct|Rank64 correct|F1 rank48→rank64|
+|---|---:|---:|---:|
+|Party names /172|151|156|0.8779→0.9096|
+|Goods descriptions /57|36|38|0.6316→0.6667|
+|Declared package quantities /56|50|52|0.8772→0.9204|
+|Goods gross-weight values /46|33|36|0.7333→0.7742|
+|Phone values /113|103|97|0.9279→0.9023|
+|Country values /244|237|232|0.9634→0.9547|
+|HS strings /49|47|45|0.9691→0.9474|
+|Address lines /166|136|135|0.8168→0.8108|
+|Container IDs /118|110|109|0.9524→0.9520|
+|Container seal values /119|110|110|0.9129→0.9244|
+|Container sizes /104|99|97|0.9296→0.9108|
+|Container types /104|99|97|0.9296→0.9108|
+|Package categories /56|49|48|0.8596→0.8496|
+|Placement package quantities /98|93|91|0.9394→0.9192|
+
+The source-reviewed error patterns are not interchangeable:
+
+- **Description boundaries improve selectively.** Six formerly wrong descriptions
+  become exact: lecithin without batch/top-seal extras; copper scrap retaining
+  `AS PER ISRI`; complete loader dimensions; titanium dioxide retaining
+  `800 PAPER BAGS (25 KG) ON 20 PALLETS`; bentonite instead of a quantity; cheese
+  retaining `BLOCK 15KG`. Four exact descriptions become nonexact: fabric loses
+  `WEIGHT:320GSM`, calcium chloride copies `ISPM15` as `ISM15`, spare parts adds
+  `CFS-FO`, and a press-brake description loses its leading `1 -`. Persistent
+  failures still include Marks/PO leakage and truncation of a long dye catalogue.
+  A vehicle-condition clause is selected instead of its product block. Exact
+  description38→39/60 is modest progress, not a solved description task.
+- **Totals can improve while allocations degrade.** The ten-container
+  `5cabcd4b` gets packages50 and gross230850 right but drops another real
+  container/allocation; it emits7 inventory rows versus9 before, including one
+  formerly duplicated/misidentified row. `6fa0b967` correctly recovers total7080
+  but substitutes it for a local4015 allocation. `ff146232` copies the single
+  shipment total48 into both container allocations. The issue is ownership and
+  accounting scope, not lack of arithmetic constraints.
+- **Equipment/category precision is not fixed by rank.** One copied ID changes
+  `MSDU`→`MSUD`, losing both anchored relations. Another ID formerly treated as a
+  seal is correctly restored. Three unsupported type/size assignments are newly
+  added in a layout lacking those gold attributes. Anchored size/type recovery
+  is97→97/104 each but extras increase; list-aligned size/type counts differ
+  because their matching is not identity-anchored. Shared-cohort refrigerated
+  typing remains6/6; open-top remains0/1; 45-foot size8→7/10.
+- **Package semantics still matter.** Pallet-versus-inner-paper-bag classification
+  improves on `8625ddda`; another DG switches main-declaration cartons to the
+  fibreboard boxes printed in a separate chemical-detail block. A loader sample
+  invents out-of-vocabulary `PACKAGE_VINCES_LATVIA_COLUMBO`. Generic BALE remains
+  2/2; there is **no SET gold category** in this frozen validation snapshot, so
+  added training SET coverage cannot be evaluated by SET recall here.
+- **Phone loss is principally completeness/type/ownership.** Notify phones fall
+  23→19/23; several contacts disappear, and one telephone goes into an email array.
+  Format-diverse R27 data and correct publication hashes do not establish that
+  those distinctions have been learned.
+- **Country restraint improves in some roles, recall falls in others.** Four
+  unsupported Italian/Netherlands/delivery-country predictions are removed, but
+  printed Slovenia/Egypt/Malaysia/Singapore role countries are omitted elsewhere.
+  `NEW YORK,NY` still produces a spurious country (`NYAN`→`NY`), receipt country
+  becomes `PHILADELPHIA`, and terminal `MARDAS` is placed in a country field.
+  This is not merely the previously discussed `ARE`/`A.R.E` alias edge case.
+- **Small DG support cannot establish DG generalization.** The single UN3077
+  example changes its correctly extracted class9 to `FLAMMABLE_LIQUIDS`; its
+  packing group remains correct. This is a real observed regression, but only
+  one hazard-class example, not evidence of a population-wide DG failure.
+
+Comma/whitespace relaxation recovers only2 rank48 and1 rank64 fields. Removing
+all punctuation/spacing in string scalars recovers12 and11 respectively:
+diagnostic all60 F1 **0.907677→0.905035**. These are deliberately non-policy
+diagnostics using unchanged list alignment; stripping meaningful identifier
+punctuation is not a proposed target correction. Formatting does not explain
+the remaining gap. [Detailed source review](analysis/r27-rank64-results-20261018/SOURCE_REVIEW.md).
+
+### 21.6 JSON/schema, best-export and restart checks
+
+Rank64's two malformed outputs contain invalid numeric spacing and mixed quote
+delimiters; neither truncates. The other seven schema-invalid outputs comprise
+four with invalid equipment identity formats, one duplicate-phone list, one
+zero volume and one address containing contact information. This is a first
+reported-error taxonomy, not an assertion those documents have only one defect;
+the loader also contains an unsupported category token. The export recovers
+five formerly schema-invalid documents and newly breaks three; six remain
+invalid, sometimes for a different reason. Full errors and transitions are saved.
+Constrained decoding can address supplied syntax/enum/regex rules, but correct
+role assignment, complete inventory, local allocations and field completeness
+are not guaranteed by those constraints. No constrained replay was run.
+
+The final adapter's SHA-256 exactly equals checkpoint587:
+`5c054ed611c48a7faf4b2ab4a770fefc27a24558471346cba5448230df97f307`.
+It differs from terminal2350. Rank48's export likewise equals its selected1174.
+Both verified receipts contain504F32 tensors. The run manifest is `complete`;
+`status.json` retains the older `artifacts_complete_manifest_pending` marker,
+but manifest, selected export and final predictions are all present. This audit
+does not alter that artifact or infer incomplete training from the stale marker.
+
+Rank64 resumed1174 after logging through1205, replaying31 logged update
+positions. Original/resumed environment snapshots are byte-identical; all five
+checkpoints retain optimizer/scheduler/RNG files. Saved `train_runtime17468.4506`
+and `train_loss0.00183745` describe the resumed invocation only. N resumed at a
+different point, so those summary fields cannot measure ten-epoch throughput or
+mean loss against one another. Retained logged cumulative loss is
+0.01530077→0.01493969; this is a logged-loss diagnostic, not the resumed summary.
+
+### 21.7 Measured cost, reproducibility and next decision
+
+Adapter file bytes increase91,201,176→121,577,328. Selected-evaluation peak
+allocated GPU memory is approximately8.311→8.412GiB (+0.101GiB). EVA initialization
+is400.78→750.65seconds (158→225passes under identical stopping settings).
+Matched normal-update median seconds are11.914→12.361 for steps100–575,
+11.871→11.592 for1250–1750, and11.978→11.724 for1850–2300. Mixed directions and
+restart/external-GPU conditions do **not** support a clean overall throughput
+gain or loss claim. These are observed costs, not a new performance benchmark.
+
+The CPU audit independently reproduces all native field, extraction-fact,
+relation, category, validity and exact-match metrics within1e-12. Ten embedded
+guards cover identity, recursive list permutation, one wrong scalar, malformed
+JSON receiving no facts, human-text case, formatting controls, native replay,
+count conservation, identical input/target contract and protected hashes.
+Independent root replay passes in2.058seconds after imports, peak RSS411.15MiB;
+Ruff passes. No models/GPU, paid calls, dataset/config/checkpoint writes or new
+training launches were performed.
+
+**Selected-export-only decision:** N/rank48 remains the higher broad-field-F1
+export. This does **not** establish it as the preferred overall checkpoint;
+section22 evaluates O's terminal checkpoint as a serious task-weighted candidate.
+Rank64 is not uniformly better and does not justify treating capacity as the
+established cause of all remaining errors.
+Continue the approved R28 semantic/coverage work, emphasizing crossed
+goods/package/layout examples and negative contrasts: shipment versus local
+totals, declared versus contained packaging, product continuations versus
+Marks/reference/condition clauses, contact type/party ownership, printed versus
+absent country components, and complete repeated inventories. Measure those
+cohorts together with the broad metrics, rather than selecting isolated gains.
+This analysis makes no production or dataset changes and launches no next run.
+
+Evidence: [paired replay/guards/pins](analysis/r27-rank64-results-20261018/paired-metrics.json),
+[reproducible CPU utility](analysis/r27-rank64-results-20261018/paired_audit.py),
+[progression/config/export receipt](analysis/r27-rank64-results-20261018/progression-integrity.json),
+[field groups](analysis/r27-rank64-results-20261018/paired-groups.csv),
+[all fields](analysis/r27-rank64-results-20261018/paired-fields.csv),
+[category values](analysis/r27-rank64-results-20261018/paired-category-values.csv),
+[document scores](analysis/r27-rank64-results-20261018/paired-documents.csv),
+[all errors](analysis/r27-rank64-results-20261018/paired-errors.csv),
+[fact transitions](analysis/r27-rank64-results-20261018/paired-fact-transitions.csv),
+[schema errors](analysis/r27-rank64-results-20261018/paired-schema-errors.json)
+and [source-reviewed findings](analysis/r27-rank64-results-20261018/SOURCE_REVIEW.md).
+
+## 22. Rank64 terminal2350: task-weighted checkpoint review
+
+Follow-up2026-10-18. The user correctly identified that maximizing field F1 alone
+can reject a useful checkpoint: terminal2350 retains nearly the same field score
+as selected587 while substantially improving relations. The section21 selected-
+export comparison remains numerically correct, but its original recommendation
+was too narrow to decide which checkpoint is best for the actual task.
+
+### 22.1 Exact native aggregate comparison
+
+The selected columns are their separate saved final prediction passes. Terminal
+is the original epoch10 logged evaluation, independently matched between
+`checkpoint-2350/trainer_state.json` and `logs/events.jsonl:489`.
+All three share the exact frozen R27 contract and validation references.
+
+|Metric|Rank48 selected1174|Rank64 selected587|Rank64 terminal2350|
+|---|---:|---:|---:|
+|Field precision|0.905300|0.917538|0.914228|
+|Field recall|0.900737|0.884451|0.884451|
+|Field F1|0.903013|0.900691|0.899093|
+|Field accuracy|0.862927|0.855589|0.851755|
+|Non-relation extraction-fact F1|0.899660|0.897580|0.892248|
+|Relation precision|0.936364|0.935484|**0.964126**|
+|Relation recall|0.936364|0.922727|**0.977273**|
+|Relation F1|0.936364|0.929062|**0.970655**|
+|Relation accuracy|0.880342|0.867521|**0.942982**|
+|Exact relation graphs|48/60|48/60|**53/60**|
+|Category precision|0.889286|0.878571|0.871528|
+|Category recall|0.912088|0.901099|**0.919414**|
+|Category F1|0.900542|0.889693|0.894831|
+|Exact category graphs|45/60|44/60|43/60|
+|JSON / schema valid|59 /49|58 /51|56 /48|
+|Whole-document exact|5/60|7/60|4/60|
+|Eval loss|0.062170|0.053186|0.071969|
+
+Versus rank64 selected587, terminal2350 changes field F1 by**−0.001598** and
+accuracy by**−0.003834**, but relation F1 by**+0.041593** and relation accuracy
+by**+0.075461**. Versus rank48 selected1174, the field differences are somewhat
+larger (**−0.003919 F1, −0.011172 accuracy**), while relation F1/accuracy improve
+**+0.034291/+0.062641**. These are absolute metric deltas, not percentages.
+
+The user's approximately0.001 F1/0.003 accuracy comparison is also correct:
+comparing the **two original training-time evaluations**, scheduled587 versus
+terminal2350, gives **−0.001025 field F1 and−0.003138 accuracy**. The slightly
+larger differences above use the separate selected-export pass. Neither basis
+makes the small field-score difference a sufficient overall ranking criterion.
+
+### 22.2 What the aggregate gain actually contains
+
+These exact integer counts are reconstructed against the known unchanged gold
+support and checked against every relevant native precision/recall/F1/accuracy
+value. Forty-five arithmetic checks pass, maximum difference1.11e-16.
+
+|Facts|Rank48 selected|Rank64 selected|Rank64 terminal|
+|---|---:|---:|---:|
+|Correct scalar values /2579|2323|2281|2281|
+|Wrong/extra scalar predictions|243|205|214|
+|Correct relations /220|206|203|**215**|
+|Missing/wrong relations|14|17|**5**|
+|Wrong/extra relations|14|14|**8**|
+|Correct category facts /273|249|246|**251**|
+|Wrong/extra category predictions|31|34|37|
+|Correct non-relation extraction facts /2359|2116|2077|2066|
+|Wrong/extra non-relation predictions|229|192|206|
+
+The relation gain is **not recall purchased by indiscriminately adding edges**:
+relative to selected587 it recovers12 more correct relations **and removes six
+extras**. Missing relations drop17→5, about71%; extras14→8, about43%.
+Relative to rank48 selected, it recovers nine more correct relations with six
+fewer extras. This is a substantial structural improvement on this validation
+set and a sound reason to consider terminal2350 the more useful model.
+
+The other side is not zero: unchanged total scalar correct count does not mean
+unchanged facts or fields. Non-relation correct facts decrease2077→2066 and
+their extras increase192→206; category recall improves while category precision
+falls. JSON/schema and complete-document exactness are also lower. A
+task-weighted preference for terminal2350 is reasonable, but it should be based
+on inspecting those trades, not treating all non-relation metrics as identical.
+
+### 22.3 The saved terminal adapter is the evaluated model
+
+The original Docker image's installed Transformers5.15/ScheduleFree1.4.1 source
+was inspected without a model. Evaluation calls `optimizer.eval()`, then Trainer
+saves the checkpoint. Our `ScheduleFreeTrainerMixin.save_model` calls the same
+idempotent `optimizer.eval()` before saving both adapter and optimizer state.
+No training step occurs between terminal evaluation and checkpoint2350 saving.
+Therefore the saved adapter contains the evaluated **x weights**, not a different
+training y iterate. A direct adapter-only replay is appropriate; recreating an
+optimizer or rerunning EVA would be unnecessary and wrong for this audit.
+
+The original terminal predictions were not retained during training. The first
+fresh replay used a different batch plan because checkpoint RNG is saved
+**after** the native evaluation. The subsequent investigation in section23
+recovered the original plan from checkpoints2348/2350 and reproduced all26
+native quality/loss/token metrics exactly. The original training run, selected
+adapter and data are kept unchanged.
+
+Evidence: [native three-way metrics/counts and ScheduleFree lifecycle](analysis/r27-rank64-results-20261018/terminal-native-comparison.json).
+
+### 22.4 First fresh replay: mismatched batches; superseded by exact recovery in section23
+
+One validation-only replay loaded checkpoint2350 in the same trainer image and
+verified all504 adapter tensors exactly. Model revision, dependencies, captured
+source hashes, prepared dataset/cache report, prompt, targets, BF16/SDPA,
+batch2 and generation settings match training. Saved2350 RNG is restored after
+Trainer initialization, but it was saved after the historical terminal evaluation,
+so its length-grouped batching is not a reconstruction of the original pass.
+No optimizer, EVA calibration, training, MLflow run or export was created.
+
+|Rank64 terminal|Native epoch10 log|Fresh60-document replay|
+|---|---:|---:|
+|Field F1|0.899093|0.888268|
+|Field accuracy|0.851755|0.833396|
+|Relation F1|0.970655|0.946882|
+|Correct / predicted / gold relations|215 /223 /220|205 /213 /220|
+|Wrong/extra relations|8|8|
+|Category F1|0.894831|0.902527|
+|Exact relation graphs|53/60|51/60|
+|JSON / schema valid|56 /48|55 /48|
+|Eval loss|0.071969|0.071997|
+
+At this first stage the native0.970655 peak was not reproduced. Section23 now
+establishes the cause experimentally and reproduces that exact peak, together
+with every other native quality metric and loss. The table above remains a
+diagnostic comparison of two batch plans, not evidence of damaged weights or
+the authoritative terminal-checkpoint performance.
+
+The fresh five malformed outputs contain170 gold scalar values; three carry
+10 gold relations. Thus10 of its15 missed relations are behind malformed JSON.
+Its own55 parseable documents have relation F1 **0.969267** (205 correct,
+213 predicted,210 gold). That conditional score corroborates the learned relation
+signal but is not a repaired all60 score. We cannot assign every original-to-fresh
+change to those exact records because original terminal strings do not exist.
+One firm difference: `6a1350a5` contains six gold relations, so it could not have
+been malformed in a native pass that missed only five relations overall.
+
+### 22.5 Identical three-way parseable cohort and granular terminal findings
+
+This subsection retains the first, mismatched-batch replay's conditional analysis
+for provenance. Use section23's recovered native pass for terminal performance;
+do not substitute this older replay for the original scheduled evaluation.
+
+All **53** documents below parse in N-selected, O-selected and fresh terminal.
+The same2324 scalar values,206 relation facts and258 category facts are scored;
+this avoids giving one model an easier parseable subset than another. It is
+still conditional on parsing, not an estimate of constrained-decoding performance.
+
+|Shared53 metric|Rank48 selected1174|Rank64 selected587|Rank64 terminal fresh|
+|---|---:|---:|---:|
+|Field F1|0.916935|0.916540|**0.920968**|
+|Field accuracy|0.885939|0.882672|**0.891746**|
+|Relation F1|0.946341|0.933985|**0.968675**|
+|Correct / gold relations|194 /206|191 /206|**201 /206**|
+|Wrong/extra relations|10|12|**8**|
+|Category F1|0.908397|0.905950|**0.915572**|
+
+|Correct values / shared gold|Rank48 selected|Rank64 selected|Terminal fresh|
+|---|---:|---:|---:|
+|Container IDs /113|105|104|**111**|
+|Container seals /114|105|105|**114**|
+|Container sizes /102|97|95|**99**|
+|Container types /102|97|95|**99**|
+|Per-container quantities /93|88|86|**92**|
+|Goods gross-weight values /44|31|34|**37**|
+|Phones /99|89|83|**90**|
+|Countries /230|223|218|223|
+|Descriptions /53|35|37|37|
+|Party names /160|141|147|141|
+|Addresses /155|126|127|125|
+|Package categories /52|46|45|44|
+|HS strings /46|44|42|43|
+
+Terminal's anchored container-use F1 is0.973214 versus selected587's0.954955;
+allocation F1 is0.963351 versus0.909091. Six shared-cohort documents improve in
+relation F1 and one regresses. Source inspection confirms:
+
+- **Ten-container `5cabcd4b`:** all10 IDs, seals and5-package allocations now
+  appear; correct relations14→20/20 versus selected587, or16→20 versus rank48.
+  It still gets the shipment package total wrong,44 instead of50. Perfect local
+  relations do not establish complete-document correctness.
+- **Ten-container `aa9ed483`:** relations18→20/20; all ten12-package placements
+  are recovered. Gross weight also improves24348→243480. Description boundaries
+  remain wrong.
+- **Seven-container `13ea92fa`:** all seven goods/container links are recovered,
+  5→7/8 total relation facts; its single8-pallet allocation is still omitted.
+- **`217e911a`:** the `MSUD` copying error is corrected to `MSDU`, restoring both
+  anchored facts. **`5fa29caa`:** the second local quantity becomes2377 rather
+  than3270/3700. **`6fa0b967`:** local4015 is recovered instead of shipment7080.
+- **Counterexample, `5d6b477c`:** all four containers remain recognized, but their
+  placement list disappears entirely, losing four previously correct links.
+  This is a genuine mapping regression, not a malformed-output penalty.
+
+Those last four links and the refractory8-pallet allocation account for all five
+missed shared-cohort relations. Eight gold-absent extras remain, including a loader
+serial and `RESIN` treated as container IDs and unsupported local quantities.
+The older646 allocation ownership question remains explicitly bounded; this
+review does not reclassify printed numbers as fabricated without evidence.
+
+Other trades are specific rather than universal degradation: country recall
+returns to rank48's shared count, New York/Philadelphia country extras disappear,
+and the DG class9/carton mistakes are corrected. But party-name/address/package
+scores remain weaker; the DG's product references are now incorrectly added as
+HS codes. Descriptions tie selected587's exact count with different wins/losses.
+The tyre example gets its local quantity right while copying a local net mass
+into the shipment net-weight field. These cases remain coverage priorities.
+
+Shared53 paired-bootstrap relation-F1 intervals span zero: terminal minus rank48
+**[−0.017139,+0.055328]**, terminal minus selected587
+**[−0.006851,+0.075373]**. Improvements are observed on this reused validation
+set, not established independent-test or universal superiority.
+
+### 22.6 Revised checkpoint judgment and validation receipts
+
+**Terminal2350 is now the designated best overall checkpoint of the latest run**
+(decision finalized in section24 after exact reproduction). The original native
+trade-off is favorable, and fresh shared-parseable field/accuracy/category gains
+support it beyond just relation aggregates. The earlier “keep rank48” conclusion
+based only on automatic selected exports was insufficient for that decision.
+Do not nevertheless hide the fresh all60 regression, the syntax instability,
+remaining semantic failures or the small/reused validation scope. In particular,
+no constrained-decoding experiment has yet demonstrated how much syntax loss
+will disappear or what content those constrained outputs will contain.
+
+The ordinary `final-adapter` is **still587**; this audit does not promote, overwrite
+or re-export2350. Future checkpoint decisions should consider field and relation
+quality together with semantic error cohorts, rather than interpreting the
+single configured selection metric as an overall quality ranking.
+
+GPU prediction took759.09seconds; full driver793.55seconds; peak allocated/reserved
+memory8.18/8.23GiB. All78 protected files are unchanged. Independent CPU three-way
+replay takes2.963seconds after imports,411.15MiB peak RSS, reproduces every saved
+pass's metrics within1e-12, and passes identity/permutation/case/format, scalar/fact
+count-conservation, source-contract and hash guards. Both utilities pass Ruff.
+
+Evidence: [detailed terminal source review](analysis/r27-rank64-results-20261018/TERMINAL_REVIEW.md),
+[fresh replay receipt](analysis/r27-rank64-results-20261018/terminal-replay-2350/receipt.json),
+[fresh prediction text](analysis/r27-rank64-results-20261018/terminal-replay-2350/predictions/validation.jsonl),
+[three-way metrics/bootstraps/guards](analysis/r27-rank64-results-20261018/terminal-threeway-metrics.json),
+[per-field scores](analysis/r27-rank64-results-20261018/terminal-threeway-fields.csv),
+[per-document scores](analysis/r27-rank64-results-20261018/terminal-threeway-documents.csv),
+[fact errors](analysis/r27-rank64-results-20261018/terminal-threeway-fact-errors.csv),
+[scalar transitions](analysis/r27-rank64-results-20261018/terminal-threeway-transitions.csv),
+[replay driver](analysis/r27-rank64-results-20261018/terminal_replay.py)
+and [CPU comparison utility](analysis/r27-rank64-results-20261018/terminal_compare.py).
+
+## 23. Evaluation non-reproduction: root cause fixed and native terminal result recovered
+
+2026-10-18, direct investigation without Codex subagents. This supersedes the
+unresolved reproduction caveat in section22; its first-replay analyses remain
+retained as diagnostics, not the authoritative terminal-checkpoint score.
+
+**The original rank64 epoch10 evaluation now reproduces exactly.** Recovering
+the historical batch plan from checkpoint2348's CPU RNG produces checkpoint2350's
+saved CPU RNG exactly after one60-element permutation. The full original-image
+replay matches all26 native quality/loss/token metrics with zero difference.
+A second full replay through the corrected production evaluator in the rebuilt
+Compose image repeats every metric and the entire60-document prediction JSONL
+byte-for-byte.
+
+|Metric|Native epoch10|Both certified replays|
+|---|---:|---:|
+|Eval loss|0.07196877896785736|0.07196877896785736|
+|Field F1|0.8990934174221521|0.8990934174221521|
+|Field accuracy|0.8517550410754294|0.8517550410754294|
+|Relation F1|0.9706546275395034|0.9706546275395034|
+|Relation accuracy|0.9429824561403509|0.9429824561403509|
+|Category F1|0.8948306595365418|0.8948306595365418|
+|JSON / schema valid|56 /48|56 /48|
+|Correct / predicted / gold relations|215 /223 /220|215 /223 /220|
+
+### 23.1 Proven cause
+
+Transformers5.15 reuses randomized training length grouping for evaluation.
+Evaluation permutations consume the global Torch CPU RNG, which is checkpointed
+**after** evaluation. Restoring the terminal RNG therefore changes validation
+companions and padding instead of recreating the scored pass. Batch size2 alone
+was not a complete reproducibility contract.
+
+Controlled repeated real-model probes kept identical unpadded document tokens and
+weights: the first-replay pair's2x2128 padding repeatedly produces malformed JSON;
+the historical pair's2x1864 padding repeatedly produces valid JSON. The first
+greedy token divergence is index53. The primary alone repeats the first-replay
+output. This is a batch-layout-sensitive numerical decoding decision, not dropout,
+random decoding, a bad label, the wrong adapter, or ScheduleFree saving y instead
+of its evaluated x weights. Different batching changed six document strings in
+the complete pass. Restoring the original batches restores every native metric.
+
+The first-divergence probe directly captures the numerical mechanism with an
+identical53-token decoder prefix: competing logits77.0/76.5 become76.5/76.5 under
+historical batching, so the tied greedy argmax changes. This is one BF16
+representable step at that magnitude; both sets of logits repeat exactly.
+
+### 23.2 Upstream correction and validation
+
+Evaluation now uses deterministic descending-length grouping with stable ties;
+the training sampler remains unchanged. Each scheduled evaluation persists its
+actual batch order, raw predictions/references, exact metrics and model/data/
+precision/generation/scoring contract. A checkpoint saved at that step gets the
+corresponding evaluation contract, not the later selected-best model's output.
+
+The checkpoint evaluation command requires that contract, verifies the loaded
+adapter tensors, reuses the recorded plan, and fails explicitly if any recorded
+metric or prediction-file byte differs. Historical checkpoints without retained
+plans require explicit, certified recovery evidence. Failed replay outputs are
+retained. The tool also now honors the configured case-scoring policy consistently.
+
+**134 relevant tests pass** in the rebuilt Compose image, including actual tiny
+T5Gemma2+PEFT train/eval/save/new-model-load/re-eval checks with AdamW and ScheduleFree,
+persistent workers, changed RNG seeds and exact generated-token/loss comparisons.
+Ruff and diff checks pass. The60-row stable sampler costs6.58microseconds; padded
+input tokens fall149,056→140,048 (−6.04%). Captured-text publication/independent
+rescoring/contract persistence averaged0.0623seconds, +2.875MiB peak RSS.
+The production replay takes768.65seconds, without switching precision or batch size.
+
+### 23.3 Wider implication and preserved state
+
+Twenty-one completed local runs use this affected Transformers5.15/BF16 grouping
+setup, including all15 A–O runs. This is an exposure inventory, not a claim that
+every result materially changes. Close comparisons and automatic best-checkpoint
+selection could include batch-layout effects; future comparable-policy checkpoint
+comparisons should use the same fixed evaluation plan. Logged historical metrics
+are not erased or rewritten. The original terminal's relation advantage is now
+confirmed rather than discounted by the first replay.
+
+All original protected training files, datasets, adapters and selected587 export
+remain unchanged. The latest preservation pass checks79 immutable inputs
+(the original78 plus the recovered-order evidence). No training was launched.
+
+Full diagnosis, code boundaries, measurements and evidence:
+[evaluation reproducibility report](analysis/r27-rank64-results-20261018/EVALUATION_REPRODUCIBILITY.md),
+[all native/recovered metric deltas](analysis/r27-rank64-results-20261018/terminal-replay-2350-historical-order/native-metric-comparison.json),
+[production exact-replay certification](analysis/r27-rank64-results-20261018/terminal-replay-2350-production-fixed/manifest.json),
+[affected-run inventory](analysis/r27-rank64-results-20261018/evaluation-sampler-exposure.json).
+
+## 24. Preferred rank64 terminal checkpoint and terminal rank48 comparison
+
+2026-10-18 follow-up. **Run O's terminal checkpoint2350 (epoch10) is designated
+the best overall checkpoint of the latest run.** This is the task-weighted
+decision requested by the user, prioritizing stronger relation extraction while
+retaining near-selected field accuracy/F1. It is distinct from the automatic
+field-F1-selected checkpoint587 and does not silently replace the existing export.
+
+### 24.1 Terminal versus terminal: identical native evaluation batches
+
+This is N/rank48 checkpoint2350 versus O/rank64 checkpoint2350, not N's selected
+epoch5 model versus O's selected epoch2.5 model. Both train on exactly the same
+6,900 synthetic +600 anonymized real samples and evaluate the same60 validation
+inputs/targets, including the same description, package, country and HS policies.
+
+The saved **pre-terminal CPU RNG states are identical** between N and O. In each
+run, applying the installed60-element length-grouping permutation to checkpoint
+2348's state yields checkpoint2350's state exactly. Frozen validation input
+lengths and source ordering are identical, so all30 two-document terminal batches
+are identical too. Therefore the terminal rank comparison is **not confounded by
+the randomized evaluation-batch defect** diagnosed in section23. The
+[batch-equality certificate](analysis/r27-rank64-results-20261018/terminal-native-batch-equality.json)
+records both state hashes and complete ordered IDs.
+
+|Native terminal metric|Rank48 N,2350|Rank64 O,2350|O−N|
+|---|---:|---:|---:|
+|Field precision|0.909358|0.914228|+0.487 pp|
+|Field recall|0.840248|0.884451|+4.420 pp|
+|Field F1|0.873438|0.899093|**+2.566 pp**|
+|Field accuracy|0.809791|0.851755|**+4.196 pp**|
+|Non-relation extraction-fact precision|0.906006|0.909331|+0.332 pp|
+|Non-relation extraction-fact recall|0.837643|0.875795|+3.815 pp|
+|Non-relation extraction-fact F1|0.870485|0.892248|**+2.176 pp**|
+|Relation precision|0.945545|0.964126|+1.858 pp|
+|Relation recall|0.868182|0.977273|**+10.909 pp**|
+|Relation F1|0.905213|0.970655|**+6.544 pp**|
+|Relation accuracy|0.826840|0.942982|**+11.614 pp**|
+|Exact relation graphs|48/60|53/60|+5 documents|
+|Relation-supported documents|54/60|54/60|Unchanged|
+|Category precision|0.898785|0.871528|−2.726 pp|
+|Category recall|0.813187|0.919414|**+10.623 pp**|
+|Category F1|0.853846|0.894831|**+4.098 pp**|
+|Category accuracy|0.744966|0.809677|+6.471 pp|
+|Exact category graphs|44/60|43/60|−1 document|
+|Category-supported documents|59/60|59/60|Unchanged|
+|JSON valid|56/60|56/60|Unchanged count|
+|Schema valid|45/60|48/60|+3 documents|
+|Whole-document exact|5/60|4/60|−1 document|
+|Eval loss|0.07686724|0.07196878|−0.00489846 absolute|
+|Generated non-pad tokens mean|606.9667|582.2833|−24.6833 tokens|
+|Generated tokens maximum|3072|1391|−1681 tokens|
+|EOS reached|59/60|60/60|+1 document|
+
+The validity counts being equal does not mean the same documents parse. The
+shared-parseable analysis below separates genuine within-document extraction
+changes from the redistribution of malformed outputs. Likewise, improved micro
+category F1 does not imply improved exact category graphs or category precision.
+One rank48 output reaches the generation limit, so the shorter rank64 mean is
+not by itself evidence of uniformly more concise or faster decoding.
+
+### 24.2 Integer facts behind the gain
+
+|All60 facts|Rank48 terminal|Rank64 terminal|Change|
+|---|---:|---:|---:|
+|Correct scalar values /2579 gold|2167|2281|+114|
+|Wrong/extra scalar predictions|216|214|−2|
+|Missing/wrong scalar gold values|412|298|−114|
+|Correct relations /220 gold|191|215|+24|
+|Wrong/extra relations|11|8|−3|
+|Missing/wrong relations|29|5|−24|
+|Correct category facts /273 gold|222|251|+29|
+|Wrong/extra category predictions|25|37|+12|
+|Missing/wrong category facts|51|22|−29|
+|Correct non-relation extraction facts /2359 gold|1976|2066|+90|
+|Wrong/extra non-relation predictions|205|206|+1|
+
+The structural improvement is strong recall **and** better precision, not merely
+more permissive relation emission: missed relations fall29→5 (−82.8%), and
+extras11→8 (−27.3%). Category expansion is a different trade:29 more correct
+facts, but12 more extras. This is why category precision/exactness remain a
+specific weakness even though category recall/F1 improve substantially.
+
+The scientific configuration change remains rank48→64 with fixed alpha32 and
+all other training settings unchanged. Trainable LoRA parameters rise33.33%,
+22,781,952→30,375,936. Fixed-alpha rsLoRA scale changes4.6188→4.0000 and EVA
+calibration is rank-dependent. Both runs also have their documented restart
+histories. The observed comparison supports the **higher-rank training recipe**
+on this validation set; it does not isolate capacity independently of scaling/
+initialization, establish a population-wide improvement, or diagnose capacity as
+the cause of every remaining error.
+
+### 24.3 Preferred terminal versus both automatically selected exports
+
+These selected-export rows are the saved final prediction passes; terminal rows
+are the original scheduled epoch10 evaluations, now recovered. Keep the stages
+explicit: selected587 and selected1174 used different historical batch plans
+from the terminal plan. Their score differences are observations, not a
+batch-controlled attribution to extra training updates.
+
+|All60|Rank48 selected1174|Rank64 selected587|Rank64 preferred terminal2350|
+|---|---:|---:|---:|
+|Field F1|0.903013|0.900691|0.899093|
+|Field accuracy|0.862927|0.855589|0.851755|
+|Non-relation extraction-fact F1|0.899660|0.897580|0.892248|
+|Relation F1|0.936364|0.929062|**0.970655**|
+|Relation accuracy|0.880342|0.867521|**0.942982**|
+|Category F1|0.900542|0.889693|0.894831|
+|Exact relation graphs|48/60|48/60|**53/60**|
+|JSON / schema valid|59 /49|58 /51|56 /48|
+|Whole-document exact|5/60|7/60|4/60|
+
+Versus the rank64 selected export, terminal sacrifices0.001598 field F1 and
+0.003834 field accuracy, while gaining0.041593 relation F1,0.075461 relation
+accuracy and five exact relation graphs. Comparing instead with the original
+training-time checkpoint587 evaluation gives the user's smaller field deltas,
+−0.001025 F1 and−0.003138 accuracy. Both comparison bases favor2350 for the
+stated overall task priorities, but neither is a claim of strict dominance on
+every metric.
+
+The recovered terminal changes the old mismatched-replay shared cohort from53
+to **54 identical parseable documents**, containing2374 scalar gold values,
+212 relation facts and259 category facts. No description/address/category field
+is removed to inflate the result.
+
+|Same54 parseable in all three passes|Rank48 selected1174|Rank64 selected587|Rank64 terminal2350|
+|---|---:|---:|---:|
+|Field F1|0.917874|0.916331|**0.922401**|
+|Field accuracy|0.887130|0.881777|**0.893436**|
+|Correct scalar values /2374|2185|2163|**2205**|
+|Relation F1|0.947867|0.935867|**0.979118**|
+|Relation accuracy|0.900901|0.879464|**0.959091**|
+|Correct relations /212|200|197|**211**|
+|Wrong/extra relations|10|12|**8**|
+|Exact relation graphs|45/54|44/54|**49/54**|
+|Category F1|**0.908745**|0.896030|0.905730|
+|Correct category facts /259|239|237|**245**|
+|Wrong/extra category predictions|28|33|37|
+
+This confirms improved scalar and relation extraction inside a fixed parseable
+cohort, not only changed JSON coverage. It also corrects the older “strongest
+on all four shared-cohort metrics” wording: with the certified native outputs,
+terminal category F1 is slightly below rank48 selected, because its higher
+category recall comes with lower precision.
+
+|Correct scalar values /same54 gold|Rank48 selected|Rank64 selected|Rank64 terminal|
+|---|---:|---:|---:|
+|Container IDs /116|108|107|**114**|
+|Container seals /117|108|108|**117**|
+|Container size /102|97|95|**99**|
+|Container type /102|97|95|**99**|
+|Per-container package quantities /96|91|89|**95**|
+|Phone values /102|92|86|**93**|
+|Country values /236|**229**|224|**229**|
+|Descriptions /54|36|**38**|**38**|
+|Party names /164|145|**151**|145|
+|Postal addresses /159|130|**131**|130|
+|Declared package quantity /53|47|**49**|48|
+|Package categories /53|**47**|46|45|
+|HS strings /47|**45**|43|44|
+
+These are aligned scalar counts, not a replacement for identity-anchored
+category/relation facts. The residual trade-offs are specific: party-name and
+package-category exactness do not improve uniformly; HS recall improves versus
+rank64 selected but additional wrong/extra HS strings lower its precision.
+
+### 24.4 Rank64 terminal's own parseable support and corrected relation diagnosis
+
+On its own56 parseable documents: field F1 **0.920872**, field accuracy
+**0.891712**, relation F1 **0.979499**, relation accuracy **0.959821**, category
+F1 **0.907776**. These are conditional scores, not a simulated constrained-
+decoding result; the four missing outputs and their gold remain in all60 metrics.
+
+The relation split is particularly informative:
+
+|Relation kind, own56 parseable|Correct|Predicted|Gold|F1 / recall|
+|---|---:|---:|---:|---:|
+|Goods uses container|118|120|118|0.991597 / **1.000000**|
+|Per-container package quantity|97|103|98|0.965174 / **0.989796**|
+|Combined|215|223|216|0.979499 / **0.995370**|
+
+The all60 five missed gold relations comprise **four behind malformed JSON**
+(two each in `5e03e6b2` and `cf7299a1`) and **one genuine semantic omission**:
+the printed8-pallet allocation for `CMAU2325606` in `13ea92fa`. The other two
+malformed documents, `e5a37f5a` and `da651f2f`, have no gold relations.
+
+**Withdraw the old `5d6b477c` terminal-regression claim:** the certified recovered
+terminal retains all four expected placements. Their omission belonged only to
+the first mismatched-batch replay. All118 supported goods/container links are
+recovered on the parseable inputs; the eight extra relation facts are two
+unsupported links and six unsupported local quantities. Those extras remain
+real precision failures to inspect, not eliminated by correct JSON structure.
+
+### 24.5 Terminal rank comparison on the same52 parseable documents
+
+Both terminal models parse56 documents, but **the four malformed documents are
+different in each**. The intersection is52 documents, with2247 identical scalar
+gold values,190 relations and235 category facts. Those52 also parse in both
+selected exports, so the complete four-checkpoint comparison is:
+
+|Same52 parseable in all four passes|Rank48 selected1174|Rank48 terminal2350|Rank64 selected587|Rank64 terminal2350|
+|---|---:|---:|---:|---:|
+|Field F1|0.918751|0.917814|0.918859|**0.920256**|
+|Field accuracy|0.888651|0.886695|0.887215|**0.890171**|
+|Relation F1|0.955381|0.973958|0.945170|**0.976744**|
+|Relation accuracy|0.914573|0.949239|0.896040|**0.954545**|
+|Category F1|0.908714|**0.911017**|0.899384|0.896552|
+|Correct scalar values /2247|2075|2066|2061|**2083**|
+|Correct relations /190|182|187|181|**189**|
+|Exact relation graphs|44/52|46/52|43/52|**47/52**|
+
+The terminal-rank gain inside the matched cohort is **+0.244 pp field F1,
++0.348 pp field accuracy, +0.279 pp relation F1**, and−1.447 pp category F1.
+That is a modest semantic improvement with a real category-precision regression,
+not the uniform6.54-point relation improvement seen in the all60 score.
+
+The exact decomposition of rank48-terminal→rank64-terminal is:
+
+|Parseability group|Documents|Correct scalar delta|Correct relation delta|Correct category delta|
+|---|---:|---:|---:|---:|
+|Parseable in both|52|+17|+2|+6|
+|Newly parseable|4|+198|+26|+30|
+|Newly malformed|4|−101|−4|−7|
+|All60 net|60|**+114**|**+24**|**+29**|
+
+Thus97/114 of the net correct-scalar gain and22/24 of the net correct-relation
+gain come from which documents successfully parse, despite the same total JSON
+validity count. This is an observed output-level gain, not evidence that all of
+it would survive a constrained-decoding comparison. However, the largest rescued
+case is also a substantive repeated-inventory failure, not just a missing brace:
+
+- `5cabcd4b`: rank48 emits the **same `ECMU8103229` inventory object64 times** and
+  hits the3072-token ceiling without EOS. Rank64 instead emits all10 actual
+  container IDs/seals/45-foot-high-cube attributes and all ten5-package placements:
+  **85/89 scalar values and20/20 relations correct**. It still emits total44
+  rather than50 and imports a PO prefix into the description. JSON constraints
+  alone do not establish recovery of the correct inventory or prevent repetition.
+- `45ed05eb`, `684f442c` and `f67e893f` also become parseable; together with that
+  ten-container case they supply198 correct scalars and26 relations. Rank64 newly
+  breaks `5e03e6b2`, `cf7299a1`, `e5a37f5a` and `da651f2f`, losing101 previously
+  correct scalars and four relations. Those regressions remain in all60 scoring.
+
+Do not overinterpret the all60 precision gain either. Inside the common52,
+wrong/extra relations **increase7→8** and precision0.963918→0.959391. Some
+rank48 extras disappear outside that cohort because rank64's malformed outputs
+receive no fact credit. All60 precision improvement is real as a scored result,
+but it is not proof of uniformly stronger semantic restraint.
+
+Across all60 documents, field F1 improves in28, regresses in19 and ties in13.
+Both field F1 and accuracy exceed0.90 in30→33 documents; both are at least0.95
+in15→17. These are distribution improvements, not every-document dominance.
+
+Ten-thousand paired-document bootstrap95% intervals for the terminal rank delta
+remain broad: all60 field F1 **[−0.01913,+0.07791]**, relation F1
+**[−0.00482,+0.17751]**; matched52 field F1 **[−0.00602,+0.01056]**, relation F1
+**[−0.01252,+0.01946]**. These describe sensitivity to this small reused validation
+set, not independent significance or a universal rank64 advantage.
+
+### 24.6 Where terminal rank64 improves and where it still regresses
+
+All rows here use the **same52 terminal-parseable documents**. Scalar category
+counts are list-aligned; the identity-anchored category facts remain separately
+reported in the comparison inventory.
+
+|Field group / shared gold|Rank48 terminal correct|Rank64 terminal correct|F1 rank48→rank64|
+|---|---:|---:|---:|
+|Container IDs /105|100|103|0.9756→0.9904|
+|Container seals /105|104|105|0.9498→0.9722|
+|Phone values /102|87|93|0.8657→0.9163|
+|Party names /159|136|140|0.8635→0.8805|
+|Other locality fields /198|188|190|0.9447→0.9620|
+|Declared package quantities /51|46|47|0.8932→0.9126|
+|Allocated quantities /85|82|84|0.9591→0.9600|
+|Container sizes /91|85|88|0.9290→0.9119|
+|Container types /91|85|88|0.9290→0.9119|
+|Package categories /51|44|43|0.8544→0.8350|
+|Country values /225|221|219|0.9693→0.9648|
+|Postal addresses /154|126|125|0.8208→0.8039|
+|HS strings /45|42|42|0.9438→0.9231|
+|Descriptions /52|38|37|0.7308→0.7115|
+
+More correct size/type values coexist with worse F1 because unsupported
+assignments increase. Matched52 category facts improve215→221, but extras
+**22→37**; container-size and type extras each grow7→14. This is a coverage/
+restraint problem still worth targeting, not evidence that larger rank resolves
+the packaging/category problem by itself. Exact descriptions decrease40→39
+over all60 (three newly exact, four newly nonexact), and38→37 in the shared52.
+
+Source-checked examples establish concrete wins and counterexamples:
+
+- `5fa29caa`: rank64 recovers both printed local tyre counts3270 and2377 that
+  rank48 omitted, accounting for the two extra correct shared-cohort relation
+  facts. However, it also changes a correct shipment net total40928.95 to local
+  net14650.6. The OCR explicitly prints both local and total NET sections.
+- `5222fa98`: consignee/notify names stop at the company rather than swallowing
+  the following address line; vessel/voyage separation correctly becomes
+  `PANDA 002` / `XA519R`, and `ABERDEEN` is copied correctly. The native target's
+  `PACKAGE_RACK` nevertheless becomes generic `PACKAGE_PACKAGE`.
+- `7a02e126`: both consignee and notify retain the previously dropped trailing
+  `EXPORT`. `66feaac3` recovers the printed shipper email, phone and website.
+- `5d6b477c`: all four placements remain correct in **both terminal models**.
+  Rank64 repairs the B/L number from an unrelated top reference, but adds eight
+  unsupported size/type values, mixes `EXC/ESENYURT` into payment arrangement
+  and puts a printed phone into an address as well as the contact field.
+- `ff146232`: both true container links remain correct, but rank64 adds local
+  quantities1 and48 where gold has none. OCR shows two container declarations
+  and a separate `TOTAL 48-PALLET(S)`, not those per-container allocations.
+  This remains a shipment-versus-local ownership failure.
+
+### 24.7 Certification and preferred-checkpoint handoff
+
+The rank48 terminal replay verifies all504 adapter tensors against saved weights
+and reproduces **all26 original quality/loss/token metrics exactly**, just as the
+rank64 replay does. Their complete batch plans are certified identical. No
+training, optimizer/EVA initialization, MLflow run, data repair or historical
+artifact/export mutation was performed. The original immutable trainer image was
+used through a separate analysis-only Compose override; the normal corrected
+production-image tag was not reverted.
+
+The four-pass CPU audit replays every saved structured metric within1e-12,
+checks all60 IDs/reference strings and native constraints/shard hashes, conserves
+field/category/relation counts and runs the ten existing permutation/case/
+malformed/identity regression guards. It took5.37seconds after imports with
+411.15MiB peak RSS. Ruff and diff checks pass. The native terminal comparison
+and all conditioned tables use the original frozen targets, not revised gold.
+
+**Use O/rank64 checkpoint2350 as the preferred overall latest-run baseline.**
+The existing `final-adapter` still contains automatically selected587; this report
+does not copy, rename or overwrite model weights. The preferred named adapter is
+under the O run's `checkpoints/checkpoint-2350/` directory. A future inference or
+explicit export must choose that checkpoint rather than assuming `final-adapter`
+means the user-designated overall best.
+
+Higher rank improves this run's terminal extraction outcome substantially over
+rank48 terminal and strongly recovers the difficult repeated inventory. The
+matched-parseable gains are smaller and categories still trade precision for
+recall. Retain both observations when planning R28; neither dismiss the improved
+terminal result nor turn it into a claim that every extraction weakness is solved.
+
+Evidence and reusable audit outputs:
+[certified four-pass metrics, cohorts, bootstrap and protected hashes](analysis/r27-rank64-results-20261018/terminal-certified-metrics.json),
+[matched field groups](analysis/r27-rank64-results-20261018/terminal-certified-groups.csv),
+[individual fields](analysis/r27-rank64-results-20261018/terminal-certified-fields.csv),
+[category values](analysis/r27-rank64-results-20261018/terminal-certified-category-values.csv),
+[document-level changes](analysis/r27-rank64-results-20261018/terminal-certified-documents.csv),
+[scalar transitions](analysis/r27-rank64-results-20261018/terminal-certified-transitions.csv),
+[relation/category errors](analysis/r27-rank64-results-20261018/terminal-certified-fact-errors.csv),
+[schema errors](analysis/r27-rank64-results-20261018/terminal-certified-schema-errors.json),
+[rank48 replay, model/data preservation and environment receipt](analysis/r27-rank64-results-20261018/rank48-terminal2350-historical-order/receipt.json),
+[all rank48 original/replayed metric deltas](analysis/r27-rank64-results-20261018/rank48-terminal2350-historical-order/native-metric-comparison.json),
+[rank48 terminal predictions](analysis/r27-rank64-results-20261018/rank48-terminal2350-historical-order/predictions/validation.jsonl),
+[identical terminal-batch proof](analysis/r27-rank64-results-20261018/terminal-native-batch-equality.json)
+and [reusable CPU comparison](analysis/r27-rank64-results-20261018/terminal_compare.py).

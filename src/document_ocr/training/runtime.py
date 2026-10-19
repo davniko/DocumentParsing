@@ -968,6 +968,111 @@ def _predict_and_publish(
     return metrics, prediction_path
 
 
+class _EvaluationRecorder:
+    """Keep each scheduled evaluation's inputs, outputs and score with its checkpoint."""
+
+    def __init__(
+        self,
+        *,
+        run_dir: Path,
+        config: TrainingConfig,
+        tokenizer: Any,
+        task: TrainingTask,
+        dataset_cache_identity: str,
+    ) -> None:
+        self.run_dir = run_dir
+        self.config = config
+        self.tokenizer = tokenizer
+        self.task = task
+        self.dataset_cache_identity = dataset_cache_identity
+        self.artifact_paths: list[Path] = []
+        self.latest: dict[str, Any] | None = None
+
+    def record(
+        self,
+        *,
+        step: int,
+        dataset: Any,
+        indices: tuple[int, ...],
+        output: Any,
+    ) -> None:
+        if sorted(indices) != list(range(len(dataset))):
+            raise RuntimeError("scheduled evaluation did not cover the source exactly once")
+        source_ids = list(dataset["document_id"])
+        if len(source_ids) != len(set(source_ids)):
+            raise RuntimeError("scheduled evaluation source document IDs are not unique")
+        document_ids = [source_ids[index] for index in indices]
+        generated, references = _decode_prediction_output(output, self.tokenizer)
+        expected_references = self.tokenizer.batch_decode(
+            [dataset[index]["labels"] for index in indices],
+            skip_special_tokens=True,
+        )
+        if references != expected_references:
+            raise RuntimeError("scheduled evaluation rows do not match their declared batch plan")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+        directory = self.run_dir / "evaluations" / f"step-{step}" / stamp
+        directory.mkdir(parents=True, exist_ok=False)
+        prediction_path = directory / "predictions.jsonl"
+        independently_computed = _write_prediction_rows(
+            path=prediction_path,
+            document_ids=document_ids,
+            generated_texts=generated,
+            reference_texts=references,
+            task=self.task,
+            case_sensitive=self.config.evaluation.case_sensitive,
+        )
+        semantic_keys = {
+            *(f"eval_{name}" for name in independently_computed),
+            "eval_loss",
+            "eval_generated_tokens_mean",
+            "eval_generated_tokens_max",
+            "eval_generation_eos_reached_fraction",
+        }
+        if not semantic_keys.issubset(output.metrics):
+            raise RuntimeError("scheduled evaluation lacks required reproducibility metrics")
+        for name, value in independently_computed.items():
+            if output.metrics[f"eval_{name}"] != value:
+                raise RuntimeError(f"scheduled prediction publication changed metric {name}")
+        predictions = (
+            output.predictions[0] if isinstance(output.predictions, tuple) else output.predictions
+        )
+        self.latest = {
+            "schema_version": 1,
+            "global_step": step,
+            "split": self.config.evaluation.split,
+            "sampler": (
+                "stable_length_descending_v1"
+                if self.config.optimization.train_sampling_strategy == "group_by_length"
+                else "sequential"
+            ),
+            "batch_size": self.config.evaluation.per_device_batch_size,
+            "document_ids": document_ids,
+            "dataset_cache_identity": self.dataset_cache_identity,
+            "model": self.config.model.model_dump(mode="json"),
+            "precision": self.config.runtime.model_dump(mode="json"),
+            "generation": self.config.evaluation.model_dump(mode="json"),
+            "metrics": {key: output.metrics[key] for key in sorted(semantic_keys)},
+            "prediction_path": str(prediction_path.relative_to(self.run_dir)),
+            "prediction_sha256": sha256_file(prediction_path),
+            "generated_token_ids_sha256": sha256_bytes(predictions.tobytes()),
+            "generated_token_ids_dtype": str(predictions.dtype),
+            "generated_token_ids_shape": list(predictions.shape),
+        }
+        receipt_path = directory / "evaluation.json"
+        atomic_publish_json(receipt_path, self.latest)
+        self.artifact_paths.extend((prediction_path, receipt_path))
+
+    def checkpoint_saved(self, *, step: int, output_dir: str) -> None:
+        # Saving more often than evaluating is legal. Never attach a previous
+        # step's score to a checkpoint that was not evaluated at that step.
+        if self.latest is None or self.latest["global_step"] != step:
+            return
+        checkpoint = Path(output_dir) / f"checkpoint-{step}"
+        if checkpoint.is_symlink() or not checkpoint.is_dir():
+            raise RuntimeError("saved evaluation checkpoint is not a regular directory")
+        atomic_publish_json(checkpoint / "evaluation.json", self.latest)
+
+
 def _source_code_identity(project_root: Path) -> list[dict[str, Any]]:
     project_files = [project_root / "pyproject.toml", project_root / "uv.lock"]
     module_names = [
@@ -1392,6 +1497,17 @@ def run_training(
             callbacks=callbacks,
         )
 
+        evaluation_recorder = None
+        if config.evaluation.predict_with_generate and evaluation_dataset is not None:
+            evaluation_recorder = _EvaluationRecorder(
+                run_dir=run_dir,
+                config=config,
+                tokenizer=tokenizer,
+                task=task,
+                dataset_cache_identity=prepared.cache_identity,
+            )
+            trainer.evaluation_recorder = evaluation_recorder
+
         train_result = trainer.train(
             resume_from_checkpoint=str(resume_checkpoint) if resume_checkpoint is not None else None
         )
@@ -1469,6 +1585,8 @@ def run_training(
             artifact_paths.append(verification_path)
         artifact_paths.extend(path for path in final_adapter_dir.rglob("*") if path.is_file())
         checkpoints_dir = run_dir / "checkpoints"
+        if evaluation_recorder is not None:
+            artifact_paths.extend(evaluation_recorder.artifact_paths)
         artifact_paths.extend(
             path for path in checkpoints_dir.rglob("*") if path.is_file()
         )

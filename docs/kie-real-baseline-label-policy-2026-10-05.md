@@ -12,6 +12,22 @@ only within their stated scope. Independently printed telephone numbers remain
 extractable; standalone abbreviated suffixes/extensions are not separate numbers
 and must not be expanded by guessing missing prefixes.
 
+## Locality/country homonyms: one printed value, one component (2026-10-18)
+
+In locality-captioned fields, a single printed `SINGAPORE`, `HONG KONG`,
+`DJIBOUTI`, or equivalent locality/country homonym supplies `name` only. Do not
+duplicate that occurrence into `country`. Country-only captions still supply
+`country`; separate role occurrences still support separate role objects.
+Party `addressLine` and party `country` remain the distinct, intentionally
+overlapping contract described elsewhere; this is not an address rewrite rule.
+
+Synthetic locality rendering must not manufacture `Hong Kong, Hong Kong` merely
+to supervise both components. Render the homonymous value once and emit one
+component. Separately printed, informative country codes/aliases are not the
+same duplicate-text case. Historical sources with genuinely repeated wording
+require evidence review, not global deletion. The R28 experiment records the
+bounded R27 migration inventory; completed-run data and metrics remain pinned.
+
 ## Telephone presentation and synthesis (2026-10-15)
 
 Telephone targets preserve the document's printed dialing prefix and meaningful

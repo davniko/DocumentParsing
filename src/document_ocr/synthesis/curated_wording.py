@@ -247,6 +247,8 @@ together, appropriate to its supplied locality and country, with roughly the exa
 component hierarchy and line span. Examples show structure, not facts to copy. Punctuation
 may change. A locality/country belongs once in the complete address, in its requested region.
 Keep postal text separate from company names, contacts, tax IDs and headings.
+The name field owns the party identity: postal fields must neither repeat it nor
+introduce another company identity. Preserve explicitly supplied care-of recipients and named sites.
 Changing only an office/location qualifier does not create a new company identity.
 When description fields are requested, write natural commercial product wording.
 Required product facts and physical form describe the actual shipment. Classification
@@ -314,6 +316,8 @@ The supplied old values failed validation; they are not formatting examples.
 Return exactly the requested corrected components. Components jointly form one address;
 they are not independent complete addresses. Follow the assembly's locality, country,
 certified country-owner and host-literal rules. Some parties omit country; preserve that omission.
+Party names are fixed context, not postal components: do not repeat them or insert another
+company identity. Preserve explicitly supplied care-of recipients and named sites.
 Choose plausible new street/site wording without repeating locality or country inside it.
 Preserve approximate address hierarchy and use uppercase text.
 Each output contains final component text only, without field headers,
@@ -441,6 +445,33 @@ def validate_postal_geography(
         raise ValueError("generated postal country must occur once as its supplied name or code")
     if counts.locality != 1:
         raise ValueError("generated postal locality must occur once with its supplied spelling")
+
+
+def validate_postal_identity(
+    address: str, *, name: str, locality: str, country: str
+) -> None:
+    """Hold a separate leading copy of this party's name, without guessing organizations.
+
+    Explicit identity/contact captions and a complete leading line equal to the
+    generated name are evidence here.
+    Care-of recipients, named buildings and inline name/site overlaps are not
+    classified by this guard; unrelated identities still require semantic review.
+    """
+
+    def normalized(value: str) -> str:
+        return " ".join(unicodedata.normalize("NFC", value).casefold().split())
+
+    if _IDENTITY_CAPTION.search(address) is not None:
+        raise ValueError("generated postal component contains an identity/contact caption")
+    lines = [normalized(line) for line in address.splitlines() if line.strip()]
+    identity = normalized(name)
+    if (
+        len(lines) > 1
+        and identity
+        and identity not in {normalized(locality), normalized(country)}
+        and lines[0] == identity
+    ):
+        raise ValueError("generated postal component repeats its party identity as a leading line")
 
 
 def _has_tariff_declaration(text: str) -> bool:
@@ -628,6 +659,12 @@ def wording_field_requirement(field: WordingField) -> str:
             " Generate a different identity, not the source company/person with "
             "a changed office or location qualifier."
         )
+    if field.role.endswith(" postal"):
+        requirement += (
+            " The party name belongs only to its name field; do not repeat it or "
+            "insert another company identity into this postal component. "
+            "Preserve explicitly supplied care-of recipients and named sites."
+        )
     if field.identity_kind is not None:
         requirement += " " + IDENTITY_KIND_REQUIREMENTS[field.identity_kind]
     return requirement
@@ -756,6 +793,8 @@ def has_field_scope_caption(field: WordingField, text: str) -> bool:
             _IDENTITY_CAPTION.search(text) is not None
             or _ACTOR_RELATIONSHIP.search(text) is not None
         )
+    if field.role.endswith(" postal"):
+        return _IDENTITY_CAPTION.search(text) is not None
     if field.role == "goods description":
         return _PRODUCT_PARTY_CAPTION.search(text) is not None
     return False

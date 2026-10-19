@@ -150,6 +150,7 @@ from document_ocr.synthesis.curated_wording import (
     unpack_review,
     unpack_wording,
     validate_postal_geography,
+    validate_postal_identity,
     validate_wording,
     wording_output_type,
 )
@@ -903,8 +904,13 @@ def combine_surfaces(*groups: dict[str, str | list[str]]) -> dict[str, str | lis
 
 
 def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list[str]]:
-    """Use both publication checks: complete geography and certified country owners."""
+    """Check joint geography, field boundaries and certified country owners."""
     assembled = flat(assemble_lexical_target(blueprint, target, values, scenario))
+    address_bindings = {
+        binding.path: binding
+        for binding in blueprint.contract.targets
+        if binding.path.endswith(".addressLine")
+    }
     errors: dict[str, list[str]] = {}
     for role, location in scenario.party_localities.items():
         address = assembled.get(role + ".addressLine")
@@ -920,6 +926,18 @@ def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list
             )
         except ValueError as error:
             errors.setdefault(role, []).append(str(error))
+        if (name := assembled.get(role + ".name")) is not None and (
+            binding := address_bindings.get(role + ".addressLine")
+        ) is not None:
+            try:
+                validate_postal_identity(
+                    interpolate(lexical_expression(blueprint, binding, scenario), values),
+                    name=name,
+                    locality=location.name,
+                    country=location.country,
+                )
+            except ValueError as error:
+                errors.setdefault(role, []).append(str(error))
     for region in blueprint.regions:
         if region.kind != "postal" or region.curated_key not in values:
             continue
@@ -969,6 +987,11 @@ def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=N
     alone. Leave locality placement joint across the certified assembly.
     """
     leaves, lines = flat(target), []
+    name_bindings = {
+        binding.path: binding.expression
+        for binding in blueprint.contract.targets
+        if binding.path.endswith(".name")
+    }
     for binding in blueprint.contract.targets:
         if not binding.path.endswith(".addressLine"):
             continue
@@ -1003,6 +1026,15 @@ def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=N
                 f"LOCALITY: {location.name!r}, exactly once in the complete address.",
             ]
         )
+        if name_expression := name_bindings.get(role + ".name"):
+            name_context = (
+                interpolate(name_expression, fixed_values)
+                if fixed_values is not None
+                else name_expression
+            )
+            lines.append(
+                f"PARTY NAME (identity only, never part of the postal component): {name_context}"
+            )
         mutable = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", expression)) & keys
         fixed_locality_count = postal_geography_counts(
             literal,
@@ -1394,6 +1426,25 @@ def validate_sample(
                     country_code=location.country_code,
                     country_labelled="country" in new,
                 )
+                if "name" in new:
+                    binding = next(
+                        (
+                            b
+                            for b in blueprint.contract.targets
+                            if b.path == role + ".addressLine"
+                        ),
+                        None,
+                    )
+                    if binding is not None:
+                        validate_postal_identity(
+                            interpolate(
+                                lexical_expression(blueprint, binding, scenario),
+                                candidate["renderValues"],
+                            ),
+                            name=new["name"],
+                            locality=location.name,
+                            country=location.country,
+                        )
             except ValueError as error:
                 raise ValueError(f"{role}: {error}") from error
     return {
@@ -2140,7 +2191,7 @@ class Campaign:
                 WordingField(
                     f.key,
                     f.role,
-                    values[f.key],
+                    f.example,
                     f.requirement
                     + " Fresh synthetic postal component under the supplied POSTAL ASSEMBLY rules. "
                     "Generate components jointly, not as separate complete addresses. "

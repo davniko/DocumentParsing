@@ -671,7 +671,9 @@ def test_best_model_prediction_is_scored_and_persisted_in_one_pass(tmp_path: Pat
 
     class StubTrainerBase:
         calls = 0
-        args = SimpleNamespace(world_size=1, dataloader_drop_last=False)
+        args = SimpleNamespace(
+            world_size=1, dataloader_drop_last=False, train_sampling_strategy="random"
+        )
 
         def predict(self, dataset: Any, metric_key_prefix: str) -> Any:
             self.calls += 1
@@ -733,7 +735,9 @@ def test_prediction_publication_uses_exact_length_sampler_identity_order(
 
     class StubTrainerBase:
         calls = 0
-        args = SimpleNamespace(world_size=1, dataloader_drop_last=False)
+        args = SimpleNamespace(
+            world_size=1, dataloader_drop_last=False, train_sampling_strategy="random"
+        )
 
         def _get_eval_sampler(self, _: Any) -> list[int]:
             # This is the order that previously made source-order IDs incorrect.
