@@ -830,3 +830,20 @@ Original PDFs and historical sources remain protected. This manual training-copy
 operation is not a synthesis campaign, not new ownership labeling, and not a
 claim that retained shipment facts prevent re-identification. See
 [the scoped report](kie-r27-real-training-anonymization-2026-10-16.md).
+
+## Complete printed telephone expressions — 2026-10-19
+
+A compact alternate suffix attached to a printed telephone value remains part
+of that value: `20 57 290114/5` and `20 57 290440/1/2` are each copied in full.
+Do not discard those suffixes and do not expand them into inferred complete
+telephone numbers. A slash separating two independently printed complete
+telephone values is a separator, not an abbreviated suffix; keep those values
+as separate entries. Standalone abbreviated fragments without a complete
+printed telephone value remain outside the target. This clarifies the existing
+printed-value policy; it introduces no new normalization or schema field.
+
+The 2026-10-20 source review confirms the same rule for attached hyphen tails:
+`20 66 3244235-7` and `+420 596 817 426-73` remain complete printed values.
+This does not classify every hyphen as a range or expand abbreviated numbers.
+A hyphen separating two separately printed complete numbers remains a
+separator; their existing independent target ownership is retained.

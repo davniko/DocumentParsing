@@ -139,6 +139,28 @@ def owned_country_spans(
         return tuple(merged)
     named = [span for span in merged if not _CODE.fullmatch(_fold(span[2]))]
     if named:
+        # Prefer a complete country component over an alias embedded in a
+        # different address component: SAN SALVADOR DEPT is not the separately
+        # printed EL SALVADOR country. Delimiters inside an atomic country
+        # presentation remain inside the match and do not split its identity.
+        complete = []
+        postal_caption_witnesses = []
+        for span in named:
+            lo, hi, _ = span
+            prefix = re.split(r"[,;\n]", text[:lo])[-1]
+            suffix = re.split(r"[,;\n]", text[hi:])[0]
+            postal_caption = r"(?:ZIP(?:\s+CODE)?|CEP|POSTAL\s+CODE|POSTCODE)"
+            postal_suffix = bool(
+                re.fullmatch(r"\s*(?:" + postal_caption + r"\s*[:#]?\s*)?\d[\w -]*", suffix, re.I)
+            )
+            if not prefix.strip(" \t.()") and (not suffix.strip(" \t.()") or postal_suffix):
+                complete.append(span)
+            if re.fullmatch(r"\s*" + postal_caption + r"\s*[:#]?\s*\d[\w -]*", suffix, re.I):
+                postal_caption_witnesses.append(span)
+        if complete:
+            return tuple(
+                span for span in named if span in complete or span in postal_caption_witnesses
+            )
         return tuple(named)
     qualified = []
     for span in merged:
@@ -374,6 +396,7 @@ def _signature(blueprint: SamplingBlueprint) -> tuple:
         ),
         tuple((binding.path, binding.expression) for binding in blueprint.contract.targets),
         blueprint.document_id,
+        digest(blueprint.ownership_data.get("surfaces", {})),
     )
 
 
@@ -393,6 +416,7 @@ class _Owner:
     code_width: int | None = None
     variable_key: str | None = None
     literal_paths: tuple[str, ...] = ()
+    assembled_surface: str | None = None
 
 
 @dataclass(frozen=True)
@@ -470,6 +494,16 @@ class CountryRenderPlan:
         for owner in self.owners:
             selector = owner.key, owner.occurrence
             region, text = index[selector]
+            edits = []
+            if owner.assembled_surface is not None:
+                if _fold(text).upper() != _fold(owner.assembled_surface).upper():
+                    raise ValueError("country owner differs from its certified compound expression")
+            else:
+                for path in owner.literal_paths:
+                    if _fold(text).upper() != _fold(literal_values[path]).upper():
+                        raise ValueError(
+                            f"country owner differs from its joint literal target: {path}"
+                        )
             spans = owned_country_spans(
                 text,
                 owner.code,
@@ -477,10 +511,6 @@ class CountryRenderPlan:
                 postal=owner.postal,
                 protected_names=owner.protected_names,
             )
-            edits = []
-            for path in owner.literal_paths:
-                if _fold(text).upper() != _fold(literal_values[path]).upper():
-                    raise ValueError(f"country owner differs from its joint literal target: {path}")
             for start, end, before in spans:
                 # Identical repeated source presentations share a stream. A
                 # mixed source alias or a different owner remains independent.
@@ -488,7 +518,7 @@ class CountryRenderPlan:
                 rng = random.Random(
                     int.from_bytes(self.stream.derive(identity).bytes(counter=0, length=16), "big")
                 )
-                if owner.literal_paths:
+                if owner.literal_paths and owner.assembled_surface is None:
                     after, selection = (
                         before,
                         {
@@ -870,8 +900,29 @@ def prepare_country_rendering(
             for path in addresses
             if path.rsplit(".", 1)[0] + ".country" in codes
         }
-        paths |= primary
-        countries = {path for path in paths if path in codes}
+        explicit_countries = {path for path in paths if path in codes}
+        countries = explicit_countries | primary
+        # An address expression may contain separately owned street, postcode
+        # and reference fragments. Only a source-grounded country component
+        # may borrow its party's country ownership; arbitrary generated text
+        # inside another fragment is not new authority to rewrite that field.
+        for path in primary - explicit_countries:
+            source_code = registry.require(before[path], field=path)
+            role = path.rsplit(".", 1)[0]
+            source_protected = tuple(
+                value
+                for suffix in (".name", ".locality")
+                if isinstance(value := source_leaves.get(role + suffix), str)
+            )
+            if not owned_country_spans(
+                region.source,
+                source_code,
+                registry,
+                postal=True,
+                protected_names=source_protected,
+            ):
+                countries.remove(path)
+        primary &= countries
         if not countries:
             continue
         primary_codes = {codes[path] for path in primary}
@@ -906,6 +957,29 @@ def prepare_country_rendering(
             if not isinstance(all_leaves.get(path), str) or not all_leaves[path].strip():
                 raise ValueError(f"joint country literal target must remain nonempty text: {path}")
             literal_values[path] = all_leaves[path]
+        assembled_surface = None
+        recipe = blueprint.ownership_data.get("surfaces", {}).get(region.key)
+        if literal_paths and recipe is not None and "expression" in recipe:
+            if set(recipe) != {"expression"} or not isinstance(recipe["expression"], str):
+                raise ValueError("country compound requires one explicit expression recipe")
+            expression = recipe["expression"]
+            expression_paths = set(re.findall(r"\{([^{}]+)\}", expression))
+            if set(literal_paths) & expression_paths and set(owned) & expression_paths:
+                if expression_paths != set(owned) | set(literal_paths):
+                    raise ValueError(
+                        "country compound expression differs from its owned scalar paths"
+                    )
+                if any(
+                    not isinstance(all_leaves.get(path), str) or not all_leaves[path].strip()
+                    for path in expression_paths
+                ):
+                    raise ValueError("country compound inputs must be explicit nonempty text")
+                # A scalar locality is not the complete surface of an explicitly
+                # assembled locality/country cell. A whole literal expression
+                # references only its full target and keeps its strict guard.
+                assembled_surface = re.sub(
+                    r"\{([^{}]+)\}", lambda match: all_leaves[match[1]], expression
+                )
         owners.append(
             _Owner(
                 region.key,
@@ -920,6 +994,7 @@ def prepare_country_rendering(
                 tuple(sorted(owner_protected)),
                 variable_key=region.curated_key,
                 literal_paths=literal_paths,
+                assembled_surface=assembled_surface,
             )
         )
     # NAME(CODE) sometimes has two disjoint owners with the literal brackets

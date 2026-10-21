@@ -1012,3 +1012,390 @@ The final combined closure suite passes **101 tests in 16.98 seconds**; Ruff is
 clean. Fresh-production native validation plus the seven-name repair costs
 $0.00448765. Blueprint compilation adds a measured 0.199 ms per two-source pair;
 no new blocking synthesis stage or production Python change is introduced.
+
+## R28 narrow private-packing and measurement gate — 2026-10-19
+
+The [new contained experiment](analysis/r28-private-packing-probe-20261019/REPORT.md)
+tests the previously proposed smaller gate without changing R28, R27, admitted
+templates, production sampling, training configs or public package targets.
+
+- Eight native planner controls initially pass seven typed decisions; one short
+  physical-enclosure clarification passes eight. Ten fresh layout plans still
+  expose one pallet-as-enclosure error. Exactly one scoped native correction
+  fixes it; original receipts remain preserved. Prompts alone are not certified
+  semantically reliable, and free explanations cannot become numeric facts.
+- Six layouts × two fresh complete descendants pass packing, flat targets,
+  source-supported allocation visibility, replay, same-shipment non-packing
+  preservation and source-anchor geometry. Complete private clauses and dependent
+  ranges own nouns, roles and counts jointly; displaced target paths and privacy
+  metadata are reconciled explicitly. No silent noun swap or validator bypass.
+- The separate five-container source passes a new equal-load control: 95 drums,
+  19 per private row; all twenty unit/row/lot/range occurrences update consistently.
+  Only the fifth allocation is public, and no shipment-net target is inferred.
+  Unequal assignment for this source remains uncertified; source OCR ownership
+  does not justify assigning ambiguous repeated cells by occurrence order.
+- Independent agents opened all seven complete source OCRs/targets and thirteen
+  complete rendered OCRs/targets. Eleven samples pass scoped review; two mixed-
+  equation samples remain privacy holds despite sound equations/labels. Their
+  non-target invoice-party owner `agent:commercial:invoice_party` already binds
+  three `SAMSUNG SDS GLOBAL` occurrences, but has no active generation recipe.
+  This is a **new confirmed privacy family**, separate from the two previously
+  closed families, not a reopening of those repairs or a package-label defect.
+- The [read-only exact-name inventory](analysis/r28-private-packing-probe-20261019/privacy-scope.json)
+  finds six unique R28 synthetic documents / fourteen physical active-and-sidecar
+  rows. Real training and validation have no matches. These records remain
+  unchanged in this isolated pass. A narrow follow-up should generate one
+  independent invoice-party organization and reuse it across all three spans,
+  without assuming it equals the separately printed ALSO NOTIFY company.
+- Coordinates cover 977/1,085 lines in the six-layout cohort (90.05%) and 76/123
+  in the measurement control (61.79%); the latter preserves all known anchors but
+  has a genuinely flattened/unanchored rider page. Combined coverage is 87.17%.
+  Missing source ownership is explicit, not filled with guessed row coordinates.
+- All **54 combined tests pass in 29.91 seconds**; Ruff/format checks pass.
+  Forty-five fully receipted native calls cost **$0.01813077** total, including
+  failed semantic proposals and the scoped correction. The complete packing
+  overlay adds 0.036 ms/sample; the measurement overlay adds 0.281 ms/sample.
+  All 11,426 protected files remain byte-identical. No training is launched.
+
+Next: close the bounded invoice-party family separately, then a broader
+twenty-layout/sixty-descendant fixed-target gate with ordinary/rare/unpacked,
+thermal/DG, nested and partial-allocation controls. Independent numeric support
+is still 32/48 categories; this experiment does not silently extend that domain.
+Production integration, end-to-end performance validation and a controlled
+learning comparison remain later gates. Package factorization remains separate.
+
+## R28 invoice-party prerequisite closed; fresh fifty-layout gate — 2026-10-19
+
+The named invoice-party privacy hold above is now closed at its appropriate
+layers, before the larger experiment. Shared ownership now generates one
+independent source-only invoice organization for all three repeated occurrences;
+the also-notify company remains a distinct actor, and no extraction role is added.
+Six unique R28 documents and fourteen physical current/sidecar rows are repaired
+in place. Independent inverse verification recovers all original shard hashes,
+with targets, coordinate suffixes, unrelated serialized bytes, real/validation
+and frozen R27 preserved. Two fresh ordinary-production descendants also pass
+complete-text review, exact replay and independent source-box geometry.
+
+See the [closure and fresh-cohort report](analysis/r28-fifty-fresh-flat-probe-20261019/REPORT.md)
+for exact evidence, tests, measured overhead and cost. Historical failed/held
+inspection artifacts are retained rather than silently recertified.
+
+The next isolated gate is expanded, as requested, to **fifty new source layouts
+and three requested descendants each**. It keeps current flat package targets;
+factorization and production donor-free sampler integration remain separate.
+The selected cohort excludes all 94 previously exercised sources and validation.
+Status and any failed/unsupported branches remain explicit until the final
+full-document, replay, privacy, preservation and geometry inventories are done.
+
+## Fresh fifty-layout result and next bounded gate — 2026-10-19
+
+The [completed report](analysis/r28-fifty-fresh-flat-probe-20261019/REPORT.md)
+supersedes the in-progress status immediately above. The named and analogous
+invoice-party cleanup is closed: **220 unique synthetic documents / 306 physical
+copies** repaired in R28 and both retained UAE sidecars, with shared generation
+recipes, repeated bindings and 28 fresh ordinary-production controls validated.
+All targets, coordinates, unrelated bytes, memberships, real/validation and R27
+are preserved. Independent inverse readback and the pinned tokenizer check pass.
+
+The new cohort is **50 fresh layouts × three requested descendants**. All fifty
+source OCRs/targets/owners and all 125 complete rendered OCRs/targets were opened
+by independent reviewers; three corrected final candidates were reread. Final
+hash reconciliation yields **98 accepted inspection candidates across 35 source
+families, 27 rendered review holds and 25 unrendered holds**. No silent failed-slot
+replacement and no automatic training admission. The full [150-slot inventory](analysis/r28-fifty-fresh-flat-probe-20261019/FINAL-INVENTORY.md)
+links precise dispositions and final file/raw/target hashes.
+
+Live donor-trapped draw/render/replay reaches 88 actual registry HS6 identities
+and 26 current flat package categories, with eleven mixed-equipment inventories
+and three genuinely non-containerized descendants. Independent ON_SUPPORT,
+CONTAINS, SUPPORTS and NONE examples pass. Whole-region ownership transfers
+dependent paths/recipes rather than weakening validation. This establishes useful
+shared mechanisms, **not complete production readiness**: six source-ledger
+families remain preflight-held, sixteen of 48 numeric package envelopes remain
+unsupported, and five alternative-category requests have no distinct supported
+option. There is no fresh partial-quantity-mask or subsidiary-hazard presentation
+coverage; no dummy HS/container or invented public allocation fills those gaps.
+
+Full review separates real defects from non-extraction readiness/privacy matters.
+Three fresh descendants have shortened phone targets; two have generic DRUM
+targets despite printed STEEL on those counted units. Other holds concern stale
+private ranges/capacities/components, commodity/physical-state continuations,
+unresolved secondary roles and confirmed or ambiguous private remnants. No strict
+HS/product classification or incidental arithmetic requirement was introduced.
+
+Two additional **read-only legacy inventories** must be closed before a whole-
+corpus certificate: [58 unique synthetic records with private source-only owner
+gaps](analysis/r28-fifty-fresh-flat-probe-20261019/privacy-followup/REPORT.md),
+and [nine anonymized real plus seven active synthetic records with seventeen
+incomplete compact-alternate phone targets](analysis/r28-fifty-fresh-flat-probe-20261019/phone-followup/REPORT.md).
+The latter root cause is stale baseline subspan authority, not LLM generation;
+six complete-envelope counterfactuals validate the existing formatter. Forty-two
+slash-separated complete-number cases are explicitly rejected false positives.
+No original private digits should be restored into anonymized inputs.
+
+All 125 candidates pass final exact replay and source-conditioned geometry.
+Coverage is **11,408/14,085 = 80.99%** (weighted source baseline82.65%); goods78.60%,
+addresses53.75%. Reflow adds136 positions with zero loss **after transfer**.
+Initial whole-owner transfer still abstains on177 lines with known individual
+contributors, mostly addresses; this is an explicit ownership/alignment task,
+not proof that every source anchor survived. [Thirty plotted pages from fifteen
+layouts](analysis/r28-fifty-fresh-flat-probe-20261019/geometry/publications/0902f8ba0d8caa00/PLOTS.md)
+and the complete source/variations gallery are saved.
+
+Final combined probe/reconciliation suite128passed; reviewer guards
+seven passed; production-position suite73passed separately. Ruff/diff checks pass.
+The private numeric overlay costs+0.055ms/sample (~1.05%) in120 paired calls/arm;
+no production hot path changed. All237 native attempts cost$0.15189604; separate
+privacy closure/production controls cost$0.03587519. All11,426 post-closure
+protected files remain unchanged.
+
+Next: bounded privacy/phone closure, complete held numeric/range/unit ledgers,
+final-wording/counting-unit consistency, then retest the **same held slots** and
+the missing presentation controls. Keep flat targets while proving decoupling;
+package factorization and production integration remain separate later changes.
+No synthesis probe alone demonstrates a model-performance improvement.
+
+## R28 held-case explanation and confirmed legacy closure — 2026-10-19
+
+The [follow-up report](analysis/r28-legacy-closure-20261019/REPORT.md) explains all
+52oldheldslots:31ownership/readiness, eight non-target privacy, five unavailable
+distinct alternatives, five actual target defects(three phones/two steel-drum
+specificity cases), and three unresolved coded marks. Sixteen read-only
+counterfactual/negative controls support the proposed repair directions; these
+are not automatic release of the old held artifacts.
+
+The confirmed legacy repairs are now **applied in R28 and independently verified**:
+58synthetic IDs/82copies receive source-only privacy fixes; sixteen records
+(nine anonymized real/seven active synthetic) receive seventeen full printed
+phone targets. Total74unique/98physical records; no new dataset version.
+Private recipes, related-postal component instructions, six source authorities,
+two phone owner extensions, labeling hints and fail-fast phone completeness
+validation are corrected upstream. All453effective templates pass the guard.
+Source geography/public carriers, every privacy target, every phone input,
+coordinates, unrelated bytes, memberships, earlier manifest sections, R27 and
+validation are preserved. Independent inverse reconstruction proves this.
+
+Fresh ordinary synthesis covers nine privacy and twelve phone controls. All21
+complete raw texts/targets were independently read and hash-checked; the
+targeted fixes pass. Nineteen receive ordinary publication/geometry; two dfad
+controls retain unrelated non-target geographic advisories and have explicit
+inspection-only geometry, without bypassing native publication holds. Two
+other controls expose an unresolved numeric Marks role, separately tallied.
+
+The confirmed four-pattern screen finds no training/sidecar remnants. This is
+not universal privacy certification: opaque`2973` remains unresolved, and a new
+`88bab156` seven-code Marks inventory affects21existing synthetic IDs/29copies
+while its anonymized real row is already changed. These are [edge-case review
+items](kie-dataset-edge-case-inventory.md), not silently repaired or ignored.
+
+Final combined suite1,077passed; Ruff/diff checks pass. The actual tokenizer path
+checks all74editedrecords with no truncation/overflow(5,048input/1,801target
+maximum, versus19,200/5,500limits). Native all-attempt cost$0.02692825; negligible
+phone-validation overhead0.165ms/render is measured explicitly. No training,
+production donor-free sampler integration or package-factorization change occurs.
+Next: complete the finite ownership/fact-projection/envelope gates, then rerun
+the same held cases with full preservation and geometry review.
+
+## R28 held-branch repair and scoped legacy closure — 2026-10-20
+
+The [current detailed report](analysis/r28-held-branch-repair-20261020/REPORT.md)
+keeps the same twenty previously held source families, three fresh descendants
+each: all52oldheldslots plus8accepted same-family controls. Flat48targets remain
+unchanged; global donor-free production promotion and package factorization are
+separate later decisions.
+
+The bounded legacy repair is **applied in R28 and independently verified**:
+35synthetic IDs/53copies have227raw+227positioned private Marks edits, and two
+anonymized real records have their full printed `-7`/`-73` phone tails restored
+only in targets. The combined scope is37unique/55physical records. The user's
+opaque`2973` anonymization instruction is recorded without inventing a subtype;
+the seven CUSTOMS/Marks codes share a newly sampled consecutive sequence, with
+all originals excluded. Source/template owners and generation recipes are
+corrected, including continuation-page occurrences. Real already-anonymized
+Marks controls, unrelated bytes/labels, coordinate suffixes, memberships, R27 and
+validation remain unchanged. Applied source authority includes the two phone
+fixes and the reviewed `a1087462` inline count-owner correction.
+
+All453effective templates pass the source-phone guard. Two ordinary-production
+Marks controls pass full native and independent text/target review and geometry:
+208/261knownlines, all208initial-transferanchors retained, four valid page
+transforms and two actually viewed maps. The37edited current rows pass the
+actual offline tokenizer path with no overflow/truncation (maximum4367source /
+3087target tokens, limits19200/5500). The first 11,426-existing-file boundary
+check has fourteen intended changes and 11,412 unchanged files, with separate
+new-authority receipts. The final check below also includes the issue-role fix.
+
+The experimental numeric layer now owns thirteen complete regions across nine
+families, with shared counts/masses/ranges, independently sampled packing
+relationships and explicit budget retries rather than donor ratios. All48flat
+package tokens have local numeric support with explicit counting-unit context;
+unpacked is invariant wording, not `UNPACKEDS`, and does not force shipment
+quantityone. Role-aware postal components distinguish related company identity
+from address geography and prohibit copying separately owned companies into
+postal components. Scoped material evidence passes complete rerender/replay,
+not candidate-label editing. Counted steel drums refine the category and only
+the related owned declaration noun; inner steel drums do not relabel counted
+outer wooden boxes.
+
+Complete fresh review also found an issue-role ownership defect: a country
+inside `MSC (Canada) Inc. - Montreal` was incorrectly used as the issue country,
+while the whole-cell locality owner dropped the public carrier prefix during
+synthesis. The source authority, template ownership and cross-role aliases are
+corrected. A second sequential R28 publication removes 31 unsupported country
+members and restores 60 raw/60 positioned public-prefix occurrences. It covers
+31 unique records/copies, including the anonymized real source and both active
+and retained previous-UAE descendants; only the synthetic rows need prefix
+restoration. The two nonoverlapping publications total **68 unique records /
+86 physical copies**. Exact inverse readback and actual tokenizer checks pass;
+R27, validation, memberships, unrelated labels and coordinate suffixes remain
+unchanged. Active training membership remains 6,900 synthetic + 600 real.
+
+The final combined suite passes **1,481 tests plus 27 live-source subtests in
+90.58 seconds**. All 453 effective blueprints pass the final authority check.
+The final 11,426-existing-file boundary contains sixteen intended changes and
+11,410 unchanged files, with zero missing or unexpected changes.
+
+All **60 fresh descendants** were opened and reviewed completely against all
+twenty source OCRs/targets/owners, including 9,086 final rendered lines. Scoped
+wording, postal and issue-role corrections were reread; every final candidate
+passes exact replay, matched controls and independent geometry validation.
+The final source-conditioned geometry positions **5,199/6,296 content lines
+(82.576%)**: reflow adds 107 positions with zero losses after initial transfer.
+All 27 saved plot pages across twelve layouts were directly viewed. Source
+transfer abstentions remain explicit rather than guessing repeated occurrences.
+The final inventory, source/variation gallery and plot index are linked from the
+detailed report. No inspection descendant is added to training.
+
+The final inspection publisher also closes a cache-provenance gap: metadata-only
+ownership/case changes now invalidate the geometry cache. Eleven regression tests
+are included in the final suite. A fresh immutable publication explicitly pins
+all selected metadata and proves its 89 output payloads byte-identical to the
+preserved independently inspected outputs; no samples, plots or review claims
+are silently rewritten.
+
+All-attempt native usage totals **120 calls, 528,319 input tokens and 36,799
+output tokens including reasoning, $0.09761663**, including the two separate
+ordinary-production Marks controls, corrections, diagnostics and rereviews.
+All charges are provider-reported; no attempt is unpriced. The physical wrapper
+benchmark changes 0.827018 to 0.828236 ms/sample (+1.218 microseconds), with traced
+peak allocation changing 123,724 to 120,051 bytes. No training is launched.
+
+One next integration unit is explicit: thirty source-only related postal
+variables across twenty-eight sources need typed assembly/component geography
+ownership before unattended/global promotion. Their heterogeneous full, partial,
+country-only and split shapes must not receive a blanket full-address validator.
+The one fresh drift is corrected and independently reread; its seven existing
+R28 family records are clean. This is not an outstanding confirmed current-data
+defect. Larger controlled flat-target tests can proceed with full semantic
+review; global donor-free defaults and package factorization remain separate.
+
+## 2026-10-20: larger controlled flat-target expansion — provider-blocked closure
+
+The next fixed test expands to **104 layouts / 312 slots**, including eighty
+previously unexercised layouts. Exact inventories, before/after evidence and
+stage boundaries are in the [larger controlled report](analysis/r28-larger-controlled-flat-probe-20261020/REPORT.md).
+The target remains the current 48 flat categories; package factorization is not
+introduced and donor-independent sampling is not promoted globally.
+
+Source ownership passes 294 slots, independent physical planning 293; the
+authorized generation scope is 290 after three additional cargo-brief quality
+holds. Registry requests reach 354 distinct HS6 identities and native choices
+reach 44 flat package categories. These are planning/choice counts, not successful
+rendered supervision. Commodity-donor access is trapped during sampling/rendering;
+empirical equipment tare support is disclosed separately.
+
+The initial full pass yielded 273 render/control passes and complete text reads.
+It exposed confirmed binding, country-occurrence, private-reference, locality,
+mixed-header and wording issues. Corrections were made at their actual layers;
+earlier attempts and rejected review flags remain preserved.
+
+The corrected full-cohort rerun is **blocked by provider-declared HTTP503
+unavailability**, not declared certified. Seventy first-pass requests failed;
+one exact, explicitly authorized failed-receipt retry failed again. No alternate
+model/provider or repeated rerolls were used. The final unpaid inventory has
+**89 fresh render/replay passes / 223 held slots**. All 89 fresh raw texts, labels,
+generation contexts and private ledgers were completely reviewed, giving
+**86 semantic acceptances / 226 total holds**. Three fresh wordings remain held:
+frozen wording for an ambient shipment, an unrequested material claim against a
+generic drum label, and instructions leaked into a company-name value. Bounded
+native corrections remain unexecuted, not silently applied by hand.
+
+Independent saved-JSON numerical audit passes 89/89 actual candidates without
+importing/replaying the generator and preserves all source allocation-visibility
+masks. Actual final branches include 34 flat categories, seven mixed equipment
+inventories, four CONTAINS and five ON_SUPPORT cases. Missing native output
+prevents claiming fresh partial-b854, aa69-CM/CF, SUPPORTS or retained-untyped
+hardware coverage in this corrected cohort.
+
+R28 is repaired in-place across **238 unique records / 346 copies**, with
+complete-file inverse proofs and no overlap between the four closure stages.
+Private references/aliases, source-only commodity names, separate consignee
+footnote phones, supported source-local volume/locality labels, and two
+administrative-address country substitutions are among the bounded corrections.
+The last thirteen shipping-bill repairs preserve every target, date and
+coordinate; all thirteen actual tokenizer lengths are unchanged. Membership
+stays **6,900 synthetic + 600 real = 7,500**, validation 60 unchanged. No
+inspection descendant enters training and no R29 is created.
+
+Upstream fixes include complete deterministic private owners/ranges, short
+source-only goods references generated jointly with main wording, country-component
+occurrence fidelity, mixed inventory/type-only projection and an isolated
+locality-projection/inventory composition adapter. The strict physical guard
+remains intact. A default-off provider retry interface authorizes only an exact
+immutable failed receipt; a later unlisted failure cannot inherit it. Original
+receipts and unknown-cost reservations are preserved.
+
+Validation includes 453 ordinary blueprints, 2,269 production tests and twenty
+standalone controls in the rebuilt copied-code CPU image. The protected baseline
+verifies 13,136 files unchanged and exactly 26 approved existing-file changes,
+with no missing/unexpected changes. No model/GPU/training run is launched.
+
+Canonical usage is 1,058 attempts: USD0.69075095 in 987 known charges, plus
+USD1.32565600 reserved upper bounds on 71 attempts without usage responses.
+Reported input/output tokens are 3,791,621 / 273,430 (78,881 output reasoning
+tokens included, not added again). The conservative USD2.01640695 remains within
+the single USD5 cap. Unknown attempts have no imputed token counts.
+
+Complete the **same fixed missing slots** once the pinned native provider is
+available, then execute one scoped correction per confirmed wording finding
+and repeat complete text/coordinate readback. Do not interpret this observed
+subset as a calibrated generation-accuracy estimate or promote global defaults
+from it. Remaining source count/type frames and genuinely unjoined no-HS DG
+wording are separate explicit integration units; package factorization and a
+subsequent training comparison remain later, independently measured work.
+
+### Final observed reach and coordinate readback
+
+The [completed bounded comparison](analysis/r28-larger-controlled-flat-probe-20261020/selection/final-comparison/REPORT.md)
+keeps the original1,596-row same-layout R28 reference unchanged. The86semantic
+acceptances span32layouts,34flat categories and85genuine registryHS6identities.
+Seventy-five accepted descendants use a category outside their layout's observed
+old set; all47with comparable historical publicHS support use a prefix outside
+that old set. Seven actual mixed inventories, four CONTAINS and five ON_SUPPORT
+relationships pass. This measures newly reached combinations, not training
+improvement or universal old-sampler impossibility. Twenty-two layouts support
+a matched-three accepted comparison. No fresh SET render completed in this
+partial cohort; installed choices do not count as successful supervision.
+
+All89fresh candidates pass independent saved numeric/control readback; the
+accepted86intersection keeps the three wording holds excluded. All281present
+geometry rows/receipts pass their independent reader, including held historical
+files explicitly marked diagnostic. Accepted-only coordinate coverage is
+**8,153/9,557lines (85.31%),207justified additions and zero transferred-anchor
+loss**. The broader81.17%includes held diagnostics and is not an overall training
+dataset coverage measurement.
+
+Root actually inspected all402mandatory pages through34numbered contact sheets,
+all seven layout-overview sheets, and sixteen individually opened original-
+resolution plots, including every rejected-reflow/held-envelope cause and an
+actual mixed inventory. No new geometry defect was found. This does not claim
+402individual full-resolution opens or source-PDF visual review. See the
+[authored visual record](analysis/r28-larger-controlled-flat-probe-20261020/geometry/ROOT-VISUAL-REVIEW.md)
+and [complete source/variation text gallery](analysis/r28-larger-controlled-flat-probe-20261020/geometry/publications/658f9e7b023fbcc4/SOURCE-AND-VARIATIONS.md).
+
+The corrected whole cohort remains **provider-blocked**, with no experimental
+training admissions or global default promotion. Finish the same missing native
+requests and narrow confirmed wording corrections, close explicit unsupported
+source frames, and repeat fresh readback before integration. Hardware tare
+support remains empirically grounded and disclosed, separate from commodity
+donors. Factored package targets remain a later independent change.

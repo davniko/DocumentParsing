@@ -27,7 +27,20 @@ def test_explicit_complete_country_owner_requests_country_name_only(postal_campa
     assert "Do not include a city/locality" in country.requirement
     assert "Certified country owner: NETHERLANDS" in country.requirement
     assert "approximate line span" not in country.requirement
-    assert all(fields(request)[key] == field for key, field in fields(original).items())
+    assert "Do not output 'NETHERLANDS'" not in country.requirement
+    separate_country_hint = (
+        " A separately owned component in this address assembly supplies the country. "
+        "Do not output 'NETHERLANDS' or 'NL' as a country declaration in this component; "
+        "do not append a country line or suffix. Return only this component, not a complete "
+        "independent address. The required locality spelling is unaffected."
+    )
+    for key, field in fields(original).items():
+        expected = (
+            replace(field, requirement=field.requirement + separate_country_hint)
+            if key in {"shipper_street", "shipper_locality"}
+            else field
+        )
+        assert fields(request)[key] == expected
     assert country.requirement in native_wording_prompt([request])
     schema = wording_output_type([request]).model_json_schema()
     assert country.requirement in str(schema)

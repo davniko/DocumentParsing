@@ -32,6 +32,11 @@ from document_ocr.synthesis.generators import (
 )
 from document_ocr.synthesis.phone_presentations import format_phone_presentation
 from document_ocr.synthesis.template_compiler import contact_values
+from document_ocr.synthesis.template_compiler.coherence import (
+    InclusiveRangeSurface,
+    inclusive_range_surfaces,
+)
+from document_ocr.synthesis.template_compiler.range_generation import formal_range_text
 
 # These are captions, not a whole-document country substitution. Exact matched
 # byte spans are added to the same non-overlapping renderer as shipment facts.
@@ -94,6 +99,7 @@ def _validate_recipe(recipe: dict) -> None:
         "transport_leg",
         "party_location",
         "dg_fact",
+        "package_range",
     } & recipe.keys()
     if len(actions) != 1:
         raise ValueError("auxiliary recipe must have exactly one rendering action")
@@ -101,19 +107,66 @@ def _validate_recipe(recipe: dict) -> None:
     options = {
         "text": {"prefix", "suffix"},
         "target": {"prefix", "suffix"},
-        "identifier": {"prefix", "canonical_identity", "format", "source_value"},
+        "identifier": {
+            "prefix",
+            "canonical_identity",
+            "format",
+            "source_value",
+            "sequence_length",
+            "sequence_offset",
+        },
         "date": {"format", "publish_target"},
         "phone": {"channel", "canonical_identity", "prefix", "suffix", "country_code"},
         "transport_leg": {"source_voyage"},
         "party_location": {"field"},
         "dg_fact": {"prefix", "suffix"},
+        "package_range": set(),
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
     if action == "dg_fact" and recipe[action] != "properShippingName":
         raise ValueError("unsupported DG identity fact")
+    if action == "package_range":
+        declaration = recipe[action]
+        if (
+            not isinstance(declaration, dict)
+            or set(declaration) != {"quantity_path", "source_quantity"}
+            or not isinstance(declaration["quantity_path"], str)
+            or re.fullmatch(
+                r"documentPatch\.goodsItemDetails\[\d+\]\."
+                r"numberAndTypeOfPackages\[\d+\]\.packageQuantity",
+                declaration["quantity_path"],
+            )
+            is None
+            or type(declaration["source_quantity"]) is not int
+            or declaration["source_quantity"] < 1
+        ):
+            raise ValueError(
+                "package range requires a declared package-count path and source count"
+            )
     if recipe.get("format") is not None and action == "identifier" and recipe["format"] != "source":
         raise ValueError("identifier formatting must preserve the source envelope")
+    if {"sequence_length", "sequence_offset"} & recipe.keys():
+        length, offset = recipe.get("sequence_length"), recipe.get("sequence_offset")
+        identity = recipe.get("canonical_identity")
+        if (
+            action != "identifier"
+            or recipe.get("format") != "source"
+            or not isinstance(length, int)
+            or isinstance(length, bool)
+            or not isinstance(offset, int)
+            or isinstance(offset, bool)
+            or length < 1
+            or not 0 <= offset < length
+            or not isinstance(identity, str)
+            or not identity.isascii()
+            or not identity.isdigit()
+            or identity[0] == "0"
+            or len(str(int(identity) + length - 1)) != len(identity)
+        ):
+            raise ValueError(
+                "identifier sequence requires source format and bounded decimal offsets"
+            )
     if "source_value" in recipe and (
         action != "identifier"
         or recipe.get("format") != "source"
@@ -275,7 +328,92 @@ def augment_auxiliary_blueprint(blueprint: SamplingBlueprint, contract: dict) ->
                 else r
                 for r in regions
             ]
+    leaves = flat(target)
+    for key, binding in bindings.items():
+        if "package_range" not in binding.get("auxiliary_recipe", {}):
+            continue
+        declaration = binding["auxiliary_recipe"]["package_range"]
+        if leaves.get(declaration["quantity_path"]) != declaration["source_quantity"]:
+            raise ValueError(f"package range source count differs from its declared owner: {key}")
+        for occurrence in binding["occurrences"]:
+            _package_range_shape(occurrence["source_text"], declaration["source_quantity"])
     return replace(blueprint, target=target, regions=tuple(regions), historical_bindings=bindings)
+
+
+def _package_range_shape(source: str, quantity: int) -> tuple[InclusiveRangeSurface, str, int]:
+    """Reuse the compiler's formal interval parser, not a substring digit search."""
+    intervals = inclusive_range_surfaces(source)
+    if len(intervals) != 1 or not formal_range_text(source):
+        raise ValueError("package range requires one complete formal serial interval")
+    part = intervals[0]
+    first = source[part.start_start : part.start_end]
+    last = source[part.end_start : part.end_end]
+    prefix = source[part.char_start : part.start_start]
+    if (
+        type(quantity) is not int
+        or quantity < 1
+        or part.end < part.start
+        or part.cardinality != quantity
+        or not first.isascii()
+        or not first.isdigit()
+        or not last.isascii()
+        or not last.isdigit()
+        or len(first) != len(last)
+        or (prefix and source[part.end_start - len(prefix) : part.end_start] != prefix)
+    ):
+        raise ValueError(
+            "package range must prove ascending cardinality, equal width and one prefix"
+        )
+    return part, prefix, len(first)
+
+
+def _render_package_range(
+    declaration: dict, source: str, quantity: int, stream: DeterministicStream
+) -> str:
+    """Resample one serial interval; never sample its endpoints independently."""
+    part, prefix, width = _package_range_shape(source, declaration["source_quantity"])
+    limit = 10**width - 1
+    if type(quantity) is not int or quantity < 1 or quantity > limit:
+        raise ValueError("package range quantity cannot fit its positive fixed-width serial domain")
+    identity = f"{prefix.upper()}:{part.start}:{part.end}:{width}:{declaration['quantity_path']}"
+    derived = stream.derive("aux-package-range:" + identity)
+    if prefix:
+        # The established identifier primitive changes the complete private
+        # prefix once. Both endpoints then share it, so no old serial survives.
+        replacement_prefix = _source_format_identifier(
+            {"identifier": "private package serial prefix", "format": "source"}, prefix, derived
+        )
+        start = 1 + derived.derive("start").randbelow(limit - quantity + 1)
+    else:
+        replacement_prefix = ""
+        # Without a mutable prefix, exclude every interval start whose serials
+        # intersect the old interval; selection is bounded and rejection-free.
+        last_start = limit - quantity + 1
+        excluded_first = max(1, part.start - quantity + 1)
+        excluded_last = min(last_start, part.end)
+        excluded = max(0, excluded_last - excluded_first + 1)
+        choices = last_start - excluded
+        if choices < 1:
+            raise ValueError("no disjoint package serial interval remains in its source width")
+        start = 1 + derived.derive("start").randbelow(choices)
+        if excluded and start >= excluded_first:
+            start += excluded
+    result = source
+    operations = [
+        (part.start_start, part.start_end, str(start).zfill(width)),
+        (part.end_start, part.end_end, str(start + quantity - 1).zfill(width)),
+    ]
+    if prefix:
+        operations.extend(
+            [
+                (part.char_start, part.start_start, replacement_prefix),
+                (part.end_start - len(prefix), part.end_start, replacement_prefix),
+            ]
+        )
+    for begin, end, value in sorted(operations, reverse=True):
+        result = result[:begin] + value + result[end:]
+    _package_range_shape(result, quantity)
+    return result
 
 
 def _render_recipe(
@@ -366,6 +504,10 @@ def _render_recipe(
         )
         prefix = recipe.get("prefix", "")
         return prefix + digits
+    if "package_range" in recipe:
+        declaration = recipe["package_range"]
+        quantity = flat(target).get(declaration["quantity_path"])
+        return _render_package_range(declaration, original, quantity, stream)
     if "date" in recipe:
         if len(shifts) != 1:
             raise ValueError("auxiliary date needs one coherent shipment date shift")
@@ -427,6 +569,11 @@ def _source_format_identifier(recipe: dict, original: str, stream: Deterministic
         a.isdigit() != b.isdigit() for a, b in zip(identity, canonical, strict=True)
     ):
         raise ValueError("canonical source identifier has incompatible character classes")
+    if "sequence_length" in recipe:
+        value = _source_format_sequence_identifier(recipe, canonical, stream)
+        characters = iter(value)
+        rendered = "".join(next(characters) if c.isalnum() else c for c in source)
+        return original.replace(source, rendered)
     derived = stream.derive("aux-source-id:" + identity)
     if canonical.isdigit():
         floor = 10 ** (len(canonical) - 1)
@@ -460,6 +607,32 @@ def _source_format_identifier(recipe: dict, original: str, stream: Deterministic
     if rendered == source:
         raise ValueError("source-format identifier retained the original identity")
     return original.replace(source, rendered)
+
+
+def _source_format_sequence_identifier(
+    recipe: dict,
+    canonical: str,
+    stream: DeterministicStream,
+) -> str:
+    """Sample one fixed-width reference base, excluding the complete old sequence."""
+    identity = recipe["canonical_identity"]
+    length, offset = recipe["sequence_length"], recipe["sequence_offset"]
+    if canonical != str(int(identity) + offset):
+        raise ValueError("identifier sequence source does not match its declared offset")
+    floor = 10 ** (len(identity) - 1)
+    last_base = 10 ** len(identity) - length
+    # Exclude every start whose generated interval could retain any old member.
+    forbidden_start = max(floor, int(identity) - length + 1)
+    forbidden_end = min(last_base, int(identity) + length - 1)
+    excluded_count = max(0, forbidden_end - forbidden_start + 1)
+    choices = last_base - floor + 1 - excluded_count
+    if choices < 1:
+        raise ValueError("no disjoint source-format identifier sequence remains")
+    rank = stream.derive("aux-source-sequence:" + identity).randbelow(choices)
+    sampled_base = floor + rank
+    if excluded_count and sampled_base >= forbidden_start:
+        sampled_base += excluded_count
+    return str(sampled_base + offset)
 
 
 def auxiliary_surfaces(
@@ -519,7 +692,12 @@ def auxiliary_surfaces(
         if recipe:
             if key in output:
                 raise ValueError(f"two semantic stages supplied auxiliary binding: {key}")
-            if public_paths[key] and set(recipe) & {"identifier", "phone", "transport_leg"}:
+            if public_paths[key] and set(recipe) & {
+                "identifier",
+                "phone",
+                "transport_leg",
+                "package_range",
+            }:
                 raise ValueError(
                     f"source-only auxiliary generator owns public target values: {key}"
                 )
@@ -528,7 +706,8 @@ def auxiliary_surfaces(
                 literal_prefix = ""
                 if "phone" in recipe:
                     owners = [
-                        region for region in blueprint.regions
+                        region
+                        for region in blueprint.regions
                         if region.key == key and region.occurrence == index
                     ]
                     if len(owners) != 1:
@@ -538,7 +717,13 @@ def auxiliary_surfaces(
                         literal_prefix = "+"
                 rendered.append(
                     _render_recipe(
-                        recipe, scenario, target, stream, original, shifts, vessels,
+                        recipe,
+                        scenario,
+                        target,
+                        stream,
+                        original,
+                        shifts,
+                        vessels,
                         source_country_code=(source_country_codes or {}).get(recipe.get("phone")),
                         literal_phone_prefix=literal_prefix,
                     )
@@ -650,8 +835,9 @@ def validate_identifier_privacy(blueprint: SamplingBlueprint) -> None:
         raise ValueError(f"source-only identifier privacy is unresolved: {sorted(missing)}")
     for key in eligible:
         recipe = bindings[key].get("auxiliary_recipe", {})
-        if policy[key] == "private" and (
-            "identifier" not in recipe or recipe.get("format") != "source"
+        if policy[key] == "private" and not (
+            ("identifier" in recipe and recipe.get("format") == "source")
+            or "package_range" in recipe
         ):
             raise ValueError(f"private identifier requires a source-format generator: {key}")
         if policy[key] == "dependent" and not set(recipe) & {

@@ -1,15 +1,19 @@
+import json
+import re
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from document_ocr.synthesis.curated import SourceContract
+from document_ocr.synthesis.curated import SourceContract, digest
 from document_ocr.synthesis.curated_phones import (
     PhoneFamilyWeight,
     PhoneRenderingPolicy,
     grounded_phone_surface,
     prepare_phone_rendering,
+    validate_phone_source_completeness,
 )
 from document_ocr.synthesis.curated_templates import (
     RenderRegion,
@@ -98,6 +102,159 @@ def test_owned_source_presentation_and_target_projection_are_reproducible(curate
         actual,
         proof,
     )
+
+
+@pytest.mark.parametrize("tail", ["/5", "/1/2", "/ 469"])
+@pytest.mark.parametrize("partial_owner", [False, True])
+def test_baseline_cannot_omit_compact_alternate_even_when_unchanged(tail, partial_owner):
+    blueprint, target = fixture("20 57 290114" + tail)
+    target["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = [
+        "20 57 290114"
+    ]
+    if partial_owner:
+        region = blueprint.regions[0]
+        blueprint = replace(
+            blueprint,
+            regions=(replace(region, source="20 57 290114", end=region.end - len(tail)),),
+        )
+    with pytest.raises(ValueError, match="omits a printed compact alternate"):
+        validate_phone_source_completeness(blueprint)
+    with pytest.raises(ValueError, match="omits a printed compact alternate"):
+        plan_for(blueprint, target)
+
+
+def test_complete_compact_alternate_has_identical_printed_and_target_values():
+    blueprint, target = fixture("20 57 290114/5")
+    sampled = deepcopy(target)
+    sampled["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = [
+        phone(STREAM, country_code="GB")
+    ]
+    plan = plan_for(blueprint, sampled)
+    text, actual, _ = render_sampling_blueprint(blueprint, sampled, {}, phone_rendering=plan)
+    value = actual["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"][0]
+    assert "/" in value and "TEL: " + value + "\n" in text
+
+
+@pytest.mark.parametrize(
+    "tail", ["-7", "-73", " - 73", "\u20137", "~73", "-123456", "-12345 6789", "-123-456"]
+)
+@pytest.mark.parametrize("partial_owner", [False, True])
+def test_incomplete_numeric_hyphen_tail_rejected_without_reclassifying_phone(tail, partial_owner):
+    base = "20 66 3244235"
+    blueprint, target = fixture(base + tail)
+    target["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = [base]
+    region = blueprint.regions[0]
+    blueprint = replace(
+        blueprint,
+        regions=(
+            replace(
+                region,
+                source=base if partial_owner else region.source,
+                end=region.start + len((base if partial_owner else region.source).encode()),
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="printed numeric continuation"):
+        validate_phone_source_completeness(blueprint)
+    with pytest.raises(ValueError, match="printed numeric continuation"):
+        plan_for(blueprint, target)
+
+
+@pytest.mark.parametrize("value", ["20 66 3244235-7", "+420 596 270 052-58", "+44-20-7946-1234"])
+def test_complete_hyphen_envelope_remains_fully_printed_and_labelled(value):
+    blueprint, target = fixture(value)
+    sampled = deepcopy(target)
+    sampled["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = [
+        phone(STREAM, country_code="GB")
+    ]
+    plan = plan_for(blueprint, sampled)
+    text, actual, _ = render_sampling_blueprint(blueprint, sampled, {}, phone_rendering=plan)
+    labelled = actual["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"][0]
+    assert "-" in labelled and "TEL: " + labelled + "\n" in text
+
+
+_NEGATIVES = json.loads(
+    (
+        Path(__file__).parents[1]
+        / "docs/analysis/r28-legacy-closure-20261019/phones/negative-controls.json"
+    ).read_bytes()
+)
+_HYPHEN_NEGATIVES = json.loads(
+    (
+        Path(__file__).parents[1]
+        / "docs/analysis/r28-held-branch-repair-20261020/phones/negative-controls.json"
+    ).read_bytes()
+)
+
+
+@pytest.mark.parametrize("control", _NEGATIVES + _HYPHEN_NEGATIVES, ids=lambda c: c["documentId"])
+def test_complete_second_phone_after_separator_is_not_an_abbreviated_alternate(control):
+    blueprint, target = fixture()
+    raw = control["line"] + "\n"
+    target["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = control[
+        "phones"
+    ]
+    spans = {}
+    for index, value in enumerate(control["phones"]):
+        pattern = r"[ \t]*".join(re.escape(t) for t in value.split())
+        for match in re.finditer(pattern, raw):
+            start, end = len(raw[: match.start()].encode()), len(raw[: match.end()].encode())
+            spans[(start, end)] = (index, match[0])
+    regions = tuple(
+        RenderRegion(
+            f"phone-{index}",
+            0,
+            start,
+            end,
+            source,
+            (ROLE + f".contactDetails.phoneNumbers[{index}]",),
+            "phone",
+        )
+        for (start, end), (index, source) in sorted(spans.items())
+    )
+    blueprint = replace(
+        blueprint,
+        source=raw,
+        target=target,
+        regions=regions,
+    )
+    validate_phone_source_completeness(blueprint)
+    assert plan_for(blueprint, target).target_values == {}
+
+
+def test_campaign_rejects_bad_phone_authority_before_planning_or_paid_work(tmp_path, monkeypatch):
+    from document_ocr.synthesis import curated_campaign as campaign_module
+
+    blueprint, target = fixture("20 57 290114/5")
+    target["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = [
+        "20 57 290114"
+    ]
+    case = tmp_path / "cases" / "sample"
+    case.mkdir(parents=True)
+    (case / "contract.json").write_text(
+        json.dumps(
+            {
+                "sourceSha256": digest(blueprint.source.encode()),
+                "targetSha256": digest(target),
+                "contract": blueprint.contract.model_dump(mode="json"),
+            }
+        )
+    )
+    (case / "template.json").write_text("{}")
+    (tmp_path / "ownership.yaml").write_text("version: 1\nsources: {}\n")
+    campaign = campaign_module.Campaign.__new__(campaign_module.Campaign)
+    campaign.root, campaign.config = (
+        tmp_path,
+        {"source_contracts": "cases", "historical_catalog": "cases", "ownership": "ownership.yaml"},
+    )
+    campaign.rows = {"sample": {"joinedRawText": blueprint.source, "target": target}}
+    campaign._blueprints, campaign._blueprint_file_pins = {}, {}
+    campaign.country_registry, campaign.auxiliary = None, {}
+    monkeypatch.setattr(campaign_module, "load_owned_blueprint", lambda *args: blueprint)
+    monkeypatch.setattr(campaign_module, "bind_postal_country_alias_owners", lambda bp, _: bp)
+    monkeypatch.setattr(campaign_module, "augment_auxiliary_blueprint", lambda bp, _: bp)
+    with pytest.raises(ValueError, match="omits a printed compact alternate"):
+        campaign.blueprint("sample")
 
 
 def test_external_literal_plus_is_preserved_once_without_changing_frame():

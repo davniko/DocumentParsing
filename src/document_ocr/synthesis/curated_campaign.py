@@ -91,9 +91,15 @@ from document_ocr.synthesis.curated_packaging import (
     project_package_aliases_with_context,
     validate_contained_quantity_sampling,
 )
+from document_ocr.synthesis.curated_party_geography import (
+    postal_field_geography_requirement,
+    postal_geography_expression,
+    validate_postal_component_identities,
+)
 from document_ocr.synthesis.curated_phones import (
     PhoneRenderingPolicy,
     prepare_phone_rendering,
+    validate_phone_source_completeness,
 )
 from document_ocr.synthesis.curated_physical import (
     PhysicalRenderPlan,
@@ -107,6 +113,11 @@ from document_ocr.synthesis.curated_private_contacts import (
     private_contact_contract,
     source_contact_parties,
     validate_private_person_coverage,
+)
+from document_ocr.synthesis.curated_product_references import (
+    product_reference_baselines,
+    product_reference_fields,
+    product_references,
 )
 from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
 from document_ocr.synthesis.curated_routes import validate_route_values
@@ -283,6 +294,7 @@ def validate_lexical_owners(blueprint: SamplingBlueprint) -> None:
         raise ValueError(f"lexical targets lack mutable source wording owners: {sorted(missing)}")
     related_actor_contexts(blueprint)
     private_contact_contract(blueprint)
+    product_references(blueprint)
 
 
 def certified_identity_kinds(blueprint: SamplingBlueprint) -> dict[str, str]:
@@ -488,6 +500,7 @@ def wording_request(
     physical_plan: PhysicalRenderPlan | None = None,
 ) -> WordingRequest:
     bindings = blueprint.contract.targets
+    target_paths = flat(blueprint.target)
     identity_kinds = certified_identity_kinds(blueprint)
     related_actors = related_actor_contexts(blueprint)
     people = private_contact_contract(blueprint).get("names", {})
@@ -573,6 +586,7 @@ def wording_request(
                     f"({geo.country_code}), matching the example's address hierarchy. "
                     "Exclude names, contacts, tax data and relationship framing."
                 )
+                requirement += f" Reviewed component scope: {variable.meaning}"
         elif roles:
             identity_roles = roles
             direct_roles = set()
@@ -669,6 +683,30 @@ def wording_request(
             role = "goods description"
         else:
             raise ValueError(f"lexical region has no current owner: {variable.key}")
+        if variable.kind == "postal" and roles:
+            hints = set()
+            for binding in owners:
+                if not binding.path.endswith(".addressLine"):
+                    continue
+                owner_role = party_path(binding.path)
+                location = scenario.party_localities[owner_role]
+                hint = postal_field_geography_requirement(
+                    blueprint.contract,
+                    lexical_expression(blueprint, binding, scenario),
+                    variable.key,
+                    locality=location.name,
+                    country=location.country,
+                    country_code=location.country_code,
+                    country_labelled=owner_role + ".country" in target_paths,
+                    country_owner_keys={
+                        key
+                        for key, country_roles in postal_country_owners.items()
+                        if owner_role in country_roles
+                    },
+                )
+                if hint:
+                    hints.add(hint)
+            requirement += "".join(sorted(hints))
         fields.append(
             WordingField(
                 variable.key,
@@ -678,6 +716,9 @@ def wording_request(
                 identity_kinds.get(variable.key),
             )
         )
+    fields.extend(
+        product_reference_fields(blueprint, description_fields=fields, host_products=host_products)
+    )
     if not goods_only:
         fields.extend(field for field, _ in contact_wording_fields(blueprint, scenario).values())
     loading = scenario.route_locations.get("portOfLoading", scenario.origin)
@@ -906,6 +947,8 @@ def combine_surfaces(*groups: dict[str, str | list[str]]) -> dict[str, str | lis
 def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list[str]]:
     """Check joint geography, field boundaries and certified country owners."""
     assembled = flat(assemble_lexical_target(blueprint, target, values, scenario))
+    components = {variable.key: variable.value for variable in blueprint.contract.variables}
+    components.update(values)
     address_bindings = {
         binding.path: binding
         for binding in blueprint.contract.targets
@@ -916,9 +959,23 @@ def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list
         address = assembled.get(role + ".addressLine")
         if address is None:
             continue
+        binding = address_bindings.get(role + ".addressLine")
         try:
+            geography = address
+            if binding is not None:
+                expression = lexical_expression(blueprint, binding, scenario)
+                validate_postal_component_identities(
+                    blueprint.contract,
+                    expression,
+                    components,
+                    locality=location.name,
+                    country=location.country,
+                )
+                geography = interpolate(
+                    postal_geography_expression(blueprint.contract, expression), components
+                )
             validate_postal_geography(
-                address,
+                geography,
                 locality=location.name,
                 country=location.country,
                 country_code=location.country_code,
@@ -931,7 +988,7 @@ def postal_wording_errors(blueprint, scenario, target, values) -> dict[str, list
         ) is not None:
             try:
                 validate_postal_identity(
-                    interpolate(lexical_expression(blueprint, binding, scenario), values),
+                    interpolate(lexical_expression(blueprint, binding, scenario), components),
                     name=name,
                     locality=location.name,
                     country=location.country,
@@ -1001,15 +1058,22 @@ def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=N
         location = scenario.party_localities[role]
         country_path = role + ".country"
         expression = lexical_expression(blueprint, binding, scenario)
+        geography_expression = postal_geography_expression(blueprint.contract, expression)
+        identity_keys = {
+            variable.key
+            for variable in blueprint.contract.variables
+            if variable.kind == "name" and "{" + variable.key + "}" in expression
+        }
         if fixed_values is not None:
-            expression = re.sub(
-                r"\{([a-z][a-z0-9_]*)\}",
-                lambda match: (
-                    match[0] if match[1] in keys else " ".join(fixed_values[match[1]].split())
-                ),
-                expression,
+
+            def fixed_component(match):
+                return match[0] if match[1] in keys else " ".join(fixed_values[match[1]].split())
+
+            expression = re.sub(r"\{([a-z][a-z0-9_]*)\}", fixed_component, expression)
+            geography_expression = re.sub(
+                r"\{([a-z][a-z0-9_]*)\}", fixed_component, geography_expression
             )
-        literal = re.sub(r"\{[a-z][a-z0-9_]*\}", "", expression)
+        literal = re.sub(r"\{[a-z][a-z0-9_]*\}", "", geography_expression)
         owners = sorted(
             {
                 region.curated_key
@@ -1034,6 +1098,13 @@ def postal_assembly_context(blueprint, scenario, target, keys, *, fixed_values=N
             )
             lines.append(
                 f"PARTY NAME (identity only, never part of the postal component): {name_context}"
+            )
+        for key in sorted(identity_keys):
+            identity = fixed_values[key] if fixed_values is not None else "{" + key + "}"
+            lines.append(
+                f"SEPARATELY OWNED IDENTITY {{{key}}}: {identity}. "
+                "Already supplied by its identity component; never copy into postal components. "
+                "Country/locality words within this identity do not supply postal geography."
             )
         mutable = set(re.findall(r"\{([a-z][a-z0-9_]*)\}", expression)) & keys
         fixed_locality_count = postal_geography_counts(
@@ -1419,32 +1490,45 @@ def validate_sample(
             raise ValueError(f"generated placeholder postcode: {role}")
         if "addressLine" in new:
             try:
+                binding = next(
+                    (b for b in blueprint.contract.targets if b.path == role + ".addressLine"),
+                    None,
+                )
+                geography = generated_values[role + ".addressLine"]
+                if binding is not None:
+                    expression = lexical_expression(blueprint, binding, scenario)
+                    components = {
+                        variable.key: variable.value for variable in blueprint.contract.variables
+                    }
+                    components.update(candidate["renderValues"])
+                    validate_postal_component_identities(
+                        blueprint.contract,
+                        expression,
+                        components,
+                        locality=location.name,
+                        country=location.country,
+                    )
+                    geography = interpolate(
+                        postal_geography_expression(blueprint.contract, expression),
+                        components,
+                    )
                 validate_postal_geography(
-                    generated_values[role + ".addressLine"],
+                    geography,
                     locality=location.name,
                     country=location.country,
                     country_code=location.country_code,
                     country_labelled="country" in new,
                 )
-                if "name" in new:
-                    binding = next(
-                        (
-                            b
-                            for b in blueprint.contract.targets
-                            if b.path == role + ".addressLine"
+                if "name" in new and binding is not None:
+                    validate_postal_identity(
+                        interpolate(
+                            lexical_expression(blueprint, binding, scenario),
+                            components,
                         ),
-                        None,
+                        name=new["name"],
+                        locality=location.name,
+                        country=location.country,
                     )
-                    if binding is not None:
-                        validate_postal_identity(
-                            interpolate(
-                                lexical_expression(blueprint, binding, scenario),
-                                candidate["renderValues"],
-                            ),
-                            name=new["name"],
-                            locality=location.name,
-                            country=location.country,
-                        )
             except ValueError as error:
                 raise ValueError(f"{role}: {error}") from error
     return {
@@ -1711,6 +1795,7 @@ class Campaign:
         )
         blueprint = bind_postal_country_alias_owners(blueprint, self.country_registry)
         blueprint = augment_auxiliary_blueprint(blueprint, self.auxiliary)
+        validate_phone_source_completeness(blueprint)
         policy = self.catalog.config.equipment_inventory
         if policy is not None and sid in policy.source_ids:
             blueprint = rebase_equipment_inventory_headers(blueprint)
@@ -1860,7 +1945,10 @@ class Campaign:
                     blueprint,
                     physical.target,
                     scenario,
-                    lexical_values={v.key: v.value for v in blueprint.contract.variables},
+                    lexical_values={
+                        **{v.key: v.value for v in blueprint.contract.variables},
+                        **product_reference_baselines(blueprint),
+                    },
                 ),
             )
             auxiliary_surfaces(

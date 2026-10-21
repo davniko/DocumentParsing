@@ -59,6 +59,7 @@ class EquipmentOwner:
     indices: tuple[int, ...]
     kind: Literal["scalar", "receipt", "count", "header"]
     source: str
+    type_source: str | None = None
 
     @property
     def count_only(self) -> bool:
@@ -88,6 +89,16 @@ class EquipmentScopeRepair:
 
 
 @dataclass(frozen=True, slots=True)
+class UniformAggregateSupport:
+    """A complete uniform declaration supports rows, not arbitrary type-to-ID links."""
+
+    owners: tuple[tuple[str, int], ...]
+    indices: tuple[int, ...]
+    unmapped_indices: tuple[int, ...]
+    source_pair: tuple[str, str]
+
+
+@dataclass(frozen=True, slots=True)
 class EquipmentInventoryContract:
     """Frozen row cardinality, scalar equalities and source-supported ownership."""
 
@@ -99,12 +110,15 @@ class EquipmentInventoryContract:
     spans: tuple[EquipmentOwner, ...]
     identity_spans: tuple[EquipmentIdentityOwner, ...]
     scope_repairs: tuple[EquipmentScopeRepair, ...] = ()
+    uniform_aggregate: UniformAggregateSupport | None = None
 
     def validate_rows(self, rows: Sequence[Mapping[str, Any]]) -> None:
         """Reject changed cardinality, missing categories and unequal shared cells."""
         if len(rows) != self.row_count:
             raise ValueError("equipment inventory changed source row cardinality")
         pairs = [_pair(row) for row in rows]
+        if self.uniform_aggregate is not None and len(set(pairs)) != 1:
+            raise ValueError("uniform-only aggregate ownership cannot label mixed container rows")
         for group in self.groups:
             if len({pairs[index] for index in group}) != 1:
                 raise ValueError("equipment inventory contradicts a shared scalar owner")
@@ -214,12 +228,18 @@ def _source_regions(blueprint: SamplingBlueprint) -> dict[tuple[str, int], Rende
     return result
 
 
-def compile_equipment_inventory(blueprint: SamplingBlueprint) -> EquipmentInventoryContract:
+def compile_equipment_inventory(
+    blueprint: SamplingBlueprint, *, allow_uniform_aggregate: bool = False
+) -> EquipmentInventoryContract:
     """Compile direct row owners, never equate a composite receipt's members.
 
     An empty receipt scope is recoverable only when its explicit complete count
     equals the retained inventory and the established lexer validates that full
     inventory. The resulting repair is surfaced for source-contract maintenance.
+
+    Explicit opt-in accepts a complete uniform whole-inventory declaration when
+    some IDs lack direct type cells. It records that missing mapping and constrains
+    all sampled rows to one pair; it never licenses arbitrary mixed assignments.
     """
     rows = blueprint.target["documentPatch"].get("containerInformation", [])
     if not rows:
@@ -282,6 +302,7 @@ def compile_equipment_inventory(blueprint: SamplingBlueprint) -> EquipmentInvent
                 raise ValueError("multi-row equipment scalar requires explicit shared equality")
         for occurrence, region in enumerate(selected_regions):
             selected = scope
+            type_source = None
             if derivation == "inventory_header":
                 spec = next(
                     (
@@ -297,6 +318,19 @@ def compile_equipment_inventory(blueprint: SamplingBlueprint) -> EquipmentInvent
                     or spec["sourceCount"] != len(scope)
                 ):
                     raise ValueError("whole-inventory header lacks its exact rebase certificate")
+                type_source = spec.get("typeSource")
+                type_start, type_end = spec.get("typeStart"), spec.get("typeEnd")
+                if (
+                    not isinstance(type_source, str)
+                    or not type_source.strip()
+                    or not isinstance(type_start, int)
+                    or not isinstance(type_end, int)
+                    or not region.start <= type_start < type_end <= region.end
+                    or blueprint.source.encode()[type_start:type_end].decode() != type_source
+                    or _printed_count(type_source) is not None
+                ):
+                    raise ValueError("equipment header lacks its exact type-only source span")
+                _validate_scalar(type_source, [rows[index] for index in scope])
                 kind = "header"
                 if len(scope) == 1:
                     direct.update(scope)
@@ -332,9 +366,30 @@ def compile_equipment_inventory(blueprint: SamplingBlueprint) -> EquipmentInvent
                     )
                 if scalar or len(selected) == 1:
                     direct.update(selected)
-            spans.append(EquipmentOwner(key, occurrence, selected, kind, region.source))
-    if direct != set(range(len(rows))):
-        raise ValueError("each equipment identifier needs direct printed type ownership")
+            spans.append(
+                EquipmentOwner(key, occurrence, selected, kind, region.source, type_source)
+            )
+    uniform_aggregate = None
+    all_indices = tuple(range(len(rows)))
+    if direct != set(all_indices):
+        whole_uniform = (
+            tuple(
+                (span.key, span.occurrence)
+                for span in spans
+                if span.kind in {"receipt", "header"}
+                and span.indices == all_indices
+                and _printed_count(span.source) == len(rows)
+            )
+            if allow_uniform_aggregate and len({_pair(row) for row in rows}) == 1
+            else ()
+        )
+        if not whole_uniform:
+            raise ValueError("each equipment identifier needs direct printed type ownership")
+        uniform_aggregate = UniformAggregateSupport(
+            whole_uniform, all_indices, tuple(sorted(set(all_indices) - direct)), _pair(rows[0])
+        )
+        for index in all_indices[1:]:
+            parents[owner(index)] = owner(0)
     identities = []
     for (key, occurrence), region in regions.items():
         paths = region.target_paths
@@ -441,6 +496,7 @@ def compile_equipment_inventory(blueprint: SamplingBlueprint) -> EquipmentInvent
         tuple(spans),
         tuple(identities),
         tuple(repairs),
+        uniform_aggregate,
     )
     contract.validate_rows(rows)
     return contract
@@ -586,6 +642,9 @@ def rebase_equipment_inventory_headers(blueprint: SamplingBlueprint) -> Sampling
                 "sourceCount": len(scope),
                 "countOwner": count.key,
                 "typeOwner": region.key,
+                "typeSource": region.source,
+                "typeStart": region.start,
+                "typeEnd": region.end,
             }
         )
     if not specs:
@@ -593,16 +652,21 @@ def rebase_equipment_inventory_headers(blueprint: SamplingBlueprint) -> Sampling
     bindings = deepcopy(dict(blueprint.historical_bindings))
     remapping = {}
     for key, binding in list(bindings.items()):
+        old_occurrence_count = len(binding["occurrences"])
         kept = [
             (i, slot) for i, slot in enumerate(binding["occurrences"]) if (key, i) not in removals
         ]
         remapping[key] = {old: new for new, (old, _) in enumerate(kept)}
+        if len(kept) == old_occurrence_count:
+            continue
         if not kept:
             del bindings[key]
             continue
         binding["occurrences"] = [slot for _, slot in kept]
         if "slots" in binding.get("realization", {}):
             slots = binding["realization"]["slots"]
+            if any(old >= len(slots) for old, _ in kept):
+                raise ValueError("changed equipment owner has incomplete realization slots")
             binding["realization"]["slots"] = [slots[old] for old, _ in kept]
     for spec in specs:
         bindings[spec["key"]] = {
@@ -662,10 +726,14 @@ def project_equipment_inventory(
         if span.kind == "count":
             after = span.source
         elif span.kind == "header":
+            if span.type_source is None:
+                raise ValueError("equipment header has no certified type-only source")
             counts = Counter(_pair(row) for row in new)
             terms = []
             for (size, kind), amount in sorted(counts.items()):
-                alias = format_equipment({"sizeCategory": size, "typeCategory": kind}, span.source)
+                alias = format_equipment(
+                    {"sizeCategory": size, "typeCategory": kind}, span.type_source
+                )
                 terms.append(f"{amount} x {alias}")
             noun = " CONTAINERS" if re.search(_NOUN, span.source, re.I) else ""
             after = " + ".join(terms) + noun

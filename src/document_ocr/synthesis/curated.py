@@ -909,6 +909,10 @@ class Runner:
         self.reserved = Decimal(0)
         self.retry_rate_limited = False
         self.retry_invalid_output = False
+        # An external, explicit authority may permit one immutable failed
+        # receipt to advance. A later failure has different bytes and is not
+        # authorized merely because an earlier attempt was.
+        self.retry_failed_receipt_sha256s: frozenset[str] = frozenset()
         self.spent = sum(
             (
                 Decimal(str(json.loads(p.read_text())["costUsd"]))
@@ -933,8 +937,13 @@ class Runner:
         path = self.output / "calls" / f"{stage}-{key}.json"
         attempt = 1
         while path.exists():
-            receipt = json.loads(path.read_text())
+            payload = path.read_bytes()
+            receipt = json.loads(payload)
             if receipt["output"] is None:
+                retry_authorized = (
+                    bool(self.retry_failed_receipt_sha256s)
+                    and digest(payload) in self.retry_failed_receipt_sha256s
+                )
                 retry_rejected = (
                     self.retry_rate_limited
                     and receipt["costStatus"] == "request_rejected"
@@ -943,7 +952,7 @@ class Runner:
                 retry_invalid = self.retry_invalid_output and str(receipt["error"]).startswith(
                     "UnexpectedModelBehavior:"
                 )
-                if retry_rejected or retry_invalid:
+                if retry_authorized or retry_rejected or retry_invalid:
                     # Explicit resume permits one new attempt per invocation.
                     # Every failed attempt and its billed usage remain recorded.
                     attempt += 1

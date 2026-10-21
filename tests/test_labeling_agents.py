@@ -1320,6 +1320,12 @@ def test_provider_schema_explains_critical_extraction_and_review_fields() -> Non
     assert "day/month/year" in serialized_extraction.lower()
     assert "completed zero-original count" in serialized_extraction
     assert "standalone FAX" in serialized_extraction
+    assert "Retain attached compact suffixes" in serialized_extraction
+    assert "/5, /1/2, -7 or -73" in serialized_extraction
+    assert "do not discard or expand them into inferred numbers" in serialized_extraction
+    assert (
+        "Two separately printed complete numbers remain separate entries" in serialized_extraction
+    )
     assert "blank adjacent headings" in serialized_extraction
     assert "ERN" in serialized_extraction
     assert "referenced party is present" in serialized_extraction

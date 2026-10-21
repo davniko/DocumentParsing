@@ -199,11 +199,51 @@ def assert_preserved_phone_identities(before, result):
     return changed
 
 
-def assert_except_documented_presentations_equal(before, result):
+def assert_preserved_country_presentations(before, result, registry):
+    old, new = flat(before), flat(result["target"])
+    receipt = result["proof"]["countryPresentations"]
+    assert receipt["registryManifestSha256"] == registry.manifest_sha256
+    inputs, outputs = receipt["inputValues"], receipt["targetValues"]
+    assert inputs.keys() == outputs.keys()
+    assert all(path.endswith((".country", ".addressLine")) for path in inputs)
+    for path in inputs:
+        assert old[path] == inputs[path] and new[path] == outputs[path]
+        if path.endswith(".country"):
+            assert new[path] == registry.normalized(old[path])
+    changed = {path for path in inputs if old[path] != new[path]}
+    for path in changed:
+        if not path.endswith(".addressLine"):
+            continue
+        projection, = [item for item in receipt["addressProjections"] if item["path"] == path]
+        assert projection["before"] == old[path] and projection["after"] == new[path]
+        reconstructed = old[path]
+        for start, end, after, key, occurrence, _ in reversed(projection["replacements"]):
+            owner, = [
+                item for item in receipt["owners"]
+                if item["key"] == key and item["occurrence"] == occurrence
+            ]
+            assert path in owner["addressPaths"] and 0 <= start < end <= len(old[path])
+            assert (
+                registry.require(old[path][start:end]) == registry.require(after) == owner["code"]
+            )
+            country = path.removesuffix(".addressLine") + ".country"
+            if country in old:
+                assert registry.require(old[country]) == owner["code"]
+            reconstructed = reconstructed[:start] + after + reconstructed[end:]
+        assert reconstructed == new[path]
+    return changed
+
+
+def assert_except_documented_presentations_equal(before, result, *, country_registry=None):
     old, new = flat(before), flat(result["target"])
     phones = assert_preserved_phone_identities(before, result)
+    countries = (
+        assert_preserved_country_presentations(before, result, country_registry)
+        if country_registry is not None else set()
+    )
     assert {p: v for p, v in old.items() if ".hsCodes[" not in p} == {
-        p: old[p] if p in phones else v for p, v in new.items() if ".hsCodes[" not in p
+        p: old[p] if p in phones | countries else v
+        for p, v in new.items() if ".hsCodes[" not in p
     }
 
 
@@ -406,7 +446,9 @@ def test_actual_identifier_rerender_preserves_every_public_target(campaign, pref
     sample = "syn_full_v7_" + digest([sid, campaign.config["seed"], variant])[:24]
     cached = json.loads((campaign.output / "candidates" / f"{sample}.json").read_text())
     result = campaign.render(sid, variant, persist=False)
-    assert_except_documented_presentations_equal(cached["target"], result)
+    assert_except_documented_presentations_equal(
+        cached["target"], result, country_registry=campaign.country_registry
+    )
     assert result["renderValues"] == cached["renderValues"]
     assert result["countryCodes"] == cached["countryCodes"]
     assert result["validation"]["exactReplay"] and result["validation"]["currentSchema"]

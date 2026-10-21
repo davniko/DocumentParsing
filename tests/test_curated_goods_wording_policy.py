@@ -1,5 +1,6 @@
 """Approved classifier-free product guidance and archive/provenance boundaries."""
 
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -24,7 +25,15 @@ def test_original_and_first_polish_are_frozen_reference_archives():
     assert "approximately the same total word count" not in original["systemPrompt"]
     assert "approximately the same total word count" in first["systemPrompt"]
     assert "{source_word_count}" in first["productFieldRequirementTemplate"]
-    assert first["systemPrompt"] == WORDING_PROMPT
+    assert hashlib.sha256((ARCHIVE / "original.json").read_bytes()).hexdigest() == (
+        "0a4d1ccf170bb79fd09a9baf6e9c7009beb63d6d4443711cbce6c46ecaf6c034"
+    )
+    assert hashlib.sha256((ARCHIVE / "first-polish.json").read_bytes()).hexdigest() == (
+        "373868bd95f6ecbabb05e2c4b20e75443d214eebb5be3148f919cfba13e7dc10"
+    )
+    # The archive is immutable history, not an assertion that live policy can
+    # never acquire a separately reviewed name/postal-boundary clarification.
+    assert "The name field owns the party identity" in WORDING_PROMPT
     assert original["sourceFiles"] == first["sourceFiles"]
 
 

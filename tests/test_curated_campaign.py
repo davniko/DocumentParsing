@@ -1577,6 +1577,7 @@ def test_explicit_resume_preserves_and_replays_attempt_receipts(tmp_path, invali
     runner.config = {"provider": {}}
     runner.retry_rate_limited = False
     runner.retry_invalid_output = False
+    runner.retry_failed_receipt_sha256s = frozenset()
     key = digest(["wording", "sample", WordingBatch.model_json_schema(), "sys", "text", {}])
     directory = tmp_path / "calls"
     directory.mkdir()

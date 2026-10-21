@@ -2,12 +2,14 @@
 
 The shipment sampler owns valid phone identities. This adapter owns only their
 printed dialing/spacing presentation and the corresponding extraction labels.
-It never searches or rewrites unowned document text.
+It never rewrites unowned document text. Source completeness checks may inspect
+immediately adjacent literal dialing syntax within the same physical line.
 """
 
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from itertools import pairwise
@@ -18,12 +20,26 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from document_ocr.synthesis.curated import digest, flat
 from document_ocr.synthesis.generators import DeterministicStream
-from document_ocr.synthesis.phone_presentations import PhoneFamily, format_phone_presentation
+from document_ocr.synthesis.phone_presentations import (
+    _ALTERNATES,
+    PhoneFamily,
+    _source,
+    format_phone_presentation,
+)
 
 if TYPE_CHECKING:
     from document_ocr.synthesis.curated_templates import RenderRegion, SamplingBlueprint
 
 _PHONE_PATH = re.compile(r"^documentPatch\.parties\..+\.contactDetails\.phoneNumbers\[\d+\]$")
+# This bounds a numeric envelope in physical OCR context; the shared phone
+# parser, not this lexical scan, decides whether its tail is an alternate.
+_PHONE_CONTEXT = re.compile(r"[0-9 \t+(){}./,~\-\u2010-\u2015]+")
+# Any attached numeric continuation is missing printed text, whether it is a
+# compact tail or ordinary grouping. Width does not establish its meaning;
+# independently owned/targeted numbers establish the separate-phone boundary.
+_NUMERIC_CONTINUATION = re.compile(
+    r"\s*[-\u2010-\u2015~]\s*[0-9][0-9 \t+(){}./,~\-\u2010-\u2015]*$"
+)
 
 
 class PhoneFamilyWeight(BaseModel):
@@ -89,6 +105,14 @@ def _pattern(value: str) -> re.Pattern[str]:
     return re.compile(r"(?<![A-Za-z0-9])" + r"\s*".join(map(re.escape, tokens)) + r"(?![0-9])")
 
 
+def _numeric_continuation(pattern: re.Pattern[str], candidate: str) -> bool:
+    prefix = pattern.match(candidate)
+    return (
+        prefix is not None
+        and _NUMERIC_CONTINUATION.fullmatch(candidate[prefix.end() :]) is not None
+    )
+
+
 def _region_paths(blueprint: SamplingBlueprint, region: RenderRegion) -> tuple[str, ...]:
     if region.curated_key is None:
         paths = set(region.target_paths)
@@ -135,6 +159,75 @@ def _reviewed_target_source(blueprint: SamplingBlueprint, paths: list[str], orig
     if len(values) != 1:
         raise ValueError("shared phone targets have conflicting reviewed presentation envelopes")
     return values.pop()
+
+
+def validate_phone_source_completeness(blueprint: SamplingBlueprint) -> None:
+    """Reject a baseline that drops an owned phone's printed numeric tail.
+
+    A literal suffix can survive just beyond a stale owner, so inspection is
+    bounded by the physical line and the next independent owner, not merely
+    the current region's end. Full, separately targeted phones remain separate.
+    No source text or target is inferred, expanded or repaired here.
+    """
+    phones = phone_values(blueprint.target)
+    if not phones:
+        return
+    raw = blueprint.source.encode()
+    starts = sorted(region.start for region in blueprint.regions)
+    phone_patterns = {value: _pattern(value) for value in set(phones.values())}
+    for region in blueprint.regions:
+        paths = set(_region_paths(blueprint, region)) & phones.keys()
+        for path in sorted(paths):
+            expected = _reviewed_target_source(blueprint, [path], phones[path])
+            source_pattern = _pattern(expected)
+
+            for match in source_pattern.finditer(region.source):
+                start = region.start + len(region.source[: match.start()].encode())
+                end = region.start + len(region.source[: match.end()].encode())
+                following = bisect_left(starts, end)
+                limit = starts[following] if following < len(starts) else len(raw)
+                newline = raw.find(b"\n", end, limit)
+                if newline != -1:
+                    limit = newline
+                prefix = _PHONE_CONTEXT.match(raw[start:limit].decode())
+                if prefix is None:
+                    continue
+                candidate = prefix[0].rstrip(" \t,/")
+                if not _ALTERNATES.search(candidate) and not _numeric_continuation(
+                    source_pattern, candidate
+                ):
+                    continue
+                # A composite region may own several complete phones. Its
+                # next targeted value is an independent boundary even when
+                # there is no next region start inside the composite owner.
+                boundaries = [
+                    other.start()
+                    for value, pattern in phone_patterns.items()
+                    if value != phones[path]
+                    for other in pattern.finditer(candidate)
+                    if other.start() > 0
+                ]
+                if boundaries:
+                    candidate = candidate[: min(boundaries)].rstrip(" \t,/")
+                    if not _ALTERNATES.search(candidate) and not _numeric_continuation(
+                        source_pattern, candidate
+                    ):
+                        continue
+                if _numeric_continuation(source_pattern, candidate):
+                    raise ValueError(
+                        "source phone target omits a printed numeric continuation: "
+                        f"{path}; target={phones[path]!r}; printed={candidate!r}"
+                    )
+                parsed, baseline = _source(candidate, None), _source(expected, None)
+                if parsed.suffix_kind != "alternates" or re.sub(r"\s", "", parsed.core) != re.sub(
+                    r"\s", "", baseline.core
+                ):
+                    continue
+                if re.sub(r"\s", "", parsed.suffix) != re.sub(r"\s", "", baseline.suffix):
+                    raise ValueError(
+                        "source phone target omits a printed compact alternate suffix: "
+                        f"{path}; target={phones[path]!r}; printed={candidate!r}"
+                    )
 
 
 def _attested_newline_joins(source: str, target: str) -> tuple[int, ...] | None:
@@ -311,6 +404,7 @@ def prepare_phone_rendering(
     stream: DeterministicStream,
 ) -> PhoneRenderPlan:
     """Compile changed public phone presentations using exact reviewed owners."""
+    validate_phone_source_completeness(blueprint)
     policy = policy or PhoneRenderingPolicy()
     before, inputs = phone_values(blueprint.target), phone_values(sampled_target)
     if before.keys() != inputs.keys():

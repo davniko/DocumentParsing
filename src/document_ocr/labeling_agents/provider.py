@@ -341,7 +341,10 @@ _PROVIDER_FIELD_DESCRIPTIONS = {
     "contactName": "Printed contact name copied with exact OCR spelling and without its heading.",
     "phoneNumbers": (
         "Unique printed telephone values containing digits; exclude standalone FAX values, "
-        "locality, and label text. A jointly labeled TEL & FAX value is also a phone target."
+        "locality, and label text. Retain attached compact suffixes, such as /5, /1/2, -7 or "
+        "-73, in the same printed number; do not discard or expand them into inferred numbers. "
+        "Two separately printed complete numbers remain separate entries, even when divided "
+        "by a slash. A jointly labeled TEL & FAX value is also a phone target."
     ),
     "emailAddresses": "Unique printed email addresses belonging to this party.",
     "websiteUrls": "Unique printed website URLs belonging to this party.",

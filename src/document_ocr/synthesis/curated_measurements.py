@@ -69,13 +69,16 @@ def format_measure(surface: str, baseline: Decimal, value: Decimal) -> str:
     return surface.replace(token, _number_style(token, str(baseline), str(value)), 1)
 
 
-def _printed_unit(raw: str, occurrence: dict, unit: str) -> bool:
+def _printed_unit(
+    raw: str, occurrence: dict, unit: str, *, declared_text: str | None = None
+) -> bool:
     start, end = occurrence["byte_start"], occurrence["byte_end"]
     encoded = raw.encode()
     if encoded[start:end].decode() != occurrence["source_text"]:
         raise ValueError("converted measure occurrence differs from its source bytes")
     text = occurrence["source_text"]
-    pattern = r"(?<![A-Za-z])(?:" + _UNITS[unit][2] + r")(?![A-Za-z0-9])"
+    spelling = re.escape(declared_text) if declared_text is not None else _UNITS[unit][2]
+    pattern = r"(?<![A-Za-z])(?:" + spelling + r")(?![A-Za-z0-9])"
     if re.search(pattern, text, re.I):
         return True
     following = encoded[end:].decode().split("\n", 1)[0]
@@ -96,8 +99,14 @@ def converted_measure_surfaces(
     of rounded central values. Unchanged facts retain their observed surfaces;
     changed facts use the exact unit factor and the alias's original precision.
     """
-    if set(recipe) != {"measure_path", "render_unit"}:
-        raise ValueError("converted measure recipe requires exactly measure_path and render_unit")
+    if set(recipe) not in (
+        {"measure_path", "render_unit"},
+        {"measure_path", "render_unit", "canonical_unit_text"},
+    ):
+        raise ValueError(
+            "converted measure recipe requires measure_path and render_unit, "
+            "with only optional canonical_unit_text"
+        )
     path, unit = recipe["measure_path"], recipe["render_unit"]
     match = re.fullmatch(
         r"documentPatch\.goodsItemDetails\[\d+\]\.(grossWeight|netWeight|volume)", path
@@ -111,6 +120,25 @@ def converted_measure_surfaces(
     dimension = "volume" if match[1] == "volume" else "mass"
     if any(_UNITS[u][0] != dimension for u in (old_unit, new_unit, unit)):
         raise ValueError("converted measure unit dimension differs from its target measure")
+    canonical_text = recipe.get("canonical_unit_text")
+    if "canonical_unit_text" in recipe:
+        # A reviewed document may abbreviate its canonical unit unusually.
+        # This literal applies only to this source-bound conversion recipe; an
+        # independent, known-unit printout must still corroborate its scale.
+        if (
+            not isinstance(canonical_text, str)
+            or not canonical_text
+            or canonical_text.strip() != canonical_text
+            or not canonical_text.isprintable()
+        ):
+            raise ValueError("canonical_unit_text requires one nonempty literal printed token")
+        if unit == old_unit:
+            raise ValueError("canonical_unit_text requires an independent different-unit alias")
+        if any(
+            known != old_unit and re.fullmatch(declaration[2], canonical_text, re.I)
+            for known, declaration in _UNITS.items()
+        ):
+            raise ValueError("canonical_unit_text conflicts with a known different unit")
     if key not in blueprint.historical_bindings or not any(
         r.key == key and r.curated_key is None for r in blueprint.regions
     ):
@@ -133,6 +161,7 @@ def converted_measure_surfaces(
             blueprint.source,
             dict(byte_start=start, byte_end=end, source_text=occurrence.text),
             old_unit,
+            declared_text=canonical_text,
         ):
             raise ValueError("canonical measurement unit is not printed beside its numeric owner")
     canonical_quantum = min(printed_quantum(o.text, baseline) for o in variables[0].occurrences)

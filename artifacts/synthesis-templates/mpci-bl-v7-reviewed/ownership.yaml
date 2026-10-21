@@ -1504,6 +1504,27 @@ sources:
       occurrences:
       - text: CEREAL SEED QUALITY
     bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[3]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[5]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[6]:
+        kind: identifier
+        paths: []
       agent:acid_identifier:
         kind: identifier
         occurrences:
@@ -1562,6 +1583,13 @@ sources:
           text: HYBRID SORGHUM MECCA
       source_sha256: 3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f
     identifier_privacy:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[3]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[5]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[6]: private
       agent:acid_identifier: private
       agent:egyptian_importer_tax_id: private
       agent:foreign_exporter_country_code: dependent
@@ -1894,6 +1922,24 @@ sources:
       agent:foreign_exporter_reference_p2400212713: private
       agent:foreign_exporter_reference_192056241: private
   doc_13e080e7a737c54214af1c41d5f8be2463acd16d893f8efe3add89fdadc91f8d:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: VIECOM AUSTRALIA PTY LTD
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: VIECOM AUSTRALIA PTY LTD
+        occurrence: 1
+        presentation: text
     retire:
       agent:cargo:gross_weight: Full wrapper superseded by its exact typed numeric/count
         core. Retain immutable unit/framing bytes; any printed package noun is independently
@@ -4340,6 +4386,36 @@ sources:
       anchor:documentPatch.transport.voyageNumber:
         expression: '{documentPatch.transport.voyageNumber}'
   doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: CARAVEL LINER AGENCIES
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: CARAVEL LINER AGENCIES
+        occurrence: 1
+        presentation: text
+      - text: CARAVEL LINER AGENCIES
+        occurrence: 2
+        presentation: text
+      - text: CARAVEL LINER AGENCIES
+        occurrence: 3
+        presentation: text
+      - text: CARAVEL LINER AGENCIES
+        occurrence: 4
+        presentation: text
+      - text: CARAVEL LINER AGENCIES
+        occurrence: 5
+        presentation: text
     phone_target_presentations:
       documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]:
         key: anchor:documentPatch.parties.deliveryAgent.contactDetails.phoneNumbers[0]
@@ -9003,6 +9079,36 @@ sources:
       - documentPatch.parties.consignee.contactDetails.emailAddresses[0]
       - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
   doc_3d0bcc2def0b777a2b626b9bfa1e7d1e227923b8d43a9474c07b4502929e3c03:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: TRANS OVERSEAS ESTABLISHN
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 1
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 2
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 3
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 4
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 5
+        presentation: text
     lexical:
     - key: lexical_00
       kind: postal
@@ -9632,6 +9738,27 @@ sources:
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
       agent:document:form_no: public
   doc_535a8d9173b4b0cc659cc6f314943214a3339b071b13ae9682abfb8d7c8d7af5:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: TRANS OVERSEAS ESTABLISHN
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 1
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 2
+        presentation: text
     bindings:
       agent:invoice_party:mohamed_morsy_ali_ahmed:
         paths:
@@ -10620,6 +10747,36 @@ sources:
       agent:exporter_vat_number: private
       agent:issuing_agent_postal_code: public
   doc_738b9fde206a8a90d6ef0155513300da4e7cb8de736be39e750d684b7a335c47:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: TRANS OVERSEAS ESTABLISHN
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 1
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 2
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 3
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 4
+        presentation: text
+      - text: TRANS OVERSEAS ESTABLISHN
+        occurrence: 5
+        presentation: text
     lexical:
     - key: lexical_00
       kind: postal
@@ -11247,6 +11404,23 @@ sources:
       agent:customs:exporter_id: private
       agent:customs:importer_id: private
       agent:commercial:service_contract_number: private
+    variables:
+    - key: privacy_signatory
+      kind: name
+      value: Masaki Ohawa
+      meaning: Source-only individual carrier signer; keep public company/signature framing
+        unchanged.
+      required_literals: []
+      occurrences:
+      - text: Masaki Ohawa
+        occurrence: 1
+        presentation: text
+    identity_kinds:
+      privacy_signatory: individual
+    private_contacts:
+      names:
+        privacy_signatory:
+          role: carrier signatory
   doc_8572f110c037463e9299abe5af46df77dff78bc1da4c87442a9351de5ce5418d:
     bindings:
       agent:document:acid_number:
@@ -12370,6 +12544,23 @@ sources:
     identity_kinds:
       privacy_via_company: organization
   doc_b2b9200dc9c342c00181c08441a6448967f04a9bc9c52d2c0a87307b5faa667e:
+    surfaces:
+      agent:commercial:invoice_party:repeat:
+        lexical_key: privacy_invoice_company
+    identity_kinds:
+      privacy_invoice_company: organization
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: MIAMI FREIGHT & LOGISTIC SI
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: MIAMI FREIGHT & LOGISTIC SI
+        occurrence: 1
+        presentation: text
     retire:
       anchor:documentPatch.parties.shipper.name: Primary and represented identities
         have separate exact lexical owners; the old compound/multi-actor target binding
@@ -12383,6 +12574,9 @@ sources:
         - text: used computers, LCDs and laptops
           occurrence: 1
     related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
       ob_related_name_1:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
@@ -12633,6 +12827,24 @@ sources:
       anchor:documentPatch.cargoPackages[0].typeCategory:
         package_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
   doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: SEA LINE CARGO
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: SEA LINE CARGO
+        occurrence: 1
+        presentation: text
     lexical: []
     description_blocks:
       source_sha256: 7290e6e3e39a96142854326678e66e8a1a988c4c1e8ed1dfba207bed5f589c03
@@ -13144,6 +13356,30 @@ sources:
       agent:foreign_exporter_registration_number: private
       agent:foreign_exporter_country_code: dependent
   doc_db7177f54a3bba09125c0f174a27a4d74ce1ccadfdc57392a9bc4f004534fb2b:
+    surfaces:
+      agent:invoice_party:walmas_ravenna_stefano:
+        lexical_key: privacy_invoice_company
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: WALMAS RAVENNA DI STEFANG
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: WALMAS RAVENNA DI STEFANG
+        occurrence: 1
+        presentation: text
+      - text: WALMAS RAVENNA DI STEFANG
+        occurrence: 2
+        presentation: text
     bindings:
       agent:cargo_acid_reference:
         kind: identifier
@@ -16063,18 +16299,23 @@ sources:
       agent:aux:foreign_exporter_country_code: dependent
   doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046:
     bindings:
+      anchor:documentPatch.placeOfIssue.name:
+        paths:
+        - documentPatch.placeOfIssue.name
+        occurrences:
+        - text: Montreal
+          occurrence: 1
+        - text: Montreal
+          occurrence: 2
       anchor:documentPatch.parties.shipper.country:
         paths:
         - documentPatch.parties.shipper.country
-        - documentPatch.placeOfIssue.country
       anchor:documentPatch.parties.forwardingAgent.country:
         paths:
         - documentPatch.parties.forwardingAgent.country
-        - documentPatch.placeOfIssue.country
       anchor:documentPatch.route.portOfLoading.country:
         paths:
         - documentPatch.route.portOfLoading.country
-        - documentPatch.placeOfIssue.country
       agent:cargo:gross_without_pallets:value:
         paths: []
       agent:cargo:pallet_weight:value:
@@ -16188,6 +16429,27 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[0]: private
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
   doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: BALDAN LTD
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: BALDAN LTD
+        occurrence: 1
+        presentation: text
+      - text: BALDAN LTD
+        occurrence: 2
+        presentation: text
     lexical: []
     description_blocks:
       source_sha256: 2c34447c561bc2d7319eeb21762085f8899d45c68a35b78b035e27b22dcd54f3
@@ -16213,6 +16475,12 @@ sources:
         unit: kilogram
         row: 2
     bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        kind: identifier
+        paths: []
+        occurrences:
+        - text: ALX-BR22627
+          occurrence: 1
       anchor:documentPatch.cargoGroups[0].grossWeight.value:
         paths:
         - documentPatch.goodsItemDetails[0].grossWeight.value
@@ -16298,6 +16566,7 @@ sources:
       anchor:documentPatch.cargoGroups[2].description:
         expression: '{documentPatch.goodsItemDetails[0].description}'
     identifier_privacy:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
       agent:carrier:scac: public
       agent:booking_reference:0: private
       agent:booking_reference:2: private
@@ -17057,21 +17326,46 @@ sources:
       anchor:documentPatch.cargoGroups[0].description:
         expression: '{documentPatch.goodsItemDetails[0].description}'
     delete:
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Reviewed standalone
-        source carton serial range counts a retired 894-carton shipment, outside every
-        current public target. Remove the exact private range only from synthetic
-        descendants rather than contradict the sampled package total.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Reviewed standalone
-        source carton serial range counts a retired 894-carton shipment, outside every
-        current public target. Remove the exact private range only from synthetic
-        descendants rather than contradict the sampled package total.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Reviewed standalone source
+        carton serial range counts a retired 894-carton shipment, outside every current
+        public target. Remove the exact private range only from synthetic descendants
+        rather than contradict the sampled package total.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Reviewed standalone source
+        carton serial range counts a retired 894-carton shipment, outside every current
+        public target. Remove the exact private range only from synthetic descendants
+        rather than contradict the sampled package total.
     identity_kinds:
       shipper_company: organization
       account_company: organization
+      privacy_booking_company: organization
     related_actors:
       account_company:
         context_party: documentPatch.parties.shipper
         relationship: account_of
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+      privacy_account_postal:
+        context_party: documentPatch.parties.shipper
+        relationship: account_of
+        location:
+          name: PORT LOUIS
+          country_code: MU
+          country: MAURITIUS
+          registry: geonames
+          registry_id: '934154'
+      privacy_booking_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+        location:
+          name: LUDHIANA
+          country_code: IN
+          country: INDIA
+          registry: geonames
+          registry_id: '1264728'
     identifier_privacy:
       agent:shipper_tax_id: private
       agent:carrier_registration_number: public
@@ -17084,12 +17378,41 @@ sources:
       privacy:shipping_bill_reference:0: private
       privacy:shipping_bill_reference:1: private
     retire:
-      anchor:documentPatch.forwardingAndExportReferences[0]: Removed-field compound
-        reference is explicitly split into independent private identifier and source-only
-        chronology owners; no extraction target is added.
-      anchor:documentPatch.forwardingAndExportReferences[1]: Removed-field compound
-        reference is explicitly split into independent private identifier and source-only
-        chronology owners; no extraction target is added.
+      agent:sonvigo_address: Source-only postal wrapper is split into generated
+        private premises/street and immutable PORT-LOUIS 11602 geography. Retire
+        the old complete-address owner; do not resample the printed locality,
+        postal code or separate MAURITIUS suffix.
+      anchor:documentPatch.forwardingAndExportReferences[0]: Removed-field compound reference
+        is explicitly split into independent private identifier and source-only chronology
+        owners; no extraction target is added.
+      anchor:documentPatch.forwardingAndExportReferences[1]: Removed-field compound reference
+        is explicitly split into independent private identifier and source-only chronology
+        owners; no extraction target is added.
+    variables:
+    - key: privacy_account_postal
+      kind: postal
+      value: FELIX HOUSE 24, DR JOSEPH RIVIERE STREET
+      meaning: Only private building/premises and street components for the jointly
+        generated account-of organization. PORT-LOUIS 11602 and MAURITIUS are
+        already printed as immutable external framing. Do not generate any
+        locality, postal code, country, company name, contact or heading here.
+      required_literals: []
+      occurrences:
+      - text: 'FELIX HOUSE 24, DR JOSEPH
+
+            RIVIERE STREET'
+        occurrence: 1
+        presentation: text
+    - key: privacy_booking_company
+      kind: name
+      value: KUEHNE + NAGEL PVT LTD
+      meaning: Distinct source-only booking/invoice-request office organization, not the
+        account company, primary shipper or public carrier; locality remains LUDHIANA.
+      required_literals: []
+      occurrences:
+      - text: KUEHNE + NAGEL PVT LTD
+        occurrence: 1
+        presentation: text
   doc_30116fcc85be6af6fe3d2ccb2e360110396cf7dea36f7322b2b5ae1ba51eef15:
     lexical: []
     description_blocks:
@@ -18059,6 +18382,24 @@ sources:
     identifier_privacy:
       agent:documentPatch.cargoGroups[0].additionalInformation[0]:ncm_reference: private
   doc_e3f9ccd4f59c13aa210fac82f8fc57e0f130a51191b2e861e90f72998524e590:
+    identity_kinds:
+      privacy_invoice_company: organization
+    related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: SILVAN SEA & AIR SP ZOO SKA
+      meaning: Source-only freight-charge invoice organization. Distinct from extraction
+        parties and the public carrier collection office. Generate one independent organization
+        and reuse it across every owned charge-column occurrence.
+      required_literals: []
+      occurrences:
+      - text: SILVAN SEA & AIR SP ZOO SKA
+        occurrence: 1
+        presentation: text
     add:
     - key: wrapper_noun:agent:package:0:quantity_and_type
       kind: package
@@ -18430,12 +18771,12 @@ sources:
         expression: '{documentPatch.transport.voyageNumber}'
   doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf:
     retire:
-      anchor:documentPatch.parties.shipper.country: Exact current core(s) supersede
-        the old wrapper; static punctuation/unit/order framing remains in source.
-        Package noun, when present, has its own current category owner.
-      agent:document:operative_order_clause: Exact current core(s) supersede the old
-        wrapper; static punctuation/unit/order framing remains in source. Package
-        noun, when present, has its own current category owner.
+      anchor:documentPatch.parties.shipper.country: Exact current core(s) supersede the old wrapper;
+        static punctuation/unit/order framing remains in source. Package noun, when present, has its
+        own current category owner.
+      agent:document:operative_order_clause: Exact current core(s) supersede the old wrapper; static
+        punctuation/unit/order framing remains in source. Package noun, when present, has its own current
+        category owner.
     lexical: []
     description_blocks:
       source_sha256: 9acc49226afea1b679aca4f09b5c145e4874acbd70a735763e80405d8c1e041e
@@ -18495,7 +18836,7 @@ sources:
         kind: identifier
         paths: []
         occurrences:
-        - text: '5000000141'
+        - text: 625/2024
           occurrence: 1
       agent:vat:notify:
         kind: identifier
@@ -18517,25 +18858,26 @@ sources:
       occurrences:
       - text: '495'
         occurrence: 1
+    - key: agent:contract_number
+      kind: identifier
+      paths: []
+      occurrences:
+      - text: '5000000141'
+        occurrence: 1
     delete:
-      anchor:documentPatch.cargoGroups[0].additionalInformation[1]: Reviewed obsolete
-        standalone private packing/capacity claim; synthetic-only removal preserves
-        every current public target and source document.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Retire obsolete source
-        carton-number range and its detached CARTON NOS caption; sampled row units/counts
-        remain authoritative and unchanged.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Retire obsolete source
-        carton-number range and its detached CARTON NOS caption; sampled row units/counts
-        remain authoritative and unchanged.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]: Retire obsolete source
-        carton-number range and its detached CARTON NOS caption; sampled row units/counts
-        remain authoritative and unchanged.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[3]: Retire obsolete source
-        carton-number range and its detached CARTON NOS caption; sampled row units/counts
-        remain authoritative and unchanged.
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]: Retire obsolete source
-        carton-number range and its detached CARTON NOS caption; sampled row units/counts
-        remain authoritative and unchanged.
+      anchor:documentPatch.cargoGroups[0].additionalInformation[1]: Reviewed obsolete standalone private
+        packing/capacity claim; synthetic-only removal preserves every current public target and source
+        document.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Retire obsolete source carton-number range
+        and its detached CARTON NOS caption; sampled row units/counts remain authoritative and unchanged.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: Retire obsolete source carton-number range
+        and its detached CARTON NOS caption; sampled row units/counts remain authoritative and unchanged.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]: Retire obsolete source carton-number range
+        and its detached CARTON NOS caption; sampled row units/counts remain authoritative and unchanged.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[3]: Retire obsolete source carton-number range
+        and its detached CARTON NOS caption; sampled row units/counts remain authoritative and unchanged.
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]: Retire obsolete source carton-number range
+        and its detached CARTON NOS caption; sampled row units/counts remain authoritative and unchanged.
     identifier_privacy:
       agent:vat:shipper: private
       agent:vat:notify: private
@@ -18543,6 +18885,7 @@ sources:
       agent:order_sheet_number: private
       agent:letter_of_credit_number: private
       agent:acid_number: private
+      agent:contract_number: private
   doc_ea28ee0b84bcec057cfc84b67bdd08ff9d840c3952e45ecc7772bf5359e86ee6:
     description_blocks:
       source_sha256: 9cd15244f4b6df4df737e957a491bcb02544c76ac38cc33e8f59b8ffeaf41f85
@@ -20515,6 +20858,12 @@ sources:
         - occurrence: 2
           text: '72533213773'
         paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        kind: identifier
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        kind: identifier
+        paths: []
       anchor:documentPatch.forwardingAndExportReferences[0]:
         kind: identifier
         paths: []
@@ -20525,9 +20874,9 @@ sources:
           text: '9000041596'
         paths: []
     delete:
-      anchor:documentPatch.cargoGroups[0].additionalInformation[0]: Reviewed obsolete
-        standalone private packing/capacity claim; synthetic-only removal preserves
-        every current public target and source document.
+      anchor:documentPatch.cargoGroups[0].additionalInformation[0]: Reviewed obsolete standalone private
+        packing/capacity claim; synthetic-only removal preserves every current public target and source
+        document.
     description_blocks:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
@@ -20544,18 +20893,19 @@ sources:
       agent:auxiliary:shipper_vat_base: private
       agent:auxiliary:shipper_vat_formatted_repeat: private
       agent:carrier_static:registration_identity: public
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: private
       anchor:documentPatch.forwardingAndExportReferences[0]: private
       anchor:documentPatch.forwardingAndExportReferences[1]: private
     lexical: []
     required_target_absences:
-      documentPatch.parties.consignee.contactDetails.phoneNumbers: The sole phone occurrence
-        belongs to the goods area, not the consignee block.
+      documentPatch.parties.consignee.contactDetails.phoneNumbers: The sole phone occurrence belongs
+        to the goods area, not the consignee block.
     retire:
-      agent:auxiliary:container_receipt_variant_0: The separately printed one-container
-        size receipt must share the sampled equipment categories.
-      agent:derived:package_number_words: Current exact scalar owners supersede this
-        wrapper; nonmutable punctuation, units and order framing remain literal. The
-        declared package noun has its own owner.
+      agent:auxiliary:container_receipt_variant_0: The separately printed one-container size receipt
+        must share the sampled equipment categories.
+      agent:derived:package_number_words: Current exact scalar owners supersede this wrapper; nonmutable
+        punctuation, units and order framing remain literal. The declared package noun has its own owner.
   doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691:
     description_blocks:
       source_sha256: da20439a5d95ac5e2f53f46a2b0c3e9561325ae14bb284af5bd35e734c3d6028
@@ -20658,6 +21008,9 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[1]:
         kind: identifier
         paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        kind: identifier
+        paths: []
     description_blocks:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
@@ -20676,6 +21029,8 @@ sources:
       agent:exporter:tax_id: private
       anchor:documentPatch.forwardingAndExportReferences[0]: private
       anchor:documentPatch.forwardingAndExportReferences[1]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: dependent
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: private
     identity_kinds:
       secondary_company: organization
     lexical: []
@@ -21096,126 +21451,134 @@ sources:
       agent:legal:original_count: public
       agent:signature:carrier_signatory: private
   doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09:
-    description_blocks:
-      source_sha256: 2b35c99fddd864fac21e220d0b45c806a83b8081cbc877ff9f1188abcf83acbb
-      fields:
-      - path: documentPatch.goodsItemDetails[0].description
-        spans:
-        - text: 'NE 30/1 100% COTTON COMBED COMPACT
-
-            YARN FOR KNITTING'
-          occurrence: 1
-    lexical: []
-    add: []
+    add:
+    - key: reviewed:shipper_mark
+      kind: organization
+      occurrences:
+      - occurrence: 2
+        text: VARDHMAN
+      paths: []
     bindings:
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+      agent:acid_reference:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: '4822863852025030041'
         paths: []
+      agent:egyptian_importer_tax_id:
+        kind: identifier
+        occurrences:
+        - occurrence: 2
+          text: '482286385'
+        paths: []
+      agent:foreign_exporter_id:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: C15130584
+        paths: []
+      agent:invoice_number:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: VTXL-25248
+        paths: []
+      agent:shipping_bill_number_0:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: '1235597'
+        paths: []
+      agent:shipping_bill_number_1:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: '1237849'
+        paths: []
+      agent:sub_reference_0:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: NZ260000138
+        paths: []
+      agent:sub_reference_1:
+        kind: identifier
+        occurrences:
+        - occurrence: 1
+          text: NZ260000140
+        paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         kind: other_text
         occurrences:
-        - text: ' C/NO. Y6P062062 -
+        - occurrence: 1
+          text: ' C/NO. Y6P062062 -
 
 
             Y6P062519'
-          occurrence: 1
-        - text: 'Y6P055274 -
+        - occurrence: 1
+          text: 'Y6P055274 -
 
             Y6P055731'
-          occurrence: 1
-      agent:acid_reference:
-        kind: identifier
         paths: []
-        occurrences:
-        - text: '4822863852025030041'
-          occurrence: 1
-      agent:egyptian_importer_tax_id:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: '482286385'
-          occurrence: 2
-      agent:foreign_exporter_id:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: C15130584
-          occurrence: 1
-      agent:invoice_number:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: VTXL-25248
-          occurrence: 1
-      agent:shipping_bill_number_0:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: '1235597'
-          occurrence: 1
-      agent:shipping_bill_number_1:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: '1237849'
-          occurrence: 1
-      agent:sub_reference_0:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: NZ260000138
-          occurrence: 1
-      agent:sub_reference_1:
-        kind: identifier
-        paths: []
-        occurrences:
-        - text: NZ260000140
-          occurrence: 1
     delete:
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Remove detached obsolete
-        source carton serial ranges (458 cartons each); sampled package counts/types
-        vary. Preserve VARDHMAN brand, printed goods origin, original real OCR and
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: Remove detached obsolete source carton
+        serial ranges (458 cartons each); sampled package counts/types vary. The bare VARDHMAN Marks
+        token repeats the private shipper, not an explicitly declared cargo brand; reviewed:shipper_mark
+        now owns its current generated identity. Preserve printed goods origin, original real OCR and
         all target fields.
-    variables:
-    - key: audit_deliveryagent_addressline_0
-      kind: postal
-      value: NO. 5 VICTOR BASSILY ST
-      meaning: 'Agent address crosses a page marker: exclude marker but retain street,
-        district/floor and city/country. Phone, fax and email remain outside. Generate
-        this component jointly with other components of this same party.'
-      required_literals: []
-      occurrences:
-      - text: No. 5 Victor Bassily St
-        occurrence: 1
-        presentation: text
-    - key: audit_deliveryagent_addressline_1
-      kind: postal
-      value: BAB SHARQ 2ND FLOOR ALEXANDRIA EGYPT
-      meaning: 'Agent address crosses a page marker: exclude marker but retain street,
-        district/floor and city/country. Phone, fax and email remain outside. Generate
-        this component jointly with other components of this same party.'
-      required_literals: []
-      occurrences:
-      - text: 'Bab Sharq 2nd Floor
+    description_blocks:
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - occurrence: 1
+          text: 'NE 30/1 100% COTTON COMBED COMPACT
 
-          Alexandria Egypt'
-        occurrence: 1
-        presentation: text
+            YARN FOR KNITTING'
+      source_sha256: 2b35c99fddd864fac21e220d0b45c806a83b8081cbc877ff9f1188abcf83acbb
+    identifier_privacy:
+      agent:acid_reference: private
+      agent:carrier_scac: public
+      agent:egyptian_importer_tax_id: private
+      agent:foreign_exporter_country_code: dependent
+      agent:foreign_exporter_id: private
+      agent:invoice_number: private
+      agent:original_bill_sequence: public
+      agent:shipping_bill_number_0: private
+      agent:shipping_bill_number_1: private
+      agent:sub_reference_0: private
+      agent:sub_reference_1: private
+      reviewed:shipper_mark: dependent
+    lexical: []
     private_contacts:
       generic_email_paths:
       - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
       replace_domain_paths:
       - documentPatch.parties.deliveryAgent.contactDetails.emailAddresses[0]
-    identifier_privacy:
-      agent:carrier_scac: public
-      agent:acid_reference: private
-      agent:egyptian_importer_tax_id: private
-      agent:foreign_exporter_id: private
-      agent:foreign_exporter_country_code: dependent
-      agent:sub_reference_0: private
-      agent:sub_reference_1: private
-      agent:invoice_number: private
-      agent:shipping_bill_number_0: private
-      agent:shipping_bill_number_1: private
-      agent:original_bill_sequence: public
+    variables:
+    - key: audit_deliveryagent_addressline_0
+      kind: postal
+      meaning: 'Agent address crosses a page marker: exclude marker but retain street, district/floor
+        and city/country. Phone, fax and email remain outside. Generate this component jointly with
+        other components of this same party.'
+      occurrences:
+      - occurrence: 1
+        presentation: text
+        text: No. 5 Victor Bassily St
+      required_literals: []
+      value: NO. 5 VICTOR BASSILY ST
+    - key: audit_deliveryagent_addressline_1
+      kind: postal
+      meaning: 'Agent address crosses a page marker: exclude marker but retain street, district/floor
+        and city/country. Phone, fax and email remain outside. Generate this component jointly with
+        other components of this same party.'
+      occurrences:
+      - occurrence: 1
+        presentation: text
+        text: 'Bab Sharq 2nd Floor
+
+          Alexandria Egypt'
+      required_literals: []
+      value: BAB SHARQ 2ND FLOOR ALEXANDRIA EGYPT
   doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e:
     add: []
     bindings:
@@ -21357,9 +21720,8 @@ sources:
           occurrence: 1
     lexical: []
     retire:
-      anchor:documentPatch.parties.shipper.name: Primary and represented identities
-        have separate exact lexical owners; the old compound/multi-actor target binding
-        is retired.
+      anchor:documentPatch.parties.shipper.name: Primary and represented identities have separate exact
+        lexical owners; the old compound/multi-actor target binding is retired.
     add: []
     measure_owners:
       agent:gross_weight:container:0:
@@ -21468,6 +21830,9 @@ sources:
           occurrence: 1
         - text: '51106625050012'
           occurrence: 2
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        kind: identifier
+        paths: []
     identity_kinds:
       v019: organization_with_proprietor
     related_actors:
@@ -21490,6 +21855,8 @@ sources:
       agent:foreign_exporter_country_code: public
       agent:footer_revision_code: public
       agent:footer_document_code: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]: dependent
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
   doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e:
     description_blocks:
       source_sha256: 4a7f0b7476c056518c17cddff1556f0beb8ea4fd8c7e19c6cb2ccf019f7d4d63
@@ -21838,8 +22205,7 @@ sources:
         - documentPatch.route.finalDestination.name
         - documentPatch.goodsItemDetails[0].handlingInstructions[0]
         occurrences:
-        - text: CONSOLIDATED CARGO IN TRANSIT TO MERGHEM BONDED WAREHOUSE ON CONSIGNEE'S’
-            RISK AND ACCOUNT
+        - text: CONSOLIDATED CARGO IN TRANSIT TO MERGHEM BONDED WAREHOUSE ON CONSIGNEE'S’ RISK AND ACCOUNT
           occurrence: 1
       f8:
         paths:
@@ -21853,10 +22219,9 @@ sources:
           occurrence: 1
     dependent_text:
     - path: documentPatch.goodsItemDetails[0].handlingInstructions[0]
-      source: CONSOLIDATED CARGO IN TRANSIT TO MERGHEM BONDED WAREHOUSE ON CONSIGNEE'S’
-        RISK AND ACCOUNT
-      expression: CONSOLIDATED CARGO IN TRANSIT TO {documentPatch.route.finalDestination.name}
-        BONDED WAREHOUSE ON CONSIGNEE'S’ RISK AND ACCOUNT
+      source: CONSOLIDATED CARGO IN TRANSIT TO MERGHEM BONDED WAREHOUSE ON CONSIGNEE'S’ RISK AND ACCOUNT
+      expression: CONSOLIDATED CARGO IN TRANSIT TO {documentPatch.route.finalDestination.name} BONDED
+        WAREHOUSE ON CONSIGNEE'S’ RISK AND ACCOUNT
     add:
     - key: private_reference:03ec98d6d8e2
       kind: identifier
@@ -21864,123 +22229,144 @@ sources:
       occurrences:
       - text: '5796821292025110010'
         occurrence: 1
+    - key: reviewed:shipping_bill_number
+      kind: identifier
+      paths: []
+      occurrences:
+      - text: '8005656'
+        occurrence: 1
     identifier_privacy:
       private_reference:03ec98d6d8e2: private
+      reviewed:shipping_bill_number: private
   doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675:
+    add:
+    - key: audit:retired_private_packing
+      kind: other_text
+      occurrences:
+      - occurrence: 1
+        text: 3 PLTS = 67CTNS
+      paths: []
+    - key: audit:retired_private_carton_range
+      kind: other_text
+      occurrences:
+      - occurrence: 1
+        text: 'C/NO: 1-67'
+      paths: []
+    - key: private_reference:7a99e0980793
+      kind: identifier
+      occurrences:
+      - occurrence: 1
+        text: '84899112'
+      - occurrence: 2
+        text: '84899112'
+      paths: []
+    - key: private_reference:b40df7167028
+      kind: identifier
+      occurrences:
+      - occurrence: 1
+        text: '4134679102025081123'
+      paths: []
+    - key: private_reference:bcc640a023f6
+      kind: identifier
+      occurrences:
+      - occurrence: 1
+        text: 413-467-910
+      - occurrence: 2
+        text: '413467910'
+      paths: []
+    - key: private_reference:c98be83ace45
+      kind: identifier
+      occurrences:
+      - occurrence: 1
+        text: '25070188'
+      paths: []
+    - key: reviewed:marks_purchase_order
+      kind: identifier
+      occurrences:
+      - occurrence: 1
+        text: '3094389363'
+      paths: []
+    - key: reviewed:consignee_mark
+      kind: organization
+      occurrences:
+      - occurrence: 1
+        text: SEEG
+      paths: []
+    delete:
+      audit:retired_private_carton_range: Retire the old inner-carton range paired with the retired
+        67-carton private packing statement; no public marks target exists.
+      audit:retired_private_packing: Retire detached unlabelled old inner-packing statement in synthetic
+        descendants; public sampled quantity/type remains in its owned quantity and total fields.
     description_blocks:
-      source_sha256: e0134d0affec5a3e9fc84f3b4766c0fba648286799217ed8b8299625d1d6df9c
       fields:
       - path: documentPatch.goodsItemDetails[0].description
         spans:
-        - text: AC POWER CORD
-          occurrence: 1
+        - occurrence: 1
+          text: AC POWER CORD
+      source_sha256: e0134d0affec5a3e9fc84f3b4766c0fba648286799217ed8b8299625d1d6df9c
+    identifier_privacy:
+      private_reference:7a99e0980793: private
+      private_reference:b40df7167028: private
+      private_reference:bcc640a023f6: private
+      private_reference:c98be83ace45: private
+      reviewed:consignee_mark: dependent
+      reviewed:marks_purchase_order: private
     lexical:
     - key: f11
       kind: postal
-      paths:
-      - documentPatch.parties.consignee.addressLine
       occurrences:
-      - text: 'PIECE NO.98, ENGINEERING SECTOR
+      - occurrence: 1
+        text: 'PIECE NO.98, ENGINEERING SECTOR
 
           KOM ABU RADI INDUSTRIAL ZONE,
 
           AL WASTA, BENI SUEF, EGYPT'
-        occurrence: 1
+      paths:
+      - documentPatch.parties.consignee.addressLine
     - key: f12
       kind: name
+      occurrences:
+      - occurrence: 1
+        text: SAMSUNG ELECTRONICS EGYPT S.A.E
       paths:
       - documentPatch.parties.consignee.name
-      occurrences:
-      - text: SAMSUNG ELECTRONICS EGYPT S.A.E
-        occurrence: 1
     - key: f13
       kind: postal
-      paths:
-      - documentPatch.parties.notifyParties[0].addressLine
       occurrences:
-      - text: '10F-1, NO.399, REIKWANG RD., NEIHU DIST
+      - occurrence: 1
+        text: '10F-1, NO.399, REIKWANG RD., NEIHU DIST
 
           TAIPEI, TAIWAN, R.O.C, TW'
-        occurrence: 1
+      paths:
+      - documentPatch.parties.notifyParties[0].addressLine
     - key: f15
       kind: name
+      occurrences:
+      - occurrence: 1
+        text: SAMSUNG ELECTRONICS TAIWAN CO LTD
       paths:
       - documentPatch.parties.notifyParties[0].name
-      occurrences:
-      - text: SAMSUNG ELECTRONICS TAIWAN CO LTD
-        occurrence: 1
     - key: f16
       kind: postal
-      paths:
-      - documentPatch.parties.shipper.addressLine
       occurrences:
-      - text: '50, DINGHUROAD, TAHUA VILLAGE,
+      - occurrence: 1
+        text: '50, DINGHUROAD, TAHUA VILLAGE,
 
           GUISHAN DIST, TAOYUAN CITY 33378
 
           TAIWAN, CHINA'
-        occurrence: 1
+      paths:
+      - documentPatch.parties.shipper.addressLine
     - key: f17
       kind: name
+      occurrences:
+      - occurrence: 1
+        text: I-SHENG ELECTRIC WIRE & CABLE CO LTD
       paths:
       - documentPatch.parties.shipper.name
-      occurrences:
-      - text: I-SHENG ELECTRIC WIRE & CABLE CO LTD
-        occurrence: 1
     surfaces:
       f4:
         expression: '{documentPatch.freight.paymentArrangement}'
-    add:
-    - key: audit:retired_private_packing
-      paths: []
-      kind: other_text
-      occurrences:
-      - text: 3 PLTS = 67CTNS
-        occurrence: 1
-    - key: audit:retired_private_carton_range
-      paths: []
-      kind: other_text
-      occurrences:
-      - text: 'C/NO: 1-67'
-        occurrence: 1
-    - key: private_reference:7a99e0980793
-      kind: identifier
-      paths: []
-      occurrences:
-      - text: '84899112'
-        occurrence: 1
-      - text: '84899112'
-        occurrence: 2
-    - key: private_reference:b40df7167028
-      kind: identifier
-      paths: []
-      occurrences:
-      - text: '4134679102025081123'
-        occurrence: 1
-    - key: private_reference:bcc640a023f6
-      kind: identifier
-      paths: []
-      occurrences:
-      - text: 413-467-910
-        occurrence: 1
-    - key: private_reference:c98be83ace45
-      kind: identifier
-      paths: []
-      occurrences:
-      - text: '25070188'
-        occurrence: 1
-    delete:
-      audit:retired_private_packing: Retire detached unlabelled old inner-packing
-        statement in synthetic descendants; public sampled quantity/type remains in
-        its owned quantity and total fields.
-      audit:retired_private_carton_range: Retire the old inner-carton range paired
-        with the retired 67-carton private packing statement; no public marks target
-        exists.
-    identifier_privacy:
-      private_reference:bcc640a023f6: private
-      private_reference:7a99e0980793: private
-      private_reference:c98be83ace45: private
-      private_reference:b40df7167028: private
   doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934:
     description_blocks:
       source_sha256: 20cc47220a88118e85cba2dd09ef2d2037fe38744c1a9f90acf8df030ae59583
@@ -23360,6 +23746,24 @@ sources:
           source_unit: CTNS
   doc_16386c0aa2b17689bc1c50255197ae82cc63fc3e749ae7b8581a691312390b57:
     lexical: []
+    variables:
+    - key: privacy_invoice_company
+      kind: name
+      value: SAMSUNG SDS GLOBAL
+      meaning: Source-only freight-charge invoice organization, repeated in three
+        charge columns. Separate from ALSO NOTIFY SAMSUNG SDS EGYPT and all extraction
+        party identities; generate one independent organization and reuse it.
+      required_literals: []
+      occurrences:
+      - text: SAMSUNG SDS GLOBAL
+        occurrence: 1
+        presentation: text
+      - text: SAMSUNG SDS GLOBAL
+        occurrence: 2
+        presentation: text
+      - text: SAMSUNG SDS GLOBAL
+        occurrence: 3
+        presentation: text
     description_blocks:
       source_sha256: 173bf5895b5a6a1468d841477383255909a9a7013315a45d54684cac742155e0
       fields:
@@ -23431,12 +23835,17 @@ sources:
       - text: '731'
         occurrence: 1
     related_actors:
+      privacy_invoice_company:
+        context_party: documentPatch.parties.shipper
+        relationship: invoice_party
       related_name:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
       related_postal:
         context_party: documentPatch.parties.shipper
         relationship: on_behalf
+    identity_kinds:
+      privacy_invoice_company: organization
     delete:
       closed_notify_country_suffix: Obsolete documentary country alias/code suffix;
         complete postal owner supplies the sampled country once.
@@ -24192,6 +24601,12 @@ sources:
         - occurrence: 1
           text: '473112345'
         paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        kind: other_text
+        occurrences:
+        - occurrence: 1
+          text: CETYL-STEARYL ALCOHOL
+        paths: []
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
         kind: identifier
         occurrences:
@@ -24240,29 +24655,28 @@ sources:
         context_party: documentPatch.parties.shipper
         relationship: care_of
     retire:
-      agent:package_gross_weight: These are per-bag capacities explicitly printed
-        under MARKING, not shipment totals. Their literal capacities are non-target
-        context, not sampled gross/net facts.
-      agent:package_net_weight: These are per-bag capacities explicitly printed under
-        MARKING, not shipment totals. Their literal capacities are non-target context,
-        not sampled gross/net facts.
-      agent:supplier_address: The reviewed source-only supplier office now has its
-        own generated postal lexical owner; a stale auxiliary natural-text binding
-        must not retain private premises.
-      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Two complete
-        independently printed telephone numbers were merged into one old scalar. The
-        reviewed separate phone owners retain the literal hyphen separator and printed
-        prefixes.
-      anchor:documentPatch.parties.shipper.address: The genuine care-of name and postal
-        address are separately mutable lexical components; static C/O framing remains
-        in the target expression.
+      agent:package_gross_weight: These are per-bag capacities explicitly printed under MARKING, not
+        shipment totals. Their literal capacities are non-target context, not sampled gross/net facts.
+      agent:package_net_weight: These are per-bag capacities explicitly printed under MARKING, not shipment
+        totals. Their literal capacities are non-target context, not sampled gross/net facts.
+      agent:supplier_address: The reviewed source-only supplier office now has its own generated postal
+        lexical owner; a stale auxiliary natural-text binding must not retain private premises.
+      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]: Two complete independently
+        printed telephone numbers were merged into one old scalar. The reviewed separate phone owners
+        retain the literal hyphen separator and printed prefixes.
+      anchor:documentPatch.parties.shipper.address: The genuine care-of name and postal address are
+        separately mutable lexical components; static C/O framing remains in the target expression.
+    surfaces:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        product_reference:
+          goods_index: 0
     variables:
     - key: privacy_supplier_office
       kind: postal
-      meaning: Source-only Malaysian postal office of the existing SUPPLIER identity
-        generated by shipper name v010. This is not its separately printed C/O routing
-        address and not a new actor/name/party label. Postal text only; replace private
-        premises and retain the explicit Petaling Jaya, Malaysia office context.
+      meaning: Source-only Malaysian postal office of the existing SUPPLIER identity generated by shipper
+        name v010. This is not its separately printed C/O routing address and not a new actor/name/party
+        label. Postal text only; replace private premises and retain the explicit Petaling Jaya, Malaysia
+        office context.
       occurrences:
       - occurrence: 1
         presentation: text
@@ -24272,8 +24686,8 @@ sources:
 
           PETALING JAYA, SELANGOR, MALAYSIA.'
       required_literals: []
-      value: SUITE 1286, BLOCK A1 LEVEL 12, LEISURE COMMERCE SQUARE JALAN PJS 8/9,
-        46150 PETALING JAYA, SELANGOR, MALAYSIA.
+      value: SUITE 1286, BLOCK A1 LEVEL 12, LEISURE COMMERCE SQUARE JALAN PJS 8/9, 46150 PETALING JAYA,
+        SELANGOR, MALAYSIA.
   doc_6ba2f406c06f73af60c2cbc8eded47c563a6c9e8383be9603e42bb759f753c26:
     add:
     - key: notify_contact_name
@@ -25291,6 +25705,12 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[0]:
         kind: identifier
         paths: []
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        kind: identifier
+        paths: []
+        occurrences:
+        - text: MPME
+          occurrence: 1
     description_blocks:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
@@ -25306,6 +25726,7 @@ sources:
       agent:shipment:voyage_number:page2: public
       agent:shipment:voyage_number:page3: public
       anchor:documentPatch.forwardingAndExportReferences[0]: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
     lexical: []
     surfaces:
       agent:cargo:measurement:
@@ -26453,13 +26874,12 @@ sources:
       anchor:documentPatch.route.portOfLoading.country:
         paths:
         - documentPatch.route.portOfLoading.country
-        - documentPatch.placeOfIssue.country
     delete:
-      agent:cargo_measurement_value: Omit the complete unlabelled ADMT commercial qualifier
-        in synthetic descendants; no inference or conversion to gross/net shipment weight.
-      reviewed:auxiliary_contained_packs: Synthetic-only omission of complete unlabelled
-        secondary pack qualifier; all public outer counts and allocations are retained
-        and cast. No inferred fractional ratio.
+      agent:cargo_measurement_value: Omit the complete unlabelled ADMT commercial qualifier in synthetic
+        descendants; no inference or conversion to gross/net shipment weight.
+      reviewed:auxiliary_contained_packs: Synthetic-only omission of complete unlabelled secondary pack
+        qualifier; all public outer counts and allocations are retained and cast. No inferred fractional
+        ratio.
     description_blocks:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
@@ -26635,10 +27055,13 @@ sources:
         row: 9
         unit: cubic_metre
     retire:
-      agent:cargo_measurement_unit: Complete auxiliary ADMT phrase has one explicit
-        synthetic-only omission owner.
-      agent:package_summary_composite: Separate reviewed outer count, outer noun and
-        complete private-contained-qualifier omission replace the historical composite.
+      agent:cargo_measurement_unit: Complete auxiliary ADMT phrase has one explicit synthetic-only omission
+        owner.
+      agent:package_summary_composite: Separate reviewed outer count, outer noun and complete private-contained-qualifier
+        omission replace the historical composite.
+    required_target_absences:
+      documentPatch.placeOfIssue.country: Issue cell prints only The Woodlands; loading-country and
+        issuer identity are different roles.
   doc_c08ce779153fbfdef4e806602b3ac37c5fe2ec23aa89a05b052afdbf5b39a526:
     lexical: []
     description_blocks:
@@ -27072,25 +27495,16 @@ sources:
       anchor:documentPatch.freight.paymentPlace.name:
         paths:
         - documentPatch.freight.paymentPlace.name
-        - documentPatch.freight.paymentPlace.country
-        - documentPatch.placeOfIssue.country
-        - documentPatch.route.portOfLoading.country
       anchor:documentPatch.placeOfIssue.name:
         paths:
         - documentPatch.placeOfIssue.name
-        - documentPatch.freight.paymentPlace.country
-        - documentPatch.placeOfIssue.country
-        - documentPatch.route.portOfLoading.country
       anchor:documentPatch.route.portOfLoading.name:
         paths:
         - documentPatch.route.portOfLoading.name
-        - documentPatch.freight.paymentPlace.country
-        - documentPatch.placeOfIssue.country
-        - documentPatch.route.portOfLoading.country
     delete:
-      reviewed:phantom_route_trio: Omit exact phantom duplicate header/value/header
-        confirmed absent from the source PDF; original real OCR/targets remain unchanged
-        and actual port cells remain owned.
+      reviewed:phantom_route_trio: Omit exact phantom duplicate header/value/header confirmed absent
+        from the source PDF; original real OCR/targets remain unchanged and actual port cells remain
+        owned.
     description_blocks:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
@@ -27136,13 +27550,12 @@ sources:
       - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[1]
       - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[2]
     retire:
-      agent:derived:package_quantity_words: Exact current core(s) supersede the old
-        wrapper; static punctuation/unit/order framing remains in source. Package noun,
-        when present, has its own current category owner.
-      agent:source:route:port_of_loading_variant: PDF and measured layout show no extra
-        upper route cell; the first flattened POL/ALEXANDRIA/POD trio is a phantom OCR
-        repetition, owned as one synthetic-only omission. Actual lower route cells stay
-        intact.
+      agent:derived:package_quantity_words: Exact current core(s) supersede the old wrapper; static
+        punctuation/unit/order framing remains in source. Package noun, when present, has its own current
+        category owner.
+      agent:source:route:port_of_loading_variant: PDF and measured layout show no extra upper route
+        cell; the first flattened POL/ALEXANDRIA/POD trio is a phantom OCR repetition, owned as one
+        synthetic-only omission. Actual lower route cells stay intact.
     tare_baselines:
       agent:source:cargo:tare_3700:
         kg: '3700'
@@ -27164,6 +27577,13 @@ sources:
       agent:source:cargo:tare_total:
       - 0
       - 1
+    required_target_absences:
+      documentPatch.placeOfIssue.country: One printed SINGAPORE token supplies the locality name only,
+        not a second country component.
+      documentPatch.freight.paymentPlace.country: One printed SINGAPORE token supplies the locality
+        name only, not a second country component.
+      documentPatch.route.portOfLoading.country: One printed SINGAPORE token supplies the locality name
+        only, not a second country component.
   doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f:
     lexical: []
     description_blocks:
@@ -27904,6 +28324,12 @@ sources:
 
           GIZA, EGYPT)'
         occurrence: 1
+    - key: current:opaque_shipping_mark_code
+      kind: identifier
+      paths: []
+      occurrences:
+      - text: '2973'
+        occurrence: 1
     delete:
       reviewed:private_consignee_postal: Root-approved complete synthetic-only retirement
         of a redundant remote postal note; preserve the named consignee, its direct
@@ -27916,6 +28342,7 @@ sources:
       agent:replacement:cargo:marks_and_origin:
         expression: MADE IN {documentPatch.goodsItemDetails[0].origin.name}
     identifier_privacy:
+      current:opaque_shipping_mark_code: private
       agent:aux:booking_reference: private
       agent:aux:shipper_reference: private
       agent:customs:acid_reference: private
@@ -28471,36 +28898,53 @@ sources:
     identifier_privacy:
       agent:party:consignee:tax_id: private
   doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5:
-    retire:
-      agent:gross_weight_printed: Exact current core(s) supersede the old wrapper;
-        static punctuation/unit/order framing remains in source. Package noun, when
-        present, has its own current category owner.
-    lexical: []
-    description_blocks:
-      source_sha256: a51fbad87822abdff5e75e795606fcf1b3d0d51e470e029fe244c02ac367ca2f
-      fields:
-      - path: documentPatch.goodsItemDetails[0].description
-        spans:
-        - text: 'USED UNPACKED VEHICLE (S)
-
-            MERCEDES BENZ TRUCK'
-          occurrence: 1
+    add:
+    - key: declared_package_type
+      kind: package
+      occurrences:
+      - occurrence: 1
+        text: Units
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
     bindings:
       agent:acid_number:
         kind: identifier
-        paths: []
         occurrences:
-        - text: '5945051862025050012'
-          occurrence: 1
+        - occurrence: 1
+          text: '5945051862025050012'
+        paths: []
+      anchor:documentPatch.cargoGroups[0].description:
+        kind: other_text
+        occurrences:
+        - occurrence: 1
+          text: MERCEDES BENZ TRUCK
+        paths: []
       anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         kind: identifier
-        paths: []
         occurrences:
-        - text: WDF9634031B995947
-          occurrence: 1
+        - occurrence: 1
+          text: WDF9634031B995947
+        paths: []
+    description_blocks:
+      fields:
+      - path: documentPatch.goodsItemDetails[0].description
+        spans:
+        - occurrence: 1
+          text: 'USED UNPACKED VEHICLE (S)
+
+            MERCEDES BENZ TRUCK'
+      source_sha256: a51fbad87822abdff5e75e795606fcf1b3d0d51e470e029fe244c02ac367ca2f
     identifier_privacy:
-      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
       agent:acid_number: private
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]: private
+    lexical: []
+    retire:
+      agent:gross_weight_printed: Exact current core(s) supersede the old wrapper; static punctuation/unit/order
+        framing remains in source. Package noun, when present, has its own current category owner.
+    surfaces:
+      anchor:documentPatch.cargoGroups[0].description:
+        product_reference:
+          goods_index: 0
   doc_b5b6f81b1369aded3aff5e99c76d3c32d7e90c5fa0e2c5cf4584c74db17d9f55:
     description_blocks:
       source_sha256: 950e54f2941ef73b52df54033f3795793f63a7c04f9f2e669afa9f6e34938166
@@ -29506,6 +29950,26 @@ sources:
             160 DRUMS X 85 KGS EACH DRUM WITH PALLETS'
           occurrence: 1
     bindings:
+      anchor:documentPatch.cargoPackages[0].quantity:
+        occurrences:
+        - text: '160'
+          occurrence: 3
+        - text: '160'
+          occurrence: 4
+        - text: '160'
+          occurrence: 5
+        - text: '160'
+          occurrence: 7
+      anchor:documentPatch.cargoPackages[0].typeCategory:
+        occurrences:
+        - text: FIBRE DRUMS
+          occurrence: 1
+        - text: FIBRE DRUMS
+          occurrence: 2
+        - text: FIBRE DRUMS
+          occurrence: 3
+        - text: FIBRE DRUMS
+          occurrence: 4
       anchor:documentPatch.cargoGroups[0].dangerousGoods[0].flashPoint.packingGroupCategory:
         paths:
         - documentPatch.goodsItemDetails[0].dangerousGoods[0].packingGroupCategory
@@ -30035,7 +30499,7 @@ sources:
         - documentPatch.goodsItemDetails[0].dangerousGoods[0].packingGroupCategory
       anchor:documentPatch.parties.notifyParties[0].contactDetails.phoneNumbers[0]:
         occurrences:
-        - text: 002 0554501261
+        - text: 002 0554501261/2
           occurrence: 1
       anchor:documentPatch.cargoGroups[0].dangerousGoods[0].hazardCategory:
         occurrences:
@@ -30052,8 +30516,8 @@ sources:
       agent:party:notify:0:fax: dependent
       anchor:documentPatch.cargoGroups[0].additionalInformation[0]: dependent
     retire:
-      agent:container:0:equipment-receipt: The reviewed40EC OCR alias is one type
-        cell. Separate the literal count from its type owner rather than ask the composite-receipt
+      agent:container:0:equipment-receipt: The reviewed40EC OCR alias is one type cell.
+        Separate the literal count from its type owner rather than ask the composite-receipt
         parser to infer EC.
     description_blocks:
       source_sha256: 73d455918e5bad3c7312ff8f597035fdd96c4726ddd9614a7bba8e4f7844ce22
@@ -30121,7 +30585,11 @@ sources:
       extra_vat_reference: private
       acid: private
       aes: private
-    surfaces: {}
+    surfaces:
+      reviewed_volume_cf:
+        measure_path: documentPatch.goodsItemDetails[0].volume
+        render_unit: cubic_foot
+        canonical_unit_text: CM
     private_contacts:
       email_paths:
       - documentPatch.parties.consignee.contactDetails.emailAddresses[0]
@@ -30154,15 +30622,21 @@ sources:
 
         '
       count: 1
-      reason: Detached source-formulation environmental wording is not a sampled property;
-        the product passage has its own owner.
+      reason: Detached source-formulation environmental wording is not a sampled property; the product
+        passage has its own owner.
     - key: inconsistent_gross_lb_alias
       source_sha256: 48ccf6e3bb370ac64c62338441acd22e891a0cfa4f42f5af9d9897453367b6a4
       quote: 950.006 LB
       count: 1
-      reason: 430.920kg and950.006lb have disjoint source precision intervals. Preserve
-        the source-grounded kg target and omit only this non-target inconsistent converted
-        alias from synthesized descendants.
+      reason: 430.920kg and950.006lb have disjoint source precision intervals. Preserve the source-grounded
+        kg target and omit only this non-target inconsistent converted alias from synthesized descendants.
+    add:
+    - key: reviewed_volume_cf
+      kind: decimal_measurement
+      paths: []
+      occurrences:
+      - text: '44.461'
+        occurrence: 1
   doc_ab905fd40d2afadc45840dc00b569e510bfd6a1017218d16c2ce125ea38288a7:
     bindings:
       psn_top:
@@ -32317,7 +32791,11 @@ sources:
         - '%d/%m/%Y'
         - '%d/%m/%Y'
   doc_dfaddb83e0f53d0da5eb1899fbc8109015466f36dca3c034e7dc71632f8d7010:
-    bindings: {}
+    bindings:
+      deliveryAgent_phoneNumbers0:
+        occurrences:
+        - text: +20 3 484 20 33/108
+          occurrence: 1
     description_blocks:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
@@ -32993,6 +33471,14 @@ sources:
         date_path: documentPatch.shippedOnBoardDate
         format: '%d-%b-%y'
   doc_6cc8c295822b3bcf3c8f7ccb66986ebb9692b5a9a50a14b73e8d845b25bbb736:
+    add:
+    - key: declared_package_type
+      kind: package
+      occurrences:
+      - occurrence: 1
+        text: Units
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
     bindings: {}
     description_blocks:
       fields:
@@ -33017,12 +33503,11 @@ sources:
       - documentPatch.parties.notifyParties[0].contactDetails.emailAddresses[0]
       replace_domain_paths: []
     required_target_absences:
-      documentPatch.parties.consignee.contactDetails.emailAddresses: Root PDF review
-        confirms the asterisk mailbox is in cargo text; unchanged direct-consignee-contact
-        policy excludes this continuation. Notify's existing mailbox is independently
-        retained.
-      documentPatch.shippedOnBoardDate: Only issue/payment dates are printed; no dated
-        on-board role assertion.
+      documentPatch.parties.consignee.contactDetails.emailAddresses: Root PDF review confirms the asterisk
+        mailbox is in cargo text; unchanged direct-consignee-contact policy excludes this continuation.
+        Notify's existing mailbox is independently retained.
+      documentPatch.shippedOnBoardDate: Only issue/payment dates are printed; no dated on-board role
+        assertion.
     surfaces:
       date_issueDate:
         date_path: documentPatch.issueDate
@@ -33164,6 +33649,14 @@ sources:
         formats:
         - '%d-%b-%y'
   doc_d274be39fa08a3bd1a2500dc764acd91abcec16d7ed3daf301b0ffcbad2857fc:
+    add:
+    - key: declared_package_type
+      kind: package
+      paths:
+      - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory
+      occurrences:
+      - text: Units
+        occurrence: 1
     bindings: {}
     description_blocks:
       fields:

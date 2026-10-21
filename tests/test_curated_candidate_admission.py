@@ -2,10 +2,12 @@
 
 from copy import deepcopy
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from test_curated_scenarios import catalog, source_row
 
+from document_ocr.synthesis.country_presentations import Registry
 from document_ocr.synthesis.curated import SourceContract, digest
 from document_ocr.synthesis.curated_campaign import Campaign
 from document_ocr.synthesis.curated_phones import PhoneRenderingPolicy
@@ -98,6 +100,7 @@ def six_row_campaign():
     campaign.equipment_compatibility = {}
     campaign.phone_policy = PhoneRenderingPolicy()
     campaign._source_phone_country_codes = {}
+    campaign.country_registry = Registry.load(Path(__file__).resolve().parents[1])
     campaign.blueprint = lambda sid: blueprint
     campaign.vessels = ()
     return campaign, source, blueprint

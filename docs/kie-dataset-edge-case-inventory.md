@@ -1,8 +1,9 @@
 # Dataset edge-case inventory
 
-Working dataset: **R27**,
-`data/curated/mpci-bl-real600-synthetic7000-country-presentations-r27-positions-v1`.
-All subsequent cleanup stays in this directory until the next training run.
+Current working dataset: **R28**, `data/curated/mpci-bl-r28-positions-v1`.
+Earlier entries explicitly naming R27 describe that frozen historical dataset;
+their artifacts are not rewritten by R28 repairs. Subsequent work stays in R28
+unless the user explicitly authorizes another version.
 This inventory separates accepted unusual source presentations, optional cleanup,
 and unresolved annotation questions. An unusual value is not automatically a
 defect. Historical audit snapshots remain preserved.
@@ -88,3 +89,48 @@ group, which matters if validation is intended to be shipment-disjoint rather
 than merely document-disjoint.
 
 [Full comparison and OCR/PDF inspection links](kie-r27-failure-followup-and-validation-overlap-2026-10-16.md#shared-container-and-seal-a-real-split-independence-concern).
+
+## Opaque numeric Marks: scoped anonymization closures
+
+**EC-MARKS-001 — `978a3990`; resolved in R28, 2026-10-20.**
+
+The company name in `HANSA 2973 MADE ...` was already correctly regenerated.
+The user explicitly authorized anonymizing the opaque four-digit code without
+assigning it a private-reference/product subtype. All fourteen current R28
+synthetic records / twenty-four active-and-retained copies now have new
+format-preserving codes in the exact reviewed Marks occurrence. The source
+template has its own deterministic private identifier binding. Company/origin
+wording, targets and coordinates are unchanged; the already-anonymized real
+`NORVIK 7492` row is unchanged. Historical probe descendants remain historical,
+not silently rewritten or certified by this closure.
+
+**EC-MARKS-002 — `88bab156`; resolved in R28, 2026-10-20.**
+
+Source CUSTOMS/Marks lines print seven consecutive codes5464747–5464753, separate
+from product/HS wording, quantities, seals and container IDs. PDF review confirms
+opaque castable references; no more specific subtype or one-to-one container
+assignment is inferred. The current anonymized real record's6837291–6837297
+sequence remains unchanged. All twenty-one current R28 synthetic records /
+twenty-nine physical rows now use independently sampled same-width consecutive
+sequences excluding every original member. All seven template owners have
+private deterministic recipes sharing one new sequence base, including the
+continuation page. Targets and coordinate suffixes remain unchanged. Two fresh
+ordinary-production controls pass complete text/target/privacy/geometry review.
+
+[Original review history](analysis/r28-legacy-closure-20261019/REPORT.md#additional-notes-discovered-during-full-review)
+and [applied closure, exact scope and fresh controls](analysis/r28-held-branch-repair-20261020/marks/REPORT.md).
+The combined publisher independently verifies thirty-five Marks records plus
+two phone-target records; it does not imply universal anonymization beyond the
+reviewed inventory.
+
+## Inherited non-target geographic context
+
+**EC-CONTEXT-001 — `dfaddb83`; advisory, 2026-10-19.**
+
+Two phone-production controls retain source state/postcode suffixes`TX` and
+`CA92008-880` after sampled locality names. Name-only targets do not infer a
+country from them. Root treats these as non-target context under the user's
+flavor-text policy, not an extraction-label defect. Native findings remain
+preserved; the two controls have explicit inspection-only geometry rather than
+bypassing ordinary publication. No current R28input rewrite is made for this
+cosmetic context.

@@ -563,6 +563,48 @@ sources:
         format: source
   doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9:
     bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 0
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 1
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[2]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 2
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[3]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 3
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[4]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 4
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[5]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 5
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[6]:
+        identifier: private customs/shipping mark reference
+        format: source
+        canonical_identity: '5464747'
+        sequence_length: 7
+        sequence_offset: 6
       agent:acid_identifier:
         format: source
         identifier: private commercial/registration reference
@@ -4424,6 +4466,10 @@ sources:
         format: source
   doc_92bc5451eb186398e16b01e3f2a183c2c67205e3fd3f87cec9e6ee70d3266330:
     bindings:
+      agent:source:commercial:invoice_party:shipper:
+        target: documentPatch.parties.shipper.name
+      agent:source:commercial:invoice_party:consignee:
+        target: documentPatch.parties.consignee.name
       agent:source:commercial:customer_code:consignee:
         format: source
         identifier: private commercial/registration reference
@@ -4668,8 +4714,6 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[2]:
         format: source
         identifier: private commercial/export/customs reference
-      anchor:documentPatch.parties.consignee.contactDetails.phoneNumbers[0]:
-        phone: documentPatch.parties.consignee
     spans:
     - count: 1
       quote: EGYPT IMPORT IS FREE OUT
@@ -4868,6 +4912,12 @@ sources:
     spans: []
   doc_cdb684535e5e1f2bf7ae45beaa7ba581f3c85b6146889042872c7245a9347982:
     bindings:
+      agent:commercial:invoice_party:1:
+        target: documentPatch.parties.consignee.name
+      agent:commercial:row_invoice_party:0:
+        target: documentPatch.parties.consignee.name
+      agent:commercial:row_invoice_party:2:
+        target: documentPatch.parties.consignee.name
       agent:customs:vat_number:
         identifier: private commercial/registration reference
         format: source
@@ -5927,6 +5977,9 @@ sources:
     spans: []
   doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a:
     bindings:
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: private commercial/registration reference
+        format: source
       agent:customs:tax_id:
         identifier: private commercial/registration reference
         format: source
@@ -6374,6 +6427,9 @@ sources:
         identifier: private commercial/registration reference
         format: source
       agent:vat:shipper:
+        identifier: private commercial/registration reference
+        format: source
+      agent:contract_number:
         identifier: private commercial/registration reference
         format: source
   doc_ea28ee0b84bcec057cfc84b67bdd08ff9d840c3952e45ecc7772bf5359e86ee6:
@@ -7045,6 +7101,12 @@ sources:
       agent:auxiliary:shipper_vat_formatted_repeat:
         format: source
         identifier: private commercial/registration reference
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        format: source
+        identifier: private commercial/shipping-mark reference
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        format: source
+        identifier: private commercial/shipping-mark reference
       anchor:documentPatch.forwardingAndExportReferences[0]:
         format: source
         identifier: private commercial/export/customs reference
@@ -7063,10 +7125,10 @@ sources:
       value:
         text: bound to the destination
     - count: 1
-      quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
-        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1(one) month from the date of discharge.
+      quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law
+        No. 207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo
+        shall be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one)
+        month from the date of discharge.
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
   doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691:
@@ -7101,6 +7163,12 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[1]:
         format: source
         identifier: private commercial/export/customs reference
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        target: documentPatch.parties.shipper.name
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        package_range:
+          quantity_path: documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
+          source_quantity: 458
   doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed:
     bindings:
       agent:acid_reference:
@@ -7213,39 +7281,41 @@ sources:
         format: source
   doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09:
     bindings:
+      agent:acid_reference:
+        format: source
+        identifier: private commercial/registration reference
+      agent:destination_agent_fax:
+        phone: documentPatch.parties.deliveryAgent
+      agent:egyptian_importer_tax_id:
+        format: source
+        identifier: private commercial/registration reference
       agent:foreign_exporter_country:
         text: MAURITIUS
       agent:foreign_exporter_country_code:
         text: MU
-      agent:destination_agent_fax:
-        phone: documentPatch.parties.deliveryAgent
-      agent:acid_reference:
-        identifier: private commercial/registration reference
-        format: source
-      agent:egyptian_importer_tax_id:
-        identifier: private commercial/registration reference
-        format: source
       agent:foreign_exporter_id:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       agent:invoice_number:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       agent:shipping_bill_number_0:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       agent:shipping_bill_number_1:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       agent:sub_reference_0:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       agent:sub_reference_1:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
+      reviewed:shipper_mark:
+        target: documentPatch.parties.shipper.name
     spans:
-    - quote: Maersk line India Pvt Ltd
-      count: 1
+    - count: 1
+      quote: Maersk line India Pvt Ltd
       value:
         text: carrier
   doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e:
@@ -7317,6 +7387,11 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[0]:
         identifier: private commercial/registration reference
         format: source
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[1]:
+        target: documentPatch.parties.consignee.name
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: private shipping-mark reference
+        format: source
   doc_e8b80c83eda6255d7708d99913dca243970276a96ace1720bb5ffd80fa5b663e:
     bindings:
       private_reference:ac2df46e1cf6:
@@ -7375,35 +7450,43 @@ sources:
       private_reference:03ec98d6d8e2:
         identifier: private commercial/registration reference
         format: source
+      reviewed:shipping_bill_number:
+        identifier: private commercial/registration reference
+        format: source
     spans:
     - quote: CABLEX (EGYPT)
       count: 1
       value:
         target: documentPatch.parties.consignee.name
   doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675:
-    spans:
-    - quote: 'EXPORTER REGISTRATION COUNTRY: TAIWAN'
-      count: 1
-      value:
-        target: documentPatch.parties.notifyParties[0].country
-        prefix: 'EXPORTER REGISTRATION COUNTRY: '
-    - quote: 886-2-26568788
-      count: 1
-      value:
-        phone: documentPatch.parties.notifyParties[0]
     bindings:
       private_reference:7a99e0980793:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       private_reference:b40df7167028:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       private_reference:bcc640a023f6:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
       private_reference:c98be83ace45:
-        identifier: private commercial/registration reference
         format: source
+        identifier: private commercial/registration reference
+      reviewed:consignee_mark:
+        target: documentPatch.parties.consignee.name
+      reviewed:marks_purchase_order:
+        format: source
+        identifier: private commercial/shipping-mark reference
+    spans:
+    - count: 1
+      quote: 'EXPORTER REGISTRATION COUNTRY: TAIWAN'
+      value:
+        prefix: 'EXPORTER REGISTRATION COUNTRY: '
+        target: documentPatch.parties.notifyParties[0].country
+    - count: 1
+      quote: 886-2-26568788
+      value:
+        phone: documentPatch.parties.notifyParties[0]
   doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934:
     bindings:
       agent:reviewed:foreign_exporter:country_code:
@@ -8300,6 +8383,9 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[0]:
         format: source
         identifier: private commercial/export/customs reference
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
+        identifier: private organization-style shipping mark
+        format: source
   doc_8c54d9747c25cdec7c9c1f5f386a195ebb75a0dddead6e81994372a1f6be62a5:
     bindings:
       agent:booking_reference:
@@ -8812,6 +8898,9 @@ sources:
     spans: []
   doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c:
     bindings:
+      current:opaque_shipping_mark_code:
+        identifier: private opaque shipping mark reference
+        format: source
       agent:customs:acid_reference:
         identifier: private commercial/registration reference
         format: source
@@ -9093,6 +9182,21 @@ sources:
       fresh_aux_6_9:
         party_location: documentPatch.parties.shipper
         field: country
+    spans:
+    - quote: MARHABA TOWER, FOUAID ST. OFF HOREIYA ROAD
+      count: 1
+      value:
+        text: NAKHILA TOWER, RAHMAN ST. OFF SAFIYA ROAD
+    - quote: +20(3)391 - 3821
+      count: 1
+      value:
+        phone: source
+        country_code: EG
+    - quote: '+201099989431'
+      count: 1
+      value:
+        phone: source
+        country_code: EG
   doc_a3e3c1e3c3d3a24d554f0e5ce647e106c7557768da461671d85e2f9757998929:
     bindings:
       fresh_aux_0_1:
