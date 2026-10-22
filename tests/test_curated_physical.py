@@ -21,6 +21,7 @@ from document_ocr.synthesis.curated_physical import (
 )
 from document_ocr.synthesis.curated_scenarios import CandidateIncompatibility, SourceCapabilities
 from document_ocr.synthesis.curated_templates import (
+    RenderRegion,
     compile_sampling_blueprint,
     render_sampling_blueprint,
 )
@@ -202,6 +203,18 @@ def test_declared_foreign_unit_and_components_render_exact_conserving_measures(c
     assert row == original
 
 
+@pytest.mark.parametrize("kilograms,tonnes", [(669, "0.669"), (2967, "2.967"), (5580, "5.580")])
+def test_separately_owned_tonne_alias_retains_decimal_below_one_tonne(kilograms, tonnes):
+    row, blueprint, scenario, support = declared_measure_fixture()
+    for physical_row in scenario.provenance["physicalRows"]:
+        physical_row["capacity"]["payloadKg"] = "10000"
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["grossWeight"]["value"] = kilograms
+    plan = prepare_physical_render(blueprint, scenario, target, support=support)
+    assert plan.surface_values["total"] == [tonnes]
+    assert sum(Decimal(v[0]) for k, v in plan.surface_values.items() if k != "total") == kilograms
+
+
 @pytest.mark.parametrize(
     ("key", "field", "value", "message"),
     [
@@ -230,6 +243,67 @@ def test_declared_components_must_partition_one_total_and_cannot_be_container_ro
     # Uncertified second becomes an independent total and the contract fails,
     # rather than silently treating the unowned remainder as a component.
     with pytest.raises(ValueError):
+        prepare_physical_render(blueprint, scenario, row["target"], support=support)
+
+
+def reviewed_ocr_measure_fixture():
+    """An explicit PDF-reviewed numeral, not automatic OCR character guessing."""
+    from dataclasses import replace
+
+    row, blueprint, scenario, support = declared_measure_fixture()
+    source = blueprint.source.replace("PART A 10.00", "PART A B0.00")
+    bindings = deepcopy(blueprint.historical_bindings)
+    bindings["first"]["occurrences"][0]["source_text"] = "B0.00"
+    blueprint = replace(
+        blueprint,
+        source=source,
+        historical_bindings=bindings,
+        regions=tuple(
+            replace(region, source="B0.00") if region.key == "first" else region
+            for region in blueprint.regions
+        ),
+    )
+    blueprint.ownership_data["measure_owners"]["first"]["numeric_presentation"] = {
+        "source_sha256": digest(source.encode()),
+        "text": "10.00",
+        "reason": "Reviewed PDF establishes 10.00; original OCR misreads the first digit.",
+    }
+    return row, blueprint, scenario, support
+
+
+def test_reviewed_ocr_measure_uses_pinned_numeric_presentation_without_rewriting_source():
+    row, blueprint, scenario, support = reviewed_ocr_measure_fixture()
+    before = deepcopy(blueprint)
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["grossWeight"]["value"] = 12
+    plan = prepare_physical_render(blueprint, scenario, target, support=support)
+    assert plan.surface_values == {"total": ["0.012"], "first": ["4.00"], "second": ["8.00"]}
+    assert plan.receipt["reviewedNumericPresentations"] == {
+        "first": blueprint.ownership_data["measure_owners"]["first"]["numeric_presentation"]
+    }
+    rendered, _, _ = render_sampling_blueprint(
+        blueprint, target, plan.variable_values, surface_values=plan.surface_values
+    )
+    assert rendered == "TOTAL 0.012 MT\nPART A 4.00 KGS\nPART B 8.00 KGS\nPACKAGES 10\n"
+    assert blueprint == before
+    assert "PART A B0.00" in blueprint.source
+
+
+@pytest.mark.parametrize(
+    "field,value,message",
+    [
+        ("source_sha256", "0" * 64, "numeric presentation"),
+        ("reason", " ", "numeric presentation"),
+        ("text", "11.00", "does not print"),
+        ("text", "10.00 KGS", "numeric presentation"),
+        ("text", "10.00 20.00", "does not print"),
+        ("unknown", "x", "numeric presentation"),
+    ],
+)
+def test_reviewed_ocr_measure_rejects_stale_or_unproven_presentation(field, value, message):
+    row, blueprint, scenario, support = reviewed_ocr_measure_fixture()
+    blueprint.ownership_data["measure_owners"]["first"]["numeric_presentation"][field] = value
+    with pytest.raises(ValueError, match=message):
         prepare_physical_render(blueprint, scenario, row["target"], support=support)
 
 
@@ -357,6 +431,150 @@ def test_private_measures_are_donor_owned_and_do_not_invent_public_labels():
     assert plan.variable_values["total"] == "37"
     assert sum(Decimal(plan.variable_values[k]) for k in ("first", "second")) == 37
     assert plan.receipt["measures"]["grossWeight"]["method"] == "train_donor_private_measure"
+
+
+def test_unitless_kilogram_net_alias_shares_coarse_public_tonne_rounding():
+    from dataclasses import replace
+
+    from document_ocr.synthesis.curated_load_profiles import RegistryLoadProfile
+
+    row, blueprint, scenario, support = fixture()
+    source = blueprint.source + "NET 0.02 TONS\nNW: 20.000\n"
+    goods = row["target"]["documentPatch"]["goodsItemDetails"][0]
+    goods["netWeight"] = {"value": 0.02, "unit": "metric_tonne"}
+    goods["numberAndTypeOfPackages"][0]["typeCategory"] = "PACKAGE_BOX"
+    variable = dict(
+        key="net",
+        kind="mass",
+        value="0.02",
+        meaning="Printed net weight",
+        required_literals=[],
+        occurrences=[dict(text="0.02", occurrence=1, presentation="number")],
+    )
+    contract = blueprint.contract.model_copy(
+        update={
+            "variables": [
+                *blueprint.contract.variables,
+                blueprint.contract.variables[0].model_validate(variable),
+            ],
+            "targets": [
+                *blueprint.contract.targets,
+                blueprint.contract.targets[0].model_copy(
+                    update={"path": PREFIX + ".netWeight.value", "expression": "{net}"}
+                ),
+            ],
+        }
+    )
+    start = source.index("20.000")
+    alias = {
+        "logical_key": "net_alias",
+        "value_kind": "decimal_measurement",
+        "target_paths": [],
+        "occurrences": [{"source_text": "20.000", "byte_start": start, "byte_end": start + 6}],
+    }
+    blueprint = compile_sampling_blueprint(
+        {**row, "joinedRawText": source},
+        {"document_id": "source", "source_sha256": digest(source.encode()), "bindings": [alias]},
+        contract,
+    )
+    blueprint = replace(
+        blueprint,
+        ownership_data={
+            "measure_owners": {
+                "net_alias": {"measure": "netWeight", "baseline": "20", "unit": "kilogram"}
+            }
+        },
+    )
+    profile = RegistryLoadProfile(
+        id="net-alias-rounding",
+        hs_headings=("3926",),
+        form="articles",
+        package_category="PACKAGE_BOX",
+        unit_gross_kg="3.7",
+        unit_net_kg="2.6",
+        unit_volume_m3="0.45",
+        quantity_min=10,
+        quantity_max=10,
+        rationale="Independent facts; coarse tonne precision must also govern the bare alias.",
+    )
+    scenario.provenance.pop("donorDocumentId")
+    scenario.provenance.update(
+        registryLoadProfile=profile.model_dump(mode="json"),
+        explicitPhysicalFacts={
+            "grossWeight": {"value": "37.0", "unit": "kilogram"},
+            "netWeight": {"value": "26.0", "unit": "kilogram"},
+            "volume": {"value": "4.50", "unit": "cubic_metre"},
+        },
+    )
+    plan = prepare_physical_render(blueprint, scenario, row["target"], support=support)
+    assert plan.target["documentPatch"]["goodsItemDetails"][0]["netWeight"]["value"] == 0.03
+    assert plan.surface_values["net_alias"] == ["30.000"]
+    text, _, _ = render_sampling_blueprint(
+        blueprint, plan.target, plan.variable_values, surface_values=plan.surface_values
+    )
+    assert text.endswith("NET 0.03 TONS\nNW: 30.000\n")
+
+
+def test_private_unitless_volume_varies_without_adding_unit_or_public_label():
+    from dataclasses import replace
+
+    row, blueprint, scenario, support = fixture(public_mass=False)
+    source = blueprint.source + "MEASUREMENT\n3.720\n"
+    start = source.index("3.720")
+    key = "private_volume"
+    bindings = deepcopy(blueprint.historical_bindings)
+    bindings[key] = {
+        "value_kind": "decimal_measurement",
+        "target_paths": [],
+        "occurrences": [{"source_text": "3.720", "byte_start": start, "byte_end": start + 5}],
+    }
+    blueprint = replace(
+        blueprint,
+        source=source,
+        historical_bindings=bindings,
+        regions=(
+            *blueprint.regions,
+            RenderRegion(key, 0, start, start + 5, "3.720", (), "decimal_measurement"),
+        ),
+        ownership_data={
+            "measure_owners": {
+                key: {"measure": "volume", "baseline": "3.720", "unit": "cubic_metre"}
+            }
+        },
+    )
+    from document_ocr.synthesis.curated_load_profiles import RegistryLoadProfile
+
+    row["target"]["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0][
+        "typeCategory"
+    ] = "PACKAGE_BOX"
+    blueprint = replace(blueprint, target=deepcopy(row["target"]))
+    profile = RegistryLoadProfile(
+        id="private-volume-probe",
+        hs_headings=("3926",),
+        form="articles",
+        package_category="PACKAGE_BOX",
+        unit_gross_kg="3.7",
+        unit_net_kg="3",
+        unit_volume_m3="0.45",
+        quantity_min=10,
+        quantity_max=10,
+        rationale="Explicit independent shipment facts with an unprinted public volume unit.",
+    )
+    scenario.provenance.pop("donorDocumentId")
+    scenario.provenance["registryLoadProfile"] = profile.model_dump(mode="json")
+    scenario.provenance["explicitPhysicalFacts"] = {
+        "grossWeight": {"value": "37.0", "unit": "kilogram"},
+        "netWeight": {"value": "30", "unit": "kilogram"},
+        "volume": {"value": "4.50", "unit": "cubic_metre"},
+    }
+    plan = prepare_physical_render(blueprint, scenario, row["target"], support=support)
+    assert plan.surface_values[key] == ["4.500"]
+    assert "volume" not in plan.target["documentPatch"]["goodsItemDetails"][0]
+    text, _, _ = render_sampling_blueprint(
+        blueprint, plan.target, plan.variable_values, surface_values=plan.surface_values
+    )
+    assert text.endswith("MEASUREMENT\n4.500\n")
+    assert "CBM" not in text
 
 
 @pytest.mark.parametrize("printed_mass", ["grossWeight", "netWeight"])

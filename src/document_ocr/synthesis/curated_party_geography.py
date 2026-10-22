@@ -19,6 +19,10 @@ if TYPE_CHECKING:
     from document_ocr.synthesis.curated import SourceContract
 
 _COMPONENT = re.compile(r"\{([a-z][a-z0-9_]*)\}")
+_CARE_OF = re.compile(r"(?<!\w)(?:C\s*/\s*O|CARE\s+OF\b)", re.I)
+_CARE_OF_NAME = re.compile(
+    r"(?<!\w)(?:C\s*/\s*O|CARE\s+OF)\s*\{([a-z][a-z0-9_]*)\}", re.I
+)
 
 
 def postal_geography_expression(contract: SourceContract, expression: str) -> str:
@@ -70,6 +74,14 @@ def validate_postal_component_identities(
                 raise ValueError(
                     f"generated postal component {postal_key} repeats separately owned "
                     f"identity component {name_key}"
+                )
+    if any(match[1] in names for match in _CARE_OF_NAME.finditer(expression)):
+        source_values = {variable.key: variable.value for variable in contract.variables}
+        for key, text in postal.items():
+            if len(_CARE_OF.findall(text)) > len(_CARE_OF.findall(source_values[key])):
+                raise ValueError(
+                    f"generated postal component {key} introduces additional care-of routing; "
+                    "the recipient and its relationship framing are separately owned"
                 )
 
 

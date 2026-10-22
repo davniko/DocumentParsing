@@ -6,8 +6,18 @@ from types import SimpleNamespace
 import pytest
 
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
-from document_ocr.synthesis.curated import digest
-from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
+from document_ocr.synthesis.curated import digest, runner_call_key
+from document_ocr.synthesis.curated_publication import (
+    publish_campaign,
+    review_contract_hash,
+    review_request_hash,
+    review_runner_evidence,
+)
+from document_ocr.synthesis.curated_wording import (
+    RenderedReviewRequest,
+    rendered_review_prompt,
+    review_output_type,
+)
 from document_ocr.training.tasks import get_training_task
 
 
@@ -52,9 +62,79 @@ def campaign(tmp_path):
         "task_constraints": "task.json",
         "task_constraints_sha256": digest(constraints.read_bytes()),
     }
+    prompt_version = {sid: 1 for sid in rows}
+    provider = {"model": "fixture"}
+
+    def review_requests(sid, candidates):
+        sample_ids = tuple(candidate["documentId"] for candidate in candidates)
+        return (
+            RenderedReviewRequest(
+                sample_ids=sample_ids,
+                output_type=review_output_type(len(candidates)),
+                system=rendered_review_prompt("uppercase"),
+                prompt=f"fixture review request v{prompt_version[sid]}\n"
+                + sid
+                + "\n"
+                + "\n".join(sample_ids),
+            ),
+        )
+
+    def install_review_calls(sid, source_candidates, findings=()):
+        entries = []
+        for request in review_requests(sid, source_candidates):
+            native = {
+                f"s{index}": {
+                    "findings": [
+                        {key: value for key, value in finding.items() if key != "sample_id"}
+                        for finding in findings
+                        if finding["sample_id"] == sample_id
+                    ]
+                }
+                for index, sample_id in enumerate(request.sample_ids)
+            }
+            key = runner_call_key(
+                "rendered-review",
+                sid,
+                request.output_type,
+                request.system,
+                request.prompt,
+                provider,
+            )
+            write(
+                output / "calls" / f"rendered-review-{key}.json",
+                {
+                    "stage": "rendered-review",
+                    "identity": sid,
+                    "output": native,
+                    "error": None,
+                    "usage": {"requests": 1},
+                    "costStatus": "provider_reported",
+                    "messages": [{"kind": "fixture"}],
+                    "promptSha256": digest(request.prompt),
+                    "schemaSha256": digest(request.output_type.model_json_schema()),
+                },
+            )
+            pins, recorded = review_runner_evidence(
+                tmp_path, output, provider, sid, request
+            )
+            assert recorded == native
+            entries.append(
+                {
+                    "sampleIds": list(request.sample_ids),
+                    "sha256": review_request_hash(request),
+                    "callReceipts": pins,
+                }
+            )
+        return entries
+
+    def refresh_review(sid, source_candidates, findings=()):
+        prompt_version[sid] += 1
+        return install_review_calls(sid, source_candidates, findings)
+
     expected, replays = {}, []
     for sid in rows:
         candidates = {}
+        source_candidates = []
         for variant in (1, 2):
             sample_id = "syn_full_v7_" + digest([sid, 42, variant])[:24]
             text = f"NEW SHIPMENT {sid} {variant}\nCOUNTRY NETHERLANDS\n``` RAW BACKTICKS"
@@ -78,12 +158,14 @@ def campaign(tmp_path):
             write(output / "candidates" / f"{sample_id}.json", candidate)
             expected[sample_id] = deepcopy(candidate)
             candidates[sample_id] = digest(candidate)
+            source_candidates.append(candidate)
         write(
             output / "reviews" / f"{sid}.json",
             {
                 "sourceDocumentId": sid,
                 "candidateHashes": candidates,
                 "reviewContractSha256": review_contract_hash(2),
+                "reviewRequests": install_review_calls(sid, source_candidates),
                 "review": {"reviewed_ids": list(candidates), "findings": []},
             },
         )
@@ -98,8 +180,12 @@ def campaign(tmp_path):
         output=output,
         config=config,
         rows=rows,
-        calls=SimpleNamespace(spent=Decimal("0.0123")),
+        calls=SimpleNamespace(spent=Decimal("0.0123"), config={"provider": provider}),
         replay_candidate=replay,
+        review_requests=review_requests,
+        install_review_calls=install_review_calls,
+        refresh_review=refresh_review,
+        review_prompt_version=prompt_version,
         expected=expected,
         replays=replays,
     )
@@ -118,6 +204,11 @@ def add_finding(campaign, *, adjudicated=False):
         "correction": "Add the country",
     }
     receipt["review"]["findings"] = [finding]
+    receipt["reviewRequests"] = campaign.refresh_review(
+        sid,
+        [campaign.expected[sample] for sample in receipt["candidateHashes"]],
+        [finding],
+    )
     write(review_path, receipt)
     approval = {
         "sourceDocumentId": sid,
@@ -185,6 +276,11 @@ def test_uncertain_description_boundary_blocks_publication(campaign):
         evidence="NEW SHIPMENT",
         correction="Inspect the source layout and adjudicate the boundary.",
     )
+    receipt["reviewRequests"] = campaign.refresh_review(
+        sid,
+        [campaign.expected[sample] for sample in receipt["candidateHashes"]],
+        receipt["review"]["findings"],
+    )
     write(review_path, receipt)
     with pytest.raises(ValueError, match="missing publication prerequisite"):
         publish_campaign(campaign)
@@ -207,6 +303,9 @@ def test_publication_uses_exact_nonuniform_template_quotas(campaign):
     review["candidateHashes"].pop(removed)
     review["review"]["reviewed_ids"].remove(removed)
     review["reviewContractSha256"] = review_contract_hash(1)
+    review["reviewRequests"] = campaign.refresh_review(
+        sid, [campaign.expected[sample_id] for sample_id in review["candidateHashes"]]
+    )
     write(review_path, review)
     result = publish_campaign(campaign)
     assert result["expected"] == result["valid"] == 3
@@ -251,6 +350,67 @@ def test_stale_review_cannot_approve_a_current_candidate(campaign):
     receipt["candidateHashes"][next(iter(receipt["candidateHashes"]))] = "0" * 64
     write(path, receipt)
     with pytest.raises(ValueError, match="stale review"):
+        publish_campaign(campaign)
+
+
+def test_review_prompt_change_rejects_unchanged_candidates_until_fresh_review(campaign):
+    before = {sample_id: digest(candidate) for sample_id, candidate in campaign.expected.items()}
+    for sid in campaign.config["source_ids"]:
+        campaign.review_prompt_version[sid] += 1
+    with pytest.raises(ValueError, match="exact review request contract"):
+        publish_campaign(campaign)
+    sid = campaign.config["source_ids"][0]
+    path = campaign.output / "reviews" / f"{sid}.json"
+    forged = json.loads(path.read_text())
+    forged["reviewRequests"][0]["sha256"] = review_request_hash(
+        campaign.review_requests(
+            sid, [campaign.expected[sample] for sample in forged["candidateHashes"]]
+        )[0]
+    )
+    write(path, forged)
+    with pytest.raises(ValueError, match="missing native rendered-review Runner receipt"):
+        publish_campaign(campaign)
+    for sid in campaign.config["source_ids"]:
+        path = campaign.output / "reviews" / f"{sid}.json"
+        receipt = json.loads(path.read_text())
+        receipt["reviewRequests"] = campaign.install_review_calls(
+            sid, [campaign.expected[sample_id] for sample_id in receipt["candidateHashes"]]
+        )
+        write(path, receipt)
+    result = publish_campaign(campaign)
+    assert result["valid"] == len(before)
+    assert before == {
+        sample_id: digest(candidate) for sample_id, candidate in campaign.expected.items()
+    }
+
+
+def test_review_findings_cannot_be_edited_without_native_output(campaign):
+    sid = campaign.config["source_ids"][0]
+    path = campaign.output / "reviews" / f"{sid}.json"
+    receipt = json.loads(path.read_text())
+    receipt["review"]["findings"] = [
+        {
+            "sample_id": receipt["review"]["reviewed_ids"][0],
+            "field": "addressLine",
+            "problem": "A fabricated concern",
+            "evidence": "COUNTRY NETHERLANDS",
+            "correction": "Ignore the field",
+        }
+    ]
+    write(path, receipt)
+    with pytest.raises(ValueError, match="review findings differ from native Runner output"):
+        publish_campaign(campaign)
+
+
+def test_review_call_receipt_mutation_breaks_immutable_pin(campaign):
+    sid = campaign.config["source_ids"][0]
+    review = json.loads((campaign.output / "reviews" / f"{sid}.json").read_text())
+    pin = review["reviewRequests"][0]["callReceipts"][0]
+    path = campaign.root / pin["path"]
+    receipt = json.loads(path.read_text())
+    receipt["messages"].append({"kind": "unrecorded mutation"})
+    write(path, receipt)
+    with pytest.raises(ValueError, match="Runner receipt pin differs"):
         publish_campaign(campaign)
 
 

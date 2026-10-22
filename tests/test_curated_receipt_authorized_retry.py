@@ -110,6 +110,37 @@ def test_authorized_hash_never_retries_a_successful_receipt(tmp_path):
     assert list(path.parent.iterdir()) == [path]
 
 
+def test_recorded_successful_retry_is_reusable_without_new_authorization(tmp_path):
+    runner, path, payload = cached_runner(tmp_path)
+    attempt2 = path.with_name(path.stem + "-attempt2.json")
+    accepted = b'{"output":{"value":"approved retry already completed"}}'
+    atomic_write_bytes(attempt2, accepted)
+    assert not runner.retry_failed_receipt_sha256s
+    assert call(runner).value == "approved retry already completed"
+    assert path.read_bytes() == payload and attempt2.read_bytes() == accepted
+    assert runner.model is None and runner.spent == Decimal("0.01784")
+    assert not path.with_name(path.stem + "-attempt3.json").exists()
+
+
+def test_recorded_failed_retry_tail_still_requires_its_own_authority(tmp_path):
+    runner, path, payload = cached_runner(tmp_path)
+    attempt2 = path.with_name(path.stem + "-attempt2.json")
+    atomic_write_bytes(attempt2, payload)
+    with pytest.raises(RuntimeError, match=r"attempt2\.json"):
+        call(runner)
+    assert runner.model is None
+    assert not path.with_name(path.stem + "-attempt3.json").exists()
+
+
+def test_noncontiguous_receipt_is_not_a_retry_successor(tmp_path):
+    runner, path, _ = cached_runner(tmp_path)
+    atomic_write_bytes(path.with_name(path.stem + "-attempt3.json"),
+                       b'{"output":{"value":"unrelated gap"}}')
+    with pytest.raises(RuntimeError, match="cached failed call"):
+        call(runner)
+    assert runner.model is None
+
+
 @pytest.mark.parametrize(
     "field,value",
     [("prompt", "changed"), ("system", "changed"), ("provider", {"route": "changed"})],

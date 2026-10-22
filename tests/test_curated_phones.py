@@ -83,6 +83,32 @@ def plan_for(blueprint, target, *, policy=None):
     )
 
 
+@pytest.mark.parametrize("source_country_codes", [{ROLE: "EG"}, {}])
+def test_bare_phone_target_does_not_leave_old_dialing_prefix_in_complete_fax_alias(source_country_codes):
+    blueprint, target = fixture("4863088")
+    alias = "FAX: (+203) 4863088"
+    source = blueprint.source + alias + "\n"
+    bindings = deepcopy(blueprint.historical_bindings)
+    bindings["fax_alias"] = {"occurrences": [{"source_text": alias}],
+                             "auxiliary_recipe": {"target": PATH, "prefix": "FAX: "}}
+    blueprint = replace(blueprint, source=source, historical_bindings=bindings,
+                        regions=(*blueprint.regions, RenderRegion(
+                            "fax_alias", 0, len(blueprint.source), len(source) - 1,
+                            alias, (), "auxiliary")))
+    sampled = deepcopy(target)
+    canonical = "+44 7700-123456"
+    sampled["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"] = [canonical]
+    plan = prepare_phone_rendering(
+        blueprint, sampled, source_country_codes=source_country_codes,
+        target_country_codes={ROLE: "GB"}, stream=STREAM)
+    text, actual, _ = render_sampling_blueprint(
+        blueprint, sampled, {}, surface_values={"fax_alias": "FAX: " + canonical}, phone_rendering=plan)
+    fax = text.split("FAX: ", 1)[1].strip()
+    assert re.sub(r"\D", "", fax) == re.sub(r"\D", "", canonical)
+    assert "(+203)" not in fax
+    assert actual["documentPatch"]["parties"]["consignee"]["contactDetails"]["phoneNumbers"][0] in text
+
+
 @pytest.mark.parametrize("curated", [False, True])
 def test_owned_source_presentation_and_target_projection_are_reproducible(curated):
     blueprint, target = fixture(curated=curated, repeat=True)

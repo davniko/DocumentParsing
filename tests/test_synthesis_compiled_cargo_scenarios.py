@@ -1704,6 +1704,30 @@ def test_package_rendering_is_not_restricted_to_the_ten_abbreviation_categories(
     assert package_category_surface_present(rendered, category)
 
 
+@pytest.mark.parametrize("source", ["CARTONS", "PACKAGES", "BOX(S)"])
+@pytest.mark.parametrize("quantity", [1, 6])
+@pytest.mark.parametrize(
+    "category",
+    [
+        "PACKAGE_BULK_LIQUID",
+        "PACKAGE_BULK_SOLID_FINE_PARTICLES_POWDERS",
+        "PACKAGE_BULK_SOLID_GRANULAR_PARTICLES_GRAINS",
+        "PACKAGE_UNPACKED_OR_UNPACKAGED",
+    ],
+)
+def test_invariant_mass_and_unpacked_categories_are_never_pluralized_twice(
+    source, quantity, category
+):
+    from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
+    from document_ocr.synthesis.template_compiler.descendant import _package_candidate
+
+    rendered = _package_candidate(source, category, quantity=quantity)
+    assert rendered == PACKAGE_ALIASES[category].singular
+    assert (
+        "GRAINSES" not in rendered and "POWDERSES" not in rendered and "UNPACKEDS" not in rendered
+    )
+
+
 def test_changed_package_noun_agrees_with_owned_quantity():
     from document_ocr.synthesis.template_compiler.descendant import _package_candidate
 

@@ -21,8 +21,11 @@ RUN uv sync --project environments/synthesis --frozen --no-dev \
 
 COPY src ./src
 COPY docker/synthesis/Dockerfile ./docker/synthesis/Dockerfile
+COPY docker/synthesis/fonts/ /usr/share/fonts/truetype/dejavu/
 
-RUN python -c "import matplotlib, scipy, sdv, seaborn; from document_ocr.synthesis.bill_of_lading_domain import ADAPTER; from document_ocr.synthesis.config import SynthesisDeterministicSmokeConfig, SynthesisFoundationConfig, SynthesisPreparationConfig, SynthesisStructuredBaselineConfig; from document_ocr.synthesis.generation import run_deterministic_smoke; from document_ocr.synthesis.generators import generate_unique_container_numbers; from document_ocr.synthesis.preparation import prepare_synthesis_corpus; from document_ocr.synthesis.routes import build_route_support; from document_ocr.synthesis.structured_generation import run_structured_baseline; assert len(ADAPTER.table_order) == 17"
+RUN python -c "import matplotlib, scipy, sdv, seaborn; from document_ocr.synthesis.bill_of_lading_domain import ADAPTER; from document_ocr.synthesis.config import SynthesisDeterministicSmokeConfig, SynthesisFoundationConfig, SynthesisPreparationConfig, SynthesisStructuredBaselineConfig; from document_ocr.synthesis.curated_campaign import create_campaign; from document_ocr.synthesis.curated_positions import position_campaign; from document_ocr.synthesis.generation import run_deterministic_smoke; from document_ocr.synthesis.generators import generate_unique_container_numbers; from document_ocr.synthesis.preparation import prepare_synthesis_corpus; from document_ocr.synthesis.routes import build_route_support; from document_ocr.synthesis.structured_generation import run_structured_baseline; assert len(ADAPTER.table_order) == 17"
+
+RUN python -c "import json; from pathlib import Path; from document_ocr.synthesis.curated_reflow_policy import FontMetrics; font = Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'); FontMetrics(font, json.loads(font.with_name('manifest.json').read_text())['sha256'])"
 
 ENTRYPOINT ["python", "-m", "document_ocr.synthesis.cli"]
 CMD ["--help"]

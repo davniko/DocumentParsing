@@ -1,6 +1,132 @@
 # R27 package vocabulary and free-text fallback audit
 
-Latest: [loose packaging/counted-unit experiment](analysis/r28-donor-independent-followup-20261018/relaxed-packaging/REPORT.md)
+Active continuation: [complete 453-template rollout in separately certified batches](analysis/r28-donor-free-full-registry-20261021/PLAN.md).
+The earlier [three-batch work and deferred package-alias review](analysis/r28-production-integration-20261021/PLAN.md#current-continuation-batches-0204) remain linked for provenance.
+The user prefers natural `WOODEN BOX/BOXES` wording to the technical `ORDINARY`
+prefix. The complete alias audit is a separate scheduled task, not package
+factorization and not an unreviewed relabeling of existing samples.
+
+Current completed work: [accounting migration and fixed first 20-source production batch](analysis/r28-donor-free-batch01-20261021/REPORT.md).
+All 20 sources and all 60 original descendant slots pass the actual production
+path, text/target review and coordinate audit. Mixed/additive/container-scoped
+accounting gaps are closed; 2,642 maintained tests pass. R28 training membership
+is unchanged and no next batch has started. Partial coordinate coverage is
+explicit. See the per-source inventory; do not sum overlapping historical cohorts.
+
+Earlier snapshot: [production integration and audit](analysis/r28-production-integration-20261021/REPORT.md).
+The donor-independent mechanism now has maintained runtime modules and CLI/tests.
+The bounded release has 90 accepted inspection records from 29 source layouts,
+with nine held slots preserved; remaining registry ownership rollout is explicit,
+not silently certified. R28 legacy repairs and source-based coordinates are
+validated, with no inspection samples admitted to training. The previous
+[scoped follow-up](analysis/r28-scoped-resumption-probe-20261021/REPORT.md)
+and consolidated schedule below remain provenance. The earlier dated sections are
+chronological evidence, not statements of the current readiness boundary.
+
+## 2026-10-21: consolidated flat-target integration schedule
+
+**Ready to begin integration engineering and the remaining-template ownership
+rollout; not yet ready to enable a registry-wide donor-free production default.**
+This section schedules the latest successful findings together with the earlier
+donor-free numerical, relationship, rendering and geography work. It does not
+implement or promote them, change R28 membership, or launch paid synthesis.
+The current public target stays at 48 flat package categories. Package
+factorization and additional DG-registry enrichment are deferred independently.
+The existing reviewed 384 HS-joined DG records remain in scope.
+
+### Confirmed boundary and evidence
+
+- Earlier legacy dataset/template repairs and maintained rendering, postal and
+  geometry safeguards are already on the production path. The **new scoped
+  state/material, chooser-presence and soft-deficit behavior is not**.
+- These refinements have actual experimental implementations and native tests,
+  including fifteen fully rendered/replayed/positioned accepted documents from
+  nine sources. They are not yet one consolidated larger-campaign path.
+- The preceding fixed 104-layout / 312-slot experiment remains frozen at 89
+  fresh mechanical passes and 86 semantic acceptances. Its provider-interrupted
+  slots were not completed by the separate fifteen-document follow-up. Do not
+  add these cohorts as though every source/slot were distinct.
+- All 72 scoped native calls succeeded, so the observed provider outage is no
+  longer a demonstrated architectural blocker. Completing missing/stale work is
+  still required; this observation is not a future availability guarantee.
+- The 66 new scoped tests are runnable but remain under the analysis directory;
+  ordinary pytest discovers `tests/` only. Existing production tests were rerun,
+  not replaced by those experimental tests.
+
+### One carry-forward bundle, not separate forgotten improvements
+
+| Component | Current evidence | Required integration |
+| --- | --- | --- |
+| Full-registry goods draws and native plausible package alternatives | Donor-trapped independent planning, fresh category/HS crossings and full renders | Use registry goods and complete native-approved package/counting-context objects; no source commodity or observed-bundle fallback |
+| Independent numbers and relationship ownership | Repeated measurements, nested/supporting/additive counts and allocation controls | Own every rendered count, type, unit, capacity and relationship; preserve absent public allocations and unprinted fields |
+| As-shipped goods state | Controlled original/refined repeats plus full renders | Carry the generic state clarification into the shared wording request; do not encode an octopus-specific rule |
+| Counted package material | Explicit type/material context plus generic/specific controls | Material is authoritative context without changing flat public targets; null means unmentioned, not inferred from inner/support material |
+| Native chooser presence | Actual constrained-schema controls | No candidate requires null; a proposed candidate requires a boolean judgment; malformed requests fail explicitly |
+| Candidate shortlist consistency | Matched native treatment | A positively judged candidate must have its complete approved alternative; never append a missing category on the host; SET requires an actual coordinated set |
+| Approximate package distributions | Deficit selector, tests, benchmark and six full controls | Prefer unmet soft targets only among approved alternatives; separate reservations from final accepted counts and preserve actual category specificity |
+| Postal, identity, privacy and geography boundaries | Existing guards and complete-text review; scoped postal holds remain explicit | Keep component/assembly ownership, scoped correction and full final review; wording success does not bypass unrelated holds |
+| Source-based geometry and native provenance | Saved-JSON replay, request/output witness checks and position receipts | Preserve known anchors, report source-limited unknowns, and require fresh receipts for changed requests |
+
+The shared refined request, constrained chooser and deficit policy must be
+exercised **together** before relying on them in the larger rollout. A successful
+isolated component is not evidence that this combined path has already run.
+
+### Next execution stages and promotion gates
+
+1. **Consolidate the current experiment path.** Compose the proven refinements
+   with the independent sampler/ledger and assembly guards, keeping historical
+   runs immutable. Register a combined control matrix covering ordinary,
+   thermal, DG, rare-package, nested, mixed-equipment and partial-allocation
+   cases. Any prompt/schema/request change needs a matching fresh native
+   receipt; old outputs cannot acquire new provenance by relabeling.
+2. **Close outstanding tested-scope branches.** Reconcile the original fixed
+   312-slot inventory with fresh results, not easier replacement layouts.
+   Six sources / eighteen slots lack complete arbitrary-package presentation
+   ownership: four vehicle/article layouts, one flexitank/package-equipment
+   frame, and one implicit vehicle-category layout with no editable type owner.
+   One additional pressure-gas choice and three multi-HS cargo-brief quality
+   holds need an explicit supported resolution or bounded exclusion. Source
+   category scope is not a license to restore commodity donors. Vehicle layouts
+   may retain an evidence-backed compatible vehicle scope without being made
+   arbitrarily BALE-castable. The genuinely HS-unjoined DG interface is outside
+   this first integration scope, rather than supplied dummy codes.
+3. **Inventory and complete the remaining registry in reviewable batches.**
+   Use batches of twenty templates with three descendants per template. Count
+   each template once in a current readiness inventory; previous overlapping
+   probes are not summed as unique certification. Read full source OCR,
+   ownership, repeated facts and final text/labels; repair actual missing owners
+   or record explicit presentation limits before paid generation. Preserve
+   unsupported/held dispositions rather than dropping them or using donors.
+4. **Promote maintained implementation and tests together.** Put runtime
+   modules under `src/document_ocr/synthesis/`, tests and minimal sanitized
+   fixtures under `tests/`, and executable workflows in the project's normal
+   entry points. No runtime import, sys.path injection or test dependency may
+   point into `docs/analysis/` or a frozen historical campaign. Retain analysis
+   evidence as immutable documentation, not executable production authority.
+   Default tests are network-free; paid provider/full-synthesis checks remain
+   explicit integration runs. Migrate behavioral coverage rather than copying
+   experiment-specific harness assumptions wholesale.
+5. **Validate the actual integrated production path, then enable it.** Run the
+   maintained regression suite, donor-access rejection controls, actual native
+   generation/render/replay and independent numerical/text/coordinate audits.
+   Validate the rebuilt copied-code synthesis container as well as host code.
+   Report throughput, memory, accepted/held outcomes, coverage and protected
+   dataset/source differences. No blanket default switch or training admission
+   precedes those gates; package factorization remains a separate experiment.
+
+Steps 1–3 and production implementation work can be organized together; a new
+round of unrelated exploratory probes is not a prerequisite. However, a
+registry-wide completion claim requires an explicit disposition for every
+template, and a production-default change requires the integrated-path checks.
+R28 remains the sole working dataset; no bulk regeneration or new dataset
+version is implied by this schedule.
+
+Evidence: [larger frozen cohort](analysis/r28-larger-controlled-flat-probe-20261020/REPORT.md),
+[latest scoped report](analysis/r28-scoped-resumption-probe-20261021/REPORT.md),
+[package-targeting controls](analysis/r28-scoped-resumption-probe-20261021/package-targeting/REPORT.md)
+and [scoped experiment plan](analysis/r28-scoped-resumption-probe-20261021/PLAN.md).
+
+Earlier: [loose packaging/counted-unit experiment](analysis/r28-donor-independent-followup-20261018/relaxed-packaging/REPORT.md)
 separates commercial plausibility from actual extraction contradictions. It also
 corrects the previous overbroad 17-layout hold and validates independent inner,
 supporting, additive and container-scoped counts without changing R27.
@@ -1399,3 +1525,57 @@ requests and narrow confirmed wording corrections, close explicit unsupported
 source frames, and repeat fresh readback before integration. Hardware tare
 support remains empirically grounded and disclosed, separate from commodity
 donors. Factored package targets remain a later independent change.
+
+### Full-registry rollout checkpoint — batches05–21 and final14
+
+The [full-registry ledger](analysis/r28-donor-free-full-registry-20261021/PLAN.md)
+now records17closed twenty-source batches:340additional templates and1,020final
+synthetic inspection descendants, with separate generation/render/text-target
+review, replay and position validation. The1,914coordinate-audited pages have
+zero lost anchors and no rejected final reflows. Earlier accepted evidence
+contributes99unique templates, for439/453accepted overall. These counts were
+reverified against pinned manifests and current published files, not inferred
+from the number of directories. The11files in the R28manifest also verify.
+
+The [final14-source investigation](analysis/r28-donor-free-full-registry-20261021/batch22/REPORT.md)
+is complete as a source readback, **not as synthesis acceptance**. The actual
+independent runtime lacks a vehicle-DG article contract forUN3166/UN3171 and an
+installed-tank loading/equipment contract; several integrated vehicle count/type/
+product spans need complete ownership too. Ordinary chemical substitution, a
+silent dry-box fallback or an invented HS join are not acceptable fixes.
+These remain explicit unfinished integration work, not an external provider or
+credit hold. All453sources remain in scope; no final full-registry certificate,
+global default switch, training admission or R29publication is claimed.
+
+### Final-held source adjudication — 2026-10-22
+
+The [follow-up report](analysis/r28-donor-free-full-registry-20261021/HELD-RESOLUTIONS.md)
+closes ten of the fourteen sources: three ready templates, five vehicle layouts,
+flexitank and the unpackaged CHEREAU trailer. Each has three final production-path
+inspection descendants: 30 samples / 51 coordinate-audited pages, zero lost
+anchors or rejected final reflows, complete text/target review and exact saved
+candidate replay. The actual-container targeted suite passes 87 tests.
+
+Acceptance is **449/453**, not a finished rollout. Four contracts remain:
+vehicle-counted UNIT/private-mass support, two independent vehicle-DG article
+presentations (one with composite SETS), and installed-tank loading/equipment.
+Original PDFs and official NAIC, UN/CEFACT and BIC references resolve the basic
+roles: FE flexitank is packaging, the CHEREAU trailer is cargo, and 20TANK is
+carrying equipment. DG vehicles must not enter the independent chemical pool.
+
+Root caught a repeated reception-count binding missed by native review; existing
+R28 descendants already had consistent counts. A fixed Marks chassis is repaired
+upstream and in 31 unique synthetic identities / 33 current-and-sidecar rows.
+Leading vehicle package declarations are excluded from description targets in
+21 synthetic and two real R28 identities / 35 physical rows; two source/case
+contracts are corrected too. That repair is label-only: OCR, coordinates,
+quantities and all other targets are preserved. Full-file backups/preservation
+proofs and explicit superseded acceptance evidence are retained.
+
+Current R28 manifest hashes verify: 6,900 synthetic + 600 real, validation 60.
+No inspection samples enter training, no default switch, and no R29 is created.
+All 70 unique native receipts cost USD 0.05579288, including redraws/retries and
+the six final boundary-corrected wording generations. The
+[integrity readback](analysis/r28-donor-free-full-registry-20261021/final-449-integrity.json)
+verifies the union and current authority/case/certificate pins; it does not claim
+fresh full-registry regeneration.

@@ -231,6 +231,7 @@ def _validate_campaign_readiness(bp):
         region.kind = binding.get("value_kind", "other_text")
         region.target_paths = tuple(binding.get("target_paths", ()))
     campaign = SimpleNamespace(
+        sampling_mode="observed",
         source_ids=("source",),
         blueprint=lambda _sid: bp,
         _blueprint_file_pins={},

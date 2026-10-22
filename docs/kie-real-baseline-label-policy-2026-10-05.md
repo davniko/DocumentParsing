@@ -204,6 +204,31 @@ they are not rounded. Physical/load scaling uses the same declared-unit baseline
 Evidence: [audit](package-accounting-policy-audit-2026-10-09.md) and
 [repair and validation](package-accounting-repair-2026-10-09.md).
 
+### Independent synthesis clarification (2026-10-21, R28)
+
+The source-ratio scaling paragraph above describes the earlier synthesis path,
+not a requirement to retain its original commodity, package type or ratios.
+Independent synthesis owns each complete count/type/unit relationship, including
+all repetitions, and samples a fresh internally consistent private packing
+ledger. Preserve the relationship and the source's visible allocation mask—not
+its original numbers. A private load used to check capacity is not a public
+allocation unless that allocation is printed. An explicitly shared per-container
+declaration can constrain loads to equality; absent allocations cannot.
+
+For example, palletized packages plus loose cartons can form a declared generic
+package total without counting the cartons inside the pallets twice. Such a
+presentation requires complete owned equation terms and an independently
+validated ledger. Replacing only a number or outer noun is insufficient. A
+source without complete presentation ownership remains held for independent
+variation; it must not silently fall back to its old commodity bundle.
+
+Keep the current flat package targets and their declared accounting unit.
+Package-material factorization is a separate, later experiment. Generated
+wording must agree with sampled counted units and private packing; an unsolicited
+material or contradictory thermal statement requires review and scoped
+regeneration, not an invented target or deletion of useful source-supported
+description content. See the [production integration inventory](analysis/r28-production-integration-20261021/PLAN.md).
+
 ### Category vocabulary versus genuine fallback (2026-10-16)
 
 Resolve the declared package unit against the pinned extraction vocabulary

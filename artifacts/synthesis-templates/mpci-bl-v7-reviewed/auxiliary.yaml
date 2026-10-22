@@ -218,13 +218,13 @@ sources:
         format: source
       agent:customs:exporter_registration_country:
         text: '{origin_country}'
+      agent:booking_reference:
+        identifier: private commercial/registration reference
+        format: source
       agent:contact:importer:phone:0:
         phone: documentPatch.parties.consignee
       agent:contact:importer:phone:1:
         phone: documentPatch.parties.consignee
-      agent:booking_reference:
-        identifier: private commercial/registration reference
-        format: source
   doc_0750aae7557d0d01661daff6d8f5a7e355deb8a2f4c1d3dea5821fb30586ae30:
     bindings:
       agent:commercial:rate_applicability_date:
@@ -293,9 +293,10 @@ sources:
         text: at any port of discharge in {destination_country}
     - count: 1
       quote: Carrier draw Merchant's attention to the fact that as per Egyptian New
-        Customs Law No. 207 for the year 2020, published in the Egyptian Official Gazette
-        on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice if
-        Merchant fails to take delivery within 1(one) month from the date of discharge.
+        Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: Carrier draws Merchant's attention to the applicable destination customs
           requirements and cargo clearance deadlines.
@@ -861,8 +862,9 @@ sources:
     - count: 1
       quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1(one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
     - count: 1
@@ -1841,8 +1843,9 @@ sources:
         text: bound to the destination
     - quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1 (one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1 (one) month from the date
+        of discharge.
       count: 1
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
@@ -1879,8 +1882,8 @@ sources:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS,
           INCLUDING
     - count: 1
-      quote: Customs without any notice if Merchant fails to take delivery within 1(one)
-        month from the date of discharge.
+      quote: Customs without any notice if Merchant fails to take delivery within
+        1(one) month from the date of discharge.
       value:
         text: CUSTOMS CLEARANCE AND DELIVERY REQUIREMENTS.
   doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348:
@@ -2901,8 +2904,9 @@ sources:
     - count: 1
       quote: 367. Carrier draw Merchant’s attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1(one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: 367. Merchants are responsible for taking delivery within the applicable
           destination customs time limits.
@@ -4126,8 +4130,9 @@ sources:
     - count: 1
       quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1(one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: 367. Merchants are responsible for taking delivery within the applicable
           destination customs time limits.
@@ -5180,8 +5185,9 @@ sources:
     - count: 1
       quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1(one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: 367. Merchants are responsible for taking delivery within the applicable
           destination customs time limits.
@@ -5428,6 +5434,9 @@ sources:
         format: source
   doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb:
     bindings:
+      'anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]':
+        identifier: private chassis identifier in Marks, not an extracted goods field
+        format: source
       agent:consignee_tax_id:
         identifier: private commercial/registration reference
         format: source
@@ -5443,7 +5452,11 @@ sources:
       agent:delivery_agent_tax_id:
         identifier: private commercial/registration reference
         format: source
-    spans: []
+    spans:
+    - quote: SECONDHAND VEHICLE(S)
+      count: 1
+      value:
+        text: VEHICLE(S)
   doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005:
     bindings:
       agent:acid_number:
@@ -6397,8 +6410,9 @@ sources:
     - count: 1
       quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1(one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: 367. Merchants are responsible for taking delivery within the applicable
           destination customs time limits.
@@ -7125,10 +7139,11 @@ sources:
       value:
         text: bound to the destination
     - count: 1
-      quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian New Customs Law
-        No. 207 for the year 2020, published in the Egyptian Official Gazette on Nov. 11, 2020, cargo
-        shall be auctioned by Customs without any notice if Merchant fails to take delivery within 1(one)
-        month from the date of discharge.
+      quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
+        New Customs Law No. 207 for the year 2020, published in the Egyptian Official
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1(one) month from the date
+        of discharge.
       value:
         text: 367. CUSTOMS HANDLING IS SUBJECT TO APPLICABLE DESTINATION REGULATIONS.
   doc_3b8396709a612d870263e6484bf91d5ee074c6f595818d2babd643ad1c70d691:
@@ -7197,6 +7212,11 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[0]:
         format: source
         identifier: service_contract
+      agent:maritime_shipping_agency_phone:
+        phone: destination
+      agent:maritime_shipping_agency_fax:
+        phone: destination
+        channel: fax
   doc_0ba3ad4fcd4e713df5520786bd64916559b17258db1ba013ef90ec0d38e45a9f:
     spans:
     - quote: ACID REF EGYPT
@@ -7249,6 +7269,8 @@ sources:
         format: source
   doc_4985afa46ebf66f17d9734ae2db80405d3f2e1bcf9a20d6f726cc28ab5ff68fd:
     bindings:
+      reviewed:wood_declaration:
+        text: packing as declared
       agent:party:foreign_exporter:country:
         party_location: documentPatch.parties.shipper
         field: country
@@ -7402,6 +7424,12 @@ sources:
         format: source
   doc_4f210d63ddf9d0045dc1d402764d11c989a4053e1416eca0ee379ccff20421c2:
     bindings:
+      reviewed:commercial_reference:
+        identifier: private commercial reference
+        format: source
+      reviewed:invoice_reference:
+        identifier: private invoice reference
+        format: source
       private_reference:49491eeca344:
         identifier: private commercial/registration reference
         format: source
@@ -7489,6 +7517,9 @@ sources:
         phone: documentPatch.parties.notifyParties[0]
   doc_b62c4e54328ee964df611e4fd1cf37a5076d7b51d8ca46a7e8ffc713cdaaa934:
     bindings:
+      reviewed:delivery_agent:commercial_registration:
+        identifier: private delivery-agent commercial registration
+        format: source
       agent:reviewed:foreign_exporter:country_code:
         party_location: documentPatch.parties.shipper
         field: country_code
@@ -8745,8 +8776,9 @@ sources:
     - count: 1
       quote: 367. Carrier draw Merchant's attention to the fact that as per Egyptian
         New Customs Law No. 207 for the year 2020, published in the Egyptian Official
-        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any notice
-        if Merchant fails to take delivery within 1 (one) month from the date of discharge.
+        Gazette on Nov. 11, 2020, cargo shall be auctioned by Customs without any
+        notice if Merchant fails to take delivery within 1 (one) month from the date
+        of discharge.
       value:
         text: 367. Merchants are responsible for taking delivery within the applicable
           destination customs time limits.
@@ -8833,6 +8865,9 @@ sources:
       agent:service_contract_number:
         identifier: private commercial/registration reference
         format: source
+      agent:delivery_agent_fax:
+        phone: destination
+        channel: fax
   doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf:
     bindings:
       fresh_aux_0_1:
@@ -9641,8 +9676,6 @@ sources:
         channel: fax
       pallets:
         text: 20 PALLETS
-      net_kg_alias:
-        text: 17,600.000
       cnpj:
         identifier: private fiscal/commercial reference
         format: source
@@ -9798,8 +9831,6 @@ sources:
       anchor:documentPatch.cargoGroups[0].additionalInformation[0]:
         dg_fact: properShippingName
         prefix: 'PSN: '
-      agent:cargo:0:measurement:
-        text: '50.000'
       agent:party:consignee:tax_id:
         identifier: private repeated customer tax identity
         format: source
@@ -10394,8 +10425,6 @@ sources:
         field: country_code
   doc_56e9e1cfa7d7dcbb4025bf0b31ba2883c0b924f23b9fc10761be09eab3ed3d5c:
     bindings:
-      unqualified_measurement:
-        text: '40.000'
       acid:
         identifier: Private fiscal/customs/commercial reference
         format: source
@@ -10585,8 +10614,6 @@ sources:
         format: '%d.%m.%Y'
   doc_8fc5897f28c23a473018f3c9c8e091c36a4df5a4578b410f94b41ef527d9d976:
     bindings:
-      unqualified_measurement:
-        text: '50.000'
       notify_fax:
         phone: documentPatch.parties.notifyParties[0]
         channel: fax
@@ -11085,6 +11112,8 @@ sources:
         text: MAURITIUS
   doc_3f4147c451242bb624a4ee573b62e03986f059853e11091ba2877a60fe9aed43:
     bindings:
+      reviewed:wood_declaration:
+        text: PACKING AS DECLARED
       export_country:
         field: country
         party_location: documentPatch.parties.shipper
@@ -11281,12 +11310,6 @@ sources:
       reference_5:
         format: source
         identifier: Private fiscal/customs/commercial reference
-      row_volume_ocr_0:
-        text: B5.880
-      row_volume_ocr_1:
-        text: B5.880
-      row_volume_ocr_2:
-        text: B3.900
       shipper_country_code:
         field: country_code
         party_location: documentPatch.parties.shipper

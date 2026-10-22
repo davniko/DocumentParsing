@@ -436,7 +436,22 @@ def prepare_phone_rendering(
             declared_paths = {path for path in owned if "{" + path + "}" in expression}
             if source_match is not None:
                 source_piece = source_match[0]
-                local_prefix = region.source[: source_match.start()]
+                source_start = source_match.start()
+                recipe = blueprint.historical_bindings.get(region.key, {}).get(
+                    "auxiliary_recipe", {}
+                )
+                if recipe.get("target") in owned:
+                    # A complete repeated contact may print an international
+                    # prefix absent from its bare primary target. That dialing
+                    # group is phone presentation, not immutable caption text.
+                    prefix = re.search(
+                        r"\(\s*\+\s*\d[\d \t.-]*\)\s*$",
+                        region.source[:source_start],
+                    )
+                    if prefix is not None:
+                        source_start = prefix.start()
+                        source_piece = region.source[source_start:source_match.end()]
+                local_prefix = region.source[:source_start]
                 external_plus = (
                     not local_prefix and raw[max(0, region.start - 1) : region.start] == b"+"
                 )

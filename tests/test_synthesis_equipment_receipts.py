@@ -73,6 +73,31 @@ def test_homogeneous_replacement_removes_stale_high_cube_words():
     assert result == "2 x 20GP"
 
 
+@pytest.mark.parametrize(
+    ("surface", "size"),
+    [
+        ("20HIGH CUBE", "TWENTY_FOOT_HIGH_CUBE"),
+        ("40HIGH CUBE", "FORTY_FOOT_HIGH_CUBE"),
+        ("45HIGH CUBIC", "FORTY_FIVE_FOOT_HIGH_CUBE"),
+        ("40' HIGH CUBE", "FORTY_FOOT_HIGH_CUBE"),
+    ],
+)
+def test_compact_prose_high_cube_receipt_preserves_height_without_implying_dry(surface, size):
+    from document_ocr.synthesis.template_compiler.descendant import _number_to_words
+    from document_ocr.synthesis.template_compiler.equipment_receipts import (
+        validate_source_receipt,
+    )
+
+    old = [equipment(size, "REFRIGERATED")]
+    validate_source_receipt(surface, old, number_words=_number_to_words)
+    result = render(surface, old, [equipment("TWENTY_FOOT_STANDARD_HEIGHT")])
+    assert "20" in result and "HIGH" not in result.upper()
+    with pytest.raises(ValueError, match="contradicts source count/type"):
+        validate_source_receipt(
+            surface, [equipment("FORTY_FOOT_STANDARD_HEIGHT")], number_words=_number_to_words
+        )
+
+
 @pytest.mark.parametrize("surface", ["40'FT", "40' FT", "40\u2019 FEET", "40`FOOT"])
 def test_quoted_length_with_unit_does_not_override_per_identifier_height(surface):
     old = [equipment("FORTY_FOOT_HIGH_CUBE")] * 2

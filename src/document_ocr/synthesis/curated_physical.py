@@ -209,7 +209,14 @@ def _owners(blueprint: SamplingBlueprint) -> tuple[_Owner, ...]:
     for key, declaration in declarations.items():
         if key not in active or key in converted_aliases:
             raise ValueError(f"declared measure requires an active independent source owner: {key}")
-        if set(declaration) - {"measure", "baseline", "unit", "row", "component"}:
+        if set(declaration) - {
+            "measure",
+            "baseline",
+            "unit",
+            "row",
+            "component",
+            "numeric_presentation",
+        }:
             raise ValueError(f"unknown measure certificate fields: {key}")
         measure = declaration.get("measure")
         unit = declaration.get("unit")
@@ -231,6 +238,22 @@ def _owners(blueprint: SamplingBlueprint) -> tuple[_Owner, ...]:
         if binding["value_kind"] != "decimal_measurement":
             raise ValueError(f"declared measure owner is not a numeric measurement: {key}")
         surfaces = tuple(o["source_text"] for o in binding["occurrences"])
+        if "numeric_presentation" in declaration:
+            presentation = declaration["numeric_presentation"]
+            if (
+                not isinstance(presentation, dict)
+                or set(presentation) != {"source_sha256", "text", "reason"}
+                or presentation["source_sha256"] != digest(blueprint.source.encode())
+                or not isinstance(presentation["reason"], str)
+                or not presentation["reason"].strip()
+                or not isinstance(presentation["text"], str)
+                or not re.fullmatch(r"[+-]?\d(?:[\d., ]*\d)?", presentation["text"])
+            ):
+                raise ValueError(f"invalid reviewed numeric presentation: {key}")
+            # Explicit PDF adjudication can replace an OCR-corrupt numeral as
+            # one owned span. Never guess character substitutions, rewrite the
+            # source OCR, or treat its corrected presentation as another total.
+            surfaces = (presentation["text"],) * len(surfaces)
         for surface in surfaces:
             _token(surface, baseline)
         goods = blueprint.target["documentPatch"].get("goodsItemDetails", [{}])[0]
@@ -1533,6 +1556,13 @@ def prepare_physical_render(
         "rows": {k: [str(v) for v in vv] for k, vv in rows.items()},
         "ownershipBasis": "current_target_bindings_and_declared_historical_numeric_roles",
     }
+    numeric_presentations = {
+        key: declaration["numeric_presentation"]
+        for key, declaration in blueprint.ownership_data.get("measure_owners", {}).items()
+        if "numeric_presentation" in declaration
+    }
+    if numeric_presentations:
+        receipt["reviewedNumericPresentations"] = numeric_presentations
     _equipment(blueprint, target, support, scenario, surfaces, receipt, equipment_inventory)
     _operational(blueprint, scenario, target, surfaces, receipt)
     if set(flat(target)) != set(flat(sampled_target)):

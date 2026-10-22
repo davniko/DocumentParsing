@@ -14,11 +14,12 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from document_ocr.atomic import atomic_publish_bytes, read_regular_file_bytes
 from document_ocr.hashing import sha256_file
 from document_ocr.labeling_agents.direct_grounding import order_consignment_candidates
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
@@ -119,7 +120,12 @@ from document_ocr.synthesis.curated_product_references import (
     product_reference_fields,
     product_references,
 )
-from document_ocr.synthesis.curated_publication import publish_campaign, review_contract_hash
+from document_ocr.synthesis.curated_publication import (
+    publish_campaign,
+    review_contract_hash,
+    review_request_hash,
+    review_runner_evidence,
+)
 from document_ocr.synthesis.curated_routes import validate_route_values
 from document_ocr.synthesis.curated_sampling import (
     source_variant_counts,
@@ -154,6 +160,7 @@ from document_ocr.synthesis.curated_wording import (
     goods_wording_requirement,
     mass_in_kilograms,
     native_wording_prompt,
+    normalize_wording_text,
     postal_geography_counts,
     rendered_review_prompt,
     repeated_goods_descriptions,
@@ -212,12 +219,18 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
     variables = {v.key: v for v in blueprint.contract.variables}
     leaves = flat(blueprint.target)
     for key, declaration in declarations.items():
+        context_party = declaration.get("context_party") if isinstance(declaration, dict) else None
+        context_carrier = (
+            declaration.get("context_carrier") if isinstance(declaration, dict) else None
+        )
         if (
             key not in variables
             or variables[key].kind not in {"name", "postal"}
             or not isinstance(declaration, dict)
-            or not {"context_party", "relationship"} <= declaration.keys()
-            or set(declaration) - {"context_party", "relationship", "location"}
+            or "relationship" not in declaration
+            or (context_party is None) == (context_carrier is None)
+            or set(declaration)
+            - {"context_party", "context_carrier", "relationship", "location"}
             or declaration["relationship"]
             not in {
                 "on_behalf",
@@ -232,24 +245,68 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
             }
         ):
             raise ValueError("related actor requires a known lexical key and explicit relationship")
-        role = declaration["context_party"]
+        role = context_party
+        if context_carrier is not None:
+            if (
+                set(declaration) != {"context_carrier", "relationship"}
+                or declaration["relationship"] != "agent_for"
+                or variables[key].kind != "name"
+                or blueprint.ownership_data.get("identity_kinds", {}).get(key) != "organization"
+                or not isinstance(context_carrier, dict)
+                or set(context_carrier) != {"binding", "source_name"}
+                or not all(
+                    isinstance(context_carrier[field], str)
+                    and context_carrier[field].strip()
+                    for field in ("binding", "source_name")
+                )
+            ):
+                raise ValueError(
+                    "carrier-related actor requires one organization name acting for a "
+                    "source-certified fixed carrier"
+                )
+            carrier_binding = blueprint.historical_bindings.get(context_carrier["binding"])
+            if (
+                carrier_binding is None
+                or carrier_binding.get("render_mode") != "carrier_static"
+                or carrier_binding.get("value_kind") != "organization"
+                or carrier_binding.get("target_paths")
+                != ["documentPatch.parties.carrier.name"]
+                or not carrier_binding.get("occurrences")
+                or {
+                    occurrence.get("source_text")
+                    for occurrence in carrier_binding["occurrences"]
+                }
+                != {context_carrier["source_name"]}
+            ):
+                raise ValueError(
+                    "related actor carrier context is not a source-certified fixed carrier"
+                )
+            expected = len(carrier_binding["occurrences"])
+            if (
+                len(re.findall(re.escape(context_carrier["source_name"]), blueprint.source))
+                != expected
+            ):
+                raise ValueError("related actor fixed carrier source occurrence count differs")
+            role = None
         if "location" in declaration:
             location = ScenarioLocation.model_validate(declaration["location"])
             if not all(value.strip() for value in location.model_dump().values()) or not re.search(
                 r"(?<!\w)" + re.escape(location.country) + r"(?!\w)", blueprint.source, re.I
             ):
                 raise ValueError("related actor location requires printed source country evidence")
-        if (
-            not isinstance(role, str)
-            or party_path(role + ".name") != role
-            or not any(path.startswith(role + ".") for path in leaves)
-        ):
-            raise ValueError("related actor context must name a present concrete party")
-        if any(
-            binding.path == role + ".name" and "{" + key + "}" in binding.expression
-            for binding in blueprint.contract.targets
-        ):
-            raise ValueError("related actor cannot be concatenated into its context party name")
+        if context_party is not None:
+            role = context_party
+            if (
+                not isinstance(role, str)
+                or party_path(role + ".name") != role
+                or not any(path.startswith(role + ".") for path in leaves)
+            ):
+                raise ValueError("related actor context must name a present concrete party")
+            if any(
+                binding.path == role + ".name" and "{" + key + "}" in binding.expression
+                for binding in blueprint.contract.targets
+            ):
+                raise ValueError("related actor cannot be concatenated into its context party name")
         variable = variables[key]
         if variable.kind == "name":
             pattern = (
@@ -328,7 +385,10 @@ def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]
         ]
         if not paths and key in related:
             actor = related[key]
-            paths = [f"related {actor['relationship']} actor for {actor['context_party']}"]
+            context = actor.get("context_party")
+            if context is None:
+                context = "fixed public carrier " + actor["context_carrier"]["source_name"]
+            paths = [f"related {actor['relationship']} actor for {context}"]
         if not paths and key in people:
             paths = [f"source-only {people[key]['role']}"]
         if not paths or key not in values:
@@ -351,8 +411,11 @@ def identity_review_context(blueprint: SamplingBlueprint, values: dict[str, str]
             if "{" + key + "}" in binding.expression
         ]
         ownership = ", ".join(paths) if paths else "source-only context; no extraction-party field"
+        context = actor.get("context_party")
+        if context is None:
+            context = "fixed public carrier " + actor["context_carrier"]["source_name"]
         relationships.append(
-            f"{actor['relationship']} with {actor['context_party']}: {ownership}\n"
+            f"{actor['relationship']} with {context}: {ownership}\n"
             f"Reviewed source meaning: {variables[key].meaning}\n"
             f"Generated {variables[key].kind}:\n{values[key]}"
         )
@@ -563,15 +626,13 @@ def wording_request(
             )
         elif variable.key in related_actors:
             actor = related_actors[variable.key]
-            geo = (
-                ScenarioLocation.model_validate(actor["location"])
-                if "location" in actor
-                else scenario.party_localities[actor["context_party"]]
-            )
-            role = f"{actor['context_party']} related {actor['relationship']} {variable.kind}"
+            context = actor.get("context_party")
+            if context is None:
+                context = "fixed public carrier " + actor["context_carrier"]["source_name"]
+            role = f"{context} related {actor['relationship']} {variable.kind}"
             requirement = (
                 f"Separate fictional actor in the printed {actor['relationship']} relationship "
-                f"with {actor['context_party']}. This is not an additional extraction-party "
+                f"with {context}. This is not an additional extraction-party "
                 "function and must not be merged into that party's legal name. "
             )
             if variable.kind == "name":
@@ -581,6 +642,11 @@ def wording_request(
                     "framing. Independently owned repeated occurrences reuse this identity."
                 )
             else:
+                geo = (
+                    ScenarioLocation.model_validate(actor["location"])
+                    if "location" in actor
+                    else scenario.party_localities[actor["context_party"]]
+                )
                 requirement += (
                     f"Generate postal components only in {geo.name}, {geo.country} "
                     f"({geo.country_code}), matching the example's address hierarchy. "
@@ -926,6 +992,7 @@ def assemble_lexical_target(
     ).items():
         for path in paths:
             assign(result, path, " ".join(wording[key].split()))
+    result = apply_dependent_text(blueprint, result, phase="wording")
     if target_casing == "uppercase":
         return normalize_target_casing(result)[0]
     if target_casing != "preserve":
@@ -1543,7 +1610,11 @@ def validate_sample(
 
 
 class Campaign:
+    sampling_mode = "observed"
+
     def __init__(self, root: Path, config: dict):
+        if config.get("sampling_mode", "observed") != self.sampling_mode:
+            raise ValueError("campaign implementation differs from configured sampling_mode")
         self.root, self.config = root, config
         self.casing = CasingPolicy.model_validate(config.get("casing", {}))
         self.phone_policy = PhoneRenderingPolicy.model_validate(config.get("phones", {}))
@@ -1576,6 +1647,7 @@ class Campaign:
             list(self.rows.values()),
             frozenset(r["documentId"] for r in validation),
             country_presentations=self.country_registry,
+            fit_observed=self.sampling_mode == "observed",
         )
         self.capabilities = {
             sid: SourceCapabilities.model_validate(v) for sid, v in config["capabilities"].items()
@@ -1677,8 +1749,9 @@ class Campaign:
                         "eligiblePairs": supported,
                     }
             self.catalog.bind_equipment_inventory(self.equipment_inventories)
-            for sid in policy.source_ids:
-                self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
+            if self.sampling_mode == "observed":
+                for sid in policy.source_ids:
+                    self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
 
     def physical_render(self, blueprint, scenario, target):
         """Compile physical facts, then independently realize their owned aliases."""
@@ -1813,7 +1886,7 @@ class Campaign:
                     raise ValueError("related actor location differs from its pinned registry")
         validate_description_regions(blueprint.description_blocks, blueprint.regions)
         cap = self.capabilities[sid]
-        if cap.source_load_accounting is not None:
+        if self.sampling_mode == "observed" and cap.source_load_accounting is not None:
             cap.source_load_accounting.validate_source(row)
             pdf_path = _pin(self.root, cap.source_load_accounting.source_pdf)
             self._blueprint_file_pins[pdf_path] = cap.source_load_accounting.source_pdf.sha256
@@ -1828,14 +1901,16 @@ class Campaign:
             # a campaign distribution knob. Every campaign inherits it.
             cap = cap.model_copy(update={"equipment_mix": mix})
             self.capabilities[sid] = cap
-        validate_source_physical_requirements(blueprint, cap)
+        if self.sampling_mode == "observed":
+            validate_source_physical_requirements(blueprint, cap)
         if cap.equipment_mix is not None:
             cap.equipment_mix.validate_source(
                 blueprint.source, blueprint.target["documentPatch"].get("containerInformation", [])
             )
-        validate_contained_quantity_sampling(
-            blueprint, multiple=cap.quantity_multiple, fixed=cap.fixed_package_quantity
-        )
+        if self.sampling_mode == "observed":
+            validate_contained_quantity_sampling(
+                blueprint, multiple=cap.quantity_multiple, fixed=cap.fixed_package_quantity
+            )
         self._blueprints[sid] = blueprint
         return blueprint
 
@@ -1851,8 +1926,9 @@ class Campaign:
         for path, expected in self._blueprint_file_pins.items():
             if sha256_file(path) != expected:
                 raise ValueError("campaign source files changed after snapshot certification")
-        for sid in self.equipment_inventories:
-            self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
+        if self.sampling_mode == "observed":
+            for sid in self.equipment_inventories:
+                self.catalog.validate_equipment_inventory_support(sid, self.capabilities[sid])
 
     def plan(self, sid: str, variant: int) -> tuple[SamplingBlueprint, ShipmentScenario, str, dict]:
         blueprint = self.blueprint(sid)
@@ -1866,7 +1942,7 @@ class Campaign:
                 candidate,
                 DeterministicStream(self.config["seed"], "full-current-v7", sample_id),
             )
-            target = apply_dependent_text(blueprint, target)
+            target = apply_dependent_text(blueprint, target, phase="scenario")
             # The exact source grid belongs to candidate admission, not to a
             # late failure after selecting a shipment (or after a paid call).
             # Contract errors propagate; only typed draw incompatibilities retry.
@@ -1982,6 +2058,153 @@ class Campaign:
             raise ValueError("wording requires current generation inputs")
         return receipt["values"]
 
+    def validate_generated_wording(
+        self, requests: list[WordingRequest], values: dict[str, dict[str, str]]
+    ) -> None:
+        """Validate accepted fragments before saving or spending on their contacts.
+
+        Independent presentation checks extend this gate, so their failures use
+        the same recorded bounded correction as ordinary lexical failures.
+        """
+        validate_wording(
+            WordingBatch.model_validate(
+                {
+                    "shipments": [
+                        {
+                            "sample_id": request.sample_id,
+                            "values": [
+                                {"key": key, "text": text}
+                                for key, text in values[request.sample_id].items()
+                            ],
+                        }
+                        for request in requests
+                    ]
+                }
+            ),
+            requests,
+        )
+        failures = []
+        for index, request in enumerate(requests):
+            diagnostics = self._generated_wording_diagnostics(
+                request, values[request.sample_id]
+            )
+            if diagnostics:
+                failures.append(
+                    {
+                        "shipmentKey": f"s{index}",
+                        "sampleId": request.sample_id,
+                        **diagnostics,
+                    }
+                )
+        if failures:
+            raise ValueError(
+                "wording validation failed by shipment: "
+                + json.dumps(failures, sort_keys=True, ensure_ascii=False)
+            )
+
+    def _generated_wording_diagnostics(
+        self, request: WordingRequest, values: dict[str, str]
+    ) -> dict[str, Any]:
+        """Return task-specific semantic failures for one structurally valid shipment."""
+        return {}
+
+    def _unpack_generated_wording(
+        self, output: BaseModel, requests: list[WordingRequest]
+    ) -> dict[str, dict[str, str]]:
+        """Validate every shipment before issuing the single bounded repair.
+
+        The complete provider-native schema is revalidated before the per-shipment
+        loop. Consequently, a caught ``ValueError`` can only come from lexical
+        semantics, while missing/extra shipment keys, missing fields and wrong
+        datatypes remain immediate structural failures. Per-shipment validation
+        exposes every independently bad variant to one repair prompt instead of
+        hiding later failures behind the first variant in request order. A
+        Task-specific checks also inspect a structurally valid, nonempty value
+        that failed base lexical semantics, so one repair sees independent
+        defects in both the same shipment and its siblings.
+        """
+        payload = output.model_dump()
+        expected_shipments = {f"s{index}" for index in range(len(requests))}
+        if set(payload) != expected_shipments:
+            raise ValueError("wording output shipment schema differs")
+        for index, request in enumerate(requests):
+            shipment_key = f"s{index}"
+            shipment = payload[shipment_key]
+            if not isinstance(shipment, Mapping):
+                raise TypeError(f"{shipment_key}: wording shipment must be an object")
+            if set(shipment) != {field.key for field in request.fields}:
+                raise ValueError(f"{shipment_key}: wording field schema differs")
+        batch = WordingBatch.model_validate(
+            {
+                "shipments": [
+                    {
+                        "sample_id": request.sample_id,
+                        "values": [
+                            {"key": key, "text": text}
+                            for key, text in payload[f"s{index}"].items()
+                        ],
+                    }
+                    for index, request in enumerate(requests)
+                ]
+            }
+        )
+        accepted: dict[str, dict[str, str]] = {}
+        failures: list[dict[str, Any]] = []
+        for index, request in enumerate(requests):
+            shipment_key = f"s{index}"
+            # Both schema conversions above prove exact shipment and field
+            # coverage. Do not catch them: structural failures must retain
+            # their original exception rather than become repair diagnostics.
+            single = WordingBatch.model_construct(shipments=[batch.shipments[index]])
+            diagnostic_values = {
+                value.key: normalize_wording_text(value.text)
+                for value in single.shipments[0].values
+            }
+            failure: dict[str, Any] = {
+                "shipmentKey": shipment_key,
+                "sampleId": request.sample_id,
+            }
+            try:
+                shipment = validate_wording(single, [request])
+            except ValueError as error:
+                failure["baseWording"] = [str(error)]
+                values = diagnostic_values
+            else:
+                values = shipment[request.sample_id]
+            # Empty-after-normalization text already has an exact base failure;
+            # task validators require complete string owners. Every other
+            # provider-native string remains safe to inspect, including a value
+            # rejected for script, caption, source-copy or content semantics.
+            diagnostics = (
+                self._generated_wording_diagnostics(request, values)
+                if all(values.values())
+                else {}
+            )
+            if diagnostics:
+                failure.update(diagnostics)
+            if len(failure) > 2:
+                failures.append(failure)
+            else:
+                accepted[request.sample_id] = values
+        validator = getattr(self.validate_generated_wording, "__func__", None)
+        if not failures and validator is not Campaign.validate_generated_wording:
+            try:
+                self.validate_generated_wording(requests, accepted)
+            except ValueError as error:
+                failures.append(
+                    {
+                        "shipmentKeys": [f"s{index}" for index in range(len(requests))],
+                        "sampleIds": [request.sample_id for request in requests],
+                        "extendedSemantic": [str(error)],
+                    }
+                )
+        if failures:
+            raise ValueError(
+                "wording validation failed by shipment: "
+                + json.dumps(failures, sort_keys=True, ensure_ascii=False)
+            )
+        return accepted
+
     async def generate(self, sid: str) -> dict:
         plans = self.plans(sid)
         self.preflight(plans)
@@ -1999,7 +2222,10 @@ class Campaign:
                     # Scoped provenance is a certification boundary. A
                     # corrupt/stale chain must fail, not trigger paid full
                     # regeneration that erases accepted manual wording.
-                    wording[request.sample_id] = self._validated_wording(cached, request)
+                    self._validated_wording(cached, request)
+                    # Render-time host projections are not new native output.
+                    # Keep the exact accepted values and scoped receipt chain.
+                    wording[request.sample_id] = dict(cached["values"])
                     continue
                 if cached["requestSha256"] == wording_request_hash(request):
                     batch = WordingBatch.model_validate(
@@ -2016,6 +2242,7 @@ class Campaign:
                     )
                     try:
                         accepted = validate_wording(batch, [request])
+                        self.validate_generated_wording([request], accepted)
                     except ValueError:
                         # A new policy can invalidate earlier cached wording.
                         # Send it through the same recorded, bounded repair as
@@ -2036,7 +2263,7 @@ class Campaign:
                 native_wording_prompt(batch_requests),
             )
             try:
-                accepted = unpack_wording(output, batch_requests)
+                accepted = self._unpack_generated_wording(output, batch_requests)
             except ValueError as error:
                 # One bounded, recorded correction; never publish invalid wording
                 # or silently retry forever. Both billed outputs remain cached.
@@ -2052,30 +2279,17 @@ class Campaign:
                     + "\nPREVIOUS PROPOSAL\n"
                     + yaml.safe_dump(output.model_dump(), sort_keys=False, allow_unicode=True)
                     + "\nCorrect the failing wording. Keep other accepted fields unchanged. "
+                    "For postal occurrence errors, country/locality words inside invented "
+                    "street, site or district names count too: rename those fictional "
+                    "subaddress components, not the supplied locality or country. "
                     "Return the complete requested fields. Shipment accounting and transport "
                     "facts belong to host-rendered regions, not the product description.",
                 )
-                accepted = unpack_wording(repaired, batch_requests)
+                accepted = self._unpack_generated_wording(repaired, batch_requests)
             wording.update(accepted)
         # Reused and new fragments share the same per-shipment correctness
         # checks. Repeated product wording is reported separately as diversity.
-        validate_wording(
-            WordingBatch.model_validate(
-                {
-                    "shipments": [
-                        {
-                            "sample_id": request.sample_id,
-                            "values": [
-                                {"key": key, "text": text}
-                                for key, text in wording[request.sample_id].items()
-                            ],
-                        }
-                        for request in requests
-                    ]
-                }
-            ),
-            requests,
-        )
+        self.validate_generated_wording(requests, wording)
         for blueprint, scenario, sample_id, target in plans:
             path = self.output / "wording" / f"{sample_id}.json"
             request_hash = wording_request_hash(
@@ -2305,7 +2519,7 @@ class Campaign:
                 fields,
             )
             requests.append(request)
-            changes[sample_id] = (path, receipt, failed, blueprint, scenario, target)
+            changes[sample_id] = (path, receipt, failed, blueprint, scenario, target, original)
         if not requests:
             return {"sourceDocumentId": sid, "corrected": 0}
         proposed = {}
@@ -2321,8 +2535,11 @@ class Campaign:
             )
             proposed.update(unpack_wording(output, batch))
         remaining = []
+        staged = []
         for request in requests:
-            path, receipt, failed, blueprint, scenario, target = changes[request.sample_id]
+            path, receipt, failed, blueprint, scenario, target, original = changes[
+                request.sample_id
+            ]
             before = deepcopy(receipt["values"])
             receipt["values"].update(proposed[request.sample_id])
             post_errors = [
@@ -2335,6 +2552,13 @@ class Campaign:
                 ).items()
                 for error in errors
             ]
+            if not post_errors:
+                try:
+                    self.validate_generated_wording(
+                        [original], {request.sample_id: receipt["values"]}
+                    )
+                except ValueError as error:
+                    post_errors.append(f"wording validation: {error}")
             remaining.extend(f"{request.sample_id}: {error}" for error in post_errors)
             receipt.setdefault("corrections", []).append(
                 {
@@ -2351,9 +2575,11 @@ class Campaign:
                     "postCheckErrors": post_errors,
                 }
             )
-            save(path, receipt)
+            staged.append((path, receipt))
         if remaining:
             raise ValueError("postal correction still requires review: " + "; ".join(remaining))
+        for path, receipt in staged:
+            save(path, receipt)
         return {"sourceDocumentId": sid, "corrected": len(requests)}
 
     async def correct_postal_all(self) -> dict:
@@ -2519,8 +2745,14 @@ class Campaign:
         if expected != candidate:
             raise ValueError("candidate differs from source/scenario/wording authority replay")
 
+    def review_private_packing_context(
+        self, blueprint: SamplingBlueprint, candidate: dict[str, Any]
+    ) -> list[dict[str, Any]] | dict[str, Any]:
+        """Describe the authority that rendered private packing for this candidate."""
+        return contained_packing_context(blueprint, candidate["target"])
+
     def review_requests(
-        self, sid: str, candidates: Sequence[dict]
+        self, sid: str, candidates: Sequence[dict[str, Any]]
     ) -> tuple[RenderedReviewRequest, ...]:
         """Compose exact current requests without calls, replay or artifact writes.
 
@@ -2538,10 +2770,17 @@ class Campaign:
                 or candidate.get("documentId") != expected_id
             ):
                 raise ValueError("review requests require exact source identities in variant order")
+        blueprint = self.blueprint(sid)
         blocks = []
         batch_size = self.config["variants_per_source"]
         for index, candidate in enumerate(candidates):
             facts = candidate["scenario"]
+            preferred_names = {}
+            for location in facts["party_localities"].values():
+                code = location["country_code"]
+                preferred = self.country_registry.preferred_name(code)
+                if preferred != location["country"]:
+                    preferred_names[code] = preferred
             blocks.append(
                 "SHIPMENT "
                 + f"s{index % batch_size}"
@@ -2552,6 +2791,13 @@ class Campaign:
                     for role, location in facts["party_localities"].items()
                 )
                 + "\n"
+                + (
+                    "PINNED PREFERRED ENGLISH COUNTRY FIELD NAMES "
+                    "(postal presentations may differ)\n"
+                    + yaml.safe_dump(preferred_names, sort_keys=True, allow_unicode=True)
+                    if preferred_names
+                    else ""
+                )
                 + commodity_brief(
                     [GoodsIdentity.model_validate(g) for g in facts["goods_identities"]],
                     physical_form=(
@@ -2572,10 +2818,10 @@ class Campaign:
                 )
                 + "\nTARGET VALUES\n"
                 + yaml.safe_dump(candidate["target"], sort_keys=False, allow_unicode=True)
-                + identity_review_context(self.blueprint(sid), candidate["renderValues"])
-                + "\nHOST-RENDERED CONTAINED PACKING (private facts, not extra target rows)\n"
+                + identity_review_context(blueprint, candidate["renderValues"])
+                + "\nHOST-CERTIFIED PRIVATE PACKING (not extra public target rows)\n"
                 + yaml.safe_dump(
-                    contained_packing_context(self.blueprint(sid), candidate["target"]),
+                    self.review_private_packing_context(blueprint, candidate),
                     sort_keys=False,
                     allow_unicode=True,
                 )
@@ -2603,13 +2849,31 @@ class Campaign:
             self.replay_candidate(candidate)
             candidates.append(candidate)
         reviews = []
-        for request in self.review_requests(sid, candidates):
+        review_evidence = []
+        requests = self.review_requests(sid, candidates)
+        for request in requests:
             answer = await self.calls.call(
                 "rendered-review",
                 sid,
                 request.output_type,
                 request.system,
                 request.prompt,
+            )
+            pins, native_output = review_runner_evidence(
+                self.root,
+                self.output,
+                self.calls.config["provider"],
+                sid,
+                request,
+            )
+            if answer.model_dump(mode="json") != native_output:
+                raise ValueError("rendered-review output differs from canonical Runner receipt")
+            review_evidence.append(
+                {
+                    "sampleIds": list(request.sample_ids),
+                    "sha256": review_request_hash(request),
+                    "callReceipts": pins,
+                }
             )
             reviews.append(unpack_review(answer, list(request.sample_ids)))
         output = RenderedReview(
@@ -2624,10 +2888,17 @@ class Campaign:
         receipt = {
             "sourceDocumentId": sid,
             "reviewContractSha256": review_contract_hash(len(candidates), self.casing.target),
+            "reviewRequests": review_evidence,
             "candidateHashes": {c["documentId"]: digest(c) for c in candidates},
             "review": output.model_dump(mode="json"),
         }
-        save(self.output / "reviews" / f"{sid}.json", receipt)
+        path = self.output / "reviews" / f"{sid}.json"
+        if path.exists():
+            previous = read_regular_file_bytes(path)
+            if json.loads(previous) != receipt:
+                archive = self.output / "reviews" / "archive" / f"{sid}-{digest(previous)}.json"
+                atomic_publish_bytes(archive, previous)
+        save(path, receipt)
         return {"sourceDocumentId": sid, "findings": len(output.findings)}
 
     async def review_all(self) -> dict:
@@ -2669,11 +2940,29 @@ class Campaign:
         return report
 
 
+def create_campaign(root: Path, config: dict) -> Campaign:
+    """Select the declared sampling implementation without a donor fallback."""
+    mode = config.get("sampling_mode", "observed")
+    if mode == "independent":
+        if "independent" not in config:
+            raise ValueError("independent sampling requires its explicit pinned inputs")
+        from document_ocr.synthesis.independent_campaign import IndependentCampaign
+
+        return IndependentCampaign(root, config)
+    if mode != "observed":
+        raise ValueError(f"unknown sampling_mode: {mode!r}")
+    if "independent" in config:
+        raise ValueError("independent inputs require sampling_mode: independent")
+    return Campaign(root, config)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "stage",
         choices=(
+            "inventory-independent",
+            "prepare-independent",
             "generate",
             "contacts",
             "correct-postal",
@@ -2696,11 +2985,82 @@ def main() -> None:
         action="store_true",
         help="Allow one new call for a cached invalid native output, retaining billed failures.",
     )
+    parser.add_argument(
+        "--retry-failed-receipt-sha256",
+        action="append",
+        default=[],
+        help="Authorize one new attempt for this exact failed receipt, preserving its bytes.",
+    )
     args = parser.parse_args()
+    if any(
+        re.fullmatch(r"[0-9a-f]{64}", value) is None for value in args.retry_failed_receipt_sha256
+    ):
+        parser.error("failed receipt retry requires exact SHA-256 values")
     root = args.project_root.resolve()
-    campaign = Campaign(root, yaml.safe_load((root / args.config).read_text()))
+    config = yaml.safe_load((root / args.config).read_text())
+    if args.stage == "inventory-independent":
+        from document_ocr.atomic import atomic_publish_json
+        from document_ocr.synthesis.independent_preparation import inventory_sources
+
+        report = inventory_sources(root, config)
+        path = root / config["output"] / "inventory" / f"{time.time_ns()}.json"
+        atomic_publish_json(path, report)
+        print(
+            json.dumps(
+                {
+                    "inventoryPath": str(path.relative_to(root)),
+                    **{
+                        key: report[key]
+                        for key in ("selectedSources", "plannedSlots", "readySources", "counts")
+                    },
+                    "nativeCalls": 0,
+                    "cargoDraws": 0,
+                },
+                indent=2,
+            )
+        )
+        if report["readySources"] != report["selectedSources"]:
+            raise SystemExit(1)
+        return
+    if args.stage == "prepare-independent":
+        from document_ocr.synthesis.independent_preparation import prepare_campaign
+
+        policy = config.get("independent_preparation", {})
+        report = asyncio.run(
+            prepare_campaign(
+                root,
+                config,
+                **policy,
+                retry_rate_limited=args.retry_rate_limited,
+                retry_invalid_output=args.retry_invalid_output,
+                retry_failed_receipt_sha256s=args.retry_failed_receipt_sha256,
+            )
+        )
+        print(
+            json.dumps(
+                {
+                    key: report[key]
+                    for key in (
+                        "summaryPath",
+                        "preparedConfig",
+                        "plannedSlots",
+                        "readySources",
+                        "readySlots",
+                        "counts",
+                        "spentBeforeUsd",
+                        "spentAfterUsd",
+                    )
+                },
+                indent=2,
+            )
+        )
+        if report["readySlots"] != report["plannedSlots"]:
+            raise SystemExit(1)
+        return
+    campaign = create_campaign(root, config)
     campaign.calls.retry_rate_limited = args.retry_rate_limited
     campaign.calls.retry_invalid_output = args.retry_invalid_output
+    campaign.calls.retry_failed_receipt_sha256s = frozenset(args.retry_failed_receipt_sha256)
     with (campaign.output / ".campaign.lock").open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.stage == "generate":

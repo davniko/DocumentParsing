@@ -2268,6 +2268,67 @@
       "trainingDatasetChanged": false
     }
   ],
+  "analogousInvoicePrivacyClosure20261019": {
+    "afterSharedFiles": {
+      "auxiliary.yaml": "b9b2a8a33952c422ceff91299804e3d734a82e57c19130668001b82c953bd8dd",
+      "ownership.yaml": "b1165796eaa7d1056267f37f642802f75d75716862d88a3a63ab9810a5f02fc9"
+    },
+    "beforeManifestSha256": "98526c3ef1069249a526274bf71e4e61215dde894e455f55369023b8ce40b9f5",
+    "beforeSharedFiles": {
+      "auxiliary.yaml": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
+      "ownership.yaml": "3098022df16dee3e8cd319918d41e2835bb1c230cf5418239f74b6aeea66a0fd"
+    },
+    "confirmedInvoiceOwners": 17,
+    "date": "2026-10-19",
+    "existingPartyAliasSources": 2,
+    "existingPartyNameAliases": 5,
+    "extraPrivateReferenceOwner": "anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]",
+    "extraPrivateReferenceSource": "doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a",
+    "independentInvoiceOrganizationOwners": 12,
+    "independentInvoiceOrganizationSources": 10,
+    "originalSourceAndCaseFilesUnchanged": true,
+    "productionPythonChanges": false,
+    "repairedSourceCount": 12,
+    "report": "docs/analysis/r28-invoice-party-closure-20261019/upstream/ANALOGOUS-REVIEW.md",
+    "status": "implemented_and_validated",
+    "unchangedSplitNameControl": "doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39",
+    "validation": {
+      "checkedInvoiceOccurrences": 80,
+      "coordinateLines": 1595,
+      "freshOrdinaryProductionDescendants": 26,
+      "independentSavedGeometryValidation": "pass",
+      "paidCostUsd": "0.024621250000",
+      "positionsManifestSha256": "4ec3fa399f4c43fa2dcd088eb72cd1995ec2e6d2060b35009fc2e7d79bbf5422",
+      "publicationManifestSha256": "61f25e9debddf867f1435c0ec2ec66799747bb14e3ca2077375887710557613d",
+      "receipt": "docs/analysis/r28-invoice-party-closure-20261019/upstream/analogous/final-readback.json",
+      "receiptSha256": "702661a9e36501eecf28d5154f24ce925dc4cace1f423f6b1f03a42c7cbcde9a",
+      "reflowRejectedPages": 0,
+      "rejectedReviewFalsePositives": 1,
+      "sourceIncompleteHeldGroups": 8,
+      "sourcesIncludingControl": 13,
+      "testsPassed": 151,
+      "unpositionedLines": 259,
+      "unresolvedConfirmedFindings": 0
+    }
+  },
+  "batch03LegacyClosure20261021": {
+    "consigneeOrganizationContactBoundarySplit": true,
+    "date": "2026-10-21",
+    "handlingProjectionOwnersAdded": 3,
+    "receipt": "docs/analysis/r28-production-integration-20261021/legacy/batch03/metadata-publication.json",
+    "source1ddFalsePositiveWithdrawn": true,
+    "source22BookingOwnedByExistingV000": true,
+    "sourceInputsAndCoordinatesUnchanged": true,
+    "sourceOnlyFaxRecipesAdded": 1,
+    "sourcesReviewed": [
+      "doc_1dd210b4fc82b0b425ae585b8c7245973eaca05015305ddaca7872d0a13f0d25",
+      "doc_1f64171c391aace231d7b97796a6cd3e79a41387a9a772031470bfab4578d99f",
+      "doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524",
+      "doc_234df0afb308c9c24a1b75a4937fe287e3d8365e0aa369a5915ae3bb4a102eca",
+      "doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005",
+      "doc_27e75cc82b67666232bebbf1a02758707ead92c60859283ba7600fbb02ed0515"
+    ]
+  },
   "cases": {
     "doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900": {
       "capability": {
@@ -3141,11 +3202,11 @@
         "target.json": "e80f905d2acdcd11974d48c47bcb2245ce079ad3ef4ed6dee7fc4b6b542a9f78",
         "template.json": "90f4f8dade2da134da8526578abb683096b1e082b3efdb02ab38dd85c1cf5d0a"
       },
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
       "sourceInputSha256": "ccef14fc48ce7af66b7b8c003a117215c2802ab92ddc2b0f589fa6c3bb16fda2",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
       "targetSha256": "5dc118f8b4b5f39e3494fc2ec15f0027a4355b0d674a9d26ed04ebd1bc6fb6f6"
-    ,
-"sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset"},
+    },
     "doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch01",
       "capability": {
@@ -3160,16 +3221,16 @@
       },
       "files": {
         "alignment.json": "dacfff5b5503ab3652156ab9f99f2c5a2d9517b94bd2ec987eba1ad191e5a3f2",
-        "contract.json": "d7bce89e21375c3cb7862e9479efcbda06cd784cdf2f523be7127ff7d8876540",
+        "contract.json": "a847e41dfe43881a9824f61ea9d1d490488de9bfab4acc3966fc650212d2c43a",
         "source-positioned.txt": "9828004984d633a51508df634f38d870aac3bc97e429fe8d4d8e773be0587cd2",
         "source.txt": "3bc586e207e79911fbc0f464c1ff3674281179b4b92df43e8390b22204d0f36e",
-        "target.json": "1ea692f2ae2373d94426b08f2054decef1641f2f4e0997b8ff80c6529bed1e3d",
+        "target.json": "4dce99111d25e2715f69e343559785b275f4030398733fcd81aba354f5f88499",
         "template.json": "98eae82e3b63ca6745e6b3c23fff2846a06ba1bed660e60f675212c4d549d3d1"
       },
-      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
       "sourceInputSha256": "3bc586e207e79911fbc0f464c1ff3674281179b4b92df43e8390b22204d0f36e",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "a75fb3985a89b4dcf79470ce413852e0333f1680933ca393726e492c8a6795e9"
+      "targetSha256": "e607d894dd6c0c7afb2e475512ce5547daf02e307f05fbc082a9568bb9e5b78d"
     },
     "doc_0f03e4688e411acae197b6f0f554f6d11eacaa7dc906072842a12918aa47383d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -3893,15 +3954,15 @@
       },
       "files": {
         "alignment.json": "3beda1f11457a2ae5091e200481bd75afa7fefeb8bdcaa4a1acfc2c7e4dcb800",
-        "contract.json": "eaf42aeaedf17e392c7e48761325c9a3b3caca1e3c00ada45520ad8b698dcdc8",
+        "contract.json": "e9115466c10aaf453a908cae04170fd87f2cfd5069b9afc641755f40a06f37a5",
         "source-positioned.txt": "d1504d65e26d40cb03701e550bfcd9228b13bddc48e67fbccc4632c915f97c8b",
         "source.txt": "bf5d62d247afbfee8b4a73dbce716172ede9d0d2091bf5e46c96f262629ef7ed",
-        "target.json": "b9ec2b472c639ff242996152632b5c511305c6a21443002cc033dadbcf7be565",
+        "target.json": "4ceb75ae4533d8e084f6c726d6ee54072c7f57b799ec1e2ff4eee60a5333f7cd",
         "template.json": "6d804f882c520180f5e1cfd3cd3b88d7f5423629ce32288ae46b57510966c253"
       },
       "sourceInputSha256": "bf5d62d247afbfee8b4a73dbce716172ede9d0d2091bf5e46c96f262629ef7ed",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "253a01338ddc298418550b289986339c6659d4f6ac0b5660db3c7ed995bd380c"
+      "targetSha256": "27b54fc65aab9f826bb52605b39bf98ac4cccd845248350e072b4005d745be4b"
     },
     "doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch03",
@@ -5635,10 +5696,7 @@
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
       "capability": {
         "family": "ambient",
-        "identity_count": 1,
-        "required_private_measures": [
-          "netWeight"
-        ]
+        "identity_count": 1
       },
       "files": {
         "alignment.json": "8ce82f003e7c22cecab848df219a7fae51a6a58d3020664f8cf952ad3caecd55",
@@ -6210,15 +6268,16 @@
       },
       "files": {
         "alignment.json": "6e98ce495176525ad2d62d0f2a5e1b936f610a852de96f2ef4944b82d1721351",
-        "contract.json": "b98fc1fae71406dd7187b554aa76e29bde67287dc163ccff675cf9a17bdf3ed4",
+        "contract.json": "3165156471d63baf5f44d7fbedfcfc5f527ade2e11e4059cd6a7731390e722e8",
         "source-positioned.txt": "19a5baf56e873ac3b07261618bc44be9288a9cf483c1a0012d64f12a1d3b85cc",
         "source.txt": "991ed8ae58037a98fff9f31e30dd76f0a5675490255b6d1cc258f3a9fb138e7b",
-        "target.json": "57fff3a77618eea33c0b105c9918917c68c60b76086d83c03842e1304dc83bad",
+        "target.json": "140d5d7d8542de9ac2464927036b9e23067d0b99720967b244db2506446fabeb",
         "template.json": "708f511b183e9873acac479f536c0771376f873a1b03727d14f57e1b3ceadeae"
       },
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
       "sourceInputSha256": "991ed8ae58037a98fff9f31e30dd76f0a5675490255b6d1cc258f3a9fb138e7b",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "43118db0353e14a57d6844740f9e4c419e150bd3748a52da5c2d9a6252d237c9"
+      "targetSha256": "8c8701bb202c72c6ddd2609513804ed545eb538c1f540bc915aed3dc12e9739a"
     },
     "doc_48325f63ba3ebeea284baa1b9c48eabee4df716417bb04dd2f7884c4fc88cf98": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-dg-expansion20-validation-v1",
@@ -6389,7 +6448,7 @@
       },
       "files": {
         "alignment.json": "eda3faafdb2fc0aa163fbb8ef076f88e809a778e805a2f67f36b6053f9d67600",
-        "contract.json": "5632b652b6d06b6b88bd28db06fce93c066891c8fdbd9209f441fb4db03a0f15",
+        "contract.json": "166d8b15dc2c0023c8b1317648efb65960b33ae4f51076940542090f16f275af",
         "source-positioned.txt": "adf203acd09b656afcae445d375ff3c7146c2ee67b606e9a13726dbbe7858039",
         "source.txt": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
         "target.json": "c5914127d247875b3c37132b1a7787c60ff0bafcddb02f6a9e15f4cde9002ba9",
@@ -10155,11 +10214,11 @@
         "ownerContractSha256": "1b05e5f96af62dbd5874075dc295657ae7782ebaf0ef5b70a9b0ea79863ad5a0",
         "status": "certified_uniform_and_mixed"
       },
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
       "sourceInputSha256": "4b3085692d0f21420c672d199982fa8521722c3e4e87f0d5dccda3e00da3dee1",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
       "targetSha256": "d15ed3b99ab1bd1defb545b991acb477c87ce07767d9488d838b5021958e7f29"
-    ,
-"sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset"},
+    },
     "doc_873a72feb30751194d955c012729481d31739ef3553b68f39d6e4ee5039786e7": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
       "capability": {
@@ -10291,10 +10350,10 @@
         "ownerContractSha256": "7e865d807f110d0c389cf815988bb08ef8a4f9991ecd7735a81f95ca5065f7b4",
         "status": "certified_uniform_and_mixed"
       },
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "sourceInputSha256": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "2104196e8417cc35118a38c1be28b458a35dcfa87a934acf731ecb4688ca86df",
-      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset"
+      "targetSha256": "2104196e8417cc35118a38c1be28b458a35dcfa87a934acf731ecb4688ca86df"
     },
     "doc_88deddadf982fd5c5920c4f64487fc06a0db25f6e8a3e7cd76efd0168960a10b": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -11511,10 +11570,10 @@
         "target.json": "2106e44e9987a86e76894351466ffe964dae037ff26f526ac4a11dae4f9b16da",
         "template.json": "9e4fc761820c4f94854d985ccb687f47744880a7070b5b1b8bc5d5f0986066c4"
       },
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "sourceInputSha256": "0216763785d0c24c3ceeb79ae37623e9106302c6994d47498eaf80f178d0490d",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "edce15078325e3f03d121af66b3c2372e12d54c2a29ac0b947c7c74fe579945d",
-      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset"
+      "targetSha256": "edce15078325e3f03d121af66b3c2372e12d54c2a29ac0b947c7c74fe579945d"
     },
     "doc_9d3de4a72498fd9f95952a8036f68167e50c7e7671786e7a029c83ec6244094b": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -11731,10 +11790,10 @@
         "template.json": "35f0595061288b3cf0e359bf92606c7264a9852b68e976daab8a2d5144ec8721"
       },
       "recoveredHistoricalDraftNewlyReviewed": true,
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
       "sourceInputSha256": "f2316010dcb003ad3fd3f888b330f7d023ee2d11e7de10a096763da3d65e4116",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "5f4b29fcc9ea333c7fe1f8a5dc45652d679ebc6b9a5d6302755ce29cf69723ee",
-      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset"
+      "targetSha256": "5f4b29fcc9ea333c7fe1f8a5dc45652d679ebc6b9a5d6302755ce29cf69723ee"
     },
     "doc_a177de46a81ab0e061b8bf391f74e741b70004f5b9f9dc0d6da8bde10ab853fb": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -16124,7 +16183,14 @@
         "sha256": "b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb"
       }
     },
-    "sourceDataset": {"path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset", "files": {"train.jsonl": "82c1a6cb5bf8f30d0fd517b0762d12071ccafa41f5237103aa38be65169e201c", "validation.jsonl": "75918520914fadd581d2e6bb853af4b0f1d9b42c39e0acfa164e06eaee5786c9", "manifest.json": "c278fcb85aba12f4e02730c2e3f21ff3e8c6110e34eda7660c126a95f5cc71da"}},
+    "sourceDataset": {
+      "files": {
+        "manifest.json": "e8c966b7bac02e651740c5820eed7027d227dbd973cf4016c0eb2905e5c51b88",
+        "train.jsonl": "0a54ba7ec30382e0f7bd4dacdd58300371071355c52df0ddf57c8bd8dc8144ad",
+        "validation.jsonl": "75918520914fadd581d2e6bb853af4b0f1d9b42c39e0acfa164e06eaee5786c9"
+      },
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset"
+    },
     "taskConstraints": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json",
       "sha256": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
@@ -16224,9 +16290,164 @@
     "report": "docs/kie-synthesis-followup-integrity-2026-10-08.md",
     "source": "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04"
   },
+  "handlingForwardingAliasClosure20261021": {
+    "caseSourceTargetContractUnchanged": true,
+    "date": "2026-10-21",
+    "dependentTextPhases": {
+      "scenario": 19,
+      "wording": 1
+    },
+    "numericAuthorityUnchanged": true,
+    "preservationSuccessor": "docs/analysis/r28-production-integration-20261021/legacy/handling-party-alias/preservation-successor-v2.json",
+    "proposal": "docs/analysis/r28-production-integration-20261021/legacy/handling-party-alias/alias-proposal.json",
+    "proposalSha256": "dbe019d3c6a87ad6655bc7f512e8d8c53f2a6c2d4262b64171f17b657d9ad2fd",
+    "r28PhysicalRowsChanged": 26,
+    "r28UniqueRecordsChanged": 26,
+    "receipt": "docs/analysis/r28-production-integration-20261021/legacy/handling-party-alias/publication.json",
+    "receiptSha256": "4af7341e2f793759f39f148190d7bed2ff41fe6dc0bef2d6f9a771f56dc6c44a",
+    "sourceDocument": "doc_23e145dea7d01f8a13e7900a68d03384eba3cfdd0802ac0f6ba481b162ba8005"
+  },
+  "independentFlatBatches0204Acceptance20261021": {
+    "acceptanceIndex": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-batches02-04-20261021/acceptance-index.json",
+      "sha256": "5fb61b99ed4a1c2fd4af11121723ba294341cad57d13456f05bf277ff2cb68a4"
+    },
+    "acceptedDescendantSlots": 180,
+    "date": "2026-10-21",
+    "explicitGoodsRedraws": 2,
+    "inspectionOnly": true,
+    "report": "docs/analysis/r28-donor-free-batches02-04-20261021/REPORT.md",
+    "sourceOwnershipSha256": "8f6eb38001fb0c5fb5bb0b88961dd75b6ab5624ebb61806c26ac74ce0567fd12",
+    "sources": 60,
+    "trainingDatasetUnchanged": true
+  },
+  "independentFlatFullRegistryAcceptance20261021": {
+    "acceptanceIndex": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-full-registry-20261021/acceptance-index.json",
+      "sha256": "2f969f5df04315bc30c1516eef183824562a5981768995babc0cb2a0a50fdfa4"
+    },
+    "acceptedSources": 449,
+    "inspectionOnly": true,
+    "remainingSources": 4,
+    "report": "/mnt/d/projects/documentparsing/docs/analysis/r28-donor-free-full-registry-20261021/PLAN.md",
+    "sourceOwnershipSha256": "267e03c4e0cf5999ceb5ab44f2bdc46c8d9678c4e748a451358c823ecd4f368b"
+  },
+  "invoicePartyPrivacyClosure20261019": {
+    "afterOwnershipSha256": "3098022df16dee3e8cd319918d41e2835bb1c230cf5418239f74b6aeea66a0fd",
+    "auxiliarySha256Unchanged": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
+    "beforeManifestSha256": "e5d8c1e9de5b87aa12e98959578a0ad0d0d95a191d76b33bc1d796c4afb63840",
+    "beforeOwnershipSha256": "b116c11b404384b2d3832ae1b0b3338084338fa5a8b611ff9085ffca23be2293",
+    "date": "2026-10-19",
+    "report": "docs/analysis/r28-invoice-party-closure-20261019/upstream/REPORT.md",
+    "scope": "One separately generated source-only invoice organization owns all three invoice-column occurrences; no extraction label or also-notify alias",
+    "sourceAndCaseFilesUnchanged": true,
+    "sourceDocumentId": "doc_16386c0aa2b17689bc1c50255197ae82cc63fc3e749ae7b8581a691312390b57",
+    "status": "implemented_and_validated",
+    "validation": {
+      "coordinateLines": 164,
+      "freshProductionDescendants": 2,
+      "invoiceOccurrencesPerDescendant": 3,
+      "nativeFullTextFindings": 0,
+      "paidCostUsd": "0.002248100000",
+      "receipt": "docs/analysis/r28-invoice-party-closure-20261019/upstream/final-readback.json",
+      "testsPassed": 122,
+      "unpositionedLines": 4
+    }
+  },
+  "issueRoleClosure20261020": {
+    "admittedCases": 1,
+    "authority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/issue-role-closure-20261020/source-dataset",
+    "authorityManifestSha256": "33e27ad9a9e315965d8e858a6be1d29e0b86bcce2a3905e1c244a9b6129b9209",
+    "crossRoleCountryAliasesRemoved": 3,
+    "date": "2026-10-20",
+    "issueLocalityOccurrences": 2,
+    "priorManifestSha256": "fd3ca2dbf128ad9f9867c211505e02e3778e7c6d0365bd333bbad84551ed3127",
+    "priorOwnershipSha256": "d402d9d610372bdf7b87e591fc547a481e6ec6673f8a818bfc10f00bcd664728",
+    "publicIssuerLiteralPreserved": true,
+    "r28RepairPlan": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/r28-repair-plan.json",
+    "r28RepairPlanSha256": "bdcc78ac4204cbc05b0b544b34333f427a8e6c768280c28e2835f7092b85ee14",
+    "sourceDocumentIds": [
+      "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046"
+    ],
+    "sourceRecords": 1,
+    "sourceRevisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/source-authority-revision.json",
+    "sourceRevisionReceiptSha256": "c29f3e4ab93aa0c31a18b0b0313f47255743abc9efb4dafeede01da4a86a7489",
+    "sourceTargetLeavesRemoved": 1,
+    "status": "upstream_promoted_pending_fresh_controls"
+  },
   "labelPolicyMigration": {
     "inputsUnchanged": true,
     "policy": "mandatory_consignee_negotiability_explicit_notify_reference_v1"
+  },
+  "largerControlledLegacyClosure20261020": {
+    "changedSources": [
+      "doc_f36409a0d43ce2b8629e5328d3113eac32f18f3a223252da37860b4afdbc2e38",
+      "doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a",
+      "doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0",
+      "doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d",
+      "doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e",
+      "doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a",
+      "doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5"
+    ],
+    "newActiveSourceAuthority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
+    "previousHistoricalAuthoritiesAndConfigurationFilesUnchanged": true,
+    "revisionReceipt": "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/source-authority-revision.json",
+    "revisionReceiptSha256": "79da3f9dc5abb49a2ec004dacf21b6d5204b69c6ede24ff8f96931360d379064",
+    "sourceCountUnchanged": 453
+  },
+  "largerControlledPhase3PrivacyCommodityPhoneClosure20261020": {
+    "decision": "Restore private source-only bindings, coherent short commodity references, explicit package nouns and separately starred consignee phone; preserve all unrelated content",
+    "priorManifestSha256": "886e48b5fe53291ee6569cefd95f4cf9096688e69d0a27db010585ffc2f1c3d9",
+    "reviewedCapsules": {
+      "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/privacy-witness/closure/metadata-capsule.json": "d5f748ddec891f48cd96fe1ce141da3563ec5445a0fbfa390b21a75e7ed90cb9",
+      "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/privacy-witness/closure/phone-9d4/source-capsule.json": "b2fd5e4a339fc6d8c38df47c0f0e3d313e8aa903f2f7913478ccd9d7f675469c",
+      "docs/analysis/r28-larger-controlled-flat-probe-20261020/numeric/commodity-alias-followup/metadata-v2/metadata-capsule.json": "0b4e8cada4bf18a563e314bfc0b4067f8d4cc01ac77e3fec27a4d062e09af9f9"
+    },
+    "sourceAuthorityPathUnchanged": true,
+    "sources": {
+      "1f1c1d54": "doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09",
+      "20cf0a0c": "doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5",
+      "23a49094": "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc",
+      "6cc8c295": "doc_6cc8c295822b3bcf3c8f7ccb66986ebb9692b5a9a50a14b73e8d845b25bbb736",
+      "9d4a6b90": "doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e",
+      "a47ae6af": "doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110",
+      "d6d020b7": "doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675"
+    }
+  },
+  "legacyAgencyClosure20261021": {
+    "date": "2026-10-21",
+    "deterministicAgencyContactRecipesAdded": 2,
+    "receipt": "docs/analysis/r28-production-integration-20261021/legacy/metadata-publication.json",
+    "sourceInputAndCoordinatesUnchanged": true,
+    "sourceOnlyAgencyOwnersAdded": 2,
+    "sources": [
+      "doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed"
+    ]
+  },
+  "legacyPhoneAndPrivateOwnerClosure20261019": {
+    "date": "2026-10-19",
+    "originalSourceAuthoritiesPreserved": true,
+    "phoneScope": {
+      "currentRecords": 16,
+      "currentTargetLeaves": 17,
+      "printedInputsUnchanged": true,
+      "sourceCases": 6,
+      "sourceTargetLeaves": 7
+    },
+    "privacyScope": {
+      "physicalCopies": 82,
+      "publicTargetsUnchanged": true,
+      "sources": 3,
+      "uniqueSyntheticRecords": 58
+    },
+    "proofBoundary": "Bounded repairs; the separate donor-free experiment is not promoted.",
+    "report": "docs/analysis/r28-legacy-closure-20261019/REPORT.md",
+    "sharedFiles": {
+      "auxiliary.yaml": "32d38bfa5b86f7c88de974b18389a883c7e83d0d64e7e7fdfe3564e23f94d443",
+      "ownership.yaml": "266d4ca0cf0f765e2bd847ff3360d9d518a553ec8354823f5abaa81875d9c03a"
+    },
+    "sourceAuthorityRevision": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+    "sourceAuthorityRevisionSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c"
   },
   "maintenance": [
     {
@@ -17024,6 +17245,35 @@
     ],
     "unresolvedReviewFindings": 0
   },
+  "opaqueMarksPrivacyClosure20261020": {
+    "afterSharedFiles": {
+      "auxiliary.yaml": "24f92697204f385c0b2e87b0fc09e10772c8f2d01c3f9755f6742aba1f1ed438",
+      "ownership.yaml": "3508fddf23a67331503b0caf80cd0fa4f6de4a431cb1486a3063daccd377f0ed"
+    },
+    "beforeManifestSha256": "0966f43676dd528bc3dbca9aae054ebd86a4344e3c920f1110657b7dbfc16904",
+    "beforeSharedFiles": {
+      "auxiliary.yaml": "32d38bfa5b86f7c88de974b18389a883c7e83d0d64e7e7fdfe3564e23f94d443",
+      "ownership.yaml": "266d4ca0cf0f765e2bd847ff3360d9d518a553ec8354823f5abaa81875d9c03a"
+    },
+    "datasetRepairPlan": "docs/analysis/r28-held-branch-repair-20261020/marks/dataset-repair-plan.json",
+    "datasetRepairPlanSha256": "6d5aaacef8ac980b80179bd32dedc7d17905c0d744cee396046c7d8c9bcc74d6",
+    "date": "2026-10-20",
+    "effectivePreflight": "docs/analysis/r28-held-branch-repair-20261020/marks/effective-preflight.json",
+    "effectivePreflightSha256": "ce32689383ed0642b1a84d4f873280cdc08551328df1f0468e43fd42799afecf",
+    "implementation": "src/document_ocr/synthesis/curated_auxiliary.py",
+    "implementationSha256": "2683d5c16f0708b842be7600c05c449cbe5b5e706811f6fe7c196c64b4b61a81",
+    "originalSourceAndCaseFilesUnchanged": true,
+    "plannedPhysicalCopies": 53,
+    "plannedUniqueRecords": 35,
+    "proofBoundary": "Source-only Marks ownership/recipes; no new extraction fields. Dataset publication and complete fresh synthesis validation are separate gates.",
+    "publicTargetsUnchanged": true,
+    "report": "docs/analysis/r28-held-branch-repair-20261020/marks/REPORT.md",
+    "sourceDocumentIds": [
+      "doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c",
+      "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9"
+    ],
+    "status": "metadata_promoted_pending_dataset_and_fresh_controls"
+  },
   "packageAccountingRepair": {
     "policy": "declared-shipment-accounting-v1",
     "preflightPlans": 400,
@@ -17190,6 +17440,29 @@
       "doc_fbfcab7a8de5b7eb4eb8ca6676e3d850f5951a688363e13c35c64ec2ae7d920f"
     ]
   },
+  "phoneNumericEnvelopeClosure20261020": {
+    "admittedCases": 1,
+    "authority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
+    "authorityManifestSha256": "07eef3ad7346993bc6bd92709f2f0261a3b69890e86712d04a2db1e3b4e1a5f9",
+    "date": "2026-10-20",
+    "numericOwnershipPlan": "docs/analysis/r28-held-branch-repair-20261020/numeric/ownership-binding-patch.json",
+    "numericOwnershipPlanSha256": "59759aca37cba9089915bbf5a67abba3c499d88d9f6843763a182eb3fcc7ce33",
+    "phoneGuard": "src/document_ocr/synthesis/curated_phones.py",
+    "phoneGuardSha256": "9e5c5d8d24384f301ab8a7f013757f3cfd59a6ac66228e1c6847f74017ee1987",
+    "priorManifestSha256": "d2d1185b49386a753e4f0cf1c237c215d679d4815725da8b515cefc1f9df9327",
+    "priorOwnershipSha256": "3508fddf23a67331503b0caf80cd0fa4f6de4a431cb1486a3063daccd377f0ed",
+    "r28TargetPlan": "docs/analysis/r28-held-branch-repair-20261020/phones/r28-target-repair-plan.json",
+    "r28TargetPlanSha256": "21242d3a58b301891473321ce8010217d35e302ba004ab41078794f7a1369dad",
+    "sourceDocumentIds": [
+      "doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4",
+      "doc_01c3694feb64b58143d25e929a4da5238419bd23d0e29d446f87020afda1f4ec"
+    ],
+    "sourceRecords": 2,
+    "sourceRevisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/phones/source-authority-revision.json",
+    "sourceRevisionReceiptSha256": "c1ebdc247da5674296bdcc26f58fab32777e68447d980d8774935ffc2da19791",
+    "sourceTargetLeaves": 2,
+    "status": "upstream_promoted_pending_fresh_controls"
+  },
   "phonePresentationRepair": {
     "date": "2026-10-15",
     "ownershipSources": [
@@ -17206,86 +17479,29 @@
     ],
     "sourceTextAndTargetAssetsUnchanged": true
   },
-  "analogousInvoicePrivacyClosure20261019": {
-    "date": "2026-10-19",
-    "status": "implemented_and_validated",
-    "report": "docs/analysis/r28-invoice-party-closure-20261019/upstream/ANALOGOUS-REVIEW.md",
-    "beforeManifestSha256": "98526c3ef1069249a526274bf71e4e61215dde894e455f55369023b8ce40b9f5",
-    "beforeSharedFiles": {
-      "ownership.yaml": "3098022df16dee3e8cd319918d41e2835bb1c230cf5418239f74b6aeea66a0fd",
-      "auxiliary.yaml": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df"
-    },
-    "afterSharedFiles": {
-      "ownership.yaml": "b1165796eaa7d1056267f37f642802f75d75716862d88a3a63ab9810a5f02fc9",
-      "auxiliary.yaml": "b9b2a8a33952c422ceff91299804e3d734a82e57c19130668001b82c953bd8dd"
-    },
-    "confirmedInvoiceOwners": 17,
-    "repairedSourceCount": 12,
-    "independentInvoiceOrganizationOwners": 12,
-    "independentInvoiceOrganizationSources": 10,
-    "existingPartyNameAliases": 5,
-    "existingPartyAliasSources": 2,
-    "unchangedSplitNameControl": "doc_20373d1e3232f952906ddf5394b57835d5deb2ef95e19f0bc2e7cfdf3e65dc39",
-    "extraPrivateReferenceOwner": "anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]",
-    "extraPrivateReferenceSource": "doc_2c599a8b65676a12af477b9155aca96c79e1a4305ced1c7a0ced59d461a98c8a",
-    "originalSourceAndCaseFilesUnchanged": true,
-    "productionPythonChanges": false,
-    "validation": {
-      "freshOrdinaryProductionDescendants": 26,
-      "sourcesIncludingControl": 13,
-      "testsPassed": 151,
-      "checkedInvoiceOccurrences": 80,
-      "independentSavedGeometryValidation": "pass",
-      "coordinateLines": 1595,
-      "unpositionedLines": 259,
-      "reflowRejectedPages": 0,
-      "sourceIncompleteHeldGroups": 8,
-      "rejectedReviewFalsePositives": 1,
-      "unresolvedConfirmedFindings": 0,
-      "paidCostUsd": "0.024621250000",
-      "receipt": "docs/analysis/r28-invoice-party-closure-20261019/upstream/analogous/final-readback.json",
-      "receiptSha256": "702661a9e36501eecf28d5154f24ce925dc4cace1f423f6b1f03a42c7cbcde9a",
-      "publicationManifestSha256": "61f25e9debddf867f1435c0ec2ec66799747bb14e3ca2077375887710557613d",
-      "positionsManifestSha256": "4ec3fa399f4c43fa2dcd088eb72cd1995ec2e6d2060b35009fc2e7d79bbf5422"
-    }
-  },
-  "invoicePartyPrivacyClosure20261019": {
-    "date": "2026-10-19",
-    "sourceDocumentId": "doc_16386c0aa2b17689bc1c50255197ae82cc63fc3e749ae7b8581a691312390b57",
-    "report": "docs/analysis/r28-invoice-party-closure-20261019/upstream/REPORT.md",
-    "beforeManifestSha256": "e5d8c1e9de5b87aa12e98959578a0ad0d0d95a191d76b33bc1d796c4afb63840",
-    "beforeOwnershipSha256": "b116c11b404384b2d3832ae1b0b3338084338fa5a8b611ff9085ffca23be2293",
-    "afterOwnershipSha256": "3098022df16dee3e8cd319918d41e2835bb1c230cf5418239f74b6aeea66a0fd",
-    "auxiliarySha256Unchanged": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
-    "sourceAndCaseFilesUnchanged": true,
-    "scope": "One separately generated source-only invoice organization owns all three invoice-column occurrences; no extraction label or also-notify alias",
-    "status": "implemented_and_validated",
-    "validation": {
-      "testsPassed": 122,
-      "freshProductionDescendants": 2,
-      "invoiceOccurrencesPerDescendant": 3,
-      "nativeFullTextFindings": 0,
-      "coordinateLines": 164,
-      "unpositionedLines": 4,
-      "paidCostUsd": "0.002248100000",
-      "receipt": "docs/analysis/r28-invoice-party-closure-20261019/upstream/final-readback.json"
-    }
+  "pilotReferenceAndVolumeClosure20261020": {
+    "changedSources": [
+      "doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf",
+      "doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094",
+      "doc_d274be39fa08a3bd1a2500dc764acd91abcec16d7ed3daf301b0ffcbad2857fc"
+    ],
+    "decisionProposals": [
+      "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/pilot-followup/order-repair-proposal.json",
+      "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/pilot-followup/cube-repair-proposal.json"
+    ],
+    "newActiveSourceAuthority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
+    "sourceCountUnchanged": 453,
+    "sourceInputsPositionsValidationAndHistoricalAuthoritiesUnchanged": true
   },
   "privacyClosure20261019": {
-    "date": "2026-10-19",
-    "report": "docs/analysis/r28-flat-privacy-closure-20261019/upstream/REPORT.md",
-    "sourceDocumentIds": [
-      "doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069",
-      "doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb"
-    ],
+    "afterSharedFiles": {
+      "auxiliary.yaml": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
+      "ownership.yaml": "b116c11b404384b2d3832ae1b0b3338084338fa5a8b611ff9085ffca23be2293"
+    },
     "beforeManifestSha256": "5121a3c9aa6ebbce7aa2042e13be431428915d0587f0e7307448e3931964d274",
     "beforeSharedFiles": {
-      "ownership.yaml": "ba736b67e3641f312ca7d7959f28f8da293f35416aeccab69cd0cb00be00902a",
-      "auxiliary.yaml": "6027b8e244f19941c44083822488d9460103f2ac5fd90dfc75cc74978d26b3f1"
-    },
-    "afterSharedFiles": {
-      "ownership.yaml": "b116c11b404384b2d3832ae1b0b3338084338fa5a8b611ff9085ffca23be2293",
-      "auxiliary.yaml": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df"
+      "auxiliary.yaml": "6027b8e244f19941c44083822488d9460103f2ac5fd90dfc75cc74978d26b3f1",
+      "ownership.yaml": "ba736b67e3641f312ca7d7959f28f8da293f35416aeccab69cd0cb00be00902a"
     },
     "caseFilesAndOriginalSourcesUnchanged": true,
     "changes": [
@@ -17294,16 +17510,22 @@
       "All three secondary consignee identity aliases depend on generated consignee",
       "Source-only carrier signatory uses existing generated private-person mechanism"
     ],
+    "date": "2026-10-19",
+    "report": "docs/analysis/r28-flat-privacy-closure-20261019/upstream/REPORT.md",
+    "sourceDocumentIds": [
+      "doc_b76bdefe1ec553efdbb9115cd9f43b6708ce2765e5f4161a93ff6dbe0339d069",
+      "doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb"
+    ],
     "status": "implemented_and_validated",
     "validation": {
-      "targetedTests": 95,
-      "freshProductionSources": 2,
-      "freshProductionDescendants": 4,
-      "nativeFullTextFindings": 0,
       "coordinateLines": 508,
-      "unpositionedLines": 72,
+      "freshProductionDescendants": 4,
+      "freshProductionSources": 2,
+      "nativeFullTextFindings": 0,
       "paidCostUsd": "0.004206800000",
-      "receipt": "docs/analysis/r28-flat-privacy-closure-20261019/upstream/final-readback.json"
+      "receipt": "docs/analysis/r28-flat-privacy-closure-20261019/upstream/final-readback.json",
+      "targetedTests": 95,
+      "unpositionedLines": 72
     }
   },
   "privacyMetadataRevision": {
@@ -17369,13 +17591,34 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "7458a3a25c2e1b06e3484573821c20287304b51dd328ee101ec40bd24ca2f5a1",
-    "ownership.yaml": "9ec63e7fcc1cd92ea3c97c9dee8ae1f045c984128eee1d48a9a6cc66c7ad097c",
+    "auxiliary.yaml": "758229682adf8e5a81c595f39e39adb55e2bb48f2652bb066c255fd54a2222b8",
+    "ownership.yaml": "267e03c4e0cf5999ceb5ab44f2bdc46c8d9678c4e748a451358c823ecd4f368b",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513",
     "task-constraints.json": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
   },
+  "source049PhonePromotionWithdrawal20261021": {
+    "date": "2026-10-21",
+    "receipt": "docs/analysis/r28-production-integration-20261021/legacy/source049-policy-withdrawal.json",
+    "removedPublicTargetLeaves": [
+      "documentPatch.parties.consignee.contactDetails.phoneNumbers[0]",
+      "documentPatch.parties.consignee.contactDetails.phoneNumbers[1]"
+    ],
+    "sourceOnlyPhonesRetained": true,
+    "status": "rejected_policy_conflict"
+  },
   "sourceAuthorityOverrides": {
+    "doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d": {
+      "configurationRule": "Use the corrected source authority/current contracts. Leading package declarations remain rendered but are outside the approved product-description span.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
+      "datasetManifestSha256": "752aff10971c7cb6ae62be88026a557683eae6da4125f1f5df460a81a68e95d5",
+      "reason": "Existing main-product-block policy: remove the independently owned leading count/type introduction; preserve OCR, coordinates and every other target.",
+      "revisionReceipt": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
+      "revisionReceiptSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
+      "sourceContractSha256": "a847e41dfe43881a9824f61ea9d1d490488de9bfab4acc3966fc650212d2c43a",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "0ed60965c174bd8b882ebe997180cfa0b03d3d09d4a166e7816bbcc07b529b7a"
+    },
     "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc": {
       "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml",
       "auxiliarySha256": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
@@ -17391,109 +17634,120 @@
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
       "trainSha256": "b2d5b2046c062fba14c250c29b32443f0b8b59730dd54ba626431e6a3559c929"
     },
+    "doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb": {
+      "configurationRule": "Use the corrected source authority/current contracts. Leading package declarations remain rendered but are outside the approved product-description span.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
+      "datasetManifestSha256": "752aff10971c7cb6ae62be88026a557683eae6da4125f1f5df460a81a68e95d5",
+      "reason": "Existing main-product-block policy: remove the independently owned leading count/type introduction; preserve OCR, coordinates and every other target.",
+      "revisionReceipt": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
+      "revisionReceiptSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
+      "sourceContractSha256": "3165156471d63baf5f44d7fbedfcfc5f527ade2e11e4059cd6a7731390e722e8",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "0ed60965c174bd8b882ebe997180cfa0b03d3d09d4a166e7816bbcc07b529b7a"
+    },
     "doc_68c5e5dd81c606ac459903fccbe2b0474ed59fa81756a53567d314ca9225153a": {
-      "date": "2026-10-19",
+      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "a34571f1a1346f091eec4310d9ee98c3dba6b396f42d93f5821d8cec575f0fc9",
-      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
+      "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
-      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation."
+      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
+      "sourceContractSha256": "a34571f1a1346f091eec4310d9ee98c3dba6b396f42d93f5821d8cec575f0fc9",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
     },
     "doc_7c1039681cb921ea4d5c5ddab591e7e1a1d568807a998be525faac1657d689a5": {
-      "date": "2026-10-19",
+      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "date": "2026-10-19",
+      "originalAuthorityPreserved": true,
+      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
+      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "ef63e7642c7d9916514690c19f64a5267019126443c0d7e08e89d3d204ed8e74",
-      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
-      "originalAuthorityPreserved": true,
-      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
-      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation."
-    },
-    "doc_884975ffae24b9eb4e17ab66eb00dcf43ed87dc2f92ce46c06cbbef47ff44494": {
-      "date": "2026-10-19",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "b1a61e93109b9afd3a2991062ce1fa44509d1d9c9e62da53dd82ad8938900874",
-      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
-      "originalAuthorityPreserved": true,
-      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
-      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation."
-    },
-    "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9": {
-      "date": "2026-10-19",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "430a4c1d007593555df60f9384b3302c707d04e0fa4522e05608326e8f9d5e48",
-      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
-      "originalAuthorityPreserved": true,
-      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
-      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation."
-    },
-    "doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946": {
-      "date": "2026-10-19",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "4ba4216f327a6290b8b7d4876bff440386725f4761b4fbefa08cafade8349232",
-      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
-      "originalAuthorityPreserved": true,
-      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
-      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation."
-    },
-    "doc_dfaddb83e0f53d0da5eb1899fbc8109015466f36dca3c034e7dc71632f8d7010": {
-      "date": "2026-10-19",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "cba386a47148d3ebb425051575d894a14404f8ff93f274a55c0e7c348d842c0d",
-      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
-      "originalAuthorityPreserved": true,
-      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
-      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation."
-    },
-    "doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4": {
-      "date": "2026-10-20",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
-      "datasetManifestSha256": "07eef3ad7346993bc6bd92709f2f0261a3b69890e86712d04a2db1e3b4e1a5f9",
-      "trainSha256": "220520b67e509facc83534823e9629097ed6b25fecac139f0ef0d85b8c8ba20e",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "e26f41012ab77b0a95153da31660daa299a296b9ffebc34a14df3793231cbb19",
-      "revisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/phones/source-authority-revision.json",
-      "revisionReceiptSha256": "c1ebdc247da5674296bdcc26f58fab32777e68447d980d8774935ffc2da19791",
-      "originalAuthorityPreserved": true,
-      "reason": "Retain the complete printed phone numeric envelope; do not infer or expand numbers.",
-      "configurationRule": "Use this promoted source authority and active contracts; incomplete authorities fail before paid generation."
+      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
     },
     "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046": {
-      "date": "2026-10-20",
+      "configurationRule": "Use this promoted source authority and active contracts; stale authorities fail contract identity before generation.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/issue-role-closure-20261020/source-dataset",
       "datasetManifestSha256": "33e27ad9a9e315965d8e858a6be1d29e0b86bcce2a3905e1c244a9b6129b9209",
-      "trainSha256": "1ab8bc69a951af252d3570e1a47b8d82ec8e1d406ef803db27f57cba76c8234b",
-      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "sourceContractSha256": "cec31531768c0154829636fdfe9008827ce3e848a185a2e11491ef0583d9eab3",
-      "revisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/source-authority-revision.json",
-      "revisionReceiptSha256": "c29f3e4ab93aa0c31a18b0b0313f47255743abc9efb4dafeede01da4a86a7489",
+      "date": "2026-10-20",
       "originalAuthorityPreserved": true,
       "reason": "Issuer-company country is identity context, not an independently declared issue country; preserve issuer literal and own only locality.",
-      "configurationRule": "Use this promoted source authority and active contracts; stale authorities fail contract identity before generation."
+      "revisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/source-authority-revision.json",
+      "revisionReceiptSha256": "c29f3e4ab93aa0c31a18b0b0313f47255743abc9efb4dafeede01da4a86a7489",
+      "sourceContractSha256": "cec31531768c0154829636fdfe9008827ce3e848a185a2e11491ef0583d9eab3",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "1ab8bc69a951af252d3570e1a47b8d82ec8e1d406ef803db27f57cba76c8234b"
+    },
+    "doc_884975ffae24b9eb4e17ab66eb00dcf43ed87dc2f92ce46c06cbbef47ff44494": {
+      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
+      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "date": "2026-10-19",
+      "originalAuthorityPreserved": true,
+      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
+      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
+      "sourceContractSha256": "b1a61e93109b9afd3a2991062ce1fa44509d1d9c9e62da53dd82ad8938900874",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+    },
+    "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9": {
+      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
+      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "date": "2026-10-19",
+      "originalAuthorityPreserved": true,
+      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
+      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
+      "sourceContractSha256": "430a4c1d007593555df60f9384b3302c707d04e0fa4522e05608326e8f9d5e48",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+    },
+    "doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946": {
+      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
+      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "date": "2026-10-19",
+      "originalAuthorityPreserved": true,
+      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
+      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
+      "sourceContractSha256": "4ba4216f327a6290b8b7d4876bff440386725f4761b4fbefa08cafade8349232",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+    },
+    "doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4": {
+      "configurationRule": "Use this promoted source authority and active contracts; incomplete authorities fail before paid generation.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
+      "datasetManifestSha256": "07eef3ad7346993bc6bd92709f2f0261a3b69890e86712d04a2db1e3b4e1a5f9",
+      "date": "2026-10-20",
+      "originalAuthorityPreserved": true,
+      "reason": "Retain the complete printed phone numeric envelope; do not infer or expand numbers.",
+      "revisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "c1ebdc247da5674296bdcc26f58fab32777e68447d980d8774935ffc2da19791",
+      "sourceContractSha256": "e26f41012ab77b0a95153da31660daa299a296b9ffebc34a14df3793231cbb19",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "220520b67e509facc83534823e9629097ed6b25fecac139f0ef0d85b8c8ba20e"
+    },
+    "doc_dfaddb83e0f53d0da5eb1899fbc8109015466f36dca3c034e7dc71632f8d7010": {
+      "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
+      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "date": "2026-10-19",
+      "originalAuthorityPreserved": true,
+      "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
+      "revisionReceipt": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
+      "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
+      "sourceContractSha256": "cba386a47148d3ebb425051575d894a14404f8ff93f274a55c0e7c348d842c0d",
+      "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
     }
   },
   "sourceCount": 453,
@@ -17503,105 +17757,13 @@
     "receipt": "docs/analysis/synthesis-refresh900-20261014/f256-source-rebase/source-revision.json",
     "sourceDocumentId": "doc_f256749bd9718a0bae20e7cdd8fe6942a7b1e3759f3089b86a23d7524f5638f0"
   },
-  "legacyPhoneAndPrivateOwnerClosure20261019": {
-    "date": "2026-10-19",
-    "report": "docs/analysis/r28-legacy-closure-20261019/REPORT.md",
-    "privacyScope": {
-      "sources": 3,
-      "uniqueSyntheticRecords": 58,
-      "physicalCopies": 82,
-      "publicTargetsUnchanged": true
-    },
-    "phoneScope": {
-      "sourceCases": 6,
-      "sourceTargetLeaves": 7,
-      "currentRecords": 16,
-      "currentTargetLeaves": 17,
-      "printedInputsUnchanged": true
-    },
-    "sourceAuthorityRevision": "docs/analysis/r28-legacy-closure-20261019/phones/source-authority-revision.json",
-    "sourceAuthorityRevisionSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
-    "sharedFiles": {
-      "ownership.yaml": "266d4ca0cf0f765e2bd847ff3360d9d518a553ec8354823f5abaa81875d9c03a",
-      "auxiliary.yaml": "32d38bfa5b86f7c88de974b18389a883c7e83d0d64e7e7fdfe3564e23f94d443"
-    },
-    "originalSourceAuthoritiesPreserved": true,
-    "proofBoundary": "Bounded repairs; the separate donor-free experiment is not promoted."
-  },
-  "opaqueMarksPrivacyClosure20261020": {
-    "date": "2026-10-20",
-    "status": "metadata_promoted_pending_dataset_and_fresh_controls",
-    "report": "docs/analysis/r28-held-branch-repair-20261020/marks/REPORT.md",
-    "sourceDocumentIds": [
-      "doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c",
-      "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9"
-    ],
-    "beforeManifestSha256": "0966f43676dd528bc3dbca9aae054ebd86a4344e3c920f1110657b7dbfc16904",
-    "beforeSharedFiles": {
-      "ownership.yaml": "266d4ca0cf0f765e2bd847ff3360d9d518a553ec8354823f5abaa81875d9c03a",
-      "auxiliary.yaml": "32d38bfa5b86f7c88de974b18389a883c7e83d0d64e7e7fdfe3564e23f94d443"
-    },
-    "afterSharedFiles": {
-      "ownership.yaml": "3508fddf23a67331503b0caf80cd0fa4f6de4a431cb1486a3063daccd377f0ed",
-      "auxiliary.yaml": "24f92697204f385c0b2e87b0fc09e10772c8f2d01c3f9755f6742aba1f1ed438"
-    },
-    "datasetRepairPlan": "docs/analysis/r28-held-branch-repair-20261020/marks/dataset-repair-plan.json",
-    "datasetRepairPlanSha256": "6d5aaacef8ac980b80179bd32dedc7d17905c0d744cee396046c7d8c9bcc74d6",
-    "plannedUniqueRecords": 35,
-    "plannedPhysicalCopies": 53,
-    "publicTargetsUnchanged": true,
-    "originalSourceAndCaseFilesUnchanged": true,
-    "implementation": "src/document_ocr/synthesis/curated_auxiliary.py",
-    "implementationSha256": "2683d5c16f0708b842be7600c05c449cbe5b5e706811f6fe7c196c64b4b61a81",
-    "effectivePreflight": "docs/analysis/r28-held-branch-repair-20261020/marks/effective-preflight.json",
-    "effectivePreflightSha256": "ce32689383ed0642b1a84d4f873280cdc08551328df1f0468e43fd42799afecf",
-    "proofBoundary": "Source-only Marks ownership/recipes; no new extraction fields. Dataset publication and complete fresh synthesis validation are separate gates."
-  },
-  "phoneNumericEnvelopeClosure20261020": {
-    "date": "2026-10-20",
-    "status": "upstream_promoted_pending_fresh_controls",
-    "sourceDocumentIds": [
-      "doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4",
-      "doc_01c3694feb64b58143d25e929a4da5238419bd23d0e29d446f87020afda1f4ec"
-    ],
-    "sourceRecords": 2,
-    "admittedCases": 1,
-    "sourceTargetLeaves": 2,
-    "authority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
-    "authorityManifestSha256": "07eef3ad7346993bc6bd92709f2f0261a3b69890e86712d04a2db1e3b4e1a5f9",
-    "sourceRevisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/phones/source-authority-revision.json",
-    "sourceRevisionReceiptSha256": "c1ebdc247da5674296bdcc26f58fab32777e68447d980d8774935ffc2da19791",
-    "numericOwnershipPlan": "docs/analysis/r28-held-branch-repair-20261020/numeric/ownership-binding-patch.json",
-    "numericOwnershipPlanSha256": "59759aca37cba9089915bbf5a67abba3c499d88d9f6843763a182eb3fcc7ce33",
-    "r28TargetPlan": "docs/analysis/r28-held-branch-repair-20261020/phones/r28-target-repair-plan.json",
-    "r28TargetPlanSha256": "21242d3a58b301891473321ce8010217d35e302ba004ab41078794f7a1369dad",
-    "priorManifestSha256": "d2d1185b49386a753e4f0cf1c237c215d679d4815725da8b515cefc1f9df9327",
-    "priorOwnershipSha256": "3508fddf23a67331503b0caf80cd0fa4f6de4a431cb1486a3063daccd377f0ed",
-    "phoneGuard": "src/document_ocr/synthesis/curated_phones.py",
-    "phoneGuardSha256": "9e5c5d8d24384f301ab8a7f013757f3cfd59a6ac66228e1c6847f74017ee1987"
-  },
-  "issueRoleClosure20261020": {
-    "date": "2026-10-20",
-    "status": "upstream_promoted_pending_fresh_controls",
-    "sourceDocumentIds": [
-      "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046"
-    ],
-    "sourceRecords": 1,
-    "admittedCases": 1,
-    "sourceTargetLeavesRemoved": 1,
-    "crossRoleCountryAliasesRemoved": 3,
-    "issueLocalityOccurrences": 2,
-    "publicIssuerLiteralPreserved": true,
-    "authority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/issue-role-closure-20261020/source-dataset",
-    "authorityManifestSha256": "33e27ad9a9e315965d8e858a6be1d29e0b86bcce2a3905e1c244a9b6129b9209",
-    "sourceRevisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/source-authority-revision.json",
-    "sourceRevisionReceiptSha256": "c29f3e4ab93aa0c31a18b0b0313f47255743abc9efb4dafeede01da4a86a7489",
-    "r28RepairPlan": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/r28-repair-plan.json",
-    "r28RepairPlanSha256": "bdcc78ac4204cbc05b0b544b34333f427a8e6c768280c28e2835f7092b85ee14",
-    "priorManifestSha256": "fd3ca2dbf128ad9f9867c211505e02e3778e7c6d0365bd333bbad84551ed3127",
-    "priorOwnershipSha256": "d402d9d610372bdf7b87e591fc547a481e6ec6673f8a818bfc10f00bcd664728"
+  "vehicleBoundaryAndChassisClosure20261022": {
+    "evidence": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
+    "evidenceSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
+    "report": "docs/analysis/r28-donor-free-full-registry-20261021/HELD-RESOLUTIONS.md",
+    "sources": [
+      "doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb",
+      "doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d"
+    ]
   }
-,
-"largerControlledLegacyClosure20261020": {"sourceCountUnchanged": 453, "revisionReceipt": "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/source-authority-revision.json", "revisionReceiptSha256": "79da3f9dc5abb49a2ec004dacf21b6d5204b69c6ede24ff8f96931360d379064", "newActiveSourceAuthority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset", "previousHistoricalAuthoritiesAndConfigurationFilesUnchanged": true, "changedSources": ["doc_f36409a0d43ce2b8629e5328d3113eac32f18f3a223252da37860b4afdbc2e38", "doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a", "doc_86ed2b9e26e308cac349168d2bd399c85e0cd9eb1683123b0fb7776d9401bca0", "doc_0dbc75a020661f698a938c6882159a11ea5a398c95b01f7b3d8a2ac6a648ef3d", "doc_489739025d43f74a4777ad3269d780d4477687ee2b45a3fbf8a34bfa92b84a6e", "doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a", "doc_1e66b2bc73e6a00fcfb5703f4d660795f154e9278637767cfd168d08a0e1e1b5"]},
-"pilotReferenceAndVolumeClosure20261020": {"changedSources": ["doc_2418b6d957d1890eff921ae6c0478684de60942b4dad336beea09f2cc170d8cf", "doc_aa69d7fee2793c3fa9c1ea31c83a3b622dd09045406c80b66b1e673c79317094", "doc_d274be39fa08a3bd1a2500dc764acd91abcec16d7ed3daf301b0ffcbad2857fc"], "sourceCountUnchanged": 453, "newActiveSourceAuthority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset", "sourceInputsPositionsValidationAndHistoricalAuthoritiesUnchanged": true, "decisionProposals": ["docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/pilot-followup/order-repair-proposal.json", "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/pilot-followup/cube-repair-proposal.json"]},
-"largerControlledPhase3PrivacyCommodityPhoneClosure20261020": {"sources": {"1f1c1d54": "doc_1f1c1d54cfef1c5a896b37c93e951bcb1202a3e2a7bad5e608da80e602d24f09", "23a49094": "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc", "d6d020b7": "doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675", "20cf0a0c": "doc_20cf0a0c1a0aadf4e09b28d41aa05ec3cba2304c873c10586a988196bc4b58f5", "6cc8c295": "doc_6cc8c295822b3bcf3c8f7ccb66986ebb9692b5a9a50a14b73e8d845b25bbb736", "a47ae6af": "doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110", "9d4a6b90": "doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e"}, "reviewedCapsules": {"docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/privacy-witness/closure/metadata-capsule.json": "d5f748ddec891f48cd96fe1ce141da3563ec5445a0fbfa390b21a75e7ed90cb9", "docs/analysis/r28-larger-controlled-flat-probe-20261020/numeric/commodity-alias-followup/metadata-v2/metadata-capsule.json": "0b4e8cada4bf18a563e314bfc0b4067f8d4cc01ac77e3fec27a4d062e09af9f9", "docs/analysis/r28-larger-controlled-flat-probe-20261020/legacy/privacy-witness/closure/phone-9d4/source-capsule.json": "b2fd5e4a339fc6d8c38df47c0f0e3d313e8aa903f2f7913478ccd9d7f675469c"}, "sourceAuthorityPathUnchanged": true, "priorManifestSha256": "886e48b5fe53291ee6569cefd95f4cf9096688e69d0a27db010585ffc2f1c3d9", "decision": "Restore private source-only bindings, coherent short commodity references, explicit package nouns and separately starred consignee phone; preserve all unrelated content"}}
+}

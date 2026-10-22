@@ -287,6 +287,20 @@ def digest(value: Any) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def runner_call_key(
+    stage: str,
+    identity: str,
+    output_type: type[BaseModel],
+    system: str,
+    prompt: str,
+    provider: dict[str, Any],
+) -> str:
+    """Name a native call by the exact structured request and provider wire config."""
+    return digest(
+        [stage, identity, output_type.model_json_schema(), system, prompt, provider]
+    )
+
+
 def save(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -924,15 +938,8 @@ class Runner:
     async def call(
         self, stage: str, identity: str, output_type: type[BaseModel], system: str, prompt: str
     ):
-        key = digest(
-            [
-                stage,
-                identity,
-                output_type.model_json_schema(),
-                system,
-                prompt,
-                self.config["provider"],
-            ]
+        key = runner_call_key(
+            stage, identity, output_type, system, prompt, self.config["provider"]
         )
         path = self.output / "calls" / f"{stage}-{key}.json"
         attempt = 1
@@ -940,6 +947,14 @@ class Runner:
             payload = path.read_bytes()
             receipt = json.loads(payload)
             if receipt["output"] is None:
+                successor = self.output / "calls" / f"{stage}-{key}-attempt{attempt + 1}.json"
+                if successor.exists():
+                    # Reuse an already recorded retry chain without authorizing
+                    # a new request. A later failed tail still requires its own
+                    # explicit retry authority before another call is made.
+                    attempt += 1
+                    path = successor
+                    continue
                 retry_authorized = (
                     bool(self.retry_failed_receipt_sha256s)
                     and digest(payload) in self.retry_failed_receipt_sha256s

@@ -29,6 +29,7 @@ from document_ocr.synthesis.curated_templates import (
     compile_sampling_blueprint as _compile_sampling_blueprint,
 )
 from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
 from document_ocr.synthesis.template_compiler.contact_values import phone as sampled_phone
 
 
@@ -498,6 +499,35 @@ def test_reviewed_package_recipe_reconciles_source_noun_with_unchanged_current_c
     assert expected in text and "BOXES" not in text
     assert rendered == target and path not in proof["changedTargetPaths"]
     assert any(edit["key"] == "package" and edit["after"] == expected for edit in proof["edits"])
+
+
+@pytest.mark.parametrize("category", sorted(PACKAGE_ALIASES))
+@pytest.mark.parametrize("quantity", [1, 6])
+def test_reviewed_package_recipe_uses_complete_registry_inflections(category, quantity):
+    from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
+    from document_ocr.synthesis.package_registry import package_category_surface_present
+
+    row, contract, old = source_fixture()
+    path = "documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory"
+    blueprint = build_owned_blueprint(
+        row, old, contract, {"surfaces": {"package": {"package_path": path}}}
+    )
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0].update(
+        typeCategory=category, packageQuantity=quantity
+    )
+    surfaces = ownership_surfaces(
+        blueprint,
+        target,
+        SimpleNamespace(
+            party_localities={"documentPatch.parties.shipper": SimpleNamespace(country_code="IN")}
+        ),
+    )
+    assert package_category_surface_present(surfaces["package"][0], category)
+    if PACKAGE_ALIASES[category].singular == PACKAGE_ALIASES[category].plural:
+        assert surfaces["package"] == [PACKAGE_ALIASES[category].variants(quantity)[0]]
+    assert "GRAINSES" not in surfaces["package"][0]
+    assert "UNPACKEDS" not in surfaces["package"][0]
 
 
 def test_country_cannot_be_claimed_by_ownership_if_not_generated():
@@ -1139,6 +1169,7 @@ def handling_dependency_fixture(*, include_country=False):
         "dependent_text": [
             {
                 "path": paths[0],
+                "phase": "scenario",
                 "source": clauses[0],
                 "expression": (
                     "21 DAYS DEMURRAGE FREETIME IN {documentPatch.route.portOfLoading.name}"
@@ -1146,6 +1177,7 @@ def handling_dependency_fixture(*, include_country=False):
             },
             {
                 "path": paths[1],
+                "phase": "scenario",
                 "source": clauses[1],
                 "expression": (
                     "CARGO IN TRANSIT TO {documentPatch.route.portOfLoading.name} WAREHOUSE"
@@ -1174,14 +1206,14 @@ def test_handling_dependencies_rebind_reviewed_route_aliases_and_render_all_clau
     target = deepcopy(row["target"])
     target["documentPatch"]["route"]["portOfLoading"]["name"] = "ROTTERDAM"
     before = deepcopy(target)
-    updated = apply_dependent_text(blueprint, target)
+    updated = apply_dependent_text(blueprint, target, phase="scenario")
     clauses = updated["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"]
     assert clauses == [
         "21 DAYS DEMURRAGE FREETIME IN ROTTERDAM",
         "CARGO IN TRANSIT TO ROTTERDAM WAREHOUSE",
     ]
     assert target == before and blueprint.target == row["target"]
-    assert apply_dependent_text(blueprint, updated) == updated
+    assert apply_dependent_text(blueprint, updated, phase="scenario") == updated
     text, rendered, proof = render_sampling_blueprint(
         blueprint,
         updated,
@@ -1200,7 +1232,7 @@ def test_handling_dependencies_rebind_reviewed_route_aliases_and_render_all_clau
     assert rendered == updated
     assert set(proof["changedTargetPaths"]) <= set(proof["coveredTargetPaths"])
     blueprint.ownership_data.pop("dependent_text")
-    assert apply_dependent_text(blueprint, target) is target
+    assert apply_dependent_text(blueprint, target, phase="scenario") is target
 
 
 def test_handling_dependencies_compose_reviewed_country_and_name_and_render():
@@ -1210,14 +1242,14 @@ def test_handling_dependencies_compose_reviewed_country_and_name_and_render():
         name="ROTTERDAM", country="NETHERLANDS"
     )
     before = deepcopy(target)
-    updated = apply_dependent_text(blueprint, target)
+    updated = apply_dependent_text(blueprint, target, phase="scenario")
     expected = [
         "21 DAYS DEMURRAGE FREETIME IN ROTTERDAM",
         "CARGO IN TRANSIT TO ROTTERDAM, NETHERLANDS WAREHOUSE",
     ]
     assert updated["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == expected
     assert target == before and blueprint.target == row["target"]
-    assert apply_dependent_text(blueprint, updated) == updated
+    assert apply_dependent_text(blueprint, updated, phase="scenario") == updated
     text, rendered, proof = render_sampling_blueprint(
         blueprint,
         updated,
@@ -1247,8 +1279,8 @@ def test_handling_country_dependencies_reject_invalid_values_atomically(scope, v
     invalid["documentPatch"]["route"]["portOfLoading"]["country"] = value
     before = deepcopy(target)
     source_before = deepcopy(blueprint.target)
-    with pytest.raises(ValueError, match="route value is absent or invalid"):
-        apply_dependent_text(blueprint, target)
+    with pytest.raises(ValueError, match="scenario value is absent or invalid"):
+        apply_dependent_text(blueprint, target, phase="scenario")
     assert target == before and blueprint.target == source_before
 
 
@@ -1261,8 +1293,8 @@ def test_handling_country_dependencies_reject_missing_values_atomically(scope):
     del invalid["documentPatch"]["route"]["portOfLoading"]["country"]
     before = deepcopy(target)
     source_before = deepcopy(blueprint.target)
-    with pytest.raises(ValueError, match="route value is absent or invalid"):
-        apply_dependent_text(blueprint, target)
+    with pytest.raises(ValueError, match="scenario value is absent or invalid"):
+        apply_dependent_text(blueprint, target, phase="scenario")
     assert target == before and blueprint.target == source_before
 
 
@@ -1270,18 +1302,20 @@ def test_handling_country_dependencies_reject_missing_values_atomically(scope):
     ("change", "error"),
     [
         ("not_list", "must be a list"),
-        ("extra_key", "exactly path, source and expression"),
+        ("extra_key", "exactly path, source, expression and phase"),
+        ("missing_phase", "exactly path, source, expression and phase"),
         ("blank", "nonempty strings"),
+        ("unknown_phase", "unknown dependent text phase"),
         ("non_handling_path", "owned handling instruction"),
         ("unowned_path", "owned handling instruction"),
         ("duplicate", "duplicate dependent text path"),
         ("stale_source", "differs from pinned target"),
         ("literal_only", "invalid placeholders"),
         ("malformed_expression", "invalid placeholders"),
-        ("unsupported_route_field", "only accepts route name or country"),
-        ("missing_source_route", "route value is absent or invalid"),
-        ("missing_sampled_route", "route value is absent or invalid"),
-        ("invalid_sampled_route", "route value is absent or invalid"),
+        ("unsupported_route_field", "scenario phase rejects reference"),
+        ("missing_source_route", "scenario value is absent or invalid"),
+        ("missing_sampled_route", "scenario value is absent or invalid"),
+        ("invalid_sampled_route", "scenario value is absent or invalid"),
         ("missing_handling", "absent or conflicts"),
         ("conflicting_handling", "absent or conflicts"),
     ],
@@ -1296,8 +1330,12 @@ def test_handling_dependencies_fail_closed_without_partial_target_changes(change
         blueprint.ownership_data["dependent_text"] = None
     elif change == "extra_key":
         item["unexpected"] = True
+    elif change == "missing_phase":
+        item.pop("phase")
     elif change == "blank":
         item["expression"] = " "
+    elif change == "unknown_phase":
+        item["phase"] = "later"
     elif change == "non_handling_path":
         item["path"] = "documentPatch.parties.shipper.name"
     elif change == "unowned_path":
@@ -1326,7 +1364,110 @@ def test_handling_dependencies_fail_closed_without_partial_target_changes(change
         target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][1] = "OTHER CLAUSE"
     before = deepcopy(target)
     with pytest.raises(ValueError, match=error):
-        apply_dependent_text(blueprint, target)
+        apply_dependent_text(blueprint, target, phase="scenario")
+    assert target == before
+
+
+def test_handling_party_dependency_waits_for_generated_wording_and_renders_atomically():
+    row, contract, historical = source_fixture()
+    path = "documentPatch.goodsItemDetails[0].handlingInstructions[0]"
+    source_clause = "CARGO IN TRANSIT TO UGL BONDED WAREHOUSE"
+    source_forwarder = "UNIFREIGHT GLOBAL LOGISTICS"
+    row["joinedRawText"] += source_forwarder + "\n" + source_clause + "\n"
+    row["target"]["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] = [source_clause]
+    row["target"]["documentPatch"]["parties"]["forwardingAgent"] = {"name": source_forwarder}
+    contract_payload = contract.model_dump(mode="json")
+    contract_payload["variables"].append(
+        {
+            "key": "forwarder",
+            "kind": "name",
+            "value": source_forwarder,
+            "meaning": "forwarding agent",
+            "required_literals": [],
+            "occurrences": [{"text": source_forwarder, "occurrence": 1, "presentation": "text"}],
+        }
+    )
+    contract_payload["targets"].append(
+        {
+            "path": "documentPatch.parties.forwardingAgent.name",
+            "expression": "{forwarder}",
+        }
+    )
+    contract = SourceContract.model_validate(contract_payload)
+    declaration = {
+        "dependent_text": [
+            {
+                "path": path,
+                "phase": "wording",
+                "source": source_clause,
+                "expression": (
+                    "CARGO IN TRANSIT TO "
+                    "{documentPatch.parties.forwardingAgent.name} BONDED WAREHOUSE"
+                ),
+            }
+        ],
+        "add": [
+            {
+                "key": "handling",
+                "paths": [path],
+                "occurrences": [{"text": source_clause}],
+            }
+        ],
+    }
+    blueprint = build_owned_blueprint(row, historical, contract, declaration)
+    target = deepcopy(row["target"])
+
+    planned = apply_dependent_text(blueprint, target, phase="scenario")
+    assert planned == target
+    target["documentPatch"]["parties"]["forwardingAgent"]["name"] = "HARAZ FREIGHT SERVICES"
+    updated = apply_dependent_text(blueprint, target, phase="wording")
+    expected = "CARGO IN TRANSIT TO HARAZ FREIGHT SERVICES BONDED WAREHOUSE"
+    assert updated["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [expected]
+    assert target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [source_clause]
+    text, rendered, proof = render_sampling_blueprint(
+        blueprint, updated, {"forwarder": "HARAZ FREIGHT SERVICES"}
+    )
+    assert text.count(expected) == 1
+    assert "UGL" not in text
+    assert rendered == updated
+    assert path in proof["coveredTargetPaths"]
+
+
+@pytest.mark.parametrize(
+    ("declared_phase", "reference", "message"),
+    [
+        (
+            "scenario",
+            "documentPatch.parties.forwardingAgent.name",
+            "scenario phase rejects reference",
+        ),
+        (
+            "wording",
+            "documentPatch.route.portOfLoading.name",
+            "wording phase rejects reference",
+        ),
+    ],
+)
+def test_handling_dependencies_reject_cross_phase_references(declared_phase, reference, message):
+    row, blueprint = handling_dependency_fixture()
+    item = blueprint.ownership_data["dependent_text"][0]
+    item["phase"] = declared_phase
+    item["expression"] = "HANDLING AT {" + reference + "}"
+    target = deepcopy(row["target"])
+    target["documentPatch"]["parties"]["forwardingAgent"] = {"name": "NEW FORWARDER"}
+    blueprint.target["documentPatch"]["parties"]["forwardingAgent"] = {"name": "OLD FORWARDER"}
+    before = deepcopy(target)
+    with pytest.raises(ValueError, match=message):
+        apply_dependent_text(blueprint, target, phase=declared_phase)
+    assert target == before
+
+
+def test_handling_dependencies_reject_unknown_requested_phase_without_changes():
+    row, blueprint = handling_dependency_fixture()
+    target = deepcopy(row["target"])
+    before = deepcopy(target)
+    with pytest.raises(ValueError, match="unknown dependent text phase"):
+        apply_dependent_text(blueprint, target, phase="later")  # type: ignore[arg-type]
     assert target == before
 
 

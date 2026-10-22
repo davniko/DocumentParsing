@@ -318,6 +318,8 @@ they are not independent complete addresses. Follow the assembly's locality, cou
 certified country-owner and host-literal rules. Some parties omit country; preserve that omission.
 Party names are fixed context, not postal components: do not repeat them or insert another
 company identity. Preserve explicitly supplied care-of recipients and named sites.
+When a care-of recipient is separately owned, keep its name and C/O framing outside
+the postal component; do not invent an additional care-of company.
 Choose plausible new street/site wording without repeating locality or country inside it.
 Preserve approximate address hierarchy and use uppercase text.
 Each output contains final component text only, without field headers,
@@ -447,9 +449,7 @@ def validate_postal_geography(
         raise ValueError("generated postal locality must occur once with its supplied spelling")
 
 
-def validate_postal_identity(
-    address: str, *, name: str, locality: str, country: str
-) -> None:
+def validate_postal_identity(address: str, *, name: str, locality: str, country: str) -> None:
     """Hold a separate leading copy of this party's name, without guessing organizations.
 
     Explicit identity/contact captions and a complete leading line equal to the
@@ -759,9 +759,11 @@ _DG_DECLARATION = re.compile(
 
 
 _IDENTITY_CAPTION = re.compile(
-    r"\b(?:ATN|ATTN|ATTENTION|CONTACT|AGENTE|MANAGER)\s*[:.]"
+    r"\b(?:ATN|ATTN|ATTENTION|CONTACT|AGENTE|MANAGER|DIRECTOR)\s*[:.]"
     r"|(?:^|\n)\s*ATTN\s+\S"
-    r"|\b(?:MANAGING\s+DIRECTOR|GERENTE(?:\s+GENERAL)?)\b"
+    r"|\b(?:MANAGING\s+(?:DIRECTOR|PARTNER)|SALES\s+DIRECTOR|TRADING\s+MANAGER"
+    r"|DIRECTOR\s+OF\s+OPERATIONS|DIRECTOR\s+DE\s+OPERACIONES|DIRECTOR-GERAL"
+    r"|FIRM\s+OF\s+MANAGER|GERENTE(?:\s+GENERAL)?)\b"
     r"|\b(?:SHIPPER|CONSIGNEE|NOTIFY(?:\s+PARTY)?|DELIVERY\s+AGENT|FORWARDING\s+AGENT|CARRIER)\s*:"
     r"|\b(?:RIF|RFC|CIF|VAT|TIN|TAX\s*(?:ID|NUMBER)|REGISTRATION\s*(?:NO\.?|NUMBER))"
     r"\s*[:#]?\s*[A-Z]?[- ]?\d"
@@ -844,7 +846,7 @@ def validate_wording(
             # Generated region whitespace is not source evidence. Keep every
             # nonempty physical line, but normalize padding/blank separators
             # before the deterministic source-style renderer lays it out.
-            text = "\n".join(line.strip() for line in value.text.splitlines() if line.strip())
+            text = normalize_wording_text(value.text)
             if not text:
                 raise ValueError(f"{value.key}: empty generated region")
             if text.casefold() == "tbd":
@@ -924,6 +926,11 @@ def validate_wording(
                 raise ValueError("copied source description: " + ", ".join(group))
         result[shipment.sample_id] = values
     return result
+
+
+def normalize_wording_text(text: str) -> str:
+    """Normalize provider padding without changing any non-whitespace content."""
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip())
 
 
 def repeated_goods_descriptions(

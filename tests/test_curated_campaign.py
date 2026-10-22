@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from document_ocr.synthesis.curated import Runner, SourceContract, digest
+from document_ocr.synthesis.curated import Runner, SourceContract, digest, runner_call_key
 from document_ocr.synthesis.curated_campaign import (
     Campaign,
     _fixed_postal_country_components,
@@ -471,6 +471,7 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
         lambda blueprint, target: [{"contained_quantity": 240, "printed_contained_unit": "SACOS"}],
     )
     campaign = Campaign.__new__(Campaign)
+    campaign.root = tmp_path
     campaign.output = tmp_path
     campaign.config = {"seed": 42, "variants_per_source": 2}
     campaign.variant_counts = {"source": 5}
@@ -539,15 +540,35 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
         with pytest.raises(ValueError, match="variant order"):
             campaign.review_requests("source", invalid)
     requests = []
+    provider = {"model": "fixture"}
 
     async def call(stage, sid, model, system, prompt):
         requests.append(prompt)
         assert stage == "rendered-review" and "SHIPMENT s0\n" in prompt
         assert "SHIPMENT s2\n" not in prompt
         assert "contained_quantity: 240" in prompt and "printed_contained_unit: SACOS" in prompt
-        return model.model_validate({key: {"findings": []} for key in model.model_fields})
+        answer = model.model_validate({key: {"findings": []} for key in model.model_fields})
+        call_key = runner_call_key(stage, sid, model, system, prompt, provider)
+        path = tmp_path / "calls" / f"{stage}-{call_key}.json"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "stage": stage,
+                    "identity": sid,
+                    "output": answer.model_dump(mode="json"),
+                    "error": None,
+                    "usage": {"requests": 1},
+                    "costStatus": "provider_reported",
+                    "messages": [{"kind": "fixture"}],
+                    "promptSha256": digest(prompt),
+                    "schemaSha256": digest(model.model_json_schema()),
+                }
+            )
+        )
+        return answer
 
-    campaign.calls = SimpleNamespace(call=call)
+    campaign.calls = SimpleNamespace(call=call, config={"provider": provider})
     result = asyncio.run(campaign.review("source"))
     assert result["findings"] == 0 and len(requests) == 3
     assert requests == [request.prompt for request in prepared]
@@ -558,13 +579,36 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
         "identity": "FROZEN PEAS",
         "temperatureCelsius": -18,
     }
+    campaign.country_registry = SimpleNamespace(preferred_name=lambda code: {"BN": "BRUNEI"}[code])
+    richer[0]["scenario"]["party_localities"] = {
+        "documentPatch.parties.consignee": {
+            "name": "SENGKURONG",
+            "country": "BRUNEI DARUSSALAM",
+            "country_code": "BN",
+        }
+    }
     context = campaign.review_requests("source", richer)[0].prompt
     assert "CLASSIFICATION REFERENCES" in context and "Physical form: DRY GRANULES" in context
     assert "SAMPLED COLD-CHAIN IDENTITY, PRODUCT FORM AND SETTINGS" in context
     assert "temperatureCelsius: -18" in context
+    assert "BN: BRUNEI" in context
     receipt = json.loads((tmp_path / "reviews/source.json").read_text())
     assert receipt["review"]["reviewed_ids"] == [c["documentId"] for c in candidates]
     assert receipt["candidateHashes"] == {c["documentId"]: digest(c) for c in candidates}
+    assert [entry["sampleIds"] for entry in receipt["reviewRequests"]] == [
+        list(request.sample_ids) for request in prepared
+    ]
+    old_bytes = (tmp_path / "reviews/source.json").read_bytes()
+    campaign.review_requests = lambda sid, items: tuple(
+        replace(request, prompt=request.prompt + "\nreview request v2") for request in prepared
+    )
+    asyncio.run(campaign.review("source"))
+    assert (
+        tmp_path / "reviews/archive" / f"source-{digest(old_bytes)}.json"
+    ).read_bytes() == old_bytes
+    assert json.loads((tmp_path / "reviews/source.json").read_bytes())["reviewRequests"] != receipt[
+        "reviewRequests"
+    ]
 
 
 def test_variable_quota_contacts_batch_by_shipment_and_replay_without_calls(tmp_path):
@@ -1591,20 +1635,37 @@ def test_explicit_resume_preserves_and_replays_attempt_receipts(tmp_path, invali
         "costUsd": "0.001" if invalid_native_output else "0",
     }
     original.write_text(json.dumps(failed))
+    with pytest.raises(RuntimeError, match="cached failed call"):
+        asyncio.run(runner.call("wording", "sample", WordingBatch, "sys", "text"))
     (directory / f"wording-{key}-attempt2.json").write_text(
         json.dumps({"output": {"shipments": []}})
     )
-    with pytest.raises(RuntimeError, match="cached failed call"):
-        asyncio.run(runner.call("wording", "sample", WordingBatch, "sys", "text"))
+    cached = asyncio.run(runner.call("wording", "sample", WordingBatch, "sys", "text"))
+    assert cached.shipments == []
     runner.retry_rate_limited = not invalid_native_output
     runner.retry_invalid_output = invalid_native_output
     result = asyncio.run(runner.call("wording", "sample", WordingBatch, "sys", "text"))
     assert result.shipments == []
     assert json.loads(original.read_text()) == failed
-    failed["error"] = "ModelHTTPError: status_code: 402"
-    original.write_text(json.dumps(failed))
+
+
+@pytest.mark.parametrize("invalid_native_output", [False, True])
+def test_resume_flags_do_not_authorize_uncached_payment_failures(tmp_path, invalid_native_output):
+    runner = Runner.__new__(Runner)
+    runner.output = tmp_path
+    runner.config = {"provider": {}}
+    runner.retry_rate_limited = not invalid_native_output
+    runner.retry_invalid_output = invalid_native_output
+    runner.retry_failed_receipt_sha256s = frozenset()
+    key = digest(["wording", "sample", WordingBatch.model_json_schema(), "sys", "text", {}])
+    directory = tmp_path / "calls"
+    directory.mkdir()
+    failed = {"output": None, "error": "ModelHTTPError: status_code: 402",
+              "costStatus": "request_rejected", "costUsd": "0"}
+    (directory / f"wording-{key}.json").write_text(json.dumps(failed))
     with pytest.raises(RuntimeError, match="cached failed call"):
         asyncio.run(runner.call("wording", "sample", WordingBatch, "sys", "text"))
+    assert not (directory / f"wording-{key}-attempt2.json").exists()
 
 
 @pytest.fixture
@@ -2046,23 +2107,18 @@ def test_clean_postal_roles_make_no_correction_request_or_receipt_edit(postal_ca
 def test_bad_postal_proposal_is_diagnosed_not_claimed_corrected(postal_campaign):
     fixture = postal_campaign
     correction = {"shipper_street": "14 CANAL ROAD, 3011AA", "shipper_locality": "NETHERLANDS"}
+    before = fixture.path.read_bytes()
+    calls = []
 
     async def call(stage, sid, output_type, system, prompt):
+        calls.append((stage, sid))
         return output_type.model_validate({"s0": correction})
 
     fixture.campaign.calls.call = call
     with pytest.raises(ValueError, match=r"postal|locality"):
         asyncio.run(fixture.campaign.correct_postal("source"))
-    receipt = json.loads(fixture.path.read_text())
-    history = receipt["corrections"][-1]
-    assert history["before"] == {key: fixture.receipt["values"][key] for key in correction}
-    assert history["after"] == correction
-    assert history["postCheckErrors"]
-    assert all(
-        receipt["values"][key] == value
-        for key, value in fixture.receipt["values"].items()
-        if key not in correction
-    )
+    assert calls == [("postal-correction", "source")]
+    assert fixture.path.read_bytes() == before
     assert not (fixture.campaign.output / "candidates").exists()
 
 
@@ -2460,6 +2516,197 @@ def test_source_only_related_company_is_generated_without_a_public_party(
         identity_review_context(
             replace(blueprint, ownership_data={"related_actors": {variable.key: declaration}}), {}
         )
+
+
+def test_source_only_issuing_agent_can_reference_a_source_certified_fixed_carrier(
+    postal_campaign,
+):
+    from document_ocr.synthesis.curated import Occurrence, Variable
+    from document_ocr.synthesis.curated_campaign import (
+        identity_review_context,
+        related_actor_contexts,
+    )
+
+    fixture = postal_campaign
+    variable = Variable(
+        key="issuing_agent",
+        kind="name",
+        value="OLD PORT AGENCY INC.",
+        meaning="Source-only issuing agent acting for the fixed public carrier",
+        required_literals=[],
+        occurrences=[
+            Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")
+        ],
+    )
+    carrier_key = "anchor:documentPatch.parties.carrier.name"
+    declaration = {
+        "context_carrier": {"binding": carrier_key, "source_name": "PUBLIC LINE LTD."},
+        "relationship": "agent_for",
+    }
+    blueprint = replace(
+        fixture.blueprint,
+        source="Signed for PUBLIC LINE LTD.\nOLD PORT AGENCY INC.\nAs Agent For the Carrier",
+        contract=fixture.blueprint.contract.model_copy(
+            update={"variables": [*fixture.blueprint.contract.variables, variable]}
+        ),
+        historical_bindings={
+            **fixture.blueprint.historical_bindings,
+            carrier_key: {
+                "logical_key": carrier_key,
+                "target_paths": ["documentPatch.parties.carrier.name"],
+                "value_kind": "organization",
+                "render_mode": "carrier_static",
+                "occurrences": [
+                    {
+                        "byte_start": 11,
+                        "byte_end": 27,
+                        "source_text": "PUBLIC LINE LTD.",
+                    }
+                ],
+            },
+        },
+        ownership_data={
+            "related_actors": {variable.key: declaration},
+            "identity_kinds": {variable.key: "organization"},
+        },
+    )
+
+    assert related_actor_contexts(blueprint) == {variable.key: declaration}
+    request = wording_request(blueprint, fixture.scenario, "carrier-agent-probe")
+    field = next(item for item in request.fields if item.key == variable.key)
+    assert field.identity_kind == "organization"
+    assert field.role == "fixed public carrier PUBLIC LINE LTD. related agent_for name"
+    assert "with fixed public carrier PUBLIC LINE LTD." in field.requirement
+    context = identity_review_context(blueprint, {variable.key: "NEW PORT AGENCY INC."})
+    assert "agent_for with fixed public carrier PUBLIC LINE LTD." in context
+
+
+@pytest.mark.parametrize(
+    ("declaration_update", "binding_update", "identity_kind", "error"),
+    [
+        (
+            {"context_party": "documentPatch.parties.shipper"},
+            {},
+            "organization",
+            "known lexical key and explicit relationship",
+        ),
+        ({"context_carrier": None}, {}, "organization", "known lexical key"),
+        (
+            {"relationship": "via"},
+            {},
+            "organization",
+            "carrier-related actor requires",
+        ),
+        (
+            {},
+            {"render_mode": "generated_auxiliary"},
+            "organization",
+            "not a source-certified fixed carrier",
+        ),
+        (
+            {},
+            {"value_kind": "other_text"},
+            "organization",
+            "not a source-certified fixed carrier",
+        ),
+        ({}, {}, "individual", "carrier-related actor requires"),
+    ],
+)
+def test_fixed_carrier_related_actor_rejects_invalid_contracts(
+    postal_campaign, declaration_update, binding_update, identity_kind, error
+):
+    from document_ocr.synthesis.curated import Occurrence, Variable
+    from document_ocr.synthesis.curated_campaign import related_actor_contexts
+
+    variable = Variable(
+        key="issuing_agent",
+        kind="name",
+        value="OLD PORT AGENCY INC.",
+        meaning="Source-only issuing agent",
+        required_literals=[],
+        occurrences=[
+            Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")
+        ],
+    )
+    carrier_key = "anchor:documentPatch.parties.carrier.name"
+    declaration = {
+        "context_carrier": {"binding": carrier_key, "source_name": "PUBLIC LINE LTD."},
+        "relationship": "agent_for",
+        **declaration_update,
+    }
+    binding = {
+        "logical_key": carrier_key,
+        "target_paths": ["documentPatch.parties.carrier.name"],
+        "value_kind": "organization",
+        "render_mode": "carrier_static",
+        "occurrences": [{"source_text": "PUBLIC LINE LTD."}],
+        **binding_update,
+    }
+    blueprint = replace(
+        postal_campaign.blueprint,
+        source="PUBLIC LINE LTD.\nOLD PORT AGENCY INC.",
+        contract=postal_campaign.blueprint.contract.model_copy(
+            update={"variables": [*postal_campaign.blueprint.contract.variables, variable]}
+        ),
+        historical_bindings={
+            **postal_campaign.blueprint.historical_bindings,
+            carrier_key: binding,
+        },
+        ownership_data={
+            "related_actors": {variable.key: declaration},
+            "identity_kinds": {variable.key: identity_kind},
+        },
+    )
+    with pytest.raises(ValueError, match=error):
+        related_actor_contexts(blueprint)
+
+
+def test_fixed_carrier_related_actor_requires_exact_source_occurrence_count(postal_campaign):
+    from document_ocr.synthesis.curated import Occurrence, Variable
+    from document_ocr.synthesis.curated_campaign import related_actor_contexts
+
+    variable = Variable(
+        key="issuing_agent",
+        kind="name",
+        value="OLD PORT AGENCY INC.",
+        meaning="Source-only issuing agent",
+        required_literals=[],
+        occurrences=[
+            Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")
+        ],
+    )
+    carrier_key = "anchor:documentPatch.parties.carrier.name"
+    blueprint = replace(
+        postal_campaign.blueprint,
+        source="PUBLIC LINE LTD.\nPUBLIC LINE LTD.\nOLD PORT AGENCY INC.",
+        contract=postal_campaign.blueprint.contract.model_copy(
+            update={"variables": [*postal_campaign.blueprint.contract.variables, variable]}
+        ),
+        historical_bindings={
+            **postal_campaign.blueprint.historical_bindings,
+            carrier_key: {
+                "logical_key": carrier_key,
+                "target_paths": ["documentPatch.parties.carrier.name"],
+                "value_kind": "organization",
+                "render_mode": "carrier_static",
+                "occurrences": [{"source_text": "PUBLIC LINE LTD."}],
+            },
+        },
+        ownership_data={
+            "related_actors": {
+                variable.key: {
+                    "context_carrier": {
+                        "binding": carrier_key,
+                        "source_name": "PUBLIC LINE LTD.",
+                    },
+                    "relationship": "agent_for",
+                }
+            },
+            "identity_kinds": {variable.key: "organization"},
+        },
+    )
+    with pytest.raises(ValueError, match="fixed carrier source occurrence count differs"):
+        related_actor_contexts(blueprint)
 
 
 def test_related_actor_repeated_identity_requires_every_source_occurrence(postal_campaign):

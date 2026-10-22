@@ -136,9 +136,11 @@ def _semantic(text: str) -> _EquipmentShape:
     if length:
         # FT/FULL describes length/loading, not dry vs refrigerated equipment.
         return _EquipmentShape(None, None, length[1])
-    # HC in a counted equipment receipt states height, not that the unit is dry.
+    # HC, including its prose spelling, states height, not that the unit is dry.
     # A separate REEFER phrase can therefore coexist with ``40'HC``.
-    high_cube = re.fullmatch(r"(20|40|45)\s*['\u2019`]?\s*HC", bare, re.I)
+    high_cube = re.fullmatch(
+        r"(20|40|45)\s*['\u2019`]?\s*(?:HC|HIGH\s*CU(?:BE|BIC))", bare, re.I
+    )
     if high_cube:
         high_cube_size = {
             "20": "TWENTY_FOOT_HIGH_CUBE",

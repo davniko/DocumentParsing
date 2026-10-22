@@ -108,6 +108,30 @@ def test_certified_identity_cannot_be_copied_into_postal_slot(contract, postal):
         )
 
 
+@pytest.mark.parametrize("prefix", ["C/O", "c/o", "CARE OF", "C/ONEW"])
+def test_new_careof_actor_cannot_be_invented_beside_owned_recipient(contract, prefix):
+    with pytest.raises(ValueError, match="introduces additional care-of routing"):
+        check(contract, "C/O {related} {postal}", {
+            "related": "Transfleet Logistics Ltda.",
+            "postal": f"{prefix} OTHER PRIVATE COMPANY\nRUTA 9 KM 142\nROCHA",
+        })
+
+
+def test_careof_inside_wholly_owned_postal_field_remains_supported(contract):
+    values = {"postal": "C/O SITE OFFICE\nRUTA 9 KM 142\nROCHA"}
+    check(contract, "{postal}", values)
+
+
+def test_existing_nested_routing_is_not_silently_forbidden(contract):
+    variables = [variable.model_copy(update={"value": "C/O ORIGINAL NESTED RECIPIENT"})
+                 if variable.key == "postal" else variable for variable in contract.variables]
+    nested = contract.model_copy(update={"variables": variables})
+    check(nested, "C/O {related} {postal}", {
+        "related": "Transfleet Logistics Ltda.",
+        "postal": "C/O NEW NESTED RECIPIENT\nRUTA 9 KM 142\nROCHA",
+    })
+
+
 @pytest.mark.parametrize("country", ["URUGUAY", "UY"])
 def test_real_country_is_not_masked_with_related_identity(contract, country):
     with pytest.raises(ValueError, match="country was not requested"):

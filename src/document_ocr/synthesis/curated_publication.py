@@ -9,20 +9,24 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from document_ocr.atomic import read_regular_file_bytes
 from document_ocr.hashing import canonical_json_bytes, sha256_bytes
-from document_ocr.synthesis.curated import digest
+from document_ocr.synthesis.curated import digest, runner_call_key
 from document_ocr.synthesis.curated_casing import CasingPolicy, TargetCasing
 from document_ocr.synthesis.curated_sampling import source_variant_counts
 from document_ocr.synthesis.curated_wording import (
     RenderedReview,
+    RenderedReviewRequest,
     rendered_review_prompt,
     review_output_type,
+    unpack_review,
 )
 from document_ocr.training.tasks import RelationExplicitTaskConstraints, get_training_task
 
@@ -66,7 +70,85 @@ def review_contract_hash(count: int, target_casing: TargetCasing = "uppercase") 
     )
 
 
+def review_request_hash(request: RenderedReviewRequest) -> str:
+    """Bind a review to the exact assembled request and its ordered sample IDs."""
+    return digest(
+        {
+            "sampleIds": request.sample_ids,
+            "system": request.system,
+            "prompt": request.prompt,
+            "schema": request.output_type.model_json_schema(),
+        }
+    )
+
+
+def review_runner_evidence(
+    root: Path,
+    output: Path,
+    provider: dict[str, Any],
+    sid: str,
+    request: RenderedReviewRequest,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    """Read the complete canonical Runner attempt chain for one native review."""
+    key = runner_call_key(
+        "rendered-review", sid, request.output_type, request.system, request.prompt, provider
+    )
+    filename = re.compile(
+        rf"rendered-review-{re.escape(key)}(?:-attempt([2-9]|[1-9][0-9]+))?\.json"
+    )
+    attempts = []
+    for path in (output / "calls").glob(f"rendered-review-{key}*.json"):
+        match = filename.fullmatch(path.name)
+        if match:
+            attempts.append((int(match.group(1) or 1), path))
+    attempts.sort()
+    if [number for number, _ in attempts] != list(range(1, len(attempts) + 1)):
+        raise ValueError(f"{sid}: incomplete native rendered-review attempt chain")
+    if not attempts:
+        raise ValueError(f"{sid}: missing native rendered-review Runner receipt")
+    pins = []
+    successful = []
+    resolved_root = root.resolve()
+    for number, path in attempts:
+        if not path.resolve().is_relative_to(resolved_root):
+            raise ValueError(f"{sid}: native rendered-review receipt escapes project root")
+        payload = read_regular_file_bytes(path)
+        row = json.loads(payload)
+        if not isinstance(row, dict) or any(
+            row.get(field) != value
+            for field, value in {
+                "stage": "rendered-review",
+                "identity": sid,
+                "promptSha256": digest(request.prompt),
+                "schemaSha256": digest(request.output_type.model_json_schema()),
+            }.items()
+        ):
+            raise ValueError(f"{sid}: native rendered-review receipt differs from request")
+        if row.get("output") is None:
+            if not isinstance(row.get("error"), str) or not row["error"]:
+                raise ValueError(f"{sid}: invalid failed rendered-review receipt")
+        else:
+            if (
+                number != len(attempts)
+                or row.get("error") is not None
+                or row.get("costStatus") != "provider_reported"
+                or not isinstance(row.get("usage"), dict)
+                or not isinstance(row.get("messages"), list)
+                or not row["messages"]
+            ):
+                raise ValueError(f"{sid}: invalid successful rendered-review receipt")
+            successful.append(
+                request.output_type.model_validate(row["output"]).model_dump(mode="json")
+            )
+        pins.append({"path": path.relative_to(root).as_posix(), "sha256": digest(payload)})
+    if len(successful) != 1:
+        raise ValueError(f"{sid}: rendered-review requires one successful native receipt")
+    return pins, successful[0]
+
+
 class _Spend(Protocol):
+    config: dict[str, Any]
+
     @property
     def spent(self) -> Decimal: ...
 
@@ -81,6 +163,10 @@ class PublicationCampaign(Protocol):
     calls: _Spend
 
     def replay_candidate(self, candidate: dict) -> None: ...
+
+    def review_requests(
+        self, sid: str, candidates: Sequence[dict[str, Any]]
+    ) -> tuple[RenderedReviewRequest, ...]: ...
 
 
 class FindingDecision(BaseModel):
@@ -269,6 +355,39 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
             raise ValueError(f"{sid}: stale review or incomplete candidate hash coverage")
         if receipt.get("reviewContractSha256") != contract_hash:
             raise ValueError(f"{sid}: stale or missing review instruction/schema contract")
+        requests = campaign.review_requests(sid, tuple(candidates.values()))
+        request_evidence = receipt.get("reviewRequests")
+        if not isinstance(request_evidence, list) or len(request_evidence) != len(requests):
+            raise ValueError(f"{sid}: stale or missing exact review request contract")
+        native_reviews = []
+        for request, recorded in zip(requests, request_evidence, strict=True):
+            if (
+                not isinstance(recorded, dict)
+                or set(recorded) != {"sampleIds", "sha256", "callReceipts"}
+                or recorded["sampleIds"] != list(request.sample_ids)
+                or recorded["sha256"] != review_request_hash(request)
+            ):
+                raise ValueError(f"{sid}: stale or missing exact review request contract")
+            pins, native_output = review_runner_evidence(
+                campaign.root,
+                campaign.output,
+                campaign.calls.config["provider"],
+                sid,
+                request,
+            )
+            if recorded["callReceipts"] != pins:
+                raise ValueError(f"{sid}: rendered-review Runner receipt pin differs")
+            native_reviews.append(
+                unpack_review(
+                    request.output_type.model_validate(native_output), list(request.sample_ids)
+                )
+            )
+        native_review = RenderedReview(
+            reviewed_ids=[sample for batch in native_reviews for sample in batch.reviewed_ids],
+            findings=[finding for batch in native_reviews for finding in batch.findings],
+        )
+        if receipt.get("review") != native_review.model_dump(mode="json"):
+            raise ValueError(f"{sid}: review findings differ from native Runner output")
         review = RenderedReview.model_validate(receipt["review"])
         if len(review.reviewed_ids) != len(candidates) or set(review.reviewed_ids) != set(
             candidates

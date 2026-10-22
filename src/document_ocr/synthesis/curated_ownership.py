@@ -12,7 +12,7 @@ from dataclasses import replace
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import TypeAdapter
@@ -473,8 +473,23 @@ def load_owned_blueprint(
     return build_owned_blueprint(row, historical, contract, deepcopy(sources[row["documentId"]]))
 
 
-def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
-    """Rebind reviewed handling clauses to sampled route names and countries."""
+DependentTextPhase = Literal["scenario", "wording"]
+
+
+def apply_dependent_text(
+    blueprint: SamplingBlueprint,
+    target: dict,
+    *,
+    phase: DependentTextPhase,
+) -> dict:
+    """Rebind reviewed handling clauses at their declared dependency boundary.
+
+    Route dependencies are available during scenario planning. Party names are
+    generated later by lexical wording, so accepting them at the scenario phase
+    would silently freeze the source identity into the handling clause.
+    """
+    if phase not in ("scenario", "wording"):
+        raise ValueError(f"unknown dependent text phase: {phase}")
     declarations = blueprint.ownership_data.get("dependent_text", [])
     if not isinstance(declarations, list):
         raise ValueError("dependent_text must be a list of reviewed handling clauses")
@@ -483,12 +498,23 @@ def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
     source, sampled = flat(blueprint.target), flat(target)
     owned = {path for region in blueprint.regions for path in region.target_paths}
     updates: dict[str, str] = {}
+    declared_paths: set[str] = set()
     for item in declarations:
-        if not isinstance(item, dict) or set(item) != {"path", "source", "expression"}:
-            raise ValueError("dependent text requires exactly path, source and expression")
-        path, original, expression = item["path"], item["source"], item["expression"]
-        if not all(isinstance(v, str) and v.strip() for v in (path, original, expression)):
+        required = {"path", "source", "expression", "phase"}
+        if not isinstance(item, dict) or set(item) != required:
+            raise ValueError("dependent text requires exactly path, source, expression and phase")
+        path, original, expression, declared_phase = (
+            item["path"],
+            item["source"],
+            item["expression"],
+            item["phase"],
+        )
+        if not all(
+            isinstance(v, str) and v.strip() for v in (path, original, expression, declared_phase)
+        ):
             raise ValueError("dependent text fields must be nonempty strings")
+        if declared_phase not in ("scenario", "wording"):
+            raise ValueError(f"unknown dependent text phase: {declared_phase}")
         if (
             not re.fullmatch(
                 r"documentPatch\.goodsItemDetails\[\d+\]\.handlingInstructions\[\d+\]", path
@@ -496,8 +522,9 @@ def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
             or path not in owned
         ):
             raise ValueError(f"dependent text requires an owned handling instruction: {path}")
-        if path in updates:
+        if path in declared_paths:
             raise ValueError(f"duplicate dependent text path: {path}")
+        declared_paths.add(path)
         if source.get(path) != original:
             raise ValueError(f"dependent text source differs from pinned target: {path}")
         references = re.findall(r"\{([^{}]+)\}", expression)
@@ -505,19 +532,32 @@ def apply_dependent_text(blueprint: SamplingBlueprint, target: dict) -> dict:
         if not references or "{" in literal or "}" in literal:
             raise ValueError(f"dependent text expression has invalid placeholders: {path}")
         for reference in references:
-            if not re.fullmatch(
-                r"documentPatch\.route\.[A-Za-z][A-Za-z0-9]*\.(?:name|country)", reference
-            ):
+            allowed_reference = (
+                re.fullmatch(
+                    r"documentPatch\.route\.[A-Za-z][A-Za-z0-9]*\.(?:name|country)",
+                    reference,
+                )
+                if declared_phase == "scenario"
+                else re.fullmatch(
+                    r"documentPatch\.parties\.(?:[A-Za-z][A-Za-z0-9]*|notifyParties\[\d+\])\.name",
+                    reference,
+                )
+            )
+            if allowed_reference is None:
                 raise ValueError(
-                    f"dependent text only accepts route name or country references: {reference}"
+                    f"dependent text {declared_phase} phase rejects reference: {reference}"
                 )
             if any(
                 not isinstance(leaves.get(reference), str) or not leaves[reference].strip()
                 for leaves in (source, sampled)
             ):
-                raise ValueError(f"dependent text route value is absent or invalid: {reference}")
+                raise ValueError(
+                    f"dependent text {declared_phase} value is absent or invalid: {reference}"
+                )
+        if declared_phase != phase:
+            continue
         # The reviewed expression may replace a printed alias with the canonical
-        # route value; the exact source declaration above pins that decision.
+        # dependency value; the exact source declaration above pins that decision.
         value = re.sub(r"\{([^{}]+)\}", lambda m: sampled[m[1]], expression)
         if sampled.get(path) not in (original, value):
             raise ValueError(f"dependent text handling instruction is absent or conflicts: {path}")

@@ -886,7 +886,20 @@ class ScenarioCatalog:
         validation_ids: frozenset[str],
         load_profiles: RegistryLoadProfiles | None = None,
         flash_points: DgFlashPointRegistry | None = None,
+        fit_observed: bool = True,
     ) -> None:
+        if type(fit_observed) is not bool:
+            raise ValueError("fit_observed must be an explicit boolean")
+        self.fit_observed = fit_observed
+        if not fit_observed and (
+            config.observed_hs_overrides
+            or config.load_profiles is not None
+            or config.profile_weights
+            or config.package_weights
+            or config.equipment_weights
+            or config.equipment_inventory is not None
+        ):
+            raise ValueError("independent sampling cannot use observed cargo/profile configuration")
         self.config, self.countries, self.hs, self.phrases = config, countries, hs, dict(phrases)
         self.load_profiles = load_profiles
         if (flash_points is None) != (config.flash_points is None):
@@ -961,8 +974,10 @@ class ScenarioCatalog:
             observed_rows[sid]["target"]["documentPatch"]["goodsItemDetails"][0]["hsCodes"] = list(
                 override.to_hs6
             )
-        self.observations = tuple(
-            o for r in observed_rows.values() if (o := _observation(r)) is not None
+        self.observations = (
+            tuple(o for r in observed_rows.values() if (o := _observation(r)) is not None)
+            if fit_observed
+            else ()
         )
         self.hazard_identities = _hazard_identity_index(dg)
         self.heading_codes: dict[str, tuple[str, ...]] = {
@@ -1085,6 +1100,7 @@ class ScenarioCatalog:
         validation_ids: frozenset[str],
         *,
         country_presentations: CountryPresentations | None = None,
+        fit_observed: bool = True,
     ) -> ScenarioCatalog:
         countries = load_iso_country_registry(
             iso_path=_pin(root, config.countries), iso_sha256=config.countries.sha256
@@ -1170,6 +1186,7 @@ class ScenarioCatalog:
             )
             if config.flash_points is not None
             else None,
+            fit_observed=fit_observed,
         )
 
     def _geography(
@@ -2609,6 +2626,10 @@ class ScenarioCatalog:
         capabilities: SourceCapabilities,
         validate_candidate: Callable[[ShipmentScenario], None] | None = None,
     ) -> ShipmentScenario:
+        if not self.fit_observed:
+            raise ValueError(
+                "observed scenario sampling is disabled for this registry-only catalog"
+            )
         sid = source_row["documentId"]
         if capabilities.equipment_mix is not None:
             capabilities.equipment_mix.validate_source(

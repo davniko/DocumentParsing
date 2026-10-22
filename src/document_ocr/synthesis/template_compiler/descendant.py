@@ -55,6 +55,7 @@ from document_ocr.synthesis.linguistic_probe_runtime import (
     model_messages,
     usage_receipt,
 )
+from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
 from document_ocr.synthesis.package_registry import package_category_surface_present
 from document_ocr.synthesis.raw_text_rewrite_cycle_probe import CustomsProgramRegistry
 from document_ocr.synthesis.raw_text_template import (
@@ -2001,6 +2002,11 @@ def _render_certified_date_surface(raw: str, old_iso: str, new_iso: str) -> str:
 
 
 def _package_candidate(source: str, value: str, *, quantity: int | None = None) -> str:
+    alias = PACKAGE_ALIASES.get(value)
+    if alias is not None and alias.singular == alias.plural:
+        # Mass/unpackaged declarations are invariant, not count nouns whose
+        # final token can safely acquire another plural suffix.
+        return _layout_like_source(source, alias.singular)
     # Abbreviations are optional presentation choices, not the package vocabulary.
     # Every validated category has a complete readable surface, including material
     # qualifiers (e.g. FIBRE DRUM), which must never be dropped to fit an old alias.
